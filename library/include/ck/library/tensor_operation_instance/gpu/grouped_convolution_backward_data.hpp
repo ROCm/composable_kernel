@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,7 +11,9 @@
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 
 #ifdef CK_USE_XDL
-#include "grouped_convolution_backward_data_xdl.inc"
+#include "grouped_convolution_backward_data_xdl_comp.inc"
+#include "grouped_convolution_backward_data_xdl_mem_inter.inc"
+#include "grouped_convolution_backward_data_xdl_mem_intra.inc"
 #endif
 #ifdef CK_USE_WMMA
 #include "grouped_convolution_backward_data_wmma.inc"
@@ -79,7 +81,12 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
                              is_same_v<ComputeTypeB, F16>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_instances(op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_mem_inter_instances(
+                        op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_FP32
@@ -87,7 +94,12 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
                              is_same_v<ComputeTypeB, F32>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_instances(op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_mem_inter_instances(
+                        op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -95,7 +107,11 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
                              is_same_v<ComputeTypeB, BF16>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_bf16_instances(
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_bf16_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_bf16_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_bf16_mem_inter_instances(
                         op_ptrs);
                 }
 #endif
@@ -108,7 +124,12 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
                              is_same_v<ComputeTypeB, F16>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_instances(op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_mem_inter_instances(
+                        op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_FP32
@@ -116,7 +137,12 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
                              is_same_v<ComputeTypeB, F32>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_mem_inter_instances(
+                        op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -124,7 +150,11 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
                              is_same_v<ComputeTypeB, BF16>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_instances(
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_mem_inter_instances(
                         op_ptrs);
                 }
 #endif
@@ -140,7 +170,11 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
                              is_same_v<ComputeTypeB, F16>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f16_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f16_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f16_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f16_mem_inter_instances(
                         op_ptrs);
                 }
 #endif
@@ -149,7 +183,11 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
                              is_same_v<ComputeTypeB, F32>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f32_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f32_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f32_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f32_mem_inter_instances(
                         op_ptrs);
                 }
 #endif
@@ -158,7 +196,11 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
                              is_same_v<ComputeTypeB, BF16>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_bf16_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_bf16_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_bf16_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_bf16_mem_inter_instances(
                         op_ptrs);
                 }
 #endif
@@ -171,7 +213,11 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
                              is_same_v<ComputeTypeB, F16>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_mem_inter_instances(
                         op_ptrs);
                 }
 #endif
@@ -180,7 +226,7 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, bf8_t> &&
                              is_same_v<ComputeTypeB, f8_t>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_input_f16_comp_bf8f8_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_input_f16_comp_bf8f8_mem_instances(
                         op_ptrs);
                 }
 #endif
@@ -189,7 +235,11 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
                              is_same_v<ComputeTypeB, F32>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_mem_inter_instances(
                         op_ptrs);
                 }
 #endif
@@ -198,7 +248,11 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
                              is_same_v<ComputeTypeB, BF16>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_comp_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_mem_intra_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_mem_inter_instances(
                         op_ptrs);
                 }
 #endif

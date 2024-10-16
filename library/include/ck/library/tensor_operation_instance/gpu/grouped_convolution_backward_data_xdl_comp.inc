@@ -9,7 +9,7 @@ namespace device {
 namespace instance {
 
 #ifdef CK_ENABLE_FP16
-void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   GNHWK,
                                                                   GKYXC,
@@ -25,7 +25,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_instances(
 
 #endif
 #ifdef CK_ENABLE_FP32
-void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   GNHWK,
                                                                   GKYXC,
@@ -40,7 +40,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_instances(
                                                                   PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_BF16
-void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_bf16_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_bf16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   GNHWK,
                                                                   GKYXC,
@@ -56,7 +56,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_bf16_instances(
 #endif
 
 #ifdef CK_ENABLE_FP16
-void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NHWGK,
                                                                   GKYXC,
@@ -71,7 +71,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_instances(
                                                                   PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_FP32
-void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NHWGK,
                                                                   GKYXC,
@@ -86,7 +86,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(
                                                                   PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_BF16
-void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NHWGK,
                                                                   GKYXC,
@@ -103,7 +103,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_instances(
 
 // conv3d backward data
 #ifdef CK_ENABLE_FP16
-void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f16_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   GNDHWK,
                                                                   GKZYXC,
@@ -118,7 +118,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f16_instances(
                                                                   PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_FP32
-void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f32_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f32_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   GNDHWK,
                                                                   GKZYXC,
@@ -133,7 +133,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f32_instances(
                                                                   PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_BF16
-void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_bf16_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_bf16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   GNDHWK,
                                                                   GKZYXC,
@@ -148,7 +148,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_bf16_instances(
                                                                   PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_FP16
-void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NDHWGK,
                                                                   GKZYXC,
@@ -163,7 +163,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_instances(
                                                                   PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_FP32
-void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NDHWGK,
                                                                   GKZYXC,
@@ -178,7 +178,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_instances(
                                                                   PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_BF16
-void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NDHWGK,
                                                                   GKZYXC,
@@ -191,23 +191,6 @@ void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
-#endif
-#if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
-void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_input_f16_comp_bf8f8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
-                                                                  NDHWGK,
-                                                                  GKZYXC,
-                                                                  Empty_Tuple,
-                                                                  NDHWGC,
-                                                                  F16,
-                                                                  F16,
-                                                                  Empty_Tuple,
-                                                                  F16,
-                                                                  PassThrough,
-                                                                  PassThrough,
-                                                                  PassThrough,
-                                                                  BF8,
-                                                                  F8>>>& instances);
 #endif
 
 } // namespace instance
