@@ -102,6 +102,12 @@ if(CK_USE_CODEGEN)
     add_definitions(-DCK_USE_CODEGEN)
 endif()
 
+# enable prevent in source build
+include(PreventInSourceBuilds)
+
+# enable cache system
+include(Cache)
+
 include(getopt)
 
 # CK version file to record release version as well as git commit hash
