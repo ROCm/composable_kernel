@@ -2,9 +2,6 @@
 #include "layernorm2d_fwd.hpp"
 #include <cstring>
 
-extern float layernorm2d_fwd_fp16(layernorm2d_fwd_args& param, ck_tile::stream_config stream);
-extern float layernorm2d_fwd_fp32(layernorm2d_fwd_args& param, ck_tile::stream_config stream);
-
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -95,18 +92,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                               M,
                               N};
 
-    float ave_time = .0;
-
-    if constexpr(std::is_same<DataType, ck_tile::fp16_t>::value)
-    {
-        ave_time =
-            layernorm2d_fwd_fp16(args, ck_tile::stream_config{nullptr, true, 0, warmup, repeat});
-    }
-    else if constexpr(std::is_same<DataType, float>::value)
-    {
-        ave_time =
-            layernorm2d_fwd_fp32(args, ck_tile::stream_config{nullptr, true, 0, warmup, repeat});
-    }
+    float ave_time =
+        layernorm2d_fwd(traits, args, ck_tile::stream_config{nullptr, true, 0, warmup, repeat});
 
     std::size_t num_byte = sizeof(XDataType) * M * N + sizeof(GammaDataType) * N +
                            sizeof(BetaDataType) * N + sizeof(YDataType) * M * N;

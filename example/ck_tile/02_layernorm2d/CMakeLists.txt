@@ -5,7 +5,7 @@ message("adding example ${EXAMPLE_LAYERNORM2D_FWD}")
 file(GLOB INSTANCE_SRCS instances/*.cpp)
 add_executable(${EXAMPLE_LAYERNORM2D_FWD} EXCLUDE_FROM_ALL example_layernorm2d_fwd.cpp)
 target_include_directories(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE layernorm2d_fwd_fp16.cpp layernorm2d_fwd_fp32.cpp ${INSTANCE_SRCS})
+target_sources(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE layernorm2d_fwd_api.cpp ${INSTANCE_SRCS})
 
 set(EXAMPLE_LAYERNORM2D_FWD_COMPILE_OPTIONS)
 
