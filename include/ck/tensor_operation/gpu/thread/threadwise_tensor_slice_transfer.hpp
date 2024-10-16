@@ -1133,12 +1133,13 @@ struct ThreadwiseTensorSliceTransfer_v4
             }
             else if constexpr(SrcBuffer::IsStaticBuffer())
             {
+                static_assert(false, "");
                 static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
                     constexpr index_t src_offset = src_desc.CalculateOffset(
                         src_ref_to_origin_disp_idx + data_to_origin_disp_idx +
                         i * src_scalar_step_in_vector);
 
-                    src_tmp_vector.template AsType<SrcData>()(i) = src_buf[Number<src_offset / PackedSize>{}];
+                    src_tmp_vector.template AsType<SrcData>()(i) = src_buf[Number<src_offset>{}];
                 });
             }
 

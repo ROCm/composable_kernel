@@ -185,10 +185,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 [&](auto i) { return Number<src_data_idx[i]>{}; }, Number<src_data_idx.Size()>{});
 
             // maintain a container record is_src_valid, waiting for RunWrite use.
-            const bool is_src_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
-            src_oob_thread_scratch_tuple_(thread_scratch_id)
-                .template SetAsType<bool>(src_data_idx_seq, is_src_valid);
+            //const bool is_src_valid =
+                //coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+            //src_oob_thread_scratch_tuple_(thread_scratch_id)
+                //.template SetAsType<bool>(src_data_idx_seq, is_src_valid);
 
             using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
@@ -347,13 +347,13 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
             using vector_t = typename vector_type_maker<DstData, SrcScalarPerVector>::type::type;
 
-            auto op_r = src_thread_scratch_tuple_(thread_scratch_id)
+            auto op_r_v = src_thread_scratch_tuple_(thread_scratch_id)
                             .template GetAsType<vector_t>(src_data_idx_seq);
 
-            const bool is_src_valid = src_oob_thread_scratch_tuple_(thread_scratch_id)
-                                          .template GetAsType<bool>(src_data_idx_seq);
+            //const bool is_src_valid = src_oob_thread_scratch_tuple_(thread_scratch_id)
+                                          //.template GetAsType<bool>(src_data_idx_seq);
 
-            auto op_r_v = is_src_valid ? op_r : vector_t(0);
+            //auto op_r_v = is_src_valid ? op_r : vector_t(0);
 
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<vector_t>(src_data_idx_seq, op_r_v);
@@ -537,8 +537,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             constexpr auto dst_data_idx_seq = generate_sequence_v2(
                 [&](auto i) { return Number<dst_data_idx[i]>{}; }, Number<dst_data_idx.Size()>{});
 
-            const bool is_dst_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
+            //const bool is_dst_valid =
+                //coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
             using dst_vector_type = vector_type_maker_t<DstData, DstScalarPerVector>;
             using dst_vector_t    = typename dst_vector_type::type;
@@ -552,15 +552,13 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
                 // apply DstElementwiseOperation
                 dst_element_op_(dst_v, dst_vector_container.template AsType<DstData>()[i]);
-
-                dst_vector_container.template AsType<DstData>()(i) = dst_v;
             });
 
             // copy data from dst_vector_container to dst_buf
             dst_buf.template Set<dst_vector_t>(
-                dst_coord_.GetOffset() / PackedSize,
-                is_dst_valid,
-                dst_vector_container.template AsType<dst_vector_t>()[I0]);
+                    dst_coord_.GetOffset() / PackedSize,
+                    true,
+                    dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -612,7 +610,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -670,7 +668,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
 
@@ -756,12 +754,12 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     __device__ static constexpr auto GetSrcThreadScratchDescriptor()
     {
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
         constexpr auto src_access_lengths_and_vector_length = container_push_back(
-            sequence_to_tuple_of_number(src_access_lengths), Number<SrcScalarPerVector>{});
+            sequence_to_tuple_of_number(src_access_lengths), Number<SrcScalarPerVector_>{});
 
         // 1st stage of transforms
         constexpr auto desc0 =
@@ -805,7 +803,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     __device__ static constexpr auto GetSrcOOBThreadScratchDescriptor()
     {
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -816,12 +814,12 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     {
         // 1st stage of transforms
         constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
 
         constexpr auto dst_access_lengths_and_vector_length = container_push_back(
-            sequence_to_tuple_of_number(dst_access_lengths), Number<DstScalarPerVector>{});
+            sequence_to_tuple_of_number(dst_access_lengths), Number<DstScalarPerVector_>{});
 
         constexpr auto desc0 =
             make_naive_tensor_descriptor_packed(dst_access_lengths_and_vector_length);
@@ -874,12 +872,12 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                                         decltype(src_thread_scratch_desc_),
                                         true>;
 
-    using SrcOOBThreadScratch =
-        StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
-                                        bool, // apply data_convert with SrcThreadScratch
-                                        1,
-                                        decltype(src_oob_thread_scratch_desc_),
-                                        true>;
+    //using SrcOOBThreadScratch =
+        //StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
+                                        //bool, // apply data_convert with SrcThreadScratch
+                                        //1,
+                                        //decltype(src_oob_thread_scratch_desc_),
+                                        //true>;
 
     using DstThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
                                                              DstData,
@@ -888,7 +886,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                                                              true>;
 
     StaticallyIndexedArray<SrcThreadScratch, NumThreadScratch> src_thread_scratch_tuple_;
-    StaticallyIndexedArray<SrcOOBThreadScratch, NumThreadScratch> src_oob_thread_scratch_tuple_;
+    //StaticallyIndexedArray<SrcOOBThreadScratch, NumThreadScratch> src_oob_thread_scratch_tuple_;
 
     DstThreadScratch dst_thread_scratch_;
 

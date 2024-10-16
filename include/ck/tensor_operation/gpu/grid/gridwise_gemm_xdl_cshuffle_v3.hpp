@@ -775,7 +775,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             // NLdsLayer * K0 as logical Bank
             constexpr index_t LdsSize = 32 * 4 / KPerBlock / sizeof(BDataType);
-            constexpr auto NLdsLayer =   LdsSize < 1 ? 1 : LdsSize;
+            constexpr index_t NLdsLayer =   LdsSize < 1 ? 1 : LdsSize;
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     BK0Number * Number<NLdsLayer>{}, Number<NPerBlock / NLdsLayer>{}, BK1Number),
@@ -1318,17 +1318,14 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
-        constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
-                b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
-
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared), a_block_space_size_aligned);
+            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             reinterpret_cast<BDataType*>(static_cast<char*>(p_shared) +
                 a_block_space_size_aligned * sizeof(ADataType) / APackedSize),
-            b_block_space_size_aligned);
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
