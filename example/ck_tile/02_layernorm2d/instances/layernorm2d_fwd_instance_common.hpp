@@ -34,18 +34,9 @@ float layernorm2d_fwd_(const S& s, A a)
     constexpr dim3 blocks                  = Kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
-    return ck_tile::launch_kernel(s,
-                                  ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{},
-                                                                              grids,
-                                                                              blocks,
-                                                                              0,
-                                                                              a.p_x,
-                                                                              a.p_gamma,
-                                                                              a.p_beta,
-                                                                              a.p_y,
-                                                                              a.p_mean,
-                                                                              a.p_invStd,
-                                                                              a.epsilon,
-                                                                              a.M,
-                                                                              a.N));
+    auto kargs = Kernel::MakeKargs(
+        a.p_x, a.p_gamma, a.p_beta, a.p_y, a.p_mean, a.p_invStd, a.epsilon, a.M, a.N);
+
+    return ck_tile::launch_kernel(
+        s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 }
