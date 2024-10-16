@@ -134,15 +134,18 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
-        constexpr index_t kNPerBlock = max(Problem::kMaxSplits, get_warp_size());
+        constexpr index_t kNPerBlock = Problem::kMaxSplits;
         constexpr index_t kMPerBlock = Problem::kM0;
 
-        constexpr index_t NThreads   = get_warp_size();
+        constexpr index_t NThreads   = 4;
         constexpr index_t NPerThread = kNPerBlock / NThreads;
 
-        constexpr index_t MThreads   = kBlockSize / NThreads;
-        constexpr index_t MPerThread = kMPerBlock / MThreads;
+        constexpr index_t MThreadPerWarp = get_warp_size() / NThreads;
+        constexpr index_t MWarps         = kMPerBlock / MThreadPerWarp;
+        constexpr index_t MThreads       = MThreadPerWarp * MWarps;
+        constexpr index_t MPerThread     = kMPerBlock / MThreads;
 
+        static_assert(kBlockSize % MWarps == 0);
         static_assert(NThreads * NPerThread == kNPerBlock);
         static_assert(MThreads * MPerThread == kMPerBlock);
 
