@@ -276,7 +276,7 @@ struct f8_ocp_t
     __host__ explicit operator float() const
 #endif
     {
-#if CK_FP8_CVT_FAST_PATH
+#if defined(__gfx950__) || defined(__gfx1200__) || defined(__gfx1201__)
         return fp8_impl::cast_to_f32_from_f8<default_interpret>(this->data);
 #else
         return fp8_impl::cast_from_f8<float, wm, we, false>(
@@ -290,7 +290,7 @@ struct f8_ocp_t
     __host__ explicit operator _Float16() const
 #endif
     {
-#if CK_FP8_CVT_FAST_PATH
+#if defined(__gfx950__) || defined(__gfx1200__) || defined(__gfx1201__)
         return static_cast<_Float16>(fp8_impl::cast_to_f32_from_f8<default_interpret>(this->data));
 #else
         return fp8_impl::cast_from_f8<_Float16, wm, we, false>(
@@ -322,7 +322,7 @@ struct bf8_ocp_t
     __host__ explicit operator float() const
 #endif
     {
-#if CK_FP8_CVT_FAST_PATH
+#if defined(__gfx950__) || defined(__gfx1200__) || defined(__gfx1201__)
         return fp8_impl::cast_to_f32_from_f8<default_interpret>(this->data);
 #else
         return fp8_impl::cast_from_f8<float, wm, we, false>(
@@ -336,7 +336,7 @@ struct bf8_ocp_t
     __host__ explicit operator _Float16() const
 #endif
     {
-#if CK_FP8_CVT_FAST_PATH
+#if defined(__gfx950__) || defined(__gfx1200__) || defined(__gfx1201__)
         return static_cast<_Float16>(fp8_impl::cast_to_f32_from_f8<default_interpret>(this->data));
 #else
         return fp8_impl::cast_from_f8<_Float16, wm, we, false>(
