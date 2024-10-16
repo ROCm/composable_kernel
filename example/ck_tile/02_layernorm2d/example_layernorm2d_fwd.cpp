@@ -2,6 +2,23 @@
 #include "layernorm2d_fwd.hpp"
 #include <cstring>
 
+// different threshold for different dtype
+template <typename DataType>
+auto get_elimit()
+{
+    double rtol = 1e-3;
+    double atol = 1e-3;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
+auto get_elimit<ck_tile::bf16_t>()
+{
+    double rtol = 1e-2;
+    double atol = 1e-2;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -51,7 +68,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::HostTensor<MeanDataType> mean_host_ref({M});
     ck_tile::HostTensor<InvStdDataType> invStd_host_ref({M});
-
 
     ck_tile::FillUniformDistribution<XDataType>{-.5f, .5f}(x_host);
     ck_tile::FillUniformDistribution<GammaDataType>{-.5f, .5f}(gamma_host);
@@ -105,13 +121,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         y_buf.FromDevice(y_host_dev.data());
 
-        pass = ck_tile::check_err(y_host_dev, y_host_ref);
+        auto [rtol, atol] = get_elimit<DataType>();
+        pass              = ck_tile::check_err(
+            y_host_dev, y_host_ref, std::string("OUT Error: Incorrect results!"), rtol, atol);
 
-        std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
+        std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
-
-    std::cout << std::endl << std::flush;
-    std::cout << "pass = " << pass << std::endl;
 
     return pass;
 }
@@ -126,6 +141,10 @@ int main(int argc, char* argv[])
     if(data_type == "fp16")
     {
         return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
+    }
+    if(data_type == "bf16")
+    {
+        return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
     }
 
     return -3;

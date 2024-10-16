@@ -24,14 +24,14 @@ struct LayerNormTypeConfig<ck_tile::half_t>
 };
 
 template <>
-struct LayerNormTypeConfig<float>
+struct LayerNormTypeConfig<ck_tile::bf16_t>
 {
-    using XDataType       = float;
-    using YDataType       = float;
-    using GammaDataType   = float;
-    using BetaDataType    = float;
-    using MeanDataType    = float;
-    using InvStdDataType  = float;
+    using XDataType       = ck_tile::bf16_t;
+    using YDataType       = ck_tile::bf16_t;
+    using GammaDataType   = ck_tile::bf16_t;
+    using BetaDataType    = ck_tile::bf16_t;
+    using MeanDataType    = ck_tile::bf16_t;
+    using InvStdDataType  = ck_tile::bf16_t;
     using ComputeDataType = float;
 };
 
