@@ -127,10 +127,6 @@ int main(int argc, char* argv[])
     {
         return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
     }
-    if(data_type == "fp32")
-    {
-        return run<float>(arg_parser) ? 0 : -2;
-    }
 
     return -3;
 }
