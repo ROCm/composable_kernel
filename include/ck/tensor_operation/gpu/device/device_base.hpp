@@ -3,15 +3,17 @@
 
 #pragma once
 
+#ifndef CK_CODE_GEN_RTC
 #include <string>
 #include <sstream>
-
 #include "ck/stream_config.hpp"
+#endif
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
+#ifndef CK_CODE_GEN_RTC
 struct BaseArgument
 {
     BaseArgument()                    = default;
@@ -36,13 +38,14 @@ struct BaseInvoker
 
     virtual ~BaseInvoker() {}
 };
+#endif
 
 struct BaseOperator
 {
     BaseOperator()                    = default;
     BaseOperator(const BaseOperator&) = default;
     BaseOperator& operator=(const BaseOperator&) = default;
-
+#ifndef CK_CODE_GEN_RTC
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
     virtual std::string GetTypeString() const { return ""; }
 
@@ -66,7 +69,7 @@ struct BaseOperator
         assert(p_arg);
         p_arg->p_workspace_ = p_workspace;
     }
-
+#endif
     virtual ~BaseOperator() {}
 };
 
