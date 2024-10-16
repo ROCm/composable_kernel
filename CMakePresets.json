@@ -11,7 +11,6 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "GPU_TARGETS": "gfx950",
                 "BUILD_DEV": "ON",
                 "CMAKE_CXX_COMPILER": "/opt/rocm/llvm/bin/clang++",
                 "CMAKE_PREFIX_PATH": "/opt/rocm"
@@ -32,6 +31,7 @@
                 "NONE": ""
             },
             "cacheVariables": {
+                "GPU_TARGETS": "gfx950",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_CXX_FLAGS": "-O0 -ggdb"
             }
@@ -39,8 +39,29 @@
         {
             "name": "MI355-release",
             "displayName": "MI355 Release",
-            "inherits": "MI355-debug",
+            "inherits": "linux-debug",
             "cacheVariables": {
+                "GPU_TARGETS": "gfx950",
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_FLAGS": "-O3"
+            }
+        },
+        {
+            "name": "MI300X-release",
+            "displayName": "MI300X Release",
+            "inherits": "linux-debug",
+            "cacheVariables": {
+                "GPU_TARGETS": "gfx942",
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_FLAGS": "-O3"
+            }
+        },
+        {
+            "name": "MI250-release",
+            "displayName": "MI250 Release",
+            "inherits": "linux-debug",
+            "cacheVariables": {
+                "GPU_TARGETS": "gfx90a",
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_CXX_FLAGS": "-O3"
             }
@@ -72,6 +93,26 @@
             "displayName": "MI355",
             "configurePreset": "MI355-release",
             "description": "Build Environment for MI355 Release.",
+            "inherits": [
+                "Release"
+            ],
+            "jobs": 128
+        },
+        {
+            "name": "MI300X-release",
+            "displayName": "MI300X",
+            "configurePreset": "MI300X-release",
+            "description": "Build Environment for MI300X Release.",
+            "inherits": [
+                "Release"
+            ],
+            "jobs": 128
+        },
+        {
+            "name": "MI250-release",
+            "displayName": "MI250",
+            "configurePreset": "MI250-release",
+            "description": "Build Environment for MI250 Release.",
             "inherits": [
                 "Release"
             ],
