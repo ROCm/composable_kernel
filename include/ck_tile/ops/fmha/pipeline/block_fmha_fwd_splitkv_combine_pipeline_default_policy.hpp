@@ -21,14 +21,23 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentOacc()
     {
         using OaccDataType = remove_cvref_t<typename Problem::OaccDataType>;
-        return 16 / sizeof(OaccDataType);
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kNPerBlock = Problem::kN1;
+
+        constexpr index_t M1 = kBlockSize / get_warp_size();
+        constexpr index_t M2 = min(kMPerBlock / M1, get_warp_size());
+        constexpr index_t N0 = get_warp_size() / M2;
+        constexpr index_t N1 = kNPerBlock / N0;
+
+        return min(N1, static_cast<index_t>(16 / sizeof(OaccDataType)));
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentO()
     {
-        using ODataType = remove_cvref_t<typename Problem::ODataType>;
-        return 16 / sizeof(ODataType);
+        return GetAlignmentOacc<Problem>();
     }
 
     template <typename Problem>
@@ -150,16 +159,14 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOaccDramTileDistribution()
     {
-        using OaccDataType = remove_cvref_t<typename Problem::OaccDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::kM0;
         constexpr index_t kNPerBlock = Problem::kN1;
 
-        constexpr index_t N1 = 16 / sizeof(OaccDataType);
-        constexpr index_t N0 = kNPerBlock / N1;
-        constexpr index_t M2 = get_warp_size() / N0;
         constexpr index_t M1 = kBlockSize / get_warp_size();
+        constexpr index_t M2 = min(kMPerBlock / M1, get_warp_size());
+        constexpr index_t N0 = get_warp_size() / M2;
+        constexpr index_t N1 = kNPerBlock / N0;
         constexpr index_t M0 = kMPerBlock / (M2 * M1);
 
         return make_static_tile_distribution(
