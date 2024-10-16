@@ -149,14 +149,15 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
         static_assert(NThreads * NPerThread == kNPerBlock);
         static_assert(MThreads * MPerThread == kMPerBlock);
 
+        // duplicate MWarps if less than (kBlockSize / get_warp_size())
         return make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<1>,
-                tuple<sequence<MThreads, MPerThread>, sequence<NThreads, NPerThread>>,
-                tuple<sequence<1>, sequence<2>>,
-                tuple<sequence<0>, sequence<0>>,
+                tuple<sequence<MWarps, MThreadPerWarp, MPerThread>, sequence<NThreads, NPerThread>>,
+                tuple<sequence<0, 1>, sequence<2, 1>>,
+                tuple<sequence<0, 0>, sequence<0, 1>>,
                 sequence<1, 2>,
-                sequence<1, 1>>{});
+                sequence<2, 1>>{});
     }
 
     template <typename Problem>
