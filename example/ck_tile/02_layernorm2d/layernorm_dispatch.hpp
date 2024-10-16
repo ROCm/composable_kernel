@@ -83,7 +83,7 @@ float run_layernorm(const layernorm2d_fwd_args& param, ck_tile::stream_config st
                               NRepeat,
                               NThread,
                               VectorAccessSize,
-                              kSaveMeanInvStd,
                               kPadN,
+                              kSaveMeanInvStd,
                               kTwoPass>::Run(param, stream);
 };
