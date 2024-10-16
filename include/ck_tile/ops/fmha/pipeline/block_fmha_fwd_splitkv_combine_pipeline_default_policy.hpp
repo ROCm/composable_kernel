@@ -132,8 +132,6 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccRegTileDistribution()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-
         constexpr index_t kNPerBlock = Problem::kMaxSplits;
         constexpr index_t kMPerBlock = Problem::kM0;
 
@@ -145,17 +143,16 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
         constexpr index_t MThreads       = MThreadPerWarp * MWarps;
         constexpr index_t MPerThread     = kMPerBlock / MThreads;
 
-        static_assert(kBlockSize % MWarps == 0);
+        static_assert(MWarps <= 4);
         static_assert(NThreads * NPerThread == kNPerBlock);
         static_assert(MThreads * MPerThread == kMPerBlock);
 
-        // duplicate MWarps if less than (kBlockSize / get_warp_size())
         return make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<1>,
                 tuple<sequence<MWarps, MThreadPerWarp, MPerThread>, sequence<NThreads, NPerThread>>,
-                tuple<sequence<0, 1>, sequence<2, 1>>,
-                tuple<sequence<0, 0>, sequence<0, 1>>,
+                tuple<sequence<1>, sequence<2, 1>>,
+                tuple<sequence<0>, sequence<0, 1>>,
                 sequence<1, 2>,
                 sequence<2, 1>>{});
     }
