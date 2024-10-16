@@ -10,6 +10,7 @@
 
 namespace ck_tile {
 // To be removed, which really does not tell the location of failed HIP functional call
+#if 0
 CK_TILE_HOST void hip_check_error(hipError_t x)
 {
     if(x != hipSuccess)
@@ -20,6 +21,7 @@ CK_TILE_HOST void hip_check_error(hipError_t x)
         throw std::runtime_error(ss.str());
     }
 }
+#endif
 } // namespace ck_tile
 
 #define HIP_CHECK_ERROR(retval_or_funcall)                                         \

@@ -82,6 +82,7 @@ coordinate_has_valid_offset_assuming_top_index_is_valid(const TensorDesc& tensor
     return adaptor_coordinate_is_valid_assuming_top_index_is_valid(tensor_desc, coord);
 }
 
+// TODO: not actually used in ck_tile, maybe can deprecate this
 template <typename TensorDesc, typename TensorCoord>
 CK_TILE_HOST_DEVICE constexpr bool coordinate_has_valid_offset(const TensorDesc& tensor_desc,
                                                                const TensorCoord& coord)

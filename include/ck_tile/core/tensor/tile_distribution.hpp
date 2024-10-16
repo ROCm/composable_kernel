@@ -17,6 +17,14 @@
 
 namespace ck_tile {
 
+namespace detail {
+template <typename Distribution>
+CK_TILE_HOST_DEVICE auto get_partition_index(Distribution)
+{
+    return Distribution::_get_partition_index();
+}
+} // namespace detail
+
 // distributed span
 template <index_t... PartialHsLengths>
 struct tile_distributed_span
@@ -83,6 +91,21 @@ struct tile_distribution
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_p() { return NDimP; }
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_r() { return NDimR; }
 
+    CK_TILE_HOST_DEVICE static auto _get_partition_index()
+    {
+        // only support warp-tile and block-tile
+        static_assert(NDimP == 1 or NDimP == 2, "wrong!");
+
+        if constexpr(NDimP == 1)
+        {
+            return array<index_t, 1>{get_lane_id()};
+        }
+        else if constexpr(NDimP == 2)
+        {
+            return array<index_t, 2>{get_warp_id(), get_lane_id()};
+        }
+    }
+
     CK_TILE_HOST_DEVICE static constexpr auto get_lengths()
     {
 #if 0
@@ -148,6 +171,16 @@ struct tile_distribution
         return rs_idx;
     }
 #endif
+
+    template <typename PartitionIndex = decltype(_get_partition_index())>
+    CK_TILE_HOST_DEVICE auto
+    calculate_index(const PartitionIndex& ps_idx = _get_partition_index()) const
+    {
+        const auto ps_ys_idx = container_concat(ps_idx, array<index_t, NDimY>{0});
+        const auto window_adaptor_thread_coord_tmp =
+            make_tensor_adaptor_coordinate(ps_ys_to_xs_, ps_ys_idx);
+        return window_adaptor_thread_coord_tmp.get_bottom_index();
+    }
 
     CK_TILE_HOST_DEVICE static constexpr auto get_distributed_spans()
     {
@@ -421,6 +454,7 @@ struct tile_distribution_detail
 
 } // namespace detail
 
+#if 0
 // this returns a constexpr tile_distribution
 template <typename StaticTileDistributionEncoding_>
 CK_TILE_HOST_DEVICE constexpr auto make_tile_distribution(StaticTileDistributionEncoding_)
@@ -457,6 +491,7 @@ CK_TILE_HOST_DEVICE constexpr auto make_tile_distribution(StaticTileDistribution
         detail::tile_distribution_detail<remove_cvref_t<decltype(rh_major_minor_to_hidden_ids)>>>{
         ps_ys_to_xs_adaptor, ys_to_d_descriptor};
 }
+#endif
 
 // this returns a static tile_distribution
 template <typename StaticTileDistributionEncoding_>
@@ -499,129 +534,6 @@ CK_TILE_HOST_DEVICE constexpr auto make_static_tile_distribution(StaticTileDistr
 //***********************************************************************************
 
 namespace detail {
-
-template <typename Distribution>
-CK_TILE_HOST_DEVICE auto get_partition_index(Distribution)
-{
-    // only support warp-tile and block-tile
-    static_assert(Distribution::NDimP == 1 or Distribution::NDimP == 2, "wrong!");
-
-    if constexpr(Distribution::NDimP == 1)
-    {
-        return array<index_t, 1>{get_lane_id()};
-    }
-    else if constexpr(Distribution::NDimP == 2)
-    {
-        return array<index_t, 2>{get_warp_id(), get_lane_id()};
-    }
-}
-
-template <typename, typename, typename, index_t>
-struct reverse_slice_sequence_impl;
-
-template <index_t x,
-          index_t... xs,
-          index_t m,
-          index_t... ms,
-          index_t id,
-          index_t... ids,
-          index_t SliceSize>
-struct reverse_slice_sequence_impl<sequence<x, xs...>,
-                                   sequence<m, ms...>,
-                                   sequence<id, ids...>,
-                                   SliceSize>
-{
-    using old_scan =
-        reverse_slice_sequence_impl<sequence<xs...>, sequence<ms...>, sequence<ids...>, SliceSize>;
-
-    static constexpr auto slice_size = old_scan::remaining_slice_sizes::front().value;
-    static constexpr auto slice_length =
-        std::conditional_t<m, number<gcd(x, slice_size)>, number<x>>::value;
-
-    using dim_lengths =
-        typename sequence_merge<sequence<slice_length>, typename old_scan::dim_lengths>::type;
-    using dim_slices =
-        typename sequence_merge<sequence<x / slice_length>, typename old_scan::dim_slices>::type;
-    using remaining_slice_sizes = typename sequence_merge<
-        std::conditional_t<m, sequence<slice_size / slice_length>, sequence<slice_size>>,
-        typename old_scan::remaining_slice_sizes>::type;
-
-    // the first idx that sliced length not equal to original length
-    static constexpr index_t _flag =
-        slice_length != x && remaining_slice_sizes{}.front().value == 1;
-    static constexpr index_t _split_flag = std::conditional_t<m, number<_flag>, number<0>>::value;
-    static constexpr index_t _split_idx =
-        std::conditional_t<_split_flag, number<id>, number<0>>::value;
-
-    static constexpr index_t split_flag = _split_flag || old_scan::split_flag;
-    static constexpr index_t split_idx  = std::
-        conditional_t<old_scan::split_flag, number<old_scan::split_idx>, number<_split_idx>>::value;
-};
-
-template <index_t x, index_t m, index_t id, index_t SliceSize>
-struct reverse_slice_sequence_impl<sequence<x>, sequence<m>, sequence<id>, SliceSize>
-{
-    static constexpr auto slice_size = SliceSize;
-    static constexpr auto slice_length =
-        std::conditional_t<m, number<gcd(x, slice_size)>, number<x>>::value;
-
-    using dim_lengths = sequence<slice_length>;
-    using dim_slices  = sequence<x / slice_length>;
-    using remaining_slice_sizes =
-        std::conditional_t<m, sequence<slice_size / slice_length>, sequence<slice_size>>;
-
-    // the first idx that sliced length not equal to original length
-    static constexpr index_t _flag =
-        slice_length != x && remaining_slice_sizes{}.front().value == 1;
-    static constexpr index_t split_flag = std::conditional_t<m, number<_flag>, number<0>>::value;
-    static constexpr index_t split_idx =
-        std::conditional_t<split_flag, number<id>, number<0>>::value;
-};
-
-// clang-format off
-// input a sequence(with optional mask), and the SliceSize : size per slice
-// output the sequence each slice, and number of slices
-//
-// e.g. <2, 1, 4, 2>, 8     -> lengths:<1, 1, 4, 2>    , nums: <2, 1, 1, 1>    : 2 slices  , slice_idx: 0
-//      <4, 2, 4, 1, 2>, 4  -> lengths:<1, 1, 2, 1, 2> , nums: <4, 2, 2, 1, 1> : 16 slices , slice_idx: 2
-//      <4, 2, 4, 1, 6>, 4  -> lengths:<1, 1, 2, 1, 2> , nums: <4, 2, 2, 1, 3> : 48 slices , slice_idx: 2
-//      <4, 2, 5, 1, 2>, 10 -> lengths:<1, 1, 5, 1, 2> , nums: <4, 2, 1, 1, 1> : 8 slices  , slice_idx: 1
-//
-//      <4, 2, 8>, 64       -> lengths:<4, 2, 8>       , nums: <1, 1, 1>       : 1  slices , slice_idx: 0
-//      <4, 2, 8>, 32       -> lengths:<2, 2, 8>       , nums: <2, 1, 1>       : 2  slices , slice_idx: 0
-//      <4, 2, 8>, 16       -> lengths:<1, 2, 8>       , nums: <4, 1, 1>       : 4  slices , slice_idx: 0
-//      <4, 2, 8>, 8        -> lengths:<1, 1, 8>       , nums: <4, 2, 1>       : 8  slices , slice_idx: 1
-//      <4, 2, 8>, 4        -> lengths:<1, 1, 4>       , nums: <4, 2, 2>       : 16 slices , slice_idx: 2
-//      <4, 2, 8>, 2        -> lengths:<1, 1, 2>       , nums: <4, 2, 4>       : 32 slices , slice_idx: 2
-//      <4, 2, 8>, 1        -> lengths:<1, 1, 1>       , nums: <4, 2, 8>       : 64 slices , slice_idx: 2
-//
-//      <4, 2, 1, 4, 2> / 4 ->
-// mask:<1, 1, 1, 0, 1>,    -> lengths:<1, 2, 1, 4, 2> , nums: <4, 1, 1, 1, 1> : 8 slices  , slice_idx: 0
-//
-// return tuple<slice_lengths, slice_nums, slice_index>, slice_index is at which index will start
-// have split slices (right -> left)
-//  or the first index that sliced length is different from the original length
-// clang-format on
-template <typename Seq,
-          index_t SliceSize,
-          typename Mask = typename uniform_sequence_gen<Seq::size(), 1>::type>
-constexpr auto reverse_slice_sequence(Seq,
-                                      number<SliceSize>,
-                                      Mask = typename uniform_sequence_gen<Seq::size(), 1>::type{})
-{
-    static_assert(Seq::size() == Mask::size());
-    using sliced_type =
-        reverse_slice_sequence_impl<Seq,
-                                    Mask,
-                                    typename arithmetic_sequence_gen<0, Seq::size(), 1>::type,
-                                    SliceSize>;
-    static_assert(sliced_type::remaining_slice_sizes::front().value == 1,
-                  "can not evenly divide this sequence, please check");
-    return make_tuple(typename sliced_type::dim_lengths{},
-                      typename sliced_type::dim_slices{},
-                      number<sliced_type::split_idx>{});
-}
-
 //
 // slice tensor from x_dim, result in split in y_dim, not p_dim.
 // We don't support slice cross p_dim (aka, slice different threads)
