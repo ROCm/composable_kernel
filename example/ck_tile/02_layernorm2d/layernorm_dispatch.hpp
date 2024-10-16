@@ -14,6 +14,7 @@ template <typename InOutDataType,
           ck_tile::index_t NThread,
           ck_tile::index_t VectorAccessSize,
           bool kPadN,
+          bool kSaveMeanInvStd,
           bool kTwoPass>
 struct layernorm_dispatch
 {
@@ -38,6 +39,7 @@ struct layernorm_dispatch
         typename LayerNormTypeConfig<InOutDataType>::InvStdDataType,
         Shape,
         kPadN,
+        kSaveMeanInvStd,
         kTwoPass>;
 
     using Kernel = ck_tile::Layernorm2dFwd<PipelineProblem>;
@@ -75,6 +77,13 @@ template <typename InOutDataType,
           bool kTwoPass = false>
 float run_layernorm(const layernorm2d_fwd_args& param, ck_tile::stream_config stream)
 {
-    return layernorm_dispatch<InOutDataType, NRepeat, NThread, VectorAccessSize, kPadN, kTwoPass>::
-        Run(param, stream);
+    // TODO - Add SaveMeanInvStd instance
+    constexpr bool kSaveMeanInvStd = false;
+    return layernorm_dispatch<InOutDataType,
+                              NRepeat,
+                              NThread,
+                              VectorAccessSize,
+                              kSaveMeanInvStd,
+                              kPadN,
+                              kTwoPass>::Run(param, stream);
 };

@@ -52,11 +52,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<MeanDataType> mean_host_ref({M});
     ck_tile::HostTensor<InvStdDataType> invStd_host_ref({M});
 
-// TODO - move SAVE_MEAN_INV_STD to user args
-#ifdef SAVE_MEAN_INV_STD
-    ck_tile::HostTensor<MeanDataType> mean_host_dev({M});
-    ck_tile::HostTensor<InvStdDataType> invStd_host_dev({M});
-#endif
 
     ck_tile::FillUniformDistribution<XDataType>{-.5f, .5f}(x_host);
     ck_tile::FillUniformDistribution<GammaDataType>{-.5f, .5f}(gamma_host);
@@ -66,10 +61,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem gamma_buf(gamma_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem beta_buf(beta_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_buf(y_host_dev.get_element_space_size_in_bytes());
-#ifdef SAVE_MEAN_INV_STD
-    ck_tile::DeviceMem mean_buf(mean_host_dev.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem invStd_buf(invStd_host_dev.get_element_space_size_in_bytes());
-#endif
 
     x_buf.ToDevice(x_host.data());
     gamma_buf.ToDevice(gamma_host.data());
@@ -81,13 +72,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                               gamma_buf.GetDeviceBuffer(),
                               beta_buf.GetDeviceBuffer(),
                               y_buf.GetDeviceBuffer(),
-#ifdef SAVE_MEAN_INV_STD
-                              mean_buf.GetDeviceBuffer(),
-                              invStd_buf.GetDeviceBuffer(),
-#else
                               nullptr,
                               nullptr,
-#endif
                               epsilon,
                               M,
                               N};

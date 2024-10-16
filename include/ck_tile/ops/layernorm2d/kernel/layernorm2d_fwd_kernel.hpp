@@ -26,8 +26,8 @@ struct Layernorm2dFwd
 
     static constexpr bool kHasGamma   = !std::is_same_v<GammaDataType, ck_tile::null_type>;
     static constexpr bool kHasBeta    = !std::is_same_v<BetaDataType, ck_tile::null_type>;
-    static constexpr bool kSaveMean   = !std::is_same_v<MeanDataType, ck_tile::null_type>;
-    static constexpr bool kSaveInvStd = !std::is_same_v<InvStdDataType, ck_tile::null_type>;
+    static constexpr bool kSaveMean   = Problem::kSaveMeanInvStd;
+    static constexpr bool kSaveInvStd = Problem::kSaveMeanInvStd;
 
     static constexpr ck_tile::index_t kMPerBlock = Problem::BlockShape::kMPerBlock;
     static constexpr ck_tile::index_t kNPerBlock = Problem::BlockShape::kNPerBlock;
