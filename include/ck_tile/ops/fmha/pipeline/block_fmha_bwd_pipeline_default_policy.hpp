@@ -1795,9 +1795,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         static constexpr index_t kN0        = Problem::BlockFmhaShape::kN0;
         static constexpr index_t kQKHeaddim = Problem::BlockFmhaShape::kQKHeaddim;
         static constexpr index_t kVHeaddim  = Problem::BlockFmhaShape::kVHeaddim;
-        static constexpr index_t kK4        = Problem::BlockFmhaShape::kK4;
         static constexpr index_t kK0        = Problem::BlockFmhaShape::kK0;
         static constexpr index_t kK2        = Problem::BlockFmhaShape::kK2;
+        static constexpr index_t kK4        = Problem::BlockFmhaShape::kK4;
 
         static constexpr index_t WarpGemmM =
             Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});

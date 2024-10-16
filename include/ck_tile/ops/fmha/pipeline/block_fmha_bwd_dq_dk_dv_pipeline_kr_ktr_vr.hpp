@@ -480,9 +480,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
 
         index_t i_total_loops = 0;
         index_t seqlen_q_step = seqlen_q_start;
-        static_assert(kQKHeaddim >= kK0, "kQKHeaddim should equal to or bigger than kK0");
+        static_assert(kQKHeaddim >= kK0, "kQKHeaddim should be equal or greater than kK0");
         static_assert(kM0 == kK1, "kM0 should equal to kK1");
-        static_assert(kVHeaddim >= kK2, "kVHeaddim should equal to or bigger than kK2");
+        static_assert(kVHeaddim >= kK2, "kVHeaddim should be equal or greater than kK2");
         static_assert(kM0 == kK3, "kM0 should equal to kK3");
         constexpr index_t k4_loops = kN0 / kK4;
 
