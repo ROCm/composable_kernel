@@ -5,12 +5,14 @@
 #include "layernorm2d_fwd_instance_common.hpp"
 
 template <ck_tile::index_t NRepeat,
-          ck_tile::index_t NThread,
+          ck_tile::index_t kMThreadPerBlock,
+          ck_tile::index_t kNThreadPerBlock,
           ck_tile::index_t VectorAccessSize,
           bool kTwoPass>
 using t = layernorm2d_fwd_traits_<ck_tile::bf16_t,
                                   NRepeat,
-                                  NThread,
+                                  kMThreadPerBlock,
+                                  kNThreadPerBlock,
                                   VectorAccessSize,
                                   true,
                                   false,
@@ -24,19 +26,19 @@ using t = layernorm2d_fwd_traits_<ck_tile::bf16_t,
 // template float layernorm2d_fwd_<t<4, 64, 8, false>>(const S&, A);
 // template float layernorm2d_fwd_<t<4, 64, 8, true>>(const S&, A);
 
-template float layernorm2d_fwd_<t<1, 32, 4, false>>(const S&, A);
-template float layernorm2d_fwd_<t<1, 64, 4, false>>(const S&, A);
-template float layernorm2d_fwd_<t<2, 64, 4, false>>(const S&, A);
-template float layernorm2d_fwd_<t<4, 64, 4, false>>(const S&, A);
-template float layernorm2d_fwd_<t<8, 64, 4, false>>(const S&, A);
-template float layernorm2d_fwd_<t<8, 64, 4, true>>(const S&, A);
+template float layernorm2d_fwd_<t<1, 4, 32, 4, false>>(const S&, A);
+template float layernorm2d_fwd_<t<1, 4, 64, 4, false>>(const S&, A);
+template float layernorm2d_fwd_<t<2, 4, 64, 4, false>>(const S&, A);
+template float layernorm2d_fwd_<t<4, 4, 64, 4, false>>(const S&, A);
+template float layernorm2d_fwd_<t<8, 4, 64, 4, false>>(const S&, A);
+template float layernorm2d_fwd_<t<8, 4, 64, 4, true>>(const S&, A);
 
-template float layernorm2d_fwd_<t<1, 64, 2, false>>(const S&, A);
-template float layernorm2d_fwd_<t<2, 64, 2, false>>(const S&, A);
-template float layernorm2d_fwd_<t<4, 64, 2, false>>(const S&, A);
-template float layernorm2d_fwd_<t<8, 64, 2, false>>(const S&, A);
-template float layernorm2d_fwd_<t<16, 64, 2, false>>(const S&, A);
-template float layernorm2d_fwd_<t<16, 64, 2, true>>(const S&, A);
+template float layernorm2d_fwd_<t<1, 4, 64, 2, false>>(const S&, A);
+template float layernorm2d_fwd_<t<2, 4, 64, 2, false>>(const S&, A);
+template float layernorm2d_fwd_<t<4, 4, 64, 2, false>>(const S&, A);
+template float layernorm2d_fwd_<t<8, 4, 64, 2, false>>(const S&, A);
+template float layernorm2d_fwd_<t<16, 4, 64, 2, false>>(const S&, A);
+template float layernorm2d_fwd_<t<16, 4, 64, 2, true>>(const S&, A);
 
-template float layernorm2d_fwd_<t<32, 64, 1, false>>(const S&, A);
-template float layernorm2d_fwd_<t<32, 64, 1, true>>(const S&, A);
+template float layernorm2d_fwd_<t<32, 4, 64, 1, false>>(const S&, A);
+template float layernorm2d_fwd_<t<32, 4, 64, 1, true>>(const S&, A);

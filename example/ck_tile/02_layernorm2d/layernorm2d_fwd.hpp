@@ -52,7 +52,8 @@ struct layernorm2d_fwd_args
 // this is used to pattern-match internl kernel implementation, not to instantiate kernel
 template <typename DataType_,
           ck_tile::index_t NRepeat,
-          ck_tile::index_t NThread,
+          ck_tile::index_t kMThreadPerBlock,
+          ck_tile::index_t kNThreadPerBlock,
           ck_tile::index_t VectorAccessSize,
           bool kPadN_,
           bool kSaveMeanInvStd_,
@@ -62,14 +63,17 @@ struct layernorm2d_fwd_traits_
     using DataType = ck_tile::remove_cvref_t<DataType_>;
 
     static constexpr ck_tile::index_t MRepeat = 1;
-    static_assert(NThread <= 64, "We only support intra-wave reduction");
-    static constexpr ck_tile::index_t WaveNum = NThread / 16;
+    static_assert(kNThreadPerBlock <= 64, "We only support intra-wave reduction");
+    static constexpr ck_tile::index_t kNWarpPerBlock = 1;
+    static constexpr ck_tile::index_t kMWarpPerBlock =
+        kMThreadPerBlock * kNThreadPerBlock / warpSize;
+    // kNThreadPerBlock / 16;
 
     using thread_tile = ck_tile::sequence<MRepeat, NRepeat, VectorAccessSize>;
-    using warp_tile =
-        ck_tile::sequence<MRepeat * 64 / NThread, NRepeat * NThread * VectorAccessSize>;
-    using block_tile =
-        ck_tile::sequence<MRepeat * WaveNum * 64 / NThread, NRepeat * NThread * VectorAccessSize>;
+    using warp_tile   = ck_tile::sequence<MRepeat * warpSize / kNThreadPerBlock,
+                                          NRepeat * kNThreadPerBlock * VectorAccessSize>;
+    using block_tile  = ck_tile::sequence<kMWarpPerBlock * MRepeat * warpSize / kNThreadPerBlock,
+                                          NRepeat * kNThreadPerBlock * VectorAccessSize>;
 
     using Shape = ck_tile::TileLayernorm2dShape<thread_tile, warp_tile, block_tile>;
 
