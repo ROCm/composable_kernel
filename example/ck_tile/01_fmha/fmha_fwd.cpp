@@ -122,6 +122,9 @@ auto create_args(int argc, char* argv[])
         .insert("p_drop", "0", "0~1 probability of dropout")
         .insert("drop_seed", "1", "seed for random number generator")
         .insert("drop_offset", "0", "offset for random number generator")
+        .insert("drop_prefs",
+                "0",
+                "seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert(
             "rotary_dim", "0", "RoPE rotary dimension. rotary_dim <= 0 means not apply RoPE at all")
@@ -442,6 +445,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
+    bool drop_prefs      = arg_parser.get_bool("drop_prefs");
+
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
@@ -552,16 +557,33 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 #endif
 
-    auto get_lengths = [&](bool permute,
-                           ck_tile::index_t b /*batch*/,
-                           ck_tile::index_t h /*nhead*/,
-                           ck_tile::index_t s /*seqlen*/,
-                           ck_tile::index_t d /*hdim*/) {
-        if(permute)
-            return std::array<ck_tile::index_t, 4>{b, h, s, d};
-        else
-            return std::array<ck_tile::index_t, 4>{b, s, h, d};
-    };
+    struct
+    {
+        auto operator()(bool permute,
+                        ck_tile::index_t b /*batch*/,
+                        ck_tile::index_t h /*nhead*/,
+                        ck_tile::index_t s /*seqlen*/,
+                        ck_tile::index_t d /*hdim*/)
+        {
+            if(permute)
+                return std::array<ck_tile::index_t, 4>{b, h, s, d};
+            else
+                return std::array<ck_tile::index_t, 4>{b, s, h, d};
+        }
+
+        auto operator()(bool permute,
+                        ck_tile::index_t ns /*num_splits*/,
+                        ck_tile::index_t b /*batch*/,
+                        ck_tile::index_t h /*nhead*/,
+                        ck_tile::index_t s /*seqlen*/,
+                        ck_tile::index_t d /*hdim*/)
+        {
+            if(permute)
+                return std::array<ck_tile::index_t, 5>{ns, b, h, s, d};
+            else
+                return std::array<ck_tile::index_t, 5>{ns, b, s, h, d};
+        }
+    } get_lengths;
 
     bool is_v_rowmajor = vlayout == std::string("r");
 
@@ -617,7 +639,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     ck_tile::HostTensor<OaccDataType> o_acc_host(
         1 < num_splits || use_kvcache
-            ? std::array<ck_tile::index_t, 5>{num_splits, batch, nhead, max_seqlen_q, hdim_v}
+            ? get_lengths(o_perm, num_splits, shape_batch, nhead, shape_seqlen_q, hdim_v)
             : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
     // batch mode of lse data layout is [batch, nhead, seqlen_q]
@@ -739,6 +761,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         need_append_kvcache ? cache_seqlen_ks.size() * sizeof(int32_t) : 0);
     ck_tile::DeviceMem rotary_cos_buf(rotary_cos_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem rotary_sin_buf(rotary_sin_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem drop_seed_buf(drop_prefs ? sizeof(uint64_t) : 0);
+    ck_tile::DeviceMem drop_offset_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem block_table_buf(block_table_host.get_element_space_size_in_bytes());
@@ -757,6 +781,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     cache_seqlen_k_buf.ToDevice(need_append_kvcache ? cache_seqlen_ks.data() : nullptr);
     rotary_cos_buf.ToDevice(rotary_cos_host.data());
     rotary_sin_buf.ToDevice(rotary_sin_host.data());
+    drop_seed_buf.ToDevice(drop_prefs ? &drop_seed : nullptr);
+    drop_offset_buf.ToDevice(drop_prefs ? &drop_offset : nullptr);
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
     block_table_buf.ToDevice(block_table_host.data());
     cache_batch_idx_buf.ToDevice(cache_batch_idx_host.data());
@@ -854,7 +880,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }();
         const ck_tile::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
         const ck_tile::index_t stride_randval = (max_seqlen_k);
-        const ck_tile::index_t stride_o_acc   = hdim_v;
+        const ck_tile::index_t stride_o_acc   = (o_perm ? hdim_v : nhead * hdim_v);
         const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
@@ -881,7 +907,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_lse_acc = shape_seqlen_q;
-        const ck_tile::index_t nhead_stride_o_acc   = (max_seqlen_q * hdim_v);
+        const ck_tile::index_t nhead_stride_o_acc   = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q = (nhead * shape_seqlen_q * hdim_q);
@@ -897,12 +923,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
         const ck_tile::index_t batch_stride_lse_acc = (nhead * shape_seqlen_q);
-        const ck_tile::index_t batch_stride_o_acc   = (nhead * max_seqlen_q * hdim_v);
+        const ck_tile::index_t batch_stride_o_acc   = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
         // setup split_stride_* arguments (only used in split-kv kernel)
         const ck_tile::index_t split_stride_lse_acc = (shape_batch * nhead * shape_seqlen_q);
-        const ck_tile::index_t split_stride_o_acc   = (batch * nhead * max_seqlen_q * hdim_v);
+        const ck_tile::index_t split_stride_o_acc = (shape_batch * nhead * shape_seqlen_q * hdim_v);
 
         args.q_ptr = q_buf.GetDeviceBuffer();
         args.k_ptr = k_buf.GetDeviceBuffer();
@@ -996,9 +1022,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 args.nhead_stride_randval = nhead_stride_randval;
                 args.batch_stride_randval = batch_stride_randval;
 
-                args.p_drop           = p_drop;
-                args.s_randval        = s_randval;
-                args.drop_seed_offset = std::tie(drop_seed, drop_offset);
+                args.p_drop    = p_drop;
+                args.s_randval = s_randval;
+                if(drop_prefs)
+                {
+                    args.drop_seed_offset = std::make_pair(drop_seed_buf.GetDeviceBuffer(),
+                                                           drop_offset_buf.GetDeviceBuffer());
+                }
+                else
+                {
+                    args.drop_seed_offset = std::make_pair(drop_seed, drop_offset);
+                }
             }
             else if constexpr(std::is_same_v<fmha_fwd_splitkv_args, std::decay_t<decltype(args)>>)
             {
