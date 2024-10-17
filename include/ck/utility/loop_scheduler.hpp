@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
-#include <ostream>
 
 #pragma once
+#ifndef __HIPCC_RTC__
+#include <ostream>
+#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
@@ -26,6 +28,7 @@ constexpr LoopScheduler make_default_loop_scheduler()
 
 } // namespace ck
 
+#ifndef __HIPCC_RTC__
 inline std::ostream& operator<<(std::ostream& os, const ck::LoopScheduler& s)
 {
     switch(s)
@@ -36,3 +39,4 @@ inline std::ostream& operator<<(std::ostream& os, const ck::LoopScheduler& s)
     }
     return os;
 }
+#endif
