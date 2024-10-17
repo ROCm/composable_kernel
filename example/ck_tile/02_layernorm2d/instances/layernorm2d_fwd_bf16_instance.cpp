@@ -4,16 +4,16 @@
 
 #include "layernorm2d_fwd_instance_common.hpp"
 
-template <ck_tile::index_t NRepeat,
+template <ck_tile::index_t kNRepeat,
           ck_tile::index_t kMThreadPerBlock,
           ck_tile::index_t kNThreadPerBlock,
-          ck_tile::index_t VectorAccessSize,
+          ck_tile::index_t kkVectorAccessSize,
           bool kTwoPass>
 using t = layernorm2d_fwd_traits_<ck_tile::bf16_t,
-                                  NRepeat,
+                                  kNRepeat,
                                   kMThreadPerBlock,
                                   kNThreadPerBlock,
-                                  VectorAccessSize,
+                                  kkVectorAccessSize,
                                   false,
                                   false,
                                   kTwoPass>;

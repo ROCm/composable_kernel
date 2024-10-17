@@ -51,10 +51,10 @@ struct layernorm2d_fwd_args
 
 // this is used to pattern-match internl kernel implementation, not to instantiate kernel
 template <typename DataType_,
-          ck_tile::index_t NRepeat,
+          ck_tile::index_t kNRepeat,
           ck_tile::index_t kMThreadPerBlock,
           ck_tile::index_t kNThreadPerBlock,
-          ck_tile::index_t VectorAccessSize,
+          ck_tile::index_t kVectorAccessSize,
           bool kPadN_,
           bool kSaveMeanInvStd_,
           bool kTwoPass_>
@@ -69,11 +69,11 @@ struct layernorm2d_fwd_traits_
         kMThreadPerBlock * kNThreadPerBlock / warpSize;
     // kNThreadPerBlock / 16;
 
-    using thread_tile = ck_tile::sequence<MRepeat, NRepeat, VectorAccessSize>;
+    using thread_tile = ck_tile::sequence<MRepeat, kNRepeat, kVectorAccessSize>;
     using warp_tile   = ck_tile::sequence<MRepeat * warpSize / kNThreadPerBlock,
-                                        NRepeat * kNThreadPerBlock * VectorAccessSize>;
+                                        kNRepeat * kNThreadPerBlock * kVectorAccessSize>;
     using block_tile  = ck_tile::sequence<kMWarpPerBlock * MRepeat * warpSize / kNThreadPerBlock,
-                                         NRepeat * kNThreadPerBlock * VectorAccessSize>;
+                                         kNRepeat * kNThreadPerBlock * kVectorAccessSize>;
 
     using Shape = ck_tile::TileLayernorm2dShape<thread_tile, warp_tile, block_tile>;
 
