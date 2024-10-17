@@ -23,8 +23,8 @@
 namespace ck {
 namespace utils {
 
-template <typename ComputeDataType, typename OutDataType>
-double get_relative_threshold()
+template <typename ComputeDataType, typename OutDataType, typename AccDataType = ComputeDataType>
+double get_relative_threshold(const int numberOfAccumulations = 1)
 {
     using F8   = ck::f8_t;
     using F16  = ck::half_t;
@@ -42,7 +42,7 @@ double get_relative_threshold()
     if constexpr(is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
                  is_same_v<ComputeDataType, int>)
     {
-        compute_mantissa = std::numeric_limits<ComputeDataType>::digits - 1;
+        compute_mantissa = 0;
     }
     else
     {
@@ -58,20 +58,38 @@ double get_relative_threshold()
     if constexpr(is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
                  is_same_v<OutDataType, int>)
     {
-        output_mantissa = std::numeric_limits<OutDataType>::digits - 1;
+        output_mantissa = 0;
     }
     else
     {
         output_mantissa = NumericUtils<OutDataType>::mant;
     }
 
-    int mantissa = (compute_mantissa < output_mantissa ? compute_mantissa : output_mantissa);
+    int midway_mantissa = std::max(compute_mantissa, output_mantissa);
+
+    static_assert(is_same_v<AccDataType, F8> || is_same_v<AccDataType, F16> ||
+                      is_same_v<AccDataType, BF16> || is_same_v<AccDataType, F32> ||
+                      is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
+                      is_same_v<AccDataType, int>,
+                  "Warning: Unhandled AccDataType for setting up the relative threshold!");
+    int acc_mantissa = 0;
+    if constexpr(is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
+                 is_same_v<AccDataType, int>)
+    {
+        acc_mantissa = 0;
+    }
+    else
+    {
+        acc_mantissa = NumericUtils<AccDataType>::mant * numberOfAccumulations;
+    }
+
+    int mantissa = std::max(acc_mantissa, midway_mantissa);
 
     return std::pow(2, -mantissa) * 0.5;
 }
 
-template <typename ComputeDataType>
-double get_absolute_threshold(const double max_possible_num)
+template <typename ComputeDataType, typename AccDataType = ComputeDataType>
+double get_absolute_threshold(const double max_possible_num, const int numberOfAccumulations = 1)
 {
     using F8   = ck::f8_t;
     using F16  = ck::half_t;
@@ -85,20 +103,36 @@ double get_absolute_threshold(const double max_possible_num)
                       is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
                       is_same_v<ComputeDataType, int>,
                   "Warning: Unhandled ComputeDataType for setting up the relative threshold!");
-
-    auto expo = std::log2(std::abs(max_possible_num));
-
-    int mantissa = 0;
+    int compute_mantissa = 0;
     if constexpr(is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
                  is_same_v<ComputeDataType, int>)
     {
-        mantissa = std::numeric_limits<ComputeDataType>::digits - 1;
+        compute_mantissa = 0;
     }
     else
     {
-        mantissa = NumericUtils<ComputeDataType>::mant;
+        compute_mantissa = NumericUtils<ComputeDataType>::mant;
     }
 
+    static_assert(is_same_v<AccDataType, F8> || is_same_v<AccDataType, F16> ||
+                      is_same_v<AccDataType, BF16> || is_same_v<AccDataType, F32> ||
+                      is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
+                      is_same_v<AccDataType, int>,
+                  "Warning: Unhandled AccDataType for setting up the relative threshold!");
+    int acc_mantissa = 0;
+    if constexpr(is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
+                 is_same_v<AccDataType, int>)
+    {
+        acc_mantissa = 0;
+    }
+    else
+    {
+        acc_mantissa = NumericUtils<AccDataType>::mant * numberOfAccumulations;
+    }
+
+    int mantissa = std::max(acc_mantissa, compute_mantissa);
+
+    auto expo = std::log2(std::abs(max_possible_num));
     return 0.5 * std::pow(2, expo - mantissa);
 }
 
