@@ -67,7 +67,6 @@ struct layernorm2d_fwd_traits_
     static constexpr ck_tile::index_t kNWarpPerBlock = 1;
     static constexpr ck_tile::index_t kMWarpPerBlock =
         kMThreadPerBlock * kNThreadPerBlock / warpSize;
-    // kNThreadPerBlock / 16;
 
     using thread_tile = ck_tile::sequence<MRepeat, kNRepeat, kVectorAccessSize>;
     using warp_tile   = ck_tile::sequence<MRepeat * warpSize / kNThreadPerBlock,
