@@ -71,9 +71,9 @@ struct layernorm2d_fwd_traits_
 
     using thread_tile = ck_tile::sequence<MRepeat, NRepeat, VectorAccessSize>;
     using warp_tile   = ck_tile::sequence<MRepeat * warpSize / kNThreadPerBlock,
-                                          NRepeat * kNThreadPerBlock * VectorAccessSize>;
+                                        NRepeat * kNThreadPerBlock * VectorAccessSize>;
     using block_tile  = ck_tile::sequence<kMWarpPerBlock * MRepeat * warpSize / kNThreadPerBlock,
-                                          NRepeat * kNThreadPerBlock * VectorAccessSize>;
+                                         NRepeat * kNThreadPerBlock * VectorAccessSize>;
 
     using Shape = ck_tile::TileLayernorm2dShape<thread_tile, warp_tile, block_tile>;
 
