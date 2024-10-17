@@ -5,17 +5,17 @@
 #include "layernorm2d_fwd.hpp"
 
 template <typename DataType,
-          ck_tile::index_t NRepeat,
+          ck_tile::index_t kNRepeat,
           ck_tile::index_t kMThreadPerBlock,
           ck_tile::index_t kNThreadPerBlock,
-          ck_tile::index_t VectorAccessSize,
+          ck_tile::index_t kVectorAccessSize,
           bool kPadN,
           bool kTwoPass = false>
 using trait_ = layernorm2d_fwd_traits_<DataType,
-                                       NRepeat,
+                                       kNRepeat,
                                        kMThreadPerBlock,
                                        kNThreadPerBlock,
-                                       VectorAccessSize,
+                                       kVectorAccessSize,
                                        kPadN,
                                        false,
                                        kTwoPass>;
