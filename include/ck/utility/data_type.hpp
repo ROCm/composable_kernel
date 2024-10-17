@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck/utility/enable_if.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
 
 #ifdef __HIPCC_RTC__
@@ -204,7 +205,7 @@ struct scalar_type<bool>
 };
 
 template <typename T>
-struct vector_type<T, 1, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 1, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     using type = d1_t;
@@ -240,7 +241,7 @@ struct vector_type<T, 1, typename std::enable_if_t<is_native_type<T>()>>
 
 __device__ int static err = 0;
 template <typename T>
-struct vector_type<T, 2, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 2, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -300,7 +301,7 @@ struct vector_type<T, 2, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 4, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 4, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -370,7 +371,7 @@ struct vector_type<T, 4, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 8, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 8, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -452,7 +453,7 @@ struct vector_type<T, 8, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 16, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 16, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -546,7 +547,7 @@ struct vector_type<T, 16, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 32, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 32, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -650,7 +651,7 @@ struct vector_type<T, 32, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 64, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 64, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -766,7 +767,7 @@ struct vector_type<T, 64, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 128, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 128, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -892,7 +893,7 @@ struct vector_type<T, 128, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 256, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 256, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -1042,7 +1043,7 @@ struct non_native_vector_base
 
 // non-native vector_type implementation
 template <typename T>
-struct vector_type<T, 1, typename std::enable_if_t<!is_native_type<T>()>>
+struct vector_type<T, 1, typename ck::enable_if_t<!is_native_type<T>()>>
 {
     using d1_t = T;
     using type = d1_t;
@@ -1077,7 +1078,7 @@ struct vector_type<T, 1, typename std::enable_if_t<!is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 2, typename std::enable_if_t<!is_native_type<T>()>>
+struct vector_type<T, 2, typename ck::enable_if_t<!is_native_type<T>()>>
 {
     using d1_t = T;
     using d2_t = non_native_vector_base<T, 2>;
@@ -1137,7 +1138,7 @@ struct vector_type<T, 2, typename std::enable_if_t<!is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
+struct vector_type<T, 4, typename ck::enable_if_t<!is_native_type<T>()>>
 {
     using d1_t = T;
     using d2_t = non_native_vector_base<T, 2>;
@@ -1207,7 +1208,7 @@ struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
+struct vector_type<T, 8, typename ck::enable_if_t<!is_native_type<T>()>>
 {
     using d1_t = T;
     using d2_t = non_native_vector_base<T, 2>;
@@ -1289,7 +1290,7 @@ struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
+struct vector_type<T, 16, typename ck::enable_if_t<!is_native_type<T>()>>
 {
     using d1_t  = T;
     using d2_t  = non_native_vector_base<T, 2>;
@@ -1383,7 +1384,7 @@ struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 32, typename std::enable_if_t<!is_native_type<T>()>>
+struct vector_type<T, 32, typename ck::enable_if_t<!is_native_type<T>()>>
 {
     using d1_t  = T;
     using d2_t  = non_native_vector_base<T, 2>;
@@ -1487,7 +1488,7 @@ struct vector_type<T, 32, typename std::enable_if_t<!is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 64, typename std::enable_if_t<!is_native_type<T>()>>
+struct vector_type<T, 64, typename ck::enable_if_t<!is_native_type<T>()>>
 {
     using d1_t  = T;
     using d2_t  = non_native_vector_base<T, 2>;
