@@ -52,7 +52,7 @@ rocm_export_targets(
     NAMESPACE composable_kernel::
 )
 
-if(BUILD_TESTING AND NOT CK_BUILD_HOST_LIB)
+if(BUILD_TESTING)
     add_subdirectory(test)
 endif()
 
