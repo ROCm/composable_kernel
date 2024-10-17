@@ -10,11 +10,26 @@ namespace ck_tile {
 
 struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
 {
+    template <index_t BlockSize, index_t M, index_t N, typename DataType>
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeForTile()
+    {
+        constexpr index_t PixelsPerThread = (M * N) / BlockSize;
+        static_assert(0 < PixelsPerThread);
+
+        constexpr index_t MaxNPerThread = 16 / sizeof(DataType);
+        constexpr index_t NPerThread    = min(MaxNPerThread, PixelsPerThread);
+
+        return NPerThread;
+    }
+
+    // alignment for dram lse tile (shape=[kMaxSplits, kM0])
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentLSE()
     {
-        using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
-        return 16 / sizeof(LSEDataType);
+        return GetVectorSizeForTile<Problem::kBlockSize,
+                                    Problem::kMaxSplits,
+                                    Problem::kM0,
+                                    typename Problem::LSEDataType>();
     }
 
     template <typename Problem>
@@ -47,29 +62,31 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
                MakeLSEaccLdsBlockDescriptor<Problem>().get_element_space_size();
     }
 
+    // shape=[kMaxSplits, kM0]
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccDramTileDistribution()
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNumWarps  = Problem::kNumWarps;
 
         constexpr index_t kNPerBlock = Problem::kM0;
         constexpr index_t kMPerBlock = Problem::kMaxSplits;
 
-        constexpr index_t NPerThread = 16 / sizeof(LSEDataType);
-        constexpr index_t NThreads   = kNPerBlock / NPerThread;
+        constexpr index_t NPerThread =
+            GetVectorSizeForTile<kBlockSize, kMPerBlock, kNPerBlock, LSEDataType>();
+        constexpr index_t NThreads = kNPerBlock / NPerThread;
 
         constexpr index_t MThreadsPerWarp = get_warp_size() / NThreads;
-        constexpr index_t TotalWarps      = kBlockSize / get_warp_size();
-        constexpr index_t MPerThread      = kMPerBlock / (TotalWarps * MThreadsPerWarp);
+        constexpr index_t MPerThread      = kMPerBlock / (kNumWarps * MThreadsPerWarp);
 
         static_assert(NThreads * NPerThread == kNPerBlock);
-        static_assert(MPerThread * TotalWarps * MThreadsPerWarp == kMPerBlock);
+        static_assert(MPerThread * kNumWarps * MThreadsPerWarp == kMPerBlock);
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<MPerThread, TotalWarps, MThreadsPerWarp>,
+                                       tuple<sequence<MPerThread, kNumWarps, MThreadsPerWarp>,
                                              sequence<NThreads, NPerThread>>,
                                        tuple<sequence<1>, sequence<1, 2>>,
                                        tuple<sequence<1>, sequence<2, 0>>,
@@ -77,15 +94,18 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
                                        sequence<0, 1>>{});
     }
 
-    // 3d + padding, [kMaxSplits, kM0]
+    // 3d + padding, shape=[kMaxSplits, kM0]
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccLdsStoreBlockDescriptor()
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
         constexpr index_t kMPerBlock = Problem::kMaxSplits;
         constexpr index_t kNPerBlock = Problem::kM0;
-        constexpr index_t NPack      = 16 / sizeof(LSEDataType);
+        constexpr index_t NPack =
+            GetVectorSizeForTile<kBlockSize, kMPerBlock, kNPerBlock, LSEDataType>();
 
         constexpr auto lse_acc_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock / NPack>{}, number<kMPerBlock>{}, number<NPack>{}),
@@ -103,15 +123,18 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
         return lse_acc_lds_block_desc;
     }
 
-    // 3d + padding, [kM0, kMaxSplits]
+    // 3d + padding, shape=[kM0, kMaxSplits]
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccLdsBlockDescriptor()
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
         constexpr index_t kMPerBlock = Problem::kMaxSplits;
         constexpr index_t kNPerBlock = Problem::kM0;
-        constexpr index_t NPack      = 16 / sizeof(LSEDataType);
+        constexpr index_t NPack =
+            GetVectorSizeForTile<kBlockSize, kMPerBlock, kNPerBlock, LSEDataType>();
 
         constexpr auto lse_acc_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock / NPack>{}, number<kMPerBlock>{}, number<NPack>{}),
