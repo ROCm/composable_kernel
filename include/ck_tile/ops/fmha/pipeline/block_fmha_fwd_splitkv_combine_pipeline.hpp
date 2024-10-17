@@ -13,6 +13,16 @@ template <index_t N>
 struct log2;
 
 template <>
+struct log2<4> : std::integral_constant<index_t, 2>
+{
+};
+
+template <>
+struct log2<8> : std::integral_constant<index_t, 3>
+{
+};
+
+template <>
 struct log2<16> : std::integral_constant<index_t, 4>
 {
 };
