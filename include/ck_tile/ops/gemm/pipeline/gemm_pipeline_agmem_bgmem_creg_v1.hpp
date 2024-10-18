@@ -139,6 +139,12 @@ struct GemmPipelineAGmemBGmemCRegV1
         // global read 0
         auto a_block_tile = load_tile(a_copy_dram_window);
         auto b_block_tile = load_tile(b_copy_dram_window);
+        // option on the shuffle the B matrix tile.
+        if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+        {
+            auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                Policy::template MakeShuffleBRegBlockDescriptor<Problem>());
+        }
 
         {
             // move to 1
