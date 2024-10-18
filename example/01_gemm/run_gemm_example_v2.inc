@@ -139,7 +139,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     {
     case 0:
         a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
-        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{0x11});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{0x99});
         break;
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});

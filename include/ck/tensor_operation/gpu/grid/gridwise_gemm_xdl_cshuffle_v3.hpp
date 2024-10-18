@@ -387,6 +387,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         }
         else
         {
+#if 1
             // not pad N or K
             const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
                 b_grid_desc_nraw_kraw,
@@ -394,6 +395,19 @@ struct GridwiseGemm_xdl_cshuffle_v3
                            make_pass_through_transform(N)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+#else
+            const index_t N0 = N / NPerBlock;
+            const index_t N1 = NPerBlock;
+            const auto b_grid_desc_n0_bk0_n1_bk1 = make_naive_tensor_descriptor_packed(make_tuple(N0, BK0, N1, BK1Value));
+
+            const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
+                b_grid_desc_n0_bk0_n1_bk1,
+                make_tuple(make_pass_through_transform(BK0),
+                           make_merge_transform(make_tuple(N0, N1)),
+                           make_pass_through_transform(BK1Value)),
+                make_tuple(Sequence<1>{}, Sequence<0, 2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+#endif
 
             return b_grid_desc_bk0_n_bk1;
         }

@@ -1150,12 +1150,14 @@ struct ThreadwiseTensorSliceTransfer_v4
                 // DstData)
                 vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
 
-                constexpr index_t pack_size = PackedSize;
+                constexpr index_t pack_size = 8;
+
+                static_assert(SrcScalarPerVector % pack_size == 0, "");
 
                 using dst_v_t = typename vector_type_maker_t<DstData, pack_size>::type;
-                using src_v_t = typename vector_type_maker_t<SrcData, 1>::type;
+                using src_v_t = typename vector_type_maker_t<SrcData, 4>::type;
                 static_for<0, SrcScalarPerVector / pack_size, 1>{}([&](auto i) {
-                    ck::tensor_operation::element_wise::PassThroughPack2{}(
+                    ck::tensor_operation::element_wise::PassThroughPack8{}(
                         dst_tmp_vector.template AsType<dst_v_t>()(i),
                         src_tmp_vector.template AsType<src_v_t>()[i]);
                 });

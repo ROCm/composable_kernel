@@ -7,10 +7,56 @@
 #include "ck/utility/math.hpp"
 #include "ck/utility/math_v2.hpp"
 #include "ck/utility/type_convert.hpp"
+#include "ck/utility/amd_inline_asm.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace element_wise {
+
+
+__device__ inline half4_t pki4_to_half4(int q) {
+  const int LO = 0x000f000f;
+  const int HI = 0x00f000f0;
+  const int EX = 0x64006400;
+  // Guarantee that the `(a & b) | c` operations are LOP3s.
+  //int lo = lop3<(0xf0 & 0xcc) | 0xaa>(q, LO, EX);
+  //int hi = lop3<(0xf0 & 0xcc) | 0xaa>(q, HI, EX);
+  int lo = (q & LO) | EX;
+  int hi = (q & HI) | EX;
+  // We want signed int4 outputs, hence we fuse the `-8` symmetric zero point
+  // directly into `SUB` and `ADD`.
+  const int SUB = 0xE408E408; //-8
+  const int MUL = 0x2c002c00; //1/16
+  const int ADD = 0xd480d480; //-79
+
+  vector_type<half_t, 4> res;
+  res.template AsType<half2_t>()(Number<0>{}) = 
+	  amd_assembly_pk_add_f16(bit_cast<half2_t>(lo), bit_cast<half2_t>(SUB));
+
+  res.template AsType<half2_t>()(Number<1>{}) = amd_assembly_pk_fma_f16(
+		  bit_cast<half2_t>(hi),
+		  bit_cast<half2_t>(MUL),
+		  bit_cast<half2_t>(ADD));
+  return res.template AsType<half4_t>()[Number<0>{}];
+}
+
+struct PassThroughPack8
+{
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    __host__ __device__ constexpr void operator()(ck::half8_t& y, const ck::pk_i4x4_t& x) const
+	{
+        vector_type<half_t, 8> result;
+
+        result.template AsType<half4_t>()(Number<0>{}) = pki4_to_half4(bit_cast<int>(x));
+        result.template AsType<half4_t>()(Number<1>{}) = pki4_to_half4(bit_cast<int>(x) >> 8);
+
+        y = result.template AsType<half8_t>()[Number<0>{}];
+	}
+
+    constexpr const static bool is_pack8_invocable = true;
+};
 
 struct PassThroughPack2
 {

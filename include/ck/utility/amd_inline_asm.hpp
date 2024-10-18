@@ -11,6 +11,21 @@
 
 namespace ck {
 
+
+inline __device__ half2_t amd_assembly_pk_fma_f16(half2_t a, half2_t b, half2_t c) {
+  half2_t d;
+  asm volatile("v_pk_fma_f16 %0, %1, %2, %3;\n"
+		  : "=v"(d)
+		  : "v"(a), "v"(b), "v"(c));
+  return d;
+}
+
+inline __device__ half2_t amd_assembly_pk_add_f16(half2_t a, half2_t b) {
+	half2_t c;
+	asm volatile("v_pk_add_f16 %0, %1, %2;\n" : "=v"(c) : "v"(a), "v"(b));
+	return c;
+}
+
 // c0 += inner_product(a, b0)
 // c1 += inner_product(a, b1)
 __device__ void amd_assembly_outer_product_1x2(float a, float b0, float b1, float& c0, float& c1)
