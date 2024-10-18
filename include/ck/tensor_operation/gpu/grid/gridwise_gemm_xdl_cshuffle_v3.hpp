@@ -653,7 +653,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // in some cases.
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            constexpr index_t LdsSize = 32 * 4 / KPerBlock / sizeof(ADataType);
+            constexpr index_t LdsSize = 32 * 4 / KPerBlock / sizeof(ADataType) / APackedSize;
             constexpr auto MLdsLayer =  LdsSize < 1 ? 1 : LdsSize;
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
@@ -788,7 +788,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
             // NLdsLayer * K0 as logical Bank
-            constexpr index_t LdsSize = 32 * 4 / KPerBlock / sizeof(BDataType);
+            constexpr index_t LdsSize = 32 * 4 / KPerBlock / sizeof(BDataType) / BPackedSize;
             constexpr index_t NLdsLayer =   LdsSize < 1 ? 1 : LdsSize;
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
