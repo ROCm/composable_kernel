@@ -79,4 +79,17 @@ CK_TILE_BINARY_OP(<=)
 #undef CK_TILE_LEFT_UNARY_OP
 #undef CK_TILE_BINARY_OP
 
+template <typename T>
+struct is_number : bool_constant<false>
+{
+};
+
+template <index_t v>
+struct is_number<number<v>> : bool_constant<true>
+{
+};
+
+template <typename T>
+inline constexpr bool is_number_v = is_number<T>::value;
+
 } // namespace ck_tile
