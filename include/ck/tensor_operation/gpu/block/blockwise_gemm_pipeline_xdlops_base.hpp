@@ -30,6 +30,8 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
+          bool TransposeA = false,
+          bool TransposeB = false,
           bool TransposeC = false>
 struct BlockwiseGemmXdlops_pipeline_base
 {
@@ -152,6 +154,38 @@ struct BlockwiseGemmXdlops_pipeline_base
         return make_tuple(c_thread_m, c_thread_n);
     }
 
+    // Contiguous output tile
+    template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
+    __device__ static auto CalculateCThreadOriginDataIndexContiguous(Number<m0>,
+                                                                     Number<n0>,
+                                                                     Number<xdlops_i>,
+                                                                     Number<blk_i>)
+    {
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
+
+        const auto blk_idx = xdlops_gemm.GetBeginOfThreadBlk(xdlops_i, blk_i);
+
+        constexpr auto mrepeat_mwave_mperxdl_to_m_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_unmerge_transform(make_tuple(MRepeat, MWaves, MPerXDL))),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0, 1, 2>{}));
+
+        constexpr auto nrepeat_nwave_nperxdl_to_n_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_unmerge_transform(make_tuple(NWaves, NPerXDL, NRepeat))),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0, 1, 2>{}));
+
+        const index_t c_thread_m = mrepeat_mwave_mperxdl_to_m_adaptor.CalculateBottomIndex(
+            make_tuple(m0, waveId_m, blk_idx[I0]))[I0];
+        const index_t c_thread_n = nrepeat_nwave_nperxdl_to_n_adaptor.CalculateBottomIndex(
+            make_tuple(waveId_n, blk_idx[I1], n0))[I0];
+
+        return make_tuple(c_thread_m, c_thread_n);
+    }
+
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
         CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
@@ -212,6 +246,21 @@ struct BlockwiseGemmXdlops_pipeline_base
             make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
     }
 
+    // Contiguous output tile
+    __host__ __device__ static constexpr auto
+    GetCThreadDescriptor_MBlock_NBlock_M0_M1_N0_M2_M3_N1_N2_M4()
+    {
+        constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
+
+        constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
+        constexpr auto M1 = c_m0_m1_m2_n_tblk_lens[I1];
+        constexpr auto M2 = c_m0_m1_m2_n_tblk_lens[I2];
+        constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
+
+        return make_naive_tensor_descriptor_packed(
+            make_tuple(I1, I1, Number<MRepeat>{}, I1, I1, M0, M1, N, Number<NRepeat>{}, M2));
+    }
+
     __host__ __device__ static constexpr auto GetCThreadDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2()
     {
         constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
@@ -251,6 +300,23 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                            Number<NPerXDL>{}));
 
         return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_block_desc_m0_n0_m1_n1_m2_n2);
+    }
+
+    __host__ __device__ static constexpr auto
+    GetCBlockDescriptor_MBlock_NBlock_M0_M1_N0_M2_M3_N1_N2_M4()
+    {
+        constexpr auto c_block_desc_mblock_nblock_m0_n0_m1_n1_m2_n2 =
+            make_naive_tensor_descriptor_packed(make_tuple(I1,
+                                                           I1,
+                                                           Number<MRepeat>{},
+                                                           Number<NRepeat>{},
+                                                           Number<MWaves>{},
+                                                           Number<NWaves>{},
+                                                           Number<MPerXDL>{},
+                                                           Number<NPerXDL>{}));
+
+        return xdlops_gemm.MakeCDescriptor_MBlock_NBlock_M0_M1_N0_M2_M3_N1_N2_M4(
+            c_block_desc_mblock_nblock_m0_n0_m1_n1_m2_n2);
     }
 
     __host__ __device__ static constexpr auto GetCBlockDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2()
@@ -327,28 +393,78 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, xdlops_gemm.GetRegSizePerXdlops()));
 
-    using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<ADataType,
-                                                         ComputeDataType,
-                                                         decltype(a_block_desc_m0_m1_m2_k),
-                                                         decltype(a_thread_desc_),
-                                                         Sequence<1, 1, 1, KPack>,
-                                                         Sequence<0, 1, 2, 3>,
-                                                         3,
-                                                         A_K1,
-                                                         A_K1>;
+    template <bool Transpose>
+    struct AThreadCopySelector;
 
-    using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<BDataType,
-                                                         ComputeDataType,
-                                                         decltype(b_block_desc_n0_n1_n2_k),
-                                                         decltype(b_thread_desc_),
-                                                         Sequence<1, 1, 1, KPack>,
-                                                         Sequence<0, 1, 2, 3>,
-                                                         3,
-                                                         B_K1,
-                                                         B_K1>;
+    template <>
+    struct AThreadCopySelector<false>
+    {
+        using type = ThreadwiseTensorSliceTransfer_v5<ADataType,
+                                                      ComputeDataType,
+                                                      decltype(a_block_desc_m0_m1_m2_k),
+                                                      decltype(a_thread_desc_),
+                                                      Sequence<MRepeat, 1, 1, KPack>,
+                                                      Sequence<0, 1, 2, 3>,
+                                                      Sequence<0, 1, 2, 3>,
+                                                      3,
+                                                      3,
+                                                      A_K1,
+                                                      A_K1>;
+    };
 
-    AThreadCopy a_thread_copy_;
-    BThreadCopy b_thread_copy_;
+    template <>
+    struct AThreadCopySelector<true>
+    {
+        using type = ThreadwiseTensorSliceTransfer_v5<ADataType,
+                                                      ComputeDataType,
+                                                      decltype(a_block_desc_m0_m1_m2_k),
+                                                      decltype(a_thread_desc_),
+                                                      Sequence<MRepeat, 1, 1, KPack>,
+                                                      Sequence<3, 1, 2, 0>,
+                                                      Sequence<0, 1, 2, 3>,
+                                                      0,
+                                                      3,
+                                                      MRepeat,
+                                                      A_K1>;
+    };
+
+    template <bool Transpose>
+    struct BThreadCopySelector;
+
+    template <>
+    struct BThreadCopySelector<false>
+    {
+        using type = ThreadwiseTensorSliceTransfer_v5<BDataType,
+                                                      ComputeDataType,
+                                                      decltype(b_block_desc_n0_n1_n2_k),
+                                                      decltype(b_thread_desc_),
+                                                      Sequence<NRepeat, 1, 1, KPack>,
+                                                      Sequence<0, 1, 2, 3>,
+                                                      Sequence<0, 1, 2, 3>,
+                                                      3,
+                                                      3,
+                                                      B_K1,
+                                                      B_K1>;
+    };
+
+    template <>
+    struct BThreadCopySelector<true>
+    {
+        using type = ThreadwiseTensorSliceTransfer_v5<BDataType,
+                                                      ComputeDataType,
+                                                      decltype(b_block_desc_n0_n1_n2_k),
+                                                      decltype(b_thread_desc_),
+                                                      Sequence<NRepeat, 1, 1, KPack>,
+                                                      Sequence<3, 1, 2, 0>,
+                                                      Sequence<0, 1, 2, 3>,
+                                                      0,
+                                                      3,
+                                                      NRepeat,
+                                                      B_K1>;
+    };
+
+    typename AThreadCopySelector<TransposeA>::type a_thread_copy_;
+    typename BThreadCopySelector<TransposeB>::type b_thread_copy_;
 };
 
 } // namespace ck
