@@ -127,47 +127,44 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
 
     switch(init_method)
     {
-    case 0: break;
-    case 1:
+        case 0: break;
+        case 1:
 
-        a_ms_ks_re.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_ns_ks_re.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        d_ms_ns_re.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+            a_ms_ks_re.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+            b_ns_ks_re.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+            d_ms_ns_re.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
 
-        a_ms_ks_img.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_ns_ks_img.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        d_ms_ns_img.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        break;
+            a_ms_ks_img.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+            b_ns_ks_img.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+            d_ms_ns_img.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+            break;
 
-    default:
-        a_ms_ks_re.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_ns_ks_re.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-        d_ms_ns_re.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        default:
+            a_ms_ks_re.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+            b_ns_ks_re.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+            d_ms_ns_re.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
 
-        a_ms_ks_img.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_ns_ks_img.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-        d_ms_ns_img.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+            a_ms_ks_img.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+            b_ns_ks_img.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+            d_ms_ns_img.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
 
-        break;
+            break;
     }
 
     DeviceMem a_device_buf_re(sizeof(ADataType) * a_ms_ks_re.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf_re(sizeof(BDataType) * b_ns_ks_re.mDesc.GetElementSpaceSize());
     DeviceMem d_device_buf_re(sizeof(DDataType) * d_ms_ns_re.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf_re(sizeof(EDataType) *
-                              e_ms_ns_device_result_re.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf_re(sizeof(EDataType) * e_ms_ns_device_result_re.mDesc.GetElementSpaceSize());
 
     DeviceMem a_device_buf_img(sizeof(ADataType) * a_ms_ks_img.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf_img(sizeof(BDataType) * b_ns_ks_img.mDesc.GetElementSpaceSize());
     DeviceMem d_device_buf_img(sizeof(DDataType) * d_ms_ns_img.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf_img(sizeof(EDataType) *
-                               e_ms_ns_device_result_img.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf_img(sizeof(EDataType) * e_ms_ns_device_result_img.mDesc.GetElementSpaceSize());
 
     // Intermediate Value For E Real and Img
-    DeviceMem e_device_buf_re1(sizeof(EDataType) *
-                               e_ms_ns_device_result_re.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf_img1(sizeof(EDataType) *
-                                e_ms_ns_device_result_img.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf_re1(sizeof(EDataType) * e_ms_ns_device_result_re.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf_img1(sizeof(EDataType) * e_ms_ns_device_result_img.mDesc.GetElementSpaceSize());
+
 
     a_device_buf_re.ToDevice(a_ms_ks_re.mData.data());
     b_device_buf_re.ToDevice(b_ns_ks_re.mData.data());
@@ -184,7 +181,7 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
     // set zero for intermediate values
     e_device_buf_re1.SetZero();
     e_device_buf_img1.SetZero();
-
+ 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{alpha, beta};
@@ -192,24 +189,23 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
     // device operation
     // For real Intermediate Value re_1
 
-    auto op      = DeviceOpInstance{};
-    auto invoker = op.MakeInvoker();
-    auto argument_re1 =
-        op.MakeArgument(a_device_buf_re.GetDeviceBuffer(),
-                        b_device_buf_re.GetDeviceBuffer(),
-                        std::array<const void*, 1>{d_device_buf_re.GetDeviceBuffer()},
-                        e_device_buf_re1.GetDeviceBuffer(),
-                        a_ms_ks_lengths,
-                        a_ms_ks_strides,
-                        b_ns_ks_lengths,
-                        b_ns_ks_strides,
-                        std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
-                        std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
-                        e_ms_ns_lengths,
-                        e_ms_ns_strides,
-                        a_element_op,
-                        b_element_op,
-                        cde_element_op);
+    auto op       = DeviceOpInstance{};
+    auto invoker  = op.MakeInvoker();
+    auto argument_re1 = op.MakeArgument(a_device_buf_re.GetDeviceBuffer(),
+                                    b_device_buf_re.GetDeviceBuffer(),
+                                    std::array<const void*, 1>{d_device_buf_re.GetDeviceBuffer()},
+                                    e_device_buf_re1.GetDeviceBuffer(),
+                                    a_ms_ks_lengths,
+                                    a_ms_ks_strides,
+                                    b_ns_ks_lengths,
+                                    b_ns_ks_strides,
+                                    std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
+                                    std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
+                                    e_ms_ns_lengths,
+                                    e_ms_ns_strides,
+                                    a_element_op,
+                                    b_element_op,
+                                    cde_element_op);
 
     if(!op.IsSupportedArgument(argument_re1))
     {
@@ -219,6 +215,7 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
     }
 
     float ave_time_re1 = invoker.Run(argument_re1, StreamConfig{nullptr, time_kernel});
+
 
     alpha = -1.f;
     beta  = 1.f;
@@ -231,22 +228,21 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
     // For real Intermediate Value re_2
     // auto op       = DeviceOpInstance{};
     // auto invoker  = op.MakeInvoker();
-    auto argument_re2 =
-        op.MakeArgument(a_device_buf_img.GetDeviceBuffer(),
-                        b_device_buf_img.GetDeviceBuffer(),
-                        std::array<const void*, 1>{e_device_buf_re1.GetDeviceBuffer()},
-                        e_device_buf_re.GetDeviceBuffer(),
-                        a_ms_ks_lengths,
-                        a_ms_ks_strides,
-                        b_ns_ks_lengths,
-                        b_ns_ks_strides,
-                        std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
-                        std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
-                        e_ms_ns_lengths,
-                        e_ms_ns_strides,
-                        a_element_op,
-                        b_element_op,
-                        cde_element_op);
+    auto argument_re2 = op.MakeArgument(a_device_buf_img.GetDeviceBuffer(),
+                                    b_device_buf_img.GetDeviceBuffer(),
+                                    std::array<const void*, 1>{e_device_buf_re1.GetDeviceBuffer()},
+                                    e_device_buf_re.GetDeviceBuffer(),
+                                    a_ms_ks_lengths,
+                                    a_ms_ks_strides,
+                                    b_ns_ks_lengths,
+                                    b_ns_ks_strides,
+                                    std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
+                                    std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
+                                    e_ms_ns_lengths,
+                                    e_ms_ns_strides,
+                                    a_element_op,
+                                    b_element_op,
+                                    cde_element_op);
 
     if(!op.IsSupportedArgument(argument_re2))
     {
@@ -257,6 +253,7 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
 
     float ave_time_re2 = invoker.Run(argument_re2, StreamConfig{nullptr, time_kernel});
 
+    
     alpha = 1.f;
     beta  = 1.f;
 
@@ -264,22 +261,22 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
     b_element_op   = BElementOp{};
     cde_element_op = CDEElementOp{alpha, beta};
 
-    auto argument_img1 =
-        op.MakeArgument(a_device_buf_re.GetDeviceBuffer(),
-                        b_device_buf_img.GetDeviceBuffer(),
-                        std::array<const void*, 1>{d_device_buf_img.GetDeviceBuffer()},
-                        e_device_buf_img1.GetDeviceBuffer(),
-                        a_ms_ks_lengths,
-                        a_ms_ks_strides,
-                        b_ns_ks_lengths,
-                        b_ns_ks_strides,
-                        std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
-                        std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
-                        e_ms_ns_lengths,
-                        e_ms_ns_strides,
-                        a_element_op,
-                        b_element_op,
-                        cde_element_op);
+    auto argument_img1 = op.MakeArgument(a_device_buf_re.GetDeviceBuffer(),
+                                b_device_buf_img.GetDeviceBuffer(),
+                                std::array<const void*, 1>{d_device_buf_img.GetDeviceBuffer()},
+                                e_device_buf_img1.GetDeviceBuffer(),
+                                a_ms_ks_lengths,
+                                a_ms_ks_strides,
+                                b_ns_ks_lengths,
+                                b_ns_ks_strides,
+                                std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
+                                std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
+                                e_ms_ns_lengths,
+                                e_ms_ns_strides,
+                                a_element_op,
+                                b_element_op,
+                                cde_element_op);
+
 
     if(!op.IsSupportedArgument(argument_img1))
     {
@@ -293,22 +290,23 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
     alpha = 1.f;
     beta  = 1.f;
 
-    auto argument_img2 =
-        op.MakeArgument(a_device_buf_img.GetDeviceBuffer(),
-                        b_device_buf_re.GetDeviceBuffer(),
-                        std::array<const void*, 1>{e_device_buf_img1.GetDeviceBuffer()},
-                        e_device_buf_img.GetDeviceBuffer(),
-                        a_ms_ks_lengths,
-                        a_ms_ks_strides,
-                        b_ns_ks_lengths,
-                        b_ns_ks_strides,
-                        std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
-                        std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
-                        e_ms_ns_lengths,
-                        e_ms_ns_strides,
-                        a_element_op,
-                        b_element_op,
-                        cde_element_op);
+    auto argument_img2 = op.MakeArgument(a_device_buf_img.GetDeviceBuffer(),
+                                b_device_buf_re.GetDeviceBuffer(),
+                                std::array<const void*, 1>{e_device_buf_img1.GetDeviceBuffer()},
+                                e_device_buf_img.GetDeviceBuffer(),
+                                a_ms_ks_lengths,
+                                a_ms_ks_strides,
+                                b_ns_ks_lengths,
+                                b_ns_ks_strides,
+                                std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
+                                std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
+                                e_ms_ns_lengths,
+                                e_ms_ns_strides,
+                                a_element_op,
+                                b_element_op,
+                                cde_element_op);
+
+
 
     if(!op.IsSupportedArgument(argument_img2))
     {
@@ -318,6 +316,7 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
     }
 
     float ave_time_img2 = invoker.Run(argument_img2, StreamConfig{nullptr, time_kernel});
+
 
     ck::index_t M =
         ck::accumulate_n<ck::index_t>(e_ms_ns_lengths.begin(), NumDimM, 1, std::multiplies<>{});
@@ -332,9 +331,9 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
     std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
                             sizeof(DDataType) * M * N + sizeof(EDataType) * M * N * 2;
 
-    float ave_time = ave_time_img2 + ave_time_img1 + ave_time_re2 + ave_time_re1;
+    float ave_time = ave_time_img2 + ave_time_img1 + ave_time_re2 + ave_time_re1 ; 
 
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
@@ -344,7 +343,7 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
     e_device_buf_img.FromDevice(e_ms_ns_device_result_img.mData.data());
 
     auto isRealOk = 0;
-    auto isImgOk  = 0;
+    auto isImgOk = 0;
 
     if(do_verification)
     {
@@ -367,16 +366,17 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
         auto ref_op      = ReferenceOpInstance{};
         auto ref_invoker = ref_op.MakeInvoker();
 
-        auto ref_argument_re = ref_op.MakeArgument(
-            a_ms_ks_re, b_ns_ks_re, c_ms_ns_host_result_re, a_element_op, b_element_op);
+        auto ref_argument_re =
+            ref_op.MakeArgument(a_ms_ks_re, b_ns_ks_re, c_ms_ns_host_result_re, a_element_op, b_element_op);
 
         ref_invoker.Run(ref_argument_re);
 
         alpha = 1.f;
         beta  = 1.f;
-
+   
         cde_element_op = CDEElementOp{alpha, beta};
 
+       
         for(size_t m0 = 0; m0 < e_ms_ns_host_result_re.mDesc.GetLengths()[0]; ++m0)
         {
             for(size_t m1 = 0; m1 < e_ms_ns_host_result_re.mDesc.GetLengths()[1]; ++m1)
@@ -395,11 +395,11 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
 
         alpha = 1.f;
         beta  = -1.f;
-
+   
         cde_element_op = CDEElementOp{alpha, beta};
 
-        auto ref_argument_re1 = ref_op.MakeArgument(
-            a_ms_ks_img, b_ns_ks_img, c_ms_ns_host_result_re1, a_element_op, b_element_op);
+        auto ref_argument_re1 =
+            ref_op.MakeArgument(a_ms_ks_img, b_ns_ks_img, c_ms_ns_host_result_re1, a_element_op, b_element_op);
 
         ref_invoker.Run(ref_argument_re1);
 
@@ -419,20 +419,23 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
             }
         }
 
-        isRealOk = ck::utils::check_err(e_ms_ns_device_result_re, e_ms_ns_host_result_re) ? 0 : 1;
+        isRealOk =  ck::utils::check_err(e_ms_ns_device_result_re, e_ms_ns_host_result_re) ? 0 : 1;
+
+        
+
 
         // Img Part Verification
         Tensor<CShuffleDataType> c_ms_ns_host_result_img(e_ms_ns_lengths, e_ms_ns_strides);
         Tensor<CShuffleDataType> c_ms_ns_host_result_img1(e_ms_ns_lengths, e_ms_ns_strides);
 
-        auto ref_argument_img = ref_op.MakeArgument(
-            a_ms_ks_re, b_ns_ks_img, c_ms_ns_host_result_img, a_element_op, b_element_op);
-
+        auto ref_argument_img =
+            ref_op.MakeArgument(a_ms_ks_re, b_ns_ks_img, c_ms_ns_host_result_img, a_element_op, b_element_op);
+            
         ref_invoker.Run(ref_argument_img);
 
         alpha = 1.f;
         beta  = 1.f;
-
+   
         cde_element_op = CDEElementOp{alpha, beta};
 
         for(size_t m0 = 0; m0 < e_ms_ns_host_result_img.mDesc.GetLengths()[0]; ++m0)
@@ -451,9 +454,9 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
             }
         }
 
-        auto ref_argument_img1 = ref_op.MakeArgument(
-            a_ms_ks_img, b_ns_ks_re, c_ms_ns_host_result_img1, a_element_op, b_element_op);
-
+        auto ref_argument_img1 =
+            ref_op.MakeArgument(a_ms_ks_img, b_ns_ks_re, c_ms_ns_host_result_img1, a_element_op, b_element_op);
+            
         ref_invoker.Run(ref_argument_img1);
 
         for(size_t m0 = 0; m0 < e_ms_ns_host_result_img.mDesc.GetLengths()[0]; ++m0)
@@ -472,7 +475,7 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
             }
         }
 
-        isImgOk = ck::utils::check_err(e_ms_ns_device_result_re, e_ms_ns_host_result_re) ? 0 : 1;
+        isImgOk =  ck::utils::check_err(e_ms_ns_device_result_re, e_ms_ns_host_result_re) ? 0 : 1;
 
         return (isRealOk && isImgOk);
     }
