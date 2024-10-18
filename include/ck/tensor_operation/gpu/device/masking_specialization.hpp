@@ -13,6 +13,7 @@ enum struct MaskingSpecialization
     MaskOutUpperTriangle
 };
 
+#ifndef __HIPCC_RTC__
 inline std::string getMaskingSpecializationString(const MaskingSpecialization& s)
 {
     switch(s)
@@ -22,6 +23,7 @@ inline std::string getMaskingSpecializationString(const MaskingSpecialization& s
     default: return "Unrecognized specialization!";
     }
 }
+#endif
 
 struct MaskDisabledPredicate
 {
@@ -53,7 +55,7 @@ struct MaskOutUpperTrianglePredicate
 template <typename MaskOutPredicate>
 struct C0MatrixMask_impl
 {
-    __host__ __device__ C0MatrixMask_impl(index_t NRaw)
+    __host__ __device__ constexpr C0MatrixMask_impl(index_t NRaw)
         : NRaw_(NRaw), predicate_(MaskOutPredicate{})
     {
     }

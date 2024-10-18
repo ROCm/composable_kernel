@@ -1005,6 +1005,7 @@ llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
                                 index_t offset,
                                 index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds");
 
+#ifndef __HIPCC_RTC__
 template <typename T, index_t NumElemsPerThread>
 __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
                                               const index_t global_offset,
@@ -1042,5 +1043,6 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
         src_resource, lds_ptr, sizeof(uint32_t), global_offset_bytes, 0, 0, 0);
 #endif
 }
+#endif
 
 } // namespace ck

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#ifndef __HIPCC_RTC__
 #include <string>
 #include <map>
 #include <hip/hip_runtime.h>
@@ -96,3 +97,4 @@ inline bool is_gfx12_supported()
 }
 
 } // namespace ck
+#endif
