@@ -12,6 +12,7 @@ using half_t  = _Float16;
 using int4_t  = _BitInt(4);
 using f8_t    = _BitInt(8);
 using bf8_t   = unsigned _BitInt(8);
+using pk_i4_t = unsigned char;
 
 inline constexpr auto next_pow2(uint32_t x)
 {
