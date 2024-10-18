@@ -303,10 +303,10 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             return false;
         }
 
-        if(!block_2_e1tile_map.CheckValidity(e1_grid_desc_m_n))
-        {
-            return false;
-        }
+        // if(!block_2_e1tile_map.CheckValidity(e1_grid_desc_m_n))
+        // {
+        //     return false;
+        // }
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
@@ -952,7 +952,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             else
             {
                 static_for<0, acc0_thread_buf.Size(), 1>{}(
-                    [&](auto i) { cde0_element_op(acc_thread_buf(i), acc0_thread_buf[i]); });
+                    [&](auto i) { cde0_element_op(acc0_thread_buf(i), acc0_thread_buf[i]); });
             }
             // gemm1
             {

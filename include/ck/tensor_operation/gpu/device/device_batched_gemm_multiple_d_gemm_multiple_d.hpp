@@ -3,8 +3,10 @@
 
 #pragma once
 
+#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <vector>
+#endif
 
 #include "device_base.hpp"
 
@@ -31,6 +33,7 @@ template <typename A0Layout,
           typename CDE1ElementwiseOperation>
 struct DeviceBatchedGemmMultipleDGemmMultipleD : public BaseOperator
 {
+#ifndef __HIPCC_RTC__
     static constexpr index_t NumD0Tensor = D0sDataType::Size();
     static constexpr index_t NumD1Tensor = D1sDataType::Size();
 
@@ -65,6 +68,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD : public BaseOperator
                         CDE1ElementwiseOperation cde1_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+#endif
 };
 
 } // namespace device
