@@ -1031,8 +1031,22 @@ struct non_native_vector_base
 
     __host__ __device__ non_native_vector_base() = default;
 
-    typedef char data_v __attribute__((ext_vector_type(sizeof(T) * N)));
-    data_v d;
+    T d[N];
+};
+
+template <typename T, index_t N>
+struct scalar_type<non_native_vector_base<T, N>>;
+// {
+//     using type                           = T;
+//     static constexpr index_t vector_size = N;
+// };
+
+template <index_t N>
+struct scalar_type<non_native_vector_base<f8_ocp_t, N>>
+{
+    using type = typename non_native_vector_base<f8_ocp_t, N>::data_t;
+
+    static constexpr index_t vector_size = N;
 };
 
 // non-native vector_type implementation

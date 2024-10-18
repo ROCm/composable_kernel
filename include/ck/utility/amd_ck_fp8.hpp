@@ -28,6 +28,12 @@ using bf8_fnuz_t = unsigned _BitInt(8);
 #define CK_FP8_CVT_FAST_PATH 0
 #endif
 
+#if(defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx950__)) && __HIP_DEVICE_COMPILE__
+#define CK_OFP8_CVT_FAST_PATH 1
+#else
+#define CK_OFP8_CVT_FAST_PATH 0
+#endif
+
 typedef unsigned char fp8_storage_t;
 
 /**
@@ -51,6 +57,9 @@ enum ck_saturation_t
 };
 
 namespace fp8_impl {
+
+typedef fp8_storage_t fp8x2_storage_t __attribute__((ext_vector_type(2)));
+typedef float float2_t __attribute__((ext_vector_type(2)));
 
 __host__ __device__ static inline constexpr bool fnuz_f8_is_nan(f8_fnuz_t a)
 {
@@ -250,6 +259,33 @@ static __device__ float cast_to_f32_from_f8(fp8_storage_t v)
         return __builtin_amdgcn_cvt_f32_bf8(val.i32val, 0);
     }
 }
+
+template <ck_fp8_interpretation_t interpret>
+static __device__ float2_t cast_to_f32x2_from_f8x2(fp8x2_storage_t v)
+{
+    // union
+    // {
+    //     unsigned int i32val;
+    //     unsigned short i16val[2];
+    // } val;
+    // val.i16val[0] = v;
+
+    const auto i16val = bit_cast<uint16_t>(v);
+
+    static_assert(interpret == CK_E4M3_FNUZ || interpret == CK_E4M3_OCP ||
+                      interpret == CK_E5M2_FNUZ || interpret == CK_E5M2_OCP,
+                  "Only FNUZ and OCP interpretations are supported");
+
+    if constexpr((interpret == CK_E4M3_FNUZ) || (interpret == CK_E4M3_OCP))
+    {
+        return __builtin_amdgcn_cvt_pk_f32_fp8(i16val, false);
+    }
+    else
+    {
+        return __builtin_amdgcn_cvt_pk_f32_bf8(i16val, false);
+    }
+}
+
 #endif
 
 } // namespace fp8_impl
@@ -276,7 +312,7 @@ struct f8_ocp_t
     __host__ explicit operator float() const
 #endif
     {
-#if defined(__gfx950__) || defined(__gfx1200__) || defined(__gfx1201__)
+#if CK_OFP8_CVT_FAST_PATH
         return fp8_impl::cast_to_f32_from_f8<default_interpret>(this->data);
 #else
         return fp8_impl::cast_from_f8<float, wm, we, false>(
@@ -290,11 +326,58 @@ struct f8_ocp_t
     __host__ explicit operator _Float16() const
 #endif
     {
-#if defined(__gfx950__) || defined(__gfx1200__) || defined(__gfx1201__)
+#if CK_OFP8_CVT_FAST_PATH
         return static_cast<_Float16>(fp8_impl::cast_to_f32_from_f8<default_interpret>(this->data));
 #else
         return fp8_impl::cast_from_f8<_Float16, wm, we, false>(
             this->data); // XXX: clip==false must be consistent with operator float
+#endif
+    }
+};
+
+template <typename T, index_t N>
+struct non_native_vector_base;
+
+template <index_t N>
+struct non_native_vector_base<f8_ocp_t, N>
+{
+    using data_t = f8_ocp_t::data_type;
+    using data_v = data_t __attribute__((ext_vector_type(sizeof(data_t) * N)));
+    using type   = non_native_vector_base<f8_ocp_t, N>;
+
+    data_v d; // storage vector
+
+    __host__ __device__ non_native_vector_base() = default;
+    __host__ __device__ non_native_vector_base(data_t a) : d{a} {}
+    __host__ __device__ non_native_vector_base(data_v v) : d{v} {}
+
+    __host__ __device__ operator data_v() const { return d; }
+};
+
+template <>
+struct non_native_vector_base<f8_ocp_t, 2>
+{
+    using data_t = f8_ocp_t::data_type;
+    using type   = non_native_vector_base<f8_ocp_t, 2>;
+
+    __host__ __device__ non_native_vector_base() = default;
+
+    using data_v = fp8_impl::fp8x2_storage_t; // type of storage vector
+    data_v d;                                 // storage vector
+
+    using float2_t = fp8_impl::float2_t;
+
+#if CK_USE_OCP_FP8
+    __host__ __device__ explicit operator float2_t() const
+#else
+    __host__ explicit operator float2_t() const
+#endif
+    {
+#if CK_OFP8_CVT_FAST_PATH
+        return fp8_impl::cast_to_f32x2_from_f8x2<f8_ocp_t::default_interpret>(d);
+#else
+        return float2_t{fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(d[0]),
+                        fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(d[1])};
 #endif
     }
 };

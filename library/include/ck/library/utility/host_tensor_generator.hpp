@@ -37,7 +37,7 @@ struct GeneratorTensor_1<ck::half_t>
     float value = 1.0;
 
     template <typename... Is>
-    ck::bhalf_t operator()(Is...)
+    ck::half_t operator()(Is...)
     {
         return ck::type_convert<ck::half_t>(value);
     }
@@ -62,7 +62,7 @@ struct GeneratorTensor_1<ck::f8_t>
     float value = 1.0;
 
     template <typename... Is>
-    ck::bhalf_t operator()(Is...)
+    ck::f8_t operator()(Is...)
     {
         return ck::type_convert<ck::f8_t>(value);
     }

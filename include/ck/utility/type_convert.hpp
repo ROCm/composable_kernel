@@ -404,6 +404,17 @@ inline __host__ __device__ f8_fnuz_t type_convert<f8_fnuz_t, float>(float x)
 #endif
 }
 
+// convert fp32 to fp8
+template <>
+inline __host__ __device__ f8_ocp_t type_convert<f8_ocp_t, float>(float x)
+{
+#if CK_USE_SR_F8_CONVERSION
+    return f8_convert_sr<f8_ocp_t>(x);
+#else
+    return f8_convert_rne<f8_ocp_t>(x);
+#endif
+}
+
 // convert fp8 to fp32
 template <>
 inline __host__ __device__ float type_convert<float, f8_fnuz_t>(f8_fnuz_t x)
@@ -461,6 +472,17 @@ inline __host__ __device__ f8_fnuz_t type_convert<f8_fnuz_t, half_t>(half_t x)
 #endif
 }
 
+// convert fp16 to fp8
+template <>
+inline __host__ __device__ f8_ocp_t type_convert<f8_ocp_t, half_t>(half_t x)
+{
+#if CK_USE_SR_F8_CONVERSION
+    return f8_convert_sr<f8_ocp_t>(x);
+#else
+    return f8_convert_rne<f8_ocp_t>(x);
+#endif
+}
+
 // convert fp8 to fp16
 template <>
 inline __host__ __device__ half_t type_convert<half_t, f8_fnuz_t>(f8_fnuz_t x)
@@ -482,6 +504,17 @@ inline __host__ __device__ bf8_fnuz_t type_convert<bf8_fnuz_t, float>(float x)
     return f8_convert_sr<bf8_fnuz_t>(x);
 #else
     return f8_convert_rne<bf8_fnuz_t>(x);
+#endif
+}
+
+// convert fp32 to bf8
+template <>
+inline __host__ __device__ bf8_ocp_t type_convert<bf8_ocp_t, float>(float x)
+{
+#if CK_USE_SR_F8_CONVERSION
+    return f8_convert_sr<bf8_ocp_t>(x);
+#else
+    return f8_convert_rne<bf8_ocp_t>(x);
 #endif
 }
 
@@ -509,6 +542,17 @@ inline __host__ __device__ bf8_fnuz_t type_convert<bf8_fnuz_t, half_t>(half_t x)
     return f8_convert_sr<bf8_fnuz_t>(x);
 #else
     return f8_convert_rne<bf8_fnuz_t>(x);
+#endif
+}
+
+// convert fp16 to bf8
+template <>
+inline __host__ __device__ bf8_ocp_t type_convert<bf8_ocp_t, half_t>(half_t x)
+{
+#if CK_USE_SR_F8_CONVERSION
+    return f8_convert_sr<bf8_ocp_t>(x);
+#else
+    return f8_convert_rne<bf8_ocp_t>(x);
 #endif
 }
 
