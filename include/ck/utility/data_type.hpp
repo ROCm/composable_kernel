@@ -10,6 +10,7 @@ namespace ck {
 using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
+using f4_t    = unsigned _BitInt(4);
 using f8_t    = _BitInt(8);
 using bf8_t   = unsigned _BitInt(8);
 
@@ -1152,6 +1153,22 @@ struct NumericLimits<bf8_t>
     __host__ __device__ static constexpr bf8_t QuietNaN() { return bf8_t(binary_qnan); }
 };
 
+template <>
+struct NumericLimits<f4_t>
+{
+    static constexpr uint8_t binary_min_normal    = 0x2; // 0b0010
+    static constexpr uint8_t binary_max_normal    = 0x7; // 0b0111
+    static constexpr uint8_t binary_lowest_normal = 0xF; // 0b1111
+    static constexpr uint8_t binary_min_subnorm   = 0x1; // 0b0001
+    static constexpr uint8_t binary_max_subnorm   = 0x1; // 0b0001
+
+    __host__ __device__ static constexpr f4_t Min() { return f4_t(binary_min_normal); }
+    __host__ __device__ static constexpr f4_t Max() { return f4_t(binary_max_normal); }
+    __host__ __device__ static constexpr f4_t Lowest() { return f4_t(binary_lowest_normal); }
+    __host__ __device__ static constexpr f4_t MinSubnorm() { return f4_t(binary_min_subnorm); }
+    __host__ __device__ static constexpr f4_t MaxSubnorm() { return f4_t(binary_max_subnorm); }
+};
+
 template <typename T>
 struct NumericUtils
 {
@@ -1207,5 +1224,13 @@ struct NumericUtils<bf8_t>
     static constexpr int mant = 2;
     static constexpr int bias = 16; // negative zero nan mode
     // static constexpr int bias = 15; // ieee mode
+};
+
+template <>
+struct NumericUtils<f4_t>
+{
+    static constexpr int exp  = 2;
+    static constexpr int mant = 1;
+    static constexpr int bias = 1;
 };
 } // namespace ck
