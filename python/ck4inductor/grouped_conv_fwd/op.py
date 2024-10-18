@@ -6,45 +6,34 @@ from typing import Optional, Tuple
 
 
 @dataclass
-class CKGemmOperation:
-    """
-    A python dataclass storing the template parameters of a CK Universal Gemm template instance
-    """
-
+class CKGroupedConvFwdOp:
+    n_dim_spatial: int
     a_layout: str
     b_layout: str
-    ds_layouts: Tuple[str]  # addmm specific
-    c_layout: str
-
+    ds_layout: Tuple[str]
+    e_layout: str
     a_element_dtype: str
     b_element_dtype: str
-    ds_element_dtypes: Tuple[str]  # addmm specific
-    c_element_dtype: str
-
     acc_dtype: str
     c_shuffle_dtype: str
-
+    ds_element_dtype: Tuple[str]
+    e_element_dtype: str
     a_elementwise_op: str
     b_elementwise_op: str
-    c_elementwise_op: str
-
+    cde_elementwise_op: str
+    conv_forward_specialization: str
     gemm_specialization: str
 
     block_size: int
-
     m_per_block: int
     n_per_block: int
     k_per_block: int
-
-    a_k1: int
-    b_k1: int
-
+    ak1: int
+    bk1: int
     m_per_xdl: int
     n_per_xdl: int
-
     m_xdl_per_wave: int
     n_xdl_per_wave: int
-
     a_block_transfer_thread_cluster_lengths_ak0_m_ak1: Tuple[int, int, int]
     a_block_transfer_thread_cluster_arrange_order: Tuple[int, int, int]
     a_block_transfer_src_access_order: Tuple[int, int, int]
@@ -64,11 +53,13 @@ class CKGemmOperation:
 
     c_shuffle_m_xdl_per_wave_per_shuffle: int
     c_shuffle_n_xdl_per_wave_per_shuffle: int
-
-    c_shuffle_block_transfer_cluster_lengths_m_block_m_per_block_n_block_n_per_block: (
-        Tuple[int, int, int, int]
-    )
-    c_shuffle_block_transfer_scalar_per_vector_n_per_block: int
+    cde_block_transfer_cluster_lengths_m_block_m_per_block_n_block_n_per_block: Tuple[  # noqa
+        int,
+        int,
+        int,
+        int,
+    ]
+    cde_block_transfer_scalar_per_vector_n_per_block: int
     block_gemm_pipeline_scheduler: str
     block_gemm_pipeline_version: str
 
@@ -77,7 +68,10 @@ class CKGemmOperation:
 
     def name(self):
         # cpp alias for template instance
-        return f"ck_devicegemm_multid_xdl_shuffle_v3_{self.key_name()}"
+        return (
+            f"ck_device_grouped_convolution_fwd_multiple_abd_xdl_c_shuffle_v3_"
+            f"{self.key_name()}"
+        )
 
     def key_name(self):
         # TBD; must be unique per instance. Intended to use as dict key
