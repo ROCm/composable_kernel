@@ -191,7 +191,9 @@ using trait_{F_idx} = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_m
 template<>
 void fmha_fwd_splitkv_combine_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
-    if (a.num_splits <= 16) {{
+    if (a.num_splits <= 8) {{
+        kernel_runner<3>::run(s, a);
+    }} else if (a.num_splits <= 16) {{
         kernel_runner<4>::run(s, a);
     }} else if (a.num_splits <= 32) {{
         kernel_runner<5>::run(s, a);
