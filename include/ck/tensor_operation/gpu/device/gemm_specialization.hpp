@@ -29,6 +29,7 @@ enum struct GemmSpecialization
     MNKOPadding,
 };
 
+#ifndef CK_CODE_GEN_RTC
 inline std::string getGemmSpecializationString(const GemmSpecialization& s)
 {
     switch(s)
@@ -52,6 +53,7 @@ inline std::string getGemmSpecializationString(const GemmSpecialization& s)
     default: return "Unrecognized specialization!";
     }
 }
+#endif
 
 } // namespace device
 } // namespace tensor_operation

@@ -17,10 +17,10 @@ namespace ck {
 // Convert X to Y, both X and Y are non-const data types.
 template <typename Y,
           typename X,
-          std::enable_if_t<!(std::is_const_v<Y> || std::is_const_v<X>), bool> = false>
+          ck::enable_if_t<!(ck::is_const_v<Y> || ck::is_const_v<X>), bool> = false>
 __host__ __device__ constexpr Y type_convert(X x)
 {
-    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+    static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
 
     return static_cast<Y>(x);
 }
@@ -28,13 +28,13 @@ __host__ __device__ constexpr Y type_convert(X x)
 // Convert X to Y, either X or Y is a const data type.
 template <typename Y,
           typename X,
-          std::enable_if_t<std::is_const_v<Y> || std::is_const_v<X>, bool> = false>
+          ck::enable_if_t<ck::is_const_v<Y> || ck::is_const_v<X>, bool> = false>
 __host__ __device__ constexpr Y type_convert(X x)
 {
-    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+    static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
 
-    using NonConstY = std::remove_const_t<Y>;
-    using NonConstX = std::remove_const_t<X>;
+    using NonConstY = ck::remove_const_t<Y>;
+    using NonConstX = ck::remove_const_t<X>;
     return static_cast<Y>(type_convert<NonConstY, NonConstX>(x));
 }
 
@@ -104,7 +104,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_
 template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert_sp(X x)
 {
-    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+    static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
 
     return static_cast<Y>(x);
 }
@@ -166,7 +166,7 @@ template <>
 inline __host__ __device__ f8_t f8_convert_sr<f8_t, float>(float x)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #if defined(__gfx94__)
     union
     {
@@ -206,7 +206,7 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, half_t>(half_t x)
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 1254739;
-    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<size_t>(&x), x);
     return utils::
         cast_to_f8<half_t, f8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
             x, rng);
@@ -218,7 +218,7 @@ template <>
 inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, float>(float x)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #if defined(__gfx94__)
     union
     {
@@ -258,7 +258,7 @@ inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, half_t>(half_t x)
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 1254739;
-    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<size_t>(&x), x);
     return utils::
         cast_to_f8<half_t, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
             x, rng);
@@ -501,20 +501,22 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_t>(bf8_t x)
 #endif
 }
 
-template <typename Y, typename X, std::size_t NumElems>
+#ifndef CK_CODE_GEN_RTC
+template <typename Y, typename X, size_t NumElems>
 inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,
                                               const std::array<X, NumElems>& x)
 {
-    for(std::size_t i = 0; i < NumElems; i++)
+    for(size_t i = 0; i < NumElems; i++)
     {
         y[i] = type_convert<Y>(x[i]);
     }
 }
+#endif
 
 template <typename Y, typename X, index_t NumElems>
 inline __host__ __device__ void array_convert(Array<Y, NumElems>& y, const Array<X, NumElems>& x)
 {
-    for(std::size_t i = 0; i < NumElems; i++)
+    for(size_t i = 0; i < NumElems; i++)
     {
         y[i] = type_convert<Y>(x[i]);
     }

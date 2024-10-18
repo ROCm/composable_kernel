@@ -212,7 +212,7 @@ template <typename SrcData,
           typename enable_if<DstDesc::IsKnownAtCompileTime(), bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_v2
 {
-    static_assert((InvalidElementAsNaN && !std::is_integral<DstData>::value) ||
+    static_assert((InvalidElementAsNaN && !ck::is_integral<DstData>::value) ||
                       (!InvalidElementAsNaN),
                   "Filling invalid element as NaN is only for floating point types");
 
