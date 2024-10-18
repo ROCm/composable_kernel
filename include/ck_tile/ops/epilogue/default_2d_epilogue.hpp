@@ -39,7 +39,7 @@ struct Default2DEpilogue
         if constexpr(kPadM || kPadN)
         {
             store_tile_raw(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tile));
-            buffer_store_fence();
+            buffer_store_fence_raw();
         }
         else
         {

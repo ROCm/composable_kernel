@@ -17,10 +17,12 @@ namespace ck_tile {
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
-          typename DataType_>
+          typename DataType_,
+          index_t i_access = -1>
 CK_TILE_DEVICE void
 update_tile(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& tile_window_tmp,
-            const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor)
+            const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor,
+            number<i_access> = {})
 {
     using DataType = remove_cvref_t<typename BottomTensorView_::DataType>;
     using TileDstr = remove_cvref_t<TileDistribution_>;
@@ -34,22 +36,24 @@ update_tile(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& 
                                         tile_window_tmp.get_window_origin(),
                                         tile_dstr);
 
-    tile_window.update(dstr_tensor);
+    tile_window.update(dstr_tensor, number<i_access>{});
 }
 
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
           index_t NumCoord,
-          typename DataType_>
+          typename DataType_,
+          index_t i_access = -1>
 CK_TILE_DEVICE void
 update_tile(tile_window_with_static_distribution<BottomTensorView_,
                                                  WindowLengths_,
                                                  TileDistribution_,
                                                  NumCoord>& tile_window,
-            const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor)
+            const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor,
+            number<i_access> = {})
 {
-    tile_window.update(dstr_tensor);
+    tile_window.update(dstr_tensor, number<i_access>{});
 }
 
 } // namespace ck_tile
