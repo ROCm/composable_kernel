@@ -25,17 +25,17 @@ template <typename ALayout,
           typename ComputeTypeB>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    naive_gemm_kernel(const ADataType* __restrict__ p_a_grid,
-                      const BDataType* __restrict__ p_b_grid,
-                      CDataType* __restrict__ p_c_grid,
-                      index_t m,
-                      index_t n,
-                      index_t k,
-                      const AElementwiseOperation a_element_op,
-                      const BElementwiseOperation b_element_op,
-                      const CDEElementwiseOperation c_element_op)
+        naive_gemm_kernel(const ADataType* __restrict__ p_a_grid,
+                          const BDataType* __restrict__ p_b_grid,
+                          CDataType* __restrict__ p_c_grid,
+                          index_t m,
+                          index_t n,
+                          index_t k,
+                          const AElementwiseOperation a_element_op,
+                          const BElementwiseOperation b_element_op,
+                          const CDEElementwiseOperation c_element_op)
 {
     using RowMajor = ck::tensor_layout::gemm::RowMajor;
 
