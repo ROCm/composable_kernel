@@ -106,7 +106,7 @@ float layernorm2d_fwd_(const S& s, A a)
 {
     using DataType = typename Traits_::DataType;
 
-    using PipelineProblem = ck_tile::Layernorm2dFwdWarpPerRowProblem<
+    using PipelineProblem = ck_tile::Layernorm2dFwdRowwiseProblem<
         typename LayerNormTypeConfig<DataType>::XDataType,
         typename LayerNormTypeConfig<DataType>::GammaDataType,
         typename LayerNormTypeConfig<DataType>::BetaDataType,
@@ -118,7 +118,7 @@ float layernorm2d_fwd_(const S& s, A a)
         Traits_::kPadN,
         Traits_::kSaveMeanInvStd,
         Traits_::kTwoPass>;
-    using Pipeline = ck_tile::Layernorm2dFwdWarpPerRowPipeline<PipelineProblem>;
+    using Pipeline = ck_tile::Layernorm2dFwdRowwisePipeline<PipelineProblem>;
 
     using Kernel = ck_tile::Layernorm2dFwd<Pipeline>;
 

@@ -5,7 +5,7 @@
 
 #include "ck_tile/ops/layernorm2d/kernel/layernorm2d_fwd_kernel.hpp"
 #include "ck_tile/ops/layernorm2d/kernel/layernorm2d_fwd_shape.hpp"
-#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_warp_per_row_default_policy.hpp"
-#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_warp_per_row_pipeline.hpp"
-#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_warp_per_row_problem.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_rowwise_default_policy.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_rowwise_pipeline.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_rowwise_problem.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"

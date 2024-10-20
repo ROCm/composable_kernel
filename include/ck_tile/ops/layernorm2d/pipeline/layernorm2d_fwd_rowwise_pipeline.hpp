@@ -4,14 +4,14 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_warp_per_row_default_policy.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_rowwise_default_policy.hpp"
 #include <string>
 #include <type_traits>
 
 namespace ck_tile {
 
-template <typename Problem_, typename Policy_ = Layernorm2dFwdWarpPerRowDefaultPolicy>
-struct Layernorm2dFwdWarpPerRowPipeline
+template <typename Problem_, typename Policy_ = Layernorm2dFwdRowwiseDefaultPolicy>
+struct Layernorm2dFwdRowwisePipeline
 {
     using Problem = ck_tile::remove_cvref_t<Problem_>;
     using Policy  = ck_tile::remove_cvref_t<Policy_>;

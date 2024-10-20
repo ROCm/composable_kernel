@@ -9,7 +9,7 @@
 
 namespace ck_tile {
 
-struct Layernorm2dFwdWarpPerRowDefaultPolicy
+struct Layernorm2dFwdRowwiseDefaultPolicy
 {
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeXBlockTileDistribution()
