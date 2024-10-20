@@ -18,7 +18,7 @@ template <typename XDataType_,
           bool kPadN_,
           bool kSaveMeanInvStd_,
           bool kTwoPass_>
-struct BlockLayernorm2dFwdProblem
+struct Layernorm2dFwdWarpPerRowProblem
 {
     using XDataType       = remove_cvref_t<XDataType_>;
     using GammaDataType   = remove_cvref_t<GammaDataType_>;
@@ -28,6 +28,9 @@ struct BlockLayernorm2dFwdProblem
     using MeanDataType    = remove_cvref_t<MeanDataType_>;
     using InvStdDataType  = remove_cvref_t<InvStdDataType_>;
     using BlockShape      = remove_cvref_t<BlockShape_>;
+
+    static constexpr bool kNeedCrossLaneSync = BlockShape::Thread_N > 1;
+    static constexpr bool kNeedCrossWarpSync = BlockShape::BlockWarps_N > 1;
 
     static constexpr bool kPadN           = kPadN_;
     static constexpr bool kSaveMeanInvStd = kSaveMeanInvStd_;
