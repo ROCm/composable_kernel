@@ -139,7 +139,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     {
     case 0:
         a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
-        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{0x99});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
         break;
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
@@ -157,9 +157,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
-
-    b_k_n(0, 0) = 0xaa;
-    b_k_n(1, 1) = 0xaa;
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
