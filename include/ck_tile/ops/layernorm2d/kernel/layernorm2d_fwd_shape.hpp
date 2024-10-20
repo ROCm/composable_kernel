@@ -9,20 +9,19 @@ namespace ck_tile {
 /*
 // clang-format off
 
-4-level descriptor: BlockTile-> BlockWarps-> WarpTile-> Vector
+4-level descriptor: BlockTile-> WarpPerBlock-> WarpTile-> Vector
 
-                         Block_N (Warp_N * BlockWarps_N * Repeat_N )
+                         Block_N (Warp_N * WarpPerBlock_N * Repeat_N )
         +<----------------------< Repeat_N(2)>--------------------->+
         |                                                           |
-        +<--    <BlockWarps_N(2)>  -->+
+        +<--    <WarpPerBlock_N(2)>  -->+
             Warp_M
         +--------------+--------------+--------------+--------------+----+----------------+
  Warp_N | wrap_0       | wrap_1       |                             |    ^                ^
-        +--------------+--------------+                             |   <BlockWarps_M(2)> |
+        +--------------+--------------+                             |   <WarpPerBlock_M(2)> |
         | wrap_2       | wrap_3       |                             |    v
         +--------------+--------------+--------------+--------------+----+           Block_M
-        |                             |                             |           (Warp_M *
-BlockWarps_M * Repeat_M )
+        |                             |                             |  (Warp_M * WarpPerBlock_M * Repeat_M )
         +                             +                             |
         |                             |                             |                     v
         +--------------+--------------+--------------+--------------+                     +
@@ -37,12 +36,12 @@ BlockWarps_M * Repeat_M )
         +-----------+-----------+-----------+-----------+-----------+
 // clang-format on
 */
-template <typename BlockTile_,  // block size, seq<M, N>
-          typename BlockWarps_, // num warps along seq<M, N>
-          typename WarpTile_,   // warp size, seq<M, N>
-          typename Vector_,     // contiguous pixels(vector size) along seq<M, N>
+template <typename BlockTile_,    // block size, seq<M, N>
+          typename WarpPerBlock_, // num warps along seq<M, N>
+          typename WarpTile_,     // warp size, seq<M, N>
+          typename Vector_,       // contiguous pixels(vector size) along seq<M, N>
           index_t BlockSize_ =
-              warpSize* reduce_on_sequence(BlockWarps_{}, multiplies{}, number<1>{})>
+              warpSize* reduce_on_sequence(WarpPerBlock_{}, multiplies{}, number<1>{})>
 struct Layernorm2dShape
 {
     // block size
@@ -50,18 +49,18 @@ struct Layernorm2dShape
     static constexpr index_t Block_N = BlockTile_::at(number<1>{});
 
     // num warps along seq<M, N>, within each block
-    static constexpr index_t BlockWarps_M = BlockWarps_::at(number<0>{});
-    static constexpr index_t BlockWarps_N = BlockWarps_::at(number<1>{});
+    static constexpr index_t WarpPerBlock_M = WarpPerBlock_::at(number<0>{});
+    static constexpr index_t WarpPerBlock_N = WarpPerBlock_::at(number<1>{});
 
     // warp size
     static constexpr index_t Warp_M = WarpTile_::at(number<0>{});
     static constexpr index_t Warp_N = WarpTile_::at(number<1>{});
 
-    static_assert(Block_M % (BlockWarps_M * Warp_M) == 0);
-    static_assert(Block_N % (BlockWarps_N * Warp_N) == 0);
+    static_assert(Block_M % (WarpPerBlock_M * Warp_M) == 0);
+    static_assert(Block_N % (WarpPerBlock_N * Warp_N) == 0);
     // repeat of each thread along seq<M, N>
-    static constexpr index_t Repeat_M = Block_M / (BlockWarps_M * Warp_M);
-    static constexpr index_t Repeat_N = Block_N / (BlockWarps_N * Warp_N);
+    static constexpr index_t Repeat_M = Block_M / (WarpPerBlock_M * Warp_M);
+    static constexpr index_t Repeat_N = Block_N / (WarpPerBlock_N * Warp_N);
 
     // vector size along seq<M, N>
     static constexpr index_t Vector_M = Vector_::at(number<0>{});
@@ -70,8 +69,8 @@ struct Layernorm2dShape
     static_assert(Warp_M % Vector_M == 0);
     static_assert(Warp_N % Vector_N == 0);
     // num of threads along seq<M, N>, within each warp
-    static constexpr index_t Thread_M = Warp_M / Vector_M;
-    static constexpr index_t Thread_N = Warp_N / Vector_N;
+    static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M;
+    static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;
 
     static constexpr index_t BlockSize = BlockSize_;
 };

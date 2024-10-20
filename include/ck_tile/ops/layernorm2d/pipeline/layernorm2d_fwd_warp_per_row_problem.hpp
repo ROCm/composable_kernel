@@ -29,8 +29,8 @@ struct Layernorm2dFwdWarpPerRowProblem
     using InvStdDataType  = remove_cvref_t<InvStdDataType_>;
     using BlockShape      = remove_cvref_t<BlockShape_>;
 
-    static constexpr bool kNeedCrossLaneSync = BlockShape::Thread_N > 1;
-    static constexpr bool kNeedCrossWarpSync = BlockShape::BlockWarps_N > 1;
+    static constexpr bool kNeedCrossLaneSync = BlockShape::ThreadPerWarp_N > 1;
+    static constexpr bool kNeedCrossWarpSync = BlockShape::WarpPerBlock_N > 1;
 
     static constexpr bool kPadN           = kPadN_;
     static constexpr bool kSaveMeanInvStd = kSaveMeanInvStd_;

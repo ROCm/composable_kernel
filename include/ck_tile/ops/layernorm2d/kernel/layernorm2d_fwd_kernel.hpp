@@ -53,9 +53,9 @@ struct Layernorm2dFwd
     static constexpr bool kPadN      = Problem::kPadN;
     static constexpr bool kTwoPass   = Problem::kTwoPass;
 
-    static constexpr index_t Thread_N = Problem::BlockShape::Thread_N;
-    static constexpr index_t Vector_N = Problem::BlockShape::Vector_N;
-    static constexpr index_t Repeat_N = Problem::BlockShape::Repeat_N;
+    static constexpr index_t ThreadPerWarp_N = Problem::BlockShape::ThreadPerWarp_N;
+    static constexpr index_t Vector_N        = Problem::BlockShape::Vector_N;
+    static constexpr index_t Repeat_N        = Problem::BlockShape::Repeat_N;
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -125,7 +125,7 @@ struct Layernorm2dFwd
         #define _SS_  std::string
         #define _TS_  std::to_string
         return _SS_("layernorm2d_fwd_") + _SS_(t2s<XDataType>::name) + "_" + 
-             _TS_(S_::Block_M) + "x" + _TS_(S_::Block_N) + "_" + _TS_(S_::BlockWarps_M) + "x" + _TS_(S_::BlockWarps_N) + "_" +
+             _TS_(S_::Block_M) + "x" + _TS_(S_::Block_N) + "_" + _TS_(S_::WarpPerBlock_M) + "x" + _TS_(S_::WarpPerBlock_N) + "_" +
              _TS_(S_::Warp_M) + "x" + _TS_(S_::Warp_N) + "_" + _TS_(S_::Vector_M) + "x" + _TS_(S_::Vector_N) + "_" +
              _SS_(Pipeline::name) + surfix;
         #undef _SS_

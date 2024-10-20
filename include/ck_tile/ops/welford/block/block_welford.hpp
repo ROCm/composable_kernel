@@ -324,11 +324,11 @@ CK_TILE_DEVICE constexpr index_t block_tile_welford_calculate_max_count(int row_
 {
     using S                   = BlockShape;
     index_t LastloopN         = row_size % S::Block_N == 0 ? S::Block_N : row_size % S::Block_N;
-    constexpr index_t NThread = S::BlockWarps_N * S::Thread_N;
+    constexpr index_t NThread = S::WarpPerBlock_N * S::ThreadPerWarp_N;
     index_t iNLane            = get_thread_id() % NThread;
-    index_t iN0               = LastloopN / (S::Vector_N * S::Thread_N);
-    index_t iN1               = (LastloopN % (S::Vector_N * S::Thread_N)) / S::Vector_N;
-    index_t N2                = (LastloopN % (S::Vector_N * S::Thread_N)) % S::Vector_N;
+    index_t iN0               = LastloopN / (S::Vector_N * S::ThreadPerWarp_N);
+    index_t iN1               = (LastloopN % (S::Vector_N * S::ThreadPerWarp_N)) / S::Vector_N;
+    index_t N2                = (LastloopN % (S::Vector_N * S::ThreadPerWarp_N)) % S::Vector_N;
     index_t iN3               = iNLane < iN1 ? S::Vector_N : iNLane == iN1 ? N2 : 0;
     return iN0 * S::Vector_N + iN3;
 }

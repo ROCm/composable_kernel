@@ -19,8 +19,8 @@ struct Layernorm2dFwdWarpPerRowDefaultPolicy
         return make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<>,
-                tuple<sequence<S::BlockWarps_M, S::Thread_M, S::Vector_M>,
-                      sequence<S::Repeat_N, S::BlockWarps_N, S::Thread_N, S::Vector_N>>,
+                tuple<sequence<S::WarpPerBlock_M, S::ThreadPerWarp_M, S::Vector_M>,
+                      sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
                 tuple<sequence<1, 2>, sequence<1, 2>>,
                 tuple<sequence<0, 1>, sequence<1, 2>>,
                 sequence<1, 2, 2>,
@@ -33,8 +33,8 @@ struct Layernorm2dFwdWarpPerRowDefaultPolicy
 
         return make_static_tile_distribution(
             tile_distribution_encoding<
-                sequence<S::BlockWarps_M, S::Thread_M>,
-                tuple<sequence<S::Repeat_N, S::BlockWarps_N, S::Thread_N, S::Vector_N>>,
+                sequence<S::WarpPerBlock_M, S::ThreadPerWarp_M>,
+                tuple<sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
                 tuple<sequence<0, 1>, sequence<0, 1>>,
                 tuple<sequence<0, 1>, sequence<1, 2>>,
                 sequence<1, 1>,
