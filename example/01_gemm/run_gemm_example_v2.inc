@@ -182,20 +182,19 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto invoker   = gemm.MakeInvoker();
     float ave_time = 0;
 
-    auto argument = gemm.MakeArgument(
-        static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-        M,
-        N,
-        K,
-        StrideA,
-        StrideB,
-        StrideC,
-        KBatch,
-        a_element_op,
-        b_element_op,
-        c_element_op);
+    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                      M,
+                                      N,
+                                      K,
+                                      StrideA,
+                                      StrideB,
+                                      StrideC,
+                                      KBatch,
+                                      a_element_op,
+                                      b_element_op,
+                                      c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -207,42 +206,42 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     bool pass = true;
     if(config.do_verification)
     {
-      auto ref_gemm    = ReferenceGemmInstance{};
-      auto ref_invoker = ref_gemm.MakeInvoker();
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
 
-      auto ref_argument = ref_gemm.MakeArgument(
-          a_m_k, b_k_n, c_m_n_host_result, PassThrough{}, PassThrough{}, PassThrough{});
+        auto ref_argument = ref_gemm.MakeArgument(
+            a_m_k, b_k_n, c_m_n_host_result, PassThrough{}, PassThrough{}, PassThrough{});
 
-      ref_invoker.Run(ref_argument);
+        ref_invoker.Run(ref_argument);
 
-      ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
-      c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+        ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-      pass &= ck::utils::check_err(c_m_n_device_result,
-                                   c_m_n_host_result,
-                                   "Error: Incorrect results!",
-                                   get_rtol<CDataType>(),
-                                   get_atol<CDataType>());
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_host_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
 
-      std::cout << "c_m_n_device_result: " << std::endl;
-      for(int i = 0; i < M; i++)
-      {
-          for(int j = 0; j < N; j++)
-          {
-              std::cout << ck::type_convert<float>(c_m_n_device_result(i, j)) << ",";
-          }
-          std::cout << std::endl;
-      }
+        std::cout << "c_m_n_device_result: " << std::endl;
+        for(int i = 0; i < M; i++)
+        {
+            for(int j = 0; j < N; j++)
+            {
+                std::cout << ck::type_convert<float>(c_m_n_device_result(i, j)) << ",";
+            }
+            std::cout << std::endl;
+        }
 
-      std::cout << "c_m_n_host_result: " << std::endl;
-      for(int i = 0; i < M; i++)
-      {
-          for(int j = 0; j < N; j++)
-          {
-              std::cout << ck::type_convert<float>(c_m_n_host_result(i, j)) << ",";
-          }
-          std::cout << std::endl;
-      }
+        std::cout << "c_m_n_host_result: " << std::endl;
+        for(int i = 0; i < M; i++)
+        {
+            for(int j = 0; j < N; j++)
+            {
+                std::cout << ck::type_convert<float>(c_m_n_host_result(i, j)) << ",";
+            }
+            std::cout << std::endl;
+        }
     }
 
     if(config.time_kernel)
@@ -252,7 +251,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         std::size_t flop = 2_uz * M * N * K;
         std::size_t num_btype =
-            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N / (ck::is_same_v<ck::remove_cvref_t<BDataType>, ck::pk_i4_t> ? 2 : 1) + sizeof(CDataType) * M * N;
+            sizeof(ADataType) * M * K +
+            sizeof(BDataType) * K * N /
+                (ck::is_same_v<ck::remove_cvref_t<BDataType>, ck::pk_i4_t> ? 2 : 1) +
+            sizeof(CDataType) * M * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 

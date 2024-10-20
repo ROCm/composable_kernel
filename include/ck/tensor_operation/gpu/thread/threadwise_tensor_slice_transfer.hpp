@@ -1023,7 +1023,8 @@ struct ThreadwiseTensorSliceTransfer_v4
         static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
                       "wrong! Not divisible");
 
-		static_assert(!(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> && (SrcScalarPerVector == 1)), "pk data N cannot be 1");
+        static_assert(!(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> && (SrcScalarPerVector == 1)),
+                      "pk data N cannot be 1");
     }
 
     template <typename SrcRefToOriginDisplacement,
@@ -1129,7 +1130,8 @@ struct ThreadwiseTensorSliceTransfer_v4
             if constexpr(SrcBuffer::IsDynamicBuffer())
             {
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
-                    src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize, is_src_valid);
+                    src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize,
+                                                       is_src_valid);
             }
             else if constexpr(SrcBuffer::IsStaticBuffer())
             {
@@ -1171,8 +1173,8 @@ struct ThreadwiseTensorSliceTransfer_v4
                 });
             }
             else if constexpr(is_same<remove_cvref_t<SrcData>, f8_t>::value &&
-                         is_same<remove_cvref_t<DstData>, half_t>::value &&
-                         SrcScalarPerVector % 2 == 0)
+                              is_same<remove_cvref_t<DstData>, half_t>::value &&
+                              SrcScalarPerVector % 2 == 0)
             {
                 // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
                 // DstData)

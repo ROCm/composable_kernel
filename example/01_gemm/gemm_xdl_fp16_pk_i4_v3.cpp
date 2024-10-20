@@ -52,15 +52,15 @@ using DeviceGemmV2Instance =
         1, 1, S<1, 16, 1, 8>, 4,
         ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1>;
 #endif
-// clang-format on
+      // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                        BDataType,
-                                                                        CDataType,
-                                                                        AccDataType,
-                                                                        PassThrough,
-                                                                        PassThrough,
-                                                                        PassThrough>;
+    using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                            BDataType,
+                                                                            CDataType,
+                                                                            AccDataType,
+                                                                            PassThrough,
+                                                                            PassThrough,
+                                                                            PassThrough>;
 
 #include "run_gemm_example_v2.inc"
 

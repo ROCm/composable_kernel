@@ -322,11 +322,12 @@ struct Tensor
 
     std::size_t GetElementSize() const { return mDesc.GetElementSize(); }
 
-    std::size_t GetElementSpaceSize() const { 
+    std::size_t GetElementSpaceSize() const
+    {
         if constexpr(ck::is_same_v<T, ck::pk_i4_t>)
-            return mDesc.GetElementSpaceSize() / 2; 
+            return mDesc.GetElementSpaceSize() / 2;
         else
-            return mDesc.GetElementSpaceSize(); 
+            return mDesc.GetElementSpaceSize();
     }
 
     std::size_t GetElementSpaceSizeInBytes() const { return sizeof(T) * GetElementSpaceSize(); }

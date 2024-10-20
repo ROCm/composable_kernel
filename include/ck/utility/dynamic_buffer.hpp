@@ -83,7 +83,7 @@ struct DynamicBuffer
                     return 1;
             }();
 
-            //static_assert(element_space_size_ % PackedSize == 0, "");
+            // static_assert(element_space_size_ % PackedSize == 0, "");
 
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
@@ -97,7 +97,11 @@ struct DynamicBuffer
                 return amd_buffer_load_invalid_element_return_customized_value<remove_cvref_t<T>,
                                                                                t_per_x,
                                                                                coherence>(
-                    p_data_, i, is_valid_element, element_space_size_ / PackedSize, invalid_element_value_);
+                    p_data_,
+                    i,
+                    is_valid_element,
+                    element_space_size_ / PackedSize,
+                    invalid_element_value_);
             }
         }
         else

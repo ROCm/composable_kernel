@@ -86,8 +86,8 @@ struct ReferenceGemm : public device::BaseOperator
                     }
                     else if constexpr(is_same_v<BDataType, pk_i4_t>)
                     {
-                        pk_i4_t i4x2 = arg.b_k_n_(k, n); 
-                        int8_t i4 = 0;
+                        pk_i4_t i4x2 = arg.b_k_n_(k, n);
+                        int8_t i4    = 0;
                         if(k % 2 == 1)
                             i4 = (i4x2 >> 0) & 0xf;
                         else
