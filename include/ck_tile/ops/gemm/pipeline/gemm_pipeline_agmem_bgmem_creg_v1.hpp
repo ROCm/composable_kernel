@@ -140,12 +140,6 @@ struct GemmPipelineAGmemBGmemCRegV1
         auto a_block_tile = load_tile(a_copy_dram_window);
         auto b_block_tile = load_tile(b_copy_dram_window);
         // option on the shuffle the B matrix tile.
-        if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
-        {
-            auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-                Policy::template MakeShuffleBRegBlockDescriptor<Problem>());
-        }
-
         {
             // move to 1
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
@@ -159,8 +153,16 @@ struct GemmPipelineAGmemBGmemCRegV1
             store_tile(a_copy_lds_window, a_block_tile_tmp);
 
             // LDS write 0
-            const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
-            store_tile(b_copy_lds_window, b_block_tile_tmp);
+            if constexpr(std::is_same_v<LayoutB, tensor_layout::gemm::RowMajor>)
+            {
+                auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                    Policy::template MakeShuffleBRegBlockDescriptor<Problem>());
+                shuffle_tile(b_shuffle_tmp, b_block_tile);
+                store_tile(b_copy_lds_window, tile_elementwise_in(b_element_func, b_shuffle_tmp));
+                
+            } else {
+                store_tile(b_copy_lds_window, tile_elementwise_in(b_element_func, b_block_tile));
+            }
         }
 
         index_t iCounter = num_loop - 1;
@@ -186,9 +188,16 @@ struct GemmPipelineAGmemBGmemCRegV1
             store_tile(a_copy_lds_window, a_block_tile_tmp);
 
             // LDS write i + 1
-            const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
-            store_tile(b_copy_lds_window, b_block_tile_tmp);
-
+            if constexpr(std::is_same_v<LayoutB, tensor_layout::gemm::RowMajor>)
+            {
+                auto b_shuffle_tmp_loop = make_static_distributed_tensor<BDataType>(
+                    Policy::template MakeShuffleBRegBlockDescriptor<Problem>());
+                shuffle_tile(b_shuffle_tmp_loop, b_block_tile);
+                store_tile(b_copy_lds_window, tile_elementwise_in(b_element_func, b_shuffle_tmp_loop));
+            } else {
+                const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
+                store_tile(b_copy_lds_window, b_block_tile_tmp);
+            }
             iCounter--;
         }
 

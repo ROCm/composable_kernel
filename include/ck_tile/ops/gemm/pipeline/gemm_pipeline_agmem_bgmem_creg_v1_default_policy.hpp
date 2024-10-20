@@ -282,7 +282,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffleBRegBlockDescriptor()
     {
-        using BLayout = remove_cvref_t<typename Problem::LayoutB>;
+        using LayoutB = remove_cvref_t<typename Problem::LayoutB>;
         static_assert(std::is_same_v<LayoutB, ck_tile::tensor_layout::gemm::RowMajor>);
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
