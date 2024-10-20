@@ -12,7 +12,7 @@ float layernorm2d_fwd_b16_(layernorm2d_fwd_traits /*t*/,
 #if 1
     float r = -1;
     // clang-format off
-    //                                                   rm  rn  tm  tn  vn  pd     mv     2p
+    //                                            rm  rn  tm   tn  vn  pd     mv     2p
     if(a.n <= 64) {
             r = layernorm2d_fwd_<trait_<data_type, 1,  1,  4,  64, 1,  true,  false, false>>(s, a);
     }
@@ -49,18 +49,34 @@ float layernorm2d_fwd_b16_(layernorm2d_fwd_traits /*t*/,
             r = layernorm2d_fwd_<trait_<data_type,  1,12,  4,  64, 1,  true,  false, false>>(s, a);
     }
     else if(a.n <= 1024) {
-        
-        
-         if (a.n % 4 == 0)
-            // r = layernorm2d_fwd_<trait_<data_type,  1, 4,  4,  64, 4,  true,  false, false>>(s, a);
-            r = layernorm2d_fwd_<trait_<data_type,  1, 1,  1,  256, 4,  true,  false, false>>(s, a);
-
-            else if (a.n % 8 == 0)
-            r = layernorm2d_fwd_<trait_<data_type,  1, 2,  4,  64, 8,  true,  false, false>>(s, a);
+        if (a.n % 8 == 0)
+            r = layernorm2d_fwd_<trait_<data_type,  1, 1, 1,  128, 8,  true,  false, false>>(s, a);
+        else if (a.n % 4 == 0)
+            r = layernorm2d_fwd_<trait_<data_type,  1, 2, 1,  128, 4,  true,  false, false>>(s, a);
         else if (a.n % 2 == 0)
-            r = layernorm2d_fwd_<trait_<data_type,  1, 8,  4,  64, 2,  true,  false, false>>(s, a);
+            r = layernorm2d_fwd_<trait_<data_type,  1, 4, 1,  128, 2,  true,  false, false>>(s, a);
         else
-            r = layernorm2d_fwd_<trait_<data_type,  1, 16, 4,  64, 1,  true,  false, false>>(s, a);
+            r = layernorm2d_fwd_<trait_<data_type,  1, 4, 1,  256, 1,  true,  false, false>>(s, a);
+    }
+    else if(a.n <= 2048) {
+        if (a.n % 8 == 0)
+            r = layernorm2d_fwd_<trait_<data_type,  1, 1, 1,  256, 8,  true,  false, false>>(s, a);
+        else if (a.n % 4 == 0)
+            r = layernorm2d_fwd_<trait_<data_type,  1, 2, 1,  128, 8,  true,  false, false>>(s, a);
+        else if (a.n % 2 == 0)
+            r = layernorm2d_fwd_<trait_<data_type,  1, 4, 1,  256, 2,  true,  false, false>>(s, a);
+        else
+            r = layernorm2d_fwd_<trait_<data_type,  1, 8, 1,  256, 1,  true,  false, false>>(s, a);
+    }
+    else if(a.n <= 3072) {
+        if (a.n % 8 == 0)
+            r = layernorm2d_fwd_<trait_<data_type,  1, 3, 1,  128, 8,  true,  false, false>>(s, a);
+        else if (a.n % 4 == 0)
+            r = layernorm2d_fwd_<trait_<data_type,  1, 3, 1,  256, 4,  true,  false, false>>(s, a);
+        else if (a.n % 2 == 0)
+            r = layernorm2d_fwd_<trait_<data_type,  1, 6, 1,  256, 2,  true,  false, false>>(s, a);
+        else
+            r = layernorm2d_fwd_<trait_<data_type,  1, 3, 1, 1024, 1,  true,  false, false>>(s, a);
     }
     return r;
 #else
