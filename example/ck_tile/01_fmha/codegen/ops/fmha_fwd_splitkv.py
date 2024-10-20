@@ -560,9 +560,9 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-            '64'  : FmhaFwdTileSize(64, 64,  32, 64,  32, 64,   4, 1, 1, 16, 16, 16, -1),
-            '128' : FmhaFwdTileSize(64, 128, 32, 128, 32, 128,  4, 1, 1, 16, 16, 16, -1),
-            '256' : FmhaFwdTileSize(64, 128, 32, 256, 32, 256,  4, 1, 1, 16, 16, 16, -1),
+            '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32, 64,   2, 1, 1, 32, 32, 32, -1),
+            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, -1),
+            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 32, -1)
         }
     else:
         return None
@@ -577,9 +577,9 @@ def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[d
     }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-            '64'  : FmhaFwdSplitKVCombineTileSize(32, 32,  -1),
-            '128' : FmhaFwdSplitKVCombineTileSize(32, 64,  -1),
-            '256' : FmhaFwdSplitKVCombineTileSize(32, 128, -1),
+            '64'  : FmhaFwdSplitKVCombineTileSize(64, 32,  -1),
+            '128' : FmhaFwdSplitKVCombineTileSize(64, 64,  -1),
+            '256' : FmhaFwdSplitKVCombineTileSize(64, 128, -1),
         }
     else:
         return None
