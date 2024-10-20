@@ -322,7 +322,12 @@ struct Tensor
 
     std::size_t GetElementSize() const { return mDesc.GetElementSize(); }
 
-    std::size_t GetElementSpaceSize() const { return mDesc.GetElementSpaceSize(); }
+    std::size_t GetElementSpaceSize() const { 
+        if constexpr(ck::is_same_v<T, ck::pk_i4_t>)
+            return mDesc.GetElementSpaceSize() / 2; 
+        else
+            return mDesc.GetElementSpaceSize(); 
+    }
 
     std::size_t GetElementSpaceSizeInBytes() const { return sizeof(T) * GetElementSpaceSize(); }
 
@@ -469,29 +474,64 @@ struct Tensor
     template <typename... Is>
     std::size_t GetOffsetFromMultiIndex(Is... is) const
     {
-        return mDesc.GetOffsetFromMultiIndex(is...);
+        if constexpr(ck::is_same_v<T, ck::pk_i4_t>)
+        {
+            return mDesc.GetOffsetFromMultiIndex(is...) / 2;
+        }
+        else
+        {
+            return mDesc.GetOffsetFromMultiIndex(is...);
+        }
     }
 
     template <typename... Is>
     T& operator()(Is... is)
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
+        if constexpr(ck::is_same_v<T, ck::pk_i4_t>)
+        {
+            return mData[mDesc.GetOffsetFromMultiIndex(is...) / 2];
+        }
+        else
+        {
+            return mData[mDesc.GetOffsetFromMultiIndex(is...)];
+        }
     }
 
     template <typename... Is>
     const T& operator()(Is... is) const
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
+        if constexpr(ck::is_same_v<T, ck::pk_i4_t>)
+        {
+            return mData[mDesc.GetOffsetFromMultiIndex(is...) / 2];
+        }
+        else
+        {
+            return mData[mDesc.GetOffsetFromMultiIndex(is...)];
+        }
     }
 
     T& operator()(std::vector<std::size_t> idx)
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+        if constexpr(ck::is_same_v<T, ck::pk_i4_t>)
+        {
+            return mData[mDesc.GetOffsetFromMultiIndex(idx) / 2];
+        }
+        else
+        {
+            return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+        }
     }
 
     const T& operator()(std::vector<std::size_t> idx) const
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+        if constexpr(ck::is_same_v<T, ck::pk_i4_t>)
+        {
+            return mData[mDesc.GetOffsetFromMultiIndex(idx) / 2];
+        }
+        else
+        {
+            return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+        }
     }
 
     typename Data::iterator begin() { return mData.begin(); }

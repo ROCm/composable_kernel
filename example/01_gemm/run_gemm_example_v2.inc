@@ -158,6 +158,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
 
+    b_k_n(0, 0) = 0xaa;
+    b_k_n(1, 1) = 0xaa;
+
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
@@ -207,31 +210,42 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     bool pass = true;
     if(config.do_verification)
     {
-      //auto ref_gemm    = ReferenceGemmInstance{};
-      //auto ref_invoker = ref_gemm.MakeInvoker();
+      auto ref_gemm    = ReferenceGemmInstance{};
+      auto ref_invoker = ref_gemm.MakeInvoker();
 
-      //auto ref_argument = ref_gemm.MakeArgument(
-      //    a_m_k, b_k_n, c_m_n_host_result, PassThrough{}, PassThrough{}, PassThrough{});
+      auto ref_argument = ref_gemm.MakeArgument(
+          a_m_k, b_k_n, c_m_n_host_result, PassThrough{}, PassThrough{}, PassThrough{});
 
-      //ref_invoker.Run(ref_argument);
+      ref_invoker.Run(ref_argument);
 
       ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
       c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-      //pass &= ck::utils::check_err(c_m_n_device_result,
-      //                             c_m_n_host_result,
-      //                             "Error: Incorrect results!",
-      //                             get_rtol<CDataType>(),
-      //                             get_atol<CDataType>());
+      pass &= ck::utils::check_err(c_m_n_device_result,
+                                   c_m_n_host_result,
+                                   "Error: Incorrect results!",
+                                   get_rtol<CDataType>(),
+                                   get_atol<CDataType>());
 
-      //for(int i = 0; i < M; i++)
-      //{
-      //    for(int j = 0; j < N; j++)
-      //    {
-      //        std::cout << ck::type_convert<float>(c_m_n_device_result(i, j)) << ",";
-      //    }
-      //    std::cout << std::endl;
-      //}
+      std::cout << "c_m_n_device_result: " << std::endl;
+      for(int i = 0; i < M; i++)
+      {
+          for(int j = 0; j < N; j++)
+          {
+              std::cout << ck::type_convert<float>(c_m_n_device_result(i, j)) << ",";
+          }
+          std::cout << std::endl;
+      }
+
+      std::cout << "c_m_n_host_result: " << std::endl;
+      for(int i = 0; i < M; i++)
+      {
+          for(int j = 0; j < N; j++)
+          {
+              std::cout << ck::type_convert<float>(c_m_n_host_result(i, j)) << ",";
+          }
+          std::cout << std::endl;
+      }
     }
 
     if(config.time_kernel)
