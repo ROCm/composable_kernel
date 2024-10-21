@@ -23,6 +23,7 @@ enum struct coord_transform_enum
     replicate,
     xor_t,
     offset,
+    indexing,
 };
 
 template <index_t NDimLow, index_t NDimUp>
@@ -1526,6 +1527,184 @@ struct offset : public base_transform<1, 1>
     }
 };
 
+#if 0
+template <typename UpLength,
+          typename Index>
+struct indexing : public base_transform<1, 1>
+{
+    static constexpr index_t NDimUp = 1;
+
+    using LowerIndex = multi_index<1>;
+    using UpperIndex = multi_index<1>;
+
+    using UpLengths = decltype(make_tuple(UpLength{}));
+    using Indices = decltype(make_tuple(Index{}));
+    UpLengths up_lengths_;
+    Indices indices_;
+
+    CK_TILE_HOST_DEVICE constexpr indexing() = default;
+
+    CK_TILE_HOST_DEVICE constexpr indexing(const UpLength& up_length,
+                                        const Index& index)
+        : up_lengths_{make_tuple(up_length)}, indices_{make_tuple(indices)}
+    {
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto get_type_enum()
+    {
+        return coord_transform_enum::indexing;
+    }
+
+    CK_TILE_HOST_DEVICE constexpr const auto& get_upper_lengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    CK_TILE_HOST_DEVICE constexpr void calculate_lower_index(LowIdx& idx_low,
+                                                             const UpIdx& /*idx_up*/) const
+    {
+        static_assert(LowIdx::size() == 1 && UpIdx::size() == NDimUp,
+                      "wrong! inconsistent # of dimension");
+
+        idx_low(number<0>{}) = indices_[number<0>{}];
+    }
+
+    template <typename LowIdxDiff, typename UpIdxDiff, typename LowIdx, typename UpIdx>
+    CK_TILE_HOST_DEVICE void update_lower_index(LowIdxDiff& idx_diff_low,
+                                                const UpIdxDiff& /*idx_diff_up*/,
+                                                LowIdx& /*idx_low*/,
+                                                const UpIdx& /*idx_up*/) const
+    {
+        // TODO: nonthing changed here
+        static_assert(LowIdxDiff::size() == 1 && UpIdxDiff::size() == NDimUp &&
+                          LowIdx::size() == 1 && UpIdx::size() == NDimUp,
+                      "wrong! inconsistent # of dimension");
+
+        idx_diff_low(number<0>{}) = 0;
+
+        //static_for<0, NDimUp, 1>{}(
+        //    [&](auto i) { idx_diff_low(number<0>{}) += idx_diff_up[i] * coefficients_[i]; });
+
+        // idx_low += idx_up;
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr bool
+    is_valid_upper_index_always_mapped_to_valid_lower_index()
+    {
+        return true;
+    }
+
+    template <typename UpIdx>
+    CK_TILE_HOST_DEVICE static constexpr bool
+    is_valid_upper_index_mapped_to_valid_lower_index(const UpIdx& /* idx_up */)
+    {
+        return true;
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr bool is_known_at_compile_time()
+    {
+        return ck_tile::is_known_at_compile_time<UpLengths>::value &&
+               ck_tile::is_known_at_compile_time<Indices>::value;
+    }
+
+    CK_TILE_HOST_DEVICE void print() const
+    {
+        printf("embed{");
+
+        //
+        printf("up_lengths_: ");
+        print(up_lengths_);
+        printf(", ");
+
+        //
+        printf("indices_: ");
+        print(indices_);
+
+        printf("}");
+    }
+};
+#endif
+
+template <typename UpLength, typename IndexingAdaptor>
+struct indexing : public base_transform<1, 1>
+{
+    static constexpr index_t NDimUp = 1;
+
+    using LowerIndex = multi_index<1>;
+    using UpperIndex = multi_index<1>;
+
+    using UpLengths = decltype(make_tuple(UpLength{}));
+    UpLengths up_lengths_;
+    IndexingAdaptor iadaptor_;
+
+    CK_TILE_HOST_DEVICE constexpr indexing() = default;
+
+    CK_TILE_HOST_DEVICE constexpr indexing(const UpLength& up_length,
+                                           const IndexingAdaptor& iadaptor)
+        : up_lengths_{make_tuple(up_length)}, iadaptor_{iadaptor}
+    {
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto get_type_enum()
+    {
+        return coord_transform_enum::indexing;
+    }
+
+    CK_TILE_HOST_DEVICE constexpr const auto& get_upper_lengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    CK_TILE_HOST_DEVICE constexpr void calculate_lower_index(LowIdx& idx_low,
+                                                             const UpIdx& idx_up) const
+    {
+        static_assert(LowIdx::size() == 1 && UpIdx::size() == NDimUp,
+                      "wrong! inconsistent # of dimension");
+        iadaptor_.calculate_lower_index(idx_low, idx_up);
+    }
+
+    template <typename LowIdxDiff, typename UpIdxDiff, typename LowIdx, typename UpIdx>
+    CK_TILE_HOST_DEVICE void update_lower_index(LowIdxDiff& idx_diff_low,
+                                                const UpIdxDiff& idx_diff_up,
+                                                LowIdx& idx_low,
+                                                const UpIdx& idx_up) const
+    {
+        // TODO: nonthing changed here
+        static_assert(LowIdxDiff::size() == 1 && UpIdxDiff::size() == NDimUp &&
+                          LowIdx::size() == 1 && UpIdx::size() == NDimUp,
+                      "wrong! inconsistent # of dimension");
+
+        iadaptor_.update_lower_index(idx_diff_low, idx_diff_up, idx_low, idx_up);
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr bool
+    is_valid_upper_index_always_mapped_to_valid_lower_index()
+    {
+        return true;
+    }
+
+    template <typename UpIdx>
+    CK_TILE_HOST_DEVICE static constexpr bool
+    is_valid_upper_index_mapped_to_valid_lower_index(const UpIdx& /* idx_up */)
+    {
+        return true;
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr bool is_known_at_compile_time()
+    {
+        return ck_tile::is_known_at_compile_time<UpLengths>::value &&
+               IndexingAdaptor::is_known_at_compile_time();
+    }
+
+    CK_TILE_HOST_DEVICE void print() const
+    {
+        printf("embed{");
+
+        //
+        printf("up_lengths_: ");
+        print(up_lengths_);
+        printf(", ");
+
+        printf("}");
+    }
+};
+
 //*******************************************************************************************************
 
 template <typename LowLength>
@@ -1643,6 +1822,27 @@ CK_TILE_HOST_DEVICE constexpr auto make_offset_transform(const LowLength& low_le
                                                          const OffsetLength& offset_length)
 {
     return offset<LowLength, OffsetLength>{low_length, offset_length};
+}
+
+} // namespace ck_tile
+
+#include "ck_tile/core/algorithm/indexing_adaptor.hpp"
+namespace ck_tile {
+
+template <typename UpLength, typename Indices>
+CK_TILE_HOST_DEVICE constexpr auto make_indexing_transform(const UpLength& up_lengths,
+                                                           const Indices& indices)
+{
+    // by default we use the simplest one
+    return indexing<UpLength, indexing_adaptor_onshot_cached<remove_cvref_t<Indices>>>{
+        up_lengths, indexing_adaptor_onshot_cached<remove_cvref_t<Indices>>{indices}};
+}
+
+template <typename UpLength, typename IndexingAdaptor>
+CK_TILE_HOST_DEVICE constexpr auto
+make_indexing_transform_with_adaptor(const UpLength& up_lengths, const IndexingAdaptor& iadaptor)
+{
+    return indexing<UpLength, IndexingAdaptor>{up_lengths, iadaptor};
 }
 
 } // namespace ck_tile
