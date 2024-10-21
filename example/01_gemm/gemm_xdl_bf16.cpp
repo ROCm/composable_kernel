@@ -13,6 +13,7 @@ using CShuffleDataType = ck::bhalf_t;
 
 using ALayout = Row;
 using BLayout = Col;
+// using BLayout = Row;
 using CLayout = Row;
 
 using AElementOp = PassThrough;
