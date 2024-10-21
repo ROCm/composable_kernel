@@ -50,11 +50,11 @@ float layernorm2d_fwd_b16_(layernorm2d_fwd_traits /*t*/,
     }
     else if(a.n <= 1024) {
         if (a.n % 8 == 0)
-            r = layernorm2d_fwd_<trait_<data_type,  1, 1, 1,  128, 8,  true,  false, false>>(s, a);
+            r = layernorm2d_fwd_<trait_<data_type,  1, 1, 2,  128, 8,  true,  false, false>>(s, a);
         else if (a.n % 4 == 0)
-            r = layernorm2d_fwd_<trait_<data_type,  1, 2, 1,  128, 4,  true,  false, false>>(s, a);
+            r = layernorm2d_fwd_<trait_<data_type,  1, 2, 2,  128, 4,  true,  false, false>>(s, a);
         else if (a.n % 2 == 0)
-            r = layernorm2d_fwd_<trait_<data_type,  1, 4, 1,  128, 2,  true,  false, false>>(s, a);
+            r = layernorm2d_fwd_<trait_<data_type,  1, 4, 2,  128, 2,  true,  false, false>>(s, a);
         else
             r = layernorm2d_fwd_<trait_<data_type,  1, 4, 1,  256, 1,  true,  false, false>>(s, a);
     }
@@ -62,7 +62,7 @@ float layernorm2d_fwd_b16_(layernorm2d_fwd_traits /*t*/,
         if (a.n % 8 == 0)
             r = layernorm2d_fwd_<trait_<data_type,  1, 1, 1,  256, 8,  true,  false, false>>(s, a);
         else if (a.n % 4 == 0)
-            r = layernorm2d_fwd_<trait_<data_type,  1, 2, 1,  128, 8,  true,  false, false>>(s, a);
+            r = layernorm2d_fwd_<trait_<data_type,  1, 2, 1,  256, 4,  true,  false, false>>(s, a);
         else if (a.n % 2 == 0)
             r = layernorm2d_fwd_<trait_<data_type,  1, 4, 1,  256, 2,  true,  false, false>>(s, a);
         else
