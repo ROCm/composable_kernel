@@ -36,13 +36,12 @@ FMHA_FWD_KERNEL_BODY="""
 using fmha_dtype_{F_idx} = {F_dtype};
 
 using fmha_block_tile_{F_idx} = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}>;
-using fmha_block_warps_{F_idx} = ck_tile::sequence<{F_rm}, {F_rn}, {F_rk}>;
 using fmha_warp_tile_{F_idx} = ck_tile::sequence<{F_wm}, {F_wn}, {F_wk}>;
 
 using fmha_shape_{F_idx} = ck_tile::TileFmhaShape<fmha_block_tile_{F_idx},
-                                      fmha_block_warps_{F_idx},
+                                      ck_tile::sequence<{F_rm0}, {F_rn0}, {F_rk0}>,
                                       fmha_warp_tile_{F_idx},
-                                      fmha_block_warps_{F_idx},
+                                      ck_tile::sequence<{F_rm1}, {F_rn1}, {F_rk1}>,
                                       fmha_warp_tile_{F_idx},
                                       {F_vlayout}>;
 
@@ -291,9 +290,12 @@ class FmhaFwdTileSize:
     F_bn1       : int  # tile size along v head_dim
     F_bk1       : int  # tile size along kv gemm unroll
     F_bk0blen   : int  # total length of K0, used for pipeline that need load Q at once (or repeately load Q as a whole tile)
-    F_rm        : int  # number of warps along q seqlen (block warps)
-    F_rn        : int  # number of warps along k seqlen(not used)
-    F_rk        : int  # number of warps along gemm-k(not used)
+    F_rm0       : int  # number of warps for gemm0 along q seqlen
+    F_rn0       : int  # number of warps for gemm0 along k seqlen 
+    F_rk0       : int  # number of warps for gemm0 along head dim q (not used)
+    F_rm1       : int  # number of warps for gemm1 along q seqlen
+    F_rn1       : int  # number of warps for gemm1 along head dim v
+    F_rk1       : int  # number of warps for gemm1 along k seqlen (not used)
     F_wm        : int  # warp size along m (warp size)
     F_wn        : int  # warp size along n
     F_wk        : int  # warp size along k
@@ -301,8 +303,8 @@ class FmhaFwdTileSize:
     @property
     def name(self) -> str:
         return f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bn1}x{self.F_bk1}x{self.F_bk0blen}" +\
-        f"_r{self.F_rm}x{self.F_rn}x{self.F_rk}_w{self.F_wm}x{self.F_wn}x{self.F_wk}" +\
-            ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
+        f"_r{self.F_rm0}x{self.F_rn0}x{self.F_rk0}_r{self.F_rm1}x{self.F_rn1}x{self.F_rk1}" +\
+        f"_w{self.F_wm}x{self.F_wn}x{self.F_wk}" + ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
 
 @dataclass
 class FmhaFwdKernel:
@@ -334,9 +336,12 @@ class FmhaFwdKernel:
                 F_bn1           = self.F_tile.F_bn1,
                 F_bk1           = self.F_tile.F_bk1,
                 F_bk0blen       = self.F_tile.F_bk0blen,
-                F_rm            = self.F_tile.F_rm,
-                F_rn            = self.F_tile.F_rn,
-                F_rk            = self.F_tile.F_rk,
+                F_rm0           = self.F_tile.F_rm0,
+                F_rn0           = self.F_tile.F_rn0,
+                F_rk0           = self.F_tile.F_rk0,
+                F_rm1           = self.F_tile.F_rm1,
+                F_rn1           = self.F_tile.F_rn1,
+                F_rk1           = self.F_tile.F_rk1,
                 F_wm            = self.F_tile.F_wm,
                 F_wn            = self.F_tile.F_wn,
                 F_wk            = self.F_tile.F_wk,
@@ -394,16 +399,16 @@ class FmhaFwdKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, -1),
-            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, -1),
+            '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1,  2, 1, 1,  32, 32, 16, -1),
+            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1,  4, 1, 1,  32, 32, 16, -1),
+            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16, -1),
+            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16, -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     2, 1, 1, 32, 32, 32, -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 32, -1)
+            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     2, 1, 1,  2, 1, 1,  32, 32, 32, -1),
+            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1),
+            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1)
         }
     else:
         return None

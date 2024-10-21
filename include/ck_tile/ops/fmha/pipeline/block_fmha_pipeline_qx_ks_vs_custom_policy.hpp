@@ -133,8 +133,9 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
     }
 };
 
+/// NOTICE: we no-longer use this policy.
 template <>
-struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
+struct [[deprecated]] BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
 {
     static constexpr bool QLoadOnce = false;
 
@@ -383,10 +384,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using BlockGemm = remove_cvref_t<decltype(QXPolicy::template GetQKBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
-        using CWarpDstr       = typename WG::CWarpDstr;
-        constexpr auto vec =
-            CWarpDstr{}.get_ys_to_d_descriptor().get_lengths().at(number<CWarpDstr::NDimY - 1>{});
-        return vec;
+
+        return WG::WarpGemmAttribute::Impl::kCM1PerLane;
     }
 
     template <typename Problem>
@@ -395,10 +394,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using BlockGemm       = remove_cvref_t<decltype(GetKVBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
-        using CWarpDstr       = typename WG::CWarpDstr;
-        constexpr auto vec =
-            CWarpDstr{}.get_ys_to_d_descriptor().get_lengths().at(number<CWarpDstr::NDimY - 1>{});
-        return vec;
+
+        return WG::WarpGemmAttribute::Impl::kCM1PerLane;
     }
 
     template <typename Problem>
@@ -447,38 +444,6 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         }();
 
         return max(SingleKSize, SingleVSize);
-    }
-
-    template <typename Problem, typename BlockGemm>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQRegBlockDescriptor()
-    {
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0BlockLength;
-
-        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-
-        using WG = remove_cvref_t<decltype(config.template at<0>())>;
-
-        constexpr index_t MWarp = config.template at<1>();
-        constexpr index_t NWarp = config.template at<2>();
-
-        constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WG::kM);
-        constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
-
-        constexpr auto q_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<NWarp>,
-                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-                                       tuple<sequence<1, 0>>,
-                                       tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-
-        constexpr auto q_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            q_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});
-
-        constexpr auto q_block_dstr = make_static_tile_distribution(q_block_dstr_encode);
-
-        return q_block_dstr;
     }
 
     // TODO: this is used for non async copy desc. unify in the future
