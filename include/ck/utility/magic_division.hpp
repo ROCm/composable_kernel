@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/ck.hpp"
+#include "data_type.hpp"
 #include "integral_constant.hpp"
 #include "number.hpp"
 #include "type.hpp"
@@ -30,7 +31,7 @@ struct MagicDivision
         // WARNING: magic division is only applicable for division inside this range.
         // You should use the return value of CalculateMagicNumbers, if division is not inside this
         // range. The "else" logic below is to quiet down run-time error.
-        if(divisor >= 1 && divisor <= INT32_MAX)
+        if(divisor >= 1 && divisor <= ck::NumericLimits<int32_t>::Max())
         {
             uint32_t shift = 0;
             for(shift = 0; shift < 32; ++shift)

@@ -2,9 +2,11 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#ifndef __HIPCC_RTC__
 #include <array>
+#endif
 
+#include "ck/utility/array.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 namespace ck {
@@ -34,6 +36,7 @@ struct DeviceGemmMultipleD : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
+#ifndef __HIPCC_RTC__
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
@@ -51,6 +54,7 @@ struct DeviceGemmMultipleD : public BaseOperator
                         CDEElementwiseOperation cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+#endif
 };
 
 // GEMM:
@@ -76,6 +80,7 @@ struct DeviceGemmMultipleDSplitK : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
+#ifndef __HIPCC_RTC__
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
@@ -94,6 +99,7 @@ struct DeviceGemmMultipleDSplitK : public BaseOperator
                         CDEElementwiseOperation cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+#endif
 };
 
 } // namespace device
