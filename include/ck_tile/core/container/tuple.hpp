@@ -488,6 +488,26 @@ CK_TILE_HOST_DEVICE constexpr auto transform_tuples(F f, const X& x, const Y& y,
         f, x, y, z, typename arithmetic_sequence_gen<0, X::size(), 1>::type{});
 }
 
+namespace detail {
+
+template <typename F, typename X, index_t... Is>
+CK_TILE_HOST_DEVICE constexpr auto embed_tuples_impl(F f, const X& x, sequence<Is...>)
+{
+    return concat_tuple(f(x.at(number<Is>{}))...);
+}
+
+} // namespace detail
+
+// make sure F return at least a tuple
+// e.g. x : tuple<X, Y>, f will return tuple<Z, W>
+// this function will return
+template <typename F, typename X>
+CK_TILE_HOST_DEVICE constexpr auto embed_tuples(F f, const X& x)
+{
+    return detail::embed_tuples_impl(
+        f, x, typename arithmetic_sequence_gen<0, X::size(), 1>::type{});
+}
+
 // By default unroll to the flatten
 template <index_t Depth = 0, index_t MaxDepth = -1>
 CK_TILE_HOST_DEVICE constexpr auto unroll_nested_tuple(const tuple<>& t)

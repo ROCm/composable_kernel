@@ -4,6 +4,9 @@
 #pragma once
 
 #include "ck_tile/ops/layernorm2d/kernel/layernorm2d_fwd_kernel.hpp"
-#include "ck_tile/ops/layernorm2d/pipeline/block_layernorm2d_fwd_problem.hpp"
-#include "ck_tile/ops/layernorm2d/pipeline/tile_layernorm2d_fwd_shape.hpp"
+#include "ck_tile/ops/layernorm2d/kernel/layernorm2d_fwd_shape.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_pipeline_default_policy.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_pipeline_one_pass.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_pipeline_problem.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_pipeline_two_pass.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
