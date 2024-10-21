@@ -328,11 +328,11 @@ struct intrin_mfma_i32_16x16x32i8<16, 16>
     {
         reg_c.template AsType<int32x4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_i32_16x16x32_i8(bit_cast<int64_t>(reg_a),
-                                                 bit_cast<int64_t>(reg_b),
-                                                 reg_c.template AsType<int32x4_t>()[Number<0>{}],
-                                                 0,
-                                                 0,
-                                                 0);
+                                                  bit_cast<int64_t>(reg_b),
+                                                  reg_c.template AsType<int32x4_t>()[Number<0>{}],
+                                                  0,
+                                                  0,
+                                                  0);
     }
 };
 

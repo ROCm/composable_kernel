@@ -27,7 +27,7 @@ enum struct GemmDataType
     F16_F8_F16,     // 5
     F16_F16_F16_F8, // 6
     F8_F8_BF16,     // 7
-    INT8_INT8_BF16,     // 8
+    INT8_INT8_BF16, // 8
 };
 
 #define OP_NAME "gemm_multiply_multiply"
@@ -90,8 +90,8 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
     using F32  = float;
     using BF16 = ck::bhalf_t;
     using F8   = ck::f8_t;
-    using I8  = int8_t;
-    using I32 = int;
+    using I8   = int8_t;
+    using I32  = int;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;

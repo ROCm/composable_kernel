@@ -14,7 +14,7 @@ namespace device {
 namespace instance {
 
 using I8   = int8_t;
-using I32   = int;
+using I32  = int;
 using BF16 = bhalf_t;
 using F32  = float;
 

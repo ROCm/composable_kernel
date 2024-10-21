@@ -274,8 +274,9 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
 #if defined CK_ENABLE_FP8 || defined CK_ENABLE_INT8
                 // set softer tolerances for fp8
                 if constexpr((is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
-                             is_same_v<EDataType, f8_t>) || (is_same_v<ADataType, int8_t> ||
-                             is_same_v<BDataType, int8_t>  || is_same_v<EDataType, int8_t>))
+                              is_same_v<EDataType, f8_t>) ||
+                             (is_same_v<ADataType, int8_t> || is_same_v<BDataType, int8_t> ||
+                              is_same_v<EDataType, int8_t>))
                 {
                     std::string msg = "Error: Incorrect results!";
                     double rtol     = 1e-1;
