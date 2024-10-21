@@ -18,5 +18,11 @@ $EXE -prec=$pr_i -m=91  -n=636
 $EXE -prec=$pr_i -m=12  -n=768 -stride=800
 $EXE -prec=$pr_i -m=100 -n=766 -stride=812
 $EXE -prec=$pr_i -m=31  -n=1024
-$EXE -prec=$pr_i -m=64  -n=1000
+$EXE -prec=$pr_i -m=64  -n=1000 -stride=1004
+$EXE -prec=$pr_i -m=8   -n=1501
+$EXE -prec=$pr_i -m=3   -n=1826
+$EXE -prec=$pr_i -m=5   -n=2040
+$EXE -prec=$pr_i -m=7   -n=2734
+$EXE -prec=$pr_i -m=1   -n=3182
+$EXE -prec=$pr_i -m=9   -n=4096
 done
