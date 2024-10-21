@@ -84,12 +84,12 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
         std::min(n_iter,
                  static_cast<int>(std::ceil(static_cast<double>(rotating) / total_gemm_needed))));
 
-    // std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
-    // std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    // std::cout << "d0_m_n: " << d0_m_n.mDesc << std::endl;
-    // std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
-    // std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
-    // std::cout << "rotating count: " << rotating_count << std::endl;
+    std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
+    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
+    std::cout << "d0_m_n: " << d0_m_n.mDesc << std::endl;
+    std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
+    std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
+    std::cout << "rotating count: " << rotating_count << std::endl;
 
     switch(init_method)
     {
@@ -146,7 +146,7 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
-    // std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     // Run reference GEMM
     if(do_verification)
