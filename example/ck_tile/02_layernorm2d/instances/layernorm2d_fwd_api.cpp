@@ -2,7 +2,26 @@
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <ck_tile/core.hpp>
-#include "layernorm2d_fwd_instance_common.hpp"
+#include "layernorm2d_fwd.hpp"
+
+template <typename DataType_,
+          ck_tile::index_t Repeat_M_,         // each thread repeat along M
+          ck_tile::index_t Repeat_N_,         // each thread repeat along N
+          ck_tile::index_t ThreadPerBlock_M_, // num threads along M
+          ck_tile::index_t ThreadPerBlock_N_, // num threads along N
+          ck_tile::index_t Vector_N_,         // vector size along N
+          bool kPadN_,
+          bool kSaveMeanInvStd_,
+          bool kTwoPass_>
+using trait_ = layernorm2d_fwd_traits_<DataType_,
+                                       Repeat_M_,
+                                       Repeat_N_,
+                                       ThreadPerBlock_M_,
+                                       ThreadPerBlock_N_,
+                                       Vector_N_,
+                                       kPadN_,
+                                       kSaveMeanInvStd_,
+                                       kTwoPass_>;
 
 template <typename data_type>
 float layernorm2d_fwd_b16_(layernorm2d_fwd_traits /*t*/,
