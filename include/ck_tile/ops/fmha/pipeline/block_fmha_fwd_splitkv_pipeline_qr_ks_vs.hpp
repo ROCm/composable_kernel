@@ -64,6 +64,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
     }();
 
+    static constexpr index_t kAlignmentOacc =
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentOacc<Problem>();
+
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
