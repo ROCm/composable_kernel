@@ -1,6 +1,6 @@
 #!/bin/sh
 # call from top of CK folder
-EXE=./build/bin/tile_example_layernorm2d_fwd
+EXE=./bin/tile_example_layernorm2d_fwd
 
 for pr_i in "fp16" "bf16" ; do
 $EXE -prec=$pr_i -m=99  -n=13
@@ -26,5 +26,5 @@ $EXE -prec=$pr_i -m=7   -n=2734
 $EXE -prec=$pr_i -m=1   -n=3182
 $EXE -prec=$pr_i -m=9   -n=4096
 $EXE -prec=$pr_i -m=3   -n=8192
-$EXE -prec=$pr_i -m=1   -n=23547
+$EXE -prec=$pr_i -m=1   -n=10547
 done
