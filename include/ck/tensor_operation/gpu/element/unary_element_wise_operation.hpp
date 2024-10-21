@@ -59,7 +59,6 @@ __device__ inline half2_t pki4_to_half2(pk_i4_t q)
     int x_h = (x_u8 & 0xf0) << 12;
 
     const int EX = 0x64006400;
-
     const int SUB = 0xE408E408; //-8
 
     int lo = (x_l | x_h) | EX;

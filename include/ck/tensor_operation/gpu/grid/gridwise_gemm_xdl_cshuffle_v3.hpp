@@ -601,7 +601,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * karg.KRead;
+                a_k_split_offset = blockIdx.z * karg.KRead / APackedSize;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
@@ -614,7 +614,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * karg.KRead;
+                b_k_split_offset = blockIdx.z * karg.KRead / BPackedSize;
             }
 
             if(blockIdx.z < static_cast<uint32_t>(karg.KBatch - 1))
