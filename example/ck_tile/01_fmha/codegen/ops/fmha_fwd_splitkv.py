@@ -191,7 +191,9 @@ using trait_{F_idx} = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_m
 template<>
 void fmha_fwd_splitkv_combine_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
-    if (a.num_splits <= 16) {{
+    if (a.num_splits <= 8) {{
+        kernel_runner<3>::run(s, a);
+    }} else if (a.num_splits <= 16) {{
         kernel_runner<4>::run(s, a);
     }} else if (a.num_splits <= 32) {{
         kernel_runner<5>::run(s, a);
@@ -239,7 +241,7 @@ float fmha_fwd_splitkv(fmha_fwd_splitkv_traits t, fmha_fwd_splitkv_args a, const
 FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse}) && (t.do_fp8_static_quant == {F_squant}) &&
                         ((a.block_table_ptr != nullptr) == {F_pagedkv}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
                 using traits_ = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout}, {F_pipeline_enum}, {F_mask}, {F_bias}, {F_lse}, {F_squant}, {F_pagedkv}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
-                using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}/2, {F_bn1}, {F_lse}, {F_squant}, {F_spad}, {F_dvpad}>;
+                using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}/2, {F_bn1}/2, {F_lse}, {F_squant}, {F_spad}, {F_dvpad}>;
 
                 return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
             }}
@@ -551,14 +553,14 @@ class FmhaFwdSplitKVCombineKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-                '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, -1),
-                '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, -1),
-                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, -1),
-                '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, -1),
+            '32'  : FmhaFwdTileSize(32, 64,  16, 32,  32, 32,   2, 1, 1, 16, 16, 16, -1),
+            '64'  : FmhaFwdTileSize(64, 64,  32, 64,  32, 64,   4, 1, 1, 16, 16, 16, -1),
+            '128' : FmhaFwdTileSize(64, 128, 32, 128, 32, 128,  4, 1, 1, 16, 16, 16, -1),
+            '256' : FmhaFwdTileSize(64, 128, 32, 256, 32, 256,  4, 1, 1, 16, 16, 16, -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     2, 1, 1, 32, 32, 32, -1),
+            '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32, 64,   2, 1, 1, 32, 32, 32, -1),
             '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, -1),
             '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 32, -1)
         }
@@ -568,16 +570,16 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
 def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-                '32'  : FmhaFwdSplitKVCombineTileSize(64, 32, -1),
-                '64'  : FmhaFwdSplitKVCombineTileSize(64, 64, -1),
-                '128' : FmhaFwdSplitKVCombineTileSize(64, 128, -1),
-                '256' : FmhaFwdSplitKVCombineTileSize(64, 256, -1),
+            '32'  : FmhaFwdSplitKVCombineTileSize(16, 16,  -1),
+            '64'  : FmhaFwdSplitKVCombineTileSize(32, 32,  -1),
+            '128' : FmhaFwdSplitKVCombineTileSize(32, 64,  -1),
+            '256' : FmhaFwdSplitKVCombineTileSize(32, 128, -1),
     }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-                '64'  : FmhaFwdSplitKVCombineTileSize(64, 64, -1),
-                '128' : FmhaFwdSplitKVCombineTileSize(64, 128, -1),
-                '256' : FmhaFwdSplitKVCombineTileSize(64, 256, -1),
+            '64'  : FmhaFwdSplitKVCombineTileSize(64, 32,  -1),
+            '128' : FmhaFwdSplitKVCombineTileSize(64, 64,  -1),
+            '256' : FmhaFwdSplitKVCombineTileSize(64, 128, -1),
         }
     else:
         return None
