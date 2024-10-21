@@ -25,4 +25,6 @@ $EXE -prec=$pr_i -m=5   -n=2040
 $EXE -prec=$pr_i -m=7   -n=2734
 $EXE -prec=$pr_i -m=1   -n=3182
 $EXE -prec=$pr_i -m=9   -n=4096
+$EXE -prec=$pr_i -m=3   -n=8192
+$EXE -prec=$pr_i -m=1   -n=23547
 done

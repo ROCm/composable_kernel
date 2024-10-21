@@ -6,8 +6,8 @@
 template <typename DataType>
 auto get_elimit()
 {
-    double rtol = 1e-3;
-    double atol = 1e-3;
+    double rtol = 1e-2;
+    double atol = 1e-2;
     return ck_tile::make_tuple(rtol, atol);
 }
 

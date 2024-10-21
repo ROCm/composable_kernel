@@ -98,6 +98,16 @@ float layernorm2d_fwd_b16_(layernorm2d_fwd_traits /*t*/,
         else
             r = layernorm2d_fwd_<trait_<data_type,  1, 4, 1, 1024, 1,  true,  false, false>>(s, a);
     }
+    else if(a.n > 4096) {
+        if (a.n % 8 == 0)
+            r = layernorm2d_fwd_<trait_<data_type,  1, 2, 1,  256, 8,  true,  false, true>>(s, a);
+        else if (a.n % 4 == 0)
+            r = layernorm2d_fwd_<trait_<data_type,  1, 4, 1,  256, 4,  true,  false, true>>(s, a);
+        else if (a.n % 2 == 0)
+            r = layernorm2d_fwd_<trait_<data_type,  1, 2, 1, 1024, 2,  true,  false, true>>(s, a);
+        else
+            r = layernorm2d_fwd_<trait_<data_type,  1, 4, 1, 1024, 1,  true,  false, true>>(s, a);
+    }
     return r;
 #else
     return layernorm2d_fwd_<trait_<data_type,  1, 1,  1,  256, 4,  true,  false, false>>(s, a);

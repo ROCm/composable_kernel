@@ -6,6 +6,7 @@
 #include "ck_tile/ops/layernorm2d/kernel/layernorm2d_fwd_kernel.hpp"
 #include "ck_tile/ops/layernorm2d/kernel/layernorm2d_fwd_shape.hpp"
 #include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_rowwise_default_policy.hpp"
-#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_rowwise_pipeline.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_one_pass_pipeline.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_two_pass_pipeline.hpp"
 #include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_rowwise_problem.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"

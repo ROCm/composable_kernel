@@ -118,7 +118,10 @@ float layernorm2d_fwd_(const S& s, A a)
         Traits_::kPadN,
         Traits_::kSaveMeanInvStd,
         Traits_::kTwoPass>;
-    using Pipeline = ck_tile::Layernorm2dFwdRowwisePipeline<PipelineProblem>;
+
+    using OnePassPipeline = ck_tile::Layernorm2dFwdOnePassPipeline<PipelineProblem>;
+    using TwoPassPipeline = ck_tile::Layernorm2dFwdTwoPassPipeline<PipelineProblem>;
+    using Pipeline = std::conditional_t<Traits_::kTwoPass, TwoPassPipeline, OnePassPipeline>;
 
     using Kernel = ck_tile::Layernorm2dFwd<Pipeline>;
 
