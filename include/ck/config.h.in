@@ -98,13 +98,6 @@
 #endif
 
 //
-// Instances supports in the current CK build
-//
-#ifndef CK_ENABLE_INSTANCES_ONLY
-#cmakedefine CK_ENABLE_INSTANCES_ONLY @CK_ENABLE_INSTANCES_ONLY@
-#endif
-
-//
 // CK kernels which support XDL (MI series)
 //
 #ifndef CK_USE_XDL

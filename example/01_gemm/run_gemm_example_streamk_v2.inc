@@ -117,9 +117,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     auto f_get_default_stride =
         [](std::size_t row, std::size_t col, ck::index_t stride, auto layout) {
-            if(stride == -1)
+            if(stride == 0)
             {
-                // give a chance if stride is -1, return a default packed stride
+                // give a chance if stride is 0, return a default packed stride
                 if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
                 {
                     return static_cast<std::size_t>(col);
@@ -180,6 +180,11 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
+
+    //Added By Emin
+    
+
+    // Added By Emin
 
 #ifdef BUILD_INT4_EXAMPLE
     DeviceMem a_m_k_device_buf(sizeof(KernelADataType) * a_m_k.mDesc.GetElementSpaceSize());

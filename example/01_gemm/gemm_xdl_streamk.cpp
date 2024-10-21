@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -14,8 +14,8 @@ using CDataType        = ck::half_t;
 using F16 = ck::half_t;
 
 using ALayout = Row;
-using BLayout = Row;
-// using BLayout = Col;
+// using BLayout = Row;
+using BLayout = Col;
 using CLayout = Row;
 
 using AElementOp = PassThrough;
@@ -43,6 +43,17 @@ using DeviceGemmInstance = DeviceGemmStreamK;
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+
+using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALayout,
+                                                                             BLayout,
+                                                                             CLayout,
+                                                                             ADataType,
+                                                                             BDataType,
+                                                                             CDataType,
+                                                                             AccDataType,
+                                                                             AElementOp,
+                                                                             BElementOp,
+                                                                             CElementOp>;
 
 #include "run_gemm_example.inc"
 
