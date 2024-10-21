@@ -9,9 +9,10 @@
 
 namespace ck_tile {
 
+/// NOTICE: we no-longer use this pipeline.
 // This pipeline is qkv all located in LDS
 template <typename Problem_, typename Policy_ = BlockFmhaPipelineQSKSVSDefaultPolicy>
-struct BlockFmhaPipelineQSKSVS
+struct [[deprecated]] BlockFmhaPipelineQSKSVS
 {
     using Problem               = remove_cvref_t<Problem_>;
     using Policy                = remove_cvref_t<Policy_>;
