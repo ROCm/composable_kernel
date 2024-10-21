@@ -27,6 +27,7 @@ enum struct GemmDataType
     F16_F8_F16,     // 5
     F16_F16_F16_F8, // 6
     F8_F8_BF16,     // 7
+    INT8_INT8_BF16, // 8
 };
 
 #define OP_NAME "gemm_multiply_multiply"
@@ -39,7 +40,7 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: "
                "f16->f8; 7: f8->bf16, "
-               "comp f8)\n");
+               "comp f8; 8: int8->bf16)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
         printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
@@ -89,6 +90,8 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
     using F32  = float;
     using BF16 = ck::bhalf_t;
     using F8   = ck::f8_t;
+    using I8   = int8_t;
+    using I32  = int;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -161,6 +164,11 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
     {
         return profile(
             F8{}, F8{}, F8{}, F32{}, F32{}, F32{}, BF16{}, Row{}, Col{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::INT8_INT8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(
+            I8{}, I8{}, I8{}, I32{}, F32{}, F32{}, BF16{}, Row{}, Col{}, Row{}, Col{}, Row{});
     }
     else
     {

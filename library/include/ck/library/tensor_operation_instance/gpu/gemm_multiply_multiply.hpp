@@ -96,6 +96,87 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_kpadding_i
                                                           MultiplyMultiply>>>& instances);
 #endif
 
+#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_INT8))
+void add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_comp_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          I8,
+                                                          I8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
+
+void add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_comp_kpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          I8,
+                                                          I8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
+
+void add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_mem_v1_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          I8,
+                                                          I8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
+
+void add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_mem_v1_kpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          I8,
+                                                          I8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
+
+void add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_mem_v2_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          I8,
+                                                          I8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
+
+void add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_mem_v2_kpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          I8,
+                                                          I8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
+
+#endif
+
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
@@ -152,6 +233,30 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
                 add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_default_instances(
                     op_ptrs);
                 add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_kpadding_instances(
+                    op_ptrs);
+            }
+        }
+#endif
+#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_INT8))
+        if constexpr(is_same_v<ADataType, int8_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<CDataType, bhalf_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_comp_default_instances(
+                    op_ptrs);
+                add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_comp_kpadding_instances(
+                    op_ptrs);
+
+                add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_mem_v1_default_instances(
+                    op_ptrs);
+                add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_mem_v1_kpadding_instances(
+                    op_ptrs);
+
+                add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_mem_v2_default_instances(
+                    op_ptrs);
+                add_device_gemm_multiply_multiply_xdl_i8_i8_bf16_mk_nk_mn_mem_v2_kpadding_instances(
                     op_ptrs);
             }
         }
