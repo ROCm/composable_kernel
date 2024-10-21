@@ -55,8 +55,8 @@ __device__ inline half2_t pki4_to_half2(pk_i4_t q)
 #else
     uint8_t x_u8 = ck::bit_cast<uint8_t>(q);
 
-    int x_l  = (x_u8 & 0x0f);
-    int x_h  = (x_u8 & 0xf0) << 12;
+    int x_l = (x_u8 & 0x0f);
+    int x_h = (x_u8 & 0xf0) << 12;
 
     const int EX = 0x64006400;
 
@@ -66,7 +66,6 @@ __device__ inline half2_t pki4_to_half2(pk_i4_t q)
 
     return amd_assembly_pk_add_f16(bit_cast<half2_t>(lo), bit_cast<half2_t>(SUB));
 #endif
-
 }
 
 struct PassThroughPack8
@@ -87,12 +86,16 @@ struct PassThroughPack8
         vector_type<half_t, 8> dst;
         vector_type<pk_i4_t, 4> src{x};
 
-        dst.template AsType<half2_t>()(Number<0>{}) = pki4_to_half2(src.template AsType<pk_i4_t>()[Number<0>{}]);
-        dst.template AsType<half2_t>()(Number<1>{}) = pki4_to_half2(src.template AsType<pk_i4_t>()[Number<1>{}]);
-        dst.template AsType<half2_t>()(Number<2>{}) = pki4_to_half2(src.template AsType<pk_i4_t>()[Number<2>{}]);
-        dst.template AsType<half2_t>()(Number<3>{}) = pki4_to_half2(src.template AsType<pk_i4_t>()[Number<3>{}]);
+        dst.template AsType<half2_t>()(Number<0>{}) =
+            pki4_to_half2(src.template AsType<pk_i4_t>()[Number<0>{}]);
+        dst.template AsType<half2_t>()(Number<1>{}) =
+            pki4_to_half2(src.template AsType<pk_i4_t>()[Number<1>{}]);
+        dst.template AsType<half2_t>()(Number<2>{}) =
+            pki4_to_half2(src.template AsType<pk_i4_t>()[Number<2>{}]);
+        dst.template AsType<half2_t>()(Number<3>{}) =
+            pki4_to_half2(src.template AsType<pk_i4_t>()[Number<3>{}]);
 
-        y = dst.template AsType<half8_t>()[Number<0>{}];
+        y          = dst.template AsType<half8_t>()[Number<0>{}];
 #endif
     }
 

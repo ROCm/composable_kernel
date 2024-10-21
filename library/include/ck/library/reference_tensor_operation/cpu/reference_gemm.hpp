@@ -82,7 +82,7 @@ struct ReferenceGemm : public device::BaseOperator
                             i4 = (i4x2 >> 0) & 0xf;
                         else
                             i4 = (i4x2 >> 4) & 0xf;
-                        i4 = i4 - 8;
+                        i4  = i4 - 8;
                         v_a = type_convert<ComputeTypeA>(i4);
                     }
                     else
@@ -103,7 +103,7 @@ struct ReferenceGemm : public device::BaseOperator
                             i4 = (i4x2 >> 0) & 0xf;
                         else
                             i4 = (i4x2 >> 4) & 0xf;
-                        i4 = i4 - 8;
+                        i4  = i4 - 8;
                         v_b = type_convert<ComputeTypeB>(i4);
                     }
                     else
