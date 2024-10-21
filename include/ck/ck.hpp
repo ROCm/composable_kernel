@@ -5,7 +5,7 @@
 
 #include "ck/config.h"
 #include "ck/utility/env.hpp"
-
+#ifndef CK_CODE_GEN_RTC
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
@@ -14,7 +14,7 @@
 // environment variable to enable logging:
 // export CK_LOGGING=ON or CK_LOGGING=1 or CK_LOGGING=ENABLED
 CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
-
+#endif
 // to do: add various levels of logging with CK_LOG_LEVEL
 
 #define CK_TIME_KERNEL 1

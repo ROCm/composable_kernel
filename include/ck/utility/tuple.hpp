@@ -32,7 +32,7 @@ struct TupleElementKeyData
     template <typename T,
               typename enable_if<!is_same<remove_cvref_t<T>, TupleElementKeyData>::value,
                                  bool>::type = false>
-    __host__ __device__ constexpr TupleElementKeyData(T&& v) : mData(std::forward<T>(v))
+    __host__ __device__ constexpr TupleElementKeyData(T&& v) : mData(ck::forward<T>(v))
     {
     }
 
@@ -67,7 +67,7 @@ get_tuple_element_data_reference(TupleElementKeyData<Key, Data>&& x)
 template <typename Key, typename Data>
 __host__ __device__ constexpr Data get_tuple_element_data(const TupleElementKeyData<Key, Data>& x)
 {
-    return std::forward(x.mData);
+    return ck::forward(x.mData);
 }
 
 template <typename Indices, typename... Xs>
@@ -83,13 +83,13 @@ struct TupleImpl<Sequence<Is...>, Xs...> : TupleElementKeyData<TupleElementKey<I
                                      !is_same<remove_cvref_t<Y>, TupleImpl>::value,
                                  bool>::type = false>
     __host__ __device__ constexpr TupleImpl(Y&& y)
-        : TupleElementKeyData<TupleElementKey<Is>, Xs>(std::forward<Y>(y))...
+        : TupleElementKeyData<TupleElementKey<Is>, Xs>(ck::forward<Y>(y))...
     {
     }
 
     template <typename... Ys, typename enable_if<sizeof...(Ys) >= 2, bool>::type = false>
     __host__ __device__ constexpr TupleImpl(Ys&&... ys)
-        : TupleElementKeyData<TupleElementKey<Is>, Xs>(std::forward<Ys>(ys))...
+        : TupleElementKeyData<TupleElementKey<Is>, Xs>(ck::forward<Ys>(ys))...
     {
         static_assert(sizeof...(Is) == sizeof...(Xs) && sizeof...(Is) == sizeof...(Ys),
                       "wrong! inconsistent size");
@@ -123,14 +123,14 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
     template <typename Y,
               typename enable_if<sizeof...(Xs) == 1 && !is_same<remove_cvref_t<Y>, Tuple>::value,
                                  bool>::type = false>
-    __host__ __device__ constexpr Tuple(Y&& y) : base(std::forward<Y>(y))
+    __host__ __device__ constexpr Tuple(Y&& y) : base(ck::forward<Y>(y))
     {
     }
 
     template <typename... Ys,
               typename enable_if<sizeof...(Ys) == sizeof...(Xs) && sizeof...(Ys) >= 2, bool>::type =
                   false>
-    __host__ __device__ constexpr Tuple(Ys&&... ys) : base(std::forward<Ys>(ys)...)
+    __host__ __device__ constexpr Tuple(Ys&&... ys) : base(ck::forward<Ys>(ys)...)
     {
     }
 
@@ -210,7 +210,7 @@ using tuple_element_t = typename tuple_element<I, TTuple>::type;
 template <typename... Xs>
 __host__ __device__ constexpr auto make_tuple(Xs&&... xs)
 {
-    return Tuple<remove_cvref_t<Xs>...>(std::forward<Xs>(xs)...);
+    return Tuple<remove_cvref_t<Xs>...>(ck::forward<Xs>(xs)...);
 }
 
 // https://en.cppreference.com/w/cpp/utility/tuple/tie

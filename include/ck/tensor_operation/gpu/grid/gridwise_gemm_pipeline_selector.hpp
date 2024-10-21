@@ -2,9 +2,10 @@
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#ifndef CK_CODE_GEN_RTC
 #include <iostream>
 #include <ostream>
+#endif
 
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v2.hpp"
@@ -53,12 +54,15 @@ constexpr auto GridwiseGemmPipeline_Selector()
     }
     else
     {
+#ifndef CK_CODE_GEN_RTC
         std::cerr << "GridwiseGemmPipeline configuration is not available" << std::endl;
+#endif
     }
 }
 
 } // namespace ck
 
+#ifndef CK_CODE_GEN_RTC
 inline std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion& p)
 {
     switch(p)
@@ -71,3 +75,4 @@ inline std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion& p)
     }
     return os;
 }
+#endif
