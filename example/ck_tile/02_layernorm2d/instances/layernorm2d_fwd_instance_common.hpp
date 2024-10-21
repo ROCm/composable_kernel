@@ -121,7 +121,7 @@ float layernorm2d_fwd_(const S& s, A a)
 
     using OnePassPipeline = ck_tile::Layernorm2dFwdOnePassPipeline<PipelineProblem>;
     using TwoPassPipeline = ck_tile::Layernorm2dFwdTwoPassPipeline<PipelineProblem>;
-    using Pipeline = std::conditional_t<Traits_::kTwoPass, TwoPassPipeline, OnePassPipeline>;
+    using Pipeline        = std::conditional_t<Traits_::kTwoPass, TwoPassPipeline, OnePassPipeline>;
 
     using Kernel = ck_tile::Layernorm2dFwd<Pipeline>;
 
