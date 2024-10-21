@@ -78,6 +78,10 @@ struct Layernorm2dFwdRowwisePipeline
         auto block_welford_cross_warp_sync =
             Policy::template GetBlockWelfordCrossWarpSync<Problem>();
 
+        // load gamma/beta (TODO: support no gamma/beta?)
+        const auto gamma = load_tile(gamma_window);
+        const auto beta  = load_tile(beta_window);
+
         // compute welford each-thread->cross-lane->cross-warp
         auto [mean, var] = block_welford(x, cur_count, max_count);
         block_welford_sync(mean, var, cur_count);
@@ -95,10 +99,6 @@ struct Layernorm2dFwdRowwisePipeline
             store_tile(mean_window, cast_tile<MeanDataType>(mean));
         if constexpr(kSaveInvStd)
             store_tile(inv_std_window, cast_tile<InvStdDataType>(inv_std));
-
-        // load gamma/beta (TODO: support no gamma/beta?)
-        const auto gamma = load_tile(gamma_window);
-        const auto beta  = load_tile(beta_window);
 
         // layernorm computation
         auto y = make_static_distributed_tensor<YDataType>(x.get_tile_distribution());
