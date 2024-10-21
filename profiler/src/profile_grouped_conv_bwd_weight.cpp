@@ -187,6 +187,11 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
         }
+        if(data_type == ConvDataType::BF16_F32_BF16)
+        {
+            // fp32 atomic add is used for weight tensor in bf16 kernel
+            return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
+        }
     }
     if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
     {
@@ -239,6 +244,11 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         if(data_type == ConvDataType::F16_F16_F16)
         {
             return profile(I3, NGCDHW{}, GKZYXC{}, NGKDHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        if(data_type == ConvDataType::BF16_F32_BF16)
+        {
+            // fp32 atomic add is used for weight tensor in bf16 kernel
+            return profile(I3, NGCDHW{}, GKZYXC{}, NGKDHW{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
     }
 
