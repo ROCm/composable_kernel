@@ -317,16 +317,23 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         return true;
     }
 
-    std::size_t flop = 2_uz * M * N * K;
-    std::size_t num_btype =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+    if(config.time_kernel)
+    {
+        std::size_t flop = 2_uz * M * N * K;
+        std::size_t num_btype =
+            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
 
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s, " << gemm.GetTypeString() << std::endl;
+    }
+    else
+    {
+        std::cout << "FINISHED: " << gemm.GetTypeString() << std::endl;
+    }
 
     bool pass = true;
 
@@ -353,12 +360,14 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        pass &= !ck::utils::check_err(c_m_n_device_result,
-                                      c_m_n_host_result,
-                                      "Error: Incorrect results!",
-                                      get_rtol<CDataType>(),
-                                      get_atol<CDataType>());
+        pass = ck::utils::check_err(c_m_n_device_result,
+                                    c_m_n_host_result,
+                                    "Error: Incorrect results!",
+                                    get_rtol<CDataType>(),
+                                    get_atol<CDataType>());
 #endif
+        if(pass)
+            std::cout << "Verification on CPU: PASS" << std::endl;
 
         // GPU verification
         auto ref_gemm_gpu    = ReferenceGemmInstanceGPU{};
@@ -381,11 +390,13 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         c_m_n_device_ref_buf.FromDevice(c_m_n_device_ref_result.mData.data());
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        pass &= !ck::utils::check_err(c_m_n_device_result,
-                                      c_m_n_device_ref_result,
-                                      "Error: Incorrect results!",
-                                      get_rtol<CDataType>(),
-                                      get_atol<CDataType>());
+        pass = ck::utils::check_err(c_m_n_device_result,
+                                    c_m_n_device_ref_result,
+                                    "Error: Incorrect results!",
+                                    get_rtol<CDataType>(),
+                                    get_atol<CDataType>());
+        if(pass)
+            std::cout << "Verification on GPU: PASS" << std::endl;
     }
 
     return !pass;

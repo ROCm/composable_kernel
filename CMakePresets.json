@@ -65,6 +65,16 @@
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_CXX_FLAGS": "-O3"
             }
+        },
+        {
+            "name": "MI250-debug",
+            "displayName": "MI250 Debug",
+            "inherits": "linux-debug",
+            "cacheVariables": {
+                "GPU_TARGETS": "gfx90a",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_FLAGS": "-O0 -ggdb"
+            }
         }
     ],
     "buildPresets": [
@@ -115,6 +125,16 @@
             "description": "Build Environment for MI250 Release.",
             "inherits": [
                 "Release"
+            ],
+            "jobs": 128
+        },
+        {
+            "name": "MI250-debug",
+            "displayName": "MI250",
+            "configurePreset": "MI250-debug",
+            "description": "Build Environment for MI250 Debug.",
+            "inherits": [
+                "Debug"
             ],
             "jobs": 128
         }
