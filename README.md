@@ -1,5 +1,8 @@
 # Composable Kernel
 
+> [!NOTE]
+> The published documentation is available at [Composable Kernel](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/) in an organized, easy-to-read format, with search and a table of contents. The documentation source files reside in the `docs` folder of this repository. As with all ROCm projects, the documentation is open source. For more information on contributing to the documentation, see [Contribute to ROCm documentation](https://rocm.docs.amd.com/en/latest/contribute/contributing.html).
+
 The Composable Kernel (CK) library provides a programming model for writing performance-critical
 kernels for machine learning workloads across multiple architectures (GPUs, CPUs, etc.). The CK library
 uses general purpose kernel languages, such as HIP C++.
