@@ -1,7 +1,10 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+
 import logging
 import os
 import subprocess
-from dataclasses import fields, replace
+from dataclasses import replace
 from functools import lru_cache, partial
 from typing import List
 
