@@ -4,14 +4,14 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_rowwise_default_policy.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_pipeline_default_policy.hpp"
 #include <string>
 #include <type_traits>
 
 namespace ck_tile {
 
-template <typename Problem_, typename Policy_ = Layernorm2dFwdRowwiseDefaultPolicy>
-struct Layernorm2dFwdOnePassPipeline
+template <typename Problem_, typename Policy_ = Layernorm2dFwdPipelineDefaultPolicy>
+struct Layernorm2dFwdPipelineTwoPass
 {
     using Problem = ck_tile::remove_cvref_t<Problem_>;
     using Policy  = ck_tile::remove_cvref_t<Policy_>;
@@ -61,28 +61,43 @@ struct Layernorm2dFwdOnePassPipeline
                                    ck_tile::index_t row_size,
                                    void* smem) const
     {
-        const auto x_window =
+        auto x_window =
             make_tile_window(x_window_, Policy::template MakeXBlockTileDistribution<Problem>());
-        const auto gamma_window = make_tile_window(
+        auto gamma_window = make_tile_window(
             gamma_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
-        const auto beta_window = make_tile_window(
+        auto beta_window = make_tile_window(
             beta_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
 
-        const auto x  = load_tile(x_window);
+        // Problem::BlockShape
+        static constexpr index_t Block_N = Problem::BlockShape::Block_N;
+        index_t num_n_tile_iteration =
+            __builtin_amdgcn_readfirstlane(integer_divide_ceil(row_size, Block_N));
+
+        // total number of count assume current iter have no pad(only last iter has pad)
+        constexpr index_t count_per_iter =
+            Problem::BlockShape::Repeat_N * Problem::BlockShape::Vector_N;
+        const index_t last_iter_n = row_size - (num_n_tile_iteration - 1) * Block_N;
+
         int cur_count = 0;
         int max_count =
-            block_tile_welford_calculate_max_count<typename Problem::BlockShape>(row_size);
+            (num_n_tile_iteration - 1) * count_per_iter +
+            block_tile_welford_calculate_max_count<typename Problem::BlockShape>(last_iter_n);
         auto block_welford      = Policy::template GetBlockWelford<Problem>();
         auto block_welford_sync = Policy::template GetBlockWelfordSync<Problem>();
         auto block_welford_cross_warp_sync =
             Policy::template GetBlockWelfordCrossWarpSync<Problem>();
 
-        // load gamma/beta (TODO: support no gamma/beta?)
-        const auto gamma = load_tile(gamma_window);
-        const auto beta  = load_tile(beta_window);
+        using XTensorType = decltype(load_tile(x_window));
+        auto mean         = block_welford.template MakeMeanVarBlockTile<XTensorType>();
+        auto var          = block_welford.template MakeMeanVarBlockTile<XTensorType>();
 
-        // compute welford each-thread->cross-lane->cross-warp
-        auto [mean, var] = block_welford(x, cur_count, max_count);
+        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        {
+            const auto x = load_tile(x_window);
+            block_welford(x, mean, var, cur_count, max_count);
+            move_tile_window(x_window, {0, Block_N});
+        }
+
         block_welford_sync(mean, var, cur_count);
         block_welford_cross_warp_sync(mean, var, cur_count, smem);
         block_tile_welford_post_scale_var(var, cur_count);
@@ -99,21 +114,47 @@ struct Layernorm2dFwdOnePassPipeline
         if constexpr(kSaveInvStd)
             store_tile(inv_std_window, cast_tile<InvStdDataType>(inv_std));
 
+        // reverse read x to reuse cache
+        ck_tile::index_t stride_to_right_most_window =
+            row_size % Block_N == 0 ? row_size - Block_N : row_size - row_size % Block_N;
+
+        // x_window.foo();
+        // gamma_window.foo();
+        move_tile_window(x_window, {0, -Block_N});
+        move_tile_window(gamma_window, {stride_to_right_most_window});
+        move_tile_window(beta_window, {stride_to_right_most_window});
+        move_tile_window(y_window, {0, stride_to_right_most_window});
+
         // layernorm computation
-        auto y = make_static_distributed_tensor<YDataType>(x.get_tile_distribution());
-        sweep_tile(y, [&, mean_ = mean](auto idx) {
-            constexpr auto i_idx = make_tuple(idx[number<0>{}]);
-            constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        {
+            const auto x = load_tile(x_window);
+            // load gamma/beta (TODO: support no gamma/beta?)
+            const auto gamma = load_tile(gamma_window);
+            const auto beta  = load_tile(beta_window);
 
-            const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
-            const auto beta_  = type_convert<ComputeDataType>(beta[j_idx]);
+            auto y = make_static_distributed_tensor<YDataType>(x.get_tile_distribution());
 
-            const auto x_ = type_convert<ComputeDataType>(x[idx]);
-            auto y_       = (x_ - mean_[i_idx]) * inv_std[i_idx] * gamma_ + beta_;
+            sweep_tile(y, [&, mean_ = mean](auto idx) {
+                constexpr auto i_idx = make_tuple(idx[number<0>{}]);
+                constexpr auto j_idx = make_tuple(idx[number<1>{}]);
 
-            y(idx) = type_convert<YDataType>(y_);
-        });
-        store_tile(y_window, y);
+                const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
+                const auto beta_  = type_convert<ComputeDataType>(beta[j_idx]);
+
+                const auto x_ = type_convert<ComputeDataType>(x[idx]);
+                auto y_       = (x_ - mean_[i_idx]) * inv_std[i_idx] * gamma_ + beta_;
+
+                y(idx) = type_convert<YDataType>(y_);
+            });
+
+            store_tile(y_window, y);
+
+            move_tile_window(x_window, {0, -Block_N});
+            move_tile_window(gamma_window, {-Block_N});
+            move_tile_window(beta_window, {-Block_N});
+            move_tile_window(y_window, {0, -Block_N});
+        }
     }
 };
 } // namespace ck_tile

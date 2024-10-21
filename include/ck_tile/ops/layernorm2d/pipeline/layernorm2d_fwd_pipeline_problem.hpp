@@ -18,7 +18,7 @@ template <typename XDataType_,
           bool kPadN_,
           bool kSaveMeanInvStd_,
           bool kTwoPass_>
-struct Layernorm2dFwdRowwiseProblem
+struct Layernorm2dFwdPipelineProblem
 {
     using XDataType       = remove_cvref_t<XDataType_>;
     using GammaDataType   = remove_cvref_t<GammaDataType_>;
