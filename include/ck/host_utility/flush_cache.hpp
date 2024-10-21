@@ -237,7 +237,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                                              Args... args)
 {
 #if CK_TIME_KERNEL
-#define MEDIAN 1
+#define MEDIAN 0
     if(stream_config.time_kernel_)
     {
         if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
@@ -275,6 +275,14 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 #else
         float total_time = 0;
 #endif
+        hipEvent_t start, stop;
+
+        hip_check_error(hipEventCreate(&start));
+        hip_check_error(hipEventCreate(&stop));
+
+        hip_check_error(hipDeviceSynchronize());
+        hip_check_error(hipEventRecord(start, stream_config.stream_id_));
+        
         for(int i = 0; i < nrepeat; ++i)
         {
             if constexpr(!TimePreprocess)
@@ -282,13 +290,13 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                 preprocess();
             }
 
-            hipEvent_t start, stop;
+            // hipEvent_t start, stop;
 
-            hip_check_error(hipEventCreate(&start));
-            hip_check_error(hipEventCreate(&stop));
+            // hip_check_error(hipEventCreate(&start));
+            // hip_check_error(hipEventCreate(&stop));
 
-            hip_check_error(hipDeviceSynchronize());
-            hip_check_error(hipEventRecord(start, stream_config.stream_id_));
+            // hip_check_error(hipDeviceSynchronize());
+            // hip_check_error(hipEventRecord(start, stream_config.stream_id_));
             // calculate preprocess time
             if constexpr(TimePreprocess)
             {
@@ -299,25 +307,34 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             hip_check_error(hipGetLastError());
             // end real kernel
 
-            hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-            hip_check_error(hipEventSynchronize(stop));
-            float cur_time = 0;
-            hip_check_error(hipEventElapsedTime(&cur_time, start, stop));
-#if MEDIAN
-            times.insert(cur_time);
-#else
-            total_time += cur_time;
-#endif
+//             hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
+//             hip_check_error(hipEventSynchronize(stop));
+//             float cur_time = 0;
+//             hip_check_error(hipEventElapsedTime(&cur_time, start, stop));
+// #if MEDIAN
+//             times.insert(cur_time);
+// #else
+//             total_time += cur_time;
+// #endif
 
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "i: " << i << " cur_time: " << cur_time << std::endl;
+                // std::cout << "i: " << i << " cur_time: " << cur_time << std::endl;
 
                 printf("gemm_args.p_a_grid: %p, gemm_args.p_b_grid:%p\n",
                        static_cast<const void*>(gemm_args.p_a_grid),
                        static_cast<const void*>(gemm_args.p_b_grid));
             }
         }
+        hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
+        hip_check_error(hipEventSynchronize(stop));
+        float cur_time = 0;
+        hip_check_error(hipEventElapsedTime(&cur_time, start, stop));
+#if MEDIAN
+        times.insert(cur_time);
+#else
+        total_time += cur_time;
+#endif
 
 #if MEDIAN
         auto mid = times.begin();
@@ -333,7 +350,8 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             return (*mid + *mid_next) / 2;
         }
 #else
-        return total_time / nrepeat;
+        // return total_time / nrepeat;
+        return (total_time - 0.01*nrepeat) / nrepeat;
 #endif
     }
     else

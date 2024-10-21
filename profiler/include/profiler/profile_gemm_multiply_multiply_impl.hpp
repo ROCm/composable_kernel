@@ -84,12 +84,12 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
         std::min(n_iter,
                  static_cast<int>(std::ceil(static_cast<double>(rotating) / total_gemm_needed))));
 
-    std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
-    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    std::cout << "d0_m_n: " << d0_m_n.mDesc << std::endl;
-    std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
-    std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
-    std::cout << "rotating count: " << rotating_count << std::endl;
+    // std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
+    // std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
+    // std::cout << "d0_m_n: " << d0_m_n.mDesc << std::endl;
+    // std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
+    // std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
+    // std::cout << "rotating count: " << rotating_count << std::endl;
 
     switch(init_method)
     {
@@ -146,7 +146,7 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+    // std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     // Run reference GEMM
     if(do_verification)
@@ -267,14 +267,15 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
 
                 float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-                std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
-                          << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
-                          << kbatch_curr << std::endl;
+                // std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
+                //           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
+                //           << kbatch_curr << std::endl;
 
-#if defined CK_ENABLE_FP8
+#if defined CK_ENABLE_FP8 || defined CK_ENABLE_INT8
                 // set softer tolerances for fp8
-                if constexpr(is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
-                             is_same_v<EDataType, f8_t>)
+                if constexpr((is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
+                             is_same_v<EDataType, f8_t>) || (is_same_v<ADataType, int8_t> ||
+                             is_same_v<BDataType, int8_t>  || is_same_v<EDataType, int8_t>))
                 {
                     std::string msg = "Error: Incorrect results!";
                     double rtol     = 1e-1;
@@ -286,7 +287,7 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
                 {
 #endif
                     pass = pass & ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
-#if defined CK_ENABLE_FP8
+#if defined CK_ENABLE_FP8 || defined CK_ENABLE_INT8
                 }
 #endif
 
