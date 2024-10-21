@@ -1023,8 +1023,11 @@ struct ThreadwiseTensorSliceTransfer_v4
         static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
                       "wrong! Not divisible");
 
-        static_assert(!(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> && (SrcScalarPerVector == 1)),
-                      "pk data N cannot be 1");
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        {
+            static_assert(SrcScalarPerVector % PackedSize == 0,
+                    "pk data N cannot be 1");
+        }
     }
 
     template <typename SrcRefToOriginDisplacement,
@@ -1123,8 +1126,9 @@ struct ThreadwiseTensorSliceTransfer_v4
 
             using src_vector_t = typename decltype(src_tmp_vector)::type;
 
-            const bool is_src_valid = coordinate_has_valid_offset_assuming_visible_index_is_valid(
-                src_desc, src_data_coord);
+            //const bool is_src_valid = coordinate_has_valid_offset_assuming_visible_index_is_valid(
+                //src_desc, src_data_coord);
+            const bool is_src_valid = true;
 
             // copy data from src_buf into src_tmp_vector
             if constexpr(SrcBuffer::IsDynamicBuffer())
@@ -1156,8 +1160,9 @@ struct ThreadwiseTensorSliceTransfer_v4
 
                 static_assert(SrcScalarPerVector % pack_size == 0, "");
 
+                using src_v_t = typename vector_type_maker_t<SrcData, pack_size / PackedSize>::type;
                 using dst_v_t = typename vector_type_maker_t<DstData, pack_size>::type;
-                using src_v_t = typename vector_type_maker_t<SrcData, 4>::type;
+
                 static_for<0, SrcScalarPerVector / pack_size, 1>{}([&](auto i) {
                     ck::tensor_operation::element_wise::PassThroughPack8{}(
                         dst_tmp_vector.template AsType<dst_v_t>()(i),

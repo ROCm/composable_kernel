@@ -30,12 +30,43 @@ __device__ inline half4_t pki4_to_half4(int q)
     const int ADD = 0xd480d480; //-79
 
     vector_type<half_t, 4> res;
+
     res.template AsType<half2_t>()(Number<0>{}) =
         amd_assembly_pk_add_f16(bit_cast<half2_t>(lo), bit_cast<half2_t>(SUB));
 
     res.template AsType<half2_t>()(Number<1>{}) = amd_assembly_pk_fma_f16(
         bit_cast<half2_t>(hi), bit_cast<half2_t>(MUL), bit_cast<half2_t>(ADD));
+
     return res.template AsType<half4_t>()[Number<0>{}];
+}
+
+__device__ inline half2_t pki4_to_half2(pk_i4_t q)
+{
+#if 0
+    uint8_t x_u8 = ck::bit_cast<uint8_t>(q);
+
+    uint8_t x_l  = (x_u8 & 0x0f) >> 0;
+    uint8_t x_h  = (x_u8 & 0xf0) >> 4;
+
+    auto l_f16 = ck::type_convert<ck::half_t>(x_l - 8);
+    auto h_f16 = ck::type_convert<ck::half_t>(x_h - 8);
+
+    return {h_f16, l_f16};
+#else
+    uint8_t x_u8 = ck::bit_cast<uint8_t>(q);
+
+    int x_l  = (x_u8 & 0x0f);
+    int x_h  = (x_u8 & 0xf0) << 12;
+
+    const int EX = 0x64006400;
+
+    const int SUB = 0xE408E408; //-8
+
+    int lo = (x_l | x_h) | EX;
+
+    return amd_assembly_pk_add_f16(bit_cast<half2_t>(lo), bit_cast<half2_t>(SUB));
+#endif
+
 }
 
 struct PassThroughPack8
@@ -45,12 +76,24 @@ struct PassThroughPack8
 
     __host__ __device__ constexpr void operator()(ck::half8_t& y, const ck::pk_i4x4_t& x) const
     {
+#if 1
         vector_type<half_t, 8> result;
 
         result.template AsType<half4_t>()(Number<0>{}) = pki4_to_half4(bit_cast<int>(x));
         result.template AsType<half4_t>()(Number<1>{}) = pki4_to_half4(bit_cast<int>(x) >> 8);
 
         y = result.template AsType<half8_t>()[Number<0>{}];
+#else
+        vector_type<half_t, 8> dst;
+        vector_type<pk_i4_t, 4> src{x};
+
+        dst.template AsType<half2_t>()(Number<0>{}) = pki4_to_half2(src.template AsType<pk_i4_t>()[Number<0>{}]);
+        dst.template AsType<half2_t>()(Number<1>{}) = pki4_to_half2(src.template AsType<pk_i4_t>()[Number<1>{}]);
+        dst.template AsType<half2_t>()(Number<2>{}) = pki4_to_half2(src.template AsType<pk_i4_t>()[Number<2>{}]);
+        dst.template AsType<half2_t>()(Number<3>{}) = pki4_to_half2(src.template AsType<pk_i4_t>()[Number<3>{}]);
+
+        y = dst.template AsType<half8_t>()[Number<0>{}];
+#endif
     }
 
     constexpr const static bool is_pack8_invocable = true;

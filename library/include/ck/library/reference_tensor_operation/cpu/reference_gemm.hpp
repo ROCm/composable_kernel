@@ -74,6 +74,17 @@ struct ReferenceGemm : public device::BaseOperator
                     {
                         ck::tensor_operation::element_wise::PassThrough{}(v_a, arg.a_m_k_(m, k));
                     }
+                    else if constexpr(is_same_v<ADataType, pk_i4_t>)
+                    {
+                        pk_i4_t i4x2 = arg.a_m_k_(m, k);
+                        int8_t i4    = 0;
+                        if(k % 2 == 0)
+                            i4 = (i4x2 >> 0) & 0xf;
+                        else
+                            i4 = (i4x2 >> 4) & 0xf;
+                        i4 = i4 - 8;
+                        v_a = type_convert<ComputeTypeA>(i4);
+                    }
                     else
                     {
                         arg.a_element_op_(v_a, arg.a_m_k_(m, k));
@@ -88,12 +99,12 @@ struct ReferenceGemm : public device::BaseOperator
                     {
                         pk_i4_t i4x2 = arg.b_k_n_(k, n);
                         int8_t i4    = 0;
-                        if(k % 2 == 1)
+                        if(k % 2 == 0)
                             i4 = (i4x2 >> 0) & 0xf;
                         else
                             i4 = (i4x2 >> 4) & 0xf;
                         i4 = i4 - 8;
-                        arg.b_element_op_(v_b, i4);
+                        v_b = type_convert<ComputeTypeB>(i4);
                     }
                     else
                     {

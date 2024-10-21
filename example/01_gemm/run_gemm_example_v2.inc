@@ -223,6 +223,34 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      get_rtol<CDataType>(),
                                      get_atol<CDataType>());
 
+#if 0
+        std::cout << "a_m_k: " << std::endl;
+        for(int i = 0; i < M; i++)
+        {
+            for(int j = 0; j < K; j++)
+            {
+                std::cout << ck::type_convert<float>(a_m_k(i, j)) << ",";
+            }
+            std::cout << std::endl;
+        }
+
+        std::cout << "b_k_n: " << std::endl;
+        for(int i = 0; i < N; i++)
+        {
+            for(int j = 0; j < K; j++)
+            {
+                ck::pk_i4_t i4x2 = b_k_n(j, i);
+                int8_t i4 = 0;
+                if( j % 2 == 1)
+                    i4 = (i4x2 >> 0) & 0xf;
+                else
+                    i4 = (i4x2 >> 4) & 0xf;
+                i4 = i4 - 8;
+                std::cout << ck::type_convert<float>(i4) << ",";
+            }
+            std::cout << std::endl;
+        }
+
         std::cout << "c_m_n_device_result: " << std::endl;
         for(int i = 0; i < M; i++)
         {
@@ -242,6 +270,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             }
             std::cout << std::endl;
         }
+#endif
     }
 
     if(config.time_kernel)

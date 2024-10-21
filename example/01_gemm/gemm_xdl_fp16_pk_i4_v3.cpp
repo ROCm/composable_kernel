@@ -34,11 +34,11 @@ using DeviceGemmV2Instance =
         16,   16,
         1,    1, 
         S<32, 2, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
-        2, 8, 8, 0,
+        2, 8, 8, 1,
         S<8,  8, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
-        2, 32, 32, 0,
+        2, 32, 32, 1,
         1, 1, S<1, 16, 1, 4>, 4,
-        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v2>;
+        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1>;
 #else
         128,
         16, 32, 

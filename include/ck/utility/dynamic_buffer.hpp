@@ -29,6 +29,13 @@ struct DynamicBuffer
     ElementSpaceSize element_space_size_;
     T invalid_element_value_ = T{0};
 
+    static constexpr index_t PackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<T>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     __host__ __device__ constexpr DynamicBuffer(T* p_data, ElementSpaceSize element_space_size)
         : p_data_{p_data}, element_space_size_{element_space_size}
     {
@@ -75,15 +82,6 @@ struct DynamicBuffer
         if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-
-            constexpr index_t PackedSize = []() {
-                if constexpr(is_same_v<remove_cvref_t<T>, pk_i4_t>)
-                    return 2;
-                else
-                    return 1;
-            }();
-
-            // static_assert(element_space_size_ % PackedSize == 0, "");
 
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
@@ -203,7 +201,7 @@ struct DynamicBuffer
                                                             dst_buf.p_data_,
                                                             dst_offset,
                                                             is_valid_element,
-                                                            element_space_size_);
+                                                            element_space_size_ / PackedSize);
     }
 
     template <typename X,
@@ -237,7 +235,7 @@ struct DynamicBuffer
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
             amd_buffer_store<remove_cvref_t<T>, t_per_x, coherence>(
-                x, p_data_, i, is_valid_element, element_space_size_);
+                x, p_data_, i, is_valid_element, element_space_size_ / PackedSize);
         }
         else if constexpr(GetAddressSpace() == AddressSpaceEnum::Lds &&
                           is_same<typename scalar_type<remove_cvref_t<T>>::type, int8_t>::value &&
@@ -389,7 +387,7 @@ struct DynamicBuffer
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
             amd_buffer_atomic_add<remove_cvref_t<T>, t_per_x>(
-                x, p_data_, i, is_valid_element, element_space_size_);
+                x, p_data_, i, is_valid_element, element_space_size_ / PackedSize);
         }
         else
         {
@@ -428,7 +426,7 @@ struct DynamicBuffer
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
             amd_buffer_atomic_max<remove_cvref_t<T>, t_per_x>(
-                x, p_data_, i, is_valid_element, element_space_size_);
+                x, p_data_, i, is_valid_element, element_space_size_ / PackedSize);
         }
         else if(is_valid_element)
         {
