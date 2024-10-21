@@ -28,15 +28,15 @@ using DeviceGemmV2Instance =
         ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
         256,
-        224, 256, 
+        256, 256, 
         64, 8, 8,
         16,   16,
-        7,    8,
+        8,    8,
         S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
         2, 8, 8, 0,
         S<8, 32, 1>,  S<0, 2, 1>,  S<0, 2, 1>, 
         1, 8, 8, 0,
-        1, 2, S<1, 32, 1, 8>, 8,
+        1, 2, S<1, 32, 1, 8>, 8, // TODO: Deprecated
         ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3>;
 // clang-format on
 

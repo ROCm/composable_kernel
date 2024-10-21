@@ -146,7 +146,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
     static constexpr auto BK1Number = Number<BK1Value>{};
 
     static constexpr index_t KPack =
-        math::max(math::lcm(AK1Number, BK1Number),
+        math::max(math::gcd(AK1Number, BK1Number),
                   MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
@@ -1424,25 +1424,27 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto c_thread_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4 =
             blockwise_gemm_pipeline.GetCThreadDescriptor_MBlock_NBlock_M0_M1_N0_M2_M3_N1_N2_M4();
 
-        constexpr auto c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4 =
-            blockwise_gemm_pipeline.GetCBlockDescriptor_MBlock_NBlock_M0_M1_N0_M2_M3_N1_N2_M4();
+        constexpr auto c_block_desc_m0_m1_n0_m2_m3_n1_n2_m4 =
+            blockwise_gemm_pipeline.GetCBlockDescriptor_M0_M1_N0_M2_M3_N1_N2_M4();
 
-        constexpr auto M0 =
-            c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<2>{});
-        constexpr auto M1 =
-            c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<3>{});
-        constexpr auto N0 =
-            c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<4>{});
-        constexpr auto M2 =
-            c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<5>{});
-        constexpr auto M3 =
-            c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<6>{});
-        constexpr auto N1 =
-            c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<7>{});
-        constexpr auto N2 =
-            c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<8>{});
-        constexpr auto M4 =
-            c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<9>{});
+        constexpr auto M0 = c_block_desc_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<0>{});
+        constexpr auto M1 = c_block_desc_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<1>{});
+        constexpr auto N0 = c_block_desc_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<2>{});
+        constexpr auto M2 = c_block_desc_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<3>{});
+        constexpr auto M3 = c_block_desc_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<4>{});
+        constexpr auto N1 = c_block_desc_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<5>{});
+        constexpr auto N2 = c_block_desc_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<6>{});
+        constexpr auto M4 = c_block_desc_m0_m1_n0_m2_m3_n1_n2_m4.GetLength(Number<7>{});
+
+        const auto c_grid_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4 = transform_tensor_descriptor(
+            c_grid_desc_mblock_mperblock_nblock_nperblock,
+            make_tuple(make_pass_through_transform(problem.MBlock),
+                       make_unmerge_transform(make_tuple(M0, M1, M2, M3, M4)),
+                       make_pass_through_transform(problem.NBlock),
+                       make_unmerge_transform(make_tuple(N0, N1, N2))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+            make_tuple(
+                Sequence<0>{}, Sequence<2, 3, 5, 6, 9>{}, Sequence<1>{}, Sequence<4, 7, 8>{}));
 
         const auto c_thread_mtx_on_block =
             blockwise_gemm_pipeline.CalculateCThreadOriginDataIndexContiguous(I0, I0, I0, I0);
@@ -1474,7 +1476,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             AccDataType,
             CDataType,
             decltype(c_thread_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4),
-            decltype(c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4),
+            decltype(c_grid_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4),
             CElementwiseOperation,
             Sequence<I1, I1, M0, I1, I1, M2, I1, I1, N2, M4>,
             Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
@@ -1484,7 +1486,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             M4,
             N2,
             InMemoryDataOperationEnum::Set,
-            false>{c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4,
+            false>{c_grid_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4,
                    make_multi_index(block_m_id,
                                     block_n_id,
                                     m_thread_data_on_block_idx[I0],
@@ -1500,7 +1502,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         c_thread_copy_vgpr_to_global.Run(c_thread_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4,
                                          make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
                                          c_thread_buf,
-                                         c_block_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4,
+                                         c_grid_desc_mblock_nblock_m0_m1_n0_m2_m3_n1_n2_m4,
                                          c_grid_buf);
     }
 

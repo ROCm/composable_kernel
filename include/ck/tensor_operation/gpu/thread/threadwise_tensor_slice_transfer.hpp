@@ -399,10 +399,57 @@ struct ThreadwiseTensorSliceTransfer_v1r4
 
         constexpr auto dst_dim_access_order = DstDimAccessOrder{};
 
+        constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
+
         constexpr auto ordered_dst_access_lengths =
-            container_reorder_given_new2old(access_lengths, dst_dim_access_order);
+            container_reorder_given_new2old(dst_access_lengths, dst_dim_access_order);
+
+        // make forward steps
+        const auto dst_forward_steps = generate_tuple(
+            [&](auto i) {
+                Index forward_step_idx;
+
+                static_for<0, nDim, 1>{}([&](auto j) {
+                    forward_step_idx(j) = (i.value == j.value) ? dst_scalar_per_access[i] : 0;
+                });
+
+                return make_tensor_coordinate_step(dst_desc, forward_step_idx);
+            },
+            Number<nDim>{});
+
+        // make backward steps
+        const auto dst_backward_steps = generate_tuple(
+            [&](auto i) {
+                Index backward_step_idx;
+
+                static_for<0, nDim, 1>{}([&](auto j) {
+                    backward_step_idx(j) = (i.value == j.value) ? -dst_scalar_per_access[i] : 0;
+                });
+
+                return make_tensor_coordinate_step(dst_desc, backward_step_idx);
+            },
+            Number<nDim>{});
 
         static_ford<decltype(ordered_dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
+            // judge move forward or move backward
+            constexpr auto forward_sweep = [&]() {
+                StaticallyIndexedArray<bool, nDim> forward_sweep_;
+
+                forward_sweep_(Number<0>{}) = true;
+
+                static_for<1, nDim, 1>{}([&](auto i) {
+                    index_t tmp = ordered_dst_access_idx[Number<0>{}];
+
+                    static_for<1, i, 1>{}([&](auto j) {
+                        tmp = tmp * ordered_dst_access_lengths[j] + ordered_dst_access_idx[j];
+                    });
+
+                    forward_sweep_(i) = tmp % 2 == 0;
+                });
+
+                return forward_sweep_;
+            }();
+
             using dst_vector_type = vector_type_maker_t<DstData, DstScalarPerVector>;
             using dst_vector_t    = typename dst_vector_type::type;
 
@@ -423,10 +470,39 @@ struct ThreadwiseTensorSliceTransfer_v1r4
                 is_dst_valid,
                 dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
 
-            move_tensor_coordinate(
-                dst_desc,
-                dst_coord_,
-                make_tensor_coordinate_step(dst_desc, to_multi_index(data_to_origin_disp_idx)));
+            constexpr auto move_on_dim = [&]() constexpr
+            {
+                StaticallyIndexedArray<bool, nDim> move_on_dim_;
+
+                static_for<0, nDim, 1>{}([&](auto i) {
+                    move_on_dim_(i) = ordered_dst_access_idx[i] < ordered_dst_access_lengths[i] - 1;
+
+                    static_for<i + 1, nDim, 1>{}([&](auto j) {
+                        move_on_dim_(i) &=
+                            ordered_dst_access_idx[j] == ordered_dst_access_lengths[j] - 1;
+                    });
+                });
+
+                return move_on_dim_;
+            }
+            ();
+
+            // move dst coord
+            static_for<0, nDim, 1>{}([&](auto i) {
+                if constexpr(move_on_dim[i])
+                {
+                    if constexpr(forward_sweep[i])
+                    {
+                        move_tensor_coordinate(
+                            dst_desc, dst_coord_, dst_forward_steps[dst_dim_access_order[i]]);
+                    }
+                    else
+                    {
+                        move_tensor_coordinate(
+                            dst_desc, dst_coord_, dst_backward_steps[dst_dim_access_order[i]]);
+                    }
+                }
+            });
         });
 
         // move dst coordinate back to slice origin (or not)
@@ -1697,28 +1773,20 @@ struct ThreadwiseTensorSliceTransfer_v5
 
         constexpr auto src_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
-        
+
         constexpr auto access_lengths = SliceLengths{} / src_scalar_per_access;
 
         constexpr auto src_dim_access_order = SrcDimAccessOrder{};
 
         constexpr auto ordered_access_lengths =
             container_reorder_given_new2old(access_lengths, src_dim_access_order);
-        
+
         static_ford<decltype(ordered_access_lengths)>{}([&](auto ordered_access_idx) {
             // position in slice window
             constexpr auto data_to_origin_disp_idx =
                 ordered_access_idx.ReorderGivenOld2New(src_dim_access_order) *
                 src_scalar_per_access;
-#if 0
-            if (get_thread_local_1d_id()==0){
-            printf("%d, %d, %d, %d\n",
-                data_to_origin_disp_idx.At(Number<0>{}).value,
-                data_to_origin_disp_idx.At(Number<1>{}).value,
-                data_to_origin_disp_idx.At(Number<2>{}).value,
-                data_to_origin_disp_idx.At(Number<3>{}).value);
-            }
-#endif
+
             // src coordinate
             constexpr auto src_ref_to_data_disp_idx =
                 src_ref_to_origin_disp_idx + data_to_origin_disp_idx;
@@ -1740,16 +1808,9 @@ struct ThreadwiseTensorSliceTransfer_v5
             // copy data from src_buf into src_tmp_vector
             src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                 src_buf.template Get<src_vector_t>(src_data_coord.GetOffset(), is_src_valid);
-#if 0
-            if (get_thread_local_1d_id()<32){
-                printf("Tid: %02d, Index(%d, %d, %d, %d), offset: %d\n", get_thread_local_1d_id(), src_data_coord.GetIndex().At(Number<0>{}),
-                src_data_coord.GetIndex().At(Number<1>{}),
-                src_data_coord.GetIndex().At(Number<2>{}),
-                src_data_coord.GetIndex().At(Number<3>{}), src_data_coord.GetOffset());
-            }
-#endif
+
             // Set data to scratch
-            src_thread_scratch_.template SetAsType_Print<src_vector_t>(
+            src_thread_scratch_.template SetAsType<src_vector_t>(
                 data_to_origin_disp_idx, src_tmp_vector.template AsType<src_vector_t>()[I0]);
         });
 
@@ -1847,8 +1908,10 @@ struct ThreadwiseTensorSliceTransfer_v5
 
         constexpr auto dst_dim_access_order = DstDimAccessOrder{};
 
+        constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
+
         constexpr auto ordered_dst_access_lengths =
-            container_reorder_given_new2old(access_lengths, dst_dim_access_order);
+            container_reorder_given_new2old(dst_access_lengths, dst_dim_access_order);
 
         static_ford<decltype(ordered_dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
             // position in slice window

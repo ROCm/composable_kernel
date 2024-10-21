@@ -218,32 +218,6 @@ struct StaticTensorTupleOfVectorBuffer
         }
     }
 
-    template <typename X,
-              typename Idx,
-              typename enable_if<has_same_scalar_type<S, X>::value &&
-                                     is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
-                                 bool>::type = false>
-    __host__ __device__ constexpr void SetAsType_Print(Idx, X x)
-    {
-        constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
-
-        constexpr index_t offset = coord.GetOffset();
-        if(get_thread_local_1d_id()==0){
-            printf("Tid: %d, Index: (%d, %d, %d, %d), Offset: %d\n", get_thread_local_1d_id(),
-                Idx{}.At(Number<0>{}).value,
-                Idx{}.At(Number<1>{}).value,
-                Idx{}.At(Number<2>{}).value,
-                Idx{}.At(Number<3>{}).value, offset);
-        }
-
-        constexpr bool is_valid = coordinate_has_valid_offset(desc_, coord);
-
-        if constexpr(is_valid)
-        {
-            data_.template SetAsType<X>(Number<offset>{}, x);
-        }
-    }
-
     // Get read access to V. No is_valid check
     // Idx is for S, not V. Idx should be aligned with V
     template <typename Idx>

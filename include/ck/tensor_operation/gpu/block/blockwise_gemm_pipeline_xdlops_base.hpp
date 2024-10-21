@@ -302,21 +302,17 @@ struct BlockwiseGemmXdlops_pipeline_base
         return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_block_desc_m0_n0_m1_n1_m2_n2);
     }
 
-    __host__ __device__ static constexpr auto
-    GetCBlockDescriptor_MBlock_NBlock_M0_M1_N0_M2_M3_N1_N2_M4()
+    __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_M1_N0_M2_M3_N1_N2_M4()
     {
-        constexpr auto c_block_desc_mblock_nblock_m0_n0_m1_n1_m2_n2 =
-            make_naive_tensor_descriptor_packed(make_tuple(I1,
-                                                           I1,
-                                                           Number<MRepeat>{},
+        constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
                                                            Number<NRepeat>{},
                                                            Number<MWaves>{},
                                                            Number<NWaves>{},
                                                            Number<MPerXDL>{},
                                                            Number<NPerXDL>{}));
 
-        return xdlops_gemm.MakeCDescriptor_MBlock_NBlock_M0_M1_N0_M2_M3_N1_N2_M4(
-            c_block_desc_mblock_nblock_m0_n0_m1_n1_m2_n2);
+        return xdlops_gemm.MakeCDescriptor_M0_M1_N0_M2_M3_N1_N2_M4(c_block_desc_m0_n0_m1_n1_m2_n2);
     }
 
     __host__ __device__ static constexpr auto GetCBlockDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2()
