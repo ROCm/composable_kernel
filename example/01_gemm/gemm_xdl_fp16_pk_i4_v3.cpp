@@ -58,7 +58,7 @@ using DeviceGemmV2Instance =
     static int NPerBlock = 32;
     static int KPerBlock = 128;
 #endif
-// clang-format on
+      // clang-format on
 
     using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                             BDataType,
@@ -152,7 +152,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
-//weight permute
+// weight permute
 #if 0
     int N1 = NPerBlock;
     int K1 = KPerBlock;
@@ -182,7 +182,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         }
     }
 
-    
 #else
     for(int i = 0; i < N; i++)
     {
