@@ -449,17 +449,17 @@ struct buffer_view<address_space_enum::global,
         }
         else if constexpr(Op == memory_operation_enum::atomic_add)
         {
-            this->template atomic_add<X>(i, is_valid_element, x);
+            this->template atomic_add<X>(i, linear_offset, is_valid_element, x);
         }
         else if constexpr(Op == memory_operation_enum::atomic_max)
         {
-            this->template atomic_max<X>(i, is_valid_element, x);
+            this->template atomic_max<X>(i, linear_offset, is_valid_element, x);
         }
         // FIXME: remove memory_operation_enum::add
         else if constexpr(Op == memory_operation_enum::add)
         {
-            auto tmp = this->template get<X>(i, is_valid_element);
-            this->template set<X>(i, is_valid_element, x + tmp);
+            auto tmp = this->template get<X>(i, linear_offset, is_valid_element);
+            this->template set<X>(i, linear_offset, is_valid_element, x + tmp);
             // tmp += x;
             // this->template set<X>(i, is_valid_element, tmp);
         }
