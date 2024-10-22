@@ -65,8 +65,9 @@ def parse_data_type(args):
         if args.ck_profier_op == "grouped_conv_fwd":
             args.data_type = 3
     if args.data_type == "bfp16":
-        if args.ck_profier_op == "grouped_conv_bwd_weight" or \
-           args.ck_profier_op == "grouped_conv_bwd_data" or \
+        if args.ck_profier_op == "grouped_conv_bwd_weight":
+            args.data_type = 5
+        if args.ck_profier_op == "grouped_conv_bwd_data" or \
            args.ck_profier_op == "grouped_conv_fwd":
             args.data_type = 2
 
