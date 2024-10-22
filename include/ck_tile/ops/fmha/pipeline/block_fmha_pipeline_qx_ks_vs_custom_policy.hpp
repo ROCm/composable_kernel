@@ -930,7 +930,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             BlockGemmProblem<typename Problem::PDataType,
                              typename Problem::VDataType,
                              typename Problem::OaccDataType,
-                             Problem::kBlockSize,
+                             Problem::kNumGemm1Warps * get_warp_size(),
                              TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
                                                     Problem::BlockFmhaShape::kN1,
                                                     Problem::BlockFmhaShape::kK1>,
