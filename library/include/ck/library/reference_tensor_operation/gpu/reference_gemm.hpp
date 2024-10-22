@@ -45,10 +45,10 @@ __global__ void
     if(row_idx < m && col_idx < n)
     {
 
-        AccDataType v_acc = static_cast<AccDataType>(0.0);
-        ComputeTypeA v_a  = static_cast<ComputeTypeA>(0.0);
-        ComputeTypeB v_b  = static_cast<ComputeTypeB>(0.0);
-        CDataType v_c     = static_cast<CDataType>(0.0);
+        AccDataType v_acc{0};
+        ComputeTypeA v_a{0};
+        ComputeTypeB v_b{0};
+        CDataType v_c{0};
 
         for(int k_idx = 0; k_idx < k; ++k_idx)
         {
