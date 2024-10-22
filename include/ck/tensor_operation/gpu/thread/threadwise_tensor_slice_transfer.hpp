@@ -453,13 +453,25 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             using dst_vector_type = vector_type_maker_t<DstData, DstScalarPerVector>;
             using dst_vector_t    = typename dst_vector_type::type;
 
-            constexpr auto data_to_origin_disp_idx =
-                ordered_dst_access_idx.ReorderGivenOld2New(dst_dim_access_order) *
-                dst_scalar_per_access;
+            constexpr auto dst_data_idx = [&]() {
+                Index ordered_idx;
+
+                static_for<0, nDim, 1>{}([&](auto i) {
+                    ordered_idx(i) = forward_sweep[i] ? ordered_dst_access_idx[i]
+                                                      : ordered_dst_access_lengths[i] - 1 -
+                                                            ordered_dst_access_idx[i];
+                });
+
+                return container_reorder_given_old2new(ordered_idx, dst_dim_access_order) *
+                       dst_scalar_per_access;
+            }();
+
+            constexpr auto dst_data_idx_seq = generate_sequence_v2(
+                [&](auto i) { return Number<dst_data_idx[i]>{}; }, Number<dst_data_idx.Size()>{});
 
             // copy data from dst_thread_scratch_ into dst_vector_container
             auto dst_vector = dst_vector_type{
-                dst_thread_scratch_.template GetAsType<dst_vector_t>(data_to_origin_disp_idx)};
+                dst_thread_scratch_.template GetAsType<dst_vector_t>(dst_data_idx_seq)};
 
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
