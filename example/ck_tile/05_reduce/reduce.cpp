@@ -45,6 +45,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using WarpTile   = ck_tile::sequence<32, 128>;
     using ThreadTile = ck_tile::sequence<8, 8>;
 
+    // cross warp-reduce
+    // using BlockWarps = ck_tile::sequence<4, 2>;
+    // using BlockTile  = ck_tile::sequence<4, 1024>;
+    // using WarpTile   = ck_tile::sequence<1, 512>;
+    // using ThreadTile = ck_tile::sequence<1, 4>;
+
     constexpr ck_tile::index_t kBlockSize  = 256;
     constexpr ck_tile::index_t kBlockPerCu = 1;
     ck_tile::index_t kGridSize             = (m / BlockTile::at(ck_tile::number<0>{}));
@@ -99,8 +105,8 @@ int main(int argc, char* argv[])
     {
         return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
     }
-    else if(data_type == "bf16")
-    {
-        return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
-    }
+    // else if(data_type == "bf16")
+    // {
+    //     return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
+    // }
 }

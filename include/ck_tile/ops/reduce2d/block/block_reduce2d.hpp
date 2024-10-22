@@ -145,7 +145,7 @@ struct BlockReduce2dSync
 template <typename Problem_, typename Policy_ = void>
 struct BlockReduce2dCrossWarpSync
 {
-    using Problem = remove_cvref_t<Problem_>;
+    using Problem    = remove_cvref_t<Problem_>;
     using BlockShape = typename Problem::BlockShape;
 
     template <typename YDistributedTensor_>
@@ -218,6 +218,9 @@ struct BlockReduce2dCrossWarpSync
         if constexpr(num_reduce_warps == 1)
             return;
 
+        // Imitate BlockWelfordCrossWarpSync, but looks like there are some bugs.
+        static_assert(num_reduce_warps == 1);
+
         // store into smem only for lane-0 within one warp
         if(lane_id == 0)
         {
@@ -233,20 +236,24 @@ struct BlockReduce2dCrossWarpSync
         DataType all_scratch[thread_buf_size * num_reduce_warps];
         static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
             static_for<0, num_reduce_warps, 1>{}([&](auto i_1) {
-                all_scratch[i_0 * num_warps + i_1] =
-                    smem_ptr[i_0 * num_reduce_warps + local_smem_os + i_1];
+                all_scratch[i_0 * num_reduce_warps + i_1] =
+                    smem_ptr[i_0 * num_warps + local_smem_os + i_1];
+                // all_scratch[i_0 * num_warps + i_1] =
+                //     smem_ptr[i_0 * num_reduce_warps + local_smem_os + i_1];
             });
         });
         block_sync_lds(); // TODO: we don't need sync here
 
         static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
             // TODO: use descriptor for this
-            auto v_local = all_scratch[i_0 * num_warps];
+            // auto v_local = all_scratch[i_0 * num_warps];
+            auto v_local = all_scratch[i_0 * num_reduce_warps];
 
             // further reduce mean/var
             static_for<0, num_reduce_warps - 1, 1>{}([&](auto i_1_n1) {
                 constexpr auto i_1      = number<i_1_n1 + 1>{};
-                const DataType v_remote = all_scratch[i_0 * num_warps + i_1];
+                const DataType v_remote = all_scratch[i_0 * num_reduce_warps + i_1];
+                // const DataType v_remote = all_scratch[i_0 * num_warps + i_1];
 
                 // reduce
                 v_local = reduce_func(v_local, v_remote);
