@@ -21,10 +21,15 @@ struct TileFmhaShape
     using Gemm1BlockWarps = remove_cvref_t<Gemm1BlockWarps_>;
     using Gemm1WarpTile   = remove_cvref_t<Gemm1WarpTile_>;
 
-    static constexpr index_t NumWarps =
+    static constexpr index_t NumWarps0 =
         reduce_on_sequence(Gemm0BlockWarps{}, multiplies{}, number<1>{});
 
-    static_assert(NumWarps == reduce_on_sequence(Gemm1BlockWarps{}, multiplies{}, number<1>{}));
+    static constexpr index_t NumWarps1 =
+        reduce_on_sequence(Gemm1BlockWarps{}, multiplies{}, number<1>{});
+
+    static_assert(NumWarps1 % NumWarps0 == 0, "Check failed!"); 
+
+    static constexpr index_t NumWarps = NumWarps1; 
 
     static constexpr index_t kM0 = BlockTile::at(number<0>{}); // tile size along q seqlen
     static constexpr index_t kN0 = BlockTile::at(number<1>{}); // tile size along k seqlen
