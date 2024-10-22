@@ -242,11 +242,11 @@ struct BlockFmhaPipelineQRKSVS
                              {seqlen_k_start, 0});
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
-        auto bias_dram_window  = make_tile_window(
-            bias_dram_block_window_tmp.get_bottom_tensor_view(),
-            bias_dram_block_window_tmp.get_window_lengths(),
-            {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
-            Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
+        auto bias_dram_window =
+            make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
+                             bias_dram_block_window_tmp.get_window_lengths(),
+                             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
+                             Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
             randval_dram_block_window_tmp, seqlen_k_start);
