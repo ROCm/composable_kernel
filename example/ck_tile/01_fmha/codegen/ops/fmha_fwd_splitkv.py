@@ -555,16 +555,16 @@ class FmhaFwdSplitKVCombineKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            '32'  : FmhaFwdTileSize(32, 64,  16, 32,  32, 32,   2, 1, 1,  2, 1, 1,  16, 16, 16, -1),
-            '64'  : FmhaFwdTileSize(64, 64,  32, 64,  32, 64,   4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
-            '128' : FmhaFwdTileSize(64, 128, 64, 128, 32, 128,  4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
-            '256' : FmhaFwdTileSize(64, 128, 64, 256, 32, 256,  4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
+            '32'  : FmhaFwdTileSize(32, 64,  16, 32,  64,  32,   2, 1, 1,  2, 1, 1,  16, 16, 16, -1),
+            '64'  : FmhaFwdTileSize(64, 64,  32, 64,  64,  64,   4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
+            '128' : FmhaFwdTileSize(64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
+            '256' : FmhaFwdTileSize(64, 128, 64, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-            '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32, 64,   2, 1, 1,  2, 1, 1,  32, 32, 32, -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1)
+            '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32, -1),
+            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1),
+            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1)
         }
     else:
         return None
