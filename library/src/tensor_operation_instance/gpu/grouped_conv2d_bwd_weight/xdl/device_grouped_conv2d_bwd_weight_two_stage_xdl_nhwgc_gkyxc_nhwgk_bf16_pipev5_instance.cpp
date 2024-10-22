@@ -16,7 +16,7 @@ void add_device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_bf16_p
                                                            GKYXC,
                                                            NHWGK,
                                                            BF16,
-                                                           F32,
+                                                           BF16,
                                                            BF16,
                                                            PassThrough,
                                                            PassThrough,

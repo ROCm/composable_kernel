@@ -25,8 +25,8 @@ enum struct ConvDataType
     F16_F16_F16,        // 1
     BF16_F32_BF16,      // 2
     F16_F16_F16_BF8_F8, // 3
-    I8_I8_I8            // 4
-        BF16_BF16_BF16, // 5
+    I8_I8_I8,           // 4
+    BF16_BF16_BF16,     // 5
 };
 
 #define OP_NAME "grouped_conv_bwd_weight"
