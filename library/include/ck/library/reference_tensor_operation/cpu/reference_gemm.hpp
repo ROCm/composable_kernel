@@ -78,7 +78,7 @@ struct ReferenceGemm : public device::BaseOperator
                     {
                         pk_i4_t i4x2 = arg.a_m_k_(m, k);
                         int8_t i4    = 0;
-                        if(k % 2 == 0)
+                        if(k % 2 == 1)
                             i4 = (i4x2 >> 0) & 0xf;
                         else
                             i4 = (i4x2 >> 4) & 0xf;
@@ -99,7 +99,7 @@ struct ReferenceGemm : public device::BaseOperator
                     {
                         pk_i4_t i4x2 = arg.b_k_n_(k, n);
                         int8_t i4    = 0;
-                        if(k % 2 == 0)
+                        if(k % 2 == 1)
                             i4 = (i4x2 >> 0) & 0xf;
                         else
                             i4 = (i4x2 >> 4) & 0xf;

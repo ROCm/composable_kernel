@@ -10,10 +10,8 @@
 #include "ck/utility/amd_inline_asm.hpp"
 
 namespace ck {
-namespace tensor_operation {
-namespace element_wise {
 
-__device__ inline half4_t pki4_to_half4(int q)
+__host__ __device__ inline half4_t pki4_to_half4(int q)
 {
     const int LO = 0x000f000f;
     const int HI = 0x00f000f0;
@@ -40,7 +38,7 @@ __device__ inline half4_t pki4_to_half4(int q)
     return res.template AsType<half4_t>()[Number<0>{}];
 }
 
-__device__ inline half2_t pki4_to_half2(pk_i4_t q)
+__host__ __device__ inline half2_t pki4_to_half2(pk_i4_t q)
 {
 #if 0
     uint8_t x_u8 = ck::bit_cast<uint8_t>(q);
@@ -58,7 +56,7 @@ __device__ inline half2_t pki4_to_half2(pk_i4_t q)
     int x_l = (x_u8 & 0x0f);
     int x_h = (x_u8 & 0xf0) << 12;
 
-    const int EX = 0x64006400;
+    const int EX  = 0x64006400;
     const int SUB = 0xE408E408; //-8
 
     int lo = (x_l | x_h) | EX;
@@ -66,6 +64,9 @@ __device__ inline half2_t pki4_to_half2(pk_i4_t q)
     return amd_assembly_pk_add_f16(bit_cast<half2_t>(lo), bit_cast<half2_t>(SUB));
 #endif
 }
+
+namespace tensor_operation {
+namespace element_wise {
 
 struct PassThroughPack8
 {

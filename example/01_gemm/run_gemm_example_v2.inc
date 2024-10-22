@@ -134,6 +134,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<BDataType> b_k_n_permute(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
 
     switch(config.init_method)
     {
@@ -169,8 +170,80 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
+    for(int i = 0; i < N; i++)
+    {
+        for(int j = 0; j < K; j += 8)
+        {
+            int input[8];
+
+            for(int k = 0; k < 4; k++)
+            {
+                int i4x2         = b_k_n(j + k * 2, i);
+                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
+                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
+            }
+
+            // for(int k = 1; k <= 4; k++)
+            {
+                int hi   = input[2];
+                int lo   = input[0];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 0, i) = i4x2;
+            }
+
+            {
+                int hi   = input[6];
+                int lo   = input[4];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 2, i) = i4x2;
+            }
+
+            {
+                int hi   = input[3];
+                int lo   = input[1];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 4, i) = i4x2;
+            }
+
+            {
+                int hi   = input[7];
+                int lo   = input[5];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 6, i) = i4x2;
+            }
+        }
+    }
+
+#if 0
+    ck::pk_i4_t i4s[4];
+    i4s[0] = 0xa8; 
+    i4s[1] = 0xec; 
+    i4s[2] = 0xb9; 
+    i4s[3] = 0xfd; 
+
+    ck::vector_type<ck::half_t, 8> result;
+
+    result.template AsType<ck::half4_t>()(ck::Number<0>{}) = ck::pki4_to_half4(ck::bit_cast<int>(i4s));
+    result.template AsType<ck::half4_t>()(ck::Number<1>{}) = ck::pki4_to_half4(ck::bit_cast<int>(i4s) >> 8);
+
+    printf("%f %f %f %f %f %f %f %f\n",
+        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<0>{}]),
+        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<1>{}]),
+        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<2>{}]),
+        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<3>{}]),
+        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<4>{}]),
+        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<5>{}]),
+        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<6>{}]),
+        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<7>{}])
+    );
+#endif
+
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
+    b_k_n_device_buf.ToDevice(b_k_n_permute.mData.data());
     DeviceMem workspace;
 
     auto a_element_op = AElementOp{};

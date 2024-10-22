@@ -396,8 +396,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 #else
-            const index_t N0 = N / NPerBlock;
             const index_t N1 = NPerBlock;
+            const index_t N0 = N / N1;
             const auto b_grid_desc_n0_bk0_n1_bk1 =
                 make_naive_tensor_descriptor_packed(make_tuple(N0, BK0, N1, BK1Value));
 
@@ -614,7 +614,12 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
+#if 1
                 b_k_split_offset = blockIdx.z * karg.KRead / BPackedSize;
+#else
+                const int k0_offset = karg.KRead * NPerBlock;
+                b_k_split_offset    = blockIdx.z * k0_offset / BPackedSize;
+#endif
             }
 
             if(blockIdx.z < static_cast<uint32_t>(karg.KBatch - 1))
