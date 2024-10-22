@@ -157,7 +157,7 @@ struct BlockGemmARegBRegCRegV1
         });
     }
 
-    CK_TILE_DEVICE constexpr auto MakeCBlockTile() const
+    CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
         constexpr index_t MPerBlock = BlockGemmShape::kM;
         constexpr index_t NPerBlock = BlockGemmShape::kN;
