@@ -1,0 +1,209 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
+
+#include <iostream>
+#include <string>
+
+#include "ck_tile/core.hpp"
+#include "ck_tile/ops/common.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+
+namespace ck_tile {
+
+template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
+struct BatchedGemmKernel
+{
+    using TilePartitioner                    = remove_cvref_t<TilePartitioner_>;
+    using GemmPipeline                       = remove_cvref_t<GemmPipeline_>;
+    using EpiloguePipeline                   = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout                            = remove_cvref_t<typename GemmPipeline::ALayout>;
+    using BLayout                            = remove_cvref_t<typename GemmPipeline::BLayout>;
+    using CLayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
+    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+
+    using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
+    using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
+    // using CAccDataType = remove_cvref_t<typename GemmPipeline::CDataType>;
+    using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+
+    __host__ static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
+    {
+        return TilePartitioner::GridSize(M, N, KBatch);
+    }
+
+    __host__ static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+
+    struct BatchedGemmCommonKargs
+    {
+        const void* a_ptr;
+        const void* b_ptr;
+        void* c_ptr;
+        index_t M;
+        index_t N;
+        index_t K;
+        index_t stride_A;
+        index_t stride_B;
+        index_t stride_C;
+        index_t batch_stride_A;
+        index_t batch_stride_B;
+        index_t batch_stride_C;
+        index_t batch_count;
+    };
+
+    CK_TILE_HOST static constexpr BatchedGemmCommonKargs MakeKargs(const void* a_ptr,
+                                                                   const void* b_ptr,
+                                                                   void* c_ptr,
+                                                                   index_t M,
+                                                                   index_t N,
+                                                                   index_t K,
+                                                                   index_t stride_A,
+                                                                   index_t stride_B,
+                                                                   index_t stride_C,
+                                                                   index_t batch_stride_A,
+                                                                   index_t batch_stride_B,
+                                                                   index_t batch_stride_C,
+                                                                   index_t batch_count)
+    {
+        return BatchedGemmCommonKargs{a_ptr,
+                                      b_ptr,
+                                      c_ptr,
+                                      M,
+                                      N,
+                                      K,
+                                      stride_A,
+                                      stride_B,
+                                      stride_C,
+                                      batch_stride_A,
+                                      batch_stride_B,
+                                      batch_stride_C,
+                                      batch_count};
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    {
+        return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
+    }
+
+    CK_TILE_DEVICE void operator()(BatchedGemmCommonKargs kargs) const
+    {
+        const auto [i_m, i_n] = TilePartitioner{}();
+        // options
+        const ADataType* a_start = static_cast<const ADataType*>(kargs.a_ptr);
+        const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr);
+        // Convert pointers to tensor views
+        auto a_tensor_view = [&]() {
+            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+            {
+                return make_naive_tensor_view<address_space_enum::global>(
+                    a_start,
+                    make_tuple(kargs.M, kargs.K),
+                    make_tuple(kargs.stride_A, 1),
+                    number<GemmPipeline::AlignmentA>{},
+                    number<1>{});
+            }
+            else
+            {
+                return make_naive_tensor_view<address_space_enum::global>(
+                    a_start,
+                    make_tuple(kargs.M, kargs.K),
+                    make_tuple(1, kargs.stride_A),
+                    number<GemmPipeline::AlignmentA>{},
+                    number<1>{});
+            }
+        }();
+
+        auto b_tensor_view = [&]() {
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+            {
+                return make_naive_tensor_view<address_space_enum::global>(
+                    b_start,
+                    make_tuple(kargs.N, kargs.K),
+                    make_tuple(1, kargs.stride_B),
+                    number<GemmPipeline::AlignmentB>{},
+                    number<1>{});
+            }
+            else
+            {
+                return make_naive_tensor_view<address_space_enum::global>(
+                    b_start,
+                    make_tuple(kargs.N, kargs.K),
+                    make_tuple(kargs.stride_B, 1),
+                    number<GemmPipeline::AlignmentB>{},
+                    number<1>{});
+            }
+        }();
+
+        auto a_pad_view = pad_tensor_view(
+            a_tensor_view,
+            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
+            // somehow clang-format is splitting below line into multiple.
+            // clang-format off
+            sequence<false, GemmPipeline::kPadA>{});
+        // clang-format on
+
+        auto a_block_window = make_tile_window(
+            a_pad_view,
+            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
+            {i_m, 0});
+
+        auto b_pad_view = pad_tensor_view(
+            b_tensor_view,
+            make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
+            // clang-format off
+            sequence<false, GemmPipeline::kPadB>{});
+        // clang-format on
+
+        auto b_block_window = make_tile_window(
+            b_pad_view,
+            make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
+            {i_n, 0});
+
+        // allocate LDS
+        __shared__ char smem_ptr[GetSmemSize()];
+
+        const index_t num_loop = TilePartitioner::GetLoopNum(kargs.K);
+
+        // Run GEMM cooperatively by whole wokrgroup.
+        auto c_block_tile =
+            GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr);
+
+        CDataType* c_start = static_cast<CDataType*>(kargs.c_ptr);
+        auto c_tensor_view = [&]() {
+            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+            {
+                return make_naive_tensor_view<address_space_enum::global>(
+                    c_start,
+                    make_tuple(kargs.M, kargs.N),
+                    make_tuple(kargs.stride_C, 1),
+                    number<GemmPipeline::AlignmentC>{},
+                    number<1>{});
+            }
+            else
+            {
+                return make_naive_tensor_view<address_space_enum::global>(
+                    c_start,
+                    make_tuple(kargs.M, kargs.N),
+                    make_tuple(1, kargs.stride_C),
+                    number<GemmPipeline::AlignmentC>{},
+                    number<1>{});
+            }
+        }();
+
+        auto c_pad_view = pad_tensor_view(
+            c_tensor_view,
+            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
+            // clang-format off
+            sequence<false, GemmPipeline::kPadC>{});
+        // clang-format on
+        auto c_block_window = make_tile_window(
+            c_pad_view,
+            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
+            {i_m, i_n});
+
+        EpiloguePipeline{}(c_block_window, c_block_tile);
+    }
+};
+
+} // namespace ck_tile
