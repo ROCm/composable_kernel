@@ -387,7 +387,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         }
         else
         {
-#if 1
+            // B Tile Permute
+#if 0
             // not pad N or K
             const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
                 b_grid_desc_nraw_kraw,
@@ -396,18 +397,22 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 #else
-            const index_t N1 = NPerBlock;
-            const index_t N0 = N / N1;
-            const auto b_grid_desc_n0_bk0_n1_bk1 =
-                make_naive_tensor_descriptor_packed(make_tuple(N0, BK0, N1, BK1Value));
+            constexpr index_t N1   = NPerBlock;
+            constexpr index_t BK01 = KPerBlock / BK1Value;
+            const index_t BK00     = BK0 / BK01;
+            const index_t N0       = N / N1;
+
+            const auto b_grid_desc_n0_bk00_n1_bk01_bk1 =
+                make_naive_tensor_descriptor_packed(make_tuple(N0, BK00, N1, BK01, BK1Value));
 
             const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
-                b_grid_desc_n0_bk0_n1_bk1,
-                make_tuple(make_pass_through_transform(BK0),
+                b_grid_desc_n0_bk00_n1_bk01_bk1,
+                make_tuple(make_merge_transform(make_tuple(BK00, BK01)),
                            make_merge_transform(make_tuple(N0, N1)),
                            make_pass_through_transform(BK1Value)),
-                make_tuple(Sequence<1>{}, Sequence<0, 2>{}, Sequence<3>{}),
+                make_tuple(Sequence<1, 3>{}, Sequence<0, 2>{}, Sequence<4>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
 #endif
 
             return b_grid_desc_bk0_n_bk1;
@@ -614,7 +619,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-#if 1
+#if 0
                 b_k_split_offset = blockIdx.z * karg.KRead / BPackedSize;
 #else
                 const int k0_offset = karg.KRead * NPerBlock;

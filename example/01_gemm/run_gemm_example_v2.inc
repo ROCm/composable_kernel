@@ -170,6 +170,41 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
+#if 1
+    int NPerBlock = 32;
+    int KPerBlock = 128;
+
+    int N1 = NPerBlock;
+    int K1 = KPerBlock;
+
+    int N0 = N / N1;
+    int K0 = K / K1;
+
+    for(int i = 0; i < N0; i++)
+    {
+        for(int j = 0; j < K0; j++)
+        {
+            for(int ii = 0; ii < N1; ii++)
+            {
+                for(int jj = 0; jj < K1; jj++)
+                {
+                    b_k_n_permute(i * K0 * N1 * K1 + j * N1 * K1 + ii * K1 + jj) =
+                        b_k_n((i * N1 + ii) * K + (j * K1 + jj));
+                }
+            }
+        }
+    }
+#else
+    for(int i = 0; i < N; i++)
+    {
+        for(int j = 0; j < K; j++)
+        {
+            b_k_n_permute(i * K + j) = b_k_n(i * K + j);
+        }
+    }
+#endif
+
+    // vector pk_i4x4 permute
     for(int i = 0; i < N; i++)
     {
         for(int j = 0; j < K; j += 8)
@@ -178,12 +213,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
             for(int k = 0; k < 4; k++)
             {
-                int i4x2         = b_k_n(j + k * 2, i);
+                int i4x2         = b_k_n_permute(j + k * 2, i);
                 input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
                 input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
             }
 
-            // for(int k = 1; k <= 4; k++)
+            // permute 01234567->20643175
             {
                 int hi   = input[2];
                 int lo   = input[0];
@@ -217,30 +252,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             }
         }
     }
-
-#if 0
-    ck::pk_i4_t i4s[4];
-    i4s[0] = 0xa8; 
-    i4s[1] = 0xec; 
-    i4s[2] = 0xb9; 
-    i4s[3] = 0xfd; 
-
-    ck::vector_type<ck::half_t, 8> result;
-
-    result.template AsType<ck::half4_t>()(ck::Number<0>{}) = ck::pki4_to_half4(ck::bit_cast<int>(i4s));
-    result.template AsType<ck::half4_t>()(ck::Number<1>{}) = ck::pki4_to_half4(ck::bit_cast<int>(i4s) >> 8);
-
-    printf("%f %f %f %f %f %f %f %f\n",
-        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<0>{}]),
-        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<1>{}]),
-        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<2>{}]),
-        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<3>{}]),
-        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<4>{}]),
-        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<5>{}]),
-        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<6>{}]),
-        ck::type_convert<float>(result.template AsType<ck::half_t>()[ck::Number<7>{}])
-    );
-#endif
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n_permute.mData.data());
