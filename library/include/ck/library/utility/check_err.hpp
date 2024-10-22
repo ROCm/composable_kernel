@@ -38,15 +38,16 @@ double get_relative_threshold(const int numberOfAccumulations = 1)
                       is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
                       is_same_v<ComputeDataType, int>,
                   "Warning: Unhandled ComputeDataType for setting up the relative threshold!");
-    int compute_mantissa = 0;
+    double compute_error = 0;
     if constexpr(is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
                  is_same_v<ComputeDataType, int>)
     {
-        compute_mantissa = 0;
+        return 0;
     }
     else
     {
-        compute_mantissa = NumericUtils<ComputeDataType>::mant;
+        compute_error =
+            std::pow(2, -NumericUtils<ComputeDataType>::mant) * 0.5 * numberOfAccumulations;
     }
 
     static_assert(is_same_v<OutDataType, F8> || is_same_v<OutDataType, F16> ||
@@ -54,38 +55,36 @@ double get_relative_threshold(const int numberOfAccumulations = 1)
                       is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
                       is_same_v<OutDataType, int>,
                   "Warning: Unhandled OutDataType for setting up the relative threshold!");
-    int output_mantissa = 0;
+    double output_error = 0;
     if constexpr(is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
                  is_same_v<OutDataType, int>)
     {
-        output_mantissa = 0;
+        return 0;
     }
     else
     {
-        output_mantissa = NumericUtils<OutDataType>::mant;
+        output_error = std::pow(2, -NumericUtils<OutDataType>::mant) * 0.5 * numberOfAccumulations;
     }
 
-    int midway_mantissa = std::max(compute_mantissa, output_mantissa);
+    double midway_error = std::max(compute_error, output_error);
 
     static_assert(is_same_v<AccDataType, F8> || is_same_v<AccDataType, F16> ||
                       is_same_v<AccDataType, BF16> || is_same_v<AccDataType, F32> ||
                       is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
                       is_same_v<AccDataType, int>,
                   "Warning: Unhandled AccDataType for setting up the relative threshold!");
-    int acc_mantissa = 0;
+    double acc_error = 0;
     if constexpr(is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
                  is_same_v<AccDataType, int>)
     {
-        acc_mantissa = 0;
+        return 0;
     }
     else
     {
-        acc_mantissa = NumericUtils<AccDataType>::mant * numberOfAccumulations;
+        acc_error = std::pow(2, -NumericUtils<AccDataType>::mant) * 0.5 * numberOfAccumulations;
     }
 
-    int mantissa = std::max(acc_mantissa, midway_mantissa);
-
-    return std::pow(2, -mantissa) * 0.5;
+    return std::max(acc_error, midway_error);
 }
 
 template <typename ComputeDataType, typename AccDataType = ComputeDataType>
@@ -103,15 +102,17 @@ double get_absolute_threshold(const double max_possible_num, const int numberOfA
                       is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
                       is_same_v<ComputeDataType, int>,
                   "Warning: Unhandled ComputeDataType for setting up the relative threshold!");
-    int compute_mantissa = 0;
+    auto expo            = std::log2(std::abs(max_possible_num));
+    double compute_error = 0;
     if constexpr(is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
                  is_same_v<ComputeDataType, int>)
     {
-        compute_mantissa = 0;
+        return 0;
     }
     else
     {
-        compute_mantissa = NumericUtils<ComputeDataType>::mant;
+        compute_error =
+            std::pow(2, expo - NumericUtils<ComputeDataType>::mant) * 0.5 * numberOfAccumulations;
     }
 
     static_assert(is_same_v<AccDataType, F8> || is_same_v<AccDataType, F16> ||
@@ -119,21 +120,19 @@ double get_absolute_threshold(const double max_possible_num, const int numberOfA
                       is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
                       is_same_v<AccDataType, int>,
                   "Warning: Unhandled AccDataType for setting up the relative threshold!");
-    int acc_mantissa = 0;
+    double acc_error = 0;
     if constexpr(is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
                  is_same_v<AccDataType, int>)
     {
-        acc_mantissa = 0;
+        return 0;
     }
     else
     {
-        acc_mantissa = NumericUtils<AccDataType>::mant * numberOfAccumulations;
+        acc_error =
+            std::pow(2, expo - NumericUtils<AccDataType>::mant) * 0.5 * numberOfAccumulations;
     }
 
-    int mantissa = std::max(acc_mantissa, compute_mantissa);
-
-    auto expo = std::log2(std::abs(max_possible_num));
-    return 0.5 * std::pow(2, expo - mantissa);
+    return std::max(acc_error, compute_error);
 }
 
 template <typename Range, typename RefRange>
