@@ -145,10 +145,10 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                                                  typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                                  decltype(warp_gemm)>;
 
-        if constexpr(Problem::kNumGemm0Warps == 1)
-            return BlockGemmARegBSmemCRegOneWarpV1<GemmProblem, BlockGemmPolicy>{};
-        else
+        if constexpr(1 < Problem::kNumGemm0Warps)
             return BlockGemmARegBSmemCRegV2<GemmProblem, BlockGemmPolicy>{};
+        else
+            return BlockGemmARegBSmemCRegOneWarpV1<GemmProblem, BlockGemmPolicy>{};
     }
 };
 
