@@ -5,20 +5,16 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
-
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
+#include "ck_tile/ops/reduce2d/block/block_reduce2d_default_policy.hpp"
 
 namespace ck_tile {
 
-template <typename ADataType,
-          typename AccDataType,
-          typename BDataType,
-          index_t kBlockSize,
-          typename BlockWarps, // num warps along seq<M, N>
+template <typename BlockWarps, // num warps along seq<M, N>
           typename BlockTile,  // block size, seq<M, N>
           typename WarpTile,   // warp size, seq<M, N>
-          typename ThreadTile> // contiguous pixels(vector size) along seq<M, N>
-struct Reduce
+          typename Vector>     // contiguous pixels(vector size) along seq<M, N>
+struct Reduce2dShape
 {
     static constexpr index_t Block_M = BlockTile::at(number<0>{});
     static constexpr index_t Block_N = BlockTile::at(number<1>{});
@@ -26,93 +22,138 @@ struct Reduce
     static constexpr index_t Warp_M = WarpTile::at(number<0>{});
     static constexpr index_t Warp_N = WarpTile::at(number<1>{});
 
-    static constexpr index_t Thread_M = ThreadTile::at(number<0>{});
-    static constexpr index_t Thread_N = ThreadTile::at(number<1>{});
+    static constexpr index_t Vector_M = Vector::at(number<0>{});
+    static constexpr index_t Vector_N = Vector::at(number<1>{});
 
     static constexpr index_t WarpPerBlock_M = BlockWarps::at(number<0>{});
     static constexpr index_t WarpPerBlock_N = BlockWarps::at(number<1>{});
 
-    static constexpr index_t ThreadPerWarp_M = Warp_M / Thread_M;
-    static constexpr index_t ThreadPerWarp_N = Warp_N / Thread_N;
+    static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M;
+    static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;
 
     static constexpr index_t Repeat_M = Block_M / (WarpPerBlock_M * Warp_M);
     static constexpr index_t Repeat_N = Block_N / (WarpPerBlock_N * Warp_N);
 
-    __device__ static constexpr auto MakeABlockTileDistribution()
+    static constexpr index_t BlockSize =
+        warpSize * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
+};
+
+template <typename XDataType_, typename ComputeDataType_, typename YDataType_, typename BlockShape_>
+struct Reduce2dProblem
+{
+    using XDataType       = remove_cvref_t<XDataType_>;
+    using ComputeDataType = remove_cvref_t<ComputeDataType_>;
+    using YDataType       = remove_cvref_t<YDataType_>;
+    using BlockShape      = remove_cvref_t<BlockShape_>;
+
+    static constexpr bool kNeedCrossLaneSync = BlockShape::ThreadPerWarp_N > 1;
+    static constexpr bool kNeedCrossWarpSync = BlockShape::WarpPerBlock_N > 1;
+};
+
+template <typename Problem_, typename Policy_ = BlockReduce2dDefaultPolicy>
+struct Reduce
+{
+    using Problem = ck_tile::remove_cvref_t<Problem_>;
+    using Policy  = ck_tile::remove_cvref_t<Policy_>;
+
+    using XDataType       = ck_tile::remove_cvref_t<typename Problem::XDataType>;
+    using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
+    using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
+
+#if 0
+    CK_TILE_DEVICE void operator()(const XDataType* p_x, YDataType* p_y, index_t M, index_t N)
+    const
     {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Repeat_M, WarpPerBlock_M, ThreadPerWarp_M, Thread_M>,
-                      sequence<Repeat_N, WarpPerBlock_N, ThreadPerWarp_N, Thread_N>>,
-                tuple<sequence<1, 2>, sequence<1, 2>>,
-                tuple<sequence<1, 1>, sequence<2, 2>>,
-                sequence<1, 1, 2, 2>,
-                sequence<0, 3, 0, 3>>{});
-    }
+        using S = typename Problem::BlockShape;
 
-    __device__ void operator()(const ADataType* p_a, BDataType* p_b, index_t M, index_t N) const
-    {
-        const auto a_m_n = make_naive_tensor_view<address_space_enum::global>(
-            p_a, make_tuple(M, N), make_tuple(N, 1), number<Thread_N>{}, number<1>{});
+        const auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
+            p_x, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
 
-        const auto iM = get_block_id() * Block_M;
+        const auto y_m = make_naive_tensor_view_packed<address_space_enum::global>(
+            p_y, make_tuple(M), number<1>{});
 
-        // A window
-        auto a_block_window = make_tile_window(a_m_n,
-                                               make_tuple(number<Block_M>{}, number<Block_N>{}),
-                                               {iM, 0},
-                                               MakeABlockTileDistribution());
+        const auto iM = get_block_id() * S::Block_M;
+
+        auto x_window = make_tile_window(x_m_n,
+                                         make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                         {iM, 0},
+                                         Policy::template MakeXBlockTileDistribution<Problem>());
+
+        auto y_window = make_tile_window(y_m, make_tuple(number<S::Block_M>{}), {iM});
 
         const auto f_reduce = [](const auto& v0, const auto& v1) { return v0 + v1; };
 
-        const ADataType reduce_init_value = 0;
+        const XDataType reduce_init_value = 0;
 
         constexpr auto reduce_dims = sequence<1>{};
 
-        // Acc tile
-        // TODO: support cross warp reduction
-        auto acc_block_tensor = decltype(block_tile_reduce<AccDataType>(
-            load_tile(a_block_window), reduce_dims, f_reduce, reduce_init_value)){};
+        auto y_compute = decltype(block_tile_reduce<ComputeDataType>(
+            load_tile(x_window), reduce_dims, f_reduce, reduce_init_value)){};
 
-        // init Acc tile
-        tile_elementwise_inout(
-            [&](auto& acc) { acc = type_convert<AccDataType>(reduce_init_value); },
-            acc_block_tensor);
+        set_tile(y_compute, reduce_init_value);
 
-        // loop
-        index_t iN = 0;
+        index_t num_n_tile_iteration =
+            __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_N));
 
-        do
+        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
-            const auto a_block_tensor = load_tile(a_block_window);
+            const auto x = load_tile(x_window);
+            block_tile_reduce(y_compute, x, reduce_dims, f_reduce);
+            move_tile_window(x_window, {0, S::Block_N});
+        }
 
-            // FIXME: support cross warp reduction
-            block_tile_reduce(acc_block_tensor, a_block_tensor, reduce_dims, f_reduce);
+        block_tile_reduce_sync(y_compute, f_reduce);
 
-            move_tile_window(a_block_window, {0, Block_N});
-
-            iN += Block_N;
-
-        } while(iN < N);
-
-        // FIXME: support cross warp reduction
-        block_tile_reduce_sync(acc_block_tensor, f_reduce);
-
-        // convert acc_block_tensor to b_block_tensor
-        const auto b_block_tensor = tile_elementwise_in(
-            [](const auto& acc) { return type_convert<BDataType>(acc); }, acc_block_tensor);
-
-        // B
-        const auto b_m = make_naive_tensor_view_packed<address_space_enum::global>(
-            p_b, make_tuple(M), number<32>{});
-
-        // B window
-        auto b_block_window = make_tile_window(b_m, make_tuple(number<Block_M>{}), {iM});
-
-        // store B tile
-        store_tile(b_block_window, b_block_tensor);
+        store_tile(y_window, cast_tile<YDataType>(y_compute));
     }
+#else
+    CK_TILE_DEVICE void operator()(const XDataType* p_x, YDataType* p_y, index_t M, index_t N) const
+    {
+        using S = typename Problem::BlockShape;
+
+        const auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
+            p_x, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
+
+        const auto y_m = make_naive_tensor_view_packed<address_space_enum::global>(
+            p_y, make_tuple(M), number<1>{});
+
+        const auto iM = get_block_id() * S::Block_M;
+
+        auto x_window = make_tile_window(x_m_n,
+                                         make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                         {iM, 0},
+                                         Policy::template MakeXBlockTileDistribution<Problem>());
+
+        auto y_window = make_tile_window(y_m, make_tuple(number<S::Block_M>{}), {iM});
+
+        __shared__ char smem[Policy::template GetSmemSize<Problem>()];
+
+        index_t num_n_tile_iteration =
+            __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_N));
+
+        auto reduce_func         = [](const auto& v0, const auto& v1) { return v0 + v1; };
+        auto block_reduce2d      = Policy::template GetBlockReduce2d<Problem>();
+        auto block_reduce2d_sync = Policy::template GetBlockReduce2dSync<Problem>();
+        auto block_reduce2d_cross_warp_sync =
+            Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
+
+        using XTensorType = decltype(load_tile(x_window));
+        auto y_compute    = block_reduce2d.template MakeYBlockTile<XTensorType>();
+        set_tile(y_compute, 0);
+
+        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        {
+            const auto x = load_tile(x_window);
+            block_reduce2d(x, y_compute, reduce_func);
+            move_tile_window(x_window, {0, S::Block_N});
+        }
+
+        block_reduce2d_sync(y_compute, reduce_func);
+        block_reduce2d_cross_warp_sync(y_compute, smem, reduce_func);
+
+        store_tile(y_window, cast_tile<YDataType>(y_compute));
+    }
+#endif
 };
 
 } // namespace ck_tile
