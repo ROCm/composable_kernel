@@ -649,7 +649,7 @@ inline __device__ double sin<double>(double x)
 template <>
 inline __device__ half_t sin<half_t>(half_t x)
 {
-    return ::hsin(x);
+    return hsin(static_cast<__half>(x));
 };
 
 template <typename T>
@@ -781,7 +781,7 @@ inline __device__ double ceil<double>(double x)
 template <>
 inline __device__ half_t ceil<half_t>(half_t x)
 {
-    return ::hceil(x);
+    return hceil(static_cast<__half>(x));
 };
 
 template <typename T>
@@ -823,7 +823,7 @@ inline __device__ double floor<double>(double x)
 template <>
 inline __device__ half_t floor<half_t>(half_t x)
 {
-    return ::hfloor(x);
+    return hfloor(static_cast<__half>(x));
 };
 
 template <typename T>
@@ -845,7 +845,7 @@ inline __device__ T exp(T x)
 template <>
 inline __device__ half_t exp<half_t>(half_t x)
 {
-    return hexp(x);
+    return hexp(static_cast<__half>(x));
 };
 
 template <>
@@ -869,7 +869,7 @@ inline __device__ T log(T x)
 template <>
 inline __device__ half_t log<half_t>(half_t x)
 {
-    return hlog(x);
+    return hlog(static_cast<__half>(x));
 };
 
 template <>
