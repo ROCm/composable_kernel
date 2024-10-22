@@ -3,91 +3,13 @@
 
 #pragma once
 
-template <typename DataType>
-inline __host__ __device__ constexpr double get_rtol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 1e-1; // 240 and 224 are acceptable
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 1.5e-1; // 57344 and 49152 are acceptable
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
-
-template <typename DataType>
-inline __host__ __device__ constexpr double get_atol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 16.1; // 240 and 224 are acceptable
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 8192.1; // 57344 and 49152 are acceptable
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
-
 template <typename ProblemType>
 bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 {
+#if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
+    static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
+#endif
+
     using namespace ck::literals;
 
     auto M       = problem_size.M;
@@ -134,7 +56,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<BDataType> b_k_n_permute(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
 
     switch(config.init_method)
     {
@@ -166,95 +87,25 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
 
+#ifdef BUILD_INT4_EXAMPLE
+    DeviceMem a_m_k_device_buf(sizeof(KernelADataType) * a_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_device_buf(sizeof(KernelBDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_device_buf(sizeof(KernelCDataType) *
+                               c_m_n_device_result.mDesc.GetElementSpaceSize());
+
+    const Tensor<KernelADataType> a_m_k_converted(a_m_k);
+    const Tensor<KernelBDataType> b_k_n_converted(b_k_n);
+
+    a_m_k_device_buf.ToDevice(a_m_k_converted.mData.data());
+    b_k_n_device_buf.ToDevice(b_k_n_converted.mData.data());
+#else
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
-#if 1
-    int NPerBlock = 32;
-    int KPerBlock = 128;
-
-    int N1 = NPerBlock;
-    int K1 = KPerBlock;
-
-    int N0 = N / N1;
-    int K0 = K / K1;
-
-    for(int i = 0; i < N0; i++)
-    {
-        for(int j = 0; j < K0; j++)
-        {
-            for(int ii = 0; ii < N1; ii++)
-            {
-                for(int jj = 0; jj < K1; jj++)
-                {
-                    b_k_n_permute(i * K0 * N1 * K1 + j * N1 * K1 + ii * K1 + jj) =
-                        b_k_n((i * N1 + ii) * K + (j * K1 + jj));
-                }
-            }
-        }
-    }
-#else
-    for(int i = 0; i < N; i++)
-    {
-        for(int j = 0; j < K; j++)
-        {
-            b_k_n_permute(i * K + j) = b_k_n(i * K + j);
-        }
-    }
-#endif
-
-    // vector pk_i4x4 permute
-    for(int i = 0; i < N; i++)
-    {
-        for(int j = 0; j < K; j += 8)
-        {
-            int input[8];
-
-            for(int k = 0; k < 4; k++)
-            {
-                int i4x2         = b_k_n_permute(j + k * 2, i);
-                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
-                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
-            }
-
-            // permute 01234567->20643175
-            {
-                int hi   = input[2];
-                int lo   = input[0];
-                int i4x2 = (hi << 4) | lo;
-
-                b_k_n_permute(j + 0, i) = i4x2;
-            }
-
-            {
-                int hi   = input[6];
-                int lo   = input[4];
-                int i4x2 = (hi << 4) | lo;
-
-                b_k_n_permute(j + 2, i) = i4x2;
-            }
-
-            {
-                int hi   = input[3];
-                int lo   = input[1];
-                int i4x2 = (hi << 4) | lo;
-
-                b_k_n_permute(j + 4, i) = i4x2;
-            }
-
-            {
-                int hi   = input[7];
-                int lo   = input[5];
-                int i4x2 = (hi << 4) | lo;
-
-                b_k_n_permute(j + 6, i) = i4x2;
-            }
-        }
-    }
-
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n_permute.mData.data());
+    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
+#endif
     DeviceMem workspace;
 
     auto a_element_op = AElementOp{};
@@ -266,19 +117,26 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto invoker   = gemm.MakeInvoker();
     float ave_time = 0;
 
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-                                      M,
-                                      N,
-                                      K,
-                                      StrideA,
-                                      StrideB,
-                                      StrideC,
-                                      KBatch,
-                                      a_element_op,
-                                      b_element_op,
-                                      c_element_op);
+    auto argument = gemm.MakeArgument(
+#ifdef BUILD_INT4_EXAMPLE
+        static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+        static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+        static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+#else
+        static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+        static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+        static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+#endif
+        M,
+        N,
+        K,
+        StrideA,
+        StrideB,
+        StrideC,
+        KBatch,
+        a_element_op,
+        b_element_op,
+        c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -299,6 +157,15 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         ref_invoker.Run(ref_argument);
 
         ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
+#ifdef BUILD_INT4_EXAMPLE
+        Tensor<CDataType> c_m_n_device_result_converted(c_m_n_host_result.mDesc);
+
+        c_m_n_device_buf.FromDevice(c_m_n_device_result_converted.mData.data());
+
+        c_m_n_device_result = c_m_n_device_result_converted.CopyAsType<CDataType>();
+
+        return ck::utils::check_err(c_m_n_device_result_converted, c_m_n_host_result);
+#else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
         pass &= ck::utils::check_err(c_m_n_device_result,
@@ -306,68 +173,17 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      "Error: Incorrect results!",
                                      get_rtol<CDataType>(),
                                      get_atol<CDataType>());
-
-#if 0
-        std::cout << "a_m_k: " << std::endl;
-        for(int i = 0; i < M; i++)
-        {
-            for(int j = 0; j < K; j++)
-            {
-                std::cout << ck::type_convert<float>(a_m_k(i, j)) << ",";
-            }
-            std::cout << std::endl;
-        }
-
-        std::cout << "b_k_n: " << std::endl;
-        for(int i = 0; i < N; i++)
-        {
-            for(int j = 0; j < K; j++)
-            {
-                ck::pk_i4_t i4x2 = b_k_n(j, i);
-                int8_t i4 = 0;
-                if( j % 2 == 1)
-                    i4 = (i4x2 >> 0) & 0xf;
-                else
-                    i4 = (i4x2 >> 4) & 0xf;
-                i4 = i4 - 8;
-                std::cout << ck::type_convert<float>(i4) << ",";
-            }
-            std::cout << std::endl;
-        }
-
-        std::cout << "c_m_n_device_result: " << std::endl;
-        for(int i = 0; i < M; i++)
-        {
-            for(int j = 0; j < N; j++)
-            {
-                std::cout << ck::type_convert<float>(c_m_n_device_result(i, j)) << ",";
-            }
-            std::cout << std::endl;
-        }
-
-        std::cout << "c_m_n_host_result: " << std::endl;
-        for(int i = 0; i < M; i++)
-        {
-            for(int j = 0; j < N; j++)
-            {
-                std::cout << ck::type_convert<float>(c_m_n_host_result(i, j)) << ",";
-            }
-            std::cout << std::endl;
-        }
 #endif
     }
 
     if(config.time_kernel)
     {
         ave_time =
-            invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 20, 50, true, 50});
+            invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 5, 10, true, 4});
 
         std::size_t flop = 2_uz * M * N * K;
         std::size_t num_btype =
-            sizeof(ADataType) * M * K +
-            sizeof(BDataType) * K * N /
-                (ck::is_same_v<ck::remove_cvref_t<BDataType>, ck::pk_i4_t> ? 2 : 1) +
-            sizeof(CDataType) * M * N;
+            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
