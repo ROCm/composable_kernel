@@ -15,6 +15,7 @@
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_one_warp_v1.hpp"
 
 // TODO: remove this
 #define K_LDS_LOAD_USE_OFFSET_TRANSFORM 0
@@ -64,13 +65,28 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
         constexpr index_t M1 = MWarp;
         constexpr index_t M0 = kMPerBlock / (M2 * M1);
 
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>,
-                                       tuple<sequence<1>, sequence<2, 1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       sequence<1, 2, 2>,
-                                       sequence<0, 0, 2>>{});
+        if constexpr(1 < Problem::kNumGemm0Warps)
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>,
+                                           tuple<sequence<1>, sequence<2, 1>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           sequence<1, 2, 2>,
+                                           sequence<0, 0, 2>>{});
+        }
+        else
+        {
+            static_assert(MWarp == 1);
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>,
+                                           tuple<sequence<2, 1>>,
+                                           tuple<sequence<1, 2>>,
+                                           sequence<1, 2, 2>,
+                                           sequence<0, 0, 2>>{});
+        }
     }
 
     template <typename Problem>
@@ -80,7 +96,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
             BlockGemmProblem<typename Problem::QDataType,
                              typename Problem::KDataType,
                              typename Problem::SaccDataType,
-                             Problem::kBlockSize,
+                             Problem::kNumGemm0Warps * get_warp_size(),
                              TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
                                                     Problem::BlockFmhaShape::kN0,
                                                     Problem::BlockFmhaShape::kK0>,
@@ -129,7 +145,10 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                                                  typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                                  decltype(warp_gemm)>;
 
-        return BlockGemmARegBSmemCRegV2<GemmProblem, BlockGemmPolicy>{};
+        if constexpr(Problem::kNumGemm0Warps == 1)
+            return BlockGemmARegBSmemCRegOneWarpV1<GemmProblem, BlockGemmPolicy>{};
+        else
+            return BlockGemmARegBSmemCRegV2<GemmProblem, BlockGemmPolicy>{};
     }
 };
 
