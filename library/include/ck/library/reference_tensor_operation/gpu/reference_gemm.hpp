@@ -76,7 +76,7 @@ __global__ void
             // apply b_element_op
             b_element_op(v_b, p_b_grid[element_idx_b]);
             // multiply and accumulate
-            v_acc += static_cast<AccDataType>(v_a) * static_cast<AccDataType>(v_b);
+            v_acc += type_convert<AccDataType>(v_a) * type_convert<AccDataType>(v_b);
         }
         // apply c_element_op
         c_element_op(v_c, v_acc);
