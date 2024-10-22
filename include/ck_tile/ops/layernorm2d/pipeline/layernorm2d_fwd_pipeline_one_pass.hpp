@@ -90,7 +90,7 @@ struct Layernorm2dFwdPipelineOnePass
         // compute inv-std
         auto inv_std = tile_elementwise_in(
             [&](const auto& v_) {
-                return type_convert<ComputeDataType>(1.0f) / (sqrt(v_) + epsilon);
+                return type_convert<ComputeDataType>(1.0f) / (sqrt(v_ + epsilon));
             },
             var);
 

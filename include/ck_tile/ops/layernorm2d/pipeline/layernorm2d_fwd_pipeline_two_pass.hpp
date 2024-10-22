@@ -105,7 +105,7 @@ struct Layernorm2dFwdPipelineTwoPass
         // compute inv-std
         auto inv_std = tile_elementwise_in(
             [&](const auto& v_) {
-                return type_convert<ComputeDataType>(1.0f) / (sqrt(v_) + epsilon);
+                return type_convert<ComputeDataType>(1.0f) / (sqrt(v_ + epsilon));
             },
             var);
 
@@ -118,8 +118,6 @@ struct Layernorm2dFwdPipelineTwoPass
         ck_tile::index_t stride_to_right_most_window =
             row_size % Block_N == 0 ? row_size - Block_N : row_size - row_size % Block_N;
 
-        // x_window.foo();
-        // gamma_window.foo();
         move_tile_window(x_window, {0, -Block_N});
         move_tile_window(gamma_window, {stride_to_right_most_window});
         move_tile_window(beta_window, {stride_to_right_most_window});
