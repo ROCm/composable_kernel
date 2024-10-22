@@ -11,6 +11,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include <functional>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/ranges.hpp"
@@ -544,6 +545,28 @@ struct HostTensor
     typename Data::const_pointer data() const { return mData.data(); }
 
     typename Data::size_type size() const { return mData.size(); }
+
+    // return a slice of this tensor
+    // for simplicity we just copy the data and return a new tensor
+    auto slice(std::vector<size_t> s_begin, std::vector<size_t> s_end) const
+    {
+        assert(s_begin.size() == s_end.size());
+        assert(s_begin.size() == get_num_of_dimension());
+
+        std::vector<size_t> s_len(s_begin.size());
+        std::transform(
+            s_end.begin(), s_end.end(), s_begin.begin(), s_len.begin(), std::minus<size_t>{});
+        HostTensor<T> sliced_tensor(s_len);
+
+        sliced_tensor.ForEach([&](auto& self, auto idx) {
+            std::vector<size_t> src_idx(idx.size());
+            std::transform(
+                idx.begin(), idx.end(), s_begin.begin(), src_idx.begin(), std::plus<size_t>{});
+            self(idx) = operator()(src_idx);
+        });
+
+        return sliced_tensor;
+    }
 
     template <typename U = T>
     auto AsSpan() const

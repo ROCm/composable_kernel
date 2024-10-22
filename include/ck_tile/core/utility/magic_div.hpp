@@ -59,8 +59,16 @@ struct magic_division32_bit_range
     CK_TILE_DEVICE static constexpr uint32_t
     do_magic_division(uint32_t dividend, uint32_t multiplier, uint32_t shift)
     {
-        uint32_t tmp = __umulhi(dividend, multiplier);
-        return (tmp + dividend) >> shift;
+        if(__builtin_is_constant_evaluated())
+        {
+            uint32_t tmp = (static_cast<uint64_t>(dividend) * multiplier) >> 32;
+            return (tmp + dividend) >> shift;
+        }
+        else
+        {
+            uint32_t tmp = __umulhi(dividend, multiplier);
+            return (tmp + dividend) >> shift;
+        }
     }
 
     CK_TILE_HOST static constexpr uint32_t
@@ -77,9 +85,18 @@ struct magic_division32_bit_range
     CK_TILE_DEVICE static constexpr int32_t
     do_magic_division(int32_t dividend_i32, uint32_t multiplier, uint32_t shift)
     {
-        uint32_t dividend_u32 = bit_cast<uint32_t>(dividend_i32);
-        uint32_t tmp          = __umulhi(dividend_u32, multiplier);
-        return (tmp + dividend_u32) >> shift;
+        if(__builtin_is_constant_evaluated())
+        {
+            uint32_t dividend_u32 = bit_cast<uint32_t>(dividend_i32);
+            uint32_t tmp          = (static_cast<uint64_t>(dividend_u32) * multiplier) >> 32;
+            return (tmp + dividend_u32) >> shift;
+        }
+        else
+        {
+            uint32_t dividend_u32 = bit_cast<uint32_t>(dividend_i32);
+            uint32_t tmp          = __umulhi(dividend_u32, multiplier);
+            return (tmp + dividend_u32) >> shift;
+        }
     }
 
     CK_TILE_HOST static constexpr int32_t
