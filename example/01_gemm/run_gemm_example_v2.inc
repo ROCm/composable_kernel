@@ -230,6 +230,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     bool pass = true;
     if(config.do_verification)
     {
+        std::cout << "Compute reference GEMM on CPU...  ";
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
@@ -237,8 +238,11 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             a_m_k, b_k_n, c_m_n_host_result, PassThrough{}, PassThrough{}, PassThrough{});
 
         ref_invoker.Run(ref_argument);
+        std::cout << "DONE!" << std::endl;
 
+        std::cout << "Compute GEMM on device...  \n";
         ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
+        std::cout << "DONE!" << std::endl;
 #ifdef BUILD_INT4_EXAMPLE
         Tensor<CDataType> c_m_n_device_result_converted(c_m_n_host_result.mDesc);
 
@@ -250,16 +254,19 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        pass &= ck::utils::check_err(c_m_n_device_result,
-                                     c_m_n_host_result,
-                                     "Error: Incorrect results!",
-                                     get_rtol<CDataType>(),
-                                     get_atol<CDataType>());
+        pass = ck::utils::check_err(c_m_n_device_result,
+                                    c_m_n_host_result,
+                                    "Error: Incorrect results!",
+                                    get_rtol<CDataType>(),
+                                    get_atol<CDataType>());
+        if(pass)
+            std::cout << "Verification on CPU: PASS" << std::endl;
 #endif
     }
 
     if(config.time_kernel)
     {
+        std::cout << "Time GEMM on device...  \n";
         ave_time =
             invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 5, 10, true, 4});
 
@@ -274,7 +281,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                   << " GB/s, " << gemm.GetTypeString() << std::endl;
     }
-    return pass;
+    return !pass;
 }
 
 bool run_gemm_splitk_example(int argc, char* argv[])

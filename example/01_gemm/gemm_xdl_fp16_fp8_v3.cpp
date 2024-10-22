@@ -50,4 +50,4 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataTyp
 
 #include "run_gemm_example_v2.inc"
 
-int main(int argc, char* argv[]) { return !run_gemm_splitk_example(argc, argv); }
+int main(int argc, char* argv[]) { return (run_gemm_splitk_example(argc, argv)) ? -1 : 0; }
