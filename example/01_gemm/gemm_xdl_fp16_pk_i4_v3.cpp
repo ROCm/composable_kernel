@@ -39,6 +39,9 @@ using DeviceGemmV2Instance =
         2, 32, 32, 1,
         1, 1, S<1, 16, 1, 4>, 4,
         ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1>;
+
+    static int NPerBlock = 16;
+    static int KPerBlock = 256;
 #else
         128,
         16, 32, 
@@ -51,8 +54,11 @@ using DeviceGemmV2Instance =
         2, 32, 32, 0,
         1, 1, S<1, 16, 1, 8>, 4,
         ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1>;
+
+    static int NPerBlock = 32;
+    static int KPerBlock = 128;
 #endif
-      // clang-format on
+// clang-format on
 
     using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                             BDataType,
@@ -146,30 +152,37 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
-#if 1
-    int NPerBlock = 32;
-    int KPerBlock = 128;
-
+//weight permute
+#if 0
     int N1 = NPerBlock;
     int K1 = KPerBlock;
 
     int N0 = N / N1;
     int K0 = K / K1;
+    int K01 = K0 / KBatch;
+    int K00 = KBatch;
 
-    for(int i = 0; i < N0; i++)
+    std::cout << "K00 = " << K00 << " K01 = " << K01 << std::endl;
+
+    for(int k = 0; k < K00; k++)
     {
-        for(int j = 0; j < K0; j++)
+        for(int i = 0; i < N0; i++)
         {
-            for(int ii = 0; ii < N1; ii++)
+            for(int j = 0; j < K01; j++)
             {
-                for(int jj = 0; jj < K1; jj++)
+                for(int ii = 0; ii < N1; ii++)
                 {
-                    b_k_n_permute(i * K0 * N1 * K1 + j * N1 * K1 + ii * K1 + jj) =
-                        b_k_n((i * N1 + ii) * K + (j * K1 + jj));
+                    for(int jj = 0; jj < K1; jj++)
+                    {
+                        b_k_n_permute(k * N0 * K01 * N1 * K1 + i * K01 * N1 * K1 + j * N1 * K1 + ii * K1 + jj) =
+                            b_k_n((i * N1 + ii) * K + (k * K01 * K1 + j * K1 + jj));
+                    }
                 }
             }
         }
     }
+
+    
 #else
     for(int i = 0; i < N; i++)
     {

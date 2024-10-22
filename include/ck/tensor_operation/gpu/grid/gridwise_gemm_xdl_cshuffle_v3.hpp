@@ -14,6 +14,8 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+//#define WEIGHT_PERMUTE
+
 namespace ck {
 
 // Currently we do not have a elegant way to put single lds buffer & double lds buffer pipe in same
@@ -387,8 +389,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         }
         else
         {
-            // B Tile Permute
-#if 0
+            // Weight Tile Permute
+#ifndef WEIGHT_PERMUTE
             // not pad N or K
             const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
                 b_grid_desc_nraw_kraw,
@@ -619,10 +621,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-#if 0
+#ifndef WEIGHT_PERMUTE
                 b_k_split_offset = blockIdx.z * karg.KRead / BPackedSize;
 #else
-                const int k0_offset = karg.KRead * NPerBlock;
+                const int k0_offset = karg.KRead * karg.N;
                 b_k_split_offset    = blockIdx.z * k0_offset / BPackedSize;
 #endif
             }
