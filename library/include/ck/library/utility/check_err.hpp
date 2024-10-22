@@ -46,8 +46,7 @@ double get_relative_threshold(const int numberOfAccumulations = 1)
     }
     else
     {
-        compute_error =
-            std::pow(2, -NumericUtils<ComputeDataType>::mant) * 0.5 * numberOfAccumulations;
+        compute_error = std::pow(2, -NumericUtils<ComputeDataType>::mant) * 0.5;
     }
 
     static_assert(is_same_v<OutDataType, F8> || is_same_v<OutDataType, F16> ||
@@ -63,7 +62,7 @@ double get_relative_threshold(const int numberOfAccumulations = 1)
     }
     else
     {
-        output_error = std::pow(2, -NumericUtils<OutDataType>::mant) * 0.5 * numberOfAccumulations;
+        output_error = std::pow(2, -NumericUtils<OutDataType>::mant) * 0.5;
     }
 
     double midway_error = std::max(compute_error, output_error);
@@ -111,8 +110,7 @@ double get_absolute_threshold(const double max_possible_num, const int numberOfA
     }
     else
     {
-        compute_error =
-            std::pow(2, expo - NumericUtils<ComputeDataType>::mant) * 0.5 * numberOfAccumulations;
+        compute_error = std::pow(2, expo - NumericUtils<ComputeDataType>::mant) * 0.5;
     }
 
     static_assert(is_same_v<AccDataType, F8> || is_same_v<AccDataType, F16> ||
