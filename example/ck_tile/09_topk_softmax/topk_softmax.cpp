@@ -14,15 +14,6 @@
 #include "ck_tile/ops/reduce.hpp"
 #include "topk_softmax_api.hpp"
 
-#ifndef TEST_TOPK_SOFTMAX_VERBOSE
-#define TEST_TOPK_SOFTMAX_VERBOSE 1
-#endif
-
-// set this to 1 if input/output have stride
-#ifndef TEST_TOPK_VERIFY_PER_TOKEN
-#define TEST_TOPK_VERIFY_PER_TOKEN 1
-#endif
-
 template <typename T>
 void dump_host_tensor_2d(const ck_tile::HostTensor<T>& x)
 {
@@ -178,9 +169,7 @@ bool test_topk_softmax(ck_tile::ArgParser args)
 
     if(topk > experts)
     {
-#if TEST_TOPK_SOFTMAX_VERBOSE
         printf("topk:%d should smaller than (or equal to) experts:%d\n", topk, experts);
-#endif
         return false;
     }
 
@@ -230,7 +219,6 @@ bool test_topk_softmax(ck_tile::ArgParser args)
         return a_;
     }();
 
-#if TEST_TOPK_SOFTMAX_VERBOSE
     ck_tile::stream_config sc{nullptr, true};
     // ck_tile::stream_config sc{nullptr};
     auto ms = topk_softmax(trait, karg, sc);
@@ -246,10 +234,6 @@ bool test_topk_softmax(ck_tile::ArgParser args)
     if(ms < 0)
         printf("not supported\n");
     fflush(stdout);
-#else
-    ck_tile::stream_config sc{nullptr};
-    auto ms = topk_softmax(trait, karg, sc);
-#endif
     if(ms < 0)
     {
         return false;
@@ -270,7 +254,6 @@ bool test_topk_softmax(ck_tile::ArgParser args)
             x_host, value_ref, index_ref, topk);
 
         auto [rtol, atol] = get_elimit<InputType>("");
-#if TEST_TOPK_VERIFY_PER_TOKEN
         for(int i_t = 0; i_t < tokens; i_t++)
         {
             auto s_begin = std::vector<size_t>{static_cast<size_t>(i_t), static_cast<size_t>(0)};
@@ -293,17 +276,10 @@ bool test_topk_softmax(ck_tile::ArgParser args)
                                       rtol,
                                       atol);
         }
-#else
-        rtn &= ck_tile::check_err(
-            value_host, value_ref, std::string("Value Error: Incorrect results!"), rtol, atol);
-        rtn &= ck_tile::check_err(
-            index_host, index_ref, std::string("Index Error: Incorrect results!"), rtol, atol);
-#endif
     }
-#if TEST_TOPK_SOFTMAX_VERBOSE
+
     printf("valid:%s\n", rtn ? "y" : "n");
     fflush(stdout);
-#endif
     return rtn;
 }
 
