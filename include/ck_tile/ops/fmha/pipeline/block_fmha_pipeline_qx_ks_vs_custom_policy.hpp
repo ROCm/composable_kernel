@@ -15,6 +15,7 @@
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_one_warp_v1.hpp"
 
 // TODO: remove this
 #define K_LDS_LOAD_USE_OFFSET_TRANSFORM 0
@@ -64,13 +65,28 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
         constexpr index_t M1 = MWarp;
         constexpr index_t M0 = kMPerBlock / (M2 * M1);
 
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>,
-                                       tuple<sequence<1>, sequence<2, 1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       sequence<1, 2, 2>,
-                                       sequence<0, 0, 2>>{});
+        if constexpr(1 < Problem::kNumGemm0Warps)
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>,
+                                           tuple<sequence<1>, sequence<2, 1>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           sequence<1, 2, 2>,
+                                           sequence<0, 0, 2>>{});
+        }
+        else
+        {
+            static_assert(MWarp == 1);
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>,
+                                           tuple<sequence<2, 1>>,
+                                           tuple<sequence<1, 2>>,
+                                           sequence<1, 2, 2>,
+                                           sequence<0, 0, 2>>{});
+        }
     }
 
     template <typename Problem>
@@ -80,7 +96,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
             BlockGemmProblem<typename Problem::QDataType,
                              typename Problem::KDataType,
                              typename Problem::SaccDataType,
-                             Problem::kBlockSize,
+                             Problem::kNumGemm0Warps * get_warp_size(),
                              TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
                                                     Problem::BlockFmhaShape::kN0,
                                                     Problem::BlockFmhaShape::kK0>,
@@ -129,12 +145,16 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                                                  typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                                  decltype(warp_gemm)>;
 
-        return BlockGemmARegBSmemCRegV2<GemmProblem, BlockGemmPolicy>{};
+        if constexpr(1 < Problem::kNumGemm0Warps)
+            return BlockGemmARegBSmemCRegV2<GemmProblem, BlockGemmPolicy>{};
+        else
+            return BlockGemmARegBSmemCRegOneWarpV1<GemmProblem, BlockGemmPolicy>{};
     }
 };
 
+/// NOTICE: we no-longer use this policy.
 template <>
-struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
+struct [[deprecated]] BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
 {
     static constexpr bool QLoadOnce = false;
 
@@ -383,10 +403,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using BlockGemm = remove_cvref_t<decltype(QXPolicy::template GetQKBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
-        using CWarpDstr       = typename WG::CWarpDstr;
-        constexpr auto vec =
-            CWarpDstr{}.get_ys_to_d_descriptor().get_lengths().at(number<CWarpDstr::NDimY - 1>{});
-        return vec;
+
+        return WG::WarpGemmAttribute::Impl::kCM1PerLane;
     }
 
     template <typename Problem>
@@ -395,10 +413,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using BlockGemm       = remove_cvref_t<decltype(GetKVBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
-        using CWarpDstr       = typename WG::CWarpDstr;
-        constexpr auto vec =
-            CWarpDstr{}.get_ys_to_d_descriptor().get_lengths().at(number<CWarpDstr::NDimY - 1>{});
-        return vec;
+
+        return WG::WarpGemmAttribute::Impl::kCM1PerLane;
     }
 
     template <typename Problem>
@@ -449,44 +465,12 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         return max(SingleKSize, SingleVSize);
     }
 
-    template <typename Problem, typename BlockGemm>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQRegBlockDescriptor()
-    {
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0BlockLength;
-
-        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-
-        using WG = remove_cvref_t<decltype(config.template at<0>())>;
-
-        constexpr index_t MWarp = config.template at<1>();
-        constexpr index_t NWarp = config.template at<2>();
-
-        constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WG::kM);
-        constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
-
-        constexpr auto q_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<NWarp>,
-                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-                                       tuple<sequence<1, 0>>,
-                                       tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-
-        constexpr auto q_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            q_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});
-
-        constexpr auto q_block_dstr = make_static_tile_distribution(q_block_dstr_encode);
-
-        return q_block_dstr;
-    }
-
     // TODO: this is used for non async copy desc. unify in the future
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
         constexpr index_t kKPack     = GetSmemKPackK<Problem>();
 
         constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
@@ -886,36 +870,10 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         }
     }
 
-    template <typename Problem, typename BlockGemm>
+    template <typename BlockGemm>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBiasDramTileDistribution()
     {
-        constexpr index_t MPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t NPerBlock = Problem::BlockFmhaShape::kN0;
-
-        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
-
-        constexpr index_t MWarp = config.template at<1>();
-        constexpr index_t NWarp = config.template at<2>();
-
-        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
-        constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
-
-        // Construct C-Block-HostTensor
-        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
-
-        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
-
-        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-
-        return c_block_dstr;
+        return BlockGemm::MakeCBlockTile().get_tile_distribution();
     }
 
     template <typename Problem>
@@ -972,7 +930,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             BlockGemmProblem<typename Problem::PDataType,
                              typename Problem::VDataType,
                              typename Problem::OaccDataType,
-                             Problem::kBlockSize,
+                             Problem::kNumGemm1Warps * get_warp_size(),
                              TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
                                                     Problem::BlockFmhaShape::kN1,
                                                     Problem::BlockFmhaShape::kK1>,

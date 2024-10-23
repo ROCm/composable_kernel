@@ -22,7 +22,7 @@ CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
 
     constexpr index_t idim_p_lane = NDimP - 1;
 
-    const auto ps_idx = make_array<index_t>(get_block_id(), get_lane_id());
+    const auto ps_idx = detail::get_partition_index(acc_tensor.get_tile_distribution());
     const auto rs_idx = acc_tensor.get_tile_distribution().calculate_rs_index_from_ps_index(ps_idx);
 
     constexpr index_t thread_buf_size = AccDistributedTensor_::get_thread_buffer_size();

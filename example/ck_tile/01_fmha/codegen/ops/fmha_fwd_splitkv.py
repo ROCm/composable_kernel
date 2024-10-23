@@ -42,13 +42,12 @@ namespace {{
 template <bool kHasUnevenSplits>
 struct kernel_runner {{
 using fmha_block_tile = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}>;
-using fmha_block_warps = ck_tile::sequence<{F_rm}, {F_rn}, {F_rk}>;
 using fmha_warp_tile = ck_tile::sequence<{F_wm}, {F_wn}, {F_wk}>;
 
 using fmha_shape = ck_tile::TileFmhaShape<fmha_block_tile,
-                                          fmha_block_warps,
+                                          ck_tile::sequence<{F_rm0}, {F_rn0}, {F_rk0}>,
                                           fmha_warp_tile,
-                                          fmha_block_warps,
+                                          ck_tile::sequence<{F_rm1}, {F_rn1}, {F_rk1}>,
                                           fmha_warp_tile,
                                           {F_vlayout}>;
 
@@ -458,9 +457,12 @@ class FmhaFwdSplitKVKernel:
                 F_bn1           = self.F_tile.F_bn1,
                 F_bk1           = self.F_tile.F_bk1,
                 F_bk0blen       = self.F_tile.F_bk0blen,
-                F_rm            = self.F_tile.F_rm,
-                F_rn            = self.F_tile.F_rn,
-                F_rk            = self.F_tile.F_rk,
+                F_rm0           = self.F_tile.F_rm0,
+                F_rn0           = self.F_tile.F_rn0,
+                F_rk0           = self.F_tile.F_rk0,
+                F_rm1           = self.F_tile.F_rm1,
+                F_rn1           = self.F_tile.F_rn1,
+                F_rk1           = self.F_tile.F_rk1,
                 F_wm            = self.F_tile.F_wm,
                 F_wn            = self.F_tile.F_wn,
                 F_wk            = self.F_tile.F_wk,
@@ -553,16 +555,16 @@ class FmhaFwdSplitKVCombineKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            '32'  : FmhaFwdTileSize(32, 64,  16, 32,  32, 32,   2, 1, 1, 16, 16, 16, -1),
-            '64'  : FmhaFwdTileSize(64, 64,  32, 64,  32, 64,   4, 1, 1, 16, 16, 16, -1),
-            '128' : FmhaFwdTileSize(64, 128, 32, 128, 32, 128,  4, 1, 1, 16, 16, 16, -1),
-            '256' : FmhaFwdTileSize(64, 128, 32, 256, 32, 256,  4, 1, 1, 16, 16, 16, -1),
+            '32'  : FmhaFwdTileSize(32, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  16, 16, 16, -1),
+            '64'  : FmhaFwdTileSize(64, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
+            '128' : FmhaFwdTileSize(64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
+            '256' : FmhaFwdTileSize(64, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-            '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32, 64,   2, 1, 1, 32, 32, 32, -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 32, -1)
+            '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32, -1),
+            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1),
+            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1)
         }
     else:
         return None

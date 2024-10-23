@@ -64,6 +64,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
     }();
 
+    static constexpr index_t kAlignmentOacc =
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentOacc<Problem>();
+
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
@@ -252,11 +255,11 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             k_dram_block_window_lengths, {adjusted_seqlen_k_start, 0});
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
-        auto bias_dram_window  = make_tile_window(
-            bias_dram_block_window_tmp.get_bottom_tensor_view(),
-            bias_dram_block_window_tmp.get_window_lengths(),
-            {bias_origin.at(number<0>{}), adjusted_seqlen_k_start}, // M/N
-            Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
+        auto bias_dram_window =
+            make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
+                             bias_dram_block_window_tmp.get_window_lengths(),
+                             {bias_origin.at(number<0>{}), adjusted_seqlen_k_start}, // M/N
+                             Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
             v_dram_block_window_lengths,
