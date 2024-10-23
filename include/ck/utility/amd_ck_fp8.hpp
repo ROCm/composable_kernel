@@ -291,6 +291,9 @@ static __device__ float2_t cast_to_f32x2_from_f8x2(fp8x2_storage_t v)
 
 } // namespace fp8_impl
 
+template <typename T, index_t N>
+struct non_native_vector_base;
+
 struct f8_ocp_t
 {
     using data_type = fp8_storage_t;
@@ -332,53 +335,6 @@ struct f8_ocp_t
 #else
         return fp8_impl::cast_from_f8<_Float16, wm, we, false>(
             this->data); // XXX: clip==false must be consistent with operator float
-#endif
-    }
-};
-
-template <typename T, index_t N>
-struct non_native_vector_base;
-
-template <index_t N>
-struct non_native_vector_base<f8_ocp_t, N>
-{
-    using data_t = f8_ocp_t::data_type;
-    using data_v = data_t __attribute__((ext_vector_type(sizeof(data_t) * N)));
-    using type   = non_native_vector_base<f8_ocp_t, N>;
-
-    data_v d; // storage vector
-
-    __host__ __device__ non_native_vector_base() = default;
-    __host__ __device__ non_native_vector_base(data_t a) : d{a} {}
-    __host__ __device__ non_native_vector_base(data_v v) : d{v} {}
-
-    __host__ __device__ operator data_v() const { return d; }
-};
-
-template <>
-struct non_native_vector_base<f8_ocp_t, 2>
-{
-    using data_t = f8_ocp_t::data_type;
-    using type   = non_native_vector_base<f8_ocp_t, 2>;
-
-    __host__ __device__ non_native_vector_base() = default;
-
-    using data_v = fp8_impl::fp8x2_storage_t; // type of storage vector
-    data_v d;                                 // storage vector
-
-    using float2_t = fp8_impl::float2_t;
-
-#if CK_USE_OCP_FP8
-    __host__ __device__ explicit operator float2_t() const
-#else
-    __host__ explicit operator float2_t() const
-#endif
-    {
-#if CK_OFP8_CVT_FAST_PATH
-        return fp8_impl::cast_to_f32x2_from_f8x2<f8_ocp_t::default_interpret>(d);
-#else
-        return float2_t{fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(d[0]),
-                        fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(d[1])};
 #endif
     }
 };
@@ -427,6 +383,66 @@ struct bf8_ocp_t
             this->data); // XXX: clip==false must be consistent with operator float
 #endif
     }
+};
+
+template <index_t N>
+struct non_native_vector_base<f8_ocp_t, N>
+{
+    using data_t = f8_ocp_t::data_type;
+    using data_v = data_t __attribute__((ext_vector_type(sizeof(data_t) * N)));
+    using type   = non_native_vector_base<f8_ocp_t, N>;
+
+    data_v d; // storage vector
+
+    __host__ __device__ non_native_vector_base() = default;
+    __host__ __device__ non_native_vector_base(data_t a) : d{a} {}
+    __host__ __device__ non_native_vector_base(data_v v) : d{v} {}
+
+    __host__ __device__ operator data_v() const { return d; }
+};
+
+template <>
+struct non_native_vector_base<f8_ocp_t, 2>
+{
+    using data_t = f8_ocp_t::data_type;
+    using type   = non_native_vector_base<f8_ocp_t, 2>;
+
+    __host__ __device__ non_native_vector_base() = default;
+
+    using data_v = fp8_impl::fp8x2_storage_t; // type of storage vector
+    data_v d;                                 // storage vector
+
+    using float2_t = fp8_impl::float2_t;
+
+#if CK_USE_OCP_FP8
+    __host__ __device__ explicit operator float2_t() const
+#else
+    __host__ explicit operator float2_t() const
+#endif
+    {
+#if CK_OFP8_CVT_FAST_PATH
+        return fp8_impl::cast_to_f32x2_from_f8x2<f8_ocp_t::default_interpret>(d);
+#else
+        return float2_t{fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(d[0]),
+                        fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(d[1])};
+#endif
+    }
+};
+
+template <index_t N>
+struct non_native_vector_base<bf8_ocp_t, N>
+{
+    using data_t = bf8_ocp_t::data_type;
+    using data_v = data_t __attribute__((ext_vector_type(sizeof(data_t) * N)));
+    using type   = non_native_vector_base<bf8_ocp_t, N>;
+
+    data_v d; // storage vector
+
+    __host__ __device__ non_native_vector_base() = default;
+    __host__ __device__ non_native_vector_base(data_t a) : d{a} {}
+    __host__ __device__ non_native_vector_base(data_v v) : d{v} {}
+
+    __host__ __device__ operator data_v() const { return d; }
 };
 
 namespace fp8_impl {

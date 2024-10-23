@@ -1036,15 +1036,19 @@ struct non_native_vector_base
 
 template <typename T, index_t N>
 struct scalar_type<non_native_vector_base<T, N>>;
-// {
-//     using type                           = T;
-//     static constexpr index_t vector_size = N;
-// };
 
 template <index_t N>
 struct scalar_type<non_native_vector_base<f8_ocp_t, N>>
 {
     using type = typename non_native_vector_base<f8_ocp_t, N>::data_t;
+
+    static constexpr index_t vector_size = N;
+};
+
+template <index_t N>
+struct scalar_type<non_native_vector_base<bf8_ocp_t, N>>
+{
+    using type = typename non_native_vector_base<bf8_ocp_t, N>::data_t;
 
     static constexpr index_t vector_size = N;
 };
