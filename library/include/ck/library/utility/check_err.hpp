@@ -64,7 +64,6 @@ double get_relative_threshold(const int numberOfAccumulations = 1)
     {
         output_error = std::pow(2, -NumericUtils<OutDataType>::mant) * 0.5;
     }
-
     double midway_error = std::max(compute_error, output_error);
 
     static_assert(is_same_v<AccDataType, F8> || is_same_v<AccDataType, F16> ||
@@ -82,11 +81,10 @@ double get_relative_threshold(const int numberOfAccumulations = 1)
     {
         acc_error = std::pow(2, -NumericUtils<AccDataType>::mant) * 0.5 * numberOfAccumulations;
     }
-
     return std::max(acc_error, midway_error);
 }
 
-template <typename ComputeDataType, typename AccDataType = ComputeDataType>
+template <typename ComputeDataType, typename OutDataType, typename AccDataType = ComputeDataType>
 double get_absolute_threshold(const double max_possible_num, const int numberOfAccumulations = 1)
 {
     using F8   = ck::f8_t;
@@ -100,7 +98,7 @@ double get_absolute_threshold(const double max_possible_num, const int numberOfA
                       is_same_v<ComputeDataType, BF16> || is_same_v<ComputeDataType, F32> ||
                       is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
                       is_same_v<ComputeDataType, int>,
-                  "Warning: Unhandled ComputeDataType for setting up the relative threshold!");
+                  "Warning: Unhandled ComputeDataType for setting up the absolute threshold!");
     auto expo            = std::log2(std::abs(max_possible_num));
     double compute_error = 0;
     if constexpr(is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
@@ -113,11 +111,28 @@ double get_absolute_threshold(const double max_possible_num, const int numberOfA
         compute_error = std::pow(2, expo - NumericUtils<ComputeDataType>::mant) * 0.5;
     }
 
+    static_assert(is_same_v<OutDataType, F8> || is_same_v<OutDataType, F16> ||
+                      is_same_v<OutDataType, BF16> || is_same_v<OutDataType, F32> ||
+                      is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
+                      is_same_v<OutDataType, int>,
+                  "Warning: Unhandled OutDataType for setting up the absolute threshold!");
+    double output_error = 0;
+    if constexpr(is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
+                 is_same_v<OutDataType, int>)
+    {
+        return 0;
+    }
+    else
+    {
+        output_error = std::pow(2, expo - NumericUtils<OutDataType>::mant) * 0.5;
+    }
+    double midway_error = std::max(compute_error, output_error);
+
     static_assert(is_same_v<AccDataType, F8> || is_same_v<AccDataType, F16> ||
                       is_same_v<AccDataType, BF16> || is_same_v<AccDataType, F32> ||
                       is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
                       is_same_v<AccDataType, int>,
-                  "Warning: Unhandled AccDataType for setting up the relative threshold!");
+                  "Warning: Unhandled AccDataType for setting up the absolute threshold!");
     double acc_error = 0;
     if constexpr(is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
                  is_same_v<AccDataType, int>)
@@ -129,8 +144,7 @@ double get_absolute_threshold(const double max_possible_num, const int numberOfA
         acc_error =
             std::pow(2, expo - NumericUtils<AccDataType>::mant) * 0.5 * numberOfAccumulations;
     }
-
-    return std::max(acc_error, compute_error);
+    return std::max(acc_error, midway_error);
 }
 
 template <typename Range, typename RefRange>
