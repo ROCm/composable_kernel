@@ -551,8 +551,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             constexpr auto dst_data_idx_seq = generate_sequence_v2(
                 [&](auto i) { return Number<dst_data_idx[i]>{}; }, Number<dst_data_idx.Size()>{});
 
-            // const bool is_dst_valid =
-            // coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
+            const bool is_dst_valid =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
             using dst_vector_type = vector_type_maker_t<DstData, DstScalarPerVector>;
             using dst_vector_t    = typename dst_vector_type::type;
@@ -571,7 +571,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             // copy data from dst_vector_container to dst_buf
             dst_buf.template Set<dst_vector_t>(
                 dst_coord_.GetOffset() / PackedSize,
-                true,
+                is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
             constexpr auto move_on_dim = [&]() constexpr
