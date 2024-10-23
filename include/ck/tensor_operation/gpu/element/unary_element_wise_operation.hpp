@@ -19,8 +19,8 @@ __host__ __device__ inline half4_t pki4_to_half4(int q)
     // Guarantee that the `(a & b) | c` operations are LOP3s.
     // int lo = lop3<(0xf0 & 0xcc) | 0xaa>(q, LO, EX);
     // int hi = lop3<(0xf0 & 0xcc) | 0xaa>(q, HI, EX);
-    int lo = (q & LO) | EX;
-    int hi = (q & HI) | EX;
+    int lo = amd_assembly_and_or_b32(q, LO, EX);
+    int hi = amd_assembly_and_or_b32(q, HI, EX);
     // We want signed int4 outputs, hence we fuse the `-8` symmetric zero point
     // directly into `SUB` and `ADD`.
     const int SUB = 0xE408E408; //-8
