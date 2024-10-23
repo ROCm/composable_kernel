@@ -50,7 +50,7 @@ __host__ __device__ inline half2_t pki4_to_half2(pk_i4_t q)
     auto h_f16 = ck::type_convert<ck::half_t>(x_h - 8);
 
     return {h_f16, l_f16};
-#else
+#elif 1
     uint8_t x_u8 = ck::bit_cast<uint8_t>(q);
 
     int x_l = (x_u8 & 0x0f);
@@ -62,6 +62,9 @@ __host__ __device__ inline half2_t pki4_to_half2(pk_i4_t q)
     int lo = (x_l | x_h) | EX;
 
     return amd_assembly_pk_add_f16(bit_cast<half2_t>(lo), bit_cast<half2_t>(SUB));
+#else
+    int32_t res = bit_cast<int8_t>(q);
+    return bit_cast<half2_t>(res);
 #endif
 }
 

@@ -40,8 +40,7 @@ using DeviceGemmV2Instance =
         1, 1, S<1, 16, 1, 4>, 4,
         ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1>;
 
-    static int NPerBlock = 16;
-    static int KPerBlock = 256;
+    [[maybe_unused]] static int KPerBlock = 256;
 #else
         128,
         16, 32, 
@@ -53,10 +52,9 @@ using DeviceGemmV2Instance =
         S<4, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
         1, 1, S<1, 16, 1, 8>, 4,
-        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1>;
+        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v2>;
 
-    static int NPerBlock = 32;
-    static int KPerBlock = 128;
+    [[maybe_unused]]static int KPerBlock = 128;
 #endif
       // clang-format on
 
@@ -125,7 +123,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
         break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
         break;
     case 2:
@@ -153,31 +151,18 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
 // weight permute
-#if 0
-    int N1 = NPerBlock;
+#if 1
     int K1 = KPerBlock;
+    int K0 = K / KPerBlock;
 
-    int N0 = N / N1;
-    int K0 = K / K1;
-    int K01 = K0 / KBatch;
-    int K00 = KBatch;
-
-    std::cout << "K00 = " << K00 << " K01 = " << K01 << std::endl;
-
-    for(int k = 0; k < K00; k++)
+    // int K0, N, K1
+    for(int j = 0; j < K0; j++)
     {
-        for(int i = 0; i < N0; i++)
+        for(int i = 0; i < N; i++)
         {
-            for(int j = 0; j < K01; j++)
+            for(int jj = 0; jj < K1; jj++)
             {
-                for(int ii = 0; ii < N1; ii++)
-                {
-                    for(int jj = 0; jj < K1; jj++)
-                    {
-                        b_k_n_permute(k * N0 * K01 * N1 * K1 + i * K01 * N1 * K1 + j * N1 * K1 + ii * K1 + jj) =
-                            b_k_n((i * N1 + ii) * K + (k * K01 * K1 + j * K1 + jj));
-                    }
-                }
+                b_k_n_permute(j * N * K1 + i * K1 + jj) = b_k_n(i * K + (j * K1 + jj));
             }
         }
     }
@@ -286,7 +271,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         ref_invoker.Run(ref_argument);
 
-        ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
+        ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 0});
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
         pass &= ck::utils::check_err(c_m_n_device_result,

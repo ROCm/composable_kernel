@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-//#define WEIGHT_PERMUTE
+#define WEIGHT_PERMUTE
 
 namespace ck {
 
@@ -399,22 +399,19 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 #else
-            constexpr index_t N1   = NPerBlock;
             constexpr index_t BK01 = KPerBlock / BK1Value;
             const index_t BK00     = BK0 / BK01;
-            const index_t N0       = N / N1;
 
-            const auto b_grid_desc_n0_bk00_n1_bk01_bk1 =
-                make_naive_tensor_descriptor_packed(make_tuple(N0, BK00, N1, BK01, BK1Value));
+            const auto b_grid_desc_bk00_n_bk01_bk1 =
+                make_naive_tensor_descriptor_packed(make_tuple(BK00, N, BK01, BK1Value));
 
             const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
-                b_grid_desc_n0_bk00_n1_bk01_bk1,
+                b_grid_desc_bk00_n_bk01_bk1,
                 make_tuple(make_merge_transform(make_tuple(BK00, BK01)),
-                           make_merge_transform(make_tuple(N0, N1)),
+                           make_pass_through_transform(make_tuple(N)),
                            make_pass_through_transform(BK1Value)),
-                make_tuple(Sequence<1, 3>{}, Sequence<0, 2>{}, Sequence<4>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-
 #endif
 
             return b_grid_desc_bk0_n_bk1;
