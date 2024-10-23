@@ -39,4 +39,4 @@ using ReferenceGemmInstanceGPU = ck::tensor_operation::device::
 
 #include "run_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
+int main(int argc, char* argv[]) { return (run_gemm_example(argc, argv) ? -1 : 0); }

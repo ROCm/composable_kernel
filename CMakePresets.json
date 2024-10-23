@@ -75,6 +75,23 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_CXX_FLAGS": "-O0 -ggdb"
             }
+        },
+        {
+            "name": "RX7800-release",
+            "displayName": "RX7800 Release",
+            "inherits": "linux-debug",
+            "environment": {
+                "MY_ENVIRONMENT_VARIABLE": "Test",
+                "PATH": "/usr/local/.cargo/bin:$penv{PATH}"
+            },
+            "cacheVariables": {
+                "GPU_TARGETS": "gfx1101",
+                "DL_KERNELS": "ON",
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_FLAGS": "-O3",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "sccache",
+                "CMAKE_C_COMPILER_LAUNCHER": "sccache"
+            }
         }
     ],
     "buildPresets": [
@@ -135,6 +152,16 @@
             "description": "Build Environment for MI250 Debug.",
             "inherits": [
                 "Debug"
+            ],
+            "jobs": 128
+        },
+        {
+            "name": "RX7800-release",
+            "displayName": "RX7800",
+            "configurePreset": "RX7800-release",
+            "description": "Build Environment for RX7800 Release.",
+            "inherits": [
+                "Release"
             ],
             "jobs": 128
         }
