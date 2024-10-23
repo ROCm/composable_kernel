@@ -56,6 +56,26 @@ std::string ToString(GemmType gt)
     throw std::runtime_error("Incorrect gemm type");
 }
 
+std::string ToString(LoopScheduler ls)
+{
+    switch(ls)
+    {
+    case LoopScheduler::Default: return "ck::LoopScheduler::Default";
+    case LoopScheduler::Interwave: return "ck::LoopScheduler::Interwave";
+    }
+    throw std::runtime_error("Incorrect LoopScheduler type");
+}
+
+std::string ToString(PipelineVersion pv)
+{
+    switch(pv)
+    {
+    case PipelineVersion::v1: return "ck::PipelineVersion::v1";
+    case PipelineVersion::v2: return "ck::PipelineVersion::v2";
+    }
+    throw std::runtime_error("Incorrect PipelineVersion type");
+}
+
 std::string SequenceStr(const std::vector<int>& v)
 {
     return "ck::Sequence<" +
