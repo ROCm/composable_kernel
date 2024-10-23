@@ -1803,4 +1803,13 @@ struct NumericUtils<bf8_t>
     static constexpr int bias = 16; // negative zero nan mode
     // static constexpr int bias = 15; // ieee mode
 };
+
+template <>
+struct NumericUtils<bhalf_t>
+{
+    static constexpr int exp  = 8;
+    static constexpr int mant = 7;
+    static constexpr int bias = 128; // negative zero nan mode
+    // static constexpr int bias = 127; // ieee mode
+};
 } // namespace ck
