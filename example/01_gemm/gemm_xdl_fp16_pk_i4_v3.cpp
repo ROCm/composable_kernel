@@ -8,7 +8,7 @@
 using ADataType        = ck::half_t;
 using BDataType        = ck::pk_i4_t;
 using AccDataType      = float;
-using CShuffleDataType = float;
+using CShuffleDataType = ck::half_t;
 using CDataType        = ck::half_t;
 
 using ALayout = Row;
@@ -20,6 +20,8 @@ using BElementOp = PassThrough;
 using CElementOp = PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+
+static constexpr bool PermuteB = true;
 
 // clang-format off
 using DeviceGemmV2Instance = 
@@ -38,7 +40,7 @@ using DeviceGemmV2Instance =
         S<8,  8, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
         2, 32, 32, 1,
         1, 1, S<1, 16, 1, 4>, 4,
-        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1>;
+        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, CDataType, CDataType, false, PermuteB>;
 
     [[maybe_unused]] static int KPerBlock = 256;
 #else
@@ -52,7 +54,7 @@ using DeviceGemmV2Instance =
         S<4, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
         1, 1, S<1, 16, 1, 8>, 4,
-        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v2>;
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v2, CDataType, CDataType, false, PermuteB>;
 
     [[maybe_unused]]static int KPerBlock = 128;
 #endif
@@ -123,7 +125,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
         break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
         break;
     case 2:
@@ -136,7 +138,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
     }
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
@@ -150,32 +152,34 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
-// weight permute
-#if 1
-    int K1 = KPerBlock;
-    int K0 = K / KPerBlock;
-
-    // int K0, N, K1
-    for(int j = 0; j < K0; j++)
+    // weight permute
+    if constexpr(PermuteB)
     {
-        for(int i = 0; i < N; i++)
+        int K1 = KPerBlock;
+        int K0 = K / KPerBlock;
+
+        // int K0, N, K1
+        for(int j = 0; j < K0; j++)
         {
-            for(int jj = 0; jj < K1; jj++)
+            for(int i = 0; i < N; i++)
             {
-                b_k_n_permute(j * N * K1 + i * K1 + jj) = b_k_n(i * K + (j * K1 + jj));
+                for(int jj = 0; jj < K1; jj++)
+                {
+                    b_k_n_permute(j * N * K1 + i * K1 + jj) = b_k_n(i * K + (j * K1 + jj));
+                }
             }
         }
     }
-
-#else
-    for(int i = 0; i < N; i++)
+    else
     {
-        for(int j = 0; j < K; j++)
+        for(int i = 0; i < N; i++)
         {
-            b_k_n_permute(i * K + j) = b_k_n(i * K + j);
+            for(int j = 0; j < K; j++)
+            {
+                b_k_n_permute(i * K + j) = b_k_n(i * K + j);
+            }
         }
     }
-#endif
 
     // vector pk_i4x4 permute
     for(int i = 0; i < N; i++)

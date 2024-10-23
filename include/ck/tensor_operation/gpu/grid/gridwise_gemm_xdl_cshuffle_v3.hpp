@@ -14,8 +14,6 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#define WEIGHT_PERMUTE
-
 namespace ck {
 
 // Currently we do not have a elegant way to put single lds buffer & double lds buffer pipe in same
@@ -129,7 +127,9 @@ template <typename ALayout,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v4,
           typename ComputeTypeA                       = CDataType,
-          typename ComputeTypeB                       = ComputeTypeA>
+          typename ComputeTypeB                       = ComputeTypeA,
+          bool PermuteA                               = false,
+          bool PermuteB                               = false>
 struct GridwiseGemm_xdl_cshuffle_v3
 {
     static constexpr auto I0 = Number<0>{};
@@ -389,35 +389,39 @@ struct GridwiseGemm_xdl_cshuffle_v3
         }
         else
         {
-#ifndef WEIGHT_PERMUTE
-            // not pad N or K
-            const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
-                b_grid_desc_nraw_kraw,
-                make_tuple(make_unmerge_transform(make_tuple(BK0, BK1Value)),
-                           make_pass_through_transform(N)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+            if constexpr(!PermuteB)
+            {
+                // not pad N or K
+                const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
+                    b_grid_desc_nraw_kraw,
+                    make_tuple(make_unmerge_transform(make_tuple(BK0, BK1Value)),
+                               make_pass_through_transform(N)),
+                    make_tuple(Sequence<1>{}, Sequence<0>{}),
+                    make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
-            return b_grid_desc_bk0_n_bk1;
-#else
-            // Weight Tile Permute
-            constexpr index_t BK01 = KPerBlock / BK1Value;
-            const index_t BK0_     = StrideB / BK1Value;
-            const index_t BK00     = BK0_ / BK01;
+                return b_grid_desc_bk0_n_bk1;
+            }
+            else
+            {
+                // Weight Tile Permute
+                constexpr index_t BK01 = KPerBlock / BK1Value;
+                // const index_t BK00     = BK0 / BK01;
+                const index_t BK0_ = StrideB / BK1Value;
+                const index_t BK00 = BK0_ / BK01;
 
-            const auto b_grid_desc_bk00_n_bk01_bk1_permute =
-                make_naive_tensor_descriptor_packed(make_tuple(BK00, N, BK01, BK1Value));
+                const auto b_grid_desc_bk00_n_bk01_bk1_permute =
+                    make_naive_tensor_descriptor_packed(make_tuple(BK00, N, BK01, BK1Value));
 
-            const auto b_grid_desc_bk0_n_bk1_permute = transform_tensor_descriptor(
-                b_grid_desc_bk00_n_bk01_bk1_permute,
-                make_tuple(make_merge_transform(make_tuple(BK00, BK01)),
-                           make_pass_through_transform(make_tuple(N)),
-                           make_pass_through_transform(BK1Value)),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}, Sequence<3>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+                const auto b_grid_desc_bk0_n_bk1_permute = transform_tensor_descriptor(
+                    b_grid_desc_bk00_n_bk01_bk1_permute,
+                    make_tuple(make_merge_transform(make_tuple(BK00, BK01)),
+                               make_pass_through_transform(make_tuple(N)),
+                               make_pass_through_transform(BK1Value)),
+                    make_tuple(Sequence<0, 2>{}, Sequence<1>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-            return b_grid_desc_bk0_n_bk1_permute;
-#endif
+                return b_grid_desc_bk0_n_bk1_permute;
+            }
         }
     }
 
@@ -621,12 +625,15 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-#ifndef WEIGHT_PERMUTE
-                b_k_split_offset = blockIdx.z * karg.KRead / BPackedSize;
-#else
-                const int k0_offset = karg.KRead * karg.N;
-                b_k_split_offset    = blockIdx.z * k0_offset / BPackedSize;
-#endif
+                if constexpr(!PermuteB)
+                {
+                    b_k_split_offset = blockIdx.z * karg.KRead / BPackedSize;
+                }
+                else
+                {
+                    const int k0_offset = karg.KRead * karg.N;
+                    b_k_split_offset    = blockIdx.z * k0_offset / BPackedSize;
+                }
             }
 
             if(blockIdx.z < static_cast<uint32_t>(karg.KBatch - 1))
