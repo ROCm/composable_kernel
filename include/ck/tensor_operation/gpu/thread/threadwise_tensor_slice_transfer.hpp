@@ -1125,10 +1125,8 @@ struct ThreadwiseTensorSliceTransfer_v4
 
             using src_vector_t = typename decltype(src_tmp_vector)::type;
 
-            // const bool is_src_valid =
-            // coordinate_has_valid_offset_assuming_visible_index_is_valid( src_desc,
-            // src_data_coord);
-            const bool is_src_valid = true;
+            const bool is_src_valid = coordinate_has_valid_offset_assuming_visible_index_is_valid(
+                src_desc, src_data_coord);
 
             // copy data from src_buf into src_tmp_vector
             if constexpr(SrcBuffer::IsDynamicBuffer())

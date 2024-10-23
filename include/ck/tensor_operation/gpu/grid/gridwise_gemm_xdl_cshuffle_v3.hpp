@@ -335,6 +335,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         using GemmSpecialization = tensor_operation::device::GemmSpecialization;
 
+        static_assert(!(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> &&
+                        GemmSpec != GemmSpecialization::Default),
+                      "pk_i4_t does not support padding");
+
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
         {
