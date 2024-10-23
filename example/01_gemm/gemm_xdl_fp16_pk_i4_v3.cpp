@@ -54,7 +54,7 @@ using DeviceGemmV2Instance =
         S<4, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
         1, 1, S<1, 16, 1, 8>, 4,
-        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v2, CDataType, CDataType, false, PermuteB>;
+        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v2, CDataType, CDataType, false, PermuteB>;
 
     [[maybe_unused]]static int KPerBlock = 128;
 #endif
