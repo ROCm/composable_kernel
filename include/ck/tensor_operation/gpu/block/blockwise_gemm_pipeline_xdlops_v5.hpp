@@ -32,7 +32,9 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPacks>
+          index_t KPacks,
+          bool TransposeA,
+          bool TransposeB>
 struct BlockwiseGemmXdlops_pipeline_v5
 {
 };
@@ -55,7 +57,9 @@ template <index_t BlockSize,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack
+          index_t KPack,
+          bool TransposeA,
+          bool TransposeB
           // ,bool TransposeC //disable transposec right now...
           >
 struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
@@ -77,7 +81,9 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                        NPerXDL,
                                        MRepeat,
                                        NRepeat,
-                                       KPack>
+                                       KPack,
+                                       TransposeA,
+                                       TransposeB>
     : BlockwiseGemmXdlops_pipeline_base<BlockSize,
                                         ADataType,
                                         BDataType,
@@ -96,7 +102,9 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                         NPerXDL,
                                         MRepeat,
                                         NRepeat,
-                                        KPack>
+                                        KPack,
+                                        TransposeA,
+                                        TransposeB>
 
 {
     using Base = BlockwiseGemmXdlops_pipeline_base<BlockSize,
@@ -117,7 +125,9 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                                    NPerXDL,
                                                    MRepeat,
                                                    NRepeat,
-                                                   KPack>;
+                                                   KPack,
+                                                   TransposeA,
+                                                   TransposeB>;
     using Base::A_K1;
     using Base::B_K1;
     using Base::I0;
@@ -381,22 +391,19 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
 
         // Local prefetch 1
         block_sync_lds();
-        static_for<0, MRepeat, 1>{}([&](auto m0) {
-            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                               make_tuple(m0, I0, I0, I0),
-                               a_block_buf,
-                               a_thread_desc_,
-                               make_tuple(m0, I0, I0, I0),
-                               a_thread_buf);
-        });
-        static_for<0, NRepeat, 1>{}([&](auto n0) {
-            b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                               make_tuple(n0, I0, I0, I0),
-                               b_block_buf,
-                               b_thread_desc_,
-                               make_tuple(n0, I0, I0, I0),
-                               b_thread_buf);
-        });
+        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                           make_tuple(I0, I0, I0, I0),
+                           a_block_buf,
+                           a_thread_desc_,
+                           make_tuple(I0, I0, I0, I0),
+                           a_thread_buf);
+
+        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                           make_tuple(I0, I0, I0, I0),
+                           b_block_buf,
+                           b_thread_desc_,
+                           make_tuple(I0, I0, I0, I0),
+                           b_thread_buf);
 
         // main body
         if constexpr(HasMainLoop)
@@ -449,25 +456,23 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                     b_thread_vec.template AsType<mfma_input_type>(),
                                     c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                             });
-
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k,
-                                make_tuple(m0, I0, I0, Number<(k0 + 1) % KRepeat * AMmaKStride>{}),
-                                a_block_buf,
-                                a_thread_desc_,
-                                make_tuple(m0, I0, I0, I0),
-                                a_thread_buf);
                         });
 
-                        static_for<0, NRepeat, 1>{}([&](auto n0) {
-                            b_thread_copy_.Run(
-                                b_block_desc_n0_n1_n2_k,
-                                make_tuple(n0, I0, I0, Number<(k0 + 1) % KRepeat * BMmaKStride>{}),
-                                b_block_buf,
-                                b_thread_desc_,
-                                make_tuple(n0, I0, I0, I0),
-                                b_thread_buf);
-                        });
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k,
+                            make_tuple(I0, I0, I0, Number<(k0 + 1) % KRepeat * AMmaKStride>{}),
+                            a_block_buf,
+                            a_thread_desc_,
+                            make_tuple(I0, I0, I0, I0),
+                            a_thread_buf);
+
+                        b_thread_copy_.Run(
+                            b_block_desc_n0_n1_n2_k,
+                            make_tuple(I0, I0, I0, Number<(k0 + 1) % KRepeat * BMmaKStride>{}),
+                            b_block_buf,
+                            b_thread_desc_,
+                            make_tuple(I0, I0, I0, I0),
+                            b_thread_buf);
                     });
 
                     HotLoopScheduler();
@@ -517,24 +522,23 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                         b_thread_vec.template AsType<mfma_input_type>(),
                                         c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                     });
-                    a_thread_copy_.Run(
-                        a_block_desc_m0_m1_m2_k,
-                        make_tuple(m0, I0, I0, Number<(k0 + 1) % KRepeat * AMmaKStride>{}),
-                        a_block_buf,
-                        a_thread_desc_,
-                        make_tuple(m0, I0, I0, I0),
-                        a_thread_buf);
                 });
 
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
-                    b_thread_copy_.Run(
-                        b_block_desc_n0_n1_n2_k,
-                        make_tuple(n0, I0, I0, Number<(k0 + 1) % KRepeat * BMmaKStride>{}),
-                        b_block_buf,
-                        b_thread_desc_,
-                        make_tuple(n0, I0, I0, I0),
-                        b_thread_buf);
-                });
+                a_thread_copy_.Run(
+                    a_block_desc_m0_m1_m2_k,
+                    make_tuple(I0, I0, I0, Number<(k0 + 1) % KRepeat * AMmaKStride>{}),
+                    a_block_buf,
+                    a_thread_desc_,
+                    make_tuple(I0, I0, I0, I0),
+                    a_thread_buf);
+
+                b_thread_copy_.Run(
+                    b_block_desc_n0_n1_n2_k,
+                    make_tuple(I0, I0, I0, Number<(k0 + 1) % KRepeat * BMmaKStride>{}),
+                    b_block_buf,
+                    b_thread_desc_,
+                    make_tuple(I0, I0, I0, I0),
+                    b_thread_buf);
             });
 
             HotLoopScheduler();
@@ -567,25 +571,23 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                         b_thread_vec.template AsType<mfma_input_type>(),
                                         c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                     });
-
-                    a_thread_copy_.Run(
-                        a_block_desc_m0_m1_m2_k,
-                        make_tuple(m0, I0, I0, Number<(k0 + 1) % KRepeat * AMmaKStride>{}),
-                        a_block_buf,
-                        a_thread_desc_,
-                        make_tuple(m0, I0, I0, I0),
-                        a_thread_buf);
                 });
 
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
-                    b_thread_copy_.Run(
-                        b_block_desc_n0_n1_n2_k,
-                        make_tuple(n0, I0, I0, Number<(k0 + 1) % KRepeat * BMmaKStride>{}),
-                        b_block_buf,
-                        b_thread_desc_,
-                        make_tuple(n0, I0, I0, I0),
-                        b_thread_buf);
-                });
+                a_thread_copy_.Run(
+                    a_block_desc_m0_m1_m2_k,
+                    make_tuple(I0, I0, I0, Number<(k0 + 1) % KRepeat * AMmaKStride>{}),
+                    a_block_buf,
+                    a_thread_desc_,
+                    make_tuple(I0, I0, I0, I0),
+                    a_thread_buf);
+
+                b_thread_copy_.Run(
+                    b_block_desc_n0_n1_n2_k,
+                    make_tuple(I0, I0, I0, Number<(k0 + 1) % KRepeat * BMmaKStride>{}),
+                    b_block_buf,
+                    b_thread_desc_,
+                    make_tuple(I0, I0, I0, I0),
+                    b_thread_buf);
             });
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -636,28 +638,81 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
     static constexpr auto b_thread_desc_ =
         make_naive_tensor_descriptor_packed(make_tuple(Number<NRepeat>{}, I1, I1, Number<KPack>{}));
 
-    using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<ADataType,
-                                                         ComputeDataType,
-                                                         decltype(a_block_desc_m0_m1_m2_k),
-                                                         decltype(a_thread_desc_),
-                                                         Sequence<1, 1, 1, KPack>,
-                                                         Sequence<0, 1, 2, 3>,
-                                                         3,
-                                                         A_K1,
-                                                         A_K1>;
+    template <bool Transpose>
+    struct AThreadCopySelector;
 
-    using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<BDataType,
-                                                         ComputeDataType,
-                                                         decltype(b_block_desc_n0_n1_n2_k),
-                                                         decltype(b_thread_desc_),
-                                                         Sequence<1, 1, 1, KPack>,
-                                                         Sequence<0, 1, 2, 3>,
-                                                         3,
-                                                         B_K1,
-                                                         B_K1>;
+    template <>
+    struct AThreadCopySelector<false>
+    {
+        using type = ThreadwiseTensorSliceTransfer_v5<ADataType,
+                                                      ComputeDataType,
+                                                      decltype(a_block_desc_m0_m1_m2_k),
+                                                      decltype(a_thread_desc_),
+                                                      Sequence<MRepeat, 1, 1, KPack>,
+                                                      Sequence<0, 1, 2, 3>,
+                                                      Sequence<0, 1, 2, 3>,
+                                                      3,
+                                                      3,
+                                                      A_K1,
+                                                      A_K1>;
+    };
 
-    AThreadCopy a_thread_copy_{Base::CalculateAThreadOriginDataIndex()};
-    BThreadCopy b_thread_copy_{Base::CalculateBThreadOriginDataIndex()};
+    template <>
+    struct AThreadCopySelector<true>
+    {
+        using type = ThreadwiseTensorSliceTransfer_v5<ADataType,
+                                                      ComputeDataType,
+                                                      decltype(a_block_desc_m0_m1_m2_k),
+                                                      decltype(a_thread_desc_),
+                                                      Sequence<MRepeat, 1, 1, KPack>,
+                                                      Sequence<3, 1, 2, 0>,
+                                                      Sequence<0, 1, 2, 3>,
+                                                      0,
+                                                      3,
+                                                      MRepeat,
+                                                      A_K1>;
+    };
+
+    template <bool Transpose>
+    struct BThreadCopySelector;
+
+    template <>
+    struct BThreadCopySelector<false>
+    {
+        using type = ThreadwiseTensorSliceTransfer_v5<BDataType,
+                                                      ComputeDataType,
+                                                      decltype(b_block_desc_n0_n1_n2_k),
+                                                      decltype(b_thread_desc_),
+                                                      Sequence<NRepeat, 1, 1, KPack>,
+                                                      Sequence<2, 0, 1, 3>,
+                                                      Sequence<0, 1, 2, 3>,
+                                                      3,
+                                                      3,
+                                                      B_K1,
+                                                      B_K1>;
+    };
+
+    template <>
+    struct BThreadCopySelector<true>
+    {
+        using type = ThreadwiseTensorSliceTransfer_v5<BDataType,
+                                                      ComputeDataType,
+                                                      decltype(b_block_desc_n0_n1_n2_k),
+                                                      decltype(b_thread_desc_),
+                                                      Sequence<NRepeat, 1, 1, KPack>,
+                                                      Sequence<3, 1, 2, 0>,
+                                                      Sequence<0, 1, 2, 3>,
+                                                      0,
+                                                      3,
+                                                      NRepeat,
+                                                      B_K1>;
+    };
+
+    typename AThreadCopySelector<TransposeA>::type a_thread_copy_{
+        Base::CalculateAThreadOriginDataIndex()};
+    typename BThreadCopySelector<TransposeB>::type b_thread_copy_{
+        Base::CalculateBThreadOriginDataIndex()};
+
     using Base::c_thread_desc_;
 };
 

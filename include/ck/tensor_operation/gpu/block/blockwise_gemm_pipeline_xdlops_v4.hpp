@@ -32,7 +32,9 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPacks>
+          index_t KPacks,
+          bool TransposeA,
+          bool TransposeB>
 struct BlockwiseGemmXdlops_pipeline_v4
 {
 };
@@ -55,7 +57,9 @@ template <index_t BlockSize,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack
+          index_t KPack,
+          bool TransposeA,
+          bool TransposeB
           // ,bool TransposeC //disable transposec right now...
           >
 struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
@@ -77,7 +81,9 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                                        NPerXDL,
                                        MRepeat,
                                        NRepeat,
-                                       KPack>
+                                       KPack,
+                                       TransposeA,
+                                       TransposeB>
     : BlockwiseGemmXdlops_pipeline_base<BlockSize,
                                         ADataType,
                                         BDataType,
@@ -96,7 +102,9 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                                         NPerXDL,
                                         MRepeat,
                                         NRepeat,
-                                        KPack>
+                                        KPack,
+                                        TransposeA,
+                                        TransposeB>
 
 {
     using Base = BlockwiseGemmXdlops_pipeline_base<BlockSize,
@@ -117,7 +125,9 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                                                    NPerXDL,
                                                    MRepeat,
                                                    NRepeat,
-                                                   KPack>;
+                                                   KPack,
+                                                   TransposeA,
+                                                   TransposeB>;
     using Base::I0;
     using Base::I1;
     using Base::KRepeat;
@@ -298,22 +308,18 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
         // Local prefetch 1
         block_sync_lds();
         static_for<0, KRepeat, 1>{}([&](auto k) {
-            static_for<0, MRepeat, 1>{}([&](auto m0) {
-                a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                                   make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
-                                   a_block_buf.At(I0),
-                                   a_thread_desc_,
-                                   make_tuple(m0, I0, k, I0),
-                                   a_thread_bufs(I0));
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
-                    b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                       make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
-                                       b_block_buf.At(I0),
-                                       b_thread_desc_,
-                                       make_tuple(n0, I0, k, I0),
-                                       b_thread_bufs(I0));
-                });
-            });
+            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                               make_tuple(I0, I0, I0, Number<k * AMmaKStride>{}),
+                               a_block_buf.At(I0),
+                               a_thread_desc_,
+                               make_tuple(I0, I0, k, I0),
+                               a_thread_bufs(I0));
+            b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                               make_tuple(I0, I0, I0, Number<k * BMmaKStride>{}),
+                               b_block_buf.At(I0),
+                               b_thread_desc_,
+                               make_tuple(I0, I0, k, I0),
+                               b_thread_bufs(I0));
         });
 
         // Global prefetch 3
@@ -349,23 +355,18 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                     block_sync_lds();
 
                     static_for<0, KRepeat, 1>{}([&](auto k) {
-                        static_for<0, MRepeat, 1>{}([&](auto m0) {
-                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                                               make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
-                                               a_block_buf.At(lds_read_buf),
-                                               a_thread_desc_,
-                                               make_tuple(m0, I0, k, I0),
-                                               a_thread_bufs(lds_read_reg_buf));
-                            static_for<0, NRepeat, 1>{}([&](auto n0) {
-                                b_thread_copy_.Run(
-                                    b_block_desc_n0_n1_n2_k,
-                                    make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
-                                    b_block_buf.At(lds_read_buf),
-                                    b_thread_desc_,
-                                    make_tuple(n0, I0, k, I0),
-                                    b_thread_bufs(lds_read_reg_buf));
-                            });
-                        });
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                           make_tuple(I0, I0, I0, Number<k * AMmaKStride>{}),
+                                           a_block_buf.At(lds_read_buf),
+                                           a_thread_desc_,
+                                           make_tuple(I0, I0, k, I0),
+                                           a_thread_bufs(lds_read_reg_buf));
+                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                           make_tuple(I0, I0, I0, Number<k * BMmaKStride>{}),
+                                           b_block_buf.At(lds_read_buf),
+                                           b_thread_desc_,
+                                           make_tuple(I0, I0, k, I0),
+                                           b_thread_bufs(lds_read_reg_buf));
                     });
 
                     a_blockwise_copy.RunWrite(
@@ -430,22 +431,18 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
             block_sync_lds();
 
             static_for<0, KRepeat, 1>{}([&](auto k) {
-                static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                                       make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
-                                       a_block_buf.At(lds_read_buf),
-                                       a_thread_desc_,
-                                       make_tuple(m0, I0, k, I0),
-                                       a_thread_bufs(lds_read_reg_buf));
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
-                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                           make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
-                                           b_block_buf.At(lds_read_buf),
-                                           b_thread_desc_,
-                                           make_tuple(n0, I0, k, I0),
-                                           b_thread_bufs(lds_read_reg_buf));
-                    });
-                });
+                a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                   make_tuple(I0, I0, I0, Number<k * AMmaKStride>{}),
+                                   a_block_buf.At(lds_read_buf),
+                                   a_thread_desc_,
+                                   make_tuple(I0, I0, k, I0),
+                                   a_thread_bufs(lds_read_reg_buf));
+                b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                   make_tuple(I0, I0, I0, Number<k * BMmaKStride>{}),
+                                   b_block_buf.At(lds_read_buf),
+                                   b_thread_desc_,
+                                   make_tuple(I0, I0, k, I0),
+                                   b_thread_bufs(lds_read_reg_buf));
             });
 
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(lds_write_buf), vmem_buf);
@@ -489,22 +486,18 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
             block_sync_lds();
 
             static_for<0, KRepeat, 1>{}([&](auto k) {
-                static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                                       make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
-                                       a_block_buf.At(lds_read_buf),
-                                       a_thread_desc_,
-                                       make_tuple(m0, I0, k, I0),
-                                       a_thread_bufs(lds_read_reg_buf));
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
-                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                           make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
-                                           b_block_buf.At(lds_read_buf),
-                                           b_thread_desc_,
-                                           make_tuple(n0, I0, k, I0),
-                                           b_thread_bufs(lds_read_reg_buf));
-                    });
-                });
+                a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                   make_tuple(I0, I0, I0, Number<k * AMmaKStride>{}),
+                                   a_block_buf.At(lds_read_buf),
+                                   a_thread_desc_,
+                                   make_tuple(I0, I0, k, I0),
+                                   a_thread_bufs(lds_read_reg_buf));
+                b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                   make_tuple(I0, I0, I0, Number<k * BMmaKStride>{}),
+                                   b_block_buf.At(lds_read_buf),
+                                   b_thread_desc_,
+                                   make_tuple(I0, I0, k, I0),
+                                   b_thread_bufs(lds_read_reg_buf));
             });
 
             static_for<0, KRepeat, 1>{}([&](auto k0) {

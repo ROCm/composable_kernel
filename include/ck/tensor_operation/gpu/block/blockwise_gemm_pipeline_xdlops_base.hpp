@@ -154,12 +154,12 @@ struct BlockwiseGemmXdlops_pipeline_base
         return make_tuple(c_thread_m, c_thread_n);
     }
 
-    // Contiguous output tile
+    // NContiguous output tile
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
-    __device__ static auto CalculateCThreadOriginDataIndexContiguous(Number<m0>,
-                                                                     Number<n0>,
-                                                                     Number<xdlops_i>,
-                                                                     Number<blk_i>)
+    __device__ static auto CalculateCThreadOriginDataIndexNContiguous(Number<m0>,
+                                                                      Number<n0>,
+                                                                      Number<xdlops_i>,
+                                                                      Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
 
@@ -180,6 +180,38 @@ struct BlockwiseGemmXdlops_pipeline_base
 
         const index_t c_thread_m = mrepeat_mwave_mperxdl_to_m_adaptor.CalculateBottomIndex(
             make_tuple(m0, waveId_m, blk_idx[I0]))[I0];
+        const index_t c_thread_n = nrepeat_nwave_nperxdl_to_n_adaptor.CalculateBottomIndex(
+            make_tuple(waveId_n, blk_idx[I1], n0))[I0];
+
+        return make_tuple(c_thread_m, c_thread_n);
+    }
+
+    // MNContiguous output tile
+    template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
+    __device__ static auto CalculateCThreadOriginDataIndexMNContiguous(Number<m0>,
+                                                                       Number<n0>,
+                                                                       Number<xdlops_i>,
+                                                                       Number<blk_i>)
+    {
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
+
+        const auto blk_idx = xdlops_gemm.GetBeginOfThreadBlk(xdlops_i, blk_i);
+
+        constexpr auto mrepeat_mwave_mperxdl_to_m_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_unmerge_transform(make_tuple(MWaves, MPerXDL, MRepeat))),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0, 1, 2>{}));
+
+        constexpr auto nrepeat_nwave_nperxdl_to_n_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_unmerge_transform(make_tuple(NWaves, NPerXDL, NRepeat))),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0, 1, 2>{}));
+
+        const index_t c_thread_m = mrepeat_mwave_mperxdl_to_m_adaptor.CalculateBottomIndex(
+            make_tuple(waveId_m, blk_idx[I0], m0))[I0];
         const index_t c_thread_n = nrepeat_nwave_nperxdl_to_n_adaptor.CalculateBottomIndex(
             make_tuple(waveId_n, blk_idx[I1], n0))[I0];
 
@@ -246,19 +278,30 @@ struct BlockwiseGemmXdlops_pipeline_base
             make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
     }
 
-    // Contiguous output tile
+    // N-Contiguous output tile
     __host__ __device__ static constexpr auto
     GetCThreadDescriptor_MBlock_NBlock_M0_M1_N0_M2_M3_N1_N2_M4()
     {
         constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
 
         constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
-        constexpr auto M1 = c_m0_m1_m2_n_tblk_lens[I1];
         constexpr auto M2 = c_m0_m1_m2_n_tblk_lens[I2];
-        constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
 
         return make_naive_tensor_descriptor_packed(
-            make_tuple(I1, I1, Number<MRepeat>{}, I1, I1, M0, M1, N, Number<NRepeat>{}, M2));
+            make_tuple(I1, I1, Number<MRepeat>{}, I1, I1, M0, I1, I1, Number<NRepeat>{}, M2));
+    }
+
+    // MN-Contiguous output tile
+    __host__ __device__ static constexpr auto
+    GetCThreadDescriptor_MBlock_NBlock_M0_N0_M1_M2_N1_M3_N2_M4()
+    {
+        constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
+
+        constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
+        constexpr auto M2 = c_m0_m1_m2_n_tblk_lens[I2];
+
+        return make_naive_tensor_descriptor_packed(
+            make_tuple(I1, I1, I1, I1, M0, I1, I1, Number<MRepeat>{}, Number<NRepeat>{}, M2));
     }
 
     __host__ __device__ static constexpr auto GetCThreadDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2()
@@ -313,6 +356,20 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                            Number<NPerXDL>{}));
 
         return xdlops_gemm.MakeCDescriptor_M0_M1_N0_M2_M3_N1_N2_M4(c_block_desc_m0_n0_m1_n1_m2_n2);
+    }
+
+    // TransposeA
+    __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_M2_N1_M3_N2_M4()
+    {
+        constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
+                                                           Number<NRepeat>{},
+                                                           Number<MWaves>{},
+                                                           Number<NWaves>{},
+                                                           Number<MPerXDL>{},
+                                                           Number<NPerXDL>{}));
+
+        return xdlops_gemm.MakeCDescriptor_M0_N0_M1_M2_N1_M3_N2_M4(c_block_desc_m0_n0_m1_n1_m2_n2);
     }
 
     __host__ __device__ static constexpr auto GetCBlockDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2()
@@ -435,7 +492,7 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                       decltype(b_block_desc_n0_n1_n2_k),
                                                       decltype(b_thread_desc_),
                                                       Sequence<NRepeat, 1, 1, KPack>,
-                                                      Sequence<0, 1, 2, 3>,
+                                                      Sequence<2, 0, 1, 3>,
                                                       Sequence<0, 1, 2, 3>,
                                                       3,
                                                       3,
