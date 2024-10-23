@@ -14,9 +14,7 @@ namespace ck {
 inline __device__ int amd_assembly_and_or_b32(int a, int b, int d)
 {
     int c;
-    asm volatile("v_and_or_b32 %0, %1, %2, %3"
-            : "=v"(c)
-            : "v"(a), "v"(b), "v"(d));
+    asm volatile("v_and_or_b32 %0, %1, %2, %3" : "=v"(c) : "v"(a), "v"(b), "v"(d));
     return c;
 }
 
