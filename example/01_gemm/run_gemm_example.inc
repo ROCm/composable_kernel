@@ -330,7 +330,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     bool pass = true;
 
-    if(config.do_verification)
+    if((config.do_verification == 1) || (config.do_verification == 3))
     {
         // CPU verification
         auto ref_gemm    = ReferenceGemmInstance{};
@@ -353,13 +353,16 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        pass &= !ck::utils::check_err(c_m_n_device_result,
-                                      c_m_n_host_result,
-                                      "Error: Incorrect results!",
-                                      get_rtol<CDataType>(),
-                                      get_atol<CDataType>());
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_host_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
 #endif
+    }
 
+    if((config.do_verification == 2) || (config.do_verification == 3))
+    {
         // GPU verification
         auto ref_gemm_gpu    = ReferenceGemmInstanceGPU{};
         auto ref_invoker_gpu = ref_gemm_gpu.MakeInvoker();
@@ -381,14 +384,14 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         c_m_n_device_ref_buf.FromDevice(c_m_n_device_ref_result.mData.data());
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        pass &= !ck::utils::check_err(c_m_n_device_result,
-                                      c_m_n_device_ref_result,
-                                      "Error: Incorrect results!",
-                                      get_rtol<CDataType>(),
-                                      get_atol<CDataType>());
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_device_ref_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
     }
 
-    return !pass;
+    return pass == true;
 }
 
 bool run_gemm_example(int argc, char* argv[])

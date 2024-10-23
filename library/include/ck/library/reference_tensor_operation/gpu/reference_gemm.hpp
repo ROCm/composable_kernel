@@ -45,10 +45,10 @@ __global__ void
     if(row_idx < m && col_idx < n)
     {
 
-        AccDataType v_acc = static_cast<AccDataType>(0.0);
-        ComputeTypeA v_a  = static_cast<ComputeTypeA>(0.0);
-        ComputeTypeB v_b  = static_cast<ComputeTypeB>(0.0);
-        CDataType v_c     = static_cast<CDataType>(0.0);
+        AccDataType v_acc{0};
+        ComputeTypeA v_a{0};
+        ComputeTypeB v_b{0};
+        CDataType v_c{0};
 
         for(int k_idx = 0; k_idx < k; ++k_idx)
         {
@@ -76,7 +76,7 @@ __global__ void
             // apply b_element_op
             b_element_op(v_b, p_b_grid[element_idx_b]);
             // multiply and accumulate
-            v_acc += static_cast<AccDataType>(v_a) * static_cast<AccDataType>(v_b);
+            v_acc += type_convert<AccDataType>(v_a) * type_convert<AccDataType>(v_b);
         }
         // apply c_element_op
         c_element_op(v_c, v_acc);
