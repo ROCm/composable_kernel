@@ -3,15 +3,17 @@
 
 #pragma once
 
+#ifndef __HIPCC_RTC__
 #include <string>
 #include <sstream>
-
 #include "ck/stream_config.hpp"
+#endif
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
+#ifndef __HIPCC_RTC__
 struct BaseArgument
 {
     BaseArgument()                    = default;
@@ -36,6 +38,7 @@ struct BaseInvoker
 
     virtual ~BaseInvoker() {}
 };
+#endif
 
 struct BaseOperator
 {
@@ -43,6 +46,7 @@ struct BaseOperator
     BaseOperator(const BaseOperator&) = default;
     BaseOperator& operator=(const BaseOperator&) = default;
 
+#ifndef __HIPCC_RTC__
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
     virtual std::string GetTypeString() const { return ""; }
 
@@ -66,7 +70,7 @@ struct BaseOperator
         assert(p_arg);
         p_arg->p_workspace_ = p_workspace;
     }
-
+#endif
     virtual ~BaseOperator() {}
 };
 

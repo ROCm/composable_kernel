@@ -9,8 +9,9 @@ namespace rtc {
 
 struct src_file
 {
+    src_file(std::filesystem::path p, std::string c) : path{std::move(p)}, content{std::move(c)} {}
     fs::path path;
-    std::string_view content;
+    std::string content;
 };
 
 struct compile_options
@@ -19,7 +20,7 @@ struct compile_options
     std::string kernel_name = "main";
 };
 
-kernel compile_kernel(const std::vector<src_file>& src,
+kernel compile_kernel(const std::vector<src_file>& srcs,
                       compile_options options = compile_options{});
 
 } // namespace rtc
