@@ -177,18 +177,14 @@ rocm_check_target_ids(SUPPORTED_GPU_TARGETS
 
 message("Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
 
-if (GPU_TARGETS)
-    if (GPU_TARGETS MATCHES "gfx9")
-        add_definitions(-DCK_USE_XDL)
-        set(CK_USE_XDL "ON")
-    endif()
-    if (GPU_TARGETS MATCHES "gfx11" OR GPU_TARGETS MATCHES "gfx12")
-        add_definitions(-DCK_USE_WMMA)
-        set(CK_USE_WMMA "ON")
-    endif()
-else()
-    add_definitions(-DCK_USE_WMMA -DCK_USE_XDL)
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+    message("Enabling XDL instances")
+    add_definitions(-DCK_USE_XDL)
     set(CK_USE_XDL "ON")
+endif()
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12")
+    message("Enabling WMMA instances")
+    add_definitions(-DCK_USE_WMMA)
     set(CK_USE_WMMA "ON")
 endif()
 
@@ -578,7 +574,7 @@ rocm_package_setup_component(profiler
 )
 add_subdirectory(profiler)
 
-if(CK_USE_CODEGEN AND (GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
+if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
   add_subdirectory(codegen)
 endif()
 
