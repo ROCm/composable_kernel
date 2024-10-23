@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck/library/utility/numeric.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/device_conv_tensor_rearrange.hpp"

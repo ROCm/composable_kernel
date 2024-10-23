@@ -3,11 +3,16 @@
 
 #pragma once
 
+#ifndef CK_CODE_GEN_RTC
 #include <functional>
 #include <iostream>
 #include <iterator>
 #include <numeric>
 #include <sstream>
+
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -15,15 +20,13 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_abd_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
-#include "ck/host_utility/io.hpp"
+//#include "ck/host_utility/io.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -260,7 +263,7 @@ __global__ void
 } // namespace
 
 template <typename T>
-using is_tuple = decltype(std::declval<T&>().IsTuple());
+using is_tuple = decltype(ck::declval<T&>().IsTuple());
 
 //
 // @brief      Device Convolution operation.
@@ -429,8 +432,8 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     // If we are using multiAB and one of the template datatype parameters is not a tuple, convert
     // it to it
-    using GemmADataType = std::conditional_t<!isMultiA && isMultiB, Tuple<ADataType>, ADataType>;
-    using GemmBDataType = std::conditional_t<!isMultiB && isMultiA, Tuple<BDataType>, BDataType>;
+    using GemmADataType = ck::conditional_t<!isMultiA && isMultiB, Tuple<ADataType>, ADataType>;
+    using GemmBDataType = ck::conditional_t<!isMultiB && isMultiA, Tuple<BDataType>, BDataType>;
 
 #define GridwiseGemmTemplateParameters                                                          \
     GemmADataType, GemmBDataType, ComputeDataType, AccDataType, CShuffleDataType, DsDataType,   \
@@ -449,15 +452,13 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched
     // Use appropriate gridwise gemm
     using GridwiseGemm =
-        std::conditional_t<isMultiA || isMultiB,
-                           GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmTemplateParameters>,
-                           GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>>;
+        ck::conditional_t<isMultiA || isMultiB,
+                          GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmTemplateParameters>,
+                          GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>>;
 
     // If ADataTypes or BDataTypes is tuple, user has to pass ck::Array with pointers.
-    using APointers =
-        std::conditional_t<isMultiA, ck::Array<const void*, NumATensor>&, const void*>;
-    using BPointers =
-        std::conditional_t<isMultiB, ck::Array<const void*, NumBTensor>&, const void*>;
+    using APointers = ck::conditional_t<isMultiA, ck::Array<const void*, NumATensor>&, const void*>;
+    using BPointers = ck::conditional_t<isMultiB, ck::Array<const void*, NumBTensor>&, const void*>;
     // Use Tuple for the both cases for GridPointer to initialize it in Argument constructor (not
     // in initializer list what is required for single const pointer).
     using AGridPointer = remove_cvref_t<
@@ -965,18 +966,18 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const BElementwiseOperation& b_element_op,
         const CDEElementwiseOperation& cde_element_op)
     {
-        std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
-        std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
-        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_i32;
-        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_i32;
-        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_lengths_i32;
-        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_strides_i32;
-        std::array<index_t, NDimSpatial + 3> e_g_n_k_wos_lengths_i32;
-        std::array<index_t, NDimSpatial + 3> e_g_n_k_wos_strides_i32;
-        std::array<index_t, NDimSpatial> conv_filter_strides_i32;
-        std::array<index_t, NDimSpatial> conv_filter_dilations_i32;
-        std::array<index_t, NDimSpatial> input_left_pads_i32;
-        std::array<index_t, NDimSpatial> input_right_pads_i32;
+        ck::Array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
+        ck::Array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
+        ck::Array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_i32;
+        ck::Array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_i32;
+        ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_lengths_i32;
+        ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_strides_i32;
+        ck::Array<index_t, NDimSpatial + 3> e_g_n_k_wos_lengths_i32;
+        ck::Array<index_t, NDimSpatial + 3> e_g_n_k_wos_strides_i32;
+        ck::Array<index_t, NDimSpatial> conv_filter_strides_i32;
+        ck::Array<index_t, NDimSpatial> conv_filter_dilations_i32;
+        ck::Array<index_t, NDimSpatial> input_left_pads_i32;
+        ck::Array<index_t, NDimSpatial> input_right_pads_i32;
 
         array_convert(a_g_n_c_wis_lengths_i32, a_g_n_c_wis_lengths);
         array_convert(a_g_n_c_wis_strides_i32, a_g_n_c_wis_strides);

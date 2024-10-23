@@ -5,7 +5,9 @@
 
 #include "functional4.hpp"
 #include "tuple.hpp"
+#ifndef CK_CODE_GEN_RTC
 #include "is_detected.hpp"
+#endif
 
 namespace ck {
 
@@ -29,7 +31,7 @@ __host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>&
                                                              const Tuple<Y&...>& ty)
 {
     return unpack2(
-        [&](auto&&... zs) { return Tuple<decltype(zs)...>{std::forward<decltype(zs)>(zs)...}; },
+        [&](auto&&... zs) { return Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
         tx,
         ty);
 }
@@ -38,7 +40,7 @@ template <typename... X, typename... Y>
 __host__ __device__ constexpr auto concat_tuple(const Tuple<X...>& tx, const Tuple<Y...>& ty)
 {
     return unpack2(
-        [&](auto... zs) { return Tuple<decltype(zs)...>{std::forward<decltype(zs)>(zs)...}; },
+        [&](auto... zs) { return Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
         tx,
         ty);
 }
@@ -157,13 +159,17 @@ __host__ __device__ constexpr auto TupleReduce(F&& f, const Tuple<Ts...>& tuple)
     }
 }
 
+#ifndef CK_CODE_GEN_RTC
 template <typename T>
-using is_tuple = decltype(std::declval<T&>().IsTuple());
+using is_tuple = decltype(ck::declval<T&>().IsTuple());
+#endif
 
 template <typename... Ts>
 __host__ __device__ constexpr auto IsNestedTuple(const Tuple<Ts...>&)
 {
+#ifndef CK_CODE_GEN_RTC
     return (is_detected<is_tuple, Ts>::value || ...);
+#endif
 }
 
 template <index_t depth = 0, typename T>

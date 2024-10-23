@@ -48,4 +48,9 @@ __host__ __device__ constexpr auto operator%(integral_constant<TX, X>, integral_
     return integral_constant<decltype(X % Y), X % Y>{};
 }
 
+template <bool B>
+using bool_constant = integral_constant<bool, B>;
+
+using true_type  = bool_constant<true>;
+using false_type = bool_constant<false>;
 } // namespace ck

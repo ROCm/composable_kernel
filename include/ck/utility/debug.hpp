@@ -3,6 +3,7 @@
 
 #ifndef UTILITY_DEBUG_HPP
 #define UTILITY_DEBUG_HPP
+#include "type.hpp"
 
 namespace ck {
 namespace debug {

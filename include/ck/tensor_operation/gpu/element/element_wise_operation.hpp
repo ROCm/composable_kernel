@@ -513,7 +513,7 @@ struct NormalizeInInfer
                                                   const T3& gamma,
                                                   const T4& beta) const
     {
-        static_assert(std::is_same<T2, float>::value || std::is_same<T2, double>::value,
+        static_assert(is_same<T2, float>::value || is_same<T2, double>::value,
                       "Data type is not supported by this operation!");
 
         using ck::type_convert;
