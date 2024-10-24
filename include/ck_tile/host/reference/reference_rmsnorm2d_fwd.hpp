@@ -46,7 +46,7 @@ void reference_rmsnorm2d_fwd(const HostTensor<XDataType>& x_m_n,
         }
     };
 
-    make_ParallelTensorFunctor(rmsnorm2d_fwd_func,
-                               invRms_m.mDesc.get_lengths()[0])(std::thread::hardware_concurrency());
+    make_ParallelTensorFunctor(rmsnorm2d_fwd_func, invRms_m.mDesc.get_lengths()[0])(
+        std::thread::hardware_concurrency());
 }
 } // namespace ck_tile
