@@ -1,6 +1,6 @@
 
 # run from top of ck folder
-EXE=build/bin/tile_example_rmsnorm2d_fwd
+EXE=build/bin/tile_rmsnorm2d_fwd
 
 $EXE -m=1 -n=1 -e=1e-12 -v=1 -prec=bf16 -repeat=1000
 $EXE -m=700 -n=80 -e=1e-12 -v=1 -prec=bf16 -repeat=1000

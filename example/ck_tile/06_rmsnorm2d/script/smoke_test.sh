@@ -1,6 +1,6 @@
 #!/bin/sh
 # call from top of CK folder
-EXE=./build/bin/tile_example_rmsnorm2d_fwd
+EXE=./build/bin/tile_rmsnorm2d_fwd
 
 for pr_i in "fp16" "bf16" ; do
 $EXE -prec=$pr_i -m=99  -n=13

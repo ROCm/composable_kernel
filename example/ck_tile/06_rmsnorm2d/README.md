@@ -7,11 +7,11 @@ This folder contains example for Rmsnorm2D forward using ck_tile tile-programmin
 # in the root of ck_tile
 mkdir build && cd build
 sh ../script/cmake-ck-dev.sh  ../ <arch>  # you can replace this <arch> to gfx90a, gfx942...
-make tile_example_rmsnorm2d_fwd -j
+make tile_rmsnorm2d_fwd -j
 ```
-This will result in an executable `build/bin/tile_example_rmsnorm2d_fwd`
+This will result in an executable `build/bin/tile_rmsnorm2d_fwd`
 
-## example
+## cmdline
 ```
 args:
           -m    m dimension (default:3328)
