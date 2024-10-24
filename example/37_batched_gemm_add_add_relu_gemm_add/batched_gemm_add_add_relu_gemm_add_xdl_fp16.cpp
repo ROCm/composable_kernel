@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 /*
 Computes C_m_o = Relu(A0[m, k] * B0[n, k] + D00[m, n] + D01[mn]) * B1[n, o] + D1[m, o]
@@ -60,14 +60,14 @@ struct AddAddRelu
     {
         const ck::half_t x = c + d0 + d1;
 
-        ck::tensor_operation::element_wise::Relu{}.template operator()<ck::half_t>(e, x);
+        ck::tensor_operation::element_wise::Relu{}.operator()(e, x);
     }
     __host__ __device__ void
     operator()(float& e, const float& c, const ck::half_t& d0, const ck::half_t& d1) const
     {
         const float x = c + (d0 + d1);
 
-        ck::tensor_operation::element_wise::Relu{}.template operator()<float>(e, x);
+        ck::tensor_operation::element_wise::Relu{}.operator()(e, x);
     }
 };
 
