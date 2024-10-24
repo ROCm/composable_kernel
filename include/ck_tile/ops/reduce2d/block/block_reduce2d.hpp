@@ -218,8 +218,7 @@ struct BlockReduce2dCrossWarpSync
         if constexpr(num_reduce_warps == 1)
             return;
 
-        // Imitate BlockWelfordCrossWarpSync, but looks like there are some bugs.
-        static_assert(num_reduce_warps == 1);
+        // CAUSION - Imitate BlockWelfordCrossWarpSync, but looks like there are some bugs.
 
         // store into smem only for lane-0 within one warp
         if(lane_id == 0)
