@@ -43,20 +43,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockWarps = ck_tile::sequence<4, 1>;
     using BlockTile  = ck_tile::sequence<128, 128>;
     using WarpTile   = ck_tile::sequence<32, 128>;
-    using ThreadTile = ck_tile::sequence<8, 8>;
+    using Vector     = ck_tile::sequence<8, 8>;
 
     // cross warp-reduce
-    // using BlockWarps = ck_tile::sequence<4, 2>;
-    // using BlockTile  = ck_tile::sequence<4, 1024>;
+    // using BlockWarps = ck_tile::sequence<2, 2>;
+    // using BlockTile  = ck_tile::sequence<2, 1024>;
     // using WarpTile   = ck_tile::sequence<1, 512>;
-    // using ThreadTile = ck_tile::sequence<1, 4>;
+    // using Vector = ck_tile::sequence<1, 8>;
 
-    constexpr ck_tile::index_t kBlockSize  = 256;
+    constexpr ck_tile::index_t kBlockSize  = 512;
     constexpr ck_tile::index_t kBlockPerCu = 1;
     ck_tile::index_t kGridSize             = (m / BlockTile::at(ck_tile::number<0>{}));
     std::cout << "grid size " << kGridSize << std::endl;
 
-    using Shape   = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
+    using Shape   = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, Vector>;
     using Porblem = ck_tile::Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape>;
 
     using Kernel = ck_tile::Reduce<Porblem>;
