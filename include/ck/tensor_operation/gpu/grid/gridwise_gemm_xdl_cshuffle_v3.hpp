@@ -1757,7 +1757,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         auto b_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             bit_cast<BDataType*>(static_cast<char*>(p_shared_0) +
-                                    a_block_space_size_aligned * sizeof(ADataType)),
+                                 a_block_space_size_aligned * sizeof(ADataType)),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
