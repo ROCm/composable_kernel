@@ -8,13 +8,18 @@
             "generator": "Unix Makefiles",
             "binaryDir": "${sourceDir}/build/${presetName}",
             "installDir": "${sourceDir}/build/install/${presetName}",
+            "environment": {
+                "MY_ENVIRONMENT_VARIABLE": "NONE",
+                "PATH": "/usr/local/.cargo/bin:$penv{PATH}"
+            },
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "BUILD_DEV": "ON",
                 "CMAKE_CXX_COMPILER": "/opt/rocm/llvm/bin/clang++",
-                "CMAKE_PREFIX_PATH": "/opt/rocm"
-
+                "CMAKE_PREFIX_PATH": "/opt/rocm",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "sccache",
+                "CMAKE_C_COMPILER_LAUNCHER": "sccache"
             },
             "condition": {
                 "type": "equals",
@@ -27,9 +32,6 @@
             "displayName": "MI355 Debug",
             "inherits": "linux-debug",
             "description": "Development Environment for MI355.",
-            "environment": {
-                "NONE": ""
-            },
             "cacheVariables": {
                 "GPU_TARGETS": "gfx950",
                 "CMAKE_BUILD_TYPE": "Debug",
@@ -80,17 +82,22 @@
             "name": "RX7800-release",
             "displayName": "RX7800 Release",
             "inherits": "linux-debug",
-            "environment": {
-                "MY_ENVIRONMENT_VARIABLE": "Test",
-                "PATH": "/usr/local/.cargo/bin:$penv{PATH}"
-            },
             "cacheVariables": {
                 "GPU_TARGETS": "gfx1101",
                 "DL_KERNELS": "ON",
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_CXX_FLAGS": "-O3",
-                "CMAKE_CXX_COMPILER_LAUNCHER": "sccache",
-                "CMAKE_C_COMPILER_LAUNCHER": "sccache"
+                "CMAKE_CXX_FLAGS": "-O3"
+            }
+        },
+        {
+            "name": "RX7800-debug",
+            "displayName": "RX7800 Debug",
+            "inherits": "linux-debug",
+            "cacheVariables": {
+                "GPU_TARGETS": "gfx1101",
+                "DL_KERNELS": "ON",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_FLAGS": "-O0 -ggdb"
             }
         }
     ],
@@ -162,6 +169,16 @@
             "description": "Build Environment for RX7800 Release.",
             "inherits": [
                 "Release"
+            ],
+            "jobs": 128
+        },
+        {
+            "name": "RX7800-debug",
+            "displayName": "RX7800",
+            "configurePreset": "RX7800-debug",
+            "description": "Build Environment for RX7800 Debug.",
+            "inherits": [
+                "Debug"
             ],
             "jobs": 128
         }
