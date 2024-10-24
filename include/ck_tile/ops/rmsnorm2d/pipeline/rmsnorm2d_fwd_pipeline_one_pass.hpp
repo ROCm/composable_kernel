@@ -31,9 +31,9 @@ struct Rmsnorm2dFwdPipelineOnePass
 
     static constexpr const char* name = []() {
         if constexpr(kNeedCrossWarpSync)
-            return "bpr"; // block per row
+            return "bpr_op"; // block per row
         else
-            return "wpr"; // warp per row
+            return "wpr_op"; // warp per row
     }();
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()

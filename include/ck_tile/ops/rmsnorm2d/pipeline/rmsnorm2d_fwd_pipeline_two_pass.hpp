@@ -31,9 +31,9 @@ struct Rmsnorm2dFwdPipelineTwoPass
 
     static constexpr const char* name = []() {
         if constexpr(kNeedCrossWarpSync)
-            return "bpr"; // block per row
+            return "bpr_tp"; // block per row
         else
-            return "wpr"; // warp per row
+            return "wpr_tp"; // warp per row
     }();
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
