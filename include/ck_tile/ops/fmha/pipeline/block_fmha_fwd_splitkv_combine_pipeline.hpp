@@ -13,6 +13,16 @@ template <index_t N>
 struct log2;
 
 template <>
+struct log2<4> : std::integral_constant<index_t, 2>
+{
+};
+
+template <>
+struct log2<8> : std::integral_constant<index_t, 3>
+{
+};
+
+template <>
 struct log2<16> : std::integral_constant<index_t, 4>
 {
 };
@@ -72,18 +82,18 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         {
             if constexpr(kHeadDimV <= 32)
             {
-                constexpr std::array<int, 4> occupancy{3, 3, 3, 1};
-                return occupancy[detail::log2<kMaxSplits>::value - 4];
+                constexpr std::array occupancy{3, 3, 3, 3, 3, 1};
+                return occupancy[detail::log2<kMaxSplits>::value - 2];
             }
             else if constexpr(kHeadDimV <= 128)
             {
-                constexpr std::array<int, 4> occupancy{3, 3, 2, 1};
-                return occupancy[detail::log2<kMaxSplits>::value - 4];
+                constexpr std::array occupancy{3, 3, 3, 3, 2, 1};
+                return occupancy[detail::log2<kMaxSplits>::value - 2];
             }
             else if constexpr(kHeadDimV <= 256)
             {
-                constexpr std::array<int, 4> occupancy{2, 2, 2, 1};
-                return occupancy[detail::log2<kMaxSplits>::value - 4];
+                constexpr std::array occupancy{2, 2, 2, 2, 2, 1};
+                return occupancy[detail::log2<kMaxSplits>::value - 2];
             }
         }
     }();
@@ -138,9 +148,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         auto lse_accum = make_static_distributed_tensor<LSEDataType>(
             Policy::template MakeLSEaccRegTileDistribution<Problem>());
 
-        // copy LDS (shape=[kM0, kMaxSplits]) to lse_accum (shape=[kM0, max(kMaxSplits, warp_size)])
-        // this will extend the distributed tensor width so that each thread in wave have data to
-        // reduce.
+        // copy LDS (shape=[kM0, kMaxSplits]) to lse_accum (shape=[kM0, kMaxSplits])
+        // and fill up -INF values outside the [kM0, num_splits] region.
         {
             constexpr auto spans = decltype(lse_accum)::get_distributed_spans();
             sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
