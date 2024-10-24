@@ -385,7 +385,7 @@ struct ScaleAddScaleAddRelu
                                                                               const float& d1) const
     {
         const float x = c * alpha1_ + alpha2_ * d0 + d1;
-        Relu{}.template operator()<float>(e, x);
+        e             = x > 0 ? x : 0;
     }
 
     template <>
@@ -396,7 +396,7 @@ struct ScaleAddScaleAddRelu
                         type_convert<float>(d1);
 
         float result = 0;
-        Relu{}.template operator()<float>(result, x);
+        result       = x > 0 ? x : 0;
 
         e = type_convert<half_t>(result);
     }
@@ -409,7 +409,7 @@ struct ScaleAddScaleAddRelu
                         type_convert<float>(d1);
 
         float result = 0;
-        Relu{}.template operator()<float>(result, x);
+        result       = x > 0 ? x : 0;
 
         e = type_convert<bhalf_t>(result);
     }
@@ -421,7 +421,7 @@ struct ScaleAddScaleAddRelu
         const float x = type_convert<float>(c) * alpha1_ + alpha2_ * d0 + d1;
 
         float result = 0;
-        Relu{}.template operator()<float>(result, x);
+        result       = x > 0 ? x : 0;
 
         e = type_convert<int8_t>(result);
     }
