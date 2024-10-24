@@ -32,11 +32,13 @@
 #define CK_TILE_DEVICE inline __device__
 #define CK_TILE_HOST_DEVICE inline __host__ __device__
 #define CK_TILE_DEVICE_EXTERN __device__
+#define CK_TILE_HOST_DEVICE_EXTERN __host__ __device__
 #else
 #define CK_TILE_HOST inline
 #define CK_TILE_DEVICE inline
 #define CK_TILE_HOST_DEVICE inline
 #define CK_TILE_DEVICE_EXTERN
+#define CK_TILE_HOST_DEVICE_EXTERN
 #endif
 
 #ifndef CK_TILE_USE_CUSTOM_DATA_TYPE
@@ -157,8 +159,11 @@
 #endif
 #endif
 
+// workaround for ROCm 6.2 and later
 #ifndef CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE
-#if HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 2 && HIP_VERSION_PATCH >= 41133
+#if(HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 2 && HIP_VERSION_PATCH >= 41133) ||  \
+    (HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 3 && HIP_VERSION_PATCH >= 42131) || \
+    (HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR > 3)
 #define CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE 1
 #else
 #define CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE 0
