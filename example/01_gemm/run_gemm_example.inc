@@ -337,7 +337,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     bool pass = true;
 
-    if(config.do_verification)
+    if((config.do_verification == 1) || (config.do_verification == 3))
     {
         // CPU verification
         auto ref_gemm    = ReferenceGemmInstance{};
@@ -368,7 +368,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #endif
         if(pass)
             std::cout << "Verification on CPU: PASS" << std::endl;
+    }
 
+    if((config.do_verification == 2) || (config.do_verification == 3))
+    {
         // GPU verification
         auto ref_gemm_gpu    = ReferenceGemmInstanceGPU{};
         auto ref_invoker_gpu = ref_gemm_gpu.MakeInvoker();

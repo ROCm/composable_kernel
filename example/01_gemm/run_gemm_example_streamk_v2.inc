@@ -241,7 +241,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     }
 
     bool pass = true;
-    if(config.do_verification)
+    if((config.do_verification == 1) || (config.do_verification == 3))
     {
         std::cout << "Compute reference GEMM on CPU...  ";
         auto ref_gemm    = ReferenceGemmInstance{};
