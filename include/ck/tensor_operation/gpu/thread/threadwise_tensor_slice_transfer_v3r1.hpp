@@ -381,8 +381,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                       (is_same<f8_t, remove_cvref_t<DstData>>::value &&
                        SrcScalarPerVector % 4 == 0 && DstScalarPerVector % 4 == 0)))
         {
-            static_assert(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>,
-                          "transpose is not allowed for pk_i4_t");
+            //static_assert(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>,
+                          //"transpose is not allowed for pk_i4_t");
 #if 1
             // each transpose does
             // DstScalarPerVector # of src vectors in src_thread_scratch_
