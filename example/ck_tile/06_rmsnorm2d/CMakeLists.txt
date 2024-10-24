@@ -14,6 +14,9 @@ list(APPEND EXAMPLE_RMSNORM2D_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -
 
 target_compile_options(${EXAMPLE_RMSNORM2D_FWD} PRIVATE ${EXAMPLE_RMSNORM2D_FWD_COMPILE_OPTIONS})
 
+add_executable("tile_dev_rmsnorm2d_fwd" EXCLUDE_FROM_ALL example_rmsnorm2d_fwd.cpp)
+target_compile_options("tile_dev_rmsnorm2d_fwd" PRIVATE ${EXAMPLE_RMSNORM2D_FWD_COMPILE_OPTIONS})
+
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long
 # however, this property may affect global
