@@ -267,9 +267,9 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
 
                 float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-                // std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
-                //           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
-                //           << kbatch_curr << std::endl;
+                std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
+                          << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
+                          << kbatch_curr << std::endl;
 
 #if defined CK_ENABLE_FP8 || defined CK_ENABLE_INT8
                 // set softer tolerances for fp8
