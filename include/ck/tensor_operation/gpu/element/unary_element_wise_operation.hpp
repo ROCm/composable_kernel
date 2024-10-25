@@ -1639,8 +1639,6 @@ struct DynamicUnaryOp
     {
         switch(unary_op_type_)
         {
-        // printf("Inside InitUnaryOpPtrOnDevice\n");
-        // printf("alpha %f beta %f gamma %f\n", alpha, beta, gamma);
         case(UnaryOpType::Swish): unary_op_ptr_ = new Swish(beta); break;
         case(UnaryOpType::Sigmoid): unary_op_ptr_ = new Sigmoid; break;
         case(UnaryOpType::PassThrough): unary_op_ptr_ = new PassThrough; break;
