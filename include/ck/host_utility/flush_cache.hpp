@@ -353,7 +353,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         // return total_time / nrepeat;
         hipDeviceProp_t deviceProps;
         hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
-        float preprocess_offset = deviceProps.multiProcessorCount==80? 0.005 : 0.01;
+        float preprocess_offset = deviceProps.multiProcessorCount == 80 ? 0.005 : 0.01;
         return (total_time - preprocess_offset * nrepeat) / nrepeat;
 #endif
     }
