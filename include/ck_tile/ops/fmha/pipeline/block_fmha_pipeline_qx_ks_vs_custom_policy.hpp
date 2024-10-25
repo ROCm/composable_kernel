@@ -384,12 +384,15 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
             constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1;
             constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+            constexpr index_t kMaxVecLoad =
+                min(total_pixels, static_cast<index_t>(16 / sizeof(VDataType)));
+            constexpr index_t kMinVecLoad = 4 / sizeof(VDataType);
 
-            // TODO: not correct!
-            if constexpr(total_pixels > 4)
-                return 4;
-            else
-                return 2;
+            constexpr index_t kVecLoad = ((total_pixels / kMaxVecLoad) >= kMinVecLoad)
+                                             ? kMaxVecLoad
+                                             : (total_pixels / kMinVecLoad);
+
+            return kVecLoad;
         }
         else
         {
