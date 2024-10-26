@@ -240,6 +240,26 @@ bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams&
         {
             out_device_buf.FromDevice(out_n_c_do_ho_wo_device.mData.data());
 
+            auto number_of_accumulations = 1;
+            static_assert(
+                is_same_v<ReduceOpId, ck::ReduceTensorOp::AVG> ||
+                    is_same_v<ReduceOpId, ck::ReduceTensorOp::MAX>,
+                "Warning: Unhandled ReduceOpId for setting up the number of accumulations!");
+
+            if constexpr(std::is_same<ReduceOpId, ck::ReduceTensorOp::AVG>)
+            {
+                for(size_t i = 0; i < kernel_params.window_spatial_lengths.size(); ++i)
+                {
+                    number_of_accumulations *= kernel_params.window_spatial_lengths.at(i);
+                    std::cout << "kernel_params.window_spatial_lengths.at(" << i
+                              << "): " << kernel_params.window_spatial_lengths.at(i) << std::endl;
+                }
+            }
+
+            std::cout << "C: " << C << std::endl;
+            // number_of_accumulations *= C;
+            std::cout << "DEBUG: number_of_accumulations: " << number_of_accumulations << std::endl;
+
             auto absolute_error_threshold = 1.0;
             switch(in_params.init_method)
             {
@@ -250,9 +270,12 @@ bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams&
 
             absolute_error_threshold =
                 ck::utils::get_absolute_threshold<ComputeDataType, OutDataType>(
-                    absolute_error_threshold);
+                    absolute_error_threshold, number_of_accumulations);
             auto relative_error_threshold =
-                ck::utils::get_relative_threshold<ComputeDataType, OutDataType>();
+                ck::utils::get_relative_threshold<ComputeDataType, OutDataType>(
+                    number_of_accumulations);
+            std::cout << "absolute_error_threshold: " << absolute_error_threshold << std::endl;
+            std::cout << "relative_error_threshold: " << relative_error_threshold << std::endl;
 
             bool pass = ck::utils::check_err(out_n_c_do_ho_wo_device.mData,
                                              out_n_c_do_ho_wo_host.mData,
