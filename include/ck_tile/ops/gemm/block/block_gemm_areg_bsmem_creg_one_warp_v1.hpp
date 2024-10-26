@@ -4,15 +4,15 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_default_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1_default_policy.hpp"
 
 namespace ck_tile {
 
 // A is block distributed tensor
 // B is block window on shared memory
 // C is block distributed tensor
-template <typename Problem_, typename Policy_ = BlockGemmARegBSmemCRegV2DefaultPolicy>
-struct BlockGemmARegBSmemCRegV2
+template <typename Problem_, typename Policy_ = BlockGemmARegBSmemCRegV1DefaultPolicy>
+struct BlockGemmARegBSmemCRegOneWarpV1
 {
     using Problem        = remove_cvref_t<Problem_>;
     using Policy         = remove_cvref_t<Policy_>;
@@ -22,6 +22,7 @@ struct BlockGemmARegBSmemCRegV2
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
+    static_assert(kBlockSize == get_warp_size(), "Check failed!");
 
     // C += A * B
     template <typename CBlockTensor, typename ABlockTensorTmp, typename BBlockWindowTmp>
@@ -35,13 +36,16 @@ struct BlockGemmARegBSmemCRegV2
                 std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
             "wrong!");
 
-        constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
-        constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
-        constexpr index_t KPerBlock = ABlockTensorTmp{}.get_lengths()[number<1>{}];
+        // constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
+        // constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
+        // constexpr index_t KPerBlock = ABlockTensorTmp{}.get_lengths()[number<1>{}];
+        constexpr index_t MPerBlock = BlockGemmShape::kM;
+        constexpr index_t NPerBlock = BlockGemmShape::kN;
+        constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-        static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
-                          KPerBlock == BlockGemmShape::kK,
-                      "wrong!");
+        // static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
+        //                   KPerBlock == BlockGemmShape::kK,
+        //               "wrong!");
 
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
@@ -50,6 +54,8 @@ struct BlockGemmARegBSmemCRegV2
         constexpr index_t MWarp = config.template at<1>();
         constexpr index_t NWarp = config.template at<2>();
 
+        static_assert(MWarp == 1 && NWarp == 1, "Check failed!");
+
         constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
         constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
         constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
@@ -57,7 +63,7 @@ struct BlockGemmARegBSmemCRegV2
         constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp;
         constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
 
-        const index_t iNWarp = get_warp_id() % NWarp;
+        const index_t iNWarp = 0;
 
         constexpr auto a_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<NWarp>,
@@ -67,13 +73,13 @@ struct BlockGemmARegBSmemCRegV2
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
 
-        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
+        constexpr auto c_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<MIterPerWarp>, sequence<NIterPerWarp>>,
+                                       tuple<>,
+                                       tuple<>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
 
         constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             a_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});
@@ -149,17 +155,17 @@ struct BlockGemmARegBSmemCRegV2
 
         // hot loop:
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                // read B warp tensor from B Block window
-                const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
+            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                // read A warp tensor from A block tensor
+                AWarpTensor a_warp_tensor;
 
-                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    // read A warp tensor from A block tensor
-                    AWarpTensor a_warp_tensor;
+                a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
-                    a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
-                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                    // read B warp tensor from B Block window
+                    const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
 
                     // read C warp tensor from C block tensor
                     CWarpTensor c_warp_tensor;
@@ -170,7 +176,6 @@ struct BlockGemmARegBSmemCRegV2
 
                     // warp GEMM
                     WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
-                    // WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_array[nIter]);
 
                     // write C warp tensor into C block tensor
                     c_block_tensor.set_y_sliced_thread_data(
@@ -194,20 +199,25 @@ struct BlockGemmARegBSmemCRegV2
         constexpr index_t MWarp = config.template at<1>();
         constexpr index_t NWarp = config.template at<2>();
 
+        static_assert(MWarp == 1 && NWarp == 1, "Check failed!");
+
         constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
         constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
         // constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
 
-        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
+        constexpr auto c_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<MIterPerWarp>, sequence<NIterPerWarp>>,
+                                       tuple<>,
+                                       tuple<>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
 
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
+
+        static_assert(decltype(c_block_dstr_encode)::NDimP == 1, "Check failed!");
+
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
         auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
         return c_block_tensor;
