@@ -2,6 +2,7 @@
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
+#include <sstream>
 #include <gtest/gtest.h>
 
 #include "ck_tile/core.hpp"
@@ -188,11 +189,19 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
         }
         else
         {
-            // Tail number always 1
-            if(tail_num == ck_tile::TailNumber::One)
+            // Tail number always Full - #PrefetchStages
+            if(tail_num == ck_tile::TailNumber::Full)
             {
                 Run(ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            }
+            else
+            {
+                std::ostringstream err;
+                err << "When there's no hot loop, this tail number \"" << tail_num
+                    << "\" is not supported! " << __FILE__ << ":" << __LINE__
+                    << ", in function: " << __func__;
+                throw std::runtime_error(err.str());
             }
         }
     }

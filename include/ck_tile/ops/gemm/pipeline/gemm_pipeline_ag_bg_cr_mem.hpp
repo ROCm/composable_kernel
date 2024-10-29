@@ -24,11 +24,11 @@ struct BaseGemmPipelineAgBgCrMem
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    // TODO: Is this 32K value gfx9 arch specific?
     static constexpr index_t MinMemInFlyBytes = 32768;
 
     static constexpr index_t WgpPerCU =
         (4 * get_warp_size() / BlockSize) >= 1 ? 4 * get_warp_size() / BlockSize : 1;
-    // TODO: Is this 32K value gfx9 arch specific?
     static constexpr index_t FullMemBandPrefetchStages = integer_divide_ceil(
         MinMemInFlyBytes / WgpPerCU,
         (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);

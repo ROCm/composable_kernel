@@ -20,9 +20,7 @@ TYPED_TEST(TestCkTileGemmMemPipeline, MidLargeM)
         this->Run(M, N, K);
 }
 
-// TODO: Seems like padding is not working!
-// Works only when K is a multiple of KPerBlock
-TYPED_TEST(TestCkTileGemmMemPipeline, DISABLED_PaddK)
+TYPED_TEST(TestCkTileGemmMemPipeline, PaddK)
 {
     std::vector<int> Ms{127};
     constexpr int N = 1024;

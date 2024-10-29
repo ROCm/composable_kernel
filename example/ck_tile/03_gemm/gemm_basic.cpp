@@ -97,7 +97,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 
     if(s.log_level_ > 0)
     {
-        std::cout << "Lunching kernel with args:"
+        std::cout << "Launching kernel with args:"
                   << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                   << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                   << std::endl;
