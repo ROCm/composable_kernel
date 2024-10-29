@@ -17,11 +17,10 @@ using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 // clang-format off
 using KernelTypes = ::testing::Types<
     //         ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,      F16>
-    // TODO: fixme!
-    // std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,      F16>,
-    // std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,      F16>,
-    // std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,      F16>
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,      F16>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,      F16>,
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,      F16>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,      F16>
     >;
 // clang-format on
 
