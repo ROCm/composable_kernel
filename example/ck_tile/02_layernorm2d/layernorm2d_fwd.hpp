@@ -8,11 +8,11 @@
 #include "ck_tile/ops/layernorm2d.hpp"
 #include <string>
 
-template <typename InType, typename OutType>
+template <typename InType, typename OutType, typename YScaleDataType_>
 struct LayerNormTypeConfig;
 
-template <typename OutType>
-struct LayerNormTypeConfig<ck_tile::half_t, OutType>
+template <typename OutType, typename YScaleDataType_>
+struct LayerNormTypeConfig<ck_tile::half_t, OutType, YScaleDataType_>
 {
     using XDataType       = ck_tile::half_t;
     using YDataType       = OutType;
@@ -21,10 +21,11 @@ struct LayerNormTypeConfig<ck_tile::half_t, OutType>
     using MeanDataType    = ck_tile::half_t;
     using InvStdDataType  = ck_tile::half_t;
     using ComputeDataType = float;
+    using YScaleDataType  = YScaleDataType_;
 };
 
-template <typename OutType>
-struct LayerNormTypeConfig<ck_tile::bf16_t, OutType>
+template <typename OutType, typename YScaleDataType_>
+struct LayerNormTypeConfig<ck_tile::bf16_t, OutType, YScaleDataType_>
 {
     using XDataType       = ck_tile::bf16_t;
     using YDataType       = OutType;
@@ -33,6 +34,7 @@ struct LayerNormTypeConfig<ck_tile::bf16_t, OutType>
     using MeanDataType    = ck_tile::bf16_t;
     using InvStdDataType  = ck_tile::bf16_t;
     using ComputeDataType = float;
+    using YScaleDataType  = YScaleDataType_;
 };
 
 // runtime args
@@ -48,9 +50,10 @@ struct layernorm2d_fwd_traits
 {
     std::string prec_i;
     std::string prec_o;
+    std::string prec_s; // scale value, used as scale factor store out when fused_sweep=1
     bool save_mean_var;
-    int fused_add;   // 0:no-add, 1:pre-add, 2:post-add
-    int fused_sweep; // 0:no-sweep,
+    int fused_add;   // 0:no-add, 1:pre-add-store, 2:pre-add
+    int fused_sweep; // 0:no-sweep, 1:dynamic-quant
 };
 
 float layernorm2d_fwd(layernorm2d_fwd_traits, layernorm2d_fwd_args, const ck_tile::stream_config&);

@@ -59,6 +59,7 @@ struct Layernorm2dFwdPipelineOnePass
               typename SYWindow,
               typename MeanWindow,
               typename InvStdWindow,
+              typename YScaleWindow,
               typename Epilogue>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
                                    const SXWindow& sx_window_,
@@ -68,6 +69,7 @@ struct Layernorm2dFwdPipelineOnePass
                                    const SYWindow& sy_window_,
                                    MeanWindow& mean_window,
                                    InvStdWindow& inv_std_window,
+                                   YScaleWindow& y_scale_window,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
                                    void* smem,
@@ -143,7 +145,12 @@ struct Layernorm2dFwdPipelineOnePass
             ln(idx) = ln_;
         });
 
-        Epilogue{}(y_window_, ln);
+        if constexpr(kFusedSweep == Layernorm2dFusedSweepEnum::DYNAMIC_QUANT)
+        {
+            Epilogue{}(y_window_, y_scale_window, ln);
+        }
+        else
+            Epilogue{}(y_window_, ln);
     }
 };
 } // namespace ck_tile

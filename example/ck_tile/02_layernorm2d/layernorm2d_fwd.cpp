@@ -32,8 +32,11 @@ auto create_args(int argc, char* argv[])
         .insert("kname", "1", "print kernel name or not")
         .insert("prec_i", "fp16", "input precision")
         .insert("prec_o", "auto", "output precision, set auto will be the same as input")
+        .insert("prec_s",
+                "auto",
+                "output quant scale type, set auto will be the same as input. used when fsweep=1")
         .insert("fadd", "0", "fused-add, 0:no fused add, 1:preadd+store, 2:preadd only")
-        .insert("fsweep", "0", "fused-sweep")
+        .insert("fsweep", "0", "fused-sweep, 0:no, 1:fused-dynamic-quant")
         .insert("warmup", "5", "cold iter")
         .insert("repeat", "20", "hot iter");
 
@@ -41,7 +44,7 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename InDataType, typename OutDataType, bool SaveMeanVar>
+template <typename InDataType, typename OutDataType, typename ScaleDataType, bool SaveMeanVar>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     ck_tile::index_t m      = arg_parser.get_int("m");
@@ -52,27 +55,38 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float epsilon      = arg_parser.get_float("e");
     std::string prec_i = arg_parser.get_str("prec_i");
     std::string prec_o = arg_parser.get_str("prec_o");
+    std::string prec_s = arg_parser.get_str("prec_s");
     if(prec_o == "auto")
     {
         prec_o = prec_i;
     }
+    if(prec_s == "auto")
+    {
+        prec_s = prec_i;
+    }
+
     int kname         = arg_parser.get_int("kname");
     int do_validation = arg_parser.get_int("v");
     int warmup        = arg_parser.get_int("warmup");
     int repeat        = arg_parser.get_int("repeat");
     int fused_add     = arg_parser.get_int("fadd");
     int fused_sweep   = arg_parser.get_int("fsweep");
+    if(fused_sweep == 1 && prec_o != "int8")
+    {
+        std::cout << "if fused_sweep is 1, only support \"-prec_o=int8\" case" << std::endl;
+        return false;
+    }
 
     assert(stride >= n);
 
-    using TypeConfig = LayerNormTypeConfig<InDataType, OutDataType>;
+    using TypeConfig = LayerNormTypeConfig<InDataType, OutDataType, ScaleDataType>;
 
     using XDataType     = typename TypeConfig::XDataType;
     using YDataType     = typename TypeConfig::YDataType;
     using GammaDataType = typename TypeConfig::GammaDataType;
     using BetaDataType  = typename TypeConfig::BetaDataType;
     using SXDataType    = XDataType;
-    using SYDataType    = YDataType;
+    using SYDataType    = XDataType;
 
     using MeanDataType =
         std::conditional_t<SaveMeanVar, typename TypeConfig::MeanDataType, ck_tile::null_type>;
@@ -94,6 +108,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::HostTensor<MeanDataType> mean_host_ref({m});
     ck_tile::HostTensor<InvStdDataType> invStd_host_ref({m});
+    ck_tile::HostTensor<ScaleDataType> y_scale_host_ref({m});
+    ck_tile::HostTensor<ScaleDataType> y_scale_host_dev({m});
 
     ck_tile::FillUniformDistribution<XDataType>{-.5f, .5f}(x_host);
     ck_tile::FillUniformDistribution<GammaDataType>{-.5f, .5f}(gamma_host);
@@ -103,6 +119,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem gamma_buf(gamma_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem beta_buf(beta_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_buf(y_host_dev.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem y_scale_buf(y_scale_host_dev.get_element_space_size_in_bytes());
 
     ck_tile::DeviceMem sx_buf(sx_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem sy_buf(sy_host.get_element_space_size_in_bytes());
@@ -112,10 +129,23 @@ bool run(const ck_tile::ArgParser& arg_parser)
     beta_buf.ToDevice(beta_host.data());
     sx_buf.ToDevice(sx_host.data());
 
-    std::cout << "[" << prec_i << "]"
+    auto prec_str = [&]() {
+        auto base_str = prec_i;
+        if(prec_i != prec_o)
+        {
+            base_str += "|" + prec_o;
+        }
+        if(fused_sweep == 1)
+        {
+            base_str += std::string("(") + prec_s + ")";
+        }
+        return base_str;
+    }();
+
+    std::cout << "[" << prec_str << "]"
               << " m:" << m << ", n:" << n << ", stride:" << stride << std::flush;
 
-    layernorm2d_fwd_traits traits{prec_i, prec_o, SaveMeanVar, fused_add, fused_sweep};
+    layernorm2d_fwd_traits traits{prec_i, prec_o, prec_s, SaveMeanVar, fused_add, fused_sweep};
 
     layernorm2d_fwd_args args{x_buf.GetDeviceBuffer(),
                               fused_add != 0 ? sx_buf.GetDeviceBuffer() : nullptr,
@@ -125,6 +155,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                               fused_add == 1 ? sy_buf.GetDeviceBuffer() : nullptr,
                               nullptr,
                               nullptr,
+                              fused_sweep == 1 ? y_scale_buf.GetDeviceBuffer() : nullptr,
                               epsilon,
                               m,
                               n,
@@ -170,6 +201,50 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                            InvStdDataType>(
             x_host, gamma_host, beta_host, y_host_ref, mean_host_ref, invStd_host_ref, epsilon);
 
+        if(fused_sweep == 1)
+        {
+            auto dquant_functor = [&](int m_, auto o_, auto acc_) {
+                int N_                 = acc_.mDesc.get_lengths()[1];
+                ComputeDataType absmax = 0;
+                for(int n_ = 0; n_ < N_; n_++)
+                {
+                    const auto a = abs(acc_(m_, n_));
+                    absmax       = a > absmax ? a : absmax;
+                }
+                y_scale_host_ref(m_) = absmax / 127.0;
+                for(int n_ = 0; n_ < N_; n_++)
+                {
+                    o_(m_, n_) = static_cast<YDataType>(acc_(m_, n_) / y_scale_host_ref(m_));
+                }
+            };
+
+            ck_tile::reference_layernorm2d_fwd<XDataType,
+                                               GammaDataType,
+                                               BetaDataType,
+                                               ComputeDataType,
+                                               YDataType,
+                                               MeanDataType,
+                                               InvStdDataType>(x_host,
+                                                               gamma_host,
+                                                               beta_host,
+                                                               y_host_ref,
+                                                               mean_host_ref,
+                                                               invStd_host_ref,
+                                                               epsilon,
+                                                               dquant_functor);
+        }
+        else
+        {
+            ck_tile::reference_layernorm2d_fwd<XDataType,
+                                               GammaDataType,
+                                               BetaDataType,
+                                               ComputeDataType,
+                                               YDataType,
+                                               MeanDataType,
+                                               InvStdDataType>(
+                x_host, gamma_host, beta_host, y_host_ref, mean_host_ref, invStd_host_ref, epsilon);
+        }
+
         y_buf.FromDevice(y_host_dev.data());
 
         ck_tile::HostTensor<SYDataType> sy_host_dev({m, n}, {stride, 1});
@@ -179,6 +254,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 
         auto [rtol, atol] = get_elimit<InDataType>();
+
         if(stride == n)
         {
             pass = ck_tile::check_err(
@@ -218,6 +294,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 }
             }
         }
+        if(fused_sweep == 1)
+        {
+            y_scale_buf.FromDevice(y_scale_host_dev.data());
+            pass &= ck_tile::check_err(y_scale_host_dev,
+                                       y_scale_host_ref,
+                                       std::string("SCALE Error: Incorrect results!"),
+                                       rtol,
+                                       atol);
+        }
 
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
@@ -233,26 +318,44 @@ int main(int argc, char* argv[])
 
     std::string prec_i = arg_parser.get_str("prec_i");
     std::string prec_o = arg_parser.get_str("prec_o");
+    std::string prec_s = arg_parser.get_str("prec_s");
+
     if(prec_o == "auto")
     {
         prec_o = prec_i;
     }
+    if(prec_s == "auto")
+    {
+        prec_s = prec_i;
+    }
     int save_mv = arg_parser.get_int("save_mv");
-    if(prec_i == "fp16" && prec_o == "fp16" && save_mv)
+
+    // no dynamic quant case
+    if(prec_i == "fp16" && prec_o == "fp16" && prec_s == "fp16" && save_mv)
     {
-        return run<ck_tile::half_t, ck_tile::half_t, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::half_t, ck_tile::half_t, ck_tile::half_t, true>(arg_parser) ? 0 : -2;
     }
-    else if(prec_i == "fp16" && prec_o == "fp16" && !save_mv)
+    else if(prec_i == "fp16" && prec_o == "fp16" && prec_s == "fp16" && !save_mv)
     {
-        return run<ck_tile::half_t, ck_tile::half_t, false>(arg_parser) ? 0 : -2;
+        return run<ck_tile::half_t, ck_tile::half_t, ck_tile::half_t, false>(arg_parser) ? 0 : -2;
     }
-    else if(prec_i == "bf16" && prec_o == "bf16" && save_mv)
+    else if(prec_i == "bf16" && prec_o == "bf16" && prec_s == "bf16" && save_mv)
     {
-        return run<ck_tile::bf16_t, ck_tile::bf16_t, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t, true>(arg_parser) ? 0 : -2;
     }
-    else if(prec_i == "bf16" && prec_o == "bf16" && !save_mv)
+    else if(prec_i == "bf16" && prec_o == "bf16" && prec_s == "bf16" && !save_mv)
     {
-        return run<ck_tile::bf16_t, ck_tile::bf16_t, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t, true>(arg_parser) ? 0 : -2;
+    }
+
+    // dynamic quant case, only in inference
+    else if(prec_i == "fp16" && prec_o == "int8" && prec_s == "fp16" && !save_mv)
+    {
+        return run<ck_tile::half_t, ck_tile::int8_t, ck_tile::half_t, false>(arg_parser) ? 0 : -2;
+    }
+    else if(prec_i == "bf16" && prec_o == "int8" && prec_s == "bf16" && !save_mv)
+    {
+        return run<ck_tile::bf16_t, ck_tile::int8_t, ck_tile::bf16_t, false>(arg_parser) ? 0 : -2;
     }
 
     return -3;

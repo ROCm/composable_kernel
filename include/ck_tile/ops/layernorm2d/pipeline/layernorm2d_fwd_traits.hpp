@@ -26,15 +26,13 @@ template<> struct Layernorm2dFusedAddEnumName<Layernorm2dFusedAddEnum::PRE_ADD> 
 enum class Layernorm2dFusedSweepEnum
 {
     NO_SWEEP      = 0,
-    RENORM        = 1,
-    DYNAMIC_QUANT = 2,
+    DYNAMIC_QUANT = 1,
 };
 
 // clang-format off
 template<Layernorm2dFusedSweepEnum E> struct Layernorm2dFusedSweepEnumName;
 template<> struct Layernorm2dFusedSweepEnumName<Layernorm2dFusedSweepEnum::NO_SWEEP> { static constexpr const char * name = "no"; };
-template<> struct Layernorm2dFusedSweepEnumName<Layernorm2dFusedSweepEnum::RENORM> { static constexpr const char * name = "renorm"; };
-template<> struct Layernorm2dFusedSweepEnumName<Layernorm2dFusedSweepEnum::DYNAMIC_QUANT> { static constexpr const char * name = "dequant"; };
+template<> struct Layernorm2dFusedSweepEnumName<Layernorm2dFusedSweepEnum::DYNAMIC_QUANT> { static constexpr const char * name = "dquant"; };
 // clang-format on
 
 template <bool kPadN_,

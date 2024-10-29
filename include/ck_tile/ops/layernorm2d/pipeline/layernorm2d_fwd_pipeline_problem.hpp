@@ -14,6 +14,7 @@ template <typename XDataType_,
           typename YDataType_,
           typename MeanDataType_,
           typename InvStdDataType_,
+          typename YScaleDataType_,
           typename BlockShape_,
           typename Traits_>
 struct Layernorm2dFwdPipelineProblem
@@ -25,6 +26,7 @@ struct Layernorm2dFwdPipelineProblem
     using YDataType       = remove_cvref_t<YDataType_>;
     using MeanDataType    = remove_cvref_t<MeanDataType_>;
     using InvStdDataType  = remove_cvref_t<InvStdDataType_>;
+    using YScaleDataType  = remove_cvref_t<YScaleDataType_>;
     using BlockShape      = remove_cvref_t<BlockShape_>;
 
     static constexpr bool kNeedCrossLaneSync = BlockShape::ThreadPerWarp_N > 1;

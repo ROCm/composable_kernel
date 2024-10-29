@@ -21,6 +21,7 @@ struct Layernorm2dFwdHostArgs
     void* p_sy; // shortcut output, set to nullptr if no
     void* p_mean;
     void* p_invStd;
+    void* p_y_scale; // store out a dynamic quant per row, used by next layer. nullptr if not used
 
     float epsilon;
 
@@ -44,6 +45,7 @@ struct Layernorm2dFwd
     using YDataType       = remove_cvref_t<typename Problem::YDataType>;
     using MeanDataType    = remove_cvref_t<typename Problem::MeanDataType>;
     using InvStdDataType  = remove_cvref_t<typename Problem::InvStdDataType>;
+    using YScaleDataType  = remove_cvref_t<typename Problem::YScaleDataType>;
 
     // for simplicity, shortcut input/output type is same as X
     using SXDataType = XDataType;
@@ -81,6 +83,7 @@ struct Layernorm2dFwd
         void* p_sy; // shortcut output, set to nullptr if no
         void* p_mean;
         void* p_invStd;
+        void* p_y_scale; // store out a dynamic quant value, used in next layer
 
         float epsilon;
 
@@ -100,6 +103,7 @@ struct Layernorm2dFwd
                      hargs.p_sy,
                      hargs.p_mean,
                      hargs.p_invStd,
+                     hargs.p_y_scale,
                      hargs.epsilon,
                      hargs.m,
                      hargs.n,
@@ -120,6 +124,7 @@ struct Layernorm2dFwd
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     template <> struct t2s<ck_tile::fp8_t> { static constexpr const char * name = "fp8"; };
     template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
+    template <> struct t2s<ck_tile::int8_t> { static constexpr const char * name = "int8"; };
     // clang-format on
 
     // in byte
@@ -140,7 +145,18 @@ struct Layernorm2dFwd
             if (kTwoPass) n += "_2p";
             return n; }();
 
-        return _SS_("layernorm2d_fwd_") + _SS_(t2s<XDataType>::name) + "_" + 
+        auto prec_str = [&] () {
+            std::string base_str = _SS_(t2s<XDataType>::name);
+            if (!std::is_same_v<XDataType, YDataType>) {
+                base_str += _SS_("_") + _SS_(t2s<YDataType>::name);
+            }
+            if (kFusedSweep == Layernorm2dFusedSweepEnum::DYNAMIC_QUANT) {
+                base_str += _SS_("_s") + _SS_(t2s<YScaleDataType>::name);
+            }
+            return base_str;
+        }();
+
+        return _SS_("layernorm2d_fwd_") + _SS_(prec_str) + "_" + 
              _TS_(S_::Block_M) + "x" + _TS_(S_::Block_N) + "_" + _TS_(S_::WarpPerBlock_M) + "x" + _TS_(S_::WarpPerBlock_N) + "_" +
              _TS_(S_::Warp_M) + "x" + _TS_(S_::Warp_N) + "_" + _TS_(S_::Vector_M) + "x" + _TS_(S_::Vector_N) + "_" +
              _SS_(Pipeline::name) + surfix;
@@ -295,6 +311,24 @@ struct Layernorm2dFwd
                 return make_null_tile_window(make_tuple(number<Block_M>{}));
         }();
 
+        auto y_scale_window = [&]() {
+            if constexpr(kFusedSweep == Layernorm2dFusedSweepEnum::DYNAMIC_QUANT)
+            {
+                const auto win_ = [&]() {
+                    const auto tmp_0_ = make_naive_tensor_view_packed<address_space_enum::global>(
+                        static_cast<YScaleDataType*>(kargs.p_y_scale),
+                        make_tuple(kargs.m),
+                        number<1>{});
+
+                    return pad_tensor_view(
+                        tmp_0_, make_tuple(number<Block_M>{}), sequence<kPadM>{});
+                }();
+                return make_tile_window(win_, make_tuple(number<Block_M>{}), {iM});
+            }
+            else
+                return make_null_tile_window(make_tuple(number<Block_M>{}));
+        }();
+
         __shared__ char smem[GetSmemSize()];
 
         Pipeline{}(x_window,
@@ -305,6 +339,7 @@ struct Layernorm2dFwd
                    sy_window,
                    mean_window,
                    inv_std_window,
+                   y_scale_window,
                    static_cast<const ComputeDataType>(kargs.epsilon),
                    kargs.n,
                    smem,

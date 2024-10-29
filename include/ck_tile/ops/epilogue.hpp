@@ -5,4 +5,5 @@
 
 #include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
 #include "ck_tile/ops/epilogue/default_2d_epilogue.hpp"
+#include "ck_tile/ops/epilogue/dynamic_quant_epilogue.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
