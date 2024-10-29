@@ -20,11 +20,11 @@ struct UnaryOpBase
     public:
     __host__ __device__ ~UnaryOpBase() = default;
 
-    __host__ __device__ UnaryOpBase()                   = default;
-    __host__ __device__ UnaryOpBase(const UnaryOpBase&) = default;
-    __host__ __device__ UnaryOpBase& operator=(const UnaryOpBase&) = default;
-    __host__ __device__ UnaryOpBase(UnaryOpBase&&)                 = default;
-    __host__ __device__ UnaryOpBase& operator=(UnaryOpBase&&) = default;
+    __host__ __device__ constexpr UnaryOpBase()                   = default;
+    __host__ __device__ constexpr UnaryOpBase(const UnaryOpBase&) = default;
+    __host__ __device__ constexpr UnaryOpBase& operator=(const UnaryOpBase&) = default;
+    __host__ __device__ constexpr UnaryOpBase(UnaryOpBase&&)                 = default;
+    __host__ __device__ constexpr UnaryOpBase& operator=(UnaryOpBase&&) = default;
 
     __host__ __device__ virtual inline void operator()(float& y, const float& x) const = 0;
 
@@ -54,10 +54,10 @@ struct PassThroughPack2
 
 struct PassThrough final : public UnaryOpBase
 {
-    PassThrough()                   = default;
-    PassThrough(const PassThrough&) = default;
-    PassThrough(PassThrough&&)      = default;
-    __host__ __device__ ~PassThrough() {}
+    __host__ __device__ constexpr PassThrough()                   = default;
+    __host__ __device__ constexpr PassThrough(const PassThrough&) = default;
+    __host__ __device__ constexpr PassThrough(PassThrough&&)      = default;
+    __host__ __device__ ~PassThrough()                            = default;
 
     __host__ __device__ inline void operator()(float& y, const float& x) const final { y = x; }
 
@@ -417,11 +417,11 @@ struct UnarySquare
 
 struct UnaryAbs final : public UnaryOpBase
 {
-    UnaryAbs()                = default;
-    UnaryAbs(const UnaryAbs&) = default;
-    UnaryAbs(UnaryAbs&&)      = default;
+    __host__ __device__ constexpr UnaryAbs()                = default;
+    __host__ __device__ constexpr UnaryAbs(const UnaryAbs&) = default;
+    __host__ __device__ constexpr UnaryAbs(UnaryAbs&&)      = default;
 
-    __host__ __device__ ~UnaryAbs() {}
+    __host__ __device__ ~UnaryAbs() = default;
 
     __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
@@ -473,11 +473,11 @@ struct UnarySqrt
 
 struct Relu final : public UnaryOpBase
 {
-    Relu()            = default;
-    Relu(const Relu&) = default;
-    Relu(Relu&&)      = default;
+    __host__ __device__ constexpr Relu()            = default;
+    __host__ __device__ constexpr Relu(const Relu&) = default;
+    __host__ __device__ constexpr Relu(Relu&&)      = default;
 
-    __host__ __device__ ~Relu() {}
+    __host__ __device__ ~Relu() = default;
 
     __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
@@ -653,10 +653,10 @@ struct Gelu
 
 struct Sigmoid final : public UnaryOpBase
 {
-    Sigmoid()               = default;
-    Sigmoid(const Sigmoid&) = default;
-    Sigmoid(Sigmoid&&)      = default;
-    __host__ __device__ ~Sigmoid() {}
+    __host__ __device__ constexpr Sigmoid()               = default;
+    __host__ __device__ constexpr Sigmoid(const Sigmoid&) = default;
+    __host__ __device__ constexpr Sigmoid(Sigmoid&&)      = default;
+    __host__ __device__ ~Sigmoid()                        = default;
 
     __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
@@ -712,10 +712,10 @@ struct Silu
 
 struct TanH final : public UnaryOpBase
 {
-    TanH()            = default;
-    TanH(const TanH&) = default;
-    TanH(TanH&&)      = default;
-    __host__ __device__ ~TanH() {}
+    __host__ __device__ constexpr TanH()            = default;
+    __host__ __device__ constexpr TanH(const TanH&) = default;
+    __host__ __device__ constexpr TanH(TanH&&)      = default;
+    __host__ __device__ ~TanH()                     = default;
 
     __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
@@ -988,9 +988,9 @@ struct Rcp
 
 struct Swish final : public UnaryOpBase
 {
-    Swish(const Swish&) = default;
-    Swish(Swish&&)      = default;
-    __host__ __device__ ~Swish() {}
+    __host__ __device__ constexpr Swish(const Swish&) = default;
+    __host__ __device__ constexpr Swish(Swish&&)      = default;
+    __host__ __device__ ~Swish()                      = default;
 
     __host__ __device__ Swish(float beta = 1.0f) : beta_(beta) {}
 
@@ -1052,9 +1052,9 @@ struct Swish final : public UnaryOpBase
 
 struct SoftRelu final : public UnaryOpBase
 {
-    SoftRelu(const SoftRelu&) = default;
-    SoftRelu(SoftRelu&&)      = default;
-    __host__ __device__ ~SoftRelu() {}
+    __host__ __device__ constexpr SoftRelu(const SoftRelu&) = default;
+    __host__ __device__ constexpr SoftRelu(SoftRelu&&)      = default;
+    __host__ __device__ ~SoftRelu()                         = default;
 
     __host__ __device__ SoftRelu(float alpha = 1.0f) : alpha_(alpha) {}
 
@@ -1107,9 +1107,9 @@ struct SoftRelu final : public UnaryOpBase
 
 struct Power final : public UnaryOpBase
 {
-    Power(const Power&) = default;
-    Power(Power&&)      = default;
-    __host__ __device__ ~Power() {}
+    __host__ __device__ constexpr Power(const Power&) = default;
+    __host__ __device__ constexpr Power(Power&&)      = default;
+    __host__ __device__ ~Power()                      = default;
 
     __host__ __device__ Power(float alpha = 0.f, float beta = 1.f, float gamma = 2.f)
         : alpha_(alpha), beta_(beta), gamma_(gamma)
@@ -1189,9 +1189,9 @@ struct Power final : public UnaryOpBase
 
 struct ClippedRelu final : public UnaryOpBase
 {
-    ClippedRelu(const ClippedRelu&) = default;
-    ClippedRelu(ClippedRelu&&)      = default;
-    __host__ __device__ ~ClippedRelu() {}
+    __host__ __device__ constexpr ClippedRelu(const ClippedRelu&) = default;
+    __host__ __device__ constexpr ClippedRelu(ClippedRelu&&)      = default;
+    __host__ __device__ ~ClippedRelu()                            = default;
 
     __host__ __device__ ClippedRelu(float alpha = 0.f, float beta = 1.f)
         : alpha_(alpha), beta_(beta)
@@ -1250,9 +1250,9 @@ struct ClippedRelu final : public UnaryOpBase
 
 struct LeakyRelu final : public UnaryOpBase
 {
-    LeakyRelu(const LeakyRelu&) = default;
-    LeakyRelu(LeakyRelu&&)      = default;
-    __host__ __device__ ~LeakyRelu() {}
+    __host__ __device__ constexpr LeakyRelu(const LeakyRelu&) = default;
+    __host__ __device__ constexpr LeakyRelu(LeakyRelu&&)      = default;
+    __host__ __device__ ~LeakyRelu()                          = default;
 
     __host__ __device__ LeakyRelu(float alpha = 0.f) : alpha_(alpha) {}
 
@@ -1298,9 +1298,9 @@ struct LeakyRelu final : public UnaryOpBase
 
 struct Elu final : public UnaryOpBase
 {
-    Elu(const Elu&) = default;
-    Elu(Elu&&)      = default;
-    __host__ __device__ ~Elu() {}
+    __host__ __device__ constexpr Elu(const Elu&) = default;
+    __host__ __device__ constexpr Elu(Elu&&)      = default;
+    __host__ __device__ ~Elu()                    = default;
 
     __host__ __device__ Elu(float alpha = 1.f) : alpha_(alpha) {}
 
@@ -1347,9 +1347,9 @@ struct Elu final : public UnaryOpBase
 
 struct Logistic final : public UnaryOpBase
 {
-    Logistic(const Logistic&) = default;
-    Logistic(Logistic&&)      = default;
-    __host__ __device__ ~Logistic() {}
+    __host__ __device__ constexpr Logistic(const Logistic&) = default;
+    __host__ __device__ constexpr Logistic(Logistic&&)      = default;
+    __host__ __device__ ~Logistic()                         = default;
 
     __host__ __device__ Logistic(float alpha = 1.0f) : alpha_(alpha) {}
 
