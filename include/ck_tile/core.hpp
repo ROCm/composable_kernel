@@ -5,6 +5,7 @@
 
 #include "ck_tile/core/algorithm/cluster_descriptor.hpp"
 #include "ck_tile/core/algorithm/coordinate_transform.hpp"
+#include "ck_tile/core/algorithm/indexing_adaptor.hpp"
 #include "ck_tile/core/algorithm/space_filling_curve.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
 #include "ck_tile/core/arch/arch.hpp"
