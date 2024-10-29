@@ -406,11 +406,11 @@ struct non_native_vector_base<f8_ocp_t, 2>
 {
     using data_t = f8_ocp_t::data_type;
     using type   = non_native_vector_base<f8_ocp_t, 2>;
-
-    __host__ __device__ non_native_vector_base() = default;
-
     using data_v = fp8_impl::fp8x2_storage_t; // type of storage vector
     data_v d;                                 // storage vector
+
+    __host__ __device__ non_native_vector_base() = default;
+    __host__ __device__ non_native_vector_base(data_t a) : d{a} {}
 
     using float2_t = fp8_impl::float2_t;
 
