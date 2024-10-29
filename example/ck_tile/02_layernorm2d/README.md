@@ -16,6 +16,26 @@ In training case the mean/variance need to store out (TBD, not supported yet)
 
 since [prenorm/postnorm](https://arxiv.org/pdf/1906.01787) is quite common in LLM blocks, this example boosts this feature by kernel fusion. Note that `prenorm`/`postnorm` always need to do elementwise-add a `shortcut` before the actual layernorm computation, and optionally store out the result to global. You can use `-fadd=1` to test `pre-add+store`, or `-fadd=2` to test `pre-add` without store out.
 
+## dynamic quantization
+we support dynamic quantization for `int8` output, by setting `-fsweep=1` and `-prec_o=int8`. In this case the output will doing a rowwise dynamic quantization like below:
+```
+# assume output int8, hidden_states is [m, n] shape and in fp16/bf16
+# [m, 1]
+per_token_amax, _ = torch.max(
+     input=torch.abs(hidden_states), 
+     dim=-1, 
+     keepdim=True
+)
+per_token_scale = per_token_amax.to(dtype=torch.float32) / 127.0
+
+# quant hidden_states
+hidden_states = (hidden_states / per_token_scale).to(dtype=torch.int8)
+
+return hidden_states, per_token_scale
+# hidden_states now is int8 will feed to next layer as intput
+# per_token_scale will be used as dequant factor later layer
+```
+
 ## build
 ```
 # in the root of ck_tile
@@ -37,7 +57,9 @@ args:
       -kname    print kernel name or not (default:1)
      -prec_i    input precision (default:fp16)
      -prec_o    output precision, set auto will be the same as input (default:auto)
-       -fadd    fused-add, 0:no fused add, 1:fused-prenorm(preadd+store), 2:fused-postnorm(preadd) (default:0)
-     -fsweep    fused-sweep (default:0)
-
+     -prec_s    output quant scale type, set auto will be the same as input. used when fsweep=1 (default:auto)
+       -fadd    fused-add, 0:no fused add, 1:preadd+store, 2:preadd only (default:0)
+     -fsweep    fused-sweep, 0:no, 1:fused-dynamic-quant (default:0)
+     -warmup    cold iter (default:5)
+     -repeat    hot iter (default:20)
 ```
