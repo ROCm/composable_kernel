@@ -89,7 +89,7 @@ struct GemmKernel
                     a_start,
                     make_tuple(kargs.M, kargs.K),
                     make_tuple(1, kargs.stride_A),
-                    number<GemmPipeline::AlignmentA>{},
+                    number<1>{},
                     number<1>{});
             }
         }();
@@ -101,7 +101,7 @@ struct GemmKernel
                     b_start,
                     make_tuple(kargs.N, kargs.K),
                     make_tuple(1, kargs.stride_B),
-                    number<GemmPipeline::AlignmentB>{},
+                    number<1>{},
                     number<1>{});
             }
             else
@@ -166,7 +166,7 @@ struct GemmKernel
                     c_start,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(1, kargs.stride_C),
-                    number<GemmPipeline::AlignmentC>{},
+                    number<1>{},
                     number<1>{});
             }
         }();
