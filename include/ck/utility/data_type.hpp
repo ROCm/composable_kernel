@@ -7,12 +7,13 @@
 
 namespace ck {
 
-using bhalf_t = ushort;
-using half_t  = _Float16;
-using int4_t  = _BitInt(4);
-using f4_t    = unsigned _BitInt(4);
-using f8_t    = _BitInt(8);
-using bf8_t   = unsigned _BitInt(8);
+using bhalf_t      = ushort;
+using half_t       = _Float16;
+using int4_t       = _BitInt(4);
+using f4_t         = unsigned _BitInt(4);
+using f8_t         = _BitInt(8);
+using bf8_t        = unsigned _BitInt(8);
+using e8m0_scale_t = uint8_t;
 
 // vector_type
 template <typename T, index_t N>
@@ -1162,11 +1163,51 @@ struct NumericLimits<f4_t>
     static constexpr uint8_t binary_min_subnorm   = 0x1; // 0b0001
     static constexpr uint8_t binary_max_subnorm   = 0x1; // 0b0001
 
+    static constexpr float data_max_normal_number    = 6;
+    static constexpr float data_min_subnormal_number = 0.5;
+
     __host__ __device__ static constexpr f4_t Min() { return f4_t(binary_min_normal); }
     __host__ __device__ static constexpr f4_t Max() { return f4_t(binary_max_normal); }
     __host__ __device__ static constexpr f4_t Lowest() { return f4_t(binary_lowest_normal); }
     __host__ __device__ static constexpr f4_t MinSubnorm() { return f4_t(binary_min_subnorm); }
     __host__ __device__ static constexpr f4_t MaxSubnorm() { return f4_t(binary_max_subnorm); }
+
+    __host__ __device__ static constexpr float DataMaxNorm() { return data_max_normal_number; }
+    __host__ __device__ static constexpr float DataMinSubnorm()
+    {
+        return data_min_subnormal_number;
+    }
+};
+
+template <>
+struct NumericLimits<e8m0_scale_t>
+{
+    static constexpr e8m0_scale_t binary_min  = 0x00; // 0b00000000
+    static constexpr e8m0_scale_t binary_max  = 0xFE; // 0b11111110
+    static constexpr e8m0_scale_t binary_qnan = 0xFF; // 0b11111111
+    static constexpr e8m0_scale_t binary_1    = 0x7F; // 0b01111111
+    static constexpr e8m0_scale_t binary_2    = 0x80; // 0b10000000
+    static constexpr e8m0_scale_t binary_3    = 0x82; // 0b10000010
+    static constexpr e8m0_scale_t binary_135  = 0x87; // 0b10000111
+    static constexpr e8m0_scale_t binary_142  = 0x8E; // 0b10001110
+
+    __host__ __device__ static constexpr e8m0_scale_t Min() { return e8m0_scale_t(binary_min); }
+    __host__ __device__ static constexpr e8m0_scale_t Max() { return e8m0_scale_t(binary_max); }
+    __host__ __device__ static constexpr e8m0_scale_t QuietNaN()
+    {
+        return e8m0_scale_t(binary_qnan);
+    }
+    __host__ __device__ static constexpr e8m0_scale_t Binary_1() { return e8m0_scale_t(binary_1); }
+    __host__ __device__ static constexpr e8m0_scale_t Binary_2() { return e8m0_scale_t(binary_2); }
+    __host__ __device__ static constexpr e8m0_scale_t Binary_3() { return e8m0_scale_t(binary_3); }
+    __host__ __device__ static constexpr e8m0_scale_t Binary_135()
+    {
+        return e8m0_scale_t(binary_135);
+    }
+    __host__ __device__ static constexpr e8m0_scale_t Binary_142()
+    {
+        return e8m0_scale_t(binary_142);
+    }
 };
 
 template <typename T>
@@ -1229,8 +1270,44 @@ struct NumericUtils<bf8_t>
 template <>
 struct NumericUtils<f4_t>
 {
-    static constexpr int exp  = 2;
-    static constexpr int mant = 1;
-    static constexpr int bias = 1;
+    static constexpr int exp       = 2;
+    static constexpr int mant      = 1;
+    static constexpr int bias      = 1;
+    static constexpr uint32_t sr_shift = 10;
+
+    static constexpr int unbiased_exp_min = 0;
+    static constexpr int unbiased_exp_max = 2;
+    static constexpr int biased_exp_min   = 1;
+    static constexpr int biased_exp_max   = 3;
+
+    static constexpr uint8_t positive_zero_mask = 0b0000;
+    static constexpr uint8_t negative_zero_mask = 0b1000;
+
+    static constexpr uint8_t one_mask      = 0b0010;
+    static constexpr uint8_t set_sign_mask = 0b0111;
+
+    static constexpr uint8_t data_max_positive_normal_mask = 0b0111;
+    static constexpr uint8_t data_max_negative_normal_mask = 0b1111;
+
+    static constexpr uint8_t data_max_positive_subnormal_mask = 0b0001;
+    static constexpr uint8_t data_max_negative_subnormal_mask = 0b1001;
+
+    using bitwise_type = uint8_t;
 };
+
+template <>
+struct NumericUtils<e8m0_scale_t>
+{
+    static constexpr int exp  = 8;
+    static constexpr int mant = 0;
+    static constexpr int bias = 127;
+
+    static constexpr int unbiased_exp_min = -127;
+    static constexpr int unbiased_exp_max = 127;
+    static constexpr int biased_exp_min   = 0;
+    static constexpr int biased_exp_max   = 254;
+
+    using bitwise_type = uint8_t;
+};
+
 } // namespace ck
