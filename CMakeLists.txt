@@ -137,7 +137,7 @@ if(GPU_TARGETS)
 else()
     set(USER_GPU_TARGETS 0)
 endif()
-find_package(hip required)
+find_package(hip REQUIRED)
 # No assumption that HIP kernels are launched with uniform block size for backward compatibility
 # SWDEV-413293 and https://reviews.llvm.org/D155213
 math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
