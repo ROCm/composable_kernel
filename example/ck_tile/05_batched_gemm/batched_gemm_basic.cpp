@@ -96,7 +96,7 @@ float gemm_calc(const batched_gemm_basic_args& args, const ck_tile::stream_confi
                                    args.batch_stride_C,
                                    args.batch_count);
 
-    const dim3 grids      = Kernel::GridSize(args.M, args.N, args.kbatch);
+    const dim3 grids      = Kernel::GridSize(args.M, args.N, args.batch_count);
     constexpr dim3 blocks = Kernel::BlockSize();
 
     if(s.log_level_ > 0)

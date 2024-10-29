@@ -89,9 +89,12 @@ struct BatchedGemmKernel
     CK_TILE_DEVICE void operator()(BatchedGemmCommonKargs kargs) const
     {
         const auto [i_m, i_n] = TilePartitioner{}();
-        // options
-        const ADataType* a_start = static_cast<const ADataType*>(kargs.a_ptr);
-        const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr);
+        // const auto i_k        = blockIdx.z;
+        //  options
+        const ADataType* a_start = static_cast<const ADataType*>(
+            kargs.a_ptr); //+ __builtin_amdgcn_readfirstlane(i_k * kargs.batch_stride_A);
+        const BDataType* b_start = static_cast<const BDataType*>(
+            kargs.b_ptr); //+ __builtin_amdgcn_readfirstlane(i_k * kargs.batch_stride_B);
         // Convert pointers to tensor views
         auto a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -169,7 +172,8 @@ struct BatchedGemmKernel
         auto c_block_tile =
             GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr);
 
-        CDataType* c_start = static_cast<CDataType*>(kargs.c_ptr);
+        CDataType* c_start = static_cast<CDataType*>(
+            kargs.c_ptr); //; + __builtin_amdgcn_readfirstlane(i_k * kargs.batch_stride_C);
         auto c_tensor_view = [&]() {
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
