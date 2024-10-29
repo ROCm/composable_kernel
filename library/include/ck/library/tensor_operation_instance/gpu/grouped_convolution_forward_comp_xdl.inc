@@ -57,21 +57,21 @@ void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_comp_instances(
                                                                 PassThrough>>>& instances);
 #endif
 
-// #ifdef CK_ENABLE_INT8
-// void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_comp_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NHWGC,
-//                                                                 GKYXC,
-//                                                                 Empty_Tuple,
-//                                                                 NHWGK,
-//                                                                 int8_t,
-//                                                                 int8_t,
-//                                                                 Empty_Tuple,
-//                                                                 int8_t,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 PassThrough>>>& instances);
-// #endif
+#ifdef CK_ENABLE_INT8
+void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_comp_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Empty_Tuple,
+                                                                NHWGK,
+                                                                int8_t,
+                                                                int8_t,
+                                                                Empty_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
+#endif
 
 // grouped conv2d forward, NGCHW/GKYXC/NGKHW
 #ifdef CK_ENABLE_FP16
@@ -106,21 +106,21 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_comp_instances(
                                                                 PassThrough>>>& instances);
 #endif
 
-// #ifdef CK_ENABLE_INT8
-// void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_comp_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-//                                                                 NGCHW,
-//                                                                 GKYXC,
-//                                                                 Empty_Tuple,
-//                                                                 NGKHW,
-//                                                                 int8_t,
-//                                                                 int8_t,
-//                                                                 Empty_Tuple,
-//                                                                 int8_t,
-//                                                                 PassThrough,
-//                                                                 PassThrough,
-//                                                                 PassThrough>>>& instances);
-// #endif
+#ifdef CK_ENABLE_INT8
+void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_comp_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NGCHW,
+                                                                GKYXC,
+                                                                Empty_Tuple,
+                                                                NGKHW,
+                                                                int8_t,
+                                                                int8_t,
+                                                                Empty_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
+#endif
 
 #ifdef CK_ENABLE_BF16
 // grouped conv3d forward, NDHWGC/GKZYXC/NDHWGK

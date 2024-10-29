@@ -122,77 +122,77 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif // DL_KERNELS
 
 #ifdef CK_USE_XDL
-// 1D
-// layout GNWC/GKXC/GNWK
-        if constexpr(NumDimSpatial == 1 && is_same_v<InLayout, GNWC> &&
-                     is_same_v<WeiLayout, GKXC> && is_same_v<OutLayout, GNWK>)
-        {
-#ifdef CK_ENABLE_FP32
-            if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                         is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
-                         is_same_v<BComputeType, float>)
-            {
-                add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f32_instances(op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
-                         is_same_v<BComputeType, half_t>)
-            {
-                add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f16_instances(op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_BF16
-            if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
-                         is_same_v<WeiDataType, ck::bhalf_t> &&
-                         is_same_v<OutDataType, ck::bhalf_t> &&
-                         is_same_v<AComputeType, ck::bhalf_t> &&
-                         is_same_v<BComputeType, ck::bhalf_t>)
-            {
-                add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_bf16_instances(op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_INT8
-            if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                         is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
-                         is_same_v<BComputeType, int8_t>)
-            {
-                add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_int8_instances(op_ptrs);
-            }
-#endif
-        }
+// // 1D
+// // layout GNWC/GKXC/GNWK
+//         if constexpr(NumDimSpatial == 1 && is_same_v<InLayout, GNWC> &&
+//                      is_same_v<WeiLayout, GKXC> && is_same_v<OutLayout, GNWK>)
+//         {
+// #ifdef CK_ENABLE_FP32
+//             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+//                          is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
+//                          is_same_v<BComputeType, float>)
+//             {
+//                 add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f32_instances(op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_FP16
+//             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+//                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+//                          is_same_v<BComputeType, half_t>)
+//             {
+//                 add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f16_instances(op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_BF16
+//             if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+//                          is_same_v<WeiDataType, ck::bhalf_t> &&
+//                          is_same_v<OutDataType, ck::bhalf_t> &&
+//                          is_same_v<AComputeType, ck::bhalf_t> &&
+//                          is_same_v<BComputeType, ck::bhalf_t>)
+//             {
+//                 add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_bf16_instances(op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_INT8
+//             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+//                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
+//                          is_same_v<BComputeType, int8_t>)
+//             {
+//                 add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_int8_instances(op_ptrs);
+//             }
+// #endif
+//         }
 // 2D
 // layout GNHWC/GKYXC/GNHWK
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, GNHWC> &&
                      is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, GNHWK>)
         {
-#ifdef CK_ENABLE_FP32
-            if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                         is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
-                         is_same_v<BComputeType, float>)
-            {
-                add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f32_instances(op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
-                         is_same_v<BComputeType, half_t>)
-            {
-                add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_BF16
-            if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
-                         is_same_v<WeiDataType, ck::bhalf_t> &&
-                         is_same_v<OutDataType, ck::bhalf_t> &&
-                         is_same_v<AComputeType, ck::bhalf_t> &&
-                         is_same_v<BComputeType, ck::bhalf_t>)
-            {
-                add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(op_ptrs);
-            }
-#endif
+// #ifdef CK_ENABLE_FP32
+//             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+//                          is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
+//                          is_same_v<BComputeType, float>)
+//             {
+//                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f32_instances(op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_FP16
+//             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+//                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+//                          is_same_v<BComputeType, half_t>)
+//             {
+//                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_BF16
+//             if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+//                          is_same_v<WeiDataType, ck::bhalf_t> &&
+//                          is_same_v<OutDataType, ck::bhalf_t> &&
+//                          is_same_v<AComputeType, ck::bhalf_t> &&
+//                          is_same_v<BComputeType, ck::bhalf_t>)
+//             {
+//                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(op_ptrs);
+//             }
+// #endif
 #ifdef CK_ENABLE_INT8
             if constexpr(is_same_v<InDataType, int8_t> &&
                          is_same_v<WeiDataType, int8_t> &&
@@ -208,59 +208,59 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
                      is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, NHWGK>)
         {
-#ifdef CK_ENABLE_FP32
-            if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                         is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
-                         is_same_v<BComputeType, float>)
-            {
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_large_tensor_nhwgc_gkyxc_nhwgk_f32_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_f32_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_comp_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_mem_inter_instances(
-                    op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
-                         is_same_v<BComputeType, half_t>)
-            {
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_large_tensor_nhwgc_gkyxc_nhwgk_f16_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_f16_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_comp_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_mem_inter_instances(
-                    op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_BF16
-            if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
-                         is_same_v<WeiDataType, ck::bhalf_t> &&
-                         is_same_v<OutDataType, ck::bhalf_t> &&
-                         is_same_v<AComputeType, ck::bhalf_t> &&
-                         is_same_v<BComputeType, ck::bhalf_t>)
-            {
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instances(
-                    op_ptrs);
-            }
-#endif
+// #ifdef CK_ENABLE_FP32
+//             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+//                          is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
+//                          is_same_v<BComputeType, float>)
+//             {
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_instances(op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_large_tensor_nhwgc_gkyxc_nhwgk_f32_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_f32_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_comp_instances(op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_mem_intra_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_mem_inter_instances(
+//                     op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_FP16
+//             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+//                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+//                          is_same_v<BComputeType, half_t>)
+//             {
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_instances(op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_large_tensor_nhwgc_gkyxc_nhwgk_f16_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_f16_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_comp_instances(op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_mem_inter_instances(
+//                     op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_BF16
+//             if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+//                          is_same_v<WeiDataType, ck::bhalf_t> &&
+//                          is_same_v<OutDataType, ck::bhalf_t> &&
+//                          is_same_v<AComputeType, ck::bhalf_t> &&
+//                          is_same_v<BComputeType, ck::bhalf_t>)
+//             {
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_instances(op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_intra_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instances(
+//                     op_ptrs);
+//             }
+// #endif
 #ifdef CK_ENABLE_INT8
             if constexpr(is_same_v<InDataType, int8_t> &&
                          is_same_v<WeiDataType, int8_t> &&
@@ -271,9 +271,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_instances(op_ptrs);
                 // add_device_grouped_conv2d_fwd_xdl_large_tensor_nhwgc_gkyxc_nhwgk_int8_instances(
                 //     op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_int8_instances(
-                    op_ptrs);
-                // add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_comp_instances(op_ptrs);
+                // add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_int8_instances(
+                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_comp_instances(op_ptrs);
                 // add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances(
                 //     op_ptrs);
                 // add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_mem_inter_instances(
@@ -286,46 +286,46 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NGCHW> &&
                      is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, NGKHW>)
         {
-#ifdef CK_ENABLE_FP32
-            if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                         is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
-                         is_same_v<BComputeType, float>)
-            {
-                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_f32_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_comp_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_mem_inter_instances(
-                    op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
-                         is_same_v<BComputeType, half_t>)
-            {
-                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_f16_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_comp_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_mem_inter_instances(
-                    op_ptrs);
-            }
-#endif
+// #ifdef CK_ENABLE_FP32
+//             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+//                          is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
+//                          is_same_v<BComputeType, float>)
+//             {
+//                 add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_f32_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_instances(op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_comp_instances(op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_mem_intra_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_mem_inter_instances(
+//                     op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_FP16
+//             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+//                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+//                          is_same_v<BComputeType, half_t>)
+//             {
+//                 add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_f16_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_instances(op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_comp_instances(op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_mem_intra_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_mem_inter_instances(
+//                     op_ptrs);
+//             }
+// #endif
 
 #ifdef CK_ENABLE_INT8
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
                          is_same_v<BComputeType, int8_t>)
             {
-                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_int8_instances(
-                    op_ptrs);
+                // add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_int8_instances(
+                //     op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_instances(op_ptrs);
-                // add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_comp_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_comp_instances(op_ptrs);
                 // add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_mem_intra_instances(
                 //     op_ptrs);
                 // add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_mem_inter_instances(
@@ -334,154 +334,154 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
         }
 
-// 3D
-// layout GNDHWC/GKZYXC/GNDHWK
-        if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, GNDHWC> &&
-                     is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, GNDHWK>)
-        {
-#ifdef CK_ENABLE_FP32
-            if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                         is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
-                         is_same_v<BComputeType, float>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f32_instances(op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
-                         is_same_v<BComputeType, half_t>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_BF16
-            if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
-                         is_same_v<WeiDataType, ck::bhalf_t> &&
-                         is_same_v<OutDataType, ck::bhalf_t> &&
-                         is_same_v<AComputeType, ck::bhalf_t> &&
-                         is_same_v<BComputeType, ck::bhalf_t>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances(op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_INT8
-            if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                         is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
-                         is_same_v<BComputeType, int8_t>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_int8_instances(op_ptrs);
-            }
-#endif
-        }
+// // 3D
+// // layout GNDHWC/GKZYXC/GNDHWK
+//         if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, GNDHWC> &&
+//                      is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, GNDHWK>)
+//         {
+// #ifdef CK_ENABLE_FP32
+//             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+//                          is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
+//                          is_same_v<BComputeType, float>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f32_instances(op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_FP16
+//             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+//                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+//                          is_same_v<BComputeType, half_t>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_BF16
+//             if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+//                          is_same_v<WeiDataType, ck::bhalf_t> &&
+//                          is_same_v<OutDataType, ck::bhalf_t> &&
+//                          is_same_v<AComputeType, ck::bhalf_t> &&
+//                          is_same_v<BComputeType, ck::bhalf_t>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances(op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_INT8
+//             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+//                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
+//                          is_same_v<BComputeType, int8_t>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_int8_instances(op_ptrs);
+//             }
+// #endif
+//         }
 
-// layout NDHWGC/GKZYXC/NDHWGK
-        if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWGC> &&
-                     is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK>)
-        {
-#ifdef CK_ENABLE_FP32
-            if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                         is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
-                         is_same_v<BComputeType, float>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_f32_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_comp_instances(op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_inter_instances(
-                    op_ptrs);
-            }
-#endif
+// // layout NDHWGC/GKZYXC/NDHWGK
+//         if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWGC> &&
+//                      is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK>)
+//         {
+// #ifdef CK_ENABLE_FP32
+//             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+//                          is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
+//                          is_same_v<BComputeType, float>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_comp_instances(op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_intra_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_inter_instances(
+//                     op_ptrs);
+//             }
+// #endif
 
-#ifdef CK_ENABLE_FP8
-            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, ck::f8_t> &&
-                         is_same_v<BComputeType, ck::f8_t>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_instances(
-                    op_ptrs);
-            }
+// #ifdef CK_ENABLE_FP8
+//             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+//                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, ck::f8_t> &&
+//                          is_same_v<BComputeType, ck::f8_t>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_instances(
+//                     op_ptrs);
+//             }
 
-            if constexpr(is_same_v<InDataType, ck::f8_t> && is_same_v<WeiDataType, ck::f8_t> &&
-                         is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::f8_t> &&
-                         is_same_v<BComputeType, ck::f8_t>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_instances(op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_BF8
-            if constexpr(is_same_v<InDataType, ck::bf8_t> && is_same_v<WeiDataType, ck::bf8_t> &&
-                         is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::bf8_t> &&
-                         is_same_v<BComputeType, ck::bf8_t>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_instances(op_ptrs);
-            }
-#endif
-#if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
-            if constexpr(is_same_v<InDataType, ck::f8_t> && is_same_v<WeiDataType, ck::bf8_t> &&
-                         is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::f8_t> &&
-                         is_same_v<BComputeType, ck::bf8_t>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_bf8_instances(op_ptrs);
-            }
-#endif
-#if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
-            if constexpr(is_same_v<InDataType, ck::bf8_t> && is_same_v<WeiDataType, ck::f8_t> &&
-                         is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::bf8_t> &&
-                         is_same_v<BComputeType, ck::f8_t>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_f8_instances(op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
-                         is_same_v<BComputeType, half_t>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_f16_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f16_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances(op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_mem_inter_instances(
-                    op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_BF16
-            if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
-                         is_same_v<WeiDataType, ck::bhalf_t> &&
-                         is_same_v<OutDataType, ck::bhalf_t> &&
-                         is_same_v<AComputeType, ck::bhalf_t> &&
-                         is_same_v<BComputeType, ck::bhalf_t>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instances(op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_comp_instances(op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_inter_instances(
-                    op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_INT8
-            if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                         is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
-                         is_same_v<BComputeType, int8_t>)
-            {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_int8_instances(op_ptrs);
-            }
-#endif
-        }
+//             if constexpr(is_same_v<InDataType, ck::f8_t> && is_same_v<WeiDataType, ck::f8_t> &&
+//                          is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::f8_t> &&
+//                          is_same_v<BComputeType, ck::f8_t>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_instances(op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_BF8
+//             if constexpr(is_same_v<InDataType, ck::bf8_t> && is_same_v<WeiDataType, ck::bf8_t> &&
+//                          is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::bf8_t> &&
+//                          is_same_v<BComputeType, ck::bf8_t>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_instances(op_ptrs);
+//             }
+// #endif
+// #if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
+//             if constexpr(is_same_v<InDataType, ck::f8_t> && is_same_v<WeiDataType, ck::bf8_t> &&
+//                          is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::f8_t> &&
+//                          is_same_v<BComputeType, ck::bf8_t>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_bf8_instances(op_ptrs);
+//             }
+// #endif
+// #if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
+//             if constexpr(is_same_v<InDataType, ck::bf8_t> && is_same_v<WeiDataType, ck::f8_t> &&
+//                          is_same_v<OutDataType, ck::f8_t> && is_same_v<AComputeType, ck::bf8_t> &&
+//                          is_same_v<BComputeType, ck::f8_t>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_f8_instances(op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_FP16
+//             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+//                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+//                          is_same_v<BComputeType, half_t>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances(op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_mem_intra_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_mem_inter_instances(
+//                     op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_BF16
+//             if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+//                          is_same_v<WeiDataType, ck::bhalf_t> &&
+//                          is_same_v<OutDataType, ck::bhalf_t> &&
+//                          is_same_v<AComputeType, ck::bhalf_t> &&
+//                          is_same_v<BComputeType, ck::bhalf_t>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instances(op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_comp_instances(op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_instances(
+//                     op_ptrs);
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_inter_instances(
+//                     op_ptrs);
+//             }
+// #endif
+// #ifdef CK_ENABLE_INT8
+//             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+//                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
+//                          is_same_v<BComputeType, int8_t>)
+//             {
+//                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_int8_instances(op_ptrs);
+//             }
+// #endif
+//         }
 #endif
 
 #ifdef CK_USE_WMMA
