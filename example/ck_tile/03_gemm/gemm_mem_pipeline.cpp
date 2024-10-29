@@ -5,7 +5,7 @@
 
 #include <cstring>
 #include <iostream>
-#include <ostream>
+#include <sstream>
 #include <string>
 #include <tuple>
 
@@ -88,7 +88,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 
         if(s.log_level_ > 0)
         {
-            std::cout << "Lunching kernel with args:"
+            std::cout << "Launching kernel with args:"
                       << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                       << std::endl;
@@ -164,11 +164,19 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     }
     else
     {
-        // Tail number always 1
-        if(tail_num == ck_tile::TailNumber::One)
+        // Tail number always Full - #PrefetchStages
+        if(tail_num == ck_tile::TailNumber::Full)
         {
             Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
+        else
+        {
+            std::ostringstream err;
+            err << "When there's no hot loop, this tail number \"" << tail_num
+                << "\" is not supported! " << __FILE__ << ":" << __LINE__
+                << ", in function: " << __func__;
+            throw std::runtime_error(err.str());
         }
     }
 
