@@ -278,7 +278,7 @@ class FmhaFwdSplitKVApiTrait:
     skpad     : str
     dpad      : str
     dvpad     : str
-    pagedkv : str
+    pagedkv   : str
 
     @property
     def name(self) -> str:
@@ -468,7 +468,7 @@ class FmhaFwdSplitKVKernel:
                 F_bk0           = self.F_tile.F_bk0,
                 F_bn1           = self.F_tile.F_bn1,
                 F_bk1           = self.F_tile.F_bk1,
-                F_bk0max       = self.F_tile.F_bk0max,
+                F_bk0max        = self.F_tile.F_bk0max,
                 F_rm0           = self.F_tile.F_rm0,
                 F_rn0           = self.F_tile.F_rn0,
                 F_rk0           = self.F_tile.F_rk0,
