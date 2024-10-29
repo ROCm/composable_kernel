@@ -96,13 +96,6 @@ struct BatchedGemmKernel
         const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr) +
                                    __builtin_amdgcn_readfirstlane(i_k * kargs.batch_stride_B);
         // Convert pointers to tensor views
-        // if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0)
-        // {
-        //     printf("__builtin_amdgcn_readfirstlane(i_k * kargs.batch_stride_A): %d\n",
-        //            __builtin_amdgcn_readfirstlane(i_k * kargs.batch_stride_A));
-        //     printf("__builtin_amdgcn_readfirstlane(i_k * kargs.batch_stride_B): %d\n",
-        //            __builtin_amdgcn_readfirstlane(i_k * kargs.batch_stride_B));
-        // }
         auto a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {

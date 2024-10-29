@@ -13,10 +13,10 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
-#include "batched_gemm_basic.hpp"
+#include "batched_gemm.hpp"
 
 template <typename ALayout, typename BLayout, typename CLayout>
-float gemm_calc(const batched_gemm_basic_args& args, const ck_tile::stream_config& s)
+float gemm_calc(const batched_gemm_args& args, const ck_tile::stream_config& s)
 {
     // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadA        = true;

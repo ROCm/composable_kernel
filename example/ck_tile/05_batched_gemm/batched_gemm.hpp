@@ -10,10 +10,10 @@
 #include "ck_tile/host/kernel_launch.hpp"
 
 template <typename DataType>
-struct GemmBasicTypeConfig;
+struct BatchedGemmTypeConfig;
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::half_t>
+struct BatchedGemmTypeConfig<ck_tile::half_t>
 {
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::half_t;
@@ -43,7 +43,7 @@ struct DataTypeTraits<ck_tile::half_t>
     static constexpr const char* name = "fp16";
 };
 
-using Types = GemmBasicTypeConfig<ck_tile::half_t>;
+using Types = BatchedGemmTypeConfig<ck_tile::half_t>;
 
 // Specific type aliases for easy access
 using ADataType   = Types::ADataType;
@@ -51,12 +51,11 @@ using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
 using CDataType   = Types::CDataType;
 
-struct batched_gemm_basic_args
+struct batched_gemm_args
 {
     const void* p_a;
     const void* p_b;
     void* p_c;
-    ck_tile::index_t kbatch;
     ck_tile::index_t M;
     ck_tile::index_t N;
     ck_tile::index_t K;
@@ -72,8 +71,7 @@ struct batched_gemm_basic_args
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("b", "1", "batch size")
-        .insert("m", "256", "m dimension")
+    arg_parser.insert("m", "256", "m dimension")
         .insert("n", "128", "n dimension")
         .insert("k", "128", "k dimension")
         .insert("stride_a", "128", "Tensor A stride")
@@ -94,4 +92,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-float gemm_calc(batched_gemm_basic_args args, const ck_tile::stream_config& s);
+float gemm_calc(batched_gemm_args args, const ck_tile::stream_config& s);
