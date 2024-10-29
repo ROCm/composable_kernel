@@ -80,7 +80,7 @@ struct GemmKernel
                     a_start,
                     make_tuple(kargs.M, kargs.K),
                     make_tuple(kargs.stride_A, 1),
-                    number<GemmPipeline::AlignmentA>{},
+                    number<GemmPipeline::VectorSizeA>{},
                     number<1>{});
             }
             else
@@ -110,7 +110,7 @@ struct GemmKernel
                     b_start,
                     make_tuple(kargs.N, kargs.K),
                     make_tuple(kargs.stride_B, 1),
-                    number<GemmPipeline::AlignmentB>{},
+                    number<GemmPipeline::VectorSizeB>{},
                     number<1>{});
             }
         }();
@@ -157,7 +157,7 @@ struct GemmKernel
                     c_start,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(kargs.stride_C, 1),
-                    number<GemmPipeline::AlignmentC>{},
+                    number<GemmPipeline::VectorSizeC>{},
                     number<1>{});
             }
             else

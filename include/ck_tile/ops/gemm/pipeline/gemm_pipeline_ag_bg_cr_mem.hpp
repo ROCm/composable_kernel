@@ -109,9 +109,9 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t AlignmentA = Problem::AlignmentA;
-    static constexpr index_t AlignmentB = Problem::AlignmentB;
-    static constexpr index_t AlignmentC = Problem::AlignmentC;
+    static constexpr index_t VectorSizeA = Problem::VectorSizeA;
+    static constexpr index_t VectorSizeB = Problem::VectorSizeB;
+    static constexpr index_t VectorSizeC = Problem::VectorSizeC;
 
     static constexpr bool kPadA = Problem::kPadA;
     static constexpr bool kPadB = Problem::kPadB;

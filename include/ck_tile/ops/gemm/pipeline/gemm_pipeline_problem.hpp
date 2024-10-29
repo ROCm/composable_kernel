@@ -6,9 +6,9 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 
-#define VectorLoadSize 16
-
 namespace ck_tile {
+
+static constexpr int _VectorSize = 16;
 
 template <typename ADataType_,
           typename BDataType_,
@@ -32,9 +32,9 @@ struct GemmPipelineProblem
     static constexpr bool kPadB         = GemmTraits::kPadB;
     static constexpr bool kPadC         = GemmTraits::kPadC;
 
-    static constexpr index_t AlignmentA = kPadA ? 1 : VectorLoadSize / sizeof(ADataType);
-    static constexpr index_t AlignmentB = kPadB ? 1 : VectorLoadSize / sizeof(BDataType);
-    static constexpr index_t AlignmentC = kPadC ? 1 : VectorLoadSize / sizeof(CDataType);
+    static constexpr index_t VectorSizeA = kPadA ? 1 : _VectorSize / sizeof(ADataType);
+    static constexpr index_t VectorSizeB = kPadB ? 1 : _VectorSize / sizeof(BDataType);
+    static constexpr index_t VectorSizeC = kPadC ? 1 : _VectorSize / sizeof(CDataType);
 };
 
 template <typename ADataType_,
@@ -66,10 +66,9 @@ struct UniversalGemmPipelineProblem
     static constexpr bool kPadB = GemmTraits::kPadB;
     static constexpr bool kPadC = GemmTraits::kPadC;
 
-    // TODO: what about vector load/store size? should we have template paramter for A/B/C ?
-    static constexpr index_t AlignmentA = kPadA ? VectorLoadSize / sizeof(ADataType) : 1;
-    static constexpr index_t AlignmentB = kPadB ? VectorLoadSize / sizeof(BDataType) : 1;
-    static constexpr index_t AlignmentC = kPadC ? VectorLoadSize / sizeof(CDataType) : 1;
+    static constexpr index_t VectorSizeA = kPadA ? _VectorSize / sizeof(ADataType) : 1;
+    static constexpr index_t VectorSizeB = kPadB ? _VectorSize / sizeof(BDataType) : 1;
+    static constexpr index_t VectorSizeC = kPadC ? _VectorSize / sizeof(CDataType) : 1;
 };
 
 } // namespace ck_tile
