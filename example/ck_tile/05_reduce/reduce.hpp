@@ -6,7 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
-#include "ck_tile/ops/reduce2d/block/block_reduce2d_default_policy.hpp"
+#include "ck_tile/ops/reduce/block/block_reduce2d_default_policy.hpp"
 
 namespace ck_tile {
 

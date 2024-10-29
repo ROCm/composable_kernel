@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include <tuple>
 
+// This file is deprecated, please use block_reduce2d.hpp
 namespace ck_tile {
 
 /*
@@ -14,9 +15,9 @@ namespace ck_tile {
  */
 // synchronize reduce result (cross lane reduction and broadcast on replicated dimension)
 template <typename AccDistributedTensor_, typename ReduceFunc, bool WithBroadcast = true>
-CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
-                                           const ReduceFunc& reduce_func,
-                                           bool_constant<WithBroadcast> = {})
+[[deprecated]] CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
+                                                          const ReduceFunc& reduce_func,
+                                                          bool_constant<WithBroadcast> = {})
 {
     using Dstr             = typename AccDistributedTensor_::StaticTileDistribution;
     using DstrEncode       = typename Dstr::DstrEncode;
@@ -114,8 +115,8 @@ CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
  * TODO: the limitation is to-be-reduced P dim can only mapping to one R dim?
  */
 template <typename AccDistributedTensor_, typename ReduceFunc>
-CK_TILE_DEVICE void block_tile_reduce_xor_sync(AccDistributedTensor_& acc_tensor,
-                                               const ReduceFunc& reduce_func)
+[[deprecated]] CK_TILE_DEVICE void block_tile_reduce_xor_sync(AccDistributedTensor_& acc_tensor,
+                                                              const ReduceFunc& reduce_func)
 {
     using Dstr             = typename AccDistributedTensor_::StaticTileDistribution;
     using DstrEncode       = typename Dstr::DstrEncode;
@@ -173,10 +174,10 @@ template <typename AccDistributedTensor_,
           typename InDistributedTensor_,
           index_t... InReduceDims,
           typename ReduceFunc>
-CK_TILE_DEVICE void block_tile_reduce(AccDistributedTensor_& acc_tensor,
-                                      const InDistributedTensor_& in_tensor,
-                                      sequence<InReduceDims...>,
-                                      const ReduceFunc& reduce_func)
+[[deprecated]] CK_TILE_DEVICE void block_tile_reduce(AccDistributedTensor_& acc_tensor,
+                                                     const InDistributedTensor_& in_tensor,
+                                                     sequence<InReduceDims...>,
+                                                     const ReduceFunc& reduce_func)
 {
     constexpr auto I0 = number<0>{};
     constexpr auto I1 = number<1>{};
@@ -248,10 +249,10 @@ template <typename AccDataType_,
           index_t... InReduceDims,
           typename ReduceFunc,
           typename InDataType_>
-CK_TILE_DEVICE auto block_tile_reduce(const InDistributedTensor_& in_tensor,
-                                      sequence<InReduceDims...> in_reduce_dims,
-                                      const ReduceFunc& reduce_func,
-                                      const InDataType_& reduce_init)
+[[deprecated]] CK_TILE_DEVICE auto block_tile_reduce(const InDistributedTensor_& in_tensor,
+                                                     sequence<InReduceDims...> in_reduce_dims,
+                                                     const ReduceFunc& reduce_func,
+                                                     const InDataType_& reduce_init)
 {
     using InDataType  = typename InDistributedTensor_::DataType;
     using AccDataType = remove_cvref_t<AccDataType_>;
@@ -281,7 +282,7 @@ CK_TILE_DEVICE auto block_tile_reduce(const InDistributedTensor_& in_tensor,
 // this version will call thread/warp+sync in one function call
 //
 template <typename InDistributedTensor_>
-struct BlockReduce2D
+struct [[deprecated]] BlockReduce2D
 {
     using InDistributedTensor = remove_cvref_t<InDistributedTensor_>;
     using InDataType          = typename InDistributedTensor::DataType;
@@ -376,6 +377,6 @@ struct BlockReduce2D
 
 // deduction guide
 template <typename T>
-CK_TILE_HOST_DEVICE_EXTERN BlockReduce2D(const T&, const typename T::DataType&)->BlockReduce2D<T>;
+CK_TILE_HOST_DEVICE_EXTERN BlockReduce2D(const T&, const typename T::DataType&) -> BlockReduce2D<T>;
 
 } // namespace ck_tile

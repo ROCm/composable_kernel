@@ -4,8 +4,8 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/reduce2d/block/block_reduce2d_problem.hpp"
-#include "ck_tile/ops/reduce2d/block/block_reduce2d.hpp"
+#include "ck_tile/ops/reduce/block/block_reduce2d_problem.hpp"
+#include "ck_tile/ops/reduce/block/block_reduce2d.hpp"
 
 namespace ck_tile {
 
