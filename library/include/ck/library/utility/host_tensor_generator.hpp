@@ -256,14 +256,33 @@ struct GeneratorTensor_Checkboard
     }
 };
 
-template <ck::index_t Dim>
+/**
+ * @brief Is used to generate sequential values based on the specified dimension.
+ *
+ * @tparam T The type of the tensor values.
+ * @tparam Dim The specific dimension used for generation.
+ *
+ * GeneratorTensor_Sequential<1>{} will generate the following values for a 3x3 tensor:
+ *
+ * 0 1 2
+ * 0 1 2
+ * 0 1 2
+ *
+ * Essentially, the values generated are logical coordinates of the generated element that
+ * correspond to dimension Dim. E.g. for 2-dimensional tensor and Dim=1, the values are the column
+ * indices.
+ *
+ */
+template <typename T, ck::index_t Dim>
 struct GeneratorTensor_Sequential
 {
     template <typename... Ts>
-    float operator()(Ts... Xs) const
+    T operator()(Ts... Xs) const
     {
         std::array<ck::index_t, sizeof...(Ts)> dims = {{static_cast<ck::index_t>(Xs)...}};
-        return dims[Dim];
+
+        float tmp = dims[Dim];
+        return ck::type_convert<T>(tmp);
     }
 };
 

@@ -194,9 +194,9 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             b1_tensors[i].GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
             break;
         default:
-            a0_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<0>{});
-            b0_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<1>{});
-            b1_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+            a0_tensors[i].GenerateTensorValue(GeneratorTensor_1<A0DataType>{1});
+            b0_tensors[i].GenerateTensorValue(GeneratorTensor_1<B0DataType>{1});
+            b1_tensors[i].GenerateTensorValue(GeneratorTensor_1<B1DataType>{1});
         }
 
         d0_tensors[i].GenerateTensorValue(GeneratorTensor_3<D0DataType>{-0.5, 0.5});
