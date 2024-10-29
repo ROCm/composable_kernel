@@ -102,7 +102,7 @@ int profile_gemm_universal(int argc, char* argv[])
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
 #if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH)
-    using F8   = ck::f8_t;
+    using F8 = ck::f8_t;
 #endif
 
     using Row = ck::tensor_layout::gemm::RowMajor;
