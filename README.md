@@ -1,5 +1,8 @@
 # Composable Kernel
 
+> [!NOTE]
+> The published documentation is available at [Composable Kernel](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/) in an organized, easy-to-read format, with search and a table of contents. The documentation source files reside in the `docs` folder of this repository. As with all ROCm projects, the documentation is open source. For more information on contributing to the documentation, see [Contribute to ROCm documentation](https://rocm.docs.amd.com/en/latest/contribute/contributing.html).
+
 The Composable Kernel (CK) library provides a programming model for writing performance-critical
 kernels for machine learning workloads across multiple architectures (GPUs, CPUs, etc.). The CK library
 uses general purpose kernel languages, such as HIP C++.
@@ -91,6 +94,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
     If you don't set `GPU_TARGETS` on the cmake command line, CK is built for all GPU targets
     supported by the current compiler (this may take a long time). 
+    Tests and examples will only get built if the GPU_TARGETS is set by the user on the cmake command line.
 
     NOTE: If you try setting `GPU_TARGETS` to a list of architectures, the build will only work if the 
     architectures are similar, e.g., `gfx908;gfx90a`, or `gfx1100;gfx1101;gfx11012`. Otherwise, if you 
