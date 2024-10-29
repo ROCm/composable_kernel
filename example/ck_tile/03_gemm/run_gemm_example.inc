@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
-
 #pragma once
 
 template <typename ALayout, typename BLayout, typename CLayout>
@@ -48,7 +47,12 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-int run_gemm_example(int argc, char* argv[])
+template <typename ALayout, typename BLayout, typename CLayout>
+int run_gemm_example_with_layouts(int argc,
+                                  char* argv[],
+                                  const ALayout a_layout                  = ALayout{},
+                                  const BLayout b_layout                  = BLayout{},
+                                  [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
@@ -65,10 +69,6 @@ int run_gemm_example(int argc, char* argv[])
     ck_tile::index_t batch_size = arg_parser.get_int("b");
     int n_warmup                = arg_parser.get_int("warmup");
     int n_repeat                = arg_parser.get_int("repeat");
-
-    using ALayout = ck_tile::tensor_layout::gemm::RowMajor;
-    using BLayout = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using CLayout = ck_tile::tensor_layout::gemm::RowMajor;
 
     using namespace ck_tile::literals;
 
@@ -104,12 +104,12 @@ int run_gemm_example(int argc, char* argv[])
             return stride;
     };
 
-    stride_A = f_get_default_stride(M, K, stride_A, ALayout{});
-    stride_B = f_get_default_stride(K, N, stride_B, BLayout{});
+    stride_A = f_get_default_stride(M, K, stride_A, a_layout);
+    stride_B = f_get_default_stride(K, N, stride_B, b_layout);
     stride_C = f_get_default_stride(M, N, stride_C, CLayout{});
 
-    ck_tile::HostTensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, stride_A, ALayout{}));
-    ck_tile::HostTensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, stride_B, BLayout{}));
+    ck_tile::HostTensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, stride_A, a_layout));
+    ck_tile::HostTensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, stride_B, b_layout));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
 
@@ -180,4 +180,38 @@ int run_gemm_example(int argc, char* argv[])
     }
 
     return pass;
+}
+
+int run_gemm_example(int argc, char* argv[])
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+    std::string a_layout = arg_parser.get_str("a_layout");
+    std::string b_layout = arg_parser.get_str("b_layout");
+
+    if(a_layout == "R" && b_layout == "R")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
+    }
+    else if(a_layout == "R" && b_layout == "C")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "C")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "R")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+    }
 }
