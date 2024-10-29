@@ -29,22 +29,22 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
     const std::size_t N = b_k_n.get_length(1);
     const std::size_t K = a_m_k.get_length(1);
 
-    auto f_mn = [&](auto m, auto n) {
+    auto f_mn = [&](auto m, auto n, auto b) {
         AccDataType v_acc = 0;
 
         for(std::size_t k = 0; k < K; ++k)
         {
-            ADataType v_a = a_element_op(a_m_k(m, k));
-            BDataType v_b = b_element_op(b_k_n(k, n));
+            ADataType v_a = a_element_op(a_m_k(b, m, k));
+            BDataType v_b = b_element_op(b_k_n(b, k, n));
 
             v_acc +=
                 ck_tile::type_convert<AccDataType>(v_a) * ck_tile::type_convert<AccDataType>(v_b);
         }
 
-        c_m_n(m, n) = ck_tile::type_convert<CDataType>(acc_element_op(v_acc));
+        c_m_n(b, m, n) = ck_tile::type_convert<CDataType>(acc_element_op(v_acc));
     };
 
-    make_ParallelTensorFunctor(f_mn, M, N)(std::thread::hardware_concurrency());
+    make_ParallelTensorFunctor(f_mn, M, N, 16)(std::thread::hardware_concurrency());
 }
 
 template <typename ADataType,
@@ -105,16 +105,20 @@ void reference_gemm_gpu(DeviceMem& a_device,
                         index_t K,
                         index_t stride_a,
                         index_t stride_b,
-                        index_t stride_c)
+                        index_t stride_c,
+                        index_t batch_stride_A,
+                        index_t batch_stride_B,
+                        index_t batch_stride_C,
+                        index_t batch_count)
 {
 
     ADataType* d_A;
     BDataType* d_B;
     CDataType* d_C;
 
-    hipError_t errA = hipMalloc(&d_A, M * K * sizeof(ADataType));
-    hipError_t errB = hipMalloc(&d_B, N * K * sizeof(BDataType));
-    hipError_t errC = hipMalloc(&d_C, M * N * sizeof(CDataType));
+    hipError_t errA = hipMalloc(&d_A, batch_count * M * K * sizeof(ADataType));
+    hipError_t errB = hipMalloc(&d_B, batch_count * N * K * sizeof(BDataType));
+    hipError_t errC = hipMalloc(&d_C, batch_count * M * N * sizeof(CDataType));
     if(errA != hipSuccess)
     {
         std::cerr << "Error allocating device memory for A: " << hipGetErrorString(errA)
@@ -136,15 +140,19 @@ void reference_gemm_gpu(DeviceMem& a_device,
         return; // Early exit on error
     }
 
-    errA = hipMemcpy(
-        d_A, a_device.GetDeviceBuffer(), M * K * sizeof(ADataType), hipMemcpyHostToDevice);
+    errA = hipMemcpy(d_A,
+                     a_device.GetDeviceBuffer(),
+                     batch_count * M * K * sizeof(ADataType),
+                     hipMemcpyHostToDevice);
     if(errA != hipSuccess)
     {
         std::cerr << "Error copying A to device: " << hipGetErrorString(errA) << std::endl;
     }
 
-    errB = hipMemcpy(
-        d_B, b_device.GetDeviceBuffer(), N * K * sizeof(BDataType), hipMemcpyHostToDevice);
+    errB = hipMemcpy(d_B,
+                     b_device.GetDeviceBuffer(),
+                     batch_count * N * K * sizeof(BDataType),
+                     hipMemcpyHostToDevice);
     if(errB != hipSuccess)
     {
         std::cerr << "Error copying B to device: " << hipGetErrorString(errB) << std::endl;
@@ -154,10 +162,20 @@ void reference_gemm_gpu(DeviceMem& a_device,
     int numThreadsPerBlock = 256; // Common choice for threads per block
     int numBlocks          = (totalElements + numThreadsPerBlock - 1) / numThreadsPerBlock;
 
-    naive_gemm_kernel<ADataType, BDataType, AccDataType, CDataType, LayoutA, LayoutB, LayoutC>
-        <<<numBlocks, numThreadsPerBlock>>>(d_A, d_B, d_C, M, N, K, stride_a, stride_b, stride_c);
-    errC = hipMemcpy(
-        c_device.GetDeviceBuffer(), d_C, M * N * sizeof(CDataType), hipMemcpyDeviceToHost);
+    for(int i = 0; i < batch_count; ++i)
+    {
+        ADataType* d_ATemp = d_A + i * batch_stride_A;
+        BDataType* d_BTemp = d_B + i * batch_stride_B;
+        CDataType* d_CTemp = d_C + i * batch_stride_C;
+        naive_gemm_kernel<ADataType, BDataType, AccDataType, CDataType, LayoutA, LayoutB, LayoutC>
+            <<<numBlocks, numThreadsPerBlock>>>(
+                d_ATemp, d_BTemp, d_CTemp, M, N, K, stride_a, stride_b, stride_c);
+    }
+
+    errC = hipMemcpy(c_device.GetDeviceBuffer(),
+                     d_C,
+                     batch_count * M * N * sizeof(CDataType),
+                     hipMemcpyDeviceToHost);
     if(errC != hipSuccess)
     {
         std::cerr << "Error copying C to device: " << hipGetErrorString(errC) << std::endl;

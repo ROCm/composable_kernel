@@ -96,11 +96,13 @@ int run_batched_gemm_example(int argc, char* argv[])
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
             {
-                return ck_tile::HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return ck_tile::HostTensorDescriptor({static_cast<size_t>(16), row, col},
+                                                     {row * col, stride, 1_uz});
             }
             else
             {
-                return ck_tile::HostTensorDescriptor({row, col}, {1_uz, stride});
+                return ck_tile::HostTensorDescriptor({static_cast<size_t>(16), row, col},
+                                                     {row * col, 1_uz, stride});
             }
         };
 
@@ -194,8 +196,19 @@ int run_batched_gemm_example(int argc, char* argv[])
                                     CDataType,
                                     ALayout,
                                     BLayout,
-                                    CLayout>(
-            a_m_k_dev_buf, b_k_n_dev_buf, c_m_n_gpu_buf_ref, M, N, K, stride_A, stride_B, stride_C);
+                                    CLayout>(a_m_k_dev_buf,
+                                             b_k_n_dev_buf,
+                                             c_m_n_gpu_buf_ref,
+                                             M,
+                                             N,
+                                             K,
+                                             stride_A,
+                                             stride_B,
+                                             stride_C,
+                                             batch_stride_A,
+                                             batch_stride_B,
+                                             batch_stride_C,
+                                             batch_count);
 
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
         pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_gpu_ref);
