@@ -845,9 +845,9 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
 
 #else
 
-    vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence>(
-        src_wave_buffer_resource, src_thread_addr_offset, 0);
-    return src_thread_element_valid ? tmp : vector_t(0);
+    vector_t tmp{amd_buffer_load_impl<scalar_t, vector_size, coherence>(
+        src_wave_buffer_resource, src_thread_addr_offset, 0)};
+    return src_thread_element_valid ? tmp : vector_t{0};
 #endif
 }
 
@@ -875,8 +875,8 @@ amd_buffer_load_invalid_element_return_customized_value(const T* p_src_wave,
 
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-    vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence>(
-        src_wave_buffer_resource, src_thread_addr_offset, 0);
+    vector_t tmp{amd_buffer_load_impl<scalar_t, vector_size, coherence>(
+        src_wave_buffer_resource, src_thread_addr_offset, 0)};
 
     return src_thread_element_valid ? tmp : vector_t(customized_value);
 }

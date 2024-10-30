@@ -174,7 +174,7 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
         break;
     default:
         a_g_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
-        b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+        b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<B0DataType, 1>{});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
 

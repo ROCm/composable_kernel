@@ -396,9 +396,29 @@ struct non_native_vector_base<f8_ocp_t, N>
 
     __host__ __device__ non_native_vector_base() = default;
     __host__ __device__ non_native_vector_base(data_t a) : d{a} {}
+    __host__ __device__ non_native_vector_base(f8_ocp_t f) : non_native_vector_base(f.data) {}
     __host__ __device__ non_native_vector_base(data_v v) : d{v} {}
 
     __host__ __device__ operator data_v() const { return d; }
+};
+
+template <>
+struct non_native_vector_base<f8_ocp_t, 1>
+{
+    using data_t = f8_ocp_t::data_type;
+    using data_v = data_t __attribute__((ext_vector_type(sizeof(data_t))));
+    using type   = non_native_vector_base<f8_ocp_t, 1>;
+
+    data_v d; // storage vector
+
+    __host__ __device__ non_native_vector_base() = default;
+    __host__ __device__ non_native_vector_base(data_t a) : d{a} {}
+    __host__ __device__ non_native_vector_base(f8_ocp_t f) : non_native_vector_base(f.data) {}
+    __host__ __device__ non_native_vector_base(data_v v) : d{v} {}
+
+    __host__ __device__ operator data_v() const { return d; }
+    __host__ __device__ operator data_t() const { return d[0]; }
+    __host__ __device__ operator f8_ocp_t() const { return f8_ocp_t{d[0]}; }
 };
 
 template <>
@@ -411,6 +431,10 @@ struct non_native_vector_base<f8_ocp_t, 2>
 
     __host__ __device__ non_native_vector_base() = default;
     __host__ __device__ non_native_vector_base(data_t a) : d{a} {}
+    __host__ __device__ non_native_vector_base(f8_ocp_t f) : non_native_vector_base(f.data) {}
+    __host__ __device__ non_native_vector_base(data_v v) : d{v} {}
+
+    __host__ __device__ operator data_v() const { return d; }
 
     using float2_t = fp8_impl::float2_t;
 
@@ -443,6 +467,24 @@ struct non_native_vector_base<bf8_ocp_t, N>
     __host__ __device__ non_native_vector_base(data_v v) : d{v} {}
 
     __host__ __device__ operator data_v() const { return d; }
+};
+
+template <>
+struct non_native_vector_base<bf8_ocp_t, 1>
+{
+    using data_t = bf8_ocp_t::data_type;
+    using data_v = data_t __attribute__((ext_vector_type(sizeof(data_t))));
+    using type   = non_native_vector_base<bf8_ocp_t, 1>;
+
+    data_v d; // storage vector
+
+    __host__ __device__ non_native_vector_base() = default;
+    __host__ __device__ non_native_vector_base(data_t a) : d{a} {}
+    __host__ __device__ non_native_vector_base(bf8_ocp_t f) : non_native_vector_base(f.data) {}
+    __host__ __device__ non_native_vector_base(data_v v) : d{v} {}
+
+    __host__ __device__ operator data_v() const { return d; }
+    __host__ __device__ operator data_t() const { return d[0]; }
 };
 
 namespace fp8_impl {
