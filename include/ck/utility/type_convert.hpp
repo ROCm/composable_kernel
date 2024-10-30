@@ -521,7 +521,7 @@ inline __host__ __device__ f4_t f4_convert_rne(float x)
     //     val.fval = __builtin_amdgcn_fmed3f(val.fval, max_fp8, -max_fp8);
     // ival       = __builtin_amdgcn_cvt_pk_fp8_f32(val.fval, val.fval, ival, false); // false ->
     // WORD0 val.i32val = ival; return val.i8val[0];
-#else rng);
+#else
     return utils::sat_convert_to_type<f4_t>(x);
 #endif
 }
