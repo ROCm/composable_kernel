@@ -41,7 +41,7 @@ template <typename BlockTile_,    // block size, seq<M, N>
           typename WarpTile_,     // warp size, seq<M, N>
           typename Vector_,       // contiguous pixels(vector size) along seq<M, N>
           index_t BlockSize_ =
-              warpSize * reduce_on_sequence(WarpPerBlock_{}, multiplies{}, number<1>{})>
+              warpSize* reduce_on_sequence(WarpPerBlock_{}, multiplies{}, number<1>{})>
 struct SmoothquantShape
 {
     // block size

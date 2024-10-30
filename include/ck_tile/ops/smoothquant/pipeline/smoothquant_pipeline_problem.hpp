@@ -28,8 +28,8 @@ struct SmoothquantPipelineProblem
     static constexpr bool kNeedCrossLaneSync = BlockShape::ThreadPerWarp_N > 1;
     static constexpr bool kNeedCrossWarpSync = BlockShape::WarpPerBlock_N > 1;
 
-    static constexpr bool kPadN       = kPadN_;
-    static constexpr bool kTwoPass    = kTwoPass_;
+    static constexpr bool kPadN    = kPadN_;
+    static constexpr bool kTwoPass = kTwoPass_;
 };
 
 } // namespace ck_tile
