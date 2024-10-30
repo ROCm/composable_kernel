@@ -109,7 +109,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                               stride};
 
     float ave_time = layernorm2d_fwd(
-        traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
+        traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat, true, true, 1024 * 1024 * 1024});
 
     std::size_t num_byte = sizeof(XDataType) * m * n + sizeof(GammaDataType) * n +
                            sizeof(BetaDataType) * n + sizeof(YDataType) * m * n;
