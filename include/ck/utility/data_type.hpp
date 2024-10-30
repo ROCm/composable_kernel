@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -1229,6 +1229,7 @@ struct NumericUtils<float>
     static constexpr uint32_t NegInf    = 0xFF800000;
     static constexpr uint32_t NaN       = 0x7F800001;
     static constexpr uint32_t Neg0      = 0x80000000;
+    static constexpr bool has_inf       = true;
     using bitwise_type                  = uint32_t;
 };
 
@@ -1246,6 +1247,7 @@ struct NumericUtils<half_t>
     static constexpr uint32_t NegInf    = 0xFC00;
     static constexpr uint32_t NaN       = 0x7C01;
     static constexpr uint32_t Neg0      = 0x8000;
+    static constexpr bool has_inf       = true;
     using bitwise_type                  = uint16_t;
 };
 
@@ -1256,6 +1258,7 @@ struct NumericUtils<f8_t>
     static constexpr int mant = 3;
     static constexpr int bias = 8; // negative zero nan mode
     // static constexpr int bias = 7; // ieee mode
+    static constexpr bool has_inf = false;
 };
 
 template <>
@@ -1265,14 +1268,15 @@ struct NumericUtils<bf8_t>
     static constexpr int mant = 2;
     static constexpr int bias = 16; // negative zero nan mode
     // static constexpr int bias = 15; // ieee mode
+    static constexpr bool has_inf = false;
 };
 
 template <>
 struct NumericUtils<f4_t>
 {
-    static constexpr int exp       = 2;
-    static constexpr int mant      = 1;
-    static constexpr int bias      = 1;
+    static constexpr int exp           = 2;
+    static constexpr int mant          = 1;
+    static constexpr int bias          = 1;
     static constexpr uint32_t sr_shift = 10;
 
     static constexpr int unbiased_exp_min = 0;
@@ -1291,6 +1295,8 @@ struct NumericUtils<f4_t>
 
     static constexpr uint8_t data_max_positive_subnormal_mask = 0b0001;
     static constexpr uint8_t data_max_negative_subnormal_mask = 0b1001;
+
+    static constexpr bool has_inf = false;
 
     using bitwise_type = uint8_t;
 };

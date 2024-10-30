@@ -59,10 +59,16 @@ __host__ __device__ inline double get_mantissa_value(T x)
 }
 
 template <typename T>
+__host__ __device__ inline bool get_data_has_inf()
+{
+    return NumericUtils<T>::has_inf;
+}
+
+template <typename T>
 __host__ __device__ float convert_to_float(T data, int scale_exp)
 {
     float d_sign =
-        std::pow(-1, static_cast<float>(data >> (NumericUtils<T>::exp + NumericUtils<t>::mant)));
+        std::pow(-1, static_cast<float>(data >> (NumericUtils<T>::exp + NumericUtils<T>::mant)));
 
     float d_exp;
     if(is_subnormal<T>(data))
@@ -90,7 +96,7 @@ __host__ __device__ T sat_convert_to_type_sr(float value, uint32_t seed);
 template <typename T>
 inline T convert_to_type(float value)
 {
-    using bitwise_type = NumericUtils<T>::bitwise_type;
+    using bitwise_type = typename NumericUtils<T>::bitwise_type;
 
     if(std::abs(value) > NumericLimits<T>::Max())
     {
@@ -197,9 +203,9 @@ inline T convert_to_type(float value)
     shift_amount      = (shift_amount >= 64) ? 63 : shift_amount;
     bool midpoint     = (mantissa & ((1UL << shift_amount) - 1)) == (1UL << (shift_amount - 1));
 
-    float min_subnorm = NumericLimits<T> DataMinSubnorm() * (sign ? -1 : 1);
+    float min_subnorm = NumericLimits<T>::DataMinSubnorm() * (sign ? -1 : 1);
 
-    if(isSubNorm && std::abs(value) < std::abs(min_subnorm))
+    if(is_subnorm && std::abs(value) < std::abs(min_subnorm))
     {
         // closer to 0
         if(std::abs(value) <= std::abs(min_subnorm - value))
@@ -250,7 +256,7 @@ inline T convert_to_type(float value)
 template <typename T>
 inline T convert_to_type_sr(float value, uint32_t seed)
 {
-    using bitwise_type = NumericUtils<T>::bitwise_type;
+    // using bitwise_type = typename NumericUtils<T>::bitwise_type;
 
     if(std::abs(value) > NumericLimits<T>::Max())
     {
@@ -295,9 +301,8 @@ inline T convert_to_type_sr(float value, uint32_t seed)
 
             if(!get_data_has_inf<T>() || d_seed <= thresh)
                 // return static_cast<T>(satConvertToType(getDataMax<DTYPE>())); //round down time
-                return sign == 0 ? NumericUtils<f4_t> data_max_positive_normal_mask
-                                 : NumericUtils<f4_t>
-                                       data_max_negative_normal_mask;
+                return sign == 0 ? NumericUtils<f4_t>::data_max_positive_normal_mask
+                                 : NumericUtils<f4_t>::data_max_negative_normal_mask;
             else
             {
                 exp++;
@@ -328,12 +333,12 @@ inline T convert_to_type_sr(float value, uint32_t seed)
     auto sign_bit = head >> (NumericUtils<float>::mant + NumericUtils<float>::exp);
     auto sign     = sign_bit << (NumericUtils<T>::exp + NumericUtils<T>::mant);
 
-    f32_exp      = (int32_t)f32exp - NumericUtils<float>::bias;
+    f32_exp      = static_cast<int32_t>(f32_exp) - NumericUtils<float>::bias;
     int32_t exp  = f32_exp;
     auto mant    = f32_mant;
     bool subnorm = false;
 
-    if(value == 0)
+    if(f32 == 0)
         return 0b0;
 
     if(exp >= NumericUtils<T>::unbiased_exp_min)
@@ -345,7 +350,7 @@ inline T convert_to_type_sr(float value, uint32_t seed)
             NumericUtils<T>::exp < NumericUtils<float>::exp)
     {
         subnorm   = true;
-        auto diff = (uint32_t)(NumericUtils<T>::unbiased_exp_min - exp);
+        auto diff = static_cast<uint32_t>(NumericUtils<T>::unbiased_exp_min - exp);
         if(diff >= 32)
         {
             mant     = 0;
@@ -353,7 +358,7 @@ inline T convert_to_type_sr(float value, uint32_t seed)
         }
         else
         {
-            f32_mant |= (uint32_t)1 << NumericUtils<float>::mant;
+            f32_mant |= static_cast<uint32_t>(1) << NumericUtils<float>::mant;
             f32_mant >>= diff;
         }
         exp  = 0;
@@ -367,14 +372,14 @@ inline T convert_to_type_sr(float value, uint32_t seed)
     mant += seed >> sr_shift;
 
     // Increment exponent when mantissa overflows due to rounding
-    if(mant >= (uint32_t)1 << NumericUtils<float>::mant)
+    if(mant >= static_cast<uint32_t>(1) << NumericUtils<float>::mant)
         ++exp;
     mant >>= (NumericUtils<float>::mant - NumericUtils<T>::mant);
     mant &= ((1 << NumericUtils<T>::mant) - 1);
 
-    auto biased_exp = (uint32_t)exp;
+    auto biased_exp = static_cast<uint32_t>(exp);
     if(!subnorm)
-        biased_exp = (uint32_t)(exp + NumericUtils<T>::bias);
+        biased_exp = static_cast<uint32_t>(exp + NumericUtils<T>::bias);
     biased_exp &= ((1 << NumericUtils<T>::exp) - 1);
     auto val = sign | biased_exp << NumericUtils<T>::mant | mant;
     return val;

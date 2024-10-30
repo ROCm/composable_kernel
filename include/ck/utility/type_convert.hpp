@@ -5,6 +5,7 @@
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/f8_utils.hpp"
+#include "ck/utility/mxf4_utils.hpp"
 #include "ck/utility/random_gen.hpp"
 #include "ck/utility/array.hpp"
 
@@ -498,6 +499,56 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_t>(bf8_t x)
 #else
     constexpr bool negative_zero_nan = true;
     return utils::cast_from_f8<bf8_t, half_t, negative_zero_nan>(x);
+#endif
+}
+
+// convert fp32 to fp4 with rounding to nearest even
+inline __host__ __device__ f4_t f4_convert_rne(float x)
+{
+#if defined(__gfx94__)
+    // union
+    // {
+    //     float fval;
+    //     uint32_t i32val;
+    //     uint8_t i8val[4]; // not endian independent
+    // } val;
+    // val.fval            = x;
+    // uint32_t ival       = 0;
+    // const float max_fp8 = 240.0f;
+    // // if x is not +/- infinity or nan
+    // if((val.i32val & NumericUtils<float>::nan_mask) != NumericUtils<float>::Inf)
+    //     // clip float value
+    //     val.fval = __builtin_amdgcn_fmed3f(val.fval, max_fp8, -max_fp8);
+    // ival       = __builtin_amdgcn_cvt_pk_fp8_f32(val.fval, val.fval, ival, false); // false ->
+    // WORD0 val.i32val = ival; return val.i8val[0];
+#else rng);
+    return utils::sat_convert_to_type<f4_t>(x);
+#endif
+}
+
+// convert fp32 to fp4
+template <>
+inline __host__ __device__ f4_t type_convert<f4_t, float>(float x)
+{
+#if CK_USE_SR_F8_CONVERSION
+    return f4_convert_sr(x);
+#else
+    return f4_convert_rne(x);
+#endif
+}
+
+// convert fp4 to fp32
+template <>
+inline __host__ __device__ float type_convert<float, f4_t>(f4_t data)
+{
+#if defined(__gfx94__)
+    // float fval;
+    // uint32_t i32val = static_cast<uint32_t>(x);
+    // fval            = __builtin_amdgcn_cvt_f32_fp8(i32val, 0);
+    // // asm volatile("v_cvt_f32_fp8 %0, %1 src0_sel:BYTE_0" : "=v"(fval) : "v"(i32val));
+    // return fval;
+#else
+    return utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(), data);
 #endif
 }
 
