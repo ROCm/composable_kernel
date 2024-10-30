@@ -6,7 +6,7 @@
 #include "ck_tile/core.hpp"
 #include <tuple>
 
-// This file is deprecated, please use block_reduce2d.hpp
+// This file is not support cross warp reduce
 namespace ck_tile {
 
 /*
@@ -15,7 +15,7 @@ namespace ck_tile {
  */
 // synchronize reduce result (cross lane reduction and broadcast on replicated dimension)
 template <typename AccDistributedTensor_, typename ReduceFunc, bool WithBroadcast = true>
-[[deprecated]] CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
+CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
                                                           const ReduceFunc& reduce_func,
                                                           bool_constant<WithBroadcast> = {})
 {
@@ -115,7 +115,7 @@ template <typename AccDistributedTensor_, typename ReduceFunc, bool WithBroadcas
  * TODO: the limitation is to-be-reduced P dim can only mapping to one R dim?
  */
 template <typename AccDistributedTensor_, typename ReduceFunc>
-[[deprecated]] CK_TILE_DEVICE void block_tile_reduce_xor_sync(AccDistributedTensor_& acc_tensor,
+CK_TILE_DEVICE void block_tile_reduce_xor_sync(AccDistributedTensor_& acc_tensor,
                                                               const ReduceFunc& reduce_func)
 {
     using Dstr             = typename AccDistributedTensor_::StaticTileDistribution;
@@ -174,7 +174,7 @@ template <typename AccDistributedTensor_,
           typename InDistributedTensor_,
           index_t... InReduceDims,
           typename ReduceFunc>
-[[deprecated]] CK_TILE_DEVICE void block_tile_reduce(AccDistributedTensor_& acc_tensor,
+CK_TILE_DEVICE void block_tile_reduce(AccDistributedTensor_& acc_tensor,
                                                      const InDistributedTensor_& in_tensor,
                                                      sequence<InReduceDims...>,
                                                      const ReduceFunc& reduce_func)
@@ -249,7 +249,7 @@ template <typename AccDataType_,
           index_t... InReduceDims,
           typename ReduceFunc,
           typename InDataType_>
-[[deprecated]] CK_TILE_DEVICE auto block_tile_reduce(const InDistributedTensor_& in_tensor,
+CK_TILE_DEVICE auto block_tile_reduce(const InDistributedTensor_& in_tensor,
                                                      sequence<InReduceDims...> in_reduce_dims,
                                                      const ReduceFunc& reduce_func,
                                                      const InDataType_& reduce_init)
@@ -282,7 +282,7 @@ template <typename AccDataType_,
 // this version will call thread/warp+sync in one function call
 //
 template <typename InDistributedTensor_>
-struct [[deprecated]] BlockReduce2D
+struct BlockReduce2D
 {
     using InDistributedTensor = remove_cvref_t<InDistributedTensor_>;
     using InDataType          = typename InDistributedTensor::DataType;
