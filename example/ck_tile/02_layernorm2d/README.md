@@ -14,10 +14,12 @@ In training case the mean/variance need to store out (TBD, not supported yet)
 
 ![](misc/pnorm.png)
 
-since [prenorm/postnorm](https://arxiv.org/pdf/1906.01787) is quite common in LLM blocks, this example boosts this feature by kernel fusion. Note that `prenorm`/`postnorm` always need to do elementwise-add a `shortcut` before the actual layernorm computation, and optionally store out the result to global. You can use `-fadd=1` to test `pre-add+store`, or `-fadd=2` to test `pre-add` without store out.
+since [prenorm/postnorm](https://arxiv.org/pdf/1906.01787) is quite common in LLM blocks, this example boosts this feature by kernel fusion. Note that `prenorm`/`postnorm` always need to do elementwise-add a `shortcut` before the actual layernorm computation, and optionally store out the result to global. You can use `-fadd=1` to test `pre-add+store`, or `-fadd=2` to test `pre-add` without store out (not generated enabled by default).
 
 ## dynamic quantization
-we support dynamic quantization for `int8` output, by setting `-fsweep=1` and `-prec_o=int8`. In this case the output will doing a rowwise dynamic quantization like below:
+we support dynamic quantization for `int8` output, by setting `-fquant=1` and `-prec_o=int8`. In this case the output will doing a rowwise dynamic quantization like below:
+![](misc/dquant.png)
+
 ```
 # assume output int8, hidden_states is [m, n] shape and in fp16/bf16
 # [m, 1]
@@ -57,9 +59,27 @@ args:
       -kname    print kernel name or not (default:1)
      -prec_i    input precision (default:fp16)
      -prec_o    output precision, set auto will be the same as input (default:auto)
-     -prec_s    output quant scale type, set auto will be the same as input. used when fsweep=1 (default:auto)
+    -prec_sx    output quant scale type, set auto will be the same as input. used when fquant=1 (default:auto)
+    -prec_sy    output quant scale type, set auto will be the same as input. used when fquant=1 or 2 (default:auto)
        -fadd    fused-add, 0:no fused add, 1:preadd+store, 2:preadd only (default:0)
-     -fsweep    fused-sweep, 0:no, 1:fused-dynamic-quant (default:0)
+     -fquant    fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant (default:0)
      -warmup    cold iter (default:5)
      -repeat    hot iter (default:20)
+
+```
+
+## limitations
+Note that `fquant=2`, `fadd=2`, `prec_sx/prec_sy` other than `fp32` are not by default generated. though our kernel template suppor this. (TBD: add some flag in generate.py) to generate thoes instance on demand. Beside, N>8192 case will by default using two-pass pipeline, and `-fquant=1/2` are not supported yet.
+
+```
+# some case
+# standard fp16 layernorm 2d, m=10. n=1024
+./build/bin/tile_example_layernorm2d_fwd  -m=10 -n=1024
+
+# standard fp16 layernorm 2d, m=10. n=1024, fused-smooth-quant, output in int8
+./build/bin/tile_example_layernorm2d_fwd  -m=10 -n=1024 -prec_o=int8 -fquant=1
+
+# standard fp16 layernorm 2d, m=10. n=1024, fused-smooth-quant+fused-add-store, output in int8
+./build/bin/tile_example_layernorm2d_fwd  -m=10 -n=1024 -prec_o=int8 -fquant=1 -fadd=1
+
 ```

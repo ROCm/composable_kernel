@@ -14,6 +14,7 @@ template <typename XDataType_,
           typename YDataType_,
           typename MeanDataType_,
           typename InvStdDataType_,
+          typename XScaleDataType_,
           typename YScaleDataType_,
           typename BlockShape_,
           typename Traits_>
@@ -26,6 +27,7 @@ struct Layernorm2dFwdPipelineProblem
     using YDataType       = remove_cvref_t<YDataType_>;
     using MeanDataType    = remove_cvref_t<MeanDataType_>;
     using InvStdDataType  = remove_cvref_t<InvStdDataType_>;
+    using XScaleDataType  = remove_cvref_t<XScaleDataType_>;
     using YScaleDataType  = remove_cvref_t<YScaleDataType_>;
     using BlockShape      = remove_cvref_t<BlockShape_>;
 

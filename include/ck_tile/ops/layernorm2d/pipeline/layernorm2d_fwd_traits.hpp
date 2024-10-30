@@ -17,36 +17,38 @@ enum class Layernorm2dFusedAddEnum
 };
 
 // clang-format off
-template<Layernorm2dFusedAddEnum E> struct Layernorm2dFusedAddEnumName;
+template<Layernorm2dFusedAddEnum> struct Layernorm2dFusedAddEnumName;
 template<> struct Layernorm2dFusedAddEnumName<Layernorm2dFusedAddEnum::NO_ADD> { static constexpr const char * name = "no"; };
 template<> struct Layernorm2dFusedAddEnumName<Layernorm2dFusedAddEnum::PRE_ADD_STORE> { static constexpr const char * name = "pras"; };
 template<> struct Layernorm2dFusedAddEnumName<Layernorm2dFusedAddEnum::PRE_ADD> { static constexpr const char * name = "pra"; };
 // clang-format on
 
-enum class Layernorm2dFusedSweepEnum
+enum class Layernorm2dFusedQuantEnum
 {
-    NO_SWEEP      = 0,
-    DYNAMIC_QUANT = 1,
+    NO_SWEEP             = 0,
+    SMOOTH_DYNAMIC_QUANT = 1, // smooth oulier + rowwise quant, need input x-scale and store y_scale
+    DYNAMIC_QUANT        = 2, // rowwise quant, store out a y-scale
 };
 
 // clang-format off
-template<Layernorm2dFusedSweepEnum E> struct Layernorm2dFusedSweepEnumName;
-template<> struct Layernorm2dFusedSweepEnumName<Layernorm2dFusedSweepEnum::NO_SWEEP> { static constexpr const char * name = "no"; };
-template<> struct Layernorm2dFusedSweepEnumName<Layernorm2dFusedSweepEnum::DYNAMIC_QUANT> { static constexpr const char * name = "dquant"; };
+template<Layernorm2dFusedQuantEnum> struct Layernorm2dFusedQuantEnumName;
+template<> struct Layernorm2dFusedQuantEnumName<Layernorm2dFusedQuantEnum::NO_SWEEP> { static constexpr const char * name = "no"; };
+template<> struct Layernorm2dFusedQuantEnumName<Layernorm2dFusedQuantEnum::DYNAMIC_QUANT> { static constexpr const char * name = "dqt"; };
+template<> struct Layernorm2dFusedQuantEnumName<Layernorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT> { static constexpr const char * name = "smdqt"; };
 // clang-format on
 
 template <bool kPadN_,
           bool kSaveMeanInvStd_,
           bool kTwoPass_,
           Layernorm2dFusedAddEnum kFusedAdd_,
-          Layernorm2dFusedSweepEnum kFusedSweep_>
+          Layernorm2dFusedQuantEnum kFusedQuant_>
 struct Layernorm2dFwdTraits
 {
     static constexpr bool kPadN                            = kPadN_;
     static constexpr bool kSaveMeanInvStd                  = kSaveMeanInvStd_;
     static constexpr bool kTwoPass                         = kTwoPass_;
     static constexpr Layernorm2dFusedAddEnum kFusedAdd     = kFusedAdd_;
-    static constexpr Layernorm2dFusedSweepEnum kFusedSweep = kFusedSweep_;
+    static constexpr Layernorm2dFusedQuantEnum kFusedQuant = kFusedQuant_;
 };
 
 } // namespace ck_tile

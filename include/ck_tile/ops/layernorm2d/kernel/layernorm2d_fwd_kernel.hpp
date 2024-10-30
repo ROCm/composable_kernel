@@ -12,13 +12,14 @@ namespace ck_tile {
 // host side args
 struct Layernorm2dFwdHostArgs
 {
-    const void* p_x;  // input
-    const void* p_sx; // shortcut input, set to nullptr if no
+    const void* p_x;          // input
+    const void* p_x_residual; // shortcut input, set to nullptr if no
     const void* p_gamma;
     const void* p_beta;
+    const void* p_x_scale; // smooth scale, set to nullptr
 
-    void* p_y;  // output
-    void* p_sy; // shortcut output, set to nullptr if no
+    void* p_y;          // output
+    void* p_y_residual; // shortcut output, set to nullptr if no
     void* p_mean;
     void* p_invStd;
     void* p_y_scale; // store out a dynamic quant per row, used by next layer. nullptr if not used
@@ -45,11 +46,12 @@ struct Layernorm2dFwd
     using YDataType       = remove_cvref_t<typename Problem::YDataType>;
     using MeanDataType    = remove_cvref_t<typename Problem::MeanDataType>;
     using InvStdDataType  = remove_cvref_t<typename Problem::InvStdDataType>;
+    using XScaleDataType  = remove_cvref_t<typename Problem::XScaleDataType>;
     using YScaleDataType  = remove_cvref_t<typename Problem::YScaleDataType>;
 
     // for simplicity, shortcut input/output type is same as X
-    using SXDataType = XDataType;
-    using SYDataType = XDataType;
+    using XResidualDataType = XDataType;
+    using YResidualDataType = XDataType;
 
     static constexpr bool kHasGamma       = !std::is_same_v<GammaDataType, null_type>;
     static constexpr bool kHasBeta        = !std::is_same_v<BetaDataType, null_type>;
@@ -63,7 +65,7 @@ struct Layernorm2dFwd
     static constexpr bool kPadN       = Problem::Traits::kPadN;
     static constexpr bool kTwoPass    = Problem::Traits::kTwoPass;
     static constexpr auto kFusedAdd   = Problem::Traits::kFusedAdd;
-    static constexpr auto kFusedSweep = Problem::Traits::kFusedSweep;
+    static constexpr auto kFusedQuant = Problem::Traits::kFusedQuant;
 
     static constexpr index_t ThreadPerWarp_N = Problem::BlockShape::ThreadPerWarp_N;
     static constexpr index_t Vector_N        = Problem::BlockShape::Vector_N;
@@ -74,13 +76,14 @@ struct Layernorm2dFwd
 
     struct Kargs
     {
-        const void* p_x;  // input
-        const void* p_sx; // shortcut input, set to nullptr if no
+        const void* p_x;          // input
+        const void* p_x_residual; // shortcut input, set to nullptr if no
         const void* p_gamma;
         const void* p_beta;
+        const void* p_x_scale; // smooth scale, set to nullptr if not used
 
-        void* p_y;  // output
-        void* p_sy; // shortcut output, set to nullptr if no
+        void* p_y;          // output
+        void* p_y_residual; // shortcut output, set to nullptr if no
         void* p_mean;
         void* p_invStd;
         void* p_y_scale; // store out a dynamic quant value, used in next layer
@@ -96,11 +99,12 @@ struct Layernorm2dFwd
     CK_TILE_HOST static constexpr Kargs MakeKargs(const Hargs& hargs)
     {
         return Kargs{hargs.p_x,
-                     hargs.p_sx,
+                     hargs.p_x_residual,
                      hargs.p_gamma,
                      hargs.p_beta,
+                     hargs.p_x_scale,
                      hargs.p_y,
-                     hargs.p_sy,
+                     hargs.p_y_residual,
                      hargs.p_mean,
                      hargs.p_invStd,
                      hargs.p_y_scale,
@@ -139,10 +143,10 @@ struct Layernorm2dFwd
         auto surfix = [&] () {
             std::string n;
             if (kFusedAdd != Layernorm2dFusedAddEnum::NO_ADD) n += _SS_("_") + Layernorm2dFusedAddEnumName<kFusedAdd>::name;
-            if (kFusedSweep != Layernorm2dFusedSweepEnum::NO_SWEEP) n += _SS_("_") + Layernorm2dFusedSweepEnumName<kFusedSweep>::name;
+            if (kFusedQuant != Layernorm2dFusedQuantEnum::NO_SWEEP) n += _SS_("_") + Layernorm2dFusedQuantEnumName<kFusedQuant>::name;
             if (kPadN) n += "_pn";
             if (kSaveMeanInvStd) n += "_mv";
-            if (kTwoPass) n += "_2p";
+            // if (kTwoPass) n += "_2p";
             return n; }();
 
         auto prec_str = [&] () {
@@ -150,8 +154,12 @@ struct Layernorm2dFwd
             if (!std::is_same_v<XDataType, YDataType>) {
                 base_str += _SS_("_") + _SS_(t2s<YDataType>::name);
             }
-            if (kFusedSweep == Layernorm2dFusedSweepEnum::DYNAMIC_QUANT) {
-                base_str += _SS_("_s") + _SS_(t2s<YScaleDataType>::name);
+            if (kFusedQuant == Layernorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT) {
+                base_str += _SS_("_sx") + _SS_(t2s<XScaleDataType>::name);
+                base_str += _SS_("_sy") + _SS_(t2s<YScaleDataType>::name);
+            }
+            if (kFusedQuant == Layernorm2dFusedQuantEnum::DYNAMIC_QUANT) {
+                base_str += _SS_("_sy") + _SS_(t2s<YScaleDataType>::name);
             }
             return base_str;
         }();
@@ -185,12 +193,12 @@ struct Layernorm2dFwd
                 tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
         }();
 
-        const auto sx_window = [&]() {
+        const auto x_residual_window = [&]() {
             if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE ||
                          kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD)
             {
                 const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                    static_cast<const SXDataType*>(kargs.p_sx),
+                    static_cast<const XResidualDataType*>(kargs.p_x_residual),
                     make_tuple(kargs.m, kargs.n),
                     make_tuple(kargs.stride, 1),
                     number<Vector_N>{},
@@ -251,11 +259,11 @@ struct Layernorm2dFwd
                 tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
         }();
 
-        auto sy_window = [&]() {
+        auto y_residual_window = [&]() {
             if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE)
             {
                 auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                    static_cast<SYDataType*>(kargs.p_sy),
+                    static_cast<YResidualDataType*>(kargs.p_y_residual),
                     make_tuple(kargs.m, kargs.n),
                     make_tuple(kargs.stride, 1),
                     number<Vector_N>{},
@@ -311,8 +319,28 @@ struct Layernorm2dFwd
                 return make_null_tile_window(make_tuple(number<Block_M>{}));
         }();
 
+        auto x_scale_window = [&]() {
+            if constexpr(kFusedQuant == Layernorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
+            {
+                const auto win_ = [&]() {
+                    const auto tmp_0_ = make_naive_tensor_view_packed<address_space_enum::global>(
+                        static_cast<const XScaleDataType*>(kargs.p_x_scale),
+                        make_tuple(kargs.n),
+                        number<Vector_N>{});
+
+                    return pad_tensor_view(tmp_0_,
+                                           make_tuple(number<Block_N>{}),
+                                           sequence<false>{}); // x_scale no need pad
+                }();
+                return make_tile_window(win_, make_tuple(number<Block_N>{}), {0});
+            }
+            else
+                return make_null_tile_window(make_tuple(number<Block_N>{}));
+        }();
+
         auto y_scale_window = [&]() {
-            if constexpr(kFusedSweep == Layernorm2dFusedSweepEnum::DYNAMIC_QUANT)
+            if constexpr(kFusedQuant == Layernorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT ||
+                         kFusedQuant == Layernorm2dFusedQuantEnum::DYNAMIC_QUANT)
             {
                 const auto win_ = [&]() {
                     const auto tmp_0_ = make_naive_tensor_view_packed<address_space_enum::global>(
@@ -332,13 +360,14 @@ struct Layernorm2dFwd
         __shared__ char smem[GetSmemSize()];
 
         Pipeline{}(x_window,
-                   sx_window,
+                   x_residual_window,
                    gamma_window,
                    beta_window,
                    y_window,
-                   sy_window,
+                   y_residual_window,
                    mean_window,
                    inv_std_window,
+                   x_scale_window,
                    y_scale_window,
                    static_cast<const ComputeDataType>(kargs.epsilon),
                    kargs.n,

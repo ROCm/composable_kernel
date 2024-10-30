@@ -25,8 +25,8 @@ struct Layernorm2dFwdPipelineOnePass
     using MeanDataType    = ck_tile::remove_cvref_t<typename Problem::MeanDataType>;
     using InvStdDataType  = ck_tile::remove_cvref_t<typename Problem::InvStdDataType>;
 
-    using SXDataType = XDataType;
-    using SYDataType = XDataType;
+    using XResidualDataType = XDataType;
+    using YResidualDataType = XDataType;
 
     static constexpr bool kHasGamma   = !std::is_same_v<GammaDataType, ck_tile::null_type>;
     static constexpr bool kHasBeta    = !std::is_same_v<BetaDataType, ck_tile::null_type>;
@@ -37,13 +37,13 @@ struct Layernorm2dFwdPipelineOnePass
     static constexpr bool kPadM              = false; // TODO - BlockLayernorm2dFwdProblem::kPadM
     static constexpr bool kPadN              = Problem::Traits::kPadN;
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
-    static constexpr auto kFusedSweep        = Problem::Traits::kFusedSweep;
+    static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
     static constexpr const char* name = []() {
         if constexpr(kNeedCrossWarpSync)
-            return "bpr_op"; // block per row
+            return "bpr"; // block per row
         else
-            return "wpr_op"; // warp per row
+            return "wpr"; // warp per row
     }();
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -52,23 +52,25 @@ struct Layernorm2dFwdPipelineOnePass
     }
 
     template <typename XWindow,
-              typename SXWindow,
+              typename XResidualWindow,
               typename GammaWindow,
               typename BetaWindow,
               typename YWindow,
-              typename SYWindow,
+              typename YResidualWindow,
               typename MeanWindow,
               typename InvStdWindow,
+              typename XScaleWindow,
               typename YScaleWindow,
               typename Epilogue>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
-                                   const SXWindow& sx_window_,
+                                   const XResidualWindow& x_residual_window_,
                                    const GammaWindow& gamma_window_,
                                    const BetaWindow& beta_window_,
                                    YWindow& y_window_,
-                                   const SYWindow& sy_window_,
+                                   const YResidualWindow& y_residual_window_,
                                    MeanWindow& mean_window,
                                    InvStdWindow& inv_std_window,
+                                   const XScaleWindow& x_scale_window_,
                                    YScaleWindow& y_scale_window,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
@@ -81,13 +83,16 @@ struct Layernorm2dFwdPipelineOnePass
             gamma_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
         const auto beta_window = make_tile_window(
             beta_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
-        const auto sx_window =
-            make_tile_window(sx_window_, Policy::template MakeXBlockTileDistribution<Problem>());
-        auto sy_window =
-            make_tile_window(sy_window_, Policy::template MakeXBlockTileDistribution<Problem>());
+        const auto x_residual_window = make_tile_window(
+            x_residual_window_, Policy::template MakeXBlockTileDistribution<Problem>());
+        auto y_residual_window = make_tile_window(
+            y_residual_window_, Policy::template MakeXBlockTileDistribution<Problem>());
+        const auto x_scale_window = make_tile_window(
+            x_scale_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
 
-        auto x  = load_tile(x_window);
-        auto sx = load_tile(sx_window);
+        auto x       = load_tile(x_window);
+        auto x_resi  = load_tile(x_residual_window);
+        auto x_scale = load_tile(x_scale_window);
 
         int cur_count = 0;
         int max_count =
@@ -104,12 +109,13 @@ struct Layernorm2dFwdPipelineOnePass
         if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE ||
                      kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD)
         {
-            sweep_tile(sx, [&](auto idx) {
-                // compute x = sx + x
-                x(idx) = type_convert<SYDataType>(sx(idx)) + type_convert<SYDataType>(x(idx));
+            sweep_tile(x_resi, [&](auto idx) {
+                // compute x = x_resi + x
+                x(idx) = type_convert<YResidualDataType>(x_resi(idx)) +
+                         type_convert<YResidualDataType>(x(idx));
             });
             if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE)
-                store_tile(sy_window, x);
+                store_tile(y_residual_window, x);
         }
 
         // compute welford each-thread->cross-lane->cross-warp
@@ -145,7 +151,18 @@ struct Layernorm2dFwdPipelineOnePass
             ln(idx) = ln_;
         });
 
-        if constexpr(kFusedSweep == Layernorm2dFusedSweepEnum::DYNAMIC_QUANT)
+        if constexpr(kFusedQuant == Layernorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
+        {
+            // smooth-quant pre-scale, then run rowwise-quant
+            sweep_tile(ln, [&](auto idx) {
+                constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+                const auto xs_       = type_convert<ComputeDataType>(x_scale[j_idx]);
+                ln(idx)              = ln(idx) * xs_;
+            });
+        }
+
+        if constexpr(kFusedQuant == Layernorm2dFusedQuantEnum::DYNAMIC_QUANT ||
+                     kFusedQuant == Layernorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
         {
             Epilogue{}(y_window_, y_scale_window, ln, smem);
         }
