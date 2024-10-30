@@ -63,7 +63,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using XDataType       = DataType;
     using XScaleDataType  = float;
-    using YScaleDataType  = DataType;
+    using YScaleDataType  = float;
     using QYDataType      = ck_tile::int8_t;
     using ComputeDataType = float;
 
@@ -88,7 +88,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf.ToDevice(x_host.data());
     xscale_buf.ToDevice(xscale_host.data());
 
-    constexpr bool kTwoPass = false;
+    constexpr bool kTwoPass = true;
 
     using BlockWarps = ck_tile::sequence<2, 2>;
     using BlockTile  = ck_tile::sequence<2, 128>;
@@ -123,7 +123,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const dim3 grids                       = Kernel::GridSize(args);
     constexpr dim3 blocks                  = Kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = 1;
-    auto s = ck_tile::stream_config{nullptr, true, 0, warmup, repeat};
+    auto s = ck_tile::stream_config{nullptr, true, 1, warmup, repeat};
 
     ck_tile::launch_kernel(
         s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
@@ -228,10 +228,10 @@ int main(int argc, char* argv[])
     {
         return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
     }
-    else if(data_type == "bf16")
+    /*else if(data_type == "bf16")
     {
         return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
-    }
+    }*/
 
     return -3;
 }
