@@ -1,7 +1,5 @@
 #include "ck_tile/host.hpp"
-#include "ck_tile/core.hpp"
-#include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/smoothquant.hpp"
+#include "smoothquant.hpp"
 #include <cstring>
 
 // different threshold for different dtype
@@ -38,6 +36,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
         .insert("e", "1e-5", "epsilon")
         .insert("v", "1", "cpu validation or not")
+        .insert("kname", "1", "print kernel name or not")
         .insert("prec", "fp16", "precision")
         .insert("warmup", "0", "cold iter")
         .insert("repeat", "1", "hot iter");
@@ -55,17 +54,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(stride < 0)
         stride = n;
     std::string data_type = arg_parser.get_str("prec");
+    int kname             = arg_parser.get_int("kname");
     int do_validation     = arg_parser.get_int("v");
     int warmup            = arg_parser.get_int("warmup");
     int repeat            = arg_parser.get_int("repeat");
 
     assert(stride >= n);
 
-    using XDataType       = DataType;
-    using XScaleDataType  = float;
-    using YScaleDataType  = DataType;
-    using QYDataType      = ck_tile::int8_t;
-    using ComputeDataType = float;
+    using TypeConfig = SmoothquantTypeConfig<DataType>;
+
+    using XDataType       = typename TypeConfig::XDataType;
+    using XScaleDataType  = typename TypeConfig::XScaleDataType;
+    using YScaleDataType  = typename TypeConfig::YScaleDataType;
+    using QYDataType      = typename TypeConfig::QYDataType;
+    using ComputeDataType = typename TypeConfig::ComputeDataType;
 
     // host verify
     ck_tile::HostTensor<XDataType> x_host({m, n}, {stride, 1});
@@ -88,45 +90,27 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf.ToDevice(x_host.data());
     xscale_buf.ToDevice(xscale_host.data());
 
-    constexpr bool kTwoPass = false;
+    std::cout << "[" << data_type << "]"
+              << " m:" << m << ", n:" << n << ", stride:" << stride << std::flush;
 
-    using BlockWarps = ck_tile::sequence<2, 2>;
-    using BlockTile  = ck_tile::sequence<2, 128>;
-    using WarpTile   = ck_tile::sequence<1, 64>;
-    using Vector     = ck_tile::sequence<1, 1>;
+    smoothquant_traits traits{data_type};
 
-    using Shape   = ck_tile::SmoothquantShape<BlockTile, BlockWarps, WarpTile, Vector>;
-    using Problem = ck_tile::SmoothquantPipelineProblem<XDataType,
-                                                        XScaleDataType,
-                                                        ComputeDataType,
-                                                        YScaleDataType,
-                                                        QYDataType,
-                                                        Shape,
-                                                        true,
-                                                        kTwoPass>;
+    smoothquant_args args{x_buf.GetDeviceBuffer(),
+                          xscale_buf.GetDeviceBuffer(),
+                          yscale_buf.GetDeviceBuffer(),
+                          qy_buf.GetDeviceBuffer(),
+                          m,
+                          n,
+                          stride};
 
-    using OnePassPipeline = ck_tile::SmoothquantPipelineOnePass<Problem>;
-    using TwoPassPipeline = ck_tile::SmoothquantPipelineTwoPass<Problem>;
-    using Pipeline        = std::conditional_t<kTwoPass, TwoPassPipeline, OnePassPipeline>;
-    using Kernel          = ck_tile::Smoothquant<Pipeline>;
+    float ave_time = smoothquant(
+        traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
 
-    ck_tile::SmoothquantHostArgs args{x_buf.GetDeviceBuffer(),
-                                      xscale_buf.GetDeviceBuffer(),
-                                      yscale_buf.GetDeviceBuffer(),
-                                      qy_buf.GetDeviceBuffer(),
-                                      m,
-                                      n,
-                                      stride};
+    std::size_t num_byte = sizeof(XDataType) * m * n + sizeof(XScaleDataType) * n +
+                           sizeof(YScaleDataType) * m + sizeof(QYDataType) * m * n;
 
-    auto kargs = Kernel::MakeKargs(args);
-
-    const dim3 grids                       = Kernel::GridSize(args);
-    constexpr dim3 blocks                  = Kernel::BlockSize();
-    constexpr ck_tile::index_t kBlockPerCu = 1;
-    auto s = ck_tile::stream_config{nullptr, true, 0, warmup, repeat};
-
-    ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+    float gb_per_sec = num_byte / 1.E6 / ave_time;
+    std::cout << ", " << ave_time * 1.E3 << " us, " << gb_per_sec << " GB/s" << std::flush;
 
     bool pass = true;
 
@@ -209,9 +193,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
         }
 
-        std::cout << "[" << data_type << "]"
-                  << " m:" << m << ", n:" << n << ", stride:" << stride
-                  << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
+        std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 
     return pass;
