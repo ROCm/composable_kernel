@@ -40,8 +40,8 @@ template <typename LayoutA,
 float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadM        = false;
-    constexpr bool kPadN        = false;
+    constexpr bool kPadM = false;
+    constexpr bool kPadN = false;
 
     constexpr bool kTilePermute = false;
 

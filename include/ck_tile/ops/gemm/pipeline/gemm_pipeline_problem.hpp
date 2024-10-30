@@ -31,35 +31,51 @@ struct GemmPipelineProblem
     using LayoutB = remove_cvref_t<typename GemmTraits::LayoutB>;
     using LayoutC = remove_cvref_t<typename GemmTraits::LayoutC>;
 
-    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA() {
-        if constexpr(std::is_same_v<LayoutA, ck_tile::tensor_layout::gemm::ColumnMajor>) {
-            constexpr index_t pixels_per_thread = BlockGemmShape::kM * BlockGemmShape::kK / kBlockSize;
-            return pixels_per_thread < VECTOR_LOAD_SIZE / sizeof(ADataType) ? pixels_per_thread : VECTOR_LOAD_SIZE / sizeof(ADataType);
-        } else {
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
+    {
+        if constexpr(std::is_same_v<LayoutA, ck_tile::tensor_layout::gemm::ColumnMajor>)
+        {
+            constexpr index_t pixels_per_thread =
+                BlockGemmShape::kM * BlockGemmShape::kK / kBlockSize;
+            return pixels_per_thread < VECTOR_LOAD_SIZE / sizeof(ADataType)
+                       ? pixels_per_thread
+                       : VECTOR_LOAD_SIZE / sizeof(ADataType);
+        }
+        else
+        {
             return VECTOR_LOAD_SIZE / sizeof(ADataType);
         }
     }
-    
-    
-    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentB() {
-        if constexpr(std::is_same_v<LayoutB, ck_tile::tensor_layout::gemm::RowMajor>) {
-            constexpr index_t pixels_per_thread = BlockGemmShape::kN * BlockGemmShape::kK / kBlockSize;
-            return pixels_per_thread < VECTOR_LOAD_SIZE / sizeof(BDataType) ? pixels_per_thread : VECTOR_LOAD_SIZE / sizeof(BDataType);
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentB()
+    {
+        if constexpr(std::is_same_v<LayoutB, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            constexpr index_t pixels_per_thread =
+                BlockGemmShape::kN * BlockGemmShape::kK / kBlockSize;
+            return pixels_per_thread < VECTOR_LOAD_SIZE / sizeof(BDataType)
+                       ? pixels_per_thread
+                       : VECTOR_LOAD_SIZE / sizeof(BDataType);
         }
-        else {
-            return VECTOR_LOAD_SIZE / sizeof (BDataType);
+        else
+        {
+            return VECTOR_LOAD_SIZE / sizeof(BDataType);
         }
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentC() {
-        if constexpr(std::is_same_v<LayoutC, ck_tile::tensor_layout::gemm::ColumnMajor>) {
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentC()
+    {
+        if constexpr(std::is_same_v<LayoutC, ck_tile::tensor_layout::gemm::ColumnMajor>)
+        {
             constexpr index_t N1 = kBlockSize / get_warp_size();
             constexpr index_t N2 = min(BlockGemmShape::kN / N1, get_warp_size());
             constexpr index_t M0 = get_warp_size() / N2;
             constexpr index_t M1 = BlockGemmShape::kM / M0;
 
             return min(M1, static_cast<index_t>(VECTOR_LOAD_SIZE / sizeof(CDataType)));
-        } else {
+        }
+        else
+        {
             constexpr index_t M1 = kBlockSize / get_warp_size();
             constexpr index_t M2 = min(BlockGemmShape::kM / M1, get_warp_size());
             constexpr index_t N0 = get_warp_size() / M2;
@@ -69,24 +85,33 @@ struct GemmPipelineProblem
         }
     }
 
-    static constexpr index_t AlignmentA = [](){
-        if constexpr(std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>){
+    static constexpr index_t AlignmentA = []() {
+        if constexpr(std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>)
+        {
             return kPadK ? 1 : GetAlignmentA();
-        } else {
+        }
+        else
+        {
             return kPadM ? 1 : GetAlignmentA();
         }
     }();
-    static constexpr index_t AlignmentB = [](){
-        if constexpr(std::is_same_v<LayoutB, tensor_layout::gemm::RowMajor>){
+    static constexpr index_t AlignmentB = []() {
+        if constexpr(std::is_same_v<LayoutB, tensor_layout::gemm::RowMajor>)
+        {
             return kPadN ? 1 : GetAlignmentB();
-        } else {
+        }
+        else
+        {
             return kPadK ? 1 : GetAlignmentB();
         }
     }();
-    static constexpr index_t AlignmentC = [](){
-        if constexpr(std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>){
+    static constexpr index_t AlignmentC = []() {
+        if constexpr(std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>)
+        {
             return kPadN ? 1 : GetAlignmentC();
-        } else {
+        }
+        else
+        {
             return kPadM ? 1 : GetAlignmentC();
         }
     }();
