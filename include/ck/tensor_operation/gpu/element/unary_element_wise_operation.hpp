@@ -22,9 +22,9 @@ struct UnaryOpBase
 
     __host__ __device__ constexpr UnaryOpBase()                   = default;
     __host__ __device__ constexpr UnaryOpBase(const UnaryOpBase&) = default;
-    __host__ __device__ constexpr UnaryOpBase& operator=(const UnaryOpBase&) = default;
-    __host__ __device__ constexpr UnaryOpBase(UnaryOpBase&&)                 = default;
-    __host__ __device__ constexpr UnaryOpBase& operator=(UnaryOpBase&&) = default;
+    __host__ __device__ constexpr UnaryOpBase(UnaryOpBase&&)      = default;
+    __host__ __device__ UnaryOpBase& operator=(const UnaryOpBase&) = default;
+    __host__ __device__ UnaryOpBase& operator=(UnaryOpBase&&) = default;
 
     __host__ __device__ virtual inline void operator()(float& y, const float& x) const = 0;
 
@@ -57,7 +57,9 @@ struct PassThrough final : public UnaryOpBase
     __host__ __device__ constexpr PassThrough()                   = default;
     __host__ __device__ constexpr PassThrough(const PassThrough&) = default;
     __host__ __device__ constexpr PassThrough(PassThrough&&)      = default;
-    __host__ __device__ ~PassThrough()                            = default;
+    __host__ __device__ PassThrough& operator=(const PassThrough&) = default;
+    __host__ __device__ PassThrough& operator=(PassThrough&&) = default;
+    __host__ __device__ ~PassThrough()                        = default;
 
     __host__ __device__ inline void operator()(float& y, const float& x) const final { y = x; }
 
@@ -420,8 +422,9 @@ struct UnaryAbs final : public UnaryOpBase
     __host__ __device__ constexpr UnaryAbs()                = default;
     __host__ __device__ constexpr UnaryAbs(const UnaryAbs&) = default;
     __host__ __device__ constexpr UnaryAbs(UnaryAbs&&)      = default;
-
-    __host__ __device__ ~UnaryAbs() = default;
+    __host__ __device__ UnaryAbs& operator=(const UnaryAbs&) = default;
+    __host__ __device__ UnaryAbs& operator=(UnaryAbs&&) = default;
+    __host__ __device__ ~UnaryAbs()                     = default;
 
     __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
@@ -476,8 +479,9 @@ struct Relu final : public UnaryOpBase
     __host__ __device__ constexpr Relu()            = default;
     __host__ __device__ constexpr Relu(const Relu&) = default;
     __host__ __device__ constexpr Relu(Relu&&)      = default;
-
-    __host__ __device__ ~Relu() = default;
+    __host__ __device__ Relu& operator=(const Relu&) = default;
+    __host__ __device__ Relu& operator=(Relu&&) = default;
+    __host__ __device__ ~Relu()                 = default;
 
     __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
@@ -656,7 +660,9 @@ struct Sigmoid final : public UnaryOpBase
     __host__ __device__ constexpr Sigmoid()               = default;
     __host__ __device__ constexpr Sigmoid(const Sigmoid&) = default;
     __host__ __device__ constexpr Sigmoid(Sigmoid&&)      = default;
-    __host__ __device__ ~Sigmoid()                        = default;
+    __host__ __device__ Sigmoid& operator=(const Sigmoid&) = default;
+    __host__ __device__ Sigmoid& operator=(Sigmoid&&) = default;
+    __host__ __device__ ~Sigmoid()                    = default;
 
     __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
@@ -715,7 +721,9 @@ struct TanH final : public UnaryOpBase
     __host__ __device__ constexpr TanH()            = default;
     __host__ __device__ constexpr TanH(const TanH&) = default;
     __host__ __device__ constexpr TanH(TanH&&)      = default;
-    __host__ __device__ ~TanH()                     = default;
+    __host__ __device__ TanH& operator=(const TanH&) = default;
+    __host__ __device__ TanH& operator=(TanH&&) = default;
+    __host__ __device__ ~TanH()                 = default;
 
     __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
