@@ -155,6 +155,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            std::cout << op_ptr->GetTypeString() << " supports this problem" << std::endl;
             // re-init output to zero before profiling next kernel
             out_device_buf.SetZero();
 
@@ -202,7 +203,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         }
         else
         {
-            std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
+            // std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
     };
 
