@@ -41,7 +41,7 @@ class TestGroupedConvndFwd : public ::testing::Test
                                true,  // do_verification
                                1,     // init_method: integer value
                                false, // do_log
-                               true, // time_kernel
+                               true,  // time_kernel
                                param);
         }
         EXPECT_TRUE(pass);
@@ -132,7 +132,8 @@ TYPED_TEST(TestGroupedConvndFwd2d, Test2D)
 //     this->conv_params.push_back(
 //         {3, 2, 32, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
 //     this->conv_params.push_back(
-//         {3, 2, 32, 128, 256, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+//         {3, 2, 32, 128, 256, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1,
+//         1}});
 //     this->conv_params.push_back(
 //         {3, 2, 32, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
 //     this->conv_params.push_back(

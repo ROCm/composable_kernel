@@ -26,11 +26,11 @@ void add_device_grouped_conv2d_fwd_xdl_large_tensor_nhwgc_gkyxc_nhwgk_int8_insta
     add_device_operation_instances(
         instances,
         device_grouped_conv_fwd_xdl_large_tensor_int8_instances<2,
-                                                               NHWGC,
-                                                               GKYXC,
-                                                               Empty_Tuple,
-                                                               NHWGK,
-                                                               ConvFwdDefault>{});
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Empty_Tuple,
+                                                                NHWGK,
+                                                                ConvFwdDefault>{});
 }
 
 } // namespace instance

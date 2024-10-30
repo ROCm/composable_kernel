@@ -25,12 +25,12 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_mem_inter_instance
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_int8_mem_instances<2,
-                                                                                 NGCHW,
-                                                                                 GKYXC,
-                                                                                 Empty_Tuple,
-                                                                                 NGKHW,
-                                                                                 ConvFwdDefault,
-                                                                                 Interwave>{});
+                                                                                  NGCHW,
+                                                                                  GKYXC,
+                                                                                  Empty_Tuple,
+                                                                                  NGKHW,
+                                                                                  ConvFwdDefault,
+                                                                                  Interwave>{});
 }
 
 } // namespace instance

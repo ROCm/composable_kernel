@@ -25,39 +25,39 @@ void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_mem_inter_instance
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_int8_mem_instances<2,
-                                                                                 NHWGC,
-                                                                                 GKYXC,
-                                                                                 Empty_Tuple,
-                                                                                 NHWGK,
-                                                                                 ConvFwdDefault,
-                                                                                 Interwave>{});
+                                                                                  NHWGC,
+                                                                                  GKYXC,
+                                                                                  Empty_Tuple,
+                                                                                  NHWGK,
+                                                                                  ConvFwdDefault,
+                                                                                  Interwave>{});
 
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_int8_mem_instances<2,
-                                                                                 NHWGC,
-                                                                                 GKYXC,
-                                                                                 Empty_Tuple,
-                                                                                 NHWGK,
-                                                                                 ConvFwd1x1P0,
-                                                                                 Interwave>{});
+                                                                                  NHWGC,
+                                                                                  GKYXC,
+                                                                                  Empty_Tuple,
+                                                                                  NHWGK,
+                                                                                  ConvFwd1x1P0,
+                                                                                  Interwave>{});
 
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_int8_mem_instances<2,
-                                                                                 NHWGC,
-                                                                                 GKYXC,
-                                                                                 Empty_Tuple,
-                                                                                 NHWGK,
-                                                                                 ConvFwd1x1S1P0,
-                                                                                 Interwave>{});
+                                                                                  NHWGC,
+                                                                                  GKYXC,
+                                                                                  Empty_Tuple,
+                                                                                  NHWGK,
+                                                                                  ConvFwd1x1S1P0,
+                                                                                  Interwave>{});
 
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_int8_mem_instances<2,
-                                                                                 NHWGC,
-                                                                                 GKYXC,
-                                                                                 Empty_Tuple,
-                                                                                 NHWGK,
-                                                                                 ConvFwdOddC,
-                                                                                 Interwave>{});
+                                                                                  NHWGC,
+                                                                                  GKYXC,
+                                                                                  Empty_Tuple,
+                                                                                  NHWGK,
+                                                                                  ConvFwdOddC,
+                                                                                  Interwave>{});
 }
 
 } // namespace instance

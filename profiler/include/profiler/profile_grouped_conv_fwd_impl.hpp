@@ -203,7 +203,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         }
         else
         {
-            // std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
+            // std::cout << op_ptr->GetTypeString() << " does not support this problem" <<
+            // std::endl;
         }
     };
 

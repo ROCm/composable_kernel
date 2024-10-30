@@ -26,20 +26,20 @@ void add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_int8_inst
     add_device_operation_instances(
         instances,
         device_grouped_conv_fwd_xdl_merged_groups_int8_instances<2,
-                                                                NHWGC,
-                                                                GKYXC,
-                                                                Empty_Tuple,
-                                                                NHWGK,
-                                                                ConvFwdDefault>{});
+                                                                 NHWGC,
+                                                                 GKYXC,
+                                                                 Empty_Tuple,
+                                                                 NHWGK,
+                                                                 ConvFwdDefault>{});
 
     add_device_operation_instances(
         instances,
         device_grouped_conv_fwd_xdl_merged_groups_int8_instances<2,
-                                                                NHWGC,
-                                                                GKYXC,
-                                                                Empty_Tuple,
-                                                                NHWGK,
-                                                                ConvFwd3x3>{});
+                                                                 NHWGC,
+                                                                 GKYXC,
+                                                                 Empty_Tuple,
+                                                                 NHWGK,
+                                                                 ConvFwd3x3>{});
 }
 
 } // namespace instance
