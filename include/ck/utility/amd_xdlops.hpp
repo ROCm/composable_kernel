@@ -375,6 +375,7 @@ struct intrin_mfma_f32_32x32x16f8f8<32, 32>
                 0,
                 0);
 #else
+#ifdef CK_USE_FP8_ON_UNSUPPORTED_ARCH
         vector_type<f8_t, 8> reg_a_v(reg_a);
         vector_type<f8_t, 8> reg_b_v(reg_b);
 
@@ -384,6 +385,11 @@ struct intrin_mfma_f32_32x32x16f8f8<32, 32>
 
             intrin_mfma_f32_32x32x2f32<32, 32>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
 #endif
     }
 };
@@ -406,6 +412,7 @@ struct intrin_mfma_f32_16x16x32f8f8<16, 16>
             0,
             0);
 #else
+#ifdef CK_USE_FP8_ON_UNSUPPORTED_ARCH
         vector_type<f8_t, 8> reg_a_v(reg_a);
         vector_type<f8_t, 8> reg_b_v(reg_b);
 
@@ -415,6 +422,11 @@ struct intrin_mfma_f32_16x16x32f8f8<16, 16>
 
             intrin_mfma_f32_16x16x4f32<16, 16>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
 #endif
     }
 };
@@ -438,6 +450,7 @@ struct intrin_mfma_f32_32x32x16bf8bf8<32, 32>
                 0,
                 0);
 #else
+#ifdef CK_USE_FP8_ON_UNSUPPORTED_ARCH
         vector_type<bf8_t, 8> reg_a_v(reg_a);
         vector_type<bf8_t, 8> reg_b_v(reg_b);
 
@@ -447,6 +460,11 @@ struct intrin_mfma_f32_32x32x16bf8bf8<32, 32>
 
             intrin_mfma_f32_32x32x2f32<32, 32>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
 #endif
     }
 };
@@ -469,6 +487,7 @@ struct intrin_mfma_f32_16x16x32bf8bf8<16, 16>
             0,
             0);
 #else
+#ifdef CK_USE_FP8_ON_UNSUPPORTED_ARCH
         vector_type<bf8_t, 8> reg_a_v(reg_a);
         vector_type<bf8_t, 8> reg_b_v(reg_b);
 
@@ -478,6 +497,11 @@ struct intrin_mfma_f32_16x16x32bf8bf8<16, 16>
 
             intrin_mfma_f32_16x16x4f32<16, 16>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
 #endif
     }
 };
@@ -501,6 +525,7 @@ struct intrin_mfma_f32_32x32x16f8bf8<32, 32>
                 0,
                 0);
 #else
+#ifdef CK_USE_FP8_ON_UNSUPPORTED_ARCH
         vector_type<f8_t, 8> reg_a_v(reg_a);
         vector_type<bf8_t, 8> reg_b_v(reg_b);
 
@@ -510,6 +535,11 @@ struct intrin_mfma_f32_32x32x16f8bf8<32, 32>
 
             intrin_mfma_f32_32x32x2f32<32, 32>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
 #endif
     }
 };
@@ -532,6 +562,7 @@ struct intrin_mfma_f32_16x16x32f8bf8<16, 16>
             0,
             0);
 #else
+#ifdef CK_USE_FP8_ON_UNSUPPORTED_ARCH
         vector_type<f8_t, 8> reg_a_v(reg_a);
         vector_type<bf8_t, 8> reg_b_v(reg_b);
 
@@ -541,6 +572,11 @@ struct intrin_mfma_f32_16x16x32f8bf8<16, 16>
 
             intrin_mfma_f32_16x16x4f32<16, 16>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
 #endif
     }
 };
@@ -564,6 +600,7 @@ struct intrin_mfma_f32_32x32x16bf8f8<32, 32>
                 0,
                 0);
 #else
+#ifdef CK_USE_FP8_ON_UNSUPPORTED_ARCH
         vector_type<bf8_t, 8> reg_a_v(reg_a);
         vector_type<f8_t, 8> reg_b_v(reg_b);
 
@@ -573,6 +610,11 @@ struct intrin_mfma_f32_32x32x16bf8f8<32, 32>
 
             intrin_mfma_f32_32x32x2f32<32, 32>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
 #endif
     }
 };
@@ -595,6 +637,7 @@ struct intrin_mfma_f32_16x16x32bf8f8<16, 16>
             0,
             0);
 #else
+#ifdef CK_USE_FP8_ON_UNSUPPORTED_ARCH
         vector_type<bf8_t, 8> reg_a_v(reg_a);
         vector_type<f8_t, 8> reg_b_v(reg_b);
 
@@ -604,6 +647,11 @@ struct intrin_mfma_f32_16x16x32bf8f8<16, 16>
 
             intrin_mfma_f32_16x16x4f32<16, 16>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
 #endif
     }
 };
