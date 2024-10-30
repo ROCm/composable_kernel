@@ -59,6 +59,7 @@
 #include "ck_tile/core/utility/magic_div.hpp"
 #include "ck_tile/core/utility/philox_rand.hpp"
 #include "ck_tile/core/utility/random.hpp"
+#include "ck_tile/core/utility/reduce_operator.hpp"
 #include "ck_tile/core/utility/to_sequence.hpp"
 #include "ck_tile/core/utility/transpose_vectors.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
