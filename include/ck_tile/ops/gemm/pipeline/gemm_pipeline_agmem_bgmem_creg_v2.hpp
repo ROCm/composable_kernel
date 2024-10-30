@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -25,9 +25,9 @@ struct GemmPipelineAGmemBGmemCRegV2
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     {
-        return ck_tile::integer_divide_ceil(
+        return integer_divide_ceil(
                    sizeof(ADataType) *
                        Policy::template MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
                    16) *

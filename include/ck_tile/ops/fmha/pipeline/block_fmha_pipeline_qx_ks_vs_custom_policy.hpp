@@ -55,7 +55,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
         constexpr index_t MWarp = config.template at<1>();
 
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0BlockLength;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
 
         constexpr index_t K2 = WG::kK / WG::WarpGemmAttribute::Impl::kABKLane;
         constexpr index_t K1 = WG::WarpGemmAttribute::Impl::kABKLane;
@@ -324,6 +324,9 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     LdsBufferSequence<3, 3, 3, 3> { using type = sequence<1, 2, 0,      1, 2, 0>; };
 
     template<> struct
+    LdsBufferSequence<3, 3, 3, 4> { using type = sequence<1, 2, 0,      0, 1, 2, 0>; };
+
+    template<> struct
     LdsBufferSequence<3, 3, 2, 2> { using type = sequence<1, 2,         1, 0>;};
     // clang-format on
 
@@ -332,12 +335,12 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
 
-        constexpr index_t kN0            = BlockFmhaShape::kN0;
-        constexpr index_t kK0            = BlockFmhaShape::kK0;
-        constexpr index_t kK1            = BlockFmhaShape::kK1;
-        constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
+        constexpr index_t kN0        = BlockFmhaShape::kN0;
+        constexpr index_t kK0        = BlockFmhaShape::kK0;
+        constexpr index_t kK1        = BlockFmhaShape::kK1;
+        constexpr index_t kQKHeaddim = BlockFmhaShape::kQKHeaddim;
 
-        constexpr index_t k0_loops = kK0BlockLength / kK0;
+        constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
 
         return typename LdsBufferSequence<NumPrefetchK, NumPrefetchV, k0_loops, k1_loops>::type{};

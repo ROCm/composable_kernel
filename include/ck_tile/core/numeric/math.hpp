@@ -1126,7 +1126,7 @@ CK_TILE_DEVICE int8_t neg<int8_t>(int8_t x)
 template <>
 CK_TILE_DEVICE fp16_t neg<fp16_t>(fp16_t x)
 {
-    return __hneg(x);
+    return -x;
 };
 
 template <typename T>
@@ -1168,7 +1168,7 @@ CK_TILE_DEVICE double sin<double>(double x)
 template <>
 CK_TILE_DEVICE fp16_t sin<fp16_t>(fp16_t x)
 {
-    return ::hsin(x);
+    return __ocml_sin_f16(x);
 };
 
 template <typename T>
@@ -1300,7 +1300,7 @@ CK_TILE_DEVICE double ceil<double>(double x)
 template <>
 CK_TILE_DEVICE fp16_t ceil<fp16_t>(fp16_t x)
 {
-    return ::hceil(x);
+    return __ocml_ceil_f16(x);
 };
 
 template <typename T>
@@ -1342,7 +1342,7 @@ CK_TILE_DEVICE double floor<double>(double x)
 template <>
 CK_TILE_DEVICE fp16_t floor<fp16_t>(fp16_t x)
 {
-    return ::hfloor(x);
+    return __ocml_floor_f16(x);
 };
 
 template <typename T>
@@ -1365,7 +1365,7 @@ CK_TILE_DEVICE T exp(T x)
 template <>
 CK_TILE_DEVICE fp16_t exp<fp16_t>(fp16_t x)
 {
-    return hexp(x);
+    return __ocml_exp_f16(x);
 };
 
 template <>
@@ -1389,7 +1389,7 @@ CK_TILE_DEVICE T log(T x)
 template <>
 CK_TILE_DEVICE fp16_t log<fp16_t>(fp16_t x)
 {
-    return hlog(x);
+    return __ocml_log_f16(x);
 };
 
 template <>
