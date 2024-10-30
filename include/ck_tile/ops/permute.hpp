@@ -5,4 +5,5 @@
 
 #include "ck_tile/ops/permute/kernel/generic_permute_kernel.hpp"
 #include "ck_tile/ops/permute/pipeline/generic_petmute_problem.hpp"
+#include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"

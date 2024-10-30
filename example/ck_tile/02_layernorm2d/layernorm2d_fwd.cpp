@@ -203,18 +203,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(fused_sweep == 1)
         {
-            auto dquant_functor = [&](int m_, auto o_, auto acc_) {
+            auto dquant_functor = [&](int m_, auto& o_, const auto& acc_) {
                 int N_                 = acc_.mDesc.get_lengths()[1];
-                ComputeDataType absmax = 0;
+                ComputeDataType absmax = static_cast<ComputeDataType>(0);
                 for(int n_ = 0; n_ < N_; n_++)
                 {
-                    const auto a = abs(acc_(m_, n_));
+                    const auto a = ck_tile::abs(acc_(m_, n_));
                     absmax       = a > absmax ? a : absmax;
                 }
-                y_scale_host_ref(m_) = absmax / 127.0;
+                // printf("cpu:absmax:%f\n", absmax);
+                ComputeDataType y_scale = absmax / static_cast<ComputeDataType>(127.0);
+                y_scale_host_ref(m_)    = ck_tile::type_convert<ScaleDataType>(y_scale);
                 for(int n_ = 0; n_ < N_; n_++)
                 {
-                    o_(m_, n_) = static_cast<YDataType>(acc_(m_, n_) / y_scale_host_ref(m_));
+                    o_(m_, n_) = ck_tile::type_convert<YDataType>(acc_(m_, n_) / y_scale);
                 }
             };
 

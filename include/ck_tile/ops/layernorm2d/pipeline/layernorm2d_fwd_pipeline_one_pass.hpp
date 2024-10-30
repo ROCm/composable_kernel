@@ -147,7 +147,7 @@ struct Layernorm2dFwdPipelineOnePass
 
         if constexpr(kFusedSweep == Layernorm2dFusedSweepEnum::DYNAMIC_QUANT)
         {
-            Epilogue{}(y_window_, y_scale_window, ln);
+            Epilogue{}(y_window_, y_scale_window, ln, smem);
         }
         else
             Epilogue{}(y_window_, ln);
