@@ -29,9 +29,9 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr index_t AlignmentB = Problem::AlignmentB;
     static constexpr index_t AlignmentC = Problem::AlignmentC;
 
-    static constexpr bool kPadA = Problem::kPadA;
-    static constexpr bool kPadB = Problem::kPadB;
-    static constexpr bool kPadC = Problem::kPadC;
+    static constexpr bool kPadM = Problem::kPadM;
+    static constexpr bool kPadN = Problem::kPadN;
+    static constexpr bool kPadK = Problem::kPadK;
 
     using LayoutA = remove_cvref_t<typename Problem::LayoutA>;
     using LayoutB = remove_cvref_t<typename Problem::LayoutB>;

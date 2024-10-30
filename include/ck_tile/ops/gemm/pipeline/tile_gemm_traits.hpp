@@ -7,17 +7,17 @@
 
 namespace ck_tile {
 
-template <bool kPadA_,
-          bool kPadB_,
-          bool kPadC_,
+template <bool kPadM_,
+          bool kPadN_,
+          bool kPadK_,
           typename LayoutA_,
           typename LayoutB_,
           typename LayoutC_>
 struct TileGemmTraits
 {
-    static constexpr bool kPadA = kPadA_;
-    static constexpr bool kPadB = kPadB_;
-    static constexpr bool kPadC = kPadC_;
+    static constexpr bool kPadM = kPadM_;
+    static constexpr bool kPadN = kPadN_;
+    static constexpr bool kPadK = kPadK_;
 
     using LayoutA = LayoutA_;
     using LayoutB = LayoutB_;

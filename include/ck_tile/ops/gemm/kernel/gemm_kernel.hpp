@@ -41,8 +41,6 @@ struct GemmKernel
         const void* b_ptr;
         void* c_ptr;
 
-        float epsilon;
-
         ck_tile::index_t M;
         ck_tile::index_t N;
         ck_tile::index_t K;
@@ -54,7 +52,6 @@ struct GemmKernel
     CK_TILE_HOST static constexpr GemmCommonKargs MakeKargs(const void* a_ptr,
                                                             const void* b_ptr,
                                                             void* c_ptr,
-                                                            float epsilon,
                                                             ck_tile::index_t M,
                                                             ck_tile::index_t N,
                                                             ck_tile::index_t K,
@@ -62,7 +59,7 @@ struct GemmKernel
                                                             ck_tile::index_t stride_B,
                                                             ck_tile::index_t stride_C)
     {
-        return GemmCommonKargs{a_ptr, b_ptr, c_ptr, epsilon, M, N, K, stride_A, stride_B, stride_C};
+        return GemmCommonKargs{a_ptr, b_ptr, c_ptr, M, N, K, stride_A, stride_B, stride_C};
     }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
@@ -79,13 +76,18 @@ struct GemmKernel
         // Convert pointers to tensor views
         auto a_tensor_view = [&]() {
             if constexpr(std::is_same_v<LayoutA, tensor_layout::gemm::ColumnMajor>)
-            {
-                return make_naive_tensor_view<address_space_enum::global>(
+            { 
+                const auto a_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     a_start,
                     make_tuple(kargs.M, kargs.K),
                     make_tuple(1, kargs.stride_A),
                     number<GemmPipeline::AlignmentA>{},
                     number<1>{});
+                return transform_tensor_view(a_dram_naive,
+                                             make_tuple(make_pass_through_transform(kargs.K),
+                                                        make_pass_through_transform(kargs.N)),
+                                             make_tuple(sequence<1>{}, sequence<0>{}),
+                                             make_tuple(sequence<0>{}, sequence<1>{}));
             }
             else
             {
@@ -101,12 +103,17 @@ struct GemmKernel
         auto b_tensor_view = [&]() {
             if constexpr(std::is_same_v<LayoutB, tensor_layout::gemm::RowMajor>)
             {
-                return make_naive_tensor_view<address_space_enum::global>(
+                const auto b_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     b_start,
                     make_tuple(kargs.N, kargs.K),
                     make_tuple(1, kargs.stride_B),
                     number<GemmPipeline::AlignmentB>{},
                     number<1>{});
+                return transform_tensor_view(b_dram_naive,
+                                             make_tuple(make_pass_through_transform(kargs.K),
+                                                        make_pass_through_transform(kargs.N)),
+                                             make_tuple(sequence<1>{}, sequence<0>{}),
+                                             make_tuple(sequence<0>{}, sequence<1>{}));
             }
             else
             { // Default NK layout
@@ -119,22 +126,38 @@ struct GemmKernel
             }
         }();
 
-        auto a_pad_view = pad_tensor_view(
-            a_tensor_view,
-            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
-            sequence < 0,
-            GemmPipeline::kPadA ? 1 : 0 > {});
+        auto a_pad_view = [&](){
+            if constexpr(std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>){
+                return pad_tensor_view(
+                    a_tensor_view,
+                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
+                    sequence<false, GemmPipeline::kPadK>{});
+            } else {
+                return pad_tensor_view(
+                    a_tensor_view,
+                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
+                    sequence<GemmPipeline::kPadM, false>{});
+            }
+        }();
 
         auto ABlockWindow = make_tile_window(
             a_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
             {i_m, 0});
-
-        auto b_pad_view = pad_tensor_view(
-            b_tensor_view,
-            make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
-            sequence < 0,
-            GemmPipeline::kPadB ? 1 : 0 > {});
+        
+        auto b_pad_view = [&](){
+            if constexpr(std::is_same_v<LayoutA, tensor_layout::gemm::ColumnMajor>){
+                return pad_tensor_view(
+                    b_tensor_view,
+                    make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
+                    sequence <false, GemmPipeline::kPadK>{});
+            } else {
+                return pad_tensor_view(
+                    b_tensor_view,
+                    make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
+                    sequence <GemmPipeline::kPadN, false>{});
+            }
+        }();
 
         auto BBlockWindow = make_tile_window(
             b_pad_view,
@@ -153,12 +176,17 @@ struct GemmKernel
         auto c_tensor_view = [&]() {
             if constexpr(std::is_same_v<LayoutC, tensor_layout::gemm::ColumnMajor>)
             {
-                return make_naive_tensor_view<address_space_enum::global>(
+                const auto c_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     c_start,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(1, kargs.stride_C),
                     number<GemmPipeline::AlignmentC>{},
                     number<1>{});
+                return transform_tensor_view(c_dram_naive,
+                                             make_tuple(make_pass_through_transform(kargs.N),
+                                                        make_pass_through_transform(kargs.M)),
+                                             make_tuple(sequence<1>{}, sequence<0>{}),
+                                             make_tuple(sequence<0>{}, sequence<1>{}));
             }
             else
             {
@@ -171,11 +199,19 @@ struct GemmKernel
             }
         }();
 
-        auto c_pad_view = pad_tensor_view(
-            c_tensor_view,
-            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
-            sequence < 0,
-            GemmPipeline::kPadC ? 1 : 0 > {});
+        auto c_pad_view = [&](){
+            if constexpr(std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>){
+                return pad_tensor_view(
+                    c_tensor_view,
+                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
+                    sequence < false, GemmPipeline::kPadN> {});
+            }else{
+                return pad_tensor_view(
+                    c_tensor_view,
+                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
+                    sequence < GemmPipeline::kPadM, false> {});
+            }
+        }();
         auto CBlockWindow_pad = make_tile_window(
             c_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),

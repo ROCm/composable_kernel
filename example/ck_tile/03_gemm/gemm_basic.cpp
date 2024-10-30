@@ -39,9 +39,10 @@ template <typename LayoutA,
           typename GemmShape>
 float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
-    // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadA        = false;
-    constexpr bool kPadB        = false;
+    // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
+    constexpr bool kPadM        = false;
+    constexpr bool kPadN        = false;
+
     constexpr bool kTilePermute = false;
 
     constexpr int kBlockPerCu = 1;
@@ -60,8 +61,8 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         CShuffleEpilogue,
         ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
                                                                    CDataType,
-                                                                   kPadA,
-                                                                   kPadB,
+                                                                   kPadM,
+                                                                   kPadN,
                                                                    kTilePermute,
                                                                    kOutputRank,
                                                                    1,
@@ -69,7 +70,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                                                                    TilePartitioner::kM,
                                                                    TilePartitioner::kN>>,
         ck_tile::Default2DEpilogue<
-            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>>;
+            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -77,7 +78,6 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     auto kargs = Kernel::MakeKargs(args.p_a,
                                    args.p_b,
                                    args.p_c,
-                                   args.epsilon,
                                    args.M,
                                    args.N,
                                    args.K,
@@ -256,10 +256,10 @@ int main(int argc, char* argv[])
     a_buf.ToDevice(a_host.data());
     b_buf.ToDevice(b_host.data());
 
-    // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadA = false;
-    constexpr bool kPadB = false;
-    constexpr bool kPadC = false;
+    // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
+    constexpr bool kPadM = false;
+    constexpr bool kPadN = false;
+    constexpr bool kPadK = false;
 
     // This part comes from the Codegen
     constexpr ck_tile::index_t M_Tile = 128;
@@ -271,7 +271,7 @@ int main(int argc, char* argv[])
     constexpr ck_tile::index_t K_Warp = 1;
 
     constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
+    constexpr ck_tile::index_t N_Warp_Tile = 64;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
 
     using CodegenGemmShape =
@@ -280,7 +280,7 @@ int main(int argc, char* argv[])
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
     using CodegenGemmTraits = ck_tile::
-        TileGemmTraits<kPadA, kPadB, kPadC, matrix_a_layout, matrix_b_layout, matrix_c_layout>;
+        TileGemmTraits<kPadM, kPadN, kPadK, matrix_a_layout, matrix_b_layout, matrix_c_layout>;
 
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
