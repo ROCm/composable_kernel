@@ -56,6 +56,7 @@
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/functional_with_tuple.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
+#include "ck_tile/core/utility/literals.hpp"
 #include "ck_tile/core/utility/magic_div.hpp"
 #include "ck_tile/core/utility/philox_rand.hpp"
 #include "ck_tile/core/utility/random.hpp"
