@@ -93,8 +93,11 @@ struct RotatingMemWrapperMultiD
     }
     void Print()
     {
-        std::cout << "RotatingMemWrapperMultiD: { size_a: " << size_a << ", size_b: " << size_b
-                  << ", rotating_count: " << rotating_count << "}" << std::endl;
+        std::cout << "RotatingMemWrapperMultiD: { size_a: " << size_a << ", size_b: " << size_b;
+        static_for<0, NumDs, 1>{}([&](auto j) {
+            std::cout << ", size_d" <<j.value<<": "<< size_ds[j];
+        });
+        std::cout << ", rotating_count: " << rotating_count << "}" << std::endl;
     }
     ~RotatingMemWrapperMultiD()
     {

@@ -188,7 +188,9 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38};
+        // Seems like when performance measurement has bug when spiltK is large
+        // std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38};
+        std::vector<int> kbatch_list = {1, 2, 4};
 
         if(KBatch > 0)
         {
