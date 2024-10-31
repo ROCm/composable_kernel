@@ -285,10 +285,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         y_buf.FromDevice(y_host_dev.data());
 
-        ck_tile::HostTensor<YResidualDataType> sy_host_dev({m, n}, {stride, 1});
+        ck_tile::HostTensor<YResidualDataType> y_residual_host_dev({m, n}, {stride, 1});
         if(fused_add == 1)
         {
-            y_residual_buf.FromDevice(sy_host_dev.data());
+            y_residual_buf.FromDevice(y_residual_host_dev.data());
         }
 
         auto [rtol, atol] = get_elimit<InDataType>();
@@ -299,8 +299,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 y_host_dev, y_host_ref, std::string("OUT Error: Incorrect results!"), rtol, atol);
             if(fused_add == 1)
             {
-                pass &= ck_tile::check_err(
-                    sy_host_dev, x_host, std::string("ADD Error: Incorrect results!"), rtol, atol);
+                pass &= ck_tile::check_err(y_residual_host_dev,
+                                           x_host,
+                                           std::string("ADD Error: Incorrect results!"),
+                                           rtol,
+                                           atol);
             }
         }
         else
@@ -319,12 +322,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                            atol);
                 if(fused_add == 1)
                 {
-                    std::vector<YResidualDataType> sy_host_dev_row(
-                        sy_host_dev.begin() + i_r * stride, sy_host_dev.begin() + i_r * stride + n);
-                    std::vector<YResidualDataType> sy_host_ref_row(
+                    std::vector<YResidualDataType> y_residual_host_dev_row(
+                        y_residual_host_dev.begin() + i_r * stride,
+                        y_residual_host_dev.begin() + i_r * stride + n);
+                    std::vector<YResidualDataType> y_residual_host_ref_row(
                         x_host.begin() + i_r * stride, x_host.begin() + i_r * stride + n);
-                    pass &= ck_tile::check_err(sy_host_dev_row,
-                                               sy_host_ref_row,
+                    pass &= ck_tile::check_err(y_residual_host_dev_row,
+                                               y_residual_host_ref_row,
                                                std::string("ADD[") + std::to_string(i_r) +
                                                    std::string("] Error: Incorrect results!"),
                                                rtol,
