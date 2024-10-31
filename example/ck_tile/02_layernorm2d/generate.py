@@ -234,6 +234,10 @@ float layernorm2d_fwd_(const S& s, A a)
 
 {F_traits_define}
 
+// Note: this internal API only declare, not define here, otherwise will block `make -j`
+template <typename Traits_>
+float layernorm2d_fwd_(const ck_tile::stream_config& s, layernorm2d_fwd_args a);
+
 float layernorm2d_fwd(layernorm2d_fwd_traits t,
                       layernorm2d_fwd_args a,
                       const ck_tile::stream_config& s)

@@ -168,14 +168,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     layernorm2d_fwd_args args{x_buf.GetDeviceBuffer(),
                               fused_add != 0 ? x_residual_buf.GetDeviceBuffer() : nullptr,
+                              fused_quant == 1 ? x_scale_buf.GetDeviceBuffer() : nullptr,
                               gamma_buf.GetDeviceBuffer(),
                               beta_buf.GetDeviceBuffer(),
-                              fused_quant == 1 ? x_scale_buf.GetDeviceBuffer() : nullptr,
+
                               y_buf.GetDeviceBuffer(),
                               fused_add == 1 ? y_residual_buf.GetDeviceBuffer() : nullptr,
-                              nullptr,
-                              nullptr,
                               fused_quant != 0 ? y_scale_buf.GetDeviceBuffer() : nullptr,
+                              nullptr, // p_mean, unsupported yet
+                              nullptr, // p_invStd, unsupported yet
+
                               epsilon,
                               m,
                               n,

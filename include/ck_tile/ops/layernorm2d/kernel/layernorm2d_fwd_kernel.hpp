@@ -12,17 +12,17 @@ namespace ck_tile {
 // host side args
 struct Layernorm2dFwdHostArgs
 {
-    const void* p_x;          // input
-    const void* p_x_residual; // shortcut input, set to nullptr if no
-    const void* p_gamma;
-    const void* p_beta;
-    const void* p_x_scale; // smooth scale, set to nullptr
+    const void* p_x;          // [m ,n], input, fp16/bf16
+    const void* p_x_residual; // [m ,n], shortcut input, prec same as input, nullptr if not used
+    const void* p_x_scale;    // [1 ,n], smooth scale input, fp32, nullptr if not used
+    const void* p_gamma;      // [1, n], gamma, prec same as input
+    const void* p_beta;       // [1, n], beta, prec same as input
 
-    void* p_y;          // output
-    void* p_y_residual; // shortcut output, set to nullptr if no
-    void* p_mean;
-    void* p_invStd;
-    void* p_y_scale; // store out a dynamic quant per row, used by next layer. nullptr if not used
+    void* p_y;          // [m, n], output, fp16/bf16
+    void* p_y_residual; // [m, n], shortcut output, prec same as input, nullptr if not used
+    void* p_y_scale;    // [m, 1], output a dynamic quant per row, nullptr if not used
+    void* p_mean;       // [m, 1], output mean, prec same as input, nullptr if not used
+    void* p_invStd;     // [m, 1], output inv-stdvariance, prec same as input, nullptr if not used
 
     float epsilon;
 
@@ -76,17 +76,18 @@ struct Layernorm2dFwd
 
     struct Kargs
     {
-        const void* p_x;          // input
-        const void* p_x_residual; // shortcut input, set to nullptr if no
-        const void* p_gamma;
-        const void* p_beta;
-        const void* p_x_scale; // smooth scale, set to nullptr if not used
+        const void* p_x;          // [m ,n], input, fp16/bf16
+        const void* p_x_residual; // [m ,n], shortcut input, prec same as input, nullptr if not used
+        const void* p_x_scale;    // [1 ,n], smooth scale input, fp32, nullptr if not used
+        const void* p_gamma;      // [1, n], gamma, prec same as input
+        const void* p_beta;       // [1, n], beta, prec same as input
 
-        void* p_y;          // output
-        void* p_y_residual; // shortcut output, set to nullptr if no
-        void* p_mean;
-        void* p_invStd;
-        void* p_y_scale; // store out a dynamic quant value, used in next layer
+        void* p_y;          // [m, n], output, fp16/bf16
+        void* p_y_residual; // [m, n], shortcut output, prec same as input, nullptr if not used
+        void* p_y_scale;    // [m, 1], output a dynamic quant per row, nullptr if not used
+
+        void* p_mean;   // [m, 1], output mean, prec same as input, nullptr if not used
+        void* p_invStd; // [m, 1], output inv-stdvariance, prec same as input, nullptr if not used
 
         float epsilon;
 
@@ -100,14 +101,14 @@ struct Layernorm2dFwd
     {
         return Kargs{hargs.p_x,
                      hargs.p_x_residual,
+                     hargs.p_x_scale,
                      hargs.p_gamma,
                      hargs.p_beta,
-                     hargs.p_x_scale,
                      hargs.p_y,
                      hargs.p_y_residual,
+                     hargs.p_y_scale,
                      hargs.p_mean,
                      hargs.p_invStd,
-                     hargs.p_y_scale,
                      hargs.epsilon,
                      hargs.m,
                      hargs.n,
