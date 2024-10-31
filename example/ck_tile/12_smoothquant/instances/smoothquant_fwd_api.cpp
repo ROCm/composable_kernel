@@ -143,7 +143,7 @@ float smoothquant(smoothquant_traits t, smoothquant_args a, const ck_tile::strea
     {
         return smoothquant_dispatch<ck_tile::bf16_t>(t, a, s);
     }
-    if(r < 0)
+    else
         throw std::runtime_error("Without supported instances!");
 
     return r;

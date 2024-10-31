@@ -146,7 +146,7 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t, rmsnorm2d_fwd_args a, const ck_tile:
     {
         return rmsnorm2d_fwd_b16_<ck_tile::bf16_t>(t, a, s);
     }
-    if(r < 0)
+    else
         throw std::runtime_error("Without supported instances!");
 
     return r;

@@ -150,7 +150,7 @@ float add_rmsnorm2d_rdquant_fwd(add_rmsnorm2d_rdquant_fwd_traits t,
     {
         return add_rmsnorm2d_rdquant_fwd_b16_<ck_tile::bf16_t>(t, a, s);
     }
-    if(r < 0)
+    else
         throw std::runtime_error("Without supported instances!");
 
     return r;
