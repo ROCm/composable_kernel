@@ -35,9 +35,9 @@ struct Layernorm2dFwdPipelineTwoPass
 
     static constexpr const char* name = []() {
         if constexpr(kNeedCrossWarpSync)
-            return "bpr"; // block per row
+            return "bpr_tp"; // block per row
         else
-            return "wpr"; // warp per row
+            return "wpr_tp"; // warp per row
     }();
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -118,8 +118,6 @@ struct Layernorm2dFwdPipelineTwoPass
         ck_tile::index_t stride_to_right_most_window =
             row_size % Block_N == 0 ? row_size - Block_N : row_size - row_size % Block_N;
 
-        // x_window.foo();
-        // gamma_window.foo();
         move_tile_window(x_window, {0, -Block_N});
         move_tile_window(gamma_window, {stride_to_right_most_window});
         move_tile_window(beta_window, {stride_to_right_most_window});
