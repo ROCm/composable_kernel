@@ -114,7 +114,7 @@ struct layernorm2d_fwd_traits_
     using WarpTile   = ck_tile::sequence<Warp_M, Warp_N>;
     using Vector     = ck_tile::sequence<1, Vector_N_>;
 
-    using Shape = ck_tile::Layernorm2dShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using Shape = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
 
     static constexpr bool kPadN           = kPadN_;
     static constexpr bool kSaveMeanInvStd = kSaveMeanInvStd_;
@@ -512,7 +512,7 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
                                   h_traits('x', 'y', 'xs', 'ys', 1,  3,  1, 256, 4,  True,  False, False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  6,  1, 256, 2,  True,  False, False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  3,  1,1024, 1,  True,  False, False,   0,    0)],
-                        '4096' :[ h_traits('x', 'y', 'xs', 'ys', 1,  1,  1, 512, 8,  True,  False, False,   0,    0),
+                        '4096' :[ h_traits('x', 'y', 'xs', 'ys', 1,  2,  1, 256, 8,  True,  False, False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  4,  1, 256, 4,  True,  False, False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  2,  1,1024, 2,  True,  False, False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  4,  1,1024, 1,  True,  False, False,   0,    0)],

@@ -1,7 +1,7 @@
 #include "ck_tile/host.hpp"
 #include "layernorm2d_fwd.hpp"
-#include <cstring>
 #include <algorithm>
+#include <cstring>
 
 // different threshold for different dtype
 template <typename DataType>

@@ -108,13 +108,6 @@ struct DynamicQuantEpilogue
         reduce_sync(row_absmax, f_absmax);
         reduce_crosswarp_sync(row_absmax, smem, f_absmax);
 
-#if 0
-        sweep_tile(row_absmax, [&](auto idx) {
-            auto ddd = row_absmax[idx];
-            printf("tid:%d, absmax:%f\n", static_cast<int>(threadIdx.x), ddd);
-        });
-#endif
-
         // here y_scale is Acc TYpe, need convert to YScale type later
         auto y_scale = tile_elementwise_in(
             [&](const auto& v_) {

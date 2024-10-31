@@ -2,13 +2,12 @@
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/utility/bit_cast.hpp"
-#include "ck_tile/core/numeric/numeric.hpp"
-#include "ck_tile/core/utility/random.hpp"
 #include "ck_tile/core/numeric/half.hpp"
-#include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
+#include "ck_tile/core/utility/random.hpp"
 #include <stdint.h>
 #include <type_traits>
 
