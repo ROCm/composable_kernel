@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_pipeline_default_policy.hpp"
+#include "ck_tile/ops/layernorm2d/pipeline/layernorm2d_fwd_traits.hpp"
 #include <string>
 #include <type_traits>
 
@@ -24,20 +25,25 @@ struct Layernorm2dFwdPipelineOnePass
     using MeanDataType    = ck_tile::remove_cvref_t<typename Problem::MeanDataType>;
     using InvStdDataType  = ck_tile::remove_cvref_t<typename Problem::InvStdDataType>;
 
+    using XResidualDataType = XDataType;
+    using YResidualDataType = XDataType;
+
     static constexpr bool kHasGamma   = !std::is_same_v<GammaDataType, ck_tile::null_type>;
     static constexpr bool kHasBeta    = !std::is_same_v<BetaDataType, ck_tile::null_type>;
-    static constexpr bool kSaveMean   = Problem::kSaveMeanInvStd;
-    static constexpr bool kSaveInvStd = Problem::kSaveMeanInvStd;
+    static constexpr bool kSaveMean   = Problem::Traits::kSaveMeanInvStd;
+    static constexpr bool kSaveInvStd = Problem::Traits::kSaveMeanInvStd;
 
     static constexpr bool kNeedCrossWarpSync = Problem::kNeedCrossWarpSync;
     static constexpr bool kPadM              = false; // TODO - BlockLayernorm2dFwdProblem::kPadM
-    static constexpr bool kPadN              = Problem::kPadN;
+    static constexpr bool kPadN              = Problem::Traits::kPadN;
+    static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
+    static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
     static constexpr const char* name = []() {
         if constexpr(kNeedCrossWarpSync)
-            return "bpr_op"; // block per row
+            return "bpr"; // block per row
         else
-            return "wpr_op"; // warp per row
+            return "wpr"; // warp per row
     }();
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -46,20 +52,30 @@ struct Layernorm2dFwdPipelineOnePass
     }
 
     template <typename XWindow,
+              typename XResidualWindow,
               typename GammaWindow,
               typename BetaWindow,
               typename YWindow,
+              typename YResidualWindow,
               typename MeanWindow,
-              typename InvStdWindow>
+              typename InvStdWindow,
+              typename XScaleWindow,
+              typename YScaleWindow,
+              typename Epilogue>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
+                                   const XResidualWindow& x_residual_window_,
                                    const GammaWindow& gamma_window_,
                                    const BetaWindow& beta_window_,
-                                   YWindow& y_window,
+                                   YWindow& y_window_,
+                                   const YResidualWindow& y_residual_window_,
                                    MeanWindow& mean_window,
                                    InvStdWindow& inv_std_window,
+                                   const XScaleWindow& x_scale_window_,
+                                   YScaleWindow& y_scale_window,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
-                                   void* smem) const
+                                   void* smem,
+                                   Epilogue) const
     {
         const auto x_window =
             make_tile_window(x_window_, Policy::template MakeXBlockTileDistribution<Problem>());
@@ -67,8 +83,17 @@ struct Layernorm2dFwdPipelineOnePass
             gamma_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
         const auto beta_window = make_tile_window(
             beta_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
+        const auto x_residual_window = make_tile_window(
+            x_residual_window_, Policy::template MakeXBlockTileDistribution<Problem>());
+        auto y_residual_window = make_tile_window(
+            y_residual_window_, Policy::template MakeXBlockTileDistribution<Problem>());
+        const auto x_scale_window = make_tile_window(
+            x_scale_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
 
-        const auto x  = load_tile(x_window);
+        auto x       = load_tile(x_window);
+        auto x_resi  = load_tile(x_residual_window);
+        auto x_scale = load_tile(x_scale_window);
+
         int cur_count = 0;
         int max_count =
             block_tile_welford_calculate_max_count<typename Problem::BlockShape>(row_size);
@@ -80,6 +105,18 @@ struct Layernorm2dFwdPipelineOnePass
         // load gamma/beta (TODO: support no gamma/beta?)
         const auto gamma = load_tile(gamma_window);
         const auto beta  = load_tile(beta_window);
+
+        if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE ||
+                     kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD)
+        {
+            sweep_tile(x_resi, [&](auto idx) {
+                // compute x = x_resi + x
+                x(idx) = type_convert<YResidualDataType>(x_resi(idx)) +
+                         type_convert<YResidualDataType>(x(idx));
+            });
+            if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE)
+                store_tile(y_residual_window, x);
+        }
 
         // compute welford each-thread->cross-lane->cross-warp
         auto [mean, var] = block_welford(x, cur_count, max_count);
@@ -100,8 +137,8 @@ struct Layernorm2dFwdPipelineOnePass
             store_tile(inv_std_window, cast_tile<InvStdDataType>(inv_std));
 
         // layernorm computation
-        auto y = make_static_distributed_tensor<YDataType>(x.get_tile_distribution());
-        sweep_tile(y, [&, mean_ = mean](auto idx) {
+        auto ln = make_static_distributed_tensor<ComputeDataType>(x.get_tile_distribution());
+        sweep_tile(ln, [&, mean_ = mean](auto idx) {
             constexpr auto i_idx = make_tuple(idx[number<0>{}]);
             constexpr auto j_idx = make_tuple(idx[number<1>{}]);
 
@@ -109,11 +146,28 @@ struct Layernorm2dFwdPipelineOnePass
             const auto beta_  = type_convert<ComputeDataType>(beta[j_idx]);
 
             const auto x_ = type_convert<ComputeDataType>(x[idx]);
-            auto y_       = (x_ - mean_[i_idx]) * inv_std[i_idx] * gamma_ + beta_;
+            auto ln_      = (x_ - mean_[i_idx]) * inv_std[i_idx] * gamma_ + beta_;
 
-            y(idx) = type_convert<YDataType>(y_);
+            ln(idx) = ln_;
         });
-        store_tile(y_window, y);
+
+        if constexpr(kFusedQuant == Layernorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
+        {
+            // smooth-quant pre-scale, then run rowwise-quant
+            sweep_tile(ln, [&](auto idx) {
+                constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+                const auto xs_       = type_convert<ComputeDataType>(x_scale[j_idx]);
+                ln(idx)              = ln(idx) * xs_;
+            });
+        }
+
+        if constexpr(kFusedQuant == Layernorm2dFusedQuantEnum::DYNAMIC_QUANT ||
+                     kFusedQuant == Layernorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
+        {
+            Epilogue{}(y_window_, y_scale_window, ln, smem);
+        }
+        else
+            Epilogue{}(y_window_, ln);
     }
 };
 } // namespace ck_tile
