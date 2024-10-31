@@ -17,14 +17,24 @@ struct BlockReduce2d
 
     CK_TILE_DEVICE constexpr BlockReduce2d() {}
 
-    template <typename XDistributedTensor_, typename YDistributedTensor_, typename ReduceFunc>
+    template <typename XDistributedTensor_,
+              typename YDistributedTensor_,
+              typename ReduceFunc,
+              typename ReducePacksPerXDim = uniform_sequence_gen_t<2, 1>>
     CK_TILE_DEVICE void operator()(const XDistributedTensor_& x_tensor,
                                    YDistributedTensor_& y_tensor,
-                                   const ReduceFunc& reduce_func)
+                                   const ReduceFunc& reduce_func,
+                                   ReducePacksPerXDim = {})
     {
+        sweep_tile<XDistributedTensor_>(
+            [&](auto... idx_) {
+                constexpr auto idx_0 = make_tuple(make_tuple(idx_[number<0>{}]...)[number<0>{}]);
+                y_tensor(idx_0)      = reduce_func(y_tensor(idx_0), x_tensor[idx_]...);
+            },
+            ReducePacksPerXDim{});
+#if 0
         constexpr auto I0 = number<0>{};
         constexpr auto I1 = number<1>{};
-
         constexpr auto spans = XDistributedTensor_::get_distributed_spans();
 
         // FIXME: hard coded to reduce 2nd axis
@@ -42,6 +52,7 @@ struct BlockReduce2d
 
             y_tensor(y_dstr_idx) = y;
         });
+#endif
     }
 
     template <typename XDistributedTensor_>
@@ -63,14 +74,17 @@ struct BlockReduce2d
         return tensor;
     }
 
-    template <typename XDistributedTensor_, typename ReduceFunc>
+    template <typename XDistributedTensor_,
+              typename ReduceFunc,
+              typename ReducePacksPerXDim = uniform_sequence_gen_t<2, 1>>
     CK_TILE_DEVICE auto operator()(const XDistributedTensor_& x_tensor,
                                    const ComputeDataType& reduce_init,
-                                   const ReduceFunc& reduce_func)
+                                   const ReduceFunc& reduce_func,
+                                   ReducePacksPerXDim = {})
     {
         auto y_tensor = MakeYBlockTile<XDistributedTensor_>();
         set_tile(y_tensor, reduce_init);
-        (*this)(x_tensor, y_tensor, reduce_func);
+        (*this)(x_tensor, y_tensor, reduce_func, ReducePacksPerXDim{});
 
         return y_tensor;
     }
