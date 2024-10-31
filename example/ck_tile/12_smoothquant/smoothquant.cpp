@@ -38,8 +38,8 @@ auto create_args(int argc, char* argv[])
         .insert("v", "1", "cpu validation or not")
         .insert("kname", "1", "print kernel name or not")
         .insert("prec", "fp16", "precision")
-        .insert("warmup", "0", "cold iter")
-        .insert("repeat", "1", "hot iter");
+        .insert("warmup", "5", "cold iter")
+        .insert("repeat", "20", "hot iter");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
