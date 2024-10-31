@@ -127,9 +127,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<XScaleDataType> x_scale_host_dev({n});
 
     ck_tile::FillUniformDistribution<XDataType>{-.5f, .5f}(x_host);
+    ck_tile::FillUniformDistribution<XResidualDataType>{-.5f, .5f}(x_residual_host);
+    ck_tile::FillUniformDistribution<XScaleDataType>{-1.f, 1.f}(x_scale_host);
     ck_tile::FillUniformDistribution<GammaDataType>{-.5f, .5f}(gamma_host);
     ck_tile::FillUniformDistribution<BetaDataType>{-.5f, .5f}(beta_host);
-    ck_tile::FillUniformDistribution<XScaleDataType>{-1.f, 1.f}(x_scale_host);
 
     ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem gamma_buf(gamma_host.get_element_space_size_in_bytes());
@@ -212,7 +213,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
                            x_host.mData.cend(),
                            x_residual_host.mData.cbegin(),
                            x_host.mData.begin(),
-                           std::plus<XDataType>{});
+                           [](auto x_, auto r_) {
+                               auto o_ = ck_tile::type_convert<ComputeDataType>(x_) +
+                                         ck_tile::type_convert<ComputeDataType>(r_);
+                               return ck_tile::type_convert<XDataType>(o_);
+                           });
         }
         ck_tile::reference_layernorm2d_fwd<XDataType,
                                            GammaDataType,
