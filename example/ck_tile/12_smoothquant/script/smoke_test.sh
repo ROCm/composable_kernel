@@ -1,6 +1,5 @@
 #!/bin/sh
-# call from top of CK folder
-EXE=./build/bin/tile_smoothquant
+EXE="$(find . -name tile_smoothquant -type f | head -n 1)"
 
 for pr_i in "fp16" "bf16" ; do
 $EXE -prec=$pr_i -m=99  -n=13
