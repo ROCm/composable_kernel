@@ -90,7 +90,7 @@ struct AddRmsnorm2dRdquantFwd
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& hargs)
     {
-        return integer_divide_ceil(hargs.m, Block_M);
+        return dim3(integer_divide_ceil(hargs.m, Block_M));
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return Problem::BlockShape::BlockSize; }
