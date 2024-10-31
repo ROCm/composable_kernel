@@ -104,7 +104,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using WarpTile   = ck_tile::sequence<1, 64>;
     using Vector     = ck_tile::sequence<1, 1>;
 
-    using Shape   = ck_tile::AddRmsnorm2dRdquantShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using Shape   = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
     using Problem = ck_tile::AddRmsnorm2dRdquantFwdPipelineProblem<ADataType,
                                                                    BDataType,
                                                                    GammaDataType,
