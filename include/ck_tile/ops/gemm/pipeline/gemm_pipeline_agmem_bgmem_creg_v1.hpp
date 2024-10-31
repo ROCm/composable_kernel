@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,27 +19,27 @@ struct GemmPipelineAGmemBGmemCRegV1
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
+    using ALayout = remove_cvref_t<typename Problem::ALayout>;
+    using BLayout = remove_cvref_t<typename Problem::BLayout>;
+    using CLayout = remove_cvref_t<typename Problem::CLayout>;
+
+    static constexpr index_t BlockSize = Problem::kBlockSize;
 
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t AlignmentA = Problem::AlignmentA;
-    static constexpr index_t AlignmentB = Problem::AlignmentB;
-    static constexpr index_t AlignmentC = Problem::AlignmentC;
+    static constexpr index_t VectorSizeA = Problem::VectorSizeA;
+    static constexpr index_t VectorSizeB = Problem::VectorSizeB;
+    static constexpr index_t VectorSizeC = Problem::VectorSizeC;
 
     static constexpr bool kPadA = Problem::kPadA;
     static constexpr bool kPadB = Problem::kPadB;
     static constexpr bool kPadC = Problem::kPadC;
 
-    using LayoutA = remove_cvref_t<typename Problem::LayoutA>;
-    using LayoutB = remove_cvref_t<typename Problem::LayoutB>;
-    using LayoutC = remove_cvref_t<typename Problem::LayoutC>;
-
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     {
-        return ck_tile::integer_divide_ceil(
+        return integer_divide_ceil(
                    sizeof(ADataType) *
                        Policy::template MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
                    16) *
@@ -48,7 +48,7 @@ struct GemmPipelineAGmemBGmemCRegV1
                    Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
     }
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
     }

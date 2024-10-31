@@ -23,6 +23,130 @@
 namespace ck {
 namespace utils {
 
+template <typename ComputeDataType, typename OutDataType, typename AccDataType = ComputeDataType>
+double get_relative_threshold(const int numberOfAccumulations = 1)
+{
+    using F8   = ck::f8_t;
+    using F16  = ck::half_t;
+    using BF16 = ck::bhalf_t;
+    using F32  = float;
+    using I8   = int8_t;
+    using I32  = int32_t;
+
+    static_assert(is_same_v<ComputeDataType, F8> || is_same_v<ComputeDataType, F16> ||
+                      is_same_v<ComputeDataType, BF16> || is_same_v<ComputeDataType, F32> ||
+                      is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
+                      is_same_v<ComputeDataType, int>,
+                  "Warning: Unhandled ComputeDataType for setting up the relative threshold!");
+    double compute_error = 0;
+    if constexpr(is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
+                 is_same_v<ComputeDataType, int>)
+    {
+        return 0;
+    }
+    else
+    {
+        compute_error = std::pow(2, -NumericUtils<ComputeDataType>::mant) * 0.5;
+    }
+
+    static_assert(is_same_v<OutDataType, F8> || is_same_v<OutDataType, F16> ||
+                      is_same_v<OutDataType, BF16> || is_same_v<OutDataType, F32> ||
+                      is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
+                      is_same_v<OutDataType, int>,
+                  "Warning: Unhandled OutDataType for setting up the relative threshold!");
+    double output_error = 0;
+    if constexpr(is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
+                 is_same_v<OutDataType, int>)
+    {
+        return 0;
+    }
+    else
+    {
+        output_error = std::pow(2, -NumericUtils<OutDataType>::mant) * 0.5;
+    }
+    double midway_error = std::max(compute_error, output_error);
+
+    static_assert(is_same_v<AccDataType, F8> || is_same_v<AccDataType, F16> ||
+                      is_same_v<AccDataType, BF16> || is_same_v<AccDataType, F32> ||
+                      is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
+                      is_same_v<AccDataType, int>,
+                  "Warning: Unhandled AccDataType for setting up the relative threshold!");
+    double acc_error = 0;
+    if constexpr(is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
+                 is_same_v<AccDataType, int>)
+    {
+        return 0;
+    }
+    else
+    {
+        acc_error = std::pow(2, -NumericUtils<AccDataType>::mant) * 0.5 * numberOfAccumulations;
+    }
+    return std::max(acc_error, midway_error);
+}
+
+template <typename ComputeDataType, typename OutDataType, typename AccDataType = ComputeDataType>
+double get_absolute_threshold(const double max_possible_num, const int numberOfAccumulations = 1)
+{
+    using F8   = ck::f8_t;
+    using F16  = ck::half_t;
+    using BF16 = ck::bhalf_t;
+    using F32  = float;
+    using I8   = int8_t;
+    using I32  = int32_t;
+
+    static_assert(is_same_v<ComputeDataType, F8> || is_same_v<ComputeDataType, F16> ||
+                      is_same_v<ComputeDataType, BF16> || is_same_v<ComputeDataType, F32> ||
+                      is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
+                      is_same_v<ComputeDataType, int>,
+                  "Warning: Unhandled ComputeDataType for setting up the absolute threshold!");
+    auto expo            = std::log2(std::abs(max_possible_num));
+    double compute_error = 0;
+    if constexpr(is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
+                 is_same_v<ComputeDataType, int>)
+    {
+        return 0;
+    }
+    else
+    {
+        compute_error = std::pow(2, expo - NumericUtils<ComputeDataType>::mant) * 0.5;
+    }
+
+    static_assert(is_same_v<OutDataType, F8> || is_same_v<OutDataType, F16> ||
+                      is_same_v<OutDataType, BF16> || is_same_v<OutDataType, F32> ||
+                      is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
+                      is_same_v<OutDataType, int>,
+                  "Warning: Unhandled OutDataType for setting up the absolute threshold!");
+    double output_error = 0;
+    if constexpr(is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
+                 is_same_v<OutDataType, int>)
+    {
+        return 0;
+    }
+    else
+    {
+        output_error = std::pow(2, expo - NumericUtils<OutDataType>::mant) * 0.5;
+    }
+    double midway_error = std::max(compute_error, output_error);
+
+    static_assert(is_same_v<AccDataType, F8> || is_same_v<AccDataType, F16> ||
+                      is_same_v<AccDataType, BF16> || is_same_v<AccDataType, F32> ||
+                      is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
+                      is_same_v<AccDataType, int>,
+                  "Warning: Unhandled AccDataType for setting up the absolute threshold!");
+    double acc_error = 0;
+    if constexpr(is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
+                 is_same_v<AccDataType, int>)
+    {
+        return 0;
+    }
+    else
+    {
+        acc_error =
+            std::pow(2, expo - NumericUtils<AccDataType>::mant) * 0.5 * numberOfAccumulations;
+    }
+    return std::max(acc_error, midway_error);
+}
+
 template <typename Range, typename RefRange>
 typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
@@ -253,11 +377,13 @@ check_err(const Range& out,
     int err_count  = 0;
     double err     = 0;
     double max_err = std::numeric_limits<float>::min();
+
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const double o = type_convert<float>(*std::next(std::begin(out), i));
         const double r = type_convert<float>(*std::next(std::begin(ref), i));
         err            = std::abs(o - r);
+
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
@@ -270,6 +396,7 @@ check_err(const Range& out,
             res = false;
         }
     }
+
     if(!res)
     {
         std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err

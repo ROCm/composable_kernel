@@ -241,7 +241,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     }
 
     bool pass = true;
-    if(config.do_verification)
+    if((config.do_verification == 1) || (config.do_verification == 3))
     {
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
