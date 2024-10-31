@@ -162,8 +162,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
 #endif
         }
-        // // 2D
-        // // layout GNHWC/GKYXC/GNHWK
+        // 2D
+        // layout GNHWC/GKYXC/GNHWK
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, GNHWC> &&
                      is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, GNHWK>)
         {
@@ -267,8 +267,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_large_tensor_nhwgc_gkyxc_nhwgk_int8_instances(
                     op_ptrs);
-                // add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_int8_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_int8_instances(
+                    op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_comp_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances(
                     op_ptrs);
@@ -318,8 +318,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
                          is_same_v<BComputeType, int8_t>)
             {
-                // add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_int8_instances(
-                //     op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_int8_instances(
+                    op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_comp_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_mem_intra_instances(
