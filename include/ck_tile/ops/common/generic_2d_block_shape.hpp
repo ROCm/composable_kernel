@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
-#include "ck_tile/core.hpp"
-
 namespace ck_tile {
+
 /*
 // clang-format off
 
@@ -42,7 +41,7 @@ template <typename BlockTile_,    // block size, seq<M, N>
           typename Vector_,       // contiguous pixels(vector size) along seq<M, N>
           index_t BlockSize_ =
               warpSize* reduce_on_sequence(WarpPerBlock_{}, multiplies{}, number<1>{})>
-struct Layernorm2dShape
+struct Generic2dBlockShape
 {
     // block size
     static constexpr index_t Block_M = BlockTile_::at(number<0>{});
