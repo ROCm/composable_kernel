@@ -485,6 +485,7 @@ struct non_native_vector_base<bf8_ocp_t, 1>
 
     __host__ __device__ operator data_v() const { return d; }
     __host__ __device__ operator data_t() const { return d[0]; }
+    __host__ __device__ operator bf8_ocp_t() const { return bf8_ocp_t{d[0]}; }
 };
 
 namespace fp8_impl {

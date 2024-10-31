@@ -1173,9 +1173,10 @@ struct vector_type<T, 2, typename std::enable_if_t<!is_native_type<T>()>>
 template <typename T>
 struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using d1_t = T;
-    using d2_t = non_native_vector_base<T, 2>;
-    using d4_t = non_native_vector_base<T, 4>;
+    using d1_t     = T;
+    using d1_nnv_t = non_native_vector_base<T, 1>;
+    using d2_t     = non_native_vector_base<T, 2>;
+    using d4_t     = non_native_vector_base<T, 4>;
 
     using type = d4_t;
 
@@ -1183,6 +1184,7 @@ struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
     {
         d4_t d4_;
         StaticallyIndexedArray<d1_t, 4> d1x4_;
+        StaticallyIndexedArray<d1_nnv_t, 4> d1nnvx4_;
         StaticallyIndexedArray<d2_t, 2> d2x2_;
         StaticallyIndexedArray<d4_t, 1> d4x1_;
     } data_;
@@ -1194,10 +1196,11 @@ struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d4_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value || is_same<X, d4_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x4_;
         }
@@ -1218,10 +1221,11 @@ struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d4_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value || is_same<X, d4_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x4_;
         }
@@ -1329,11 +1333,12 @@ struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
 template <typename T>
 struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using d1_t  = T;
-    using d2_t  = non_native_vector_base<T, 2>;
-    using d4_t  = non_native_vector_base<T, 4>;
-    using d8_t  = non_native_vector_base<T, 8>;
-    using d16_t = non_native_vector_base<T, 16>;
+    using d1_t     = T;
+    using d1_nnv_t = non_native_vector_base<T, 1>;
+    using d2_t     = non_native_vector_base<T, 2>;
+    using d4_t     = non_native_vector_base<T, 4>;
+    using d8_t     = non_native_vector_base<T, 8>;
+    using d16_t    = non_native_vector_base<T, 16>;
 
     using type = d16_t;
 
@@ -1341,6 +1346,7 @@ struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
     {
         d16_t d16_;
         StaticallyIndexedArray<d1_t, 16> d1x16_;
+        StaticallyIndexedArray<d1_nnv_t, 16> d1nnvx16_;
         StaticallyIndexedArray<d2_t, 8> d2x8_;
         StaticallyIndexedArray<d4_t, 4> d4x4_;
         StaticallyIndexedArray<d8_t, 2> d8x2_;
@@ -1354,12 +1360,12 @@ struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
-                          is_same<X, d4_t>::value || is_same<X, d8_t>::value ||
-                          is_same<X, d16_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value || is_same<X, d4_t>::value ||
+                          is_same<X, d8_t>::value || is_same<X, d16_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x16_;
         }
@@ -1388,12 +1394,12 @@ struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
-                          is_same<X, d4_t>::value || is_same<X, d8_t>::value ||
-                          is_same<X, d16_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value || is_same<X, d4_t>::value ||
+                          is_same<X, d8_t>::value || is_same<X, d16_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x16_;
         }
