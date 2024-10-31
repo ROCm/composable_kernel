@@ -37,12 +37,13 @@ struct BlockFmhaPipelineQRKSVS
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0            = BlockFmhaShape::kM0;
-    static constexpr index_t kN0            = BlockFmhaShape::kN0;
-    static constexpr index_t kK0            = BlockFmhaShape::kK0;
-    static constexpr index_t kN1            = BlockFmhaShape::kN1;
-    static constexpr index_t kK1            = BlockFmhaShape::kK1;
-    static constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
+    static constexpr index_t kM0           = BlockFmhaShape::kM0;
+    static constexpr index_t kN0           = BlockFmhaShape::kN0;
+    static constexpr index_t kK0           = BlockFmhaShape::kK0;
+    static constexpr index_t kN1           = BlockFmhaShape::kN1;
+    static constexpr index_t kK1           = BlockFmhaShape::kK1;
+    static constexpr index_t kQKHeaddim    = BlockFmhaShape::kQKHeaddim;
+    static constexpr index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
@@ -76,22 +77,22 @@ struct BlockFmhaPipelineQRKSVS
             return Problem::kBlockPerCu;
         else
         {
-            if constexpr(kK0BlockLength <= 32)
+            if constexpr(kQKHeaddim <= 32)
             {
                 return 2;
             }
-            else if constexpr(kK0BlockLength <= 64)
+            else if constexpr(kQKHeaddim <= 64)
             {
                 return 3;
             }
-            else if constexpr(kK0BlockLength <= 128)
+            else if constexpr(kQKHeaddim <= 128)
             {
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                     return 1;
                 else
                     return 2;
             }
-            else if constexpr(kK0BlockLength <= 256)
+            else if constexpr(kQKHeaddim <= 256)
             {
                 return 1;
             }
@@ -242,11 +243,11 @@ struct BlockFmhaPipelineQRKSVS
                              {seqlen_k_start, 0});
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
-        auto bias_dram_window  = make_tile_window(
-            bias_dram_block_window_tmp.get_bottom_tensor_view(),
-            bias_dram_block_window_tmp.get_window_lengths(),
-            {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
-            Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
+        auto bias_dram_window =
+            make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
+                             bias_dram_block_window_tmp.get_window_lengths(),
+                             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
+                             Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
             randval_dram_block_window_tmp, seqlen_k_start);
@@ -261,7 +262,7 @@ struct BlockFmhaPipelineQRKSVS
 
         // prefetch K tile
         index_t i_total_loops      = 0;
-        constexpr index_t k0_loops = kK0BlockLength / kK0;
+        constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
 
         static_assert(2 <= k0_loops);
