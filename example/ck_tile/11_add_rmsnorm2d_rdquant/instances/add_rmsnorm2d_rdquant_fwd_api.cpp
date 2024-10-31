@@ -28,7 +28,6 @@ float add_rmsnorm2d_rdquant_fwd_b16_(add_rmsnorm2d_rdquant_fwd_traits /*t*/,
                                      add_rmsnorm2d_rdquant_fwd_args a,
                                      const ck_tile::stream_config& s)
 {
-#if 1
     float r = -1;
     // clang-format off
     //                                                      rm  rn  tm   tn  vn   pd     x      3p
@@ -127,10 +126,6 @@ float add_rmsnorm2d_rdquant_fwd_b16_(add_rmsnorm2d_rdquant_fwd_traits /*t*/,
         else
             r = add_rmsnorm2d_rdquant_fwd_<trait_<data_type,  1, 4, 1, 1024, 1,  true,  true, true>>(s, a);
     }
-    return r;
-#else
-    return add_rmsnorm2d_rdquant_fwd_<trait_<data_type,  1, 1, 2,  128, 8,  true,  true, false>>(s, a);
-#endif
     // clang-format on
 }
 

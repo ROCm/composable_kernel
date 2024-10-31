@@ -26,7 +26,6 @@ float smoothquant_dispatch(smoothquant_traits /*t*/,
                            smoothquant_args a,
                            const ck_tile::stream_config& s)
 {
-#if 1
     float r = -1;
     // clang-format off
     //                                         rm  rn  tm  tn  vn   pd    2p
@@ -126,9 +125,6 @@ float smoothquant_dispatch(smoothquant_traits /*t*/,
             r = smoothquant_<trait_<data_type,  1, 4, 1, 1024, 1,  true, true>>(s, a);
     }
     return r;
-#else
-    return smoothquant_<trait_<data_type,  1,  1,  4,  64, 1,  true, false>>(s, a);
-#endif
     // clang-format on
 }
 
