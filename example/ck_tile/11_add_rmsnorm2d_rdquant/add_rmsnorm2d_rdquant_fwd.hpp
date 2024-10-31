@@ -18,7 +18,7 @@ struct AddRmsnormRdquantTypeConfig<ck_tile::half_t>
     using BDataType       = ck_tile::half_t;
     using GammaDataType   = ck_tile::half_t;
     using XDataType       = ck_tile::half_t;
-    using YScaleDataType  = ck_tile::half_t;
+    using YScaleDataType  = float;
     using QYDataType      = ck_tile::int8_t;
     using ComputeDataType = float;
 };
@@ -30,7 +30,7 @@ struct AddRmsnormRdquantTypeConfig<ck_tile::bf16_t>
     using BDataType       = ck_tile::bf16_t;
     using GammaDataType   = ck_tile::bf16_t;
     using XDataType       = ck_tile::bf16_t;
-    using YScaleDataType  = ck_tile::bf16_t;
+    using YScaleDataType  = float;
     using QYDataType      = ck_tile::int8_t;
     using ComputeDataType = float;
 };

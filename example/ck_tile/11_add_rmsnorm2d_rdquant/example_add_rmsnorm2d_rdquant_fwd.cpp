@@ -66,7 +66,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BDataType       = DataType;
     using GammaDataType   = DataType;
     using XDataType       = DataType;
-    using YScaleDataType  = DataType;
+    using YScaleDataType  = float;
     using QYDataType      = ck_tile::int8_t;
     using ComputeDataType = float;
 
@@ -99,8 +99,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     constexpr bool kThreePass = true;
 
-    using BlockWarps = ck_tile::sequence<2, 2>;
-    using BlockTile  = ck_tile::sequence<2, 128>;
+    using BlockWarps = ck_tile::sequence<4, 1>;
+    using BlockTile  = ck_tile::sequence<4, 128>;
     using WarpTile   = ck_tile::sequence<1, 64>;
     using Vector     = ck_tile::sequence<1, 1>;
 

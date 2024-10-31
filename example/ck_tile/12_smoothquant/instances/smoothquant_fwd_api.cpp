@@ -130,7 +130,6 @@ float smoothquant_dispatch(smoothquant_traits /*t*/,
 
 float smoothquant(smoothquant_traits t, smoothquant_args a, const ck_tile::stream_config& s)
 {
-    float r = -1;
     if(t.data_type.compare("fp16") == 0)
     {
         return smoothquant_dispatch<ck_tile::fp16_t>(t, a, s);
@@ -141,6 +140,4 @@ float smoothquant(smoothquant_traits t, smoothquant_args a, const ck_tile::strea
     }
     else
         throw std::runtime_error("Without supported instances!");
-
-    return r;
 }

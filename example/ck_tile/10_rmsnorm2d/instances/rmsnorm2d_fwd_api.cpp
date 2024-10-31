@@ -133,7 +133,6 @@ float rmsnorm2d_fwd_b16_(rmsnorm2d_fwd_traits /*t*/,
 float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t, rmsnorm2d_fwd_args a, const ck_tile::stream_config& s)
 {
 
-    float r = -1;
     if(t.data_type.compare("fp16") == 0)
     {
         return rmsnorm2d_fwd_b16_<ck_tile::fp16_t>(t, a, s);
@@ -144,6 +143,4 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t, rmsnorm2d_fwd_args a, const ck_tile:
     }
     else
         throw std::runtime_error("Without supported instances!");
-
-    return r;
 }
