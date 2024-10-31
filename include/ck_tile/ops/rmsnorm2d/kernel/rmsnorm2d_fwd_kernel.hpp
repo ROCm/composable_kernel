@@ -11,11 +11,11 @@ namespace ck_tile {
 // host side args
 struct Rmsnorm2dFwdHostArgs
 {
-    const void* p_x;
-    const void* p_gamma;
+    const void* p_x;     // [m ,n], input, fp16/bf16
+    const void* p_gamma; // [1, n], gamma, prec same as input
 
-    void* p_y;
-    void* p_invRms;
+    void* p_y;      // [m, n], output, fp16/bf16
+    void* p_invRms; // [m, 1], output inv-rms, prec same as input, nullptr if not used
 
     float epsilon;
 

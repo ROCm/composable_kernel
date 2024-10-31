@@ -9,15 +9,16 @@
 namespace ck_tile {
 
 // host side args
+// X = A + B, Y = Rmsnorm2d(X), QY = RowwiseDynamicQuant(Y) = SaturateCast(Y / YScale)
 struct AddRmsnorm2dRdquantFwdHostArgs
 {
-    const void* p_a;
-    const void* p_b;
-    const void* p_gamma;
+    const void* p_a;     // [m ,n], input, fp16/bf16
+    const void* p_b;     // [m ,n], input, fp16/bf16
+    const void* p_gamma; // [1, n], gamma, prec same as input
 
-    void* p_x;
-    void* p_yscale;
-    void* p_qy;
+    void* p_x;      // [m, n], output, p_a + p_b, fp16/bf16
+    void* p_yscale; // [m, 1], output, rowwise quant scale (amax / 127) of reuslt of rmsnorm2d(x)
+    void* p_qy;     // [m, n], output, result of quant tensor of rmsnorm2d(x) int8
 
     float epsilon;
 

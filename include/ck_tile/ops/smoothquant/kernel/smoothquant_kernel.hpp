@@ -11,11 +11,11 @@ namespace ck_tile {
 // host side args
 struct SmoothquantHostArgs
 {
-    const void* p_x;
-    const void* p_xscale;
+    const void* p_x;      // [m ,n], input, fp16/bf16
+    const void* p_xscale; // [1, n], input, columnwise scale, fp32
 
-    void* p_yscale;
-    void* p_qy;
+    void* p_yscale; // [m, 1], output, rowwise quant scale (amax / 127) of (p_x * p_xscale)
+    void* p_qy;     // [m, n], output, p_x * p_xscale / p_yscale
 
     index_t m;
     index_t n;
