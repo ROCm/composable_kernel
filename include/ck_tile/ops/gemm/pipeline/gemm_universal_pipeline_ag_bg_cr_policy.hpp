@@ -33,6 +33,9 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 Problem::BlockGemmShape::WarpTile::at(I2),
                                                 TransposeC>;
 
+        static_assert(Problem::BlockGemmShape::BlockWarps::at(I2) == 1,
+                      "Assume there is only 1 warp among K dimension");
+
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
 
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
@@ -180,6 +183,9 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 Problem::BlockGemmShape::WarpTile::at(I1),
                                                 Problem::BlockGemmShape::WarpTile::at(I2),
                                                 TransposeC>;
+
+        static_assert(Problem::BlockGemmShape::BlockWarps::at(I2) == 1,
+                      "Assume there is only 1 warp among K dimension");
 
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
 
@@ -355,6 +361,9 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 Problem::BlockGemmShape::WarpTile::at(I2),
                                                 TransposeC>;
 
+        static_assert(Problem::BlockGemmShape::BlockWarps::at(I2) == 1,
+                      "Assume there is only 1 warp among K dimension");
+
         constexpr index_t BlockSize = Problem::kBlockSize;
 
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
@@ -389,6 +398,9 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 Problem::BlockGemmShape::WarpTile::at(I1),
                                                 Problem::BlockGemmShape::WarpTile::at(I2),
                                                 TransposeC>;
+
+        static_assert(Problem::BlockGemmShape::BlockWarps::at(I2) == 1,
+                      "Assume there is only 1 warp among K dimension");
 
         constexpr index_t BlockSize = Problem::kBlockSize;
 
