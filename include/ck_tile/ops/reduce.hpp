@@ -7,4 +7,5 @@
 #include "ck_tile/ops/reduce/block/block_reduce2d.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce2d_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce2d_problem.hpp"
+#include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
