@@ -39,8 +39,11 @@ struct BlockFmhaPipelineProblem
     using FmhaMask              = remove_cvref_t<FmhaMask_>;
     using Traits                = remove_cvref_t<Traits_>;
 
-    static constexpr index_t kBlockSize = BlockFmhaShape::NumWarps * get_warp_size();
-    static constexpr bool kIsGroupMode  = kIsGroupMode_;
+    static constexpr index_t kNumGemm0Warps = BlockFmhaShape::NumGemm0Warps;
+    static constexpr index_t kNumGemm1Warps = BlockFmhaShape::NumGemm1Warps;
+    static constexpr index_t kBlockSize     = BlockFmhaShape::NumWarps * get_warp_size();
+
+    static constexpr bool kIsGroupMode = kIsGroupMode_;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
@@ -84,8 +87,11 @@ struct BlockFmhaFwdSplitKVPipelineProblem
     using FmhaMask            = remove_cvref_t<FmhaMask_>;
     using Traits              = remove_cvref_t<Traits_>;
 
-    static constexpr index_t kBlockSize = BlockFmhaShape::NumWarps * get_warp_size();
-    static constexpr bool kIsGroupMode  = kIsGroupMode_;
+    static constexpr index_t kNumGemm0Warps = BlockFmhaShape::NumGemm0Warps;
+    static constexpr index_t kNumGemm1Warps = BlockFmhaShape::NumGemm1Warps;
+    static constexpr index_t kBlockSize     = BlockFmhaShape::NumWarps * get_warp_size();
+
+    static constexpr bool kIsGroupMode = kIsGroupMode_;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
@@ -115,7 +121,8 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     using ODataType    = remove_cvref_t<ODataType_>;
     using Traits       = remove_cvref_t<Traits_>;
 
-    static constexpr index_t kBlockSize = 256;
+    static constexpr index_t kNumWarps  = kM0_ / (get_warp_size() / 4);
+    static constexpr index_t kBlockSize = kNumWarps * get_warp_size();
     static constexpr bool kIsGroupMode  = kIsGroupMode_;
 
     static constexpr index_t kHeadDimV = HeadDimV_;
