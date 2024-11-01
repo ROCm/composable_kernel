@@ -17,8 +17,8 @@ struct GemmTilePartitioner
 
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t batch_size)
     {
-        index_t GridDimX = (M + kM - 1) / kM;
-        index_t GridDimY = (N + kN - 1) / kN;
+        index_t GridDimX = integer_divide_ceil(M, kM);
+        index_t GridDimY = integer_divide_ceil(N, kN);
         index_t GridDimZ = batch_size;
         return dim3(GridDimX, GridDimY, GridDimZ);
     }
