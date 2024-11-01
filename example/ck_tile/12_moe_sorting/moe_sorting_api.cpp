@@ -7,9 +7,9 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_kargs a, ck_tile::stream_conf
 {
     if(t.weight_type == "fp32")
     {
-        using index_t         = ck_tile::index_t;
-        using ms_weight_type  = float;
-        using ms_problem      = ck_tile::MoeSortingProblem<index_t, ms_weight_type>;
+        using index_t        = ck_tile::index_t;
+        using ms_weight_type = float;
+        using ms_problem     = ck_tile::MoeSortingProblem<index_t, ms_weight_type>;
         // using ms_pipeline     = ck_tile::MoeSortingPipeline<ms_problem>;
         using kernel          = ck_tile::MoeSortingKernel<ms_problem>;
         auto kargs            = kernel::MakeKargs(a);

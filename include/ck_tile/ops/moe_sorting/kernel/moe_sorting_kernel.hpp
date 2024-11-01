@@ -30,7 +30,7 @@ template <typename Problem_>
 struct MoeSortingKernel
 {
     // using Pipeline = remove_cvref_t<Pipeline_>;
-    using Problem  = remove_cvref_t<Problem_>;
+    using Problem = remove_cvref_t<Problem_>;
 
     using IndexType  = typename Problem::IndexType;
     using WeightType = typename Problem::WeightType;
@@ -71,7 +71,7 @@ struct MoeSortingKernel
             tokens_cnts[calc_index(num_experts, threadIdx.x + 1, i)] = 0;
         }
 
-        for (int i = start_idx; i < numel && i < start_idx + tokens_per_thread; ++i) 
+        for(int i = start_idx; i < numel && i < start_idx + tokens_per_thread; ++i)
         {
             ++tokens_cnts[calc_index(num_experts, threadIdx.x + 1, topk_id[i])];
         }
@@ -95,7 +95,8 @@ struct MoeSortingKernel
             {
                 cumsum[i] =
                     cumsum[i - 1] +
-                    max(integer_divide_ceil(tokens_cnts[calc_index(num_experts, blockDim.x, i - 1)], unit_size),
+                    max(integer_divide_ceil(tokens_cnts[calc_index(num_experts, blockDim.x, i - 1)],
+                                            unit_size),
                         1) *
                         unit_size;
             }
@@ -137,12 +138,12 @@ struct MoeSortingKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         const size_t numel = kargs.tokens * kargs.topk;
-        return moe_align_block_size_kernel(static_cast<const IndexType *>(kargs.p_topk_ids),
-                                           static_cast<const WeightType *>(kargs.p_weights),
-                                           static_cast<IndexType *>(kargs.sorted_token_ids),
-                                           static_cast<WeightType *>(kargs.sorted_weights),
-                                           static_cast<IndexType *>(kargs.expert_ids),
-                                           static_cast<IndexType *>(kargs.total_tokens_post_pad),
+        return moe_align_block_size_kernel(static_cast<const IndexType*>(kargs.p_topk_ids),
+                                           static_cast<const WeightType*>(kargs.p_weights),
+                                           static_cast<IndexType*>(kargs.sorted_token_ids),
+                                           static_cast<WeightType*>(kargs.sorted_weights),
+                                           static_cast<IndexType*>(kargs.expert_ids),
+                                           static_cast<IndexType*>(kargs.total_tokens_post_pad),
                                            kargs.num_experts,
                                            kargs.unit_size,
                                            numel,
