@@ -76,6 +76,9 @@ struct DynamicQuantEpilogue
     {
         using S = BlockShape;
 #if 0
+        // don't remove this
+        // Note that if we set encoding purposely like this, you will result in compile fail
+        // TODO: x_scale create local-scratch to accept arbitrary acc input (with same length)
         return make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M>,
@@ -136,10 +139,9 @@ struct DynamicQuantEpilogue
             constexpr auto y_size_per_row =
                 OAccTile{}.get_tile_distribution().get_ys_to_d_descriptor().get_lengths().at(
                     number<1>{});
-            // constexpr auto y_size_per_row = OAccTile::get_lengths()[number<1>{}];
             if constexpr(UseMax3 && std::is_same_v<AccDataType, float> && y_size_per_row % 2 == 0)
             {
-                // fast max3 implementation
+                // fast max3+abs implementation
                 const auto f_max3 = [](auto acc_, auto v_0_, auto v_1_) {
                     float rtn;
                     asm volatile("v_max3_f32 %0, %1, abs(%2), abs(%3)"
