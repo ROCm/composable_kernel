@@ -19,7 +19,7 @@ auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("v", "1", "weather do CPU validation or not")
-        .insert("pr_i", "fp16", "input data type. fp16/fp32 (representing 8/16/32 bit data)")
+        .insert("pr_i", "int32", "index data type. (currently only int32 supported now)")
         .insert("pr_w", "fp32", "output weight data type(currently only fp32 supported now)")
         .insert("t", "128", "number of input tokens")
         .insert("e", "8", "number of experts")
@@ -63,7 +63,7 @@ template <typename WeightType, typename IndexType = ck_tile::index_t>
 bool test_moe_sorting(ck_tile::ArgParser args)
 {
     int validate            = args.get_int("v");
-    std::string input_prec  = args.get_str("pr_i");
+    std::string index_prec  = args.get_str("pr_i");
     std::string weight_prec = args.get_str("pr_w");
     int tokens              = args.get_int("t");
     int experts             = args.get_int("e");
@@ -115,7 +115,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     topk_ids_dev.ToDevice(topk_ids_host.data());
     weights_dev.ToDevice(weights_host.data());
 
-    moe_sorting_trait trait{input_prec, weight_prec, experts, topk, unit_size, tokens};
+    moe_sorting_trait trait{index_prec, weight_prec, experts, topk, unit_size, tokens};
 
     moe_sorting_kargs karg{topk_ids_dev.GetDeviceBuffer(),
                            weights_dev.GetDeviceBuffer(),
@@ -135,7 +135,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                               repeat};
     auto ms = moe_sorting(trait, karg, sc);
     printf("[%s|%s]tokens:%d, experts:%d, topk:%d, st_i:%d,  ms:%f , ",
-           input_prec.c_str(),
+           index_prec.c_str(),
            weight_prec.c_str(),
            tokens,
            experts,
@@ -192,11 +192,11 @@ int main(int argc, char** argv)
     auto [result, args] = create_args(argc, argv);
     if(!result)
         return -1;
-    std::string input_prec  = args.get_str("pr_i");
+    std::string index_prec  = args.get_str("pr_i");
     std::string weight_prec = args.get_str("pr_w");
 
     bool r = true;
-    if(weight_prec.compare("fp32") == 0)
+    if(weight_prec.compare("fp32") == 0 && index_prec.compare("int32") == 0)
     {
         r &= test_moe_sorting<float, ck_tile::index_t>(args);
     }

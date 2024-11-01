@@ -9,7 +9,7 @@
 
 struct moe_sorting_trait
 {
-    std::string input_type;
+    std::string index_type;
     std::string weight_type; // currently always float
     int experts;
     int topk;
