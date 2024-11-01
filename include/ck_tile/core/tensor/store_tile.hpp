@@ -10,6 +10,7 @@
 #include "ck_tile/core/container/container_helper.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/tensor/tile_window.hpp"
+#include "ck_tile/core/tensor/tile_window_linear.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
@@ -72,7 +73,7 @@ store_tile(tile_window_with_static_distribution<BottomTensorView_,
                                                 NumCoord>& tile_window,
            const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor)
 {
-    tile_window.store(dstr_tensor);
+    tile_window.store(dstr_tensor, number<-1>{});
 }
 
 template <typename BottomTensorView_,
@@ -87,7 +88,33 @@ store_tile_raw(tile_window_with_static_distribution<BottomTensorView_,
                                                     NumCoord>& tile_window,
                const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor)
 {
-    tile_window.store_raw(dstr_tensor);
+    tile_window.store_raw(dstr_tensor, number<-1>{});
+}
+
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          typename LinearBottomDims_,
+          typename DataType_>
+CK_TILE_DEVICE void store_tile(
+    tile_window_linear<BottomTensorView_, WindowLengths_, TileDistribution_, LinearBottomDims_>&
+        tile_window,
+    const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor)
+{
+    tile_window.store(dstr_tensor, number<-1>{});
+}
+
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          typename LinearBottomDims_,
+          typename DataType_>
+CK_TILE_DEVICE void store_tile_raw(
+    tile_window_linear<BottomTensorView_, WindowLengths_, TileDistribution_, LinearBottomDims_>&
+        tile_window,
+    const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor)
+{
+    tile_window.store_raw(dstr_tensor, number<-1>{});
 }
 
 } // namespace ck_tile
