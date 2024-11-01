@@ -16,7 +16,7 @@ function (add_smoothquant_example TARGET_NAME MAIN_SRC)
     list(APPEND COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
 
     target_compile_options(${TARGET_NAME} PRIVATE ${COMPILE_OPTIONS})
-endfunction(add_smoothquant_example TARGET_NAME MAIN_SRC COMPILE_OPTIONS INSTANCE_SRCS)
+endfunction(add_smoothquant_example TARGET_NAME MAIN_SRC)
 
 file(GLOB INSTANCE_SRCS instances/*.cpp)
 
