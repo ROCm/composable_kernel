@@ -17,4 +17,6 @@ struct batched_transpose_kargs : public ck_tile::BatchedTransposeHostArgs
 {
 };
 
-float batched_transpose(batched_transpose_trait t, batched_transpose_kargs a, ck_tile::stream_config s);
+float batched_transpose(batched_transpose_trait t,
+                        batched_transpose_kargs a,
+                        ck_tile::stream_config s);

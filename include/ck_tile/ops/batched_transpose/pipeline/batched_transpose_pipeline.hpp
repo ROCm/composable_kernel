@@ -44,7 +44,7 @@ struct BatchedTransposePipeline
         auto out_win =
             make_tile_window(out_window, Policy::template MakeOutputDistribution<Problem>());
 
-        auto x = load_tile(inp_win); //x->thread input_win->block
+        auto x = load_tile(inp_win); // x->thread input_win->block
 
         auto y = make_static_distributed_tensor<InputType>(
             Policy::template MakeOutputDistribution<Problem>());
@@ -55,7 +55,7 @@ struct BatchedTransposePipeline
             sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
                 constexpr auto j_i_idx = make_tuple(idx1, idx0);
-                y(j_i_idx) = x(i_j_idx);
+                y(j_i_idx)             = x(i_j_idx);
             });
         });
 
