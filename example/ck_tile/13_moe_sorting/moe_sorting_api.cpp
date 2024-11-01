@@ -7,6 +7,11 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_kargs a, ck_tile::stream_conf
 {
     if(t.weight_type == "fp32" && t.index_type == "int32")
     {
+        if(t.experts > 127)
+        {
+            printf("lds size exceed, only support experts <127 \n");
+            return -1;
+        }
         using index_t        = ck_tile::index_t;
         using ms_weight_type = float;
         using ms_problem     = ck_tile::MoeSortingProblem<index_t, ms_weight_type>;

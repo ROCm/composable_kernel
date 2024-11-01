@@ -25,7 +25,6 @@ auto create_args(int argc, char* argv[])
         .insert("e", "8", "number of experts")
         .insert("k", "4", "topk")
         .insert("unit", "32", "unit_size")
-        .insert("st_i", "-1", "row stride of input, -1 means same as topk")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "when set to 1 it will print kernel name")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
@@ -69,17 +68,11 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     int experts             = args.get_int("e");
     int topk                = args.get_int("k");
     int seed                = args.get_int("seed");
-    int stride_input        = args.get_int("st_i");
     int unit_size           = args.get_int("unit");
     int kname               = args.get_int("kname");
     int warmup              = args.get_int("warmup");
     int repeat              = args.get_int("repeat");
-    int max_output_ids      = (topk * tokens * experts + (unit_size - 1)) / unit_size * unit_size;
-    if(stride_input < 0)
-    {
-        stride_input = topk;
-    }
-    assert(stride_input >= topk);
+    int max_output_ids      = ck_tile::integer_least_multiple(topk * tokens, unit_size) * experts;
 
     if(seed < 0)
     {
@@ -95,8 +88,8 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     }
 
     // tokens already considered batch size
-    ck_tile::HostTensor<IndexType> topk_ids_host({tokens, topk}, {stride_input, 1});
-    ck_tile::HostTensor<WeightType> weights_host({tokens, topk}, {stride_input, 1});
+    ck_tile::HostTensor<IndexType> topk_ids_host({tokens, topk}, {topk, 1});
+    ck_tile::HostTensor<WeightType> weights_host({tokens, topk}, {topk, 1});
     ck_tile::HostTensor<IndexType> sorted_ids_host({max_output_ids}, {1});
     ck_tile::HostTensor<WeightType> sorted_weights_host({max_output_ids}, {1});
     ck_tile::HostTensor<IndexType> expert_ids_host({max_output_ids / unit_size}, {1});
@@ -134,13 +127,12 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                               warmup,
                               repeat};
     auto ms = moe_sorting(trait, karg, sc);
-    printf("[%s|%s]tokens:%d, experts:%d, topk:%d, st_i:%d,  ms:%f , ",
+    printf("[%s|%s]tokens:%d, experts:%d, topk:%d,  ms:%f , ",
            index_prec.c_str(),
            weight_prec.c_str(),
            tokens,
            experts,
            topk,
-           stride_input,
            ms);
     if(ms < 0)
         printf("not supported\n");
