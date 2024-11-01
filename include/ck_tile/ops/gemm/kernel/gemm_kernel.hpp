@@ -63,7 +63,7 @@ struct GemmKernel
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
+        return max(1, GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
     CK_TILE_DEVICE void operator()(GemmCommonKargs kargs) const
