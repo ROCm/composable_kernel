@@ -26,6 +26,7 @@ struct Layernorm2dFwdPipelineDefaultPolicy
                 sequence<1, 1, 2, 2>,
                 sequence<0, 3, 0, 3>>{});
     }
+
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeGammaBetaBlockTileDistribution()
     {

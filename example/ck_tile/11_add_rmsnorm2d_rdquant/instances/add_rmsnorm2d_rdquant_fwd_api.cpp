@@ -28,7 +28,6 @@ float add_rmsnorm2d_rdquant_fwd_b16_(add_rmsnorm2d_rdquant_fwd_traits /*t*/,
                                      add_rmsnorm2d_rdquant_fwd_args a,
                                      const ck_tile::stream_config& s)
 {
-#if 1
     float r = -1;
     // clang-format off
     //                                                      rm  rn  tm   tn  vn   pd     x      3p
@@ -128,9 +127,6 @@ float add_rmsnorm2d_rdquant_fwd_b16_(add_rmsnorm2d_rdquant_fwd_traits /*t*/,
             r = add_rmsnorm2d_rdquant_fwd_<trait_<data_type,  1, 4, 1, 1024, 1,  true,  true, true>>(s, a);
     }
     return r;
-#else
-    return add_rmsnorm2d_rdquant_fwd_<trait_<data_type,  1, 1, 2,  128, 8,  true,  true, false>>(s, a);
-#endif
     // clang-format on
 }
 
@@ -139,7 +135,6 @@ float add_rmsnorm2d_rdquant_fwd(add_rmsnorm2d_rdquant_fwd_traits t,
                                 const ck_tile::stream_config& s)
 {
 
-    float r = -1;
     // Only support instance of save_x == true for now
     assert(t.save_x);
     if(t.data_type.compare("fp16") == 0)
@@ -150,8 +145,6 @@ float add_rmsnorm2d_rdquant_fwd(add_rmsnorm2d_rdquant_fwd_traits t,
     {
         return add_rmsnorm2d_rdquant_fwd_b16_<ck_tile::bf16_t>(t, a, s);
     }
-    if(r < 0)
+    else
         throw std::runtime_error("Without supported instances!");
-
-    return r;
 }
