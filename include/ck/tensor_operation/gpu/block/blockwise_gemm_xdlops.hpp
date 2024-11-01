@@ -320,6 +320,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                    b_thread_desc_,
                                    make_tuple(I0, I0, I0, I0),
                                    b_thread_buf);
+                                   
                 static_for<0, KPerThread, KPack>{}([&](auto k) {
                     vector_type<ComputeTypeA, KPack> a_thread_vec;
                     vector_type<ComputeTypeB, KPack> b_thread_vec;

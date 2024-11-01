@@ -193,6 +193,14 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(op_ptrs);
             }
 #endif
+#ifdef CK_ENABLE_INT8
+            if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+                         is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
+                         is_same_v<BComputeType, int8_t>)
+            {
+                add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_int8_instances(op_ptrs);
+            }
+#endif
         }
         // layout NHWGC/GKYXC/NHWGK
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
