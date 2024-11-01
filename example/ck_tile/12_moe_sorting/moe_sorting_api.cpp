@@ -10,8 +10,8 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_kargs a, ck_tile::stream_conf
         using index_t         = ck_tile::index_t;
         using ms_weight_type  = float;
         using ms_problem      = ck_tile::MoeSortingProblem<index_t, ms_weight_type>;
-        using ms_pipeline     = ck_tile::MoeSortingPipeline<ms_problem>;
-        using kernel          = ck_tile::MoeSortingKernel<ms_pipeline>;
+        // using ms_pipeline     = ck_tile::MoeSortingPipeline<ms_problem>;
+        using kernel          = ck_tile::MoeSortingKernel<ms_problem>;
         auto kargs            = kernel::MakeKargs(a);
         const dim3 grids      = 1;
         const dim3 blocks     = ck_tile::max(t.experts, ck_tile::get_warp_size());

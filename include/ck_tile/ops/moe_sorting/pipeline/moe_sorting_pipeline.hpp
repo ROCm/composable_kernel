@@ -14,26 +14,26 @@
 
 namespace ck_tile {
 
-template <typename Problem_, typename Policy_ = MoeSortingPolicy>
-struct MoeSortingPipeline
-{
-    // TODO: this kernel only support warp per row
-    using Problem    = remove_cvref_t<Problem_>;
-    using Policy     = remove_cvref_t<Policy_>;
-    using WeightType = typename Problem::WeightType;
+// template <typename Problem_, typename Policy_ = MoeSortingPolicy>
+// struct MoeSortingPipeline
+// {
+//     // TODO: this kernel only support warp per row
+//     using Problem    = remove_cvref_t<Problem_>;
+//     using Policy     = remove_cvref_t<Policy_>;
+//     using WeightType = typename Problem::WeightType;
 
-    // template <typename TopkIdWindow, typename WeightWindow>
-    // CK_TILE_DEVICE auto operator()(const TopkIdWindow& topk_id_window,
-    //                                const WeightWindow& weight_window,
-    //                                 index_t* sorted_token_ids,
-    //                                 WeightType* sorted_weights,
-    //                                 index_t* expert_ids,
-    //                                 index_t* total_tokens_post_pad,
-    //                                 const index_t num_experts,
-    //                                 const index_t unit_size,
-    //                                 const size_t numel,
-    //                                 const index_t topk)
-    // {
-    // }
-};
+//     template <typename TopkIdWindow, typename WeightWindow>
+//     CK_TILE_DEVICE auto operator()(const TopkIdWindow& topk_id_window,
+//                                    const WeightWindow& weight_window,
+//                                     index_t* sorted_token_ids,
+//                                     WeightType* sorted_weights,
+//                                     index_t* expert_ids,
+//                                     index_t* total_tokens_post_pad,
+//                                     const index_t num_experts,
+//                                     const index_t unit_size,
+//                                     const size_t numel,
+//                                     const index_t topk)
+//     {
+//     }
+// };
 } // namespace ck_tile

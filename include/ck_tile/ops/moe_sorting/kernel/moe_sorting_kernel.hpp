@@ -26,11 +26,11 @@ struct MoeSortingHostArgs
     index_t topk;
 };
 
-template <typename Pipeline_>
+template <typename Problem_>
 struct MoeSortingKernel
 {
-    using Pipeline = remove_cvref_t<Pipeline_>;
-    using Problem  = remove_cvref_t<typename Pipeline::Problem>;
+    // using Pipeline = remove_cvref_t<Pipeline_>;
+    using Problem  = remove_cvref_t<Problem_>;
 
     using IndexType  = typename Problem::IndexType;
     using WeightType = typename Problem::WeightType;
@@ -47,8 +47,6 @@ struct MoeSortingKernel
         return row * total_col + col;
     }
 
-#define CEILDIV(x, y) (((x) + (y) - 1) / (y))
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
     CK_TILE_DEVICE void moe_align_block_size_kernel(const IndexType* __restrict__ topk_id,
                                                     const WeightType* __restrict__ weights,
                                                     index_t* sorted_token_ids,
@@ -60,7 +58,7 @@ struct MoeSortingKernel
                                                     const size_t numel,
                                                     const index_t topk) const
     {
-        const size_t tokens_per_thread = CEILDIV(numel, blockDim.x);
+        const size_t tokens_per_thread = integer_divide_ceil(numel, blockDim.x);
         const size_t start_idx         = threadIdx.x * tokens_per_thread;
 
         extern __shared__ index_t shared_mem[];
@@ -73,6 +71,10 @@ struct MoeSortingKernel
             tokens_cnts[calc_index(num_experts, threadIdx.x + 1, i)] = 0;
         }
 
+        for (int i = start_idx; i < numel && i < start_idx + tokens_per_thread; ++i) 
+        {
+            ++tokens_cnts[calc_index(num_experts, threadIdx.x + 1, topk_id[i])];
+        }
         __syncthreads();
 
         if(threadIdx.x < num_experts)
@@ -93,7 +95,7 @@ struct MoeSortingKernel
             {
                 cumsum[i] =
                     cumsum[i - 1] +
-                    MAX(CEILDIV(tokens_cnts[calc_index(num_experts, blockDim.x, i - 1)], unit_size),
+                    max(integer_divide_ceil(tokens_cnts[calc_index(num_experts, blockDim.x, i - 1)], unit_size),
                         1) *
                         unit_size;
             }

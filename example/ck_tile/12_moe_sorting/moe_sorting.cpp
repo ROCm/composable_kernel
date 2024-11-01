@@ -158,34 +158,27 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     bool rtn = true;
     if(validate)
     {
-
         ck_tile::HostTensor<IndexType> sorted_ids_ref({max_output_ids}, {1});
         ck_tile::HostTensor<WeightType> sorted_weights_ref({max_output_ids}, {1});
         ck_tile::HostTensor<IndexType> expert_ids_ref({max_output_ids / unit_size}, {1});
         int32_t total_tokens_post_pad = 0;
-        ck_tile::reference_moe_sorting<WeightType, IndexType>(sorted_ids_ref.data(),
-                                                              sorted_weights_ref.data(),
-                                                              expert_ids_ref.data(),
+        ck_tile::reference_moe_sorting<WeightType, IndexType>(topk_ids_host,
+                                                              weights_host,
+                                                              sorted_ids_ref,
+                                                              sorted_weights_ref,
+                                                              expert_ids_ref,
                                                               total_tokens_post_pad,
-                                                              weights_host.data(),
-                                                              topk_ids_host.data(),
-                                                              topk_ids_host.size() / topk,
                                                               experts,
-                                                              topk,
                                                               unit_size);
-
-        float atol = 1e-6;
-        float rtol = 1e-6;
-
         rtn &= ck_tile::check_err(
-            sorted_ids_host, sorted_ids_ref, std::string("OUT Error: Incorrect ids!"), rtol, atol);
+            sorted_ids_host, sorted_ids_ref, std::string("OUT Error: Incorrect ids!"), 1e-6, 1e-6);
         rtn &= ck_tile::check_err(sorted_weights_host,
                                   sorted_weights_ref,
                                   std::string("OUT Error: Incorrect w!"),
-                                  rtol,
-                                  atol);
+                                  1e-6,
+                                  1e-6);
         rtn &= ck_tile::check_err(
-            expert_ids_host, expert_ids_ref, std::string("OUT Error: Incorrect eid!"), rtol, atol);
+            expert_ids_host, expert_ids_ref, std::string("OUT Error: Incorrect eid!"), 1e-6, 1e-6);
         rtn &= total_tokens_post_pad == sorted_id_cnt_host.mData[0];
     }
 
