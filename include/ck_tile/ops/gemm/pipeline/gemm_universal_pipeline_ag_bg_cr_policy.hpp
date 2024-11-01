@@ -39,6 +39,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t K1        = WarpGemm::kK;
         constexpr index_t K0        = KPerBlock / K1;
+        static_assert(KPerBlock == K0 * K1);
 
         if constexpr(std::is_same<tensor_layout::gemm::RowMajor, LayoutA>::value)
         {
@@ -82,6 +83,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
             // for compiler.
             constexpr auto M0 = get_warp_size() * Problem::BlockGemmShape::BlockWarps::at(I0);
             constexpr auto M1 = MPerBlock / M0;
+            static_assert(MPerBlock == M0 * M1);
 
             constexpr auto KThreadWrite     = Problem::kBlockSize / M0;
             constexpr auto K0PerThreadWrite = K0 / KThreadWrite;
@@ -181,6 +183,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
         constexpr index_t K1 = WarpGemm::kK;
         constexpr index_t K0 = KPerBlock / K1;
+        static_assert(KPerBlock == K0 * K1);
 
         if constexpr(std::is_same<tensor_layout::gemm::ColumnMajor, LayoutB>::value)
         {
@@ -223,6 +226,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         {
             constexpr auto N0 = get_warp_size() * Problem::BlockGemmShape::BlockWarps::at(I1);
             constexpr auto N1 = NPerBlock / N0;
+            static_assert(NPerBlock == N0 * N1);
 
             constexpr auto KThreadWrite     = Problem::kBlockSize / N0;
             constexpr auto K0PerThreadWrite = K0 / KThreadWrite;
