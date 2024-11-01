@@ -81,17 +81,18 @@ struct UniversalGemmPipelineAgBgCrPolicy
             // kfold and mpair dimension is not always required.
             // more dimension in merge_transform increase the difficulty of generating immarg offset
             // for compiler.
-            constexpr auto M0 = get_warp_size() * Problem::BlockGemmShape::BlockWarps::at(I0);
-            constexpr auto M1 = MPerBlock / M0;
-            static_assert(MPerBlock == M0 * M1);
+            constexpr auto MThreads = get_warp_size() * Problem::BlockGemmShape::BlockWarps::at(I0);
+            constexpr auto MPerThread = MPerBlock / MThreads;
+            static_assert(MPerBlock == MThreads * MPerThread);
 
-            constexpr auto KThreadWrite     = Problem::kBlockSize / M0;
+            constexpr auto KThreadWrite     = Problem::kBlockSize / MThreads;
             constexpr auto K0PerThreadWrite = K0 / KThreadWrite;
             constexpr auto KThreadRead      = 64 / WarpGemm::kM;
             constexpr auto K0PerThreadRead  = K0 / KThreadRead;
 
-            constexpr auto kfold =
-                (K1 * M0 * sizeof(ADataType) > 128) ? 1 : 128 / (K1 * M0 * sizeof(ADataType));
+            constexpr auto kfold = (K1 * MThreads * sizeof(ADataType) > 128)
+                                       ? 1
+                                       : 128 / (K1 * MThreads * sizeof(ADataType));
             constexpr auto KThreadReadPerm =
                 (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
@@ -100,15 +101,15 @@ struct UniversalGemmPipelineAgBgCrPolicy
             // 1<=mpair<=kN0
             constexpr auto mpair = (K1 * WarpGemm::kM * sizeof(ADataType) > 128)
                                        ? 1
-                                       : ((128 / (K1 * WarpGemm::kM * sizeof(ADataType))) > M0
-                                              ? M0
+                                       : ((128 / (K1 * WarpGemm::kM * sizeof(ADataType))) > MThreads
+                                              ? MThreads
                                               : 128 / (K1 * WarpGemm::kM * sizeof(ADataType)));
 
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(number<KThreadWrite / kfold / KThreadReadPerm>{},
                            number<K0PerThreadWrite>{},
-                           number<KThreadReadPerm * M1>{},
-                           number<kfold * M0 / mpair>{},
+                           number<KThreadReadPerm * MPerThread>{},
+                           number<kfold * MThreads / mpair>{},
                            number<mpair>{},
                            K1));
 
@@ -117,8 +118,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
                 make_tuple(
                     make_pass_through_transform(number<KThreadWrite / kfold / KThreadReadPerm>{}),
                     make_pass_through_transform(number<K0PerThreadWrite>{}),
-                    make_xor_transform(
-                        make_tuple(number<KThreadReadPerm * M1>{}, number<kfold * M0 / mpair>{})),
+                    make_xor_transform(make_tuple(number<KThreadReadPerm * MPerThread>{},
+                                                  number<kfold * MThreads / mpair>{})),
                     make_pass_through_transform(number<mpair>{}),
                     make_pass_through_transform(K1)),
                 make_tuple(
@@ -131,8 +132,9 @@ struct UniversalGemmPipelineAgBgCrPolicy
                 make_tuple(
                     make_pass_through_transform(number<KThreadWrite / kfold / KThreadReadPerm>{}),
                     make_pass_through_transform(number<K0PerThreadWrite>{}),
-                    make_unmerge_transform(make_tuple(number<KThreadReadPerm>{}, number<M1>{})),
-                    make_unmerge_transform(make_tuple(number<kfold>{}, number<M0 / mpair>{})),
+                    make_unmerge_transform(
+                        make_tuple(number<KThreadReadPerm>{}, number<MPerThread>{})),
+                    make_unmerge_transform(make_tuple(number<kfold>{}, number<MThreads / mpair>{})),
                     make_pass_through_transform(number<mpair>{}),
                     make_pass_through_transform(K1)),
                 make_tuple(sequence<0>{},
@@ -156,8 +158,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                           number<kfold>{},
                                           number<K0PerThreadWrite>{},
                                           K1)),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(number<M0 / mpair>{}, number<mpair>{}, number<M1>{}))),
+                           make_merge_transform_v3_division_mod(make_tuple(
+                               number<MThreads / mpair>{}, number<mpair>{}, number<MPerThread>{}))),
                 make_tuple(sequence<0, 1, 4, 2, 7>{}, sequence<5, 6, 3>{}),
                 make_tuple(sequence<1>{}, sequence<0>{}));
 
@@ -224,17 +226,18 @@ struct UniversalGemmPipelineAgBgCrPolicy
         }
         else // RowMajor B
         {
-            constexpr auto N0 = get_warp_size() * Problem::BlockGemmShape::BlockWarps::at(I1);
-            constexpr auto N1 = NPerBlock / N0;
-            static_assert(NPerBlock == N0 * N1);
+            constexpr auto NThreads = get_warp_size() * Problem::BlockGemmShape::BlockWarps::at(I1);
+            constexpr auto NPerThread = NPerBlock / NThreads;
+            static_assert(NPerBlock == NThreads * NPerThread);
 
-            constexpr auto KThreadWrite     = Problem::kBlockSize / N0;
+            constexpr auto KThreadWrite     = Problem::kBlockSize / NThreads;
             constexpr auto K0PerThreadWrite = K0 / KThreadWrite;
             constexpr auto KThreadRead      = 64 / WarpGemm::kN;
             constexpr auto K0PerThreadRead  = K0 / KThreadRead;
 
-            constexpr auto kfold =
-                (K1 * N0 * sizeof(BDataType) > 128) ? 1 : 128 / (K1 * N0 * sizeof(BDataType));
+            constexpr auto kfold = (K1 * NThreads * sizeof(BDataType) > 128)
+                                       ? 1
+                                       : 128 / (K1 * NThreads * sizeof(BDataType));
             constexpr auto KThreadReadPerm =
                 (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
@@ -243,15 +246,15 @@ struct UniversalGemmPipelineAgBgCrPolicy
             // 1<=npair<=kN0
             constexpr auto npair = (K1 * WarpGemm::kN * sizeof(BDataType) > 128)
                                        ? 1
-                                       : ((128 / (K1 * WarpGemm::kN * sizeof(BDataType))) > N0
-                                              ? N0
+                                       : ((128 / (K1 * WarpGemm::kN * sizeof(BDataType))) > NThreads
+                                              ? NThreads
                                               : 128 / (K1 * WarpGemm::kN * sizeof(BDataType)));
 
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(number<KThreadWrite / kfold / KThreadReadPerm>{},
                            number<K0PerThreadWrite>{},
-                           number<KThreadReadPerm * N1>{},
-                           number<kfold * N0 / npair>{},
+                           number<KThreadReadPerm * NPerThread>{},
+                           number<kfold * NThreads / npair>{},
                            number<npair>{},
                            K1));
 
@@ -260,8 +263,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
                 make_tuple(
                     make_pass_through_transform(number<KThreadWrite / kfold / KThreadReadPerm>{}),
                     make_pass_through_transform(number<K0PerThreadWrite>{}),
-                    make_xor_transform(
-                        make_tuple(number<KThreadReadPerm * N1>{}, number<kfold * N0 / npair>{})),
+                    make_xor_transform(make_tuple(number<KThreadReadPerm * NPerThread>{},
+                                                  number<kfold * NThreads / npair>{})),
                     make_pass_through_transform(number<npair>{}),
                     make_pass_through_transform(K1)),
                 make_tuple(
@@ -274,8 +277,9 @@ struct UniversalGemmPipelineAgBgCrPolicy
                 make_tuple(
                     make_pass_through_transform(number<KThreadWrite / kfold / KThreadReadPerm>{}),
                     make_pass_through_transform(number<K0PerThreadWrite>{}),
-                    make_unmerge_transform(make_tuple(number<KThreadReadPerm>{}, number<N1>{})),
-                    make_unmerge_transform(make_tuple(number<kfold>{}, number<N0 / npair>{})),
+                    make_unmerge_transform(
+                        make_tuple(number<KThreadReadPerm>{}, number<NPerThread>{})),
+                    make_unmerge_transform(make_tuple(number<kfold>{}, number<NThreads / npair>{})),
                     make_pass_through_transform(number<npair>{}),
                     make_pass_through_transform(K1)),
                 make_tuple(sequence<0>{},
@@ -299,8 +303,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                           number<kfold>{},
                                           number<K0PerThreadWrite>{},
                                           K1)),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(number<N0 / npair>{}, number<npair>{}, number<N1>{}))),
+                           make_merge_transform_v3_division_mod(make_tuple(
+                               number<NThreads / npair>{}, number<npair>{}, number<NPerThread>{}))),
                 make_tuple(sequence<0, 1, 4, 2, 7>{}, sequence<5, 6, 3>{}),
                 make_tuple(sequence<1>{}, sequence<0>{}));
 
@@ -354,11 +358,11 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t K1 = WarpGemm::kK;
         constexpr index_t K0 = KPerBlock / K1;
         constexpr index_t M2 = get_warp_size() / K0;
+        static_assert(KPerBlock == K0 * K1);
 
         constexpr index_t M1 = BlockSize / get_warp_size();
-        static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
-        static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");
         constexpr index_t M0 = MPerBlock / (M2 * M1);
+        static_assert(MPerBlock == M0 * M1 * M2);
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
@@ -388,11 +392,11 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t K1 = WarpGemm::kK;
         constexpr index_t K0 = KPerBlock / K1;
         constexpr index_t N2 = get_warp_size() / K0;
+        static_assert(KPerBlock == K0 * K1);
 
         constexpr index_t N1 = BlockSize / get_warp_size();
-        static_assert(N2 != 0, "M2 is zero, which will lead to a division by zero error.");
-        static_assert(N1 != 0, "M1 is zero, which will lead to a division by zero error.");
         constexpr index_t N0 = NPerBlock / (N2 * N1);
+        static_assert(NPerBlock == N0 * N1 * N2);
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
