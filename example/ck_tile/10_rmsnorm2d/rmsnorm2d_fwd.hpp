@@ -97,7 +97,7 @@ struct rmsnorm2d_fwd_traits_
     using WarpTile   = ck_tile::sequence<Warp_M, Warp_N>;
     using Vector     = ck_tile::sequence<1, Vector_N_>;
 
-    using Shape = ck_tile::Rmsnorm2dShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using Shape = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
 
     static constexpr bool kPadN       = kPadN_;
     static constexpr bool kSaveInvRms = kSaveInvRms_;
