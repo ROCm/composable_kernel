@@ -28,8 +28,8 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr int kBlockPerCu = 1;
 
     // This part comes from the Codegen
-    constexpr ck_tile::index_t M_Tile = 128;
-    constexpr ck_tile::index_t N_Tile = 128;
+    constexpr ck_tile::index_t M_Tile = 128; // make sure this is no less than warp size
+    constexpr ck_tile::index_t N_Tile = 128; // make sure this is no less than warp size
     constexpr ck_tile::index_t K_Tile = 32;
 
     constexpr ck_tile::index_t M_Warp = 2;
