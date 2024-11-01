@@ -116,21 +116,21 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         };
 
     auto f_get_default_stride =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(stride == 0)
+        [](std::size_t row, std::size_t col, ck::index_t stride, auto layout) {
+            if(stride == -1)
             {
-                // give a chance if stride is zero, return a default packed stride
+                // give a chance if stride is -1, return a default packed stride
                 if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
                 {
-                    return col;
+                    return static_cast<std::size_t>(col);
                 }
                 else
                 {
-                    return row;
+                    return static_cast<std::size_t>(row);
                 }
             }
             else
-                return stride;
+                return static_cast<std::size_t>(stride);
         };
 
     StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
@@ -248,7 +248,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         {
             std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-            return true;
+            return false;
         }
 
         ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
@@ -281,7 +281,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         {
             std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-            return true;
+            return false;
         }
 
         std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
@@ -314,7 +314,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         std::cerr << gemm.GetTypeString() << ": the instance does not support the problem config."
                   << std::endl;
-        return true;
+        return false;
     }
 
     if(config.time_kernel)
@@ -402,7 +402,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             std::cout << "Verification on GPU: PASS" << std::endl;
     }
 
-    return !pass;
+    return pass;
 }
 
 bool run_gemm_example(int argc, char* argv[])
@@ -410,7 +410,7 @@ bool run_gemm_example(int argc, char* argv[])
     ProblemSize problem_size;
     ExecutionConfig config;
 
-    return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
+    return parse_cmd_args(argc, argv, problem_size, config) && run_gemm(problem_size, config);
 }
 
 bool run_gemm_streamk_example(int argc, char* argv[])
@@ -418,5 +418,5 @@ bool run_gemm_streamk_example(int argc, char* argv[])
     ProblemSizeStreamK problem_size;
     ExecutionConfig config;
 
-    return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
+    return parse_cmd_args(argc, argv, problem_size, config) && run_gemm(problem_size, config);
 }

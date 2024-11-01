@@ -37,4 +37,9 @@ if (CK_USE_FNUZ_FP8)
   endif()
 endif()
 
+add_gtest_executable(test_custom_type test_custom_type.cpp)
+if(result EQUAL 0)
+  target_link_libraries(test_custom_type PRIVATE utility)
+endif()
+
 add_gtest_executable(test_type_convert_const type_convert_const.cpp)

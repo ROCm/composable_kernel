@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -1029,7 +1029,10 @@ struct non_native_vector_base
 {
     using type = non_native_vector_base<T, N>;
 
-    __host__ __device__ non_native_vector_base() = default;
+    __host__ __device__ non_native_vector_base()            = default;
+    __host__ __device__ non_native_vector_base(const type&) = default;
+    __host__ __device__ non_native_vector_base(type&&)      = default;
+    __host__ __device__ ~non_native_vector_base()           = default;
 
     T d[N];
 };
@@ -1066,7 +1069,7 @@ struct vector_type<T, 1, typename std::enable_if_t<!is_native_type<T>()>>
         d1_t d1_;
         StaticallyIndexedArray<d1_t, 1> d1x1_;
         d1_nnv_t d1_nnv_;
-        StaticallyIndexedArray<d1_nnv_t, 1> d1nnvx1_;
+        // StaticallyIndexedArray<d1_nnv_t, 1> d1nnvx1_;
     } data_;
 
     __host__ __device__ constexpr vector_type() : data_{d1_t{}} {}
@@ -1119,7 +1122,7 @@ struct vector_type<T, 2, typename std::enable_if_t<!is_native_type<T>()>>
     {
         d2_t d2_;
         StaticallyIndexedArray<d1_t, 2> d1x2_;
-        StaticallyIndexedArray<d1_nnv_t, 2> d1nnvx2_;
+        // StaticallyIndexedArray<d1_nnv_t, 2> d1nnvx2_;
         StaticallyIndexedArray<d2_t, 1> d2x1_;
     } data_;
 
@@ -1184,7 +1187,7 @@ struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
     {
         d4_t d4_;
         StaticallyIndexedArray<d1_t, 4> d1x4_;
-        StaticallyIndexedArray<d1_nnv_t, 4> d1nnvx4_;
+        // StaticallyIndexedArray<d1_nnv_t, 4> d1nnvx4_;
         StaticallyIndexedArray<d2_t, 2> d2x2_;
         StaticallyIndexedArray<d4_t, 1> d4x1_;
     } data_;
@@ -1259,7 +1262,7 @@ struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
     {
         d8_t d8_;
         StaticallyIndexedArray<d1_t, 8> d1x8_;
-        StaticallyIndexedArray<d1_nnv_t, 8> d1nnvx8_;
+        // StaticallyIndexedArray<d1_nnv_t, 8> d1nnvx8_;
         StaticallyIndexedArray<d2_t, 4> d2x4_;
         StaticallyIndexedArray<d4_t, 2> d4x2_;
         StaticallyIndexedArray<d8_t, 1> d8x1_;
@@ -1346,7 +1349,7 @@ struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
     {
         d16_t d16_;
         StaticallyIndexedArray<d1_t, 16> d1x16_;
-        StaticallyIndexedArray<d1_nnv_t, 16> d1nnvx16_;
+        // StaticallyIndexedArray<d1_nnv_t, 16> d1nnvx16_;
         StaticallyIndexedArray<d2_t, 8> d2x8_;
         StaticallyIndexedArray<d4_t, 4> d4x4_;
         StaticallyIndexedArray<d8_t, 2> d8x2_;
@@ -1759,7 +1762,6 @@ using bf8x64_t = bf8x64_fnuz_t;
 #endif
 
 // u8
-// i8
 using uint8x2_t  = typename vector_type<uint8_t, 2>::type;
 using uint8x4_t  = typename vector_type<uint8_t, 4>::type;
 using uint8x8_t  = typename vector_type<uint8_t, 8>::type;
@@ -1977,4 +1979,12 @@ struct NumericUtils<bf8_ocp_t>
     static constexpr int bias = 15;
 };
 
+template <>
+struct NumericUtils<bhalf_t>
+{
+    static constexpr int exp  = 8;
+    static constexpr int mant = 7;
+    static constexpr int bias = 128; // negative zero nan mode
+    // static constexpr int bias = 127; // ieee mode
+};
 } // namespace ck
