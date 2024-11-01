@@ -101,7 +101,9 @@ int profile_gemm_universal(int argc, char* argv[])
     using F32  = float;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
-    using F8   = ck::f8_t;
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH)
+    using F8 = ck::f8_t;
+#endif
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -162,6 +164,7 @@ int profile_gemm_universal(int argc, char* argv[])
     {
         return profile(F16{}, F16{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH)
     else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(F16{}, F8{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
@@ -178,6 +181,7 @@ int profile_gemm_universal(int argc, char* argv[])
     {
         return profile(F8{}, F16{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
+#endif
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(BF16{}, BF16{}, BF16{}, F32{}, BF16{}, Row{}, Row{}, Row{});
@@ -194,6 +198,7 @@ int profile_gemm_universal(int argc, char* argv[])
     {
         return profile(BF16{}, BF16{}, BF16{}, F32{}, BF16{}, Col{}, Row{}, Row{});
     }
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH)
     else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(F8{}, F8{}, F8{}, F32{}, BF16{}, Row{}, Row{}, Row{});
@@ -202,6 +207,7 @@ int profile_gemm_universal(int argc, char* argv[])
     {
         return profile(F8{}, F8{}, F8{}, F32{}, BF16{}, Row{}, Col{}, Row{});
     }
+#endif
     else
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;
