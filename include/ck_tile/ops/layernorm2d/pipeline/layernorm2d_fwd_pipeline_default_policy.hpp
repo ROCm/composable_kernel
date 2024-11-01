@@ -45,7 +45,7 @@ struct Layernorm2dFwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockWelford()
     {
-        using P_ = BlockWelfordProblem<typename Problem::XDataType,
+        using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                        typename Problem::ComputeDataType,
                                        typename Problem::BlockShape>;
 
@@ -55,7 +55,7 @@ struct Layernorm2dFwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockWelfordSync()
     {
-        using P_ = BlockWelfordProblem<typename Problem::XDataType,
+        using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                        typename Problem::ComputeDataType,
                                        typename Problem::BlockShape>;
 
@@ -65,7 +65,7 @@ struct Layernorm2dFwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockWelfordCrossWarpSync()
     {
-        using P_ = BlockWelfordProblem<typename Problem::XDataType,
+        using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                        typename Problem::ComputeDataType,
                                        typename Problem::BlockShape>;
 
@@ -77,13 +77,13 @@ struct Layernorm2dFwdPipelineDefaultPolicy
     {
         if constexpr(Problem::kNeedCrossWarpSync)
         {
-            using P_ = BlockWelfordProblem<typename Problem::XDataType,
+            using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                            typename Problem::ComputeDataType,
                                            typename Problem::BlockShape>;
 
             using block_welford = BlockWelford<P_>;
             using x_block_tile =
-                decltype(make_static_distributed_tensor<typename Problem::XDataType>(
+                decltype(make_static_distributed_tensor<typename Problem::ComputeDataType>(
                     MakeXBlockTileDistribution<Problem>()));
             using mean_var_block_tile =
                 decltype(block_welford::template MakeMeanVarBlockTile<x_block_tile>());
