@@ -110,16 +110,16 @@ bool test_moe_sorting(ck_tile::ArgParser args)
 
     moe_sorting_trait trait{index_prec, weight_prec, experts, topk, unit_size, tokens};
 
-    moe_sorting_kargs karg{topk_ids_dev.GetDeviceBuffer(),
-                           weights_dev.GetDeviceBuffer(),
-                           sorted_ids_dev.GetDeviceBuffer(),
-                           sorted_weights_dev.GetDeviceBuffer(),
-                           expert_ids_dev.GetDeviceBuffer(),
-                           sorted_id_cnt_dev.GetDeviceBuffer(),
-                           tokens,
-                           unit_size,
-                           experts,
-                           topk};
+    moe_sorting_args karg{topk_ids_dev.GetDeviceBuffer(),
+                          weights_dev.GetDeviceBuffer(),
+                          sorted_ids_dev.GetDeviceBuffer(),
+                          sorted_weights_dev.GetDeviceBuffer(),
+                          expert_ids_dev.GetDeviceBuffer(),
+                          sorted_id_cnt_dev.GetDeviceBuffer(),
+                          tokens,
+                          unit_size,
+                          experts,
+                          topk};
 
     ck_tile::stream_config sc{nullptr,
                               true,

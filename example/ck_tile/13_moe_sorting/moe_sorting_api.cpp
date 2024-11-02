@@ -3,7 +3,7 @@
 
 #include "moe_sorting_api.hpp"
 
-float moe_sorting(moe_sorting_trait t, moe_sorting_kargs a, ck_tile::stream_config s)
+float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_config s)
 {
     if(t.weight_type == "fp32" && t.index_type == "int32")
     {
@@ -15,14 +15,12 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_kargs a, ck_tile::stream_conf
         using index_t        = ck_tile::index_t;
         using ms_weight_type = float;
         using ms_problem     = ck_tile::MoeSortingProblem<index_t, ms_weight_type>;
-        // using ms_pipeline     = ck_tile::MoeSortingPipeline<ms_problem>;
-        using kernel          = ck_tile::MoeSortingKernel<ms_problem>;
-        auto kargs            = kernel::MakeKargs(a);
-        const dim3 grids      = 1;
-        const dim3 blocks     = ck_tile::max(t.experts, ck_tile::get_warp_size());
-        const size_t lds_size = ((blocks.x + 1) * t.experts + (t.experts + 1)) * sizeof(index_t);
-        float ave_time        = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel(kernel{}, grids, blocks, lds_size, kargs));
+        using kernel         = ck_tile::MoeSortingKernel<ms_problem>;
+        auto kargs           = kernel::MakeKargs(a);
+        const dim3 grids     = kernel::GridSize(a);
+        const dim3 blocks    = kernel::BlockSize(a);
+        float ave_time =
+            ck_tile::launch_kernel(s, ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs));
         return ave_time;
     }
     return -1;

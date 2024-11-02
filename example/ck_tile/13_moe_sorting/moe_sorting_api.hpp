@@ -17,8 +17,8 @@ struct moe_sorting_trait
     int tokens;
 };
 
-struct moe_sorting_kargs : public ck_tile::MoeSortingHostArgs
+struct moe_sorting_args : public ck_tile::MoeSortingHostArgs
 {
 };
 
-float moe_sorting(moe_sorting_trait t, moe_sorting_kargs a, ck_tile::stream_config s);
+float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_config s);
