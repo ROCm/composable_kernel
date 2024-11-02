@@ -9,14 +9,15 @@
 
 namespace ck_tile {
 
-template <typename IndexType_, typename WeightType_>
+template <typename IndexType_, typename WeightType_, index_t InternalLoadUnroll_>
 struct MoeSortingProblem
 {
     // TODO: this kernel only support warp per row
     using WeightType = remove_cvref_t<WeightType_>;
     using IndexType  = remove_cvref_t<IndexType_>;
 
-    static constexpr index_t WarpSize      = get_warp_size();
-    static constexpr index_t WarpsPerBlock = 1;
+    static constexpr index_t WarpSize           = get_warp_size();
+    static constexpr index_t WarpsPerBlock      = 1;
+    static constexpr index_t InternalLoadUnroll = InternalLoadUnroll_;
 };
 } // namespace ck_tile

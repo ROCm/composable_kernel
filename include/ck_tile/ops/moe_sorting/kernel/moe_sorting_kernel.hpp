@@ -63,7 +63,7 @@ struct MoeSortingKernel
     CK_TILE_HOST static constexpr auto BlockSize(const Hargs& h)
     {
         // TODO: need pad to multiply of warp size
-        return dim3(ck_tile::max(h.num_experts, ck_tile::get_warp_size()));
+        return dim3(ck_tile::integer_least_multiple(h.num_experts, ck_tile::get_warp_size()));
     }
 
     // in byte
@@ -119,12 +119,11 @@ struct MoeSortingKernel
 
         index_t* tokens_cnts = shared_mem; // 2d: (blockDim.x + 1, num_experts)
         index_t* cumsum      = shared_mem + (blockDim.x + 1) * num_experts; // 1: (num_experts + 1)
-
         for(int i = 0; i < num_experts; ++i)
         {
             tokens_cnts[calc_index(num_experts, tid + 1, i)] = 0;
         }
-
+#pragma unroll Problem_::InternalLoadUnroll
         for(int i = start_idx; i < numel && i < start_idx + tokens_per_thread; ++i)
         {
             ++tokens_cnts[calc_index(num_experts, tid + 1, topk_id[i])];
@@ -157,7 +156,6 @@ struct MoeSortingKernel
             }
             *total_tokens_post_pad = unit_size_mdiv.div(cumsum[num_experts]);
         }
-
         __syncthreads();
         if(tid < num_experts)
         {
@@ -167,6 +165,7 @@ struct MoeSortingKernel
             }
         }
 
+#pragma unroll Problem_::InternalLoadUnroll
         for(int i = start_idx; i < numel && i < start_idx + tokens_per_thread; ++i)
         {
             index_t expert_id = topk_id[i];
