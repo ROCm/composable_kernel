@@ -35,7 +35,6 @@ tags
 
 # Editors
 .vscode
-CMakePresets.json
 
 # build-in-source directory
 build*
