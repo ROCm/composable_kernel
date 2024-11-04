@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
 namespace ck_tile {
 
@@ -271,8 +272,21 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1DefaultPolicy;
-
+        using AccDataType     = float;
+        using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
+        using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
+        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
+                                                typename Problem::BDataType,
+                                                AccDataType,
+                                                WarpTile::at(number<0>{}),
+                                                WarpTile::at(number<1>{}),
+                                                WarpTile::at(number<2>{}),
+                                                /*TransposeC=*/true>;
+        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
+                                                                      typename Problem::BDataType,
+                                                                      typename Problem::CDataType,
+                                                                      BlockWarps,
+                                                                      WarpGemm>;
         return BlockGemmASmemBSmemCRegV1<Problem, BlockGemmPolicy>{};
     }
 };
