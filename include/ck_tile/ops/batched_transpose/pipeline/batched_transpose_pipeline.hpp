@@ -63,8 +63,6 @@ struct BatchedTransposePipeline
         __syncthreads();
         sweep_tile_span(span_2d_y[number<0>{}], [&](auto idx0) {
             sweep_tile_span(span_2d_y[number<1>{}], [&](auto idx1) {
-                // constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                // constexpr auto j_i_idx = make_tuple(idx1, idx0);
                 uint32_t i_src_w       = get_thread_id() & 15;
                 uint32_t i_src_h       = get_thread_id() >> 4;
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);

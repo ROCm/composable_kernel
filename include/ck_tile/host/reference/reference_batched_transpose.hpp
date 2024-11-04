@@ -52,7 +52,7 @@ CK_TILE_HOST void reference_batched_transpose(const HostTensor<Type>& x,
             }
         }
     };
-    
+
     make_ParallelTensorFunctor(f, N)(std::thread::hardware_concurrency());
 }
 } // namespace ck_tile
