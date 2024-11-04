@@ -33,6 +33,8 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8_v3)
 add_example_executable(example_gemm_xdl_bf16_v3 gemm_xdl_bf16_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16_v3)
 
+add_example_executable(example_gemm_xdl_tf32_v3 gemm_xdl_tf32_v3.cpp)
+
 add_example_executable(example_gemm_xdl_wavelet_fp16 gemm_xdl_wavelet_fp16.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_wavelet_fp16)
 

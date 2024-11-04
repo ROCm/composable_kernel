@@ -76,6 +76,18 @@ struct PassThrough final : public UnaryOpBase
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
+    __host__ __device__ inline void operator()(tfloat_t& y, const tfloat_t& x) const { y = x; }
+
+    __host__ __device__ inline void operator()(tfloat_t& y, const float& x) const
+    {
+        y = fp32_to_tf32_rtz(x);
+    }
+
+    __host__ __device__ inline void operator()(float_t& y, const tfloat_t& x) const
+    {
+        y = tf32_to_fp32(x);
+    }
+
     template <>
     __host__ __device__ void operator()<float, double>(float& y, const double& x) const
     {

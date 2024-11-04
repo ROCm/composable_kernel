@@ -65,6 +65,35 @@ struct intrin_mfma_f32_16x16x4f32<16, 16>
     }
 };
 
+// tf32
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_32x32x4tf32;
+
+template <>
+struct intrin_mfma_f32_32x32x4tf32<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const tfloat2_t& reg_a, const tfloat2_t& reg_b, FloatC& reg_c)
+    {
+        reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x4_xf32(
+            reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_16x16x8tf32;
+
+template <>
+struct intrin_mfma_f32_16x16x8tf32<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const tfloat2_t& reg_a, const tfloat2_t& reg_b, FloatC& reg_c)
+    {
+        reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x8_xf32(
+            reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
+    }
+};
+
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f32_16x16x1f32;
 

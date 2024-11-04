@@ -7,11 +7,12 @@
 
 namespace ck {
 
-using bhalf_t = ushort;
-using half_t  = _Float16;
-using int4_t  = _BitInt(4);
-using f8_t    = _BitInt(8);
-using bf8_t   = unsigned _BitInt(8);
+using tfloat_t = uint32_t;
+using bhalf_t  = ushort;
+using half_t   = _Float16;
+using int4_t   = _BitInt(4);
+using f8_t     = _BitInt(8);
+using bf8_t    = unsigned _BitInt(8);
 
 inline constexpr auto next_pow2(uint32_t x)
 {
@@ -24,9 +25,9 @@ template <typename T>
 inline constexpr bool is_native_type()
 {
     return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
-           is_same<T, bhalf_t>::value || is_same<T, int32_t>::value || is_same<T, int8_t>::value ||
-           is_same<T, uint8_t>::value || is_same<T, f8_t>::value || is_same<T, bf8_t>::value ||
-           is_same<T, bool>::value;
+           is_same<T, bhalf_t>::value || is_same<T, uint32_t>::value ||
+           is_same<T, int32_t>::value || is_same<T, int8_t>::value || is_same<T, uint8_t>::value ||
+           is_same<T, f8_t>::value || is_same<T, bf8_t>::value || is_same<T, bool>::value;
 }
 
 // vector_type
@@ -111,6 +112,13 @@ template <>
 struct scalar_type<double>
 {
     using type                           = double;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<tfloat_t>
+{
+    using type                           = tfloat_t;
     static constexpr index_t vector_size = 1;
 };
 
@@ -1590,6 +1598,14 @@ using int64_t = long;
 // fp64
 using double2_t = typename vector_type<double, 2>::type;
 using double4_t = typename vector_type<double, 4>::type;
+
+// tf32
+using tfloat2_t  = typename vector_type<tfloat_t, 2>::type;
+using tfloat4_t  = typename vector_type<tfloat_t, 4>::type;
+using tfloat8_t  = typename vector_type<tfloat_t, 8>::type;
+using tfloat16_t = typename vector_type<tfloat_t, 16>::type;
+using tfloat32_t = typename vector_type<tfloat_t, 32>::type;
+using tfloat64_t = typename vector_type<tfloat_t, 64>::type;
 
 // fp32
 using float2_t  = typename vector_type<float, 2>::type;

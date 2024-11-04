@@ -157,6 +157,32 @@ inline __host__ __device__ constexpr half_t type_convert_sp<half_t, int>(int x)
     return u.fp16;
 }
 
+inline __host__ __device__ constexpr tfloat_t fp32_to_tf32_rtz(float x)
+{
+    uint32_t t = bit_cast<uint32_t>(x);
+    return bit_cast<tfloat_t>(t & 0xffffe000);
+}
+
+inline __host__ __device__ constexpr float tf32_to_fp32(tfloat_t x)
+{
+    uint32_t t = bit_cast<uint32_t>(x);
+    return bit_cast<float>(t & ~0x1fffu);
+}
+
+// convert tf32 to fp32
+template <>
+inline __host__ __device__ constexpr float type_convert<float, tfloat_t>(tfloat_t x)
+{
+    return tf32_to_fp32(x);
+}
+
+// convert fp32 to tf32
+template <>
+inline __host__ __device__ constexpr tfloat_t type_convert<tfloat_t, float>(float_t x)
+{
+    return fp32_to_tf32_rtz(x);
+}
+
 // Declare a template function for fp8 conversion using SR
 template <typename Y, typename X>
 __host__ __device__ constexpr Y f8_convert_sr(X x);
