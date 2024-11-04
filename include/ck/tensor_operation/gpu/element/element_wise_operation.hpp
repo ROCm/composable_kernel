@@ -272,6 +272,26 @@ struct MultiplyMultiply
 
         e = ck::type_convert<ck::bhalf_t>(x0_f);
     }
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, int, ck::half_t, ck::half_t>(
+        ck::half_t& e, const int& c, const ck::half_t& d0, const ck::half_t& d1) const
+    {
+        const float x0_f =
+            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
+
+        e = ck::type_convert<ck::half_t>(x0_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::bhalf_t, int, float, float>(
+        ck::bhalf_t& e, const int& c, const float& d0, const float& d1) const
+    {
+        const float x0_f =
+            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
+
+        e = ck::type_convert<ck::bhalf_t>(x0_f);
+    }
 };
 
 struct MultiplyAddFastGelu
@@ -385,7 +405,7 @@ struct ScaleAddScaleAddRelu
                                                                               const float& d1) const
     {
         const float x = c * alpha1_ + alpha2_ * d0 + d1;
-        Relu{}.template operator()<float>(e, x);
+        e             = x > 0 ? x : 0;
     }
 
     template <>
@@ -396,7 +416,7 @@ struct ScaleAddScaleAddRelu
                         type_convert<float>(d1);
 
         float result = 0;
-        Relu{}.template operator()<float>(result, x);
+        result       = x > 0 ? x : 0;
 
         e = type_convert<half_t>(result);
     }
@@ -409,7 +429,7 @@ struct ScaleAddScaleAddRelu
                         type_convert<float>(d1);
 
         float result = 0;
-        Relu{}.template operator()<float>(result, x);
+        result       = x > 0 ? x : 0;
 
         e = type_convert<bhalf_t>(result);
     }
@@ -421,7 +441,7 @@ struct ScaleAddScaleAddRelu
         const float x = type_convert<float>(c) * alpha1_ + alpha2_ * d0 + d1;
 
         float result = 0;
-        Relu{}.template operator()<float>(result, x);
+        result       = x > 0 ? x : 0;
 
         e = type_convert<int8_t>(result);
     }
