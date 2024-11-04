@@ -488,7 +488,30 @@ struct non_native_vector_base<bf8_ocp_t, 1>
     __host__ __device__ operator bf8_ocp_t() const { return bf8_ocp_t{d[0]}; }
 };
 
-namespace fp8_impl {
+template <typename T>
+__host__ __device__ static inline constexpr bool fp8_is_nan(T);
+
+template <>
+__host__ __device__ inline constexpr bool fp8_is_nan(f8_ocp_t a)
+{
+    return fp8_impl::ocp_f8_is_nan(a.data);
+}
+template <>
+__host__ __device__ inline constexpr bool fp8_is_nan(bf8_ocp_t a)
+{
+    return fp8_impl::ocp_bf8_is_nan(a.data);
+}
+template <>
+__host__ __device__ inline constexpr bool fp8_is_nan(f8_fnuz_t a)
+{
+    return fp8_impl::fnuz_f8_is_nan(a);
+}
+template <>
+__host__ __device__ inline constexpr bool fp8_is_nan(bf8_fnuz_t a)
+{
+    return fp8_impl::fnuz_bf8_is_nan(a);
+}
+
 template <typename T,
           std::enable_if_t<std::is_same_v<T, bf8_ocp_t> || std::is_same_v<T, f8_ocp_t> ||
                                std::is_same_v<T, bf8_fnuz_t> || std::is_same_v<T, f8_fnuz_t>,
@@ -502,6 +525,8 @@ __host__ __device__ inline constexpr bool fp8_is_inf(bf8_ocp_t a)
 {
     return (a.data & 0x7f) == 0x7c;
 }
+
+namespace fp8_impl {
 
 // Assertions to check for supported conversion types
 #define __assert_ocp_support(interp)                                               \

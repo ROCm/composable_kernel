@@ -23,8 +23,8 @@ TEST(BF8OCP, NumericLimits)
               type_convert<bf8_ocp_t>(0x7D).data); // 0b01111101
     EXPECT_FALSE(ck::NumericLimits<bf8_ocp_t>::QuietNaN() ==
                  ck::NumericLimits<bf8_ocp_t>::QuietNaN());
-    EXPECT_TRUE(ck::fp8_impl::fp8_is_inf(type_convert<bf8_ocp_t>(0xFC)) &&
-                ck::fp8_impl::fp8_is_inf(type_convert<bf8_ocp_t>(0x7C)));
+    EXPECT_TRUE(ck::fp8_is_inf(type_convert<bf8_ocp_t>(0xFC)) &&
+                ck::fp8_is_inf(type_convert<bf8_ocp_t>(0x7C)));
 }
 
 TEST(BF8OCP, ConvertFP32Nearest)
