@@ -14,6 +14,10 @@
 #include "ck_tile/host.hpp"
 #include "gemm_basic.hpp"
 
+#if !defined(EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY)
+#define EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY 1
+#endif
+
 template <typename ALayout, typename BLayout, typename CLayout>
 float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
@@ -28,8 +32,8 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr int kBlockPerCu = 1;
 
     // This part comes from the Codegen
-    constexpr ck_tile::index_t M_Tile = 128; // make sure this is no less than warp size
-    constexpr ck_tile::index_t N_Tile = 128; // make sure this is no less than warp size
+    constexpr ck_tile::index_t M_Tile = 128;
+    constexpr ck_tile::index_t N_Tile = 128;
     constexpr ck_tile::index_t K_Tile = 32;
 
     constexpr ck_tile::index_t M_Warp = 2;
@@ -71,9 +75,19 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         ck_tile::TileGemmTraits<kPadA, kPadB, kPadC, ALayout, BLayout, CLayout>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
+    /// NOTICE: There are 3 limitations for using UniversalGemmPipelineAgBgCrPolicy<>
+    ///     1. Both of M_Tile and N_Tile should be no less than get_warp_size()
+    ///     2. K_Warp should be 1
+    ///     3. (K_Tile * N_Warp_Tile / K_Warp_Tile) should be no less than 64
+#if EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY
     using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy<ALayout, BLayout, CLayout>;
-    using CodegenGemmPipeline =
-        ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenGemmPolicy>;
+#endif
+    using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem
+#if EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY
+                                                                      ,
+                                                                      CodegenGemmPolicy
+#endif
+                                                                      >;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
