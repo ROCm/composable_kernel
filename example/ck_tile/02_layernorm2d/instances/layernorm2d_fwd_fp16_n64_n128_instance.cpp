@@ -7,6 +7,7 @@
 // clang-format off
 //                                                       rm  rn  tm  tn  vn  pd     mv     2p
 template float layernorm2d_fwd_<trait_<ck_tile::fp16_t, 1,  1,  4,  64, 1,  true , false, false>>(const S&, A);
+template float layernorm2d_fwd_<trait_<ck_tile::fp16_t, 1,  1,  4,  16, 4,  true , false, false>>(const S&, A);
 template float layernorm2d_fwd_<trait_<ck_tile::fp16_t, 1,  1,  4,  64, 2,  true , false, false>>(const S&, A);
 template float layernorm2d_fwd_<trait_<ck_tile::fp16_t, 1,  2,  4,  64, 1,  true , false, false>>(const S&, A);
 // clang-format on

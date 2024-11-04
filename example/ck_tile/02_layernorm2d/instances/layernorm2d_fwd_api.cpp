@@ -33,7 +33,7 @@ float layernorm2d_fwd_b16_(layernorm2d_fwd_traits /*t*/,
     // clang-format off
     //                                            rm  rn  tm   tn  vn  pd     mv     2p
     if(a.n <= 64) {
-            r = layernorm2d_fwd_<trait_<data_type, 1,  1,  4,  64, 1,  true,  false, false>>(s, a);
+            r = layernorm2d_fwd_<trait_<data_type, 1,  1,  4,  16, 4,  true,  false, false>>(s, a);
     }
     else if(a.n <= 128) {
         if (a.n % 2 == 0)
