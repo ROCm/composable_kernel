@@ -356,7 +356,8 @@ CK_TILE_DEVICE constexpr void block_tile_welford_post_scale_var(VarDistributedTe
                                                                 int count)
 {
     using DataType = typename VarDistributedTensor_::DataType;
-    tile_elementwise_inout([&count](auto& x) { x = x / type_convert<DataType>(count); },
-                           var_tensor);
+    tile_elementwise_inout(
+        [&count](auto& x) { x = x * __builtin_amdgcn_rcpf(type_convert<DataType>(count)); },
+        var_tensor);
 }
 } // namespace ck_tile

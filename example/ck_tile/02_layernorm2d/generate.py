@@ -114,7 +114,7 @@ struct layernorm2d_fwd_traits_
     using WarpTile   = ck_tile::sequence<Warp_M, Warp_N>;
     using Vector     = ck_tile::sequence<1, Vector_N_>;
 
-    using Shape = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using Shape = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector, ThreadPerBlock_M_ * ThreadPerBlock_N_>;
 
     static constexpr bool kPadN           = kPadN_;
     static constexpr bool kSaveMeanInvStd = kSaveMeanInvStd_;
@@ -484,8 +484,11 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
         fused_sweep_list = [0, 1] # NOTE: only single pass can use fused dynamic quant
 
         #                                                       rm  rn  tm   tn  vn  pd     mv     2p     add    sweep
-        h_trait_dict = {'64'  : [ h_traits('x', 'y', 'xs', 'ys', 1,  1,  4,  64, 1,  True,  False, False,   0,    0)],
-                        '128' : [ h_traits('x', 'y', 'xs', 'ys', 1,  1,  4,  64, 2,  True,  False, False,   0,    0),
+        h_trait_dict = {'64'  : [ h_traits('x', 'y', 'xs', 'ys', 1,  1,  8,  8,  8,  True,  False, False,   0,    0),
+                                  h_traits('x', 'y', 'xs', 'ys', 1,  1,  4,  16, 4,  True,  False, False,   0,    0),
+                                  h_traits('x', 'y', 'xs', 'ys', 1,  1,  4,  64, 1,  True,  False, False,   0,    0)],
+                        '128' : [ h_traits('x', 'y', 'xs', 'ys', 1,  1,  4,  16, 8,  True,  False, False,   0,    0),
+                                  h_traits('x', 'y', 'xs', 'ys', 1,  1,  4,  64, 2,  True,  False, False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  2,  4,  64, 1,  True,  False, False,   0,    0)],
                         '256' : [ h_traits('x', 'y', 'xs', 'ys', 1,  1,  4,  64, 4,  True,  False, False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  2,  4,  64, 2,  True,  False, False,   0,    0),
