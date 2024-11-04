@@ -19,14 +19,10 @@ struct BatchedTransposeHostArgs
     index_t batch;
     index_t height;
     index_t width;
+    index_t dim_blocks;
     index_t dim_stride;
-    index_t dim_total;
-    index_t magic_h;
-    index_t shift_h;
-    index_t magic_w;
-    index_t shift_w;
-    index_t dim_h;
-    index_t dim_w;
+    index_t dim_block_h;
+    index_t dim_block_w;
 };
 
 template <typename Pipeline_>
@@ -44,14 +40,10 @@ struct BatchedTransposeKernel
         index_t batch;
         index_t height;
         index_t width;
+        index_t dim_blocks;
         index_t dim_stride;
-        index_t dim_total;
-        index_t magic_h;
-        index_t shift_h;
-        index_t magic_w;
-        index_t shift_w;
-        index_t dim_h;
-        index_t dim_w;
+        index_t dim_block_h;
+        index_t dim_block_w;
     };
 
     using Kargs = BatchedTransposeKargs;
@@ -59,26 +51,22 @@ struct BatchedTransposeKernel
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
     {
-        size_t grid_size = h.batch * h.dim_h * h.dim_w;
+        size_t grid_size = h.batch * h.dim_block_h * h.dim_block_w;
         return dim3(grid_size);
     }
 
     CK_TILE_HOST static constexpr auto MakeKargs(const Hargs& h)
     {
         Kargs k;
-        k.p_input    = h.p_input;
-        k.p_output   = h.p_output;
-        k.batch      = h.batch;
-        k.height     = h.height;
-        k.width      = h.width;
-        k.dim_stride = h.dim_stride;
-        k.dim_total  = h.dim_total;
-        k.magic_h    = h.magic_h;
-        k.shift_h    = h.shift_h;
-        k.magic_w    = h.magic_w;
-        k.shift_w    = h.shift_w;
-        k.dim_h      = h.dim_h;
-        k.dim_w      = h.dim_w;
+        k.p_input     = h.p_input;
+        k.p_output    = h.p_output;
+        k.batch       = h.batch;
+        k.height      = h.height;
+        k.width       = h.width;
+        k.dim_blocks  = h.dim_blocks;
+        k.dim_stride  = h.dim_stride;
+        k.dim_block_h = h.dim_block_h;
+        k.dim_block_w = h.dim_block_w;
         return k;
     }
 
@@ -86,7 +74,6 @@ struct BatchedTransposeKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        printf("in kernel. k.height:%d k.width:%d\n", kargs.height, kargs.width);
 
         static constexpr ck_tile::index_t kMPerBlock = Problem::kMPerBlock;
         static constexpr ck_tile::index_t kNPerBlock = Problem::kNPerBlock;
@@ -96,9 +83,10 @@ struct BatchedTransposeKernel
         static constexpr ck_tile::index_t kMPerThread = Problem::kMPerThread;
         static constexpr ck_tile::index_t kNPerThread = Problem::kNPerThread;
 
+        const auto iDim  = get_block_id() / kargs.dim_blocks;
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<const Type*>(kargs.p_input),
+                static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride,
                 make_tuple(kargs.height, kargs.width),
                 make_tuple(kargs.width, 1),
                 number<kNPerThread>{}, // TODO thread load value
@@ -109,12 +97,12 @@ struct BatchedTransposeKernel
                                    sequence<kPadM, kPadN>{});
         }();
 
-        const auto iM = get_block_id() / kargs.dim_w;
-        const auto iN = get_block_id() % kargs.dim_w;
+        const auto iM = get_block_id() % kargs.dim_blocks / kargs.dim_block_w;
+        const auto iN = get_block_id() % kargs.dim_blocks % kargs.dim_block_w;
 
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<Type*>(kargs.p_output),
+                static_cast<Type*>(kargs.p_output) + iDim * kargs.dim_stride,
                 make_tuple(kargs.width, kargs.height),
                 make_tuple(kargs.height, 1),
                 number<kMPerThread>{},
@@ -134,7 +122,7 @@ struct BatchedTransposeKernel
                              make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
                              {iN * kNPerBlock, iM * kMPerBlock});
 
-        Pipeline{}(x_block_window, y_block_window, kargs.batch, kargs.height, kargs.width, iM, iN);
+        Pipeline{}(x_block_window, y_block_window);
     }
 };
 } // namespace ck_tile

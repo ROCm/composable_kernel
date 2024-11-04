@@ -98,13 +98,13 @@ auto create_args(int argc, char* argv[])
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("v", "1", "weather do CPU validation or not")
         .insert("pr", "fp16", "input data type. fp16/fp32 (representing 8/16/32 bit data)")
-        .insert("N", "1", "input batch size. ")
-        .insert("C", "15", "input channel size.")
+        .insert("N", "2", "input batch size. ")
+        .insert("C", "16", "input channel size.")
         .insert("H", "1", "input height size.")
-        .insert("W", "32", "input width size. ")
-        .insert("stride_dim0", "480", "input dim0 stride. ")
-        .insert("stride_dim1", "32", "input dim1 stride.")
-        .insert("stride_dim2", "32", "input dim2 stride.")
+        .insert("W", "16", "input width size. ")
+        .insert("stride_dim0", "256", "input dim0 stride. ")
+        .insert("stride_dim1", "16", "input dim1 stride.")
+        .insert("stride_dim2", "16", "input dim2 stride.")
         .insert("stride_dim3", "1", "input dim3 stride. ")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "t to 1 will print kernel name");
@@ -186,45 +186,37 @@ bool test_batched_transpose(ck_tile::ArgParser args)
             break;
         }
     }
-    printf("kparam:tile_size:[%d %d] pack[%d, %d] ediv[%d %d]\n",
-           kparam.tile_x,
-           kparam.tile_y,
-           kparam.pack_x,
-           kparam.pack_y,
-           kparam.ediv_x,
-           kparam.ediv_y);
+    // printf("kparam:tile_size:[%d %d] pack[%d, %d] ediv[%d %d]\n",
+    //        kparam.tile_x,
+    //        kparam.tile_y,
+    //        kparam.pack_x,
+    //        kparam.pack_y,
+    //        kparam.ediv_x,
+    //        kparam.ediv_y);
 
     auto trait = batched_transpose_trait{prec, layout_in};
 
-    uint32_t height    = layout_in == "NCHW" ? C : H * W;
-    uint32_t width     = layout_in == "NCHW" ? H * W : C;
-    uint32_t dim_h     = (height + kparam.tile_y - 1) / kparam.tile_y;
-    uint32_t dim_w     = (width + kparam.tile_x - 1) / kparam.tile_x;
-    uint32_t dim_total = N * dim_h * dim_w;
-    size_t grid_size   = N * dim_h * dim_w;
+    uint32_t height      = layout_in == "NCHW" ? C : H * W;
+    uint32_t width       = layout_in == "NCHW" ? H * W : C;
+    uint32_t dim_block_h = (height + kparam.tile_y - 1) / kparam.tile_y;
+    uint32_t dim_block_w = (width + kparam.tile_x - 1) / kparam.tile_x;
+    uint32_t dim_stride  = height * width;
+    uint32_t dim_blocks  = dim_block_h * dim_block_w;
 
-    // auto magic_h = ck_tile::magic_division::calculate_magic_numbers(dim_h);
-    // auto magic_w = ck_tile::magic_division::calculate_magic_numbers(dim_w);
+    // auto magic_h = ck_tile::magic_division::calculate_magic_numbers(dim_block_h);
+    // auto magic_w = ck_tile::magic_division::calculate_magic_numbers(dim_block_w);
 
     batched_transpose_kargs karg = [&]() {
         batched_transpose_kargs a_;
-        a_.p_input    = x_dev.GetDeviceBuffer();
-        a_.p_output   = y_dev.GetDeviceBuffer();
-        a_.batch      = N;
-        a_.height     = height;
-        a_.width      = width;
-        a_.dim_stride = grid_size;
-        a_.dim_total  = dim_total;
-        a_.magic_h    = 1;
-        a_.shift_h    = 1;
-        a_.magic_w    = 1;
-        a_.shift_w    = 1;
-        a_.dim_h      = dim_h;
-        a_.dim_w      = dim_w;
-        // a_.magic_h  = magic_h.magic;
-        // a_.shift_h  = magic_h.shift;
-        // a_.magic_w  = magic_w.magic;
-        // a_.shift_w  = magic_w.shift;
+        a_.p_input     = x_dev.GetDeviceBuffer();
+        a_.p_output    = y_dev.GetDeviceBuffer();
+        a_.batch       = N;
+        a_.height      = height;
+        a_.width       = width;
+        a_.dim_blocks  = dim_blocks;
+        a_.dim_stride  = dim_stride;
+        a_.dim_block_h = dim_block_h;
+        a_.dim_block_w = dim_block_w;
         return a_;
     }();
 
@@ -264,6 +256,7 @@ bool test_batched_transpose(ck_tile::ArgParser args)
 
         // dump_host_tensor_4d(x_host);
         ck_tile::reference_batched_transpose<Type>(x_host, y_ref, layout_in);
+        // printf("y reference:\n");
         // dump_host_tensor_4d(y_ref);
 
         // printf("y host:\n");

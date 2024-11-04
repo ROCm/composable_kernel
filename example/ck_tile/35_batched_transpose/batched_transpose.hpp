@@ -92,10 +92,9 @@ struct transpose_kernel_get_all_param_t<1>
 
 std::vector<transpose_kernel_param_t> get_transpose_all_kernel(std::string fp_str)
 {
-    printf("in get_transpose_all_kernel.\n");
     if(fp_str == "fp32")
         return transpose_kernel_get_all_param_t<4>::get();
-    else if(fp_str == "fp16")
+    else if(fp_str == "fp16" || fp_str == "bf16")
         return transpose_kernel_get_all_param_t<2>::get();
     else if(fp_str == "int8")
         return transpose_kernel_get_all_param_t<1>::get();

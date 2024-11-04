@@ -19,7 +19,6 @@ template <typename InputType_,
           bool kPadN_ = true>
 struct BatchedTransposeProblem
 {
-    // TODO: this kernel only support warp per row
     using InputType = remove_cvref_t<InputType_>;
 
     static constexpr index_t kMPerThread = ThreadTile::at(number<0>{});
@@ -36,9 +35,6 @@ struct BatchedTransposeProblem
 
     static constexpr index_t kMWarpPerBlock = kMPerBlock / kMPerWarp;
     static constexpr index_t kNWarpPerBlock = kNPerBlock / kNPerWarp;
-
-    // TODO - kNNumWarps can only be 1 if we don't support cross warp welford
-    // static_assert(kNWarpPerBlock == 1);
 
     static constexpr index_t kBlockSize = 256;
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 #include "batched_transpose_api.hpp"
 
 #define BATCHED_TRANSPOSE_DISPATCH()                                                   \
@@ -27,50 +29,22 @@ float batched_transpose(batched_transpose_trait t,
     if(t.type == "fp16")
     {
         using ts_type = ck_tile::fp16_t;
-        if(t.layout == "NCHW")
-        {
-            BATCHED_TRANSPOSE_DISPATCH()
-        }
-        else if(t.layout == "NHWC")
-        {
-            BATCHED_TRANSPOSE_DISPATCH()
-        }
+        BATCHED_TRANSPOSE_DISPATCH()
     }
     else if(t.type == "bf16")
     {
         using ts_type = ck_tile::bf16_t;
-        if(t.layout == "NCHW")
-        {
-            BATCHED_TRANSPOSE_DISPATCH()
-        }
-        else if(t.layout == "NHWC")
-        {
-            BATCHED_TRANSPOSE_DISPATCH()
-        }
+        BATCHED_TRANSPOSE_DISPATCH()
     }
     else if(t.type == "fp32")
     {
         using ts_type = ck_tile::fp32_t;
-        if(t.layout == "NCHW")
-        {
-            BATCHED_TRANSPOSE_DISPATCH()
-        }
-        else if(t.layout == "NHWC")
-        {
-            BATCHED_TRANSPOSE_DISPATCH()
-        }
+        BATCHED_TRANSPOSE_DISPATCH()
     }
     else if(t.type == "int8")
     {
         using ts_type = ck_tile::int8_t;
-        if(t.layout == "NCHW")
-        {
-            BATCHED_TRANSPOSE_DISPATCH()
-        }
-        else if(t.layout == "NHWC")
-        {
-            BATCHED_TRANSPOSE_DISPATCH()
-        }
+        BATCHED_TRANSPOSE_DISPATCH()
     }
     return -1;
 }

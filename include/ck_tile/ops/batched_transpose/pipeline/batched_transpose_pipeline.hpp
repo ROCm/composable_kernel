@@ -29,33 +29,46 @@ struct BatchedTransposePipeline
     static constexpr bool kPadN                  = Problem::kPadN;
 
     template <typename InputWindow, typename OutputWindow>
-    CK_TILE_DEVICE auto operator()(const InputWindow& input_window,
-                                   OutputWindow& out_window,
-                                   index_t batch,
-                                   index_t M,
-                                   index_t N,
-                                   index_t iM,
-                                   index_t iN)
+    CK_TILE_DEVICE auto
+    operator()(const InputWindow& input_window, OutputWindow& out_window)
     {
-        printf("shape:[%d %d %d] iM_N:[%d %d]\n", batch, M, N, iM, iN);
-
         auto inp_win =
             make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
         auto out_win =
             make_tile_window(out_window, Policy::template MakeOutputDistribution<Problem>());
 
-        auto x = load_tile(inp_win); //x->thread input_win->block
+        auto x = load_tile(inp_win); // x->thread input_win->block
 
         auto y = make_static_distributed_tensor<InputType>(
             Policy::template MakeOutputDistribution<Problem>());
 
-        constexpr auto span_2d = decltype(x)::get_distributed_spans();
+        constexpr auto span_2d_x = decltype(x)::get_distributed_spans();
+        constexpr auto span_2d_y = decltype(y)::get_distributed_spans();
 
-        sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-            sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+        constexpr auto element_byte    = sizeof(InputType);
+        constexpr auto padding_element = 4 / element_byte;
+        constexpr auto smem_stride     = 16 + padding_element;
+        __shared__ InputType smem[16 * smem_stride];
+
+        __syncthreads();
+        sweep_tile_span(span_2d_x[number<0>{}], [&](auto idx0) {
+            sweep_tile_span(span_2d_x[number<1>{}], [&](auto idx1) {
+                uint32_t i_src_w                      = get_thread_id() & 15;
+                uint32_t i_src_h                      = get_thread_id() >> 4;
+                constexpr auto i_j_idx                = make_tuple(idx0, idx1);
+                smem[i_src_h * smem_stride + i_src_w] = x(i_j_idx);
+            });
+        });
+
+        __syncthreads();
+        sweep_tile_span(span_2d_y[number<0>{}], [&](auto idx0) {
+            sweep_tile_span(span_2d_y[number<1>{}], [&](auto idx1) {
+                // constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                // constexpr auto j_i_idx = make_tuple(idx1, idx0);
+                uint32_t i_src_w       = get_thread_id() & 15;
+                uint32_t i_src_h       = get_thread_id() >> 4;
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                constexpr auto j_i_idx = make_tuple(idx1, idx0);
-                y(j_i_idx) = x(i_j_idx);
+                y(i_j_idx)             = smem[i_src_h * smem_stride + i_src_w];
             });
         });
 
