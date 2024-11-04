@@ -11,11 +11,11 @@ namespace ck_tile {
 // host side args
 struct Rmsnorm2dFwdHostArgs
 {
-    const void* p_x;
-    const void* p_gamma;
+    const void* p_x;     // [m ,n], input, fp16/bf16
+    const void* p_gamma; // [1, n], gamma, prec same as input
 
-    void* p_y;
-    void* p_invRms;
+    void* p_y;      // [m, n], output, fp16/bf16
+    void* p_invRms; // [m, 1], output inv-rms, prec same as input, nullptr if not used
 
     float epsilon;
 
@@ -83,7 +83,7 @@ struct Rmsnorm2dFwd
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& hargs)
     {
-        return (hargs.m + Block_M - 1) / Block_M;
+        return dim3(integer_divide_ceil(hargs.m, Block_M));
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return Problem::BlockShape::BlockSize; }
@@ -149,7 +149,7 @@ struct Rmsnorm2dFwd
                 number<1>{});
 
             const auto tmp2_ =
-                pad_tensor_view(tmp_, make_tuple(number<Block_N>{}), sequence<kPadM>{});
+                pad_tensor_view(tmp_, make_tuple(number<Block_N>{}), sequence<kPadN>{});
 
             return make_tile_window(tmp2_, make_tuple(number<Block_N>{}), {0});
         }();
