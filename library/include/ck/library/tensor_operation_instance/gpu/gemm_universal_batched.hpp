@@ -31,11 +31,6 @@ void add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_comp_default_
                                                           PassThrough,
                                                           PassThrough>>>& instances);
 
-// void add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_comp_kpadding_instances(
-// std::vector<std::unique_ptr<
-// DeviceBatchedGemmV2MultiD<Row, Col, Row, BF16, BF16, BF16, PassThrough, PassThrough,
-// PassThrough>>>& instances);
-
 void add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v1_default_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemmV2MultiD<Row,
                                                           Col,
@@ -48,11 +43,6 @@ void add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v1_defaul
                                                           PassThrough,
                                                           PassThrough,
                                                           PassThrough>>>& instances);
-
-// void add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v1_kpadding_instances(
-// std::vector<std::unique_ptr<
-// DeviceBatchedGemmV2MultiD<Row, Col, Row, BF16, BF16, BF16, PassThrough, PassThrough,
-// PassThrough>>>& instances);
 
 void add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_default_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemmV2MultiD<Row,
@@ -67,10 +57,48 @@ void add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_defaul
                                                           PassThrough,
                                                           PassThrough>>>& instances);
 
-// void add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_kpadding_instances(
-// std::vector<std::unique_ptr<
-// DeviceBatchedGemmV2MultiD<Row, Col, Row, BF16, BF16, BF16, PassThrough, PassThrough,
-// PassThrough>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP8
+void add_device_batched_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_default_instances(
+    std::vector<std::unique_ptr<DeviceBatchedGemmV2MultiD<Row,
+                                                          Col,
+                                                          Empty_Tuple,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Empty_Tuple,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          PassThrough>>>& instances);
+
+void add_device_batched_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v1_default_instances(
+    std::vector<std::unique_ptr<DeviceBatchedGemmV2MultiD<Row,
+                                                          Col,
+                                                          Empty_Tuple,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Empty_Tuple,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          PassThrough>>>& instances);
+
+void add_device_batched_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v2_default_instances(
+    std::vector<std::unique_ptr<DeviceBatchedGemmV2MultiD<Row,
+                                                          Col,
+                                                          Empty_Tuple,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Empty_Tuple,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          PassThrough>>>& instances);
+
 #endif
 
 template <typename ADataType,
@@ -119,18 +147,31 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
             {
                 add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_comp_default_instances(
                     op_ptrs);
-                // add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_comp_kpadding_instances(
-                // op_ptrs);
 
                 add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v1_default_instances(
                     op_ptrs);
-                // add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v1_kpadding_instances(
-                // op_ptrs);
 
                 add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_default_instances(
                     op_ptrs);
-                // add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_kpadding_instances(
-                // op_ptrs);
+            }
+        }
+#endif
+
+#ifdef CK_ENABLE_FP8
+        if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
+                     is_same_v<CDataType, bhalf_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_batched_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_default_instances(
+                    op_ptrs);
+
+                add_device_batched_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v1_default_instances(
+                    op_ptrs);
+
+                add_device_batched_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v2_default_instances(
+                    op_ptrs);
             }
         }
 #endif

@@ -23,6 +23,7 @@ enum struct GemmMatrixLayout
 enum struct GemmDataType
 {
     BF16_BF16_BF16, // 0
+    F8_F8_BF16,     // 1
 };
 
 #define OP_NAME "gemm_universal_batched"
@@ -83,6 +84,7 @@ int profile_batched_gemm_universal(int argc, char* argv[])
 
     const int BatchCount = std::stoi(argv[17]);
 
+    using F8   = ck::f8_t;
     using BF16 = ck::bhalf_t;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
@@ -165,6 +167,10 @@ int profile_batched_gemm_universal(int argc, char* argv[])
     if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(BF16{}, BF16{}, BF16{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(F8{}, F8{}, BF16{}, Row{}, Col{}, Row{});
     }
     else
     {
