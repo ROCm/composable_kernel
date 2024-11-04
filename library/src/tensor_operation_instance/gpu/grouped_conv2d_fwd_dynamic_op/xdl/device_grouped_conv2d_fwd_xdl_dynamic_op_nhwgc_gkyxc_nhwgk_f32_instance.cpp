@@ -31,6 +31,8 @@ void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_f32_instance
                                                              Tuple<>,
                                                              NHWGK,
                                                              ConvFwdDefault>{});
+#if 0 // Enable with dynamic op optimizations (at now generating a lot of virtual functions cause
+      // long compilation time)
     add_device_operation_instances(
         instances,
         device_grouped_conv_fwd_xdl_dynamic_op_f32_instances<2,
@@ -47,6 +49,7 @@ void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_f32_instance
                                                              Tuple<>,
                                                              NHWGK,
                                                              ConvFwd1x1S1P0>{});
+#endif
 }
 
 } // namespace instance
