@@ -526,11 +526,37 @@ inline __host__ __device__ f4_t f4_convert_rne(float x)
 #endif
 }
 
+// convert fp32 to fp4 with stochastic rounding
+inline __host__ __device__ f4_t f4_convert_sr(float x)
+{
+    constexpr int seed = 1254739;
+    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#if defined(__gfx94__)
+    // union
+    // {
+    //     float fval;
+    //     uint32_t i32val;
+    //     uint8_t i8val[4]; // not endian independent
+    // } val;
+    // val.fval            = x;
+    // uint32_t ival       = 0;
+    // const float max_fp8 = 240.0f;
+    // // if x is not +/- infinity or nan
+    // if((val.i32val & NumericUtils<float>::nan_mask) != NumericUtils<float>::Inf)
+    //     // clip float value
+    //     val.fval = __builtin_amdgcn_fmed3f(val.fval, max_fp8, -max_fp8);
+    // ival       = __builtin_amdgcn_cvt_pk_fp8_f32(val.fval, val.fval, ival, false); // false ->
+    // WORD0 val.i32val = ival; return val.i8val[0];
+#else
+    return utils::sat_convert_to_type_sr<f4_t>(x, rng);
+#endif
+}
+
 // convert fp32 to fp4
 template <>
 inline __host__ __device__ f4_t type_convert<f4_t, float>(float x)
 {
-#if CK_USE_SR_F8_CONVERSION
+#if CK_USE_SR_F4_CONVERSION
     return f4_convert_sr(x);
 #else
     return f4_convert_rne(x);
