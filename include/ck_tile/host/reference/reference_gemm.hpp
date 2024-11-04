@@ -256,11 +256,11 @@ void reference_batched_gemm_gpu(DeviceMem& a_device,
     int numThreadsPerBlock = 256; // Common choice for threads per block
     int numBlocks          = (totalElements + numThreadsPerBlock - 1) / numThreadsPerBlock;
 
-    for(int i = 0; i < batch_count; ++i)
+    for(index_t batch_id = 0; batch_id < batch_count; ++batch_id)
     {
-        ADataType* d_ATemp = d_A + i * batch_stride_A;
-        BDataType* d_BTemp = d_B + i * batch_stride_B;
-        CDataType* d_CTemp = d_C + i * batch_stride_C;
+        ADataType* d_ATemp = d_A + batch_id * batch_stride_A;
+        BDataType* d_BTemp = d_B + batch_id * batch_stride_B;
+        CDataType* d_CTemp = d_C + batch_id * batch_stride_C;
         naive_gemm_kernel<ADataType, BDataType, AccDataType, CDataType, LayoutA, LayoutB, LayoutC>
             <<<numBlocks, numThreadsPerBlock>>>(
                 d_ATemp, d_BTemp, d_CTemp, M, N, K, stride_a, stride_b, stride_c);

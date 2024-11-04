@@ -55,6 +55,7 @@ struct batched_gemm_args
     const void* p_a;
     const void* p_b;
     void* p_c;
+    ck_tile::index_t k_batch;
     ck_tile::index_t M;
     ck_tile::index_t N;
     ck_tile::index_t K;
@@ -70,7 +71,8 @@ struct batched_gemm_args
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "256", "m dimension")
+    arg_parser.insert("k_batch", "1", "Batch Size")
+        .insert("m", "256", "m dimension")
         .insert("n", "128", "n dimension")
         .insert("k", "128", "k dimension")
         .insert("stride_a", "128", "Tensor A stride")

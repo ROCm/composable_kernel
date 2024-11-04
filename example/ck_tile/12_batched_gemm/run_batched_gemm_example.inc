@@ -7,6 +7,7 @@ template <typename ALayout, typename BLayout, typename CLayout>
 float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                           ck_tile::DeviceMem& b_k_n_dev_buf,
                           ck_tile::DeviceMem& c_m_n_dev_buf,
+                          ck_tile::index_t k_batch,
                           ck_tile::index_t M,
                           ck_tile::index_t N,
                           ck_tile::index_t K,
@@ -24,6 +25,7 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.p_a            = a_m_k_dev_buf.GetDeviceBuffer();
     args.p_b            = b_k_n_dev_buf.GetDeviceBuffer();
     args.p_c            = c_m_n_dev_buf.GetDeviceBuffer();
+    args.k_batch        = k_batch;
     args.M              = M;
     args.N              = N;
     args.K              = K;
@@ -38,11 +40,11 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float ave_time = gemm_calc<ALayout, BLayout, CLayout>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
-    std::string op_name{"Gemm{MemBoundPipeline}"};
-
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_byte =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
+    std::string op_name{"Batched Gemm"};
+    std::size_t flop     = std::size_t(2) * batch_count * M * N * K;
+    std::size_t num_byte = sizeof(ADataType) * batch_count * M * K +
+                           sizeof(BDataType) * batch_count * N * K +
+                           sizeof(CDataType) * batch_count * M * N;
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
@@ -59,6 +61,8 @@ int run_batched_gemm_example(int argc, char* argv[])
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return -1;
+
+    ck_tile::index_t k_batch = arg_parser.get_int("k_batch");
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -86,16 +90,17 @@ int run_batched_gemm_example(int argc, char* argv[])
                                        std::size_t row,
                                        std::size_t col,
                                        std::size_t stride,
+                                       std::size_t batch_stride,
                                        auto layout) {
         if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
         {
             return ck_tile::HostTensorDescriptor({batch_count_, row, col},
-                                                 {row * col, stride, 1_uz});
+                                                 {batch_stride, stride, 1_uz});
         }
         else
         {
             return ck_tile::HostTensorDescriptor({batch_count_, row, col},
-                                                 {row * col, 1_uz, stride});
+                                                 {batch_stride, 1_uz, stride});
         }
     };
 
@@ -124,11 +129,11 @@ int run_batched_gemm_example(int argc, char* argv[])
     stride_C = f_get_default_stride(M, N, stride_C, CLayout{});
 
     ck_tile::HostTensor<ADataType> a_m_k(
-        f_host_tensor_descriptor(batch_count, M, K, stride_A, ALayout{}));
+        f_host_tensor_descriptor(batch_count, M, K, stride_A, batch_stride_A, ALayout{}));
     ck_tile::HostTensor<BDataType> b_k_n(
-        f_host_tensor_descriptor(batch_count, K, N, stride_B, BLayout{}));
+        f_host_tensor_descriptor(batch_count, K, N, stride_B, batch_stride_B, BLayout{}));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
-        f_host_tensor_descriptor(batch_count, M, N, stride_C, CLayout{}));
+        f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, CLayout{}));
 
     // TODO: add different init types
 
@@ -147,6 +152,7 @@ int run_batched_gemm_example(int argc, char* argv[])
     invoke_batched_gemm<ALayout, BLayout, CLayout>(a_m_k_dev_buf,
                                                    b_k_n_dev_buf,
                                                    c_m_n_dev_buf,
+                                                   k_batch,
                                                    M,
                                                    N,
                                                    K,
@@ -166,7 +172,7 @@ int run_batched_gemm_example(int argc, char* argv[])
     if(arg_parser.get_int("v") == 1)
     {
         ck_tile::HostTensor<CDataType> c_m_n_host_ref(
-            f_host_tensor_descriptor(batch_count, M, N, stride_C, CLayout{}));
+            f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, CLayout{}));
         c_m_n_host_ref.SetZero();
 
         ck_tile::reference_batched_gemm<ADataType, BDataType, AccDataType, CDataType>(
@@ -179,7 +185,7 @@ int run_batched_gemm_example(int argc, char* argv[])
     else if(arg_parser.get_int("v") == 2)
     {
         ck_tile::HostTensor<CDataType> c_m_n_gpu_ref(
-            f_host_tensor_descriptor(batch_count, M, N, stride_C, CLayout{}));
+            f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, CLayout{}));
         ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_gpu_ref.get_element_space_size_in_bytes());
         c_m_n_gpu_ref.SetZero();
         c_m_n_gpu_buf_ref.SetZero();

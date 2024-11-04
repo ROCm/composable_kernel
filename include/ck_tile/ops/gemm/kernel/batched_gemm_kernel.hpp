@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -25,12 +25,16 @@ struct BatchedGemmKernel
 
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
-    // using CAccDataType = remove_cvref_t<typename GemmPipeline::CDataType>;
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    __host__ static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
+    __host__ static constexpr auto
+    GridSize(index_t M, index_t N, index_t KBatch, index_t BatchCount)
     {
-        return TilePartitioner::GridSize(M, N, KBatch);
+        if(KBatch > 1)
+        {
+            std::runtime_error("split k is not supported");
+        }
+        return TilePartitioner::GridSize(M, N, KBatch * BatchCount);
     }
 
     __host__ static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
@@ -40,6 +44,7 @@ struct BatchedGemmKernel
         const void* a_ptr;
         const void* b_ptr;
         void* c_ptr;
+        index_t k_batch;
         index_t M;
         index_t N;
         index_t K;
@@ -55,6 +60,7 @@ struct BatchedGemmKernel
     CK_TILE_HOST static constexpr BatchedGemmCommonKargs MakeKargs(const void* a_ptr,
                                                                    const void* b_ptr,
                                                                    void* c_ptr,
+                                                                   index_t k_batch,
                                                                    index_t M,
                                                                    index_t N,
                                                                    index_t K,
@@ -69,6 +75,7 @@ struct BatchedGemmKernel
         return BatchedGemmCommonKargs{a_ptr,
                                       b_ptr,
                                       c_ptr,
+                                      k_batch,
                                       M,
                                       N,
                                       K,
@@ -89,12 +96,12 @@ struct BatchedGemmKernel
     CK_TILE_DEVICE void operator()(BatchedGemmCommonKargs kargs) const
     {
         const auto [i_m, i_n] = TilePartitioner{}();
-        const auto i_k        = blockIdx.z;
+        const auto i_batch    = blockIdx.z;
         //  options
         const ADataType* a_start = static_cast<const ADataType*>(kargs.a_ptr) +
-                                   __builtin_amdgcn_readfirstlane(i_k * kargs.batch_stride_A);
+                                   __builtin_amdgcn_readfirstlane(i_batch * kargs.batch_stride_A);
         const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr) +
-                                   __builtin_amdgcn_readfirstlane(i_k * kargs.batch_stride_B);
+                                   __builtin_amdgcn_readfirstlane(i_batch * kargs.batch_stride_B);
         // Convert pointers to tensor views
         auto a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -173,7 +180,7 @@ struct BatchedGemmKernel
             GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr);
 
         CDataType* c_start = static_cast<CDataType*>(kargs.c_ptr) +
-                             __builtin_amdgcn_readfirstlane(i_k * kargs.batch_stride_C);
+                             __builtin_amdgcn_readfirstlane(i_batch * kargs.batch_stride_C);
         auto c_tensor_view = [&]() {
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {

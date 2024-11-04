@@ -84,6 +84,7 @@ float gemm_calc(const batched_gemm_args& args, const ck_tile::stream_config& s)
     auto kargs = Kernel::MakeKargs(args.p_a,
                                    args.p_b,
                                    args.p_c,
+                                   args.k_batch,
                                    args.M,
                                    args.N,
                                    args.K,
@@ -95,7 +96,7 @@ float gemm_calc(const batched_gemm_args& args, const ck_tile::stream_config& s)
                                    args.batch_stride_C,
                                    args.batch_count);
 
-    const dim3 grids      = Kernel::GridSize(args.M, args.N, args.batch_count);
+    const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch, args.batch_count);
     constexpr dim3 blocks = Kernel::BlockSize();
 
     if(s.log_level_ > 0)
