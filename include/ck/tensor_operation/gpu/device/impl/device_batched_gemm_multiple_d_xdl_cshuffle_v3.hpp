@@ -56,7 +56,8 @@ __global__ void
     // populate pointer, desc for Ds
     static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
         // D pointer
-        karg.p_ds_grid(i) = karg.p_ds_grid(i) + karg.BatchStrideDs[i] * g_idx;
+        karg.p_ds_grid(i) =
+            karg.p_ds_grid(i) + static_cast<long_index_t>(karg.BatchStrideDs[i]) * g_idx;
     });
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
@@ -106,7 +107,8 @@ __global__ void
     // populate pointer, desc for Ds
     static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
         // D pointer
-        karg.p_ds_grid(i) = karg.p_ds_grid(i) + karg.BatchStrideDs[i] * g_idx;
+        karg.p_ds_grid(i) =
+            karg.p_ds_grid(i) + static_cast<long_index_t>(karg.BatchStrideDs[i]) * g_idx;
     });
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
