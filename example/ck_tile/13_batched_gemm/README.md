@@ -15,6 +15,7 @@ This will result in an executable `build/bin/tile_example_batched_gemm`
 ## example
 ```
 args:
+        -k_batch     Batch Size (default:1)
               -m     m dimension (default:256)
               -n     n dimension (default:128)
               -k     k dimension (default:128)
