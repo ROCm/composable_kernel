@@ -185,7 +185,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                               stride};
 
     float ave_time = layernorm2d_fwd(
-        traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat, true, true, 1024 * 1024 * 1024});
+        traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat, true, true, 256 * 1024 * 1024});
 
     if(ave_time < 0)
     {
@@ -230,46 +230,46 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(fused_quant != 0)
         {
-            auto dquant_functor = [&](int m_, auto& o_, auto& acc_) {
-                int N_ = acc_.mDesc.get_lengths()[1];
-                if(fused_quant == 1)
-                {
-                    for(int n_ = 0; n_ < N_; n_++)
-                    {
-                        // input smooth outlier
-                        acc_(m_, n_) =
-                            acc_(m_, n_) * ck_tile::type_convert<ComputeDataType>(x_scale_host(n_));
-                    }
-                }
-                ComputeDataType absmax = static_cast<ComputeDataType>(0);
-                for(int n_ = 0; n_ < N_; n_++)
-                {
-                    const auto a = ck_tile::abs(acc_(m_, n_));
-                    absmax       = a > absmax ? a : absmax;
-                }
-                // printf("cpu:absmax:%f\n", absmax);
-                ComputeDataType y_scale = absmax / static_cast<ComputeDataType>(127.0);
-                y_scale_host_ref(m_)    = ck_tile::type_convert<YScaleDataType>(y_scale);
-                for(int n_ = 0; n_ < N_; n_++)
-                {
-                    o_(m_, n_) = ck_tile::type_convert<YDataType>(acc_(m_, n_) / y_scale);
-                }
-            };
+            // auto dquant_functor = [&](int m_, auto& o_, auto& acc_) {
+            //     int N_ = acc_.mDesc.get_lengths()[1];
+            //     if(fused_quant == 1)
+            //     {
+            //         for(int n_ = 0; n_ < N_; n_++)
+            //         {
+            //             // input smooth outlier
+            //             acc_(m_, n_) =
+            //                 acc_(m_, n_) * ck_tile::type_convert<ComputeDataType>(x_scale_host(n_));
+            //         }
+            //     }
+            //     ComputeDataType absmax = static_cast<ComputeDataType>(0);
+            //     for(int n_ = 0; n_ < N_; n_++)
+            //     {
+            //         const auto a = ck_tile::abs(acc_(m_, n_));
+            //         absmax       = a > absmax ? a : absmax;
+            //     }
+            //     // printf("cpu:absmax:%f\n", absmax);
+            //     ComputeDataType y_scale = absmax / static_cast<ComputeDataType>(127.0);
+            //     y_scale_host_ref(m_)    = ck_tile::type_convert<YScaleDataType>(y_scale);
+            //     for(int n_ = 0; n_ < N_; n_++)
+            //     {
+            //         o_(m_, n_) = ck_tile::type_convert<YDataType>(acc_(m_, n_) / y_scale);
+            //     }
+            // };
 
-            ck_tile::reference_layernorm2d_fwd<XDataType,
-                                               GammaDataType,
-                                               BetaDataType,
-                                               ComputeDataType,
-                                               YDataType,
-                                               MeanDataType,
-                                               InvStdDataType>(x_host,
-                                                               gamma_host,
-                                                               beta_host,
-                                                               y_host_ref,
-                                                               mean_host_ref,
-                                                               invStd_host_ref,
-                                                               epsilon,
-                                                               dquant_functor);
+            // ck_tile::reference_layernorm2d_fwd<XDataType,
+            //                                    GammaDataType,
+            //                                    BetaDataType,
+            //                                    ComputeDataType,
+            //                                    YDataType,
+            //                                    MeanDataType,
+            //                                    InvStdDataType>(x_host,
+            //                                                    gamma_host,
+            //                                                    beta_host,
+            //                                                    y_host_ref,
+            //                                                    mean_host_ref,
+            //                                                    invStd_host_ref,
+            //                                                    epsilon,
+            //                                                    dquant_functor);
         }
         else
         {

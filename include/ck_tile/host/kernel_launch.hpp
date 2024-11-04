@@ -82,9 +82,12 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables... callables)
         // warmup
         for(int i = 0; i < s.cold_niters_; i++) { (callables(s),...); } HIP_CHECK_ERROR(hipGetLastError());
 
+        if (s.clear_cache) {
+            printf("setvalue to clear_cache, bufsize %lu\n", s.buf_size);
+        }
         for(int i = 0; i < s.nrepeat_; i++) { 
             if (s.clear_cache) {
-                s.cache_buf.SetValue<int>(i);
+                s.cache_buf.SetValue<char>(0);
             }
             timer.start(s.stream_id_);
             (callables(s),...);
