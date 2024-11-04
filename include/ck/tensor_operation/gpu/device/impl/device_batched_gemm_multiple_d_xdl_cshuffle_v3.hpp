@@ -53,6 +53,12 @@ __global__ void
     const auto b_batch_offset = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
     const auto c_batch_offset = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
 
+    // populate pointer, desc for Ds
+    static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
+        // D pointer
+        karg.p_ds_grid(i) = karg.p_ds_grid(i) + karg.BatchStrideDs[i] * g_idx;
+    });
+
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + a_batch_offset,
         karg.p_b_grid + b_batch_offset,
@@ -96,6 +102,12 @@ __global__ void
     const auto a_batch_offset = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
     const auto b_batch_offset = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
     const auto c_batch_offset = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
+
+    // populate pointer, desc for Ds
+    static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
+        // D pointer
+        karg.p_ds_grid(i) = karg.p_ds_grid(i) + karg.BatchStrideDs[i] * g_idx;
+    });
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + a_batch_offset,
@@ -160,8 +172,8 @@ template <typename ALayout,
           typename CDEShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
-          typename ComputeTypeA                       = CDataType,
-          typename ComputeTypeB                       = ComputeTypeA,
+          typename ComputeTypeA                       = ADataType,
+          typename ComputeTypeB                       = BDataType,
           typename LDSTypeA                           = ComputeTypeA,
           typename LDSTypeB                           = ComputeTypeB>
 struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
