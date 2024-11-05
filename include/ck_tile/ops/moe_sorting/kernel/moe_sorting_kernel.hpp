@@ -20,10 +20,12 @@ struct MoeSortingHostArgs
     void* sorted_weights;
     void* expert_ids;
     void* total_tokens_post_pad;
+    void* moe_buf;
     index_t tokens;
     index_t unit_size;
     index_t num_experts;
     index_t topk;
+    index_t moe_buf_set_bytes;
 };
 
 template <typename Problem_>
@@ -46,33 +48,32 @@ struct MoeSortingKernel
         void* sorted_weights;
         void* expert_ids;
         void* total_tokens_post_pad;
+        void* moe_buf;
         index_t tokens;
         index_t num_experts;
+        index_t moe_buf_set_bytes;
 
         index_t tokens_per_thread;
         mdiv unit_size_mdiv;
         mdiv topk_mdiv;
     };
 
-    CK_TILE_HOST static constexpr auto GridSize(const Hargs&)
+    CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
     {
         // TODO: assume num-experts not too much
-        return dim3(1);
+        return dim3(1 + ck_tile::integer_divide_ceil(h.moe_buf_set_bytes, BlockSize(h).x * 16));
     }
 
     CK_TILE_HOST static constexpr auto BlockSize(const Hargs& h)
     {
-        // TODO: need pad to multiply of warp size
         return dim3(ck_tile::integer_least_multiple(h.num_experts, ck_tile::get_warp_size()));
     }
 
     // in byte
-    CK_TILE_DEVICE static constexpr index_t GetSmemSize()
+    CK_TILE_HOST static constexpr auto GetSmemSize(const Hargs& h)
     {
-        // const auto blocks = BlockSize(h);
-        // return ((blockDim.x + 1) * k.num_experts + (k.num_experts + 1)) * sizeof(index_t);
-        // TODO: can not use dynamic calculation. need use static to guide compiler
-        return 65536;
+        const auto blocks = BlockSize(h);
+        return ((blocks.x + 1) * h.num_experts + (h.num_experts + 1)) * sizeof(index_t);
     }
 
     CK_TILE_HOST static constexpr auto MakeKargs(const Hargs& h)
@@ -83,9 +84,11 @@ struct MoeSortingKernel
         k.sorted_token_ids      = h.sorted_token_ids;
         k.sorted_weights        = h.sorted_weights;
         k.expert_ids            = h.expert_ids;
+        k.moe_buf               = h.moe_buf;
         k.total_tokens_post_pad = h.total_tokens_post_pad;
         k.tokens                = h.tokens;
         k.num_experts           = h.num_experts;
+        k.moe_buf_set_bytes     = h.moe_buf_set_bytes;
 
         const auto blocks   = BlockSize(h);
         k.tokens_per_thread = integer_divide_ceil(h.tokens * h.topk, blocks.x);
@@ -97,6 +100,15 @@ struct MoeSortingKernel
     CK_TILE_DEVICE index_t calc_index(index_t total_col, index_t row, index_t col) const
     {
         return row * total_col + col;
+    }
+
+    CK_TILE_DEVICE void moe_buf_set_zero_kernel(uint8x16_t* buf, index_t buf_bytes) const
+    {
+        const index_t offset = (blockIdx.x - 1) * blockDim.x + threadIdx.x;
+        if(offset < buf_bytes / 16)
+        {
+            buf[offset] = uint8x16_t(0);
+        }
     }
 
     CK_TILE_DEVICE void moe_align_block_size_kernel(const IndexType* __restrict__ topk_id,
@@ -192,8 +204,13 @@ struct MoeSortingKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
+        if(blockIdx.x > 0)
+        {
+            return moe_buf_set_zero_kernel(reinterpret_cast<uint8x16_t*>(kargs.moe_buf),
+                                           kargs.moe_buf_set_bytes);
+        }
         const size_t numel = kargs.tokens * kargs.topk_mdiv.divisor;
-        __shared__ char smem[GetSmemSize()];
+        extern __shared__ char smem[];
         return moe_align_block_size_kernel(static_cast<const IndexType*>(kargs.p_topk_ids),
                                            static_cast<const WeightType*>(kargs.p_weights),
                                            static_cast<IndexType*>(kargs.sorted_token_ids),
