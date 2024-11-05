@@ -19,14 +19,18 @@ enum class FusedMoeGemmWeightPermuteEnum
 template <bool IsGateOnly_,
           bool UseSmoothQuant_,
           index_t OAtomic_, // 0-no atomic, 1-atomic-pk-f16/bf16, 2-atomic-f32
-          FusedMoeGemmWeightPermuteEnum PermuteEnum_ = FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten;
-bool PadHiddenSize_ = false, bool PadIntermediateSize_ = false > struct FusedMoeGemmTraits
+          FusedMoeGemmWeightPermuteEnum PermuteEnum_ =
+              FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten,
+          bool PadHiddenSize_       = false,
+          bool PadIntermediateSize_ = false>
+struct FusedMoeGemmTraits
 {
     // Gate+Up or Gate only
-    static constexpr bool IsGateOnly     = IsGateOnly_;
-    static constexpr bool UseSmoothQuant = UseSmoothQuant_;
-    static constexpr index_t OAtomic     = OAtomic_;
-    static constexpr bool PadHiddenSize     = PadHiddenSize_;
-    static constexpr bool PadIntermediateSize  = PadIntermediateSize_;
+    static constexpr bool IsGateOnly                           = IsGateOnly_;
+    static constexpr bool UseSmoothQuant                       = UseSmoothQuant_;
+    static constexpr index_t OAtomic                           = OAtomic_;
+    static constexpr FusedMoeGemmWeightPermuteEnum PermuteEnum = PermuteEnum_;
+    static constexpr bool PadHiddenSize                        = PadHiddenSize_;
+    static constexpr bool PadIntermediateSize                  = PadIntermediateSize_;
 };
 } // namespace ck_tile

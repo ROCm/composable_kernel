@@ -44,10 +44,10 @@ struct FusedMoeGemmPipeline_Flatmm
 
     using Traits = typename Pipeline::Problem::Traits;
 
-    static constexpr bool IsGateOnly     = Traits::IsGateOnly;
-    static constexpr bool UseSmoothQuant = Traits::UseSmoothQuant;
-    static constexpr bool PadHiddenSize     = Traits::PadHiddenSize;
-    static constexpr bool PadIntermediateSize  = Traits::PadIntermediateSize;
+    static constexpr bool IsGateOnly          = Traits::IsGateOnly;
+    static constexpr bool UseSmoothQuant      = Traits::UseSmoothQuant;
+    static constexpr bool PadHiddenSize       = Traits::PadHiddenSize;
+    static constexpr bool PadIntermediateSize = Traits::PadIntermediateSize;
 
     static constexpr index_t kAlignmentA = Policy::GetAlignment_A<Problem>();
     static constexpr index_t kAlignmentG = Policy::GetAlignment_G<Problem>();
@@ -133,11 +133,12 @@ struct FusedMoeGemmPipeline_Flatmm
                     make_tuple(kr_0 * BlockShape::Block_W0, number<BlockShape::Block_W0>{}, 1),
                     number<kAlignmentG>{},
                     number<1>{});
-                const auto u_view_1_ = pad_tensor_view(u_view_,
-                                                       make_tuple(number<BlockShape::Block_Nr0>{},
-                                                                  number<BlockShape::Block_Kr0>{},
-                                                                  number<BlockShape::Block_W0>{}),
-                                                       sequence<PadIntermediateSize, PadHiddenSize, 0>{});
+                const auto u_view_1_ =
+                    pad_tensor_view(u_view_,
+                                    make_tuple(number<BlockShape::Block_Nr0>{},
+                                               number<BlockShape::Block_Kr0>{},
+                                               number<BlockShape::Block_W0>{}),
+                                    sequence<PadIntermediateSize, PadHiddenSize, 0>{});
                 return u_view_1_;
             }
         }();

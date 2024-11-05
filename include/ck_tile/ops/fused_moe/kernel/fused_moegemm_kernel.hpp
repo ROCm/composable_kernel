@@ -22,17 +22,17 @@
 //  (only for reference)    exp-0  exp-1     exp-2   exp-3          exp-4  exp-5
 // weight_id_per_expert is: [[a], [g, j, m], [d, k], [b, e, h, l, n], [], [c, f, i, o]]
 //
-// max_tokens_post_padded : top_k * input_tokens + num_experts * (M_a - 1)
+// max_num_tokens_padded : top_k * input_tokens + num_experts * (M_a - 1)
 // * this could be larger than actual, since actual tokens are on GPU
 //
 // sorted_token_ids_ptr   : [0, 6, 6, 6, 2, 3, 4, 6, 1, 3, 6, 6, 0, 1, 2, 3, 4, 6, 6, 6, 6, 6, 6, 6, 0, 1, 2, 5]
 //                          |-  exp-0  -|-  exp-1  -|-  exp-2  -|-      exp-3          -|-  exp-4 -|-  exp-5  -|
 // sorted_weight_ptr      : [a, *, *, *, g, j, m, *, d, k, *, *, b, e, h, l, n, *, *, *, *, *, *, *, c, f, i, o]
 //
-// * length is max_tokens_post_padded, actual size is num_tokens_post_padded_ptr
+// * length is max_num_tokens_padded, actual size is num_tokens_post_padded_ptr
 //
 // sorted_expert_ids_ptr  : [0, 1, 2, 3, 3, 4, 5]
-// * length is (max_tokens_post_padded + block_size - 1) / block_size
+// * length is (max_num_tokens_padded + block_size - 1) / block_size
 //
 // num_tokens_post_padded_ptr : [28]
 // num_sorted_tiles_ptr : [7]
@@ -43,11 +43,12 @@
 //   3) use num_sorted_tiles_ptr, already divided by M_a
 //
 // * below used for indexing
-//  1) sorted_token_ids_ptr
+//  1) sorted_token_ids_ptr [max_num_tokens_padded]
 //  2) sorted_weight_ptr
 //  3) sorted_expert_ids_ptr
 //  4）num_tokens_post_padded_ptr/num_sorted_tiles_ptr (select one)
 //
+//   max_num_tokens_padded: opk_ids.numel() + num_experts * (block_size - 1)
 //
 // [indexing implementation-2]
 // before sort, topk_ids is : [[0, 3, 5], [2, 3, 5], [1, 3, 5], [1, 2, 3], [1, 3, 5]]
@@ -92,15 +93,15 @@ struct FusedMoeGemmHostArgs
     const void* y_smooth_scale_ptr; // [e, 1, n], smooth-quant-scale for 2nd gemm input
     void* o_ptr;                    // [m, k], output token
 
-    const void* sorted_token_ids_ptr;
-    const void* sorted_weight_ptr;
-    const void* sorted_expert_ids_ptr;
-    const void* num_sorted_tiles_ptr;
+    const void* sorted_token_ids_ptr;  // [max_num_tokens_padded]
+    const void* sorted_weight_ptr;     // [max_num_tokens_padded]
+    const void* sorted_expert_ids_ptr; // [(max_num_tokens_padded + block_size - 1) / block_size]
+    const void* num_sorted_tiles_ptr;  // [1]
 
-    index_t hidden_size;    // k
+    index_t hidden_size;       // k
     index_t intermediate_size; // n (TP slice this)
-    index_t num_tokens;  // input number of tokens for current iteration
-    index_t num_experts; // number of groups
+    index_t num_tokens;        // input number of tokens for current iteration
+    index_t num_experts;       // number of groups
     // index_t top_k;      // need this?
 
     index_t stride_token; // for input/output, stride for each row, should >= hidden_size
@@ -134,10 +135,10 @@ struct FusedMoeGemmKernel
 
     using Traits = typename Pipeline::Problem::Traits;
 
-    static constexpr bool IsGateOnly     = Traits::IsGateOnly;
-    static constexpr bool UseSmoothQuant = Traits::UseSmoothQuant;
-    static constexpr bool PadHiddenSize     = Traits::PadHiddenSize;
-    static constexpr bool PadIntermediateSize  = Traits::PadIntermediateSize;
+    static constexpr bool IsGateOnly          = Traits::IsGateOnly;
+    static constexpr bool UseSmoothQuant      = Traits::UseSmoothQuant;
+    static constexpr bool PadHiddenSize       = Traits::PadHiddenSize;
+    static constexpr bool PadIntermediateSize = Traits::PadIntermediateSize;
 
     // clang-format off
     template <typename T> struct t2s;
@@ -173,10 +174,10 @@ struct FusedMoeGemmKernel
         const void* sorted_expert_ids_ptr;
         const void* num_sorted_tiles_ptr;
 
-        index_t hidden_size;    // k
+        index_t hidden_size;       // k
         index_t intermediate_size; // n (TP slice this)
-        index_t num_tokens;  // input number of tokens for current iteration
-        index_t num_experts; // number of groups
+        index_t num_tokens;        // input number of tokens for current iteration
+        index_t num_experts;       // number of groups
         // index_t top_k;      // need this?
 
         index_t stride_token; // for input/output, stride for each row, should >= hidden_size
@@ -214,7 +215,7 @@ struct FusedMoeGemmKernel
 
         index_t nr_0 = kargs.intermediate_size / Pipeline::Block_Nr0;
         index_t kr_0 = kargs.hidden_size / Pipeline::Block_Kr0;
-        index_t nr_1 = kargs.hidden_size / Pipeline::Block_Nr1;    // should be same as kr_0
+        index_t nr_1 = kargs.hidden_size / Pipeline::Block_Nr1;       // should be same as kr_0
         index_t kr_1 = kargs.intermediate_size / Pipeline::Block_Kr1; // should be same as nr_0
 
         index_t expert_stride_0 = kargs.intermediate_size * hidden_radio_0 * kargs.hidden_size;
@@ -280,11 +281,12 @@ struct FusedMoeGemmKernel
                 make_tuple(kr_0 * BlockShape::Block_W0, number<Pipeline::Block_W0>{}, 1),
                 number<Pipeline::kAlignmentG>{},
                 number<1>{});
-            const auto g_view_1_ = pad_tensor_view(g_view_,
-                                                   make_tuple(number<Pipeline::Block_Nr0>{},
-                                                              number<Pipeline::Block_Kr0>{},
-                                                              number<Pipeline::Block_W0>{}),
-                                                   sequence<PadIntermediateSize, PadHiddenSize, 0>{});
+            const auto g_view_1_ =
+                pad_tensor_view(g_view_,
+                                make_tuple(number<Pipeline::Block_Nr0>{},
+                                           number<Pipeline::Block_Kr0>{},
+                                           number<Pipeline::Block_W0>{}),
+                                sequence<PadIntermediateSize, PadHiddenSize, 0>{});
 
             const auto g_window_ = make_tile_window(g_view_1_,
                                                     make_tuple(number<BlockShape::Block_Nr0>{},
@@ -308,11 +310,12 @@ struct FusedMoeGemmKernel
                 make_tuple(kr_1 * Pipeline::Block_W1, Pipeline::Block_W1, 1),
                 number<Pipeline::kAlignmentD>{},
                 number<1>{});
-            const auto d_view_1_ = pad_tensor_view(d_view_,
-                                                   make_tuple(number<Pipeline::kBlockNr_1>{},
-                                                              number<Pipeline::kBlockKr_1>{},
-                                                              number<Pipeline::Block_W1>{}),
-                                                   sequence<PadHiddenSize, PadIntermediateSize, 0>{});
+            const auto d_view_1_ =
+                pad_tensor_view(d_view_,
+                                make_tuple(number<Pipeline::kBlockNr_1>{},
+                                           number<Pipeline::kBlockKr_1>{},
+                                           number<Pipeline::Block_W1>{}),
+                                sequence<PadHiddenSize, PadIntermediateSize, 0>{});
 
             const auto d_window_ = make_tile_window(d_view_1_,
                                                     make_tuple(number<Pipeline::kBlockNr_1>{},

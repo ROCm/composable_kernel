@@ -56,11 +56,10 @@ reference_permute(const HostTensor<DataType>& x, HostTensor<DataType>& y, std::v
 }
 
 template <typename DataType>
-CK_TILE_HOST auto
-reference_permute(const HostTensor<DataType>& x, std::vector<index_t> perm)
+CK_TILE_HOST auto reference_permute(const HostTensor<DataType>& x, std::vector<index_t> perm)
 {
-    auto x_shape = x.get_lengths();
-    ck_tile::index_t rank = perm.size();
+    auto x_shape                          = x.get_lengths();
+    ck_tile::index_t rank                 = perm.size();
     std::vector<ck_tile::index_t> y_shape = [&]() {
         std::vector<ck_tile::index_t> tmp(rank, 0);
         for(int i = 0; i < static_cast<int>(rank); i++)

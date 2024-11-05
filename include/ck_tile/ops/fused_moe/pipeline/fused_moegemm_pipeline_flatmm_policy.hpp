@@ -225,7 +225,8 @@ struct FusedMoeGemmPipelineFlatmmPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetMatrixCoreSwizzledBlockTIle_0()
     {
-        if constexpr(Problem::Traits::PermuteEnum == FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten)
+        if constexpr(Problem::Traits::PermuteEnum ==
+                     FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten)
         {
             using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
             constexpr index_t NPerBlock = Problem::BlockShape::Block_N0;
@@ -703,7 +704,8 @@ struct FusedMoeGemmPipelineFlatmmPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetMatrixCoreSwizzledBlockTIle_0()
     {
-        if constexpr(Problem::Traits::PermuteEnum == FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten)
+        if constexpr(Problem::Traits::PermuteEnum ==
+                     FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten)
         {
             using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
             constexpr index_t NPerBlock = Problem::BlockShape::Block_N0;
@@ -723,7 +725,8 @@ struct FusedMoeGemmPipelineFlatmmPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetMatrixCoreSwizzledBlockTIle_1()
     {
-        if constexpr(Problem::Traits::PermuteEnum == FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten)
+        if constexpr(Problem::Traits::PermuteEnum ==
+                     FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten)
         {
             using WarpGemm = GetWarpGemm1<Problem>{}; // assume warpgemm0/1 are the same
             constexpr index_t NPerBlock = Problem::BlockShape::kBlockN_1;
