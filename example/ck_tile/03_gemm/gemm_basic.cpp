@@ -16,7 +16,7 @@
 #include "gemm_basic.hpp"
 
 #if !defined(EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY)
-#define EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY 0
+#define EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY 1
 #endif
 
 template <typename ALayout, typename BLayout, typename CLayout>
