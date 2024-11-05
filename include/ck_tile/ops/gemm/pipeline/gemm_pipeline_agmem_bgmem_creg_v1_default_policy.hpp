@@ -199,7 +199,11 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t K1 = 16 / sizeof(ADataType);
+        constexpr index_t PixelPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
+        constexpr index_t MaxVectorSize  = 16 / sizeof(ADataType);
+        static_assert(0 < PixelPerThread);
+
+        constexpr index_t K1 = min(MaxVectorSize, PixelPerThread);
         constexpr index_t K0 = kKPerBlock / K1;
         constexpr index_t M2 = get_warp_size() / K0;
 #if 1 // coalesce reading for each blocks
@@ -239,7 +243,11 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t K1 = 16 / sizeof(BDataType);
+        constexpr index_t PixelPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+        constexpr index_t MaxVectorSize  = 16 / sizeof(BDataType);
+        static_assert(0 < PixelPerThread);
+
+        constexpr index_t K1 = min(MaxVectorSize, PixelPerThread);
         constexpr index_t K0 = kKPerBlock / K1;
         constexpr index_t N2 = get_warp_size() / K0;
 #if 1 // coalesce reading for each blocks
