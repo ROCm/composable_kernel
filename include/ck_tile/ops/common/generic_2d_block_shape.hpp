@@ -38,9 +38,7 @@ namespace ck_tile {
 template <typename BlockTile_,    // block size, seq<M, N>
           typename WarpPerBlock_, // num warps along seq<M, N>
           typename WarpTile_,     // warp size, seq<M, N>
-          typename Vector_,       // contiguous pixels(vector size) along seq<M, N>
-          index_t BlockSize_ =
-              warpSize* reduce_on_sequence(WarpPerBlock_{}, multiplies{}, number<1>{})>
+          typename Vector_>       // contiguous pixels(vector size) along seq<M, N>)>
 struct Generic2dBlockShape
 {
     // block size
@@ -70,8 +68,10 @@ struct Generic2dBlockShape
     // num of threads along seq<M, N>, within each warp
     static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M;
     static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;
+    static constexpr index_t ThreadPerBlock_M = Block_M / Repeat_M / Vector_M;
+    static constexpr index_t ThreadPerBlock_N = Block_N / Repeat_N / Vector_N;
 
-    static constexpr index_t BlockSize = BlockSize_;
+    static constexpr index_t BlockSize = ThreadPerBlock_M * ThreadPerBlock_N;
 };
 
 } // namespace ck_tile
