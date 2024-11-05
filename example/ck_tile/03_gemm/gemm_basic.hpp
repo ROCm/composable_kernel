@@ -87,6 +87,3 @@ auto create_args(int argc, char* argv[])
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
-
-// host API
-float gemm_calc(gemm_basic_args args, const ck_tile::stream_config& s);
