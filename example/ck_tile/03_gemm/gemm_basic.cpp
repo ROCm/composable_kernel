@@ -8,6 +8,7 @@
 #include <ostream>
 #include <string>
 #include <tuple>
+#include <utility>
 
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
@@ -15,11 +16,12 @@
 #include "gemm_basic.hpp"
 
 #if !defined(EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY)
-#define EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY 1
+#define EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY 0
 #endif
 
 template <typename ALayout, typename BLayout, typename CLayout>
-float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
+std::pair<float, std::string> gemm_calc(const gemm_basic_args& args,
+                                        const ck_tile::stream_config& s)
 {
     // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadA        = true;
@@ -116,7 +118,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     float ave_time = ck_tile::launch_kernel(
         s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
-    return ave_time;
+    return std::make_pair(ave_time, "GemmPipelineAGmemBGmemCRegV1");
 }
 
 #include "run_gemm_example.inc"

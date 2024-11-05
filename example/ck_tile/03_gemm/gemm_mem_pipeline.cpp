@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <tuple>
+#include <utility>
 
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
@@ -15,7 +16,8 @@
 #include "gemm_basic.hpp"
 
 template <typename ALayout, typename BLayout, typename CLayout>
-float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
+std::pair<float, std::string> gemm_calc(const gemm_basic_args& args,
+                                        const ck_tile::stream_config& s)
 {
     // ToDo: This will be modified by the codegen code later.
     constexpr ck_tile::index_t M_Tile = 128;
@@ -180,7 +182,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         }
     }
 
-    return ave_time;
+    return std::make_pair(ave_time, "BaseGemmPipelineAgBgCrMem");
 }
 
 #include "run_gemm_example.inc"
