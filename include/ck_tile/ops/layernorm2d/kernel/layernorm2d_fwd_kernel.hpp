@@ -117,7 +117,7 @@ struct Layernorm2dFwd
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& hargs)
     {
-        return (hargs.m + Block_M - 1) / Block_M;
+        return dim3(integer_divide_ceil(hargs.m, Block_M));
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return Problem::BlockShape::BlockSize; }
@@ -165,7 +165,7 @@ struct Layernorm2dFwd
             return base_str;
         }();
 
-        return _SS_("layernorm2d_fwd_") + _SS_(prec_str) + "_" + 
+        return _SS_("layernorm2d_fwd_") + _SS_(prec_str) + "_" +
              _TS_(S_::Block_M) + "x" + _TS_(S_::Block_N) + "_" + _TS_(S_::WarpPerBlock_M) + "x" + _TS_(S_::WarpPerBlock_N) + "_" +
              _TS_(S_::Warp_M) + "x" + _TS_(S_::Warp_N) + "_" + _TS_(S_::Vector_M) + "x" + _TS_(S_::Vector_N) + "_" +
              _SS_(Pipeline::name) + surfix;

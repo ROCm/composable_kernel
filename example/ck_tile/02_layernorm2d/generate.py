@@ -202,8 +202,9 @@ float layernorm2d_fwd_(const S& s, A a)
     using Default2DEpilogueProblem = ck_tile::Default2DEpilogueProblem<ComputeDataType, YDataType, false, Traits_::kPadN, false>;
     using Default2DEpilogue = ck_tile::Default2DEpilogue<Default2DEpilogueProblem>;
 
-    using DynamicQuantEpilogueProblem = ck_tile::DynamicQuantEpilogueProblem<ComputeDataType, YScaleDataType, YDataType, typename Traits_::Shape,
-            ck_tile::DynamicQuantEpilogueTraits<false, Traits_::kPadN, false,  true/*max3*/>>;
+    static constexpr bool UseSmoothInputScale = Traits_::kFusedQuant == 1;
+    using DynamicQuantEpilogueProblem = ck_tile::DynamicQuantEpilogueProblem<ComputeDataType, XScaleDataType, YScaleDataType, YDataType, typename Traits_::Shape,
+            ck_tile::DynamicQuantEpilogueTraits<false, Traits_::kPadN, UseSmoothInputScale, false,  true/*max3*/>>;
 
     using DynamicQuantEpilogue = ck_tile::DynamicQuantEpilogue<DynamicQuantEpilogueProblem>;
 
@@ -558,7 +559,7 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
         w_p = Path(self.working_path)
         list_p = w_p / 'layernorm2d_fwd_blobs.txt'
         blobs = self.get_blobs()
-        with list_p.open('a') as list_f:
+        with list_p.open('w') as list_f:
             # api related file
             list_f.write(str(w_p / (self.name_api + ".cpp"))  + "\n")
             list_f.write(str(w_p / (self.name_common_header + ".hpp"))  + "\n")
