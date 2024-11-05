@@ -154,7 +154,7 @@ int run_gemm_example_with_layouts(int argc,
 
         pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_host_ref);
 
-        std::cout << "The CPU veification result is:" << (pass ? "correct" : "fail") << std::endl;
+        std::cout << "The CPU veification result is: " << (pass ? "correct" : "FAIL") << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
     {
@@ -176,7 +176,7 @@ int run_gemm_example_with_layouts(int argc,
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
         pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_gpu_ref);
 
-        std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
+        std::cout << "The GPU veification result is: " << (pass ? "correct" : "FAIL") << std::endl;
     }
 
     return pass;
