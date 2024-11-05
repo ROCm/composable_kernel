@@ -10,7 +10,8 @@
             "installDir": "${sourceDir}/build/install/${presetName}",
             "environment": {
                 "MY_ENVIRONMENT_VARIABLE": "NONE",
-                "PATH": "/usr/local/.cargo/bin:$penv{PATH}"
+                "PATH": "/usr/local/.cargo/bin:$penv{PATH}",
+                "SCCACHE_IDLE_TIMEOUT": "7200"
             },
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
