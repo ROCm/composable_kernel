@@ -137,12 +137,11 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
     You can find instructions for running ckProfiler in [profiler](/profiler).
 
-Note the `-j` option for building with multiple threads in parallel. This speeds up the build significantly.
+Note the `-j` option for building with multiple threads in parallel, which speeds up the build significantly.
+However, `-j` launches unlimited number of threads, which can cause the build to run out of memory and
+crash. On average, you should expect each thread to use ~2Gb of RAM.
 Depending on the number of CPU cores and the amount of RAM on your system, you may want to
-limit the number of threads. For example, if you have a 128-core CPU and 64 Gb of RAM.
-
-By default, `-j` launches one thread per CPU core, which can cause the build to run out of memory and
-crash. In such cases, you can reduce the number of threads to 32 by using `-j32`.
+limit the number of threads. For example, if you have a 128-core CPU and 128 Gb of RAM it's advisable to use `-j32`.
 
 Additional cmake flags can be used to significantly speed-up the build:
 
@@ -153,6 +152,11 @@ Additional cmake flags can be used to significantly speed-up the build:
 * `DL_KERNELS` (default is OFF) must be set to ON in order to build instances, such as `gemm_dl` or
   `batched_gemm_multi_d_dl`. These instances are useful on architectures like the NAVI2x, as most
   other platforms have faster instances, such as `xdl` or `wmma`, available.
+
+* `CK_USE_FP8_ON_UNSUPPORTED_ARCH` (default is OFF) must be set to ON in order to build instances,
+  such as `gemm_universal` and `gemm_multiply_multiply` for fp8 data type for GPU targets which do not
+  have native support for fp8 data type, such as gfx908 or gfx90a. These instances are useful on
+  architectures like the MI100/MI200 for the functional support only.
 
 ## Using sccache for building
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -81,8 +81,10 @@ struct space_filling_curve
         return get_step_between(number<AccessIdx1d>{}, number<AccessIdx1d - 1>{});
     }
 
+    // Do not use this function directly!
+    // TODO: can refactor into generic lambda in the future
     template <index_t AccessIdx1d>
-    static CK_TILE_HOST_DEVICE constexpr Index get_index(number<AccessIdx1d>)
+    static CK_TILE_HOST_DEVICE constexpr Index _get_index(number<AccessIdx1d>)
     {
 #if 0
         /*
@@ -153,11 +155,11 @@ struct space_filling_curve
         return idx_md;
     }
 
-    // FIXME: rename this function
+    // FIXME: return tuple of number<>, which is compile time only variable
     template <index_t AccessIdx1d>
-    static CK_TILE_HOST_DEVICE constexpr auto get_index_tuple_of_number(number<AccessIdx1d>)
+    static CK_TILE_HOST_DEVICE constexpr auto get_index(number<AccessIdx1d>)
     {
-        constexpr auto idx = get_index(number<AccessIdx1d>{});
+        constexpr auto idx = _get_index(number<AccessIdx1d>{});
 
         return generate_tuple([&](auto i) { return number<idx[i]>{}; }, number<nDim>{});
     }
