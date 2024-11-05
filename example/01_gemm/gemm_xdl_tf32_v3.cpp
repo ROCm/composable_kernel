@@ -5,9 +5,6 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3.hpp"
 
-// using ADataType        = ck::tfloat_t;
-// using BDataType        = ck::tfloat_t;
-
 using ADataType = float;
 using BDataType = float;
 
@@ -15,7 +12,7 @@ using AccDataType      = float;
 using CShuffleDataType = float;
 using CDataType        = float;
 
-using ComputeType = float;
+using ComputeType = ck::tfloat_t;
 
 using ALayout = Row;
 using BLayout = Col;
