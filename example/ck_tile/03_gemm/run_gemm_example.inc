@@ -41,7 +41,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
 
     std::cout << "Run " << op_name << " kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << " : " << std::fixed << std::setprecision(3) << ave_time << " ms, " << tflops << " TFlops, " 
+              << gb_per_sec << " GB/s, "
               << std::endl;
 
     return ave_time;
