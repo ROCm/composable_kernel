@@ -262,18 +262,13 @@ inline void flush_icache()
     HIP_CHECK_ERROR(hipGetLastError());
 }
 // if TimePrePress == false, return time does not include preprocess's time
-template <bool TimePreprocess,
-          typename GemmArgs,
-          typename... Args,
-          typename F,
-          typename PreProcessFunc>
+template <bool TimePreprocess, typename... Args, typename F, typename PreProcessFunc>
 float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                                              PreProcessFunc preprocess,
                                              F kernel,
                                              dim3 grid_dim,
                                              dim3 block_dim,
                                              std::size_t lds_byte,
-                                             GemmArgs& gemm_args,
                                              Args... args)
 {
 #if CK_TIME_KERNEL
@@ -296,7 +291,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         // warm up
         for(int i = 0; i < stream_config.cold_niters_; ++i)
         {
-            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
             HIP_CHECK_ERROR(hipGetLastError());
         }
 
@@ -333,7 +328,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                                   start,
                                   stop,
                                   0,
-                                  gemm_args);
+                                  args...);
             HIP_CHECK_ERROR(hipGetLastError());
             // end real kernel
 
@@ -347,15 +342,6 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 #else
             total_time += cur_time;
 #endif
-
-            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-            {
-                // std::cout << "i: " << i << " cur_time: " << cur_time << std::endl;
-
-                printf("gemm_args.p_a_grid: %p, gemm_args.p_b_grid:%p\n",
-                       static_cast<const void*>(gemm_args.p_a_grid),
-                       static_cast<const void*>(gemm_args.p_b_grid));
-            }
         }
         hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
         hip_check_error(hipEventSynchronize(stop));
@@ -381,23 +367,19 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             return (*mid + *mid_next) / 2;
         }
 #else
-        // return total_time / nrepeat;
-        hipDeviceProp_t deviceProps;
-        hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
-        float preprocess_offset = deviceProps.multiProcessorCount == 80 ? 0.005 : 0.01;
-        return (total_time - preprocess_offset * nrepeat) / nrepeat;
+        return total_time / nrepeat;
 #endif
     }
     else
     {
         preprocess();
-        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
+        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
         HIP_CHECK_ERROR(hipGetLastError());
 
         return 0;
     }
 #else
-    kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
+    kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
     HIP_CHECK_ERROR(hipGetLastError());
 
     return 0;
