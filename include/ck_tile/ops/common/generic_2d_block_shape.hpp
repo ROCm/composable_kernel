@@ -66,8 +66,8 @@ struct Generic2dBlockShape
     static_assert(Warp_M % Vector_M == 0);
     static_assert(Warp_N % Vector_N == 0);
     // num of threads along seq<M, N>, within each warp
-    static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M;
-    static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;
+    static constexpr index_t ThreadPerWarp_M  = Warp_M / Vector_M;
+    static constexpr index_t ThreadPerWarp_N  = Warp_N / Vector_N;
     static constexpr index_t ThreadPerBlock_M = Block_M / Repeat_M / Vector_M;
     static constexpr index_t ThreadPerBlock_N = Block_N / Repeat_N / Vector_N;
 

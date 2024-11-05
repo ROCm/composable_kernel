@@ -7,8 +7,8 @@
 
 namespace ck_tile {
 
-template <bool kFastFDiv = false, typename T>
-CK_TILE_DEVICE void welford_update(T& mean, T& var, T x, int count)
+template <typename T, bool kFastFDiv = false>
+CK_TILE_DEVICE void welford_update(T& mean, T& var, T x, int count, bool_constant<kFastFDiv> = {})
 {
     // TODO: check nan? maybe no
     T delta = x - mean;
@@ -24,9 +24,14 @@ CK_TILE_DEVICE void welford_update(T& mean, T& var, T x, int count)
     var += delta * delta2;
 }
 
-template <bool kFastFDiv = false, typename T>
-CK_TILE_DEVICE static void
-welford_merge(T& mean_a, T& var_a, int& count_a, T mean_b, T var_b, int count_b)
+template <typename T, bool kFastFDiv = false>
+CK_TILE_DEVICE static void welford_merge(T& mean_a,
+                                         T& var_a,
+                                         int& count_a,
+                                         T mean_b,
+                                         T var_b,
+                                         int count_b,
+                                         bool_constant<kFastFDiv> = {})
 {
     int count  = count_a + count_b;
     T count_   = type_convert<T>(count);

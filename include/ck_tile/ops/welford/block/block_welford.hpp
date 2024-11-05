@@ -47,7 +47,7 @@ struct BlockWelford
 
                     auto x = ck_tile::type_convert<ComputeDataType>(x_tensor[in_dstr_idx]);
 
-                    welford_update<kFastFDiv>(
+                    welford_update(
                         mean_tensor(out_dstr_idx), var_tensor(out_dstr_idx), x, cur_count_);
                 });
             }
@@ -154,12 +154,12 @@ struct BlockWelfordSync
                         const auto v_remote_count = warp_shuffle(v_local_count, src_lane);
 
                         // welford merge
-                        welford_merge<kFastFDiv>(v_local_mean,
-                                                 v_local_var,
-                                                 v_local_count,
-                                                 v_remote_mean,
-                                                 v_remote_var,
-                                                 v_remote_count);
+                        welford_merge(v_local_mean,
+                                      v_local_var,
+                                      v_local_count,
+                                      v_remote_mean,
+                                      v_remote_var,
+                                      v_remote_count);
                     });
                 }
             });
@@ -302,12 +302,12 @@ struct BlockWelfordCrossWarpSync
                 const auto v_remote_var   = bit_cast<DataType>(v_remote[1]);
                 const auto v_remote_count = bit_cast<int>(v_remote[2]);
 
-                welford_merge<kFastFDiv>(v_local_mean,
-                                         v_local_var,
-                                         v_local_count,
-                                         v_remote_mean,
-                                         v_remote_var,
-                                         v_remote_count);
+                welford_merge(v_local_mean,
+                              v_local_var,
+                              v_local_count,
+                              v_remote_mean,
+                              v_remote_var,
+                              v_remote_count);
             });
 
             mean_tensor.get_thread_buffer()(i_0) = v_local_mean;
