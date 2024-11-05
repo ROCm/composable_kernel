@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/layernorm2d.hpp"
+#include "ck_tile/ops/fused_moe.hpp"
 #include <string>
 
 // this is only a convenient structure for creating an example
@@ -14,7 +14,7 @@ template <typename I, typename W, typename O, typename ST, typename SW, typename
 struct FusedMoeGemmTypeConfig;
 
 template <typename ST, typename SW, typename SQ, typename KW>
-struct FusedMoeGemmTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t, ST, SW, SQ, KW>;
+struct FusedMoeGemmTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t, ST, SW, SQ, KW>
 {
     using ADataType            = ck_tile::bf16_t;
     using GDataType            = ck_tile::bf16_t;
@@ -30,7 +30,7 @@ struct FusedMoeGemmTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t,
 };
 
 template <typename ST, typename SW, typename SQ, typename KW>
-struct FusedMoeGemmTypeConfig<ck_tile::int8_t, ck_tile::int8_t, ck_tile::bf16_t, ST, SW, SQ, KW>;
+struct FusedMoeGemmTypeConfig<ck_tile::int8_t, ck_tile::int8_t, ck_tile::bf16_t, ST, SW, SQ, KW>
 {
     using ADataType            = ck_tile::int8_t;
     using GDataType            = ck_tile::int8_t;
@@ -46,7 +46,7 @@ struct FusedMoeGemmTypeConfig<ck_tile::int8_t, ck_tile::int8_t, ck_tile::bf16_t,
 };
 
 // runtime args
-struct fused_moegemm_args : public ck_tile::Layernorm2dFwdHostArgs
+struct fused_moegemm_args : public ck_tile::FusedMoeGemmHostArgs
 {
 };
 

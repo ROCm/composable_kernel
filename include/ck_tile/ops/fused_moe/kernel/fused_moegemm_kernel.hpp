@@ -13,7 +13,7 @@
 // [indexing implementation-1]
 // using M_a as constexpr block_size to partition all tokens into different slices
 // each slice map to one expert, and one expert can have multiple slices
-// e.g. num_experts = 6, top_k=3, M_a = 4, input_tokens = 5
+// e.g. num_experts = 6, topk=3, M_a = 4, input_tokens = 5
 // before sort, topk_ids is : [[0, 3, 5], [2, 3, 5], [1, 3, 5], [1, 2, 3], [1, 3, 5]]
 //                            tok-0      tok-1      tok-2      tok-3      tok-4
 //           topk_weight is : [[a, b, c], [d, e, f], [g, h, i], [j, k, l], [m, n, o]] (some float number)
@@ -22,7 +22,7 @@
 //  (only for reference)    exp-0  exp-1     exp-2   exp-3          exp-4  exp-5
 // weight_id_per_expert is: [[a], [g, j, m], [d, k], [b, e, h, l, n], [], [c, f, i, o]]
 //
-// max_num_tokens_padded : top_k * input_tokens + num_experts * (M_a - 1)
+// max_num_tokens_padded : topk * input_tokens + num_experts * (M_a - 1)
 // * this could be larger than actual, since actual tokens are on GPU
 //
 // sorted_token_ids_ptr   : [0, 6, 6, 6, 2, 3, 4, 6, 1, 3, 6, 6, 0, 1, 2, 3, 4, 6, 6, 6, 6, 6, 6, 6, 0, 1, 2, 5]
@@ -102,7 +102,7 @@ struct FusedMoeGemmHostArgs
     index_t intermediate_size; // n (TP slice this)
     index_t num_tokens;        // input number of tokens for current iteration
     index_t num_experts;       // number of groups
-    // index_t top_k;      // need this?
+    index_t topk;              // need this?
 
     index_t stride_token; // for input/output, stride for each row, should >= hidden_size
 };
@@ -111,14 +111,14 @@ struct FusedMoeGemmHostArgs
 template <typename Partitioner_, typename Pipeline_, typename Epilogue_>
 struct FusedMoeGemmKernel
 {
-    using Partitioner                   = remove_cvref_t<Partitioner_>;
-    using Pipeline                      = remove_cvref_t<Pipeline_>;
-    using Epilogue                      = remove_cvref_t<Epilogue_>; // TODO: not used
-    static constexpr index_t kBlockSize = Pipeline::kBlockSize;
+    using Partitioner = remove_cvref_t<Partitioner_>;
+    using Pipeline    = remove_cvref_t<Pipeline_>;
+    using Epilogue    = remove_cvref_t<Epilogue_>; // TODO: not used
     // static constexpr index_t kBlockPerCu = Pipeline::kBlockPerCu;
     // static_assert(kBlockPerCu > 0);
 
     using BlockShape = typename Pipeline::BlockShape; // this is FusedMoeGemmShape
+    static constexpr index_t BlockSize_ = BlockShape::BlockSize;
 
     using ADataType            = typename Pipeline::Problem::ADataType;
     using GDataType            = typename Pipeline::Problem::GDataType;
@@ -154,7 +154,7 @@ struct FusedMoeGemmKernel
     {
         // sync with generate.py
         // clang-format off
-
+        return "";
         // clang-format on
     }
 
@@ -178,7 +178,7 @@ struct FusedMoeGemmKernel
         index_t intermediate_size; // n (TP slice this)
         index_t num_tokens;        // input number of tokens for current iteration
         index_t num_experts;       // number of groups
-        // index_t top_k;      // need this?
+        index_t topk;              // need this?
 
         index_t stride_token; // for input/output, stride for each row, should >= hidden_size
     };
@@ -193,16 +193,20 @@ struct FusedMoeGemmKernel
         return bit_cast<Kargs>(hargs);
     }
 
-    CK_TILE_HOST static constexpr auto GridSize(index_t num_cu, index_t blocks_per_cu)
+    CK_TILE_HOST static constexpr auto GridSize(const Hargs& hargs)
     {
-        return TilePartitioner::GridSize(num_cu, blocks_per_cu);
+        constexpr index_t block_m = BlockShape::Block_M0;
+        int max_num_tokens_padded =
+            hargs.topk * hargs.num_tokens + hargs.num_experts * (block_m - 1);
+        return Partitioner::GridSize(max_num_tokens_padded, hargs.intermediate_size);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(BlockSize_); }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return max(Pipeline::GetSmemSize(), Epilogue::GetSmemSize());
+        // return max(Pipeline::GetSmemSize(), Epilogue::GetSmemSize());
+        return Pipeline::GetSmemSize();
     }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
@@ -213,10 +217,10 @@ struct FusedMoeGemmKernel
             *reinterpret_cast<const IndexDataType*>(kargs.num_sorted_tiles_ptr));
         constexpr index_t hidden_radio_0 = IsGateOnly ? 1 : 2;
 
-        index_t nr_0 = kargs.intermediate_size / Pipeline::Block_Nr0;
-        index_t kr_0 = kargs.hidden_size / Pipeline::Block_Kr0;
-        index_t nr_1 = kargs.hidden_size / Pipeline::Block_Nr1;       // should be same as kr_0
-        index_t kr_1 = kargs.intermediate_size / Pipeline::Block_Kr1; // should be same as nr_0
+        index_t nr_0 = kargs.intermediate_size / BlockShape::Block_Nr0;
+        index_t kr_0 = kargs.hidden_size / BlockShape::Block_Kr0;
+        index_t nr_1 = kargs.hidden_size / BlockShape::Block_Nr1;       // should be same as kr_0
+        index_t kr_1 = kargs.intermediate_size / BlockShape::Block_Kr1; // should be same as nr_0
 
         index_t expert_stride_0 = kargs.intermediate_size * hidden_radio_0 * kargs.hidden_size;
         index_t expert_stride_1 = kargs.intermediate_size * kargs.hidden_size;
@@ -224,8 +228,8 @@ struct FusedMoeGemmKernel
         __shared__ CK_TILE_LDS_ADDR ADataType smem[GetSmemSize()];
 
         // note this is in unit of tile, need multiple tile size to get the index
-        const auto [sorted_tile_id, hidden_tile_id] =
-            TilePartitioner{}(num_sorted_tiles, kargs.intermediate_size);
+        const auto [sorted_tile_id, intermediate_tile_id] =
+            Partitioner{}(num_sorted_tiles, kargs.intermediate_size);
         if(sorted_tile_id >= num_sorted_tiles)
             return;
 
@@ -233,9 +237,10 @@ struct FusedMoeGemmKernel
             reinterpret_cast<const IndexDataType*>(kargs.sorted_expert_ids_ptr)[sorted_tile_id]);
 
         // index along intermediate_size
-        index_t hidden_idx = __builtin_amdgcn_readfirstlane(hidden_tile_id * BlockShape::Block_N0);
-        index_t hidden_idx_nr =
-            __builtin_amdgcn_readfirstlane(hidden_tile_id * BlockShape::Block_Nr0);
+        // index_t hidden_idx = __builtin_amdgcn_readfirstlane(intermediate_tile_id *
+        // BlockShape::Block_N0);
+        index_t interm_idx_nr =
+            __builtin_amdgcn_readfirstlane(intermediate_tile_id * BlockShape::Block_Nr0);
 
         const auto a_coord         = Pipeline::GetACoord(); // 2d thread offset, [i_row, i_col]
         const auto sorted_token_id = a_coord[number<0>{}] + sorted_tile_id * BlockShape::Block_M0;
@@ -265,7 +270,7 @@ struct FusedMoeGemmKernel
 
             const auto a_window_ = make_tile_window(
                 a_gather_view_,
-                make_tuple(number<BlockShape::Block_M0>{}, number<Pipeline::Block_K0>{}),
+                make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}),
                 {0, 0});
             return a_window_;
         }();
@@ -274,61 +279,59 @@ struct FusedMoeGemmKernel
         const auto g_window = [&]() {
             const GDataType* g_ptr = reinterpret_cast<const GDataType*>(kargs.g_ptr) +
                                      static_cast<long_index_t>(expert_id) * expert_stride_0 +
-                                     hidden_idx_nr * kr_0 * BlockShape::Block_W0;
+                                     interm_idx_nr * kr_0 * BlockShape::Block_W0;
             const auto g_view_ = make_naive_tensor_view<address_space_enum::global>(
                 g_ptr,
-                make_tuple(nr_0, kr_0, number<Pipeline::Block_W0>{}),
-                make_tuple(kr_0 * BlockShape::Block_W0, number<Pipeline::Block_W0>{}, 1),
+                make_tuple(nr_0, kr_0, number<BlockShape::Block_W0>{}),
+                make_tuple(kr_0 * BlockShape::Block_W0, number<BlockShape::Block_W0>{}, 1),
                 number<Pipeline::kAlignmentG>{},
                 number<1>{});
             const auto g_view_1_ =
                 pad_tensor_view(g_view_,
-                                make_tuple(number<Pipeline::Block_Nr0>{},
-                                           number<Pipeline::Block_Kr0>{},
-                                           number<Pipeline::Block_W0>{}),
+                                make_tuple(number<BlockShape::Block_Nr0>{},
+                                           number<BlockShape::Block_Kr0>{},
+                                           number<BlockShape::Block_W0>{}),
                                 sequence<PadIntermediateSize, PadHiddenSize, 0>{});
 
             const auto g_window_ = make_tile_window(g_view_1_,
                                                     make_tuple(number<BlockShape::Block_Nr0>{},
-                                                               number<Pipeline::Block_Kr0>{},
-                                                               number<Pipeline::Block_W0>{}),
+                                                               number<BlockShape::Block_Kr0>{},
+                                                               number<BlockShape::Block_W0>{}),
                                                     {0, 0, 0});
             return g_window_;
         }();
 
         const auto d_window = [&]() {
-            const DDataType* d_ptr = [&]() {
-                reinterpret_cast<const DDataType*>(kargs.d_ptr) +
-                    static_cast<long_index_t>(expert_id) * expert_stride_1 +
-                    hidden_idx_nr* BlockShape::Block_W1;
-                // note hidden_idx_nr is along the gemm-k dim of 2nd gemm
-            }();
+            const DDataType* d_ptr = reinterpret_cast<const DDataType*>(kargs.d_ptr) +
+                                     static_cast<long_index_t>(expert_id) * expert_stride_1 +
+                                     interm_idx_nr * BlockShape::Block_W1;
+            // note interm_idx_nr is along the gemm-k dim of 2nd gemm
 
             const auto d_view_ = make_naive_tensor_view<address_space_enum::global>(
                 d_ptr,
-                make_tuple(nr_1, kr_1, Pipeline::Block_W1),
-                make_tuple(kr_1 * Pipeline::Block_W1, Pipeline::Block_W1, 1),
+                make_tuple(nr_1, kr_1, BlockShape::Block_W1),
+                make_tuple(kr_1 * BlockShape::Block_W1, BlockShape::Block_W1, 1),
                 number<Pipeline::kAlignmentD>{},
                 number<1>{});
             const auto d_view_1_ =
                 pad_tensor_view(d_view_,
-                                make_tuple(number<Pipeline::kBlockNr_1>{},
-                                           number<Pipeline::kBlockKr_1>{},
-                                           number<Pipeline::Block_W1>{}),
+                                make_tuple(number<BlockShape::Block_Nr1>{},
+                                           number<BlockShape::Block_Kr1>{},
+                                           number<BlockShape::Block_W1>{}),
                                 sequence<PadHiddenSize, PadIntermediateSize, 0>{});
 
             const auto d_window_ = make_tile_window(d_view_1_,
-                                                    make_tuple(number<Pipeline::kBlockNr_1>{},
-                                                               number<Pipeline::kBlockKr_1>{},
-                                                               number<Pipeline::Block_W1>{}),
+                                                    make_tuple(number<BlockShape::Block_Nr1>{},
+                                                               number<BlockShape::Block_Kr1>{},
+                                                               number<BlockShape::Block_W1>{}),
                                                     {0, 0, 0});
             return d_window_;
         }();
 
         auto o_window = [&]() {
-            const ODataType* o_ptr = reinterpret_cast<const ODataType*>(kargs.o_ptr);
-            const auto o_view_     = make_naive_tensor_view<address_space_enum::global,
-                                                        memory_operation_enum::atomic_add>(
+            ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr);
+            auto o_view_     = make_naive_tensor_view<address_space_enum::global,
+                                                  memory_operation_enum::atomic_add>(
                 o_ptr,
                 make_tuple(kargs.num_tokens, kargs.hidden_size),
                 make_tuple(kargs.stride_token, 1),
@@ -336,16 +339,16 @@ struct FusedMoeGemmKernel
                 number<1>{});
 
             // gather is here
-            const auto o_scatter_view_ = transform_tensor_view(
+            auto o_scatter_view_ = transform_tensor_view(
                 o_view_,
                 make_tuple(make_indexing_transform(kargs.num_tokens, token_id),
                            make_pass_through_transform(kargs.hidden_size)),
                 make_tuple(sequence<0>{}, sequence<1>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
-            const auto o_window_ = make_tile_window(
+            auto o_window_ = make_tile_window(
                 o_scatter_view_,
-                make_tuple(number<BlockShape::Block_M1>{}, number<Pipeline::Block_N1>{}),
+                make_tuple(number<BlockShape::Block_M1>{}, number<BlockShape::Block_N1>{}),
                 {0, 0});
             return o_window_;
         }();

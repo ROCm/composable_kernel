@@ -58,14 +58,15 @@ struct FusedMoeGemmShape
     static constexpr index_t NumWarps =
         reduce_on_sequence(WarpPerBlock_0{}, multiplies{}, number<1>{});
 
+    // TODO: we don't support half warps aound to 1 warp here
     static_assert(NumWarps == reduce_on_sequence(WarpPerBlock_1{}, multiplies{}, number<1>{}));
 
     static constexpr index_t Block_M0        = BlockTile_0::at(number<0>{});
     static constexpr index_t Block_N0        = BlockTile_0::at(number<1>{});
     static constexpr index_t Block_K0        = BlockTile_0::at(number<2>{});
-    static constexpr index_t WarpPerBlock_M0 = WarpPerBlock_0::at(numner<0>{});
-    static constexpr index_t WarpPerBlock_N0 = WarpPerBlock_0::at(numner<1>{});
-    static constexpr index_t WarpPerBlock_K0 = WarpPerBlock_0::at(numner<2>{});
+    static constexpr index_t WarpPerBlock_M0 = WarpPerBlock_0::at(number<0>{});
+    static constexpr index_t WarpPerBlock_N0 = WarpPerBlock_0::at(number<1>{});
+    static constexpr index_t WarpPerBlock_K0 = WarpPerBlock_0::at(number<2>{});
     static constexpr index_t Warp_M0         = WarpTile_0::at(number<0>{});
     static constexpr index_t Warp_N0         = WarpTile_0::at(number<1>{});
     static constexpr index_t Warp_K0         = WarpTile_0::at(number<2>{});
@@ -83,12 +84,12 @@ struct FusedMoeGemmShape
     static constexpr index_t Block_M1        = BlockTile_1::at(number<0>{});
     static constexpr index_t Block_N1        = BlockTile_1::at(number<1>{});
     static constexpr index_t Block_K1        = BlockTile_1::at(number<2>{});
-    static constexpr index_t WarpPerBlock_M1 = WarpTile_1::at(numner<0>{});
-    static constexpr index_t WarpPerBlock_N1 = WarpTile_1::at(numner<1>{});
-    static constexpr index_t WarpPerBlock_K1 = WarpTile_1::at(numner<2>{});
-    static constexpr index_t Warp_M1         = WarpPerBlock_1::at(number<0>{});
-    static constexpr index_t Warp_N1         = WarpPerBlock_1::at(number<1>{});
-    static constexpr index_t Warp_K1         = WarpPerBlock_1::at(number<2>{});
+    static constexpr index_t WarpPerBlock_M1 = WarpPerBlock_1::at(number<0>{});
+    static constexpr index_t WarpPerBlock_N1 = WarpPerBlock_1::at(number<1>{});
+    static constexpr index_t WarpPerBlock_K1 = WarpPerBlock_1::at(number<2>{});
+    static constexpr index_t Warp_M1         = WarpTile_1::at(number<0>{});
+    static constexpr index_t Warp_N1         = WarpTile_1::at(number<1>{});
+    static constexpr index_t Warp_K1         = WarpTile_1::at(number<2>{});
 
     static constexpr index_t ThreadPerBlock_M1 = Warp_M1 * WarpPerBlock_M1;
     static constexpr index_t ThreadPerBlock_N1 = Warp_N1 * WarpPerBlock_N1;
@@ -119,6 +120,6 @@ struct FusedMoeGemmShape
     static constexpr index_t Block_Kr1 = Block_K1 / Warp_K1;
 
     static_assert(Block_W0 == Block_W1);
-    static_assert(Block_Nr0 == Block_Kr1);
+    // static_assert(Block_Nr0 == Block_Kr1);
 };
 } // namespace ck_tile

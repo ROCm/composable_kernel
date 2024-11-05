@@ -834,7 +834,7 @@ struct tile_window_with_static_distribution
                     0,
                     vec_value,
                     bool_constant<oob_conditional_check>{},
-                    bool_constant<pre_nop>);
+                    bool_constant<pre_nop>{});
 
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))

@@ -5,10 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
-#include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async_default_policy.hpp"
-#include "ck_tile/ops/fmha/block/block_dropout.hpp"
-#include "ck_tile/ops/reduce/block/block_reduce.hpp"
+#include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_pipeline_flatmm_policy.hpp"
 
 namespace ck_tile {
 
@@ -40,19 +37,19 @@ struct FusedMoeGemmPipeline_Flatmm
     using YSmoothScaleDataType = typename Problem::YSmoothScaleDataType;
     using TopkWeightDataType   = typename Problem::TopkWeightDataType;
     using IndexDataType        = typename Problem::IndexDataType;
-    using YDataType            = typename Pipeline::Problem::YDataType;
+    using YDataType            = typename Problem::YDataType;
 
-    using Traits = typename Pipeline::Problem::Traits;
+    using Traits = typename Problem::Traits;
 
     static constexpr bool IsGateOnly          = Traits::IsGateOnly;
     static constexpr bool UseSmoothQuant      = Traits::UseSmoothQuant;
     static constexpr bool PadHiddenSize       = Traits::PadHiddenSize;
     static constexpr bool PadIntermediateSize = Traits::PadIntermediateSize;
 
-    static constexpr index_t kAlignmentA = Policy::GetAlignment_A<Problem>();
-    static constexpr index_t kAlignmentG = Policy::GetAlignment_G<Problem>();
-    static constexpr index_t kAlignmentD = Policy::GetAlignment_D<Problem>();
-    static constexpr index_t kAlignmentO = Policy::GetAlignment_O<Problem>();
+    static constexpr index_t kAlignmentA = Policy::template GetAlignment_A<Problem>();
+    static constexpr index_t kAlignmentG = Policy::template GetAlignment_G<Problem>();
+    static constexpr index_t kAlignmentD = Policy::template GetAlignment_D<Problem>();
+    static constexpr index_t kAlignmentO = Policy::template GetAlignment_O<Problem>();
 
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::kBlockPerCu != -1)
@@ -66,12 +63,15 @@ struct FusedMoeGemmPipeline_Flatmm
 
     static constexpr const char* name = "fused_moe_flatmm";
 
-    using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
-
     // TODO: there are multiple buffers
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize_A()
     {
-        return Policy<Problem>::GetSmemSize_A();
+        return Policy::template GetSmemSize_A<Problem>();
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        return Policy::template GetSmemSize<Problem>();
     }
 
     // this is the thread-offset along row/col
@@ -95,21 +95,22 @@ struct FusedMoeGemmPipeline_Flatmm
                                    const GWindow& g_window_,
                                    const DWindow& d_window_,
                                    OWindow& o_window_,
-                                   TopkWeightDataType topk_weight,
+                                   TopkWeightDataType /*topk_weight*/,
                                    CK_TILE_LDS_ADDR void* smem,
                                    index_t hidden_size,
                                    index_t intermediate_size)
     {
-        _Pragma("clang diagnostic push")
-            _Pragma("clang diagnostic ignored \"-Wc++20-extensions\"") constexpr auto NEG1 =
-                number<-1>{} : constexpr auto I0 = number<0>{};
-        constexpr auto I1                        = number<1>{};
-        constexpr auto TRUE                      = bool_constant<true>{};
-        constexpr auto FALSE                     = bool_constant<false>{};
+        _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \"-Wc++20-extensions\"");
+        constexpr auto NEG1  = number<-1>{};
+        constexpr auto I0    = number<0>{};
+        constexpr auto I1    = number<1>{};
+        constexpr auto TRUE  = bool_constant<true>{};
+        constexpr auto FALSE = bool_constant<false>{};
 
-        CK_TILE_LDS_ADDR void* smem_0 = smem;
-        CK_TILE_LDS_ADDR void* smem_1 = reinterpret_cast<CK_TILE_LDS_ADDR void*>(
-            reinterpret_cast<CK_TILE_LDS_ADDR char*>(smem) + Pipeline::GetSmemSize_A());
+        CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
+        CK_TILE_LDS_ADDR ADataType* smem_1 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(
+            reinterpret_cast<CK_TILE_LDS_ADDR char*>(smem) +
+            Policy::template GetSmemSize_A<Problem>());
 
         auto g_view = g_window_.get_bottom_tensor_view();
 
@@ -120,8 +121,8 @@ struct FusedMoeGemmPipeline_Flatmm
             }
             else
             {
-                index_t nr_0 = kargs.intermediate_size / BlockShape::Block_Nr0;
-                index_t kr_0 = kargs.hidden_size / BlockShape::Block_Kr0;
+                index_t nr_0 = intermediate_size / BlockShape::Block_Nr0;
+                index_t kr_0 = hidden_size / BlockShape::Block_Kr0;
 
                 const GDataType* g_ptr =
                     g_window_.get_bottom_tensor_view().get_buffer_view().p_data_;
@@ -153,23 +154,28 @@ struct FusedMoeGemmPipeline_Flatmm
             o_window_, Policy::template MakeGlobalTileDistribution_O<Problem>());
 
         using g_thread_type = decltype(load_tile(g_win));
-        using u_thread_type = decltype(load_tile(u_win));
         using d_thread_type = decltype(load_tile(d_win));
+
+        // using WarpGemm0  = Policy::template GetWarpGemm0<Problem>();
+        // using WarpGemm1  = Policy::template GetWarpGemm1<Problem>();
+        // auto warp_gemm_0 = WarpGemm0{};
+        // auto warp_gemm_1 = WarpGemm1{};
 
         // issues_warps_lanes
         auto a_sst_win0 =
-            make_tile_window_linear(make_tensor_view<address_space_enum::lds>(
-                                        smem_0, Policy::template MakeLdsStoreDesc_A<Problem>()),
-                                    Policy::template MakeLdsStoreDesc_A<Problem>().get_lengths(),
-                                    {0, 0, 0});
+            make_tile_window(make_tensor_view<address_space_enum::lds>(
+                                 smem_0, Policy::template MakeLdsStoreDesc_A<Problem>()),
+                             Policy::template MakeLdsStoreDesc_A<Problem>().get_lengths(),
+                             {0, 0, 0});
 
         auto a_sst_win1 =
-            make_tile_window_linear(make_tensor_view<address_space_enum::lds>(
-                                        smem_1, Policy::template MakeLdsStoreDesc_A<Problem>()),
-                                    Policy::template MakeLdsStoreDesc_A<Problem>().get_lengths(),
-                                    {0, 0, 0});
+            make_tile_window(make_tensor_view<address_space_enum::lds>(
+                                 smem_1, Policy::template MakeLdsStoreDesc_A<Problem>()),
+                             Policy::template MakeLdsStoreDesc_A<Problem>().get_lengths(),
+                             {0, 0, 0});
         // m*k
         auto a_sld_win0 = [&]() {
+            using WG                        = decltype(Policy::template GetWarpGemm0<Problem>());
             constexpr auto a_outer_dstr_enc = tile_distribution_encoding<
                 sequence<>,
                 tuple<sequence<BlockShape::Repeat_M0, BlockShape::WarpPerBlock_M0>,
@@ -185,11 +191,12 @@ struct FusedMoeGemmPipeline_Flatmm
                     smem_0, Policy::template MakeLdsLoadDesc_A<Problem>()),
                 Policy::template MakeLdsLoadDesc_A<Problem>().get_lengths(),
                 {0, 0},
-                a_block_dstr_encode);
+                make_static_tile_distribution(a_block_dstr_encode));
         }();
 
         // m*k
         auto a_sld_win1 = [&]() {
+            using WG                        = decltype(Policy::template GetWarpGemm0<Problem>());
             constexpr auto a_outer_dstr_enc = tile_distribution_encoding<
                 sequence<>,
                 tuple<sequence<BlockShape::Repeat_M0, BlockShape::WarpPerBlock_M0>,
@@ -205,32 +212,30 @@ struct FusedMoeGemmPipeline_Flatmm
                     smem_1, Policy::template MakeLdsLoadDesc_A<Problem>()),
                 Policy::template MakeLdsLoadDesc_A<Problem>().get_lengths(),
                 {0, 0},
-                a_block_dstr_encode);
+                make_static_tile_distribution(a_block_dstr_encode));
         }();
 
         auto bridge_sst_win = [&]() {
-            return make_tile_window_linear(
+            return make_tile_window(
                 make_tensor_view<address_space_enum::lds>(
-                    smem, Policy::template MakeBridgeLdsStoreDesc<Problem>()),
+                    reinterpret_cast<YDataType*>(smem),
+                    Policy::template MakeBridgeLdsStoreDesc<Problem>()),
                 Policy::template MakeBridgeLdsStoreDesc<Problem>().get_lengths(),
                 {0, 0});
-        };
+        }();
 
         auto bridge_sld_win = [&]() {
             return make_tile_window_linear(
                 make_tensor_view<address_space_enum::lds>(
-                    smem, Policy::template MakeBridgeLdsLoadDesc<Problem>()),
+                    reinterpret_cast<YDataType*>(smem),
+                    Policy::template MakeBridgeLdsLoadDesc<Problem>()),
                 Policy::template MakeBridgeLdsLoadDesc<Problem>().get_lengths(),
                 {0, 0},
-                Policy::tepmlate MakeYTileDistribution<Problem>());
-        };
+                Policy::template MakeYTileDistribution<Problem>());
+        }();
 
         // also OK with C array, 2 register buffer
         statically_indexed_array<g_thread_type, 2> gs;
-        using WarpGemm0  = Policy::GetWarpGemm0<Problem>();
-        using WarpGemm1  = Policy::GetWarpGemm1<Problem>();
-        auto warp_gemm_0 = WarpGemm0{};
-        auto warp_gemm_1 = WarpGemm1{};
 
         constexpr auto issues_a = number<a_win.get_num_of_access()>{};
         constexpr auto issues_g = number<g_win.get_num_of_access()>{};
@@ -242,8 +247,10 @@ struct FusedMoeGemmPipeline_Flatmm
             number<BlockShape::Repeat_M1 * BlockShape::Repeat_N1 * BlockShape::Repeat_K1>{};
         constexpr auto issues_sld_a = number<a_sld_win0.get_num_of_access()>{};
 
-        const index_t num_blocks_k0 = (hidden_size + Problem::Block_K0 - 1) / Problem::Block_K0;
-        const index_t num_blocks_n1 = (hidden_size + Problem::Block_N1 - 1) / Problem::Block_N1;
+        const index_t num_blocks_k0 =
+            (hidden_size + BlockShape::Block_K0 - 1) / BlockShape::Block_K0;
+        const index_t num_blocks_n1 =
+            (hidden_size + BlockShape::Block_N1 - 1) / BlockShape::Block_N1;
 
         using a_thread_type = decltype(load_tile(a_sld_win0));
         statically_indexed_array<a_thread_type, 2> as;
@@ -253,9 +260,9 @@ struct FusedMoeGemmPipeline_Flatmm
         {
             async_load_tile_raw(a_store_, a_win, i_access, PreNop{});
         };
-        auto move_a = [&]() {
-            move_tile_window(a_win, {number<0>{}, number<BlockShape::Block_K0>{}});
-        };
+        // auto move_a = [&]() {
+        //     move_tile_window(a_win, {number<0>{}, number<BlockShape::Block_K0>{}});
+        // };
         auto sld_a = [&](auto& a_, auto& win_, auto i_access) {
             load_tile_raw(a_, win_, i_access);
         };
@@ -277,40 +284,41 @@ struct FusedMoeGemmPipeline_Flatmm
             }
             load_tile_raw(g_, g_win, i_access, FALSE, PreNop{});
         };
-        auto move_g =
-            [&]() {
-                move_tile_window(g_win,
-                                 {number<0>{}, number<BlockShape::Block_Kr0>{}, number<0>{}});
-            } statically_indexed_array<d_thread_type, 2>
-                ds;
+        // auto move_g =
+        //     [&]() {
+        //         move_tile_window(g_win,
+        //                          {number<0>{}, number<BlockShape::Block_Kr0>{}, number<0>{}});
+        //     };
+        statically_indexed_array<d_thread_type, 2> ds;
 
         auto gld_d = [&]<typename PreNop = bool_constant<false>>(
             auto& d_, auto i_access, PreNop = {})
         {
             load_tile_raw(d_, d_win, i_access, FALSE, PreNop{});
         };
-        auto move_d = [&]() {
-            // d move along gemm-n
-            move_tile_window(d_win, {number<BlockShape::Block_N1>{}, number<0>{}});
-        };
+        // auto move_d = [&]() {
+        //     // d move along gemm-n
+        //     move_tile_window(d_win, {number<BlockShape::Block_N1>{}, number<0>{}});
+        // };
 
         auto atomic_add_o = [&]<typename PreNop = bool_constant<false>>(
             auto& o_, auto i_access, PreNop = {})
         {
             update_tile_raw(o_win, o_, i_access, TRUE, PreNop{});
-        }
+        };
 
-        auto acc_0  = MakeCBlockTile_Gemm0<Problem>();
-        auto acc_1s = generate_tuple([&](auto) { MakeCBlockTile_Gemm0<Problem>(); }, number<2>{});
+        auto acc_0  = Policy::template MakeCBlockTile_Gemm0<Problem>();
+        auto acc_1s = generate_tuple(
+            [&](auto) { return Policy::template MakeCBlockTile_Gemm1<Problem>(); }, number<2>{});
 
         // clang-format off
         auto gemm_0 = [&]<typename PostNop = bool_constant<false>>
         (auto& t_c, auto& t_a, auto& t_b, auto i_access, PostNop = {}) {
-            auto warp_gemm = Policy::GetWarpGemm0<Problem>();
+            auto warp_gemm = Policy::template GetWarpGemm0<Problem>();
             using WarpGemm = remove_cvref_t<decltype(warp_gemm)>;
 
             constexpr auto repeat_m = BlockShape::Repeat_M0;
-            constexpr auto repeat_n = BlockShape::Repeat_N0;
+            // constexpr auto repeat_n = BlockShape::Repeat_N0;
             constexpr auto repeat_k = BlockShape::Repeat_K0;
             // loop order n->m->k
             constexpr auto i_k = i_access % repeat_k;
@@ -320,10 +328,17 @@ struct FusedMoeGemmPipeline_Flatmm
             using AWarpTensor = typename WarpGemm::AWarpTensor;
             using BWarpTensor = typename WarpGemm::BWarpTensor;
             using CWarpTensor = typename WarpGemm::CWarpTensor;
+            using AWarpDstr = typename WarpGemm::AWarpDstr;
+            using BWarpDstr = typename WarpGemm::BWarpDstr;
+            using CWarpDstr = typename WarpGemm::CWarpDstr;
 
             constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
             constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
             constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+            constexpr auto a_warp_y_lengths = to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+            constexpr auto b_warp_y_lengths = to_sequence(BWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+            constexpr auto c_warp_y_lengths = to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
 
             AWarpTensor w_a;
             w_a.get_thread_buffer() = t_a.get_y_sliced_thread_data(
@@ -352,11 +367,11 @@ struct FusedMoeGemmPipeline_Flatmm
         // clang-format off
         auto gemm_1 = [&]<typename PostNop = bool_constant<false>>
         (auto& t_c, auto& t_a, auto& t_b, auto i_access, PostNop = {}) {
-            auto warp_gemm = Policy::GetWarpGemm1<Problem>();
+            auto warp_gemm = Policy::template GetWarpGemm1<Problem>();
             using WarpGemm = remove_cvref_t<decltype(warp_gemm)>;
 
             constexpr auto repeat_m = BlockShape::Repeat_M1;
-            constexpr auto repeat_n = BlockShape::Repeat_N1;
+            // constexpr auto repeat_n = BlockShape::Repeat_N1;
             constexpr auto repeat_k = BlockShape::Repeat_K1;
             // loop order n->m->k
             constexpr auto i_k = i_access % repeat_k;
@@ -366,10 +381,17 @@ struct FusedMoeGemmPipeline_Flatmm
             using AWarpTensor = typename WarpGemm::AWarpTensor;
             using BWarpTensor = typename WarpGemm::BWarpTensor;
             using CWarpTensor = typename WarpGemm::CWarpTensor;
+            using AWarpDstr = typename WarpGemm::AWarpDstr;
+            using BWarpDstr = typename WarpGemm::BWarpDstr;
+            using CWarpDstr = typename WarpGemm::CWarpDstr;
 
             constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
             constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
             constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+            constexpr auto a_warp_y_lengths = to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+            constexpr auto b_warp_y_lengths = to_sequence(BWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+            constexpr auto c_warp_y_lengths = to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
 
             AWarpTensor w_a;
             w_a.get_thread_buffer() = t_a.get_y_sliced_thread_data(
@@ -419,7 +441,7 @@ struct FusedMoeGemmPipeline_Flatmm
                         gld_a(a_sst_win0, number<i_issue / mfma_per_gld_a>{});
 
                     if constexpr(i_issue % mfma_per_sld_a == 0)
-                        sld_a(as[I1], a_swin_1, number<i_issue / mfma_per_sld_a>{});
+                        sld_a(as[I1], a_sld_win1, number<i_issue / mfma_per_sld_a>{});
                 });
 
                 // compute buffer 1
@@ -432,14 +454,14 @@ struct FusedMoeGemmPipeline_Flatmm
                         gld_a(a_sst_win1, number<i_issue / mfma_per_gld_a>{});
 
                     if constexpr(i_issue % mfma_per_sld_a == 0)
-                        sld_a(as[I0], a_swin_0, number<i_issue / mfma_per_sld_a>{});
+                        sld_a(as[I0], a_sld_win0, number<i_issue / mfma_per_sld_a>{});
                 });
             };
 
         auto pipeline_gemm0_tail = [&]() {
             constexpr index_t total_loops    = issues_gemm0;
             constexpr index_t mfma_per_gld_g = total_loops / issues_g; // BlockShape::Repeat_M0;
-            constexpr index_t mfma_per_gld_a = total_loops / issues_a;
+            // constexpr index_t mfma_per_gld_a = total_loops / issues_a;
             constexpr index_t mfma_per_sld_a = total_loops / issues_sld_a;
 
             // compute buffer 0
@@ -452,7 +474,7 @@ struct FusedMoeGemmPipeline_Flatmm
                 //    gld_a(a_sst_win0, number<i_issue / mfma_per_gld_a>{});
 
                 if constexpr(i_issue % mfma_per_sld_a == 0)
-                    sld_a(as[I1], a_swin_1, number<i_issue / mfma_per_sld_a>{});
+                    sld_a(as[I1], a_sld_win1, number<i_issue / mfma_per_sld_a>{});
             });
 
             // compute buffer 1
@@ -461,14 +483,14 @@ struct FusedMoeGemmPipeline_Flatmm
             });
         };
 
-        auto y = Policy::MakeYBlockTile<Problem>();
+        auto y = Policy::template MakeYBlockTile<Problem>();
 
         auto pipeline_bridge = [&]() {
             // cast to Y data
             auto y_pre = cast_tile<YDataType>(acc_0);
             store_tile(bridge_sst_win, y_pre);
             clear_tile(acc_1s(I0));
-            wave_barrier();
+            // wave_barrier();
             load_tile(y, bridge_sld_win);
             clear_tile(acc_1s(I1));
         };
@@ -481,7 +503,7 @@ struct FusedMoeGemmPipeline_Flatmm
 
             // compute buffer 1
             static_for<0, total_loops, 1>{}([&](auto i_issue) {
-                gemm_0(acc_1s[I1], y, ds[I1], i_issue);
+                gemm_1(acc_1s[I1], y, ds[I1], i_issue);
                 if constexpr(i_issue % mfma_per_gld_d == 0)
                     gld_d(ds[I0], number<i_issue / mfma_per_gld_d>{});
 
@@ -494,7 +516,7 @@ struct FusedMoeGemmPipeline_Flatmm
 
             // compute buffer 0
             static_for<0, total_loops, 1>{}([&](auto i_issue) {
-                gemm_0(acc_1s[I0], y, ds[I0], i_issue);
+                gemm_1(acc_1s[I0], y, ds[I0], i_issue);
                 if constexpr(i_issue % mfma_per_gld_d == 0)
                     gld_d(ds[I1], number<i_issue / mfma_per_gld_d>{});
 
@@ -511,7 +533,7 @@ struct FusedMoeGemmPipeline_Flatmm
             constexpr index_t mfma_per_gld_d = total_loops / issues_d;
             // compute buffer 0
             static_for<0, total_loops, 1>{}([&](auto i_issue) {
-                gemm_0(acc_1s[I0], y, ds[I0], i_issue);
+                gemm_1(acc_1s[I0], y, ds[I0], i_issue);
                 if constexpr(i_issue % mfma_per_gld_d == 0)
                     gld_d(ds[I1], number<i_issue / mfma_per_gld_d>{});
             });
@@ -522,7 +544,7 @@ struct FusedMoeGemmPipeline_Flatmm
             constexpr index_t mfma_per_atm_o = total_loops / issues_o;
             // compute buffer 1
             static_for<0, total_loops, 1>{}([&](auto i_issue) {
-                gemm_0(acc_1s[I1], y, ds[I1], i_issue);
+                gemm_1(acc_1s[I1], y, ds[I1], i_issue);
                 if constexpr(i_issue % mfma_per_gld_d == 0)
                     gld_d(ds[I0], number<i_issue / mfma_per_gld_d>{});
 
@@ -542,7 +564,7 @@ struct FusedMoeGemmPipeline_Flatmm
         // clang-format off
         gld_a(a_sst_win0, NEG1, TRUE);
         gld_g(gs[I0], NEG1, TRUE);
-        sld_a(as[I0], a_swin_0, NEG1);
+        sld_a(as[I0], a_sld_win0, NEG1);
         gld_a(a_sst_win1, NEG1);
 
         clear_tile(acc_0);
@@ -561,7 +583,7 @@ struct FusedMoeGemmPipeline_Flatmm
         const index_t iters_1 = (num_blocks_n1 - 2) / 2;
         index_t i_1 = 0;
         pipeline_gemm1_head();
-        while(i_0 < iters_0)
+        while(i_1 < iters_1)
         {
             pipeline_gemm1();
         }

@@ -35,9 +35,9 @@ struct WarpGemmImpl
     CK_TILE_DEVICE void
     operator()(CTensor& c, const ATensor& a, const BTensor& b, bool_constant<post_nop_> = {}) const
     {
-        static_assert(detail::is_similiar_distributed_tensor_v<CTensor, CTensor> &&
-                      detail::is_similiar_distributed_tensor_v<ATensor, ATensor> &&
-                      detail::is_similiar_distributed_tensor_v<BTensor, BTensor>);
+        static_assert(detail::is_similiar_distributed_tensor_v<CTensor, CWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
         using AVec = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;
         using BVec = ext_vector_t<BDataType, BTensor::get_thread_buffer_size()>;
         using CVec = ext_vector_t<CDataType, CTensor::get_thread_buffer_size()>;
@@ -85,8 +85,8 @@ struct WarpGemmImpl
     CK_TILE_DEVICE auto operator()(const ATensor& a, const BTensor& b) const
     {
         using CTensor = CWarpTensor;
-        static_assert(detail::is_similiar_distributed_tensor_v<ATensor, ATensor> &&
-                      detail::is_similiar_distributed_tensor_v<BTensor, BTensor>);
+        static_assert(detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
         CTensor c;
 
         using AVec = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;

@@ -84,6 +84,7 @@ template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
           typename LinearBottomDims_,
+          typename DataType_,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
           bool pre_nop               = false>

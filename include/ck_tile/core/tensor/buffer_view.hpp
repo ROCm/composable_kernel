@@ -635,7 +635,7 @@ struct buffer_view<address_space_enum::global,
     CK_TILE_DEVICE void
     atomic_add_raw(index_t i, index_t linear_offset, bool is_valid_element, const X& x)
     {
-        using scalar_t = typename vector_traits<remove_cvref_t<T>>::scalar_type;
+        // using scalar_t = typename vector_traits<remove_cvref_t<T>>::scalar_type;
 
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
@@ -646,24 +646,6 @@ struct buffer_view<address_space_enum::global,
                       "wrong! X should contain multiple T");
 
         static_assert(get_address_space() == address_space_enum::global, "only support global mem");
-
-#if CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
-        bool constexpr use_amd_buffer_addressing =
-            std::is_same_v<remove_cvref_t<scalar_t>, int32_t> ||
-            std::is_same_v<remove_cvref_t<scalar_t>, float> ||
-            (std::is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0) ||
-            (std::is_same_v<remove_cvref_t<scalar_t>, bf16_t> && scalar_per_x_vector % 2 == 0);
-#elif CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && (!CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT)
-        bool constexpr use_amd_buffer_addressing =
-            std::is_same_v<remove_cvref_t<scalar_t>, int32_t>;
-#elif(!CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER) && CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
-        bool constexpr use_amd_buffer_addressing =
-            std::is_same_v<remove_cvref_t<scalar_t>, float> ||
-            (std::is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0) ||
-            (std::is_same_v<remove_cvref_t<scalar_t>, bf16_t> && scalar_per_x_vector % 2 == 0);
-#else
-        bool constexpr use_amd_buffer_addressing = false;
-#endif
 
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 

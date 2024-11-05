@@ -28,7 +28,7 @@ auto get_elimit<ck_tile::bf16_t>()
 template <typename T>
 auto shuffle_moe_weight(const ck_tile::HostTensor<T>& t, std::string mfma_dtype, int mfma_type = 0)
 {
-    static_assert(t.get_lengths().size() == 3);
+    assert(t.get_lengths().size() == 3);
     int b_ = t.get_lengths()[0];
     int n_ = t.get_lengths()[1];
     int k_ = t.get_lengths()[2];
@@ -152,11 +152,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t shared_intermediate_size = intermediate_size * (gate_only ? 1 : 2) / tp;
 
-    using TypeConfig           = FusedMoeGemmTypeConfig<I, W, O, ST, SW, SQ, KW>;
-    using ADataType            = typename TypeConfig::ADataType;
-    using GDataType            = typename TypeConfig::GDataType;
-    using DDataType            = typename TypeConfig::DDataType;
-    using AccDataType          = typename TypeConfig::AccDataType;
+    using TypeConfig = FusedMoeGemmTypeConfig<I, W, O, ST, SW, SQ, KW>;
+    using ADataType  = typename TypeConfig::ADataType;
+    using GDataType  = typename TypeConfig::GDataType;
+    using DDataType  = typename TypeConfig::DDataType;
+    // using AccDataType          = typename TypeConfig::AccDataType;
     using ODataType            = typename TypeConfig::ODataType;
     using AScaleDataType       = typename TypeConfig::AScaleDataType;
     using GScaleDataType       = typename TypeConfig::GScaleDataType;
@@ -167,8 +167,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // host verify
     ck_tile::HostTensor<ADataType> a_host({tokens, hidden_size}, {stride, 1});
-    ck_tile::HostTensor<GDataType> g_host({e, shared_intermediate_size, hidden_size});
-    ck_tile::HostTensor<DDataType> d_host({e, intermediate_size, hidden_size});
+    ck_tile::HostTensor<GDataType> g_host({experts, shared_intermediate_size, hidden_size});
+    ck_tile::HostTensor<DDataType> d_host({experts, intermediate_size, hidden_size});
     ck_tile::HostTensor<ODataType> o_host({tokens, hidden_size}, {stride, 1});
     ck_tile::HostTensor<AScaleDataType> sa_host({tokens});
     ck_tile::HostTensor<GScaleDataType> sg_host({shared_intermediate_size});
@@ -200,7 +200,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // do moe sorting
     if(balance)
     {
-        int e_cnt = 0 for(int i = 0; i < static_cast<int>(topk_ids_host.mData.size()); i++)
+        int e_cnt = 0;
+        for(int i = 0; i < static_cast<int>(topk_ids_host.mData.size()); i++)
         {
             topk_ids_host.mData[i] = e_cnt;
             e_cnt++;
@@ -210,7 +211,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     else
     {
-        topid_unique_gen<IndexType>(topk_ids_host.mData, tokens, topk, experts, 11913);
+        topid_unique_gen<IndexDataType>(topk_ids_host.mData, tokens, topk, experts, 11913);
     }
 
     ck_tile::reference_moe_sorting<TopkWeightDataType, IndexDataType>(
@@ -245,7 +246,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             base_str += "=" + prec_o;
         if(fused_quant != 0)
         {
-            base_str += std::string("(") + prec_sa + "|" + prec_sg + "|" + prec_sq + ")";
+            base_str += std::string("(") + prec_st + "|" + prec_sw + "|" + prec_sq + ")";
         }
         return base_str;
     }();
@@ -268,14 +269,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     fused_moegemm_args args{a_buf.GetDeviceBuffer(),
                             fused_quant != 0 ? sa_buf.GetDeviceBuffer() : nullptr,
-                            g_buf.GetDeviceBuffer(),
-                            d_buf.GetDeviceBuffer(),
-                            fused_quant != 0
-                            ? sg_buf.GetDeviceBuffer(),
-                            fused_quant != 0
-                            ? sd_buf.GetDeviceBuffer(),
-                            fused_quant == 1
-                            ? sy_buf.GetDeviceBuffer(),
+                            g_perm_buf.GetDeviceBuffer(),
+                            d_perm_buf.GetDeviceBuffer(),
+                            fused_quant != 0 ? sg_buf.GetDeviceBuffer() : nullptr,
+                            fused_quant != 0 ? sd_buf.GetDeviceBuffer() : nullptr,
+                            fused_quant == 1 ? sy_buf.GetDeviceBuffer() : nullptr,
                             o_buf.GetDeviceBuffer(),
                             sorted_token_ids_buf.GetDeviceBuffer(),
                             sorted_weight_buf.GetDeviceBuffer(),
@@ -283,9 +281,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
                             num_sorted_tiles_buf.GetDeviceBuffer(),
                             hidden_size,
                             intermediate_size,
-                            num_tokens,
+                            tokens,
                             experts,
-                            stride };
+                            topk,
+                            stride};
 
     float ave_time = fused_moegemm(
         traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
@@ -473,50 +472,24 @@ int main(int argc, char* argv[])
         return -1;
 
     std::string prec_i  = arg_parser.get_str("prec_i");
+    std::string prec_w  = arg_parser.get_str("prec_w");
     std::string prec_o  = arg_parser.get_str("prec_o");
-    std::string prec_sx = arg_parser.get_str("prec_sx");
-    std::string prec_sy = arg_parser.get_str("prec_sy");
-
-    if(prec_o == "auto")
-    {
-        prec_o = prec_i;
-    }
-    if(prec_sx == "auto")
-    {
-        prec_sx = "fp32";
-    }
-    if(prec_sy == "auto")
-    {
-        prec_sy = "fp32";
-    }
-    int save_mv = arg_parser.get_int("save_mv");
+    std::string prec_st = arg_parser.get_str("prec_st");
+    std::string prec_sw = arg_parser.get_str("prec_sw");
+    std::string prec_sq = arg_parser.get_str("prec_sq");
+    std::string prec_kw = arg_parser.get_str("prec_kw");
+    prec_st             = (prec_st == "auto") ? "fp32" : prec_st;
+    prec_sw             = (prec_sw == "auto") ? "fp32" : prec_sw;
+    prec_sq             = (prec_sq == "auto") ? "fp32" : prec_sq;
+    prec_kw             = (prec_kw == "auto") ? "fp32" : prec_kw;
 
     // no dynamic quant case
-    if(prec_i == "fp16" && prec_o == "fp16" && prec_sx == "fp32" && prec_sy == "fp32")
+    if(prec_i == "bf16" && prec_w == "bf16" && prec_o == "bf16" && prec_kw == "fp32")
     {
-        return run<ck_tile::half_t, ck_tile::half_t, float, float, true>(arg_parser) ? 0 : -2;
-    }
-    else if(prec_i == "fp16" && prec_o == "fp16" && prec_sx == "fp32" && prec_sy == "fp32")
-    {
-        return run<ck_tile::half_t, ck_tile::half_t, float, float, false>(arg_parser) ? 0 : -2;
-    }
-    else if(prec_i == "bf16" && prec_o == "bf16" && prec_sx == "fp32" && prec_sy == "fp32")
-    {
-        return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true>(arg_parser) ? 0 : -2;
-    }
-    else if(prec_i == "bf16" && prec_o == "bf16" && prec_sx == "fp32" && prec_sy == "fp32")
-    {
-        return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true>(arg_parser) ? 0 : -2;
-    }
-
-    // dynamic quant case, only in inference
-    else if(prec_i == "fp16" && prec_o == "int8" && prec_sx == "fp32" && prec_sy == "fp32")
-    {
-        return run<ck_tile::half_t, ck_tile::int8_t, float, float, false>(arg_parser) ? 0 : -2;
-    }
-    else if(prec_i == "bf16" && prec_o == "int8" && prec_sx == "fp32" && prec_sy == "fp32")
-    {
-        return run<ck_tile::bf16_t, ck_tile::int8_t, float, float, false>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t, float, float, float, float>(
+                   arg_parser)
+                   ? 0
+                   : -2;
     }
 
     return -3;
