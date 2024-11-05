@@ -849,6 +849,58 @@ struct tile_window_linear
         WINDOW_DISPATCH_ISSUE();
     }
 
+    template <index_t i_access = -1, bool oob_conditional_check = true, bool pre_nop = false>
+    CK_TILE_DEVICE void update_raw(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+                                   number<i_access>                     = {},
+                                   bool_constant<oob_conditional_check> = {},
+                                   bool_constant<pre_nop>               = {}) const
+    {
+
+        using vector_t = typename traits::vector_t;
+        using SFC_Ys   = typename traits::SFC_Ys;
+
+        constexpr auto tile_dstr = TileDstr{};
+
+        // loop over thread tensor space [y0, y1, ...]
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess          = number<i_access_>{};
+            constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
+            auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
+            constexpr auto linear_offset    = get_bottom_linear_offset(IAccess);
+            auto bottom_tensor_flag         = cached_flags_[IAccess];
+
+            // data index [y0, y1, ...]
+            constexpr auto idx_ys_start = SFC_Ys::get_index(IAccess);
+
+            // read from distributed tensor
+            vector_t vec_value;
+
+            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+                constexpr auto idx_ys = generate_tuple(
+                    [&](auto jj) {
+                        return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
+                    },
+                    number<NDimY>{});
+
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+
+                vec_value.template get_as<DataType>()(j) =
+                    dstr_tensor.get_thread_buffer().template at<d>();
+            });
+
+            // write into bottom tensor
+            get_bottom_tensor_view().template update_vectorized_elements_raw<vector_t>(
+                bottom_tensor_thread_coord,
+                linear_offset,
+                bottom_tensor_flag,
+                vec_value,
+                bool_constant<oob_conditional_check>{},
+                bool_constant<pre_nop>{});
+        };
+
+        WINDOW_DISPATCH_ISSUE();
+    }
+
     // move thread's botom tensor coordiante
     // [x0', x1', ... ] ==> [offset]
     // also move window-origin
