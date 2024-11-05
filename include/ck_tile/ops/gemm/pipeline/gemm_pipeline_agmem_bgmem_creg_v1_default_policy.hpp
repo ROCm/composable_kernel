@@ -129,11 +129,15 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
+        constexpr index_t PixelPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
+        constexpr index_t MaxVectorSize  = 16 / sizeof(ADataType);
+        static_assert(0 < PixelPerThread);
+
         constexpr auto a_lds_block_desc_d1_d2_d3 = make_naive_tensor_descriptor_packed(
             make_tuple(number<kMPerBlock / 2>{}, number<2>{}, number<kKPerBlock>{}),
             number<kKPerBlock>{});
 
-        constexpr index_t kK1 = 16 / sizeof(ADataType);
+        constexpr index_t kK1 = min(MaxVectorSize, PixelPerThread);
 
         constexpr auto a_lds_block_desc_d4_d5_d6 = transform_tensor_descriptor(
             a_lds_block_desc_d1_d2_d3,
@@ -164,11 +168,15 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
+        constexpr index_t PixelPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+        constexpr index_t MaxVectorSize  = 16 / sizeof(BDataType);
+        static_assert(0 < PixelPerThread);
+
         constexpr auto b_lds_block_desc_d1_d2_d3 = make_naive_tensor_descriptor_packed(
             make_tuple(number<kNPerBlock / 2>{}, number<2>{}, number<kKPerBlock>{}),
             number<kKPerBlock>{});
 
-        constexpr index_t kK1 = 16 / sizeof(BDataType);
+        constexpr index_t kK1 = min(MaxVectorSize, PixelPerThread);
 
         constexpr auto b_lds_block_desc_d4_d5_d6 = transform_tensor_descriptor(
             b_lds_block_desc_d1_d2_d3,
