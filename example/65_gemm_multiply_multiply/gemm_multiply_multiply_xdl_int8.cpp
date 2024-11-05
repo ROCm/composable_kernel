@@ -36,7 +36,7 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using A0DataType       = I8;
 using B0DataType       = I8;
 using AccDataType      = I32;
-using CShuffleDataType = I32;
+using CShuffleDataType = F16;
 using D0DataType       = F16;
 using D1DataType       = F16;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
@@ -78,8 +78,16 @@ struct MultiplyMultiply
     __host__ __device__ constexpr void operator()<ck::half_t, int, ck::half_t, ck::half_t>(
         ck::half_t& e, const int& c, const ck::half_t& d0, const ck::half_t& d1) const
     {
-        const ck::half_t x0_f =
-            ck::type_convert<ck::half_t>(c) * d0* d1;
+        const ck::half_t x0_f = ck::type_convert<ck::half_t>(c) * d0 * d1;
+
+        e = x0_f;
+    }
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, ck::half_t, ck::half_t, ck::half_t>(
+        ck::half_t& e, const ck::half_t& c, const ck::half_t& d0, const ck::half_t& d1) const
+    {
+        const ck::half_t x0_f = c * d0 * d1;
 
         e = x0_f;
     }
@@ -115,12 +123,12 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
          <      Row,      Col, DsLayout, ELayout, 
                 A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                 AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,
-                128,   128,   128,
+                64,   128,   256,
                 16,   16,
                 32,   32,
-                2,    2,
-                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+                1,    2,
+                S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+                S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
                 1, 1, S<1, 32, 1, 8>, S<8, 8, 1>,
                 ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, I8>;
 // clang-format on
@@ -216,6 +224,12 @@ int main(int argc, char* argv[])
         d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{0, 2});
         d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{0, 2});
         break;
+    case 2:
+        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-25, 25});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 25});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{0, 200});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{0, 200});
+        break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
@@ -271,7 +285,10 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 0, 20, 50, true, 50});
+    hipStream_t stream;
+    hip_check_error(hipStreamCreate(&stream));
+
+    float ave_time = invoker.Run(argument, StreamConfig{stream, time_kernel, 0, 20, 50, true, 50});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =

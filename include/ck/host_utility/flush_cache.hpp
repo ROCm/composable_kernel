@@ -4,6 +4,7 @@
 #pragma once
 
 #include <hip/hip_runtime.h>
+#include <hip/hip_ext.h>
 #include <set>
 #include <vector>
 
@@ -42,8 +43,8 @@ struct RotatingMemWrapperMultiD
         {
             {
                 void* pADeviceBuf;
-                hip_check_error(hipMalloc(static_cast<void**>(&pADeviceBuf), size_a_));
-                hip_check_error(hipMemcpy(static_cast<void*>(pADeviceBuf),
+                HIP_CHECK_ERROR(hipMalloc(static_cast<void**>(&pADeviceBuf), size_a_));
+                HIP_CHECK_ERROR(hipMemcpy(static_cast<void*>(pADeviceBuf),
                                           const_cast<void*>(p_a_grids[0]),
                                           size_a_,
                                           hipMemcpyDeviceToDevice));
@@ -52,8 +53,8 @@ struct RotatingMemWrapperMultiD
 
             {
                 void* pBDeviceBuf;
-                hip_check_error(hipMalloc(static_cast<void**>(&pBDeviceBuf), size_b_));
-                hip_check_error(hipMemcpy(static_cast<void*>(pBDeviceBuf),
+                HIP_CHECK_ERROR(hipMalloc(static_cast<void**>(&pBDeviceBuf), size_b_));
+                HIP_CHECK_ERROR(hipMemcpy(static_cast<void*>(pBDeviceBuf),
                                           const_cast<void*>(p_b_grids[0]),
                                           size_b_,
                                           hipMemcpyDeviceToDevice));
@@ -65,8 +66,8 @@ struct RotatingMemWrapperMultiD
                 DsGridPointer ds_buffer;
                 static_for<0, NumDs, 1>{}([&](auto j) {
                     void* pDDeviceBuf;
-                    hip_check_error(hipMalloc(static_cast<void**>(&pDDeviceBuf), size_ds_[j]));
-                    hip_check_error(hipMemcpy(static_cast<void*>(pDDeviceBuf),
+                    HIP_CHECK_ERROR(hipMalloc(static_cast<void**>(&pDDeviceBuf), size_ds_[j]));
+                    HIP_CHECK_ERROR(hipMemcpy(static_cast<void*>(pDDeviceBuf),
                                               static_cast<const void*>(p_ds_grids[0][j]),
                                               size_ds_[j],
                                               hipMemcpyDeviceToDevice));
@@ -94,9 +95,8 @@ struct RotatingMemWrapperMultiD
     void Print()
     {
         std::cout << "RotatingMemWrapperMultiD: { size_a: " << size_a << ", size_b: " << size_b;
-        static_for<0, NumDs, 1>{}([&](auto j) {
-            std::cout << ", size_d" <<j.value<<": "<< size_ds[j];
-        });
+        static_for<0, NumDs, 1>{}(
+            [&](auto j) { std::cout << ", size_d" << j.value << ": " << size_ds[j]; });
         std::cout << ", rotating_count: " << rotating_count << "}" << std::endl;
     }
     ~RotatingMemWrapperMultiD()
@@ -111,13 +111,35 @@ struct RotatingMemWrapperMultiD
             // free device mem
             for(size_t i = 1; i < rotating_count; i++)
             {
-                hip_check_error(hipFree(const_cast<void*>(p_a_grids[i])));
-                hip_check_error(hipFree(const_cast<void*>(p_b_grids[i])));
+                try
+                {
+                    HIP_CHECK_ERROR(hipFree(const_cast<void*>(p_a_grids[i])));
+                }
+                catch(std::runtime_error& re)
+                {
+                    std::cerr << re.what() << std::endl;
+                }
+
+                try
+                {
+                    HIP_CHECK_ERROR(hipFree(const_cast<void*>(p_b_grids[i])));
+                }
+                catch(std::runtime_error& re)
+                {
+                    std::cerr << re.what() << std::endl;
+                }
 
                 static_for<0, NumDs, 1>{}([&](auto j) {
                     using DDataType = remove_cvref_t<tuple_element_t<j.value, DsDataType>>;
-                    hip_check_error(
-                        hipFree(static_cast<void*>(const_cast<DDataType*>(p_ds_grids[i][j]))));
+                    try
+                    {
+                        HIP_CHECK_ERROR(
+                            hipFree(static_cast<void*>(const_cast<DDataType*>(p_ds_grids[i][j]))));
+                    }
+                    catch(std::runtime_error& re)
+                    {
+                        std::cerr << re.what() << std::endl;
+                    }
                 });
             }
         }
@@ -154,8 +176,8 @@ struct RotatingMemWrapper
         {
             {
                 void* pADeviceBuf;
-                hip_check_error(hipMalloc(static_cast<void**>(&pADeviceBuf), size_a_));
-                hip_check_error(hipMemcpy(static_cast<void*>(pADeviceBuf),
+                HIP_CHECK_ERROR(hipMalloc(static_cast<void**>(&pADeviceBuf), size_a_));
+                HIP_CHECK_ERROR(hipMemcpy(static_cast<void*>(pADeviceBuf),
                                           const_cast<void*>(p_a_grids[0]),
                                           size_a_,
                                           hipMemcpyDeviceToDevice));
@@ -164,8 +186,8 @@ struct RotatingMemWrapper
 
             {
                 void* pBDeviceBuf;
-                hip_check_error(hipMalloc(static_cast<void**>(&pBDeviceBuf), size_b_));
-                hip_check_error(hipMemcpy(static_cast<void*>(pBDeviceBuf),
+                HIP_CHECK_ERROR(hipMalloc(static_cast<void**>(&pBDeviceBuf), size_b_));
+                HIP_CHECK_ERROR(hipMemcpy(static_cast<void*>(pBDeviceBuf),
                                           const_cast<void*>(p_b_grids[0]),
                                           size_b_,
                                           hipMemcpyDeviceToDevice));
@@ -199,8 +221,23 @@ struct RotatingMemWrapper
             // free device mem
             for(size_t i = 1; i < rotating_count; i++)
             {
-                hip_check_error(hipFree(const_cast<void*>(p_a_grids[i])));
-                hip_check_error(hipFree(const_cast<void*>(p_b_grids[i])));
+                try
+                {
+                    HIP_CHECK_ERROR(hipFree(const_cast<void*>(p_a_grids[i])));
+                }
+                catch(std::runtime_error& re)
+                {
+                    std::cerr << re.what() << std::endl;
+                }
+
+                try
+                {
+                    HIP_CHECK_ERROR(hipFree(const_cast<void*>(p_b_grids[i])));
+                }
+                catch(std::runtime_error& re)
+                {
+                    std::cerr << re.what() << std::endl;
+                }
             }
         }
     }
@@ -218,11 +255,11 @@ struct RotatingMemWrapper
 inline void flush_icache()
 {
     hipDeviceProp_t deviceProps;
-    hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
+    HIP_CHECK_ERROR(hipGetDeviceProperties(&deviceProps, 0));
     int32_t gpu_block3 = deviceProps.multiProcessorCount * 60;
 
     ck::flush_icache<<<dim3(gpu_block3), dim3(64), 0, nullptr>>>();
-    hip_check_error(hipGetLastError());
+    HIP_CHECK_ERROR(hipGetLastError());
 }
 // if TimePrePress == false, return time does not include preprocess's time
 template <bool TimePreprocess,
@@ -260,7 +297,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         for(int i = 0; i < stream_config.cold_niters_; ++i)
         {
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
-            hip_check_error(hipGetLastError());
+            HIP_CHECK_ERROR(hipGetLastError());
         }
 
         const int nrepeat = stream_config.nrepeat_;
@@ -280,45 +317,36 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 #endif
         hipEvent_t start, stop;
 
-        hip_check_error(hipEventCreate(&start));
-        hip_check_error(hipEventCreate(&stop));
-
-        hip_check_error(hipDeviceSynchronize());
-        hip_check_error(hipEventRecord(start, stream_config.stream_id_));
+        HIP_CHECK_ERROR(hipEventCreate(&start));
+        HIP_CHECK_ERROR(hipEventCreate(&stop));
 
         for(int i = 0; i < nrepeat; ++i)
         {
-            if constexpr(!TimePreprocess)
-            {
-                preprocess();
-            }
+            preprocess();
 
-            // hipEvent_t start, stop;
-
-            // hip_check_error(hipEventCreate(&start));
-            // hip_check_error(hipEventCreate(&stop));
-
-            // hip_check_error(hipDeviceSynchronize());
-            // hip_check_error(hipEventRecord(start, stream_config.stream_id_));
-            // calculate preprocess time
-            if constexpr(TimePreprocess)
-            {
-                preprocess();
-            }
             // run real kernel
-            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
-            hip_check_error(hipGetLastError());
+            hipExtLaunchKernelGGL(kernel,
+                                  grid_dim,
+                                  block_dim,
+                                  lds_byte,
+                                  stream_config.stream_id_,
+                                  start,
+                                  stop,
+                                  0,
+                                  gemm_args);
+            HIP_CHECK_ERROR(hipGetLastError());
             // end real kernel
 
-            //             hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-            //             hip_check_error(hipEventSynchronize(stop));
-            //             float cur_time = 0;
-            //             hip_check_error(hipEventElapsedTime(&cur_time, start, stop));
-            // #if MEDIAN
-            //             times.insert(cur_time);
-            // #else
-            //             total_time += cur_time;
-            // #endif
+            HIP_CHECK_ERROR(hipEventRecord(stop, stream_config.stream_id_));
+            HIP_CHECK_ERROR(hipEventSynchronize(stop));
+
+            float cur_time = 0;
+            HIP_CHECK_ERROR(hipEventElapsedTime(&cur_time, start, stop));
+#if MEDIAN
+            times.insert(cur_time);
+#else
+            total_time += cur_time;
+#endif
 
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -329,15 +357,6 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                        static_cast<const void*>(gemm_args.p_b_grid));
             }
         }
-        hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-        hip_check_error(hipEventSynchronize(stop));
-        float cur_time = 0;
-        hip_check_error(hipEventElapsedTime(&cur_time, start, stop));
-#if MEDIAN
-        times.insert(cur_time);
-#else
-        total_time += cur_time;
-#endif
 
 #if MEDIAN
         auto mid = times.begin();
@@ -353,24 +372,20 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             return (*mid + *mid_next) / 2;
         }
 #else
-        // return total_time / nrepeat;
-        hipDeviceProp_t deviceProps;
-        hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
-        float preprocess_offset = deviceProps.multiProcessorCount==80? 0.005 : 0.01;
-        return (total_time - preprocess_offset * nrepeat) / nrepeat;
+        return total_time / nrepeat;
 #endif
     }
     else
     {
         preprocess();
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
-        hip_check_error(hipGetLastError());
+        HIP_CHECK_ERROR(hipGetLastError());
 
         return 0;
     }
 #else
     kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
-    hip_check_error(hipGetLastError());
+    HIP_CHECK_ERROR(hipGetLastError());
 
     return 0;
 #endif

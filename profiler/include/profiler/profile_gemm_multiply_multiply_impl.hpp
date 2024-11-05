@@ -190,7 +190,7 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
     {
         // Seems like when performance measurement has bug when spiltK is large
         // std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38};
-        std::vector<int> kbatch_list = {1, 2, 4};
+        std::vector<int> kbatch_list = {1, 2, 4, 8, 16};
 
         if(KBatch > 0)
         {
@@ -251,8 +251,11 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
 
                 std::string op_name = op_ptr->GetTypeString();
 
+                hipStream_t stream;
+                hip_check_error(hipStreamCreate(&stream));
+
                 float ave_time = invoker_ptr->Run(argument_ptr.get(),
-                                                  StreamConfig{nullptr,
+                                                  StreamConfig{stream,
                                                                time_kernel,
                                                                0,
                                                                n_warmup,
