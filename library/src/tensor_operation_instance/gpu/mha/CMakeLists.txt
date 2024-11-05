@@ -27,11 +27,6 @@ rocm_install(FILES ${MHA_HEADERS} DESTINATION include/ck_tile/ops)
 # headers for building lib
 file(COPY ${MHA_HEADERS} DESTINATION ${FMHA_CPP_FOLDER})
 
-# Delete the blob file if it exists to avoid append of old content.
-if(EXISTS ${FMHA_CPP_FOLDER}/blob_list.txt)
-    file(REMOVE ${FMHA_CPP_FOLDER}/blob_list.txt)
-endif()
-
 set(FMHA_KNOWN_APIS "fwd,fwd_splitkv,fwd_appendkv,bwd")
 
 # generate a list of kernels, but not actually emit files at config stage
