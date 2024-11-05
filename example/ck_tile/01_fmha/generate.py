@@ -47,6 +47,9 @@ def list_blobs(output_file : Optional[str], api_list : List[str], kernel_filter 
     assert output_file is not None
     file_path = Path(output_file)
 
+    # create an empty file / drop its contents if it exists
+    open(file_path, "w").close()
+
     for api in api_list:
         handler = handlers[api][HandlerId.LIST_BLOBS]
         handler(file_path, kernel_filter, receipt, mask_impl)

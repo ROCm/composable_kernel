@@ -559,7 +559,7 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
         w_p = Path(self.working_path)
         list_p = w_p / 'layernorm2d_fwd_blobs.txt'
         blobs = self.get_blobs()
-        with list_p.open('a') as list_f:
+        with list_p.open('w') as list_f:
             # api related file
             list_f.write(str(w_p / (self.name_api + ".cpp"))  + "\n")
             list_f.write(str(w_p / (self.name_common_header + ".hpp"))  + "\n")
