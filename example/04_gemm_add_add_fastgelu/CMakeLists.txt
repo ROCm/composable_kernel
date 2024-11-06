@@ -16,7 +16,7 @@ if(USE_BITINT_EXTENSION_INT4)
     add_example_dependencies(example_gemm_add_add_fastgelu_xdl example_gemm_add_add_fastgelu_xdl_int4)
 endif(USE_BITINT_EXTENSION_INT4)
 
-list(APPEND gpu_list gfx90a gfx940 gfx941 gfx942)
+list(APPEND gpu_list gfx90a gfx940 gfx941 gfx942 gfx950)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
     if(gpu IN_LIST gpu_list AND target EQUAL 0)
