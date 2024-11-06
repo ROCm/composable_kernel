@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/e8m0_utils.hpp"
 #include "ck/utility/f8_utils.hpp"
 #include "ck/utility/mxf4_utils.hpp"
 #include "ck/utility/random_gen.hpp"
@@ -575,6 +576,25 @@ inline __host__ __device__ float type_convert<float, f4_t>(f4_t data)
     // return fval;
 #else
     return utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(), data);
+#endif
+}
+
+// Declare a template function for scaled conversion
+template <typename Y, typename X>
+__host__ __device__ constexpr Y scaled_type_convert(e8m0_scale_t scale, X x);
+
+// convert fp4 to fp32
+template <>
+inline __host__ __device__ float scaled_type_convert<float, f4_t>(e8m0_scale_t scale, f4_t data)
+{
+#if defined(__gfx94__)
+    // float fval;
+    // uint32_t i32val = static_cast<uint32_t>(x);
+    // fval            = __builtin_amdgcn_cvt_f32_fp8(i32val, 0);
+    // // asm volatile("v_cvt_f32_fp8 %0, %1 src0_sel:BYTE_0" : "=v"(fval) : "v"(i32val));
+    // return fval;
+#else
+    return utils::to_float<f4_t>(scale, data);
 #endif
 }
 
