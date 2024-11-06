@@ -18,7 +18,7 @@ struct AddRmsnormRdquantTypeConfig<ck_tile::half_t>
     using BDataType       = ck_tile::half_t;
     using GammaDataType   = ck_tile::half_t;
     using XDataType       = ck_tile::half_t;
-    using YScaleDataType  = ck_tile::half_t;
+    using YScaleDataType  = float;
     using QYDataType      = ck_tile::int8_t;
     using ComputeDataType = float;
 };
@@ -30,7 +30,7 @@ struct AddRmsnormRdquantTypeConfig<ck_tile::bf16_t>
     using BDataType       = ck_tile::bf16_t;
     using GammaDataType   = ck_tile::bf16_t;
     using XDataType       = ck_tile::bf16_t;
-    using YScaleDataType  = ck_tile::bf16_t;
+    using YScaleDataType  = float;
     using QYDataType      = ck_tile::int8_t;
     using ComputeDataType = float;
 };
@@ -101,7 +101,7 @@ struct add_rmsnorm2d_rdquant_fwd_traits_
     using WarpTile   = ck_tile::sequence<Warp_M, Warp_N>;
     using Vector     = ck_tile::sequence<1, Vector_N_>;
 
-    using Shape = ck_tile::AddRmsnorm2dRdquantShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using Shape = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
 
     static constexpr bool kPadN      = kPadN_;
     static constexpr bool kSaveX     = kSaveX_;

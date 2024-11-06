@@ -29,7 +29,8 @@ struct BlockReduce2d
         sweep_tile<XDistributedTensor_>(
             [&](auto... idx_) {
                 constexpr auto idx_0 = make_tuple(make_tuple(idx_[number<0>{}]...)[number<0>{}]);
-                y_tensor(idx_0)      = reduce_func(y_tensor(idx_0), x_tensor[idx_]...);
+                y_tensor(idx_0)      = reduce_func(
+                    y_tensor(idx_0), ck_tile::type_convert<ComputeDataType>(x_tensor[idx_])...);
             },
             ReducePacksPerXDim{});
 #if 0
