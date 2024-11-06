@@ -1,0 +1,45 @@
+## Captured by CTest for MI300X `ctest -N -R "fp8|bf8"`
+example_gemm_xdl_fp8_v3
+example_gemm_xdl_fp16_fp8_v3
+example_gemm_xdl_fp8
+example_gemm_xdl_fp8_bf8
+example_gemm_xdl_fp16_fp8
+example_convnd_fwd_xdl_fp8
+example_convnd_fwd_xdl_bf8
+example_convnd_fwd_xdl_fp16_comp_fp8
+example_convnd_fwd_xdl_fp8_bf8
+example_convnd_fwd_xdl_bf8_fp8
+example_grouped_gemm_xdl_fixed_nk_fp16_fp8
+example_grouped_conv_bwd_weight_xdl_fp16_comp_bf8_fp8
+example_splitK_gemm_xdl_fp16_fp8
+example_grouped_conv_bwd_data_xdl_fp16_comp_bf8_fp8
+elementwise_scale_permute_amax_2D_fp16_fp8
+example_convnd_fwd_xdl_convinvscale_fp8
+example_convnd_fwd_xdl_convscale_fp8
+example_convnd_fwd_xdl_convscale_bf8
+example_convnd_fwd_xdl_convscale_fp8_bf8
+example_convnd_fwd_xdl_convscale_bf8_fp8
+example_convnd_fwd_xdl_convscale_relu_fp8
+example_convnd_fwd_xdl_convscale_add_fp8
+example_convnd_fwd_xdl_convscale_relu_amax_fp8
+example_convnd_fwd_xdl_convscale_amax_fp8
+example_gemm_multiply_multiply_xdl_fp8
+example_gemm_multiply_multiply_xdl_fp8_ab_scale
+test_fp8_fnuz
+test_bf8_fnuz
+test_fp8_ocp
+test_bf8_ocp
+## Found by searching for `f8` in the `example` folder
+example_gemm_add_add_xdl_fp16
+## Found by searching for `f8` in the `test` folder
+test_custom_type
+test_gemm_universal
+### test_pool
+test_avg_pool3d_fwd
+test_max_pool3d_fwd
+test_avg_pool2d_bwd
+test_max_pool2d_bwd
+test_avg_pool2d_fwd
+test_max_pool2d_fwd
+
+## Total Tests: 37
