@@ -20,6 +20,7 @@
 #include "ck_tile/host/reference/reference_batched_rotary_position_embedding.hpp"
 #include "ck_tile/host/reference/reference_batched_softmax.hpp"
 #include "ck_tile/host/reference/reference_elementwise.hpp"
+#include "ck_tile/host/reference/reference_fused_moe.hpp"
 #include "ck_tile/host/reference/reference_gemm.hpp"
 #include "ck_tile/host/reference/reference_im2col.hpp"
 #include "ck_tile/host/reference/reference_layernorm2d_fwd.hpp"

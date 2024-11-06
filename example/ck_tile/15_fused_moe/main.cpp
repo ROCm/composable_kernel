@@ -152,11 +152,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t shared_intermediate_size = intermediate_size * (gate_only ? 1 : 2) / tp;
 
-    using TypeConfig = FusedMoeGemmTypeConfig<I, W, O, ST, SW, SQ, KW>;
-    using ADataType  = typename TypeConfig::ADataType;
-    using GDataType  = typename TypeConfig::GDataType;
-    using DDataType  = typename TypeConfig::DDataType;
-    // using AccDataType          = typename TypeConfig::AccDataType;
+    using TypeConfig           = FusedMoeGemmTypeConfig<I, W, O, ST, SW, SQ, KW>;
+    using ADataType            = typename TypeConfig::ADataType;
+    using GDataType            = typename TypeConfig::GDataType;
+    using DDataType            = typename TypeConfig::DDataType;
+    using AccDataType          = typename TypeConfig::AccDataType;
     using ODataType            = typename TypeConfig::ODataType;
     using AScaleDataType       = typename TypeConfig::AScaleDataType;
     using GScaleDataType       = typename TypeConfig::GScaleDataType;
@@ -313,154 +313,35 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(do_validation)
     {
-#if 0
-        // reference
-        if(fused_add != 0)
-        {
-            // fused pre_add/pre_add_store
-            // TODO we accumulate directly to a_host for simplcity here...
-            std::transform(a_host.mData.cbegin(),
-                           a_host.mData.cend(),
-                           x_residual_host.mData.cbegin(),
-                           a_host.mData.begin(),
-                           [](auto x_, auto r_) {
-                               auto o_ = ck_tile::type_convert<ComputeDataType>(x_) +
-                                         ck_tile::type_convert<ComputeDataType>(r_);
-                               return ck_tile::type_convert<ADataType>(o_);
-                           });
-        }
-        ck_tile::reference_layernorm2d_fwd<ADataType,
-                                           GammaDataType,
-                                           BetaDataType,
-                                           ComputeDataType,
-                                           YDataType,
-                                           MeanDataType,
-                                           InvStdDataType>(
-            a_host, gamma_host, beta_host, y_host_ref, mean_host_ref, invStd_host_ref, epsilon);
+        ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Gelu>(
+            a_host,
+            g_host,
+            d_host,
+            sa_host,
+            sg_host,
+            sd_host,
+            sy_host,
+            o_host,
+            sorted_token_ids_host,
+            sorted_weight_host,
+            sorted_expert_ids_host,
+            num_sorted_tiles_host,
+            topk_ids_host,
+            block_m,
+            tokens,
+            experts,
+            hidden_size,
+            intermediate_size,
+            topk,
+            gate_only);
 
-        if(fused_quant != 0)
-        {
-            auto dquant_functor = [&](int m_, auto& o_, auto& acc_) {
-                int N_ = acc_.mDesc.get_lengths()[1];
-                if(fused_quant == 1)
-                {
-                    for(int n_ = 0; n_ < N_; n_++)
-                    {
-                        // input smooth outlier
-                        acc_(m_, n_) =
-                            acc_(m_, n_) * ck_tile::type_convert<ComputeDataType>(x_scale_host(n_));
-                    }
-                }
-                ComputeDataType absmax = static_cast<ComputeDataType>(0);
-                for(int n_ = 0; n_ < N_; n_++)
-                {
-                    const auto a = ck_tile::abs(acc_(m_, n_));
-                    absmax       = a > absmax ? a : absmax;
-                }
-                // printf("cpu:absmax:%f\n", absmax);
-                ComputeDataType y_scale = absmax / static_cast<ComputeDataType>(127.0);
-                y_scale_host_ref(m_)    = ck_tile::type_convert<YScaleDataType>(y_scale);
-                for(int n_ = 0; n_ < N_; n_++)
-                {
-                    o_(m_, n_) = ck_tile::type_convert<YDataType>(acc_(m_, n_) / y_scale);
-                }
-            };
-
-            ck_tile::reference_layernorm2d_fwd<ADataType,
-                                               GammaDataType,
-                                               BetaDataType,
-                                               ComputeDataType,
-                                               YDataType,
-                                               MeanDataType,
-                                               InvStdDataType>(a_host,
-                                                               gamma_host,
-                                                               beta_host,
-                                                               y_host_ref,
-                                                               mean_host_ref,
-                                                               invStd_host_ref,
-                                                               epsilon,
-                                                               dquant_functor);
-        }
-        else
-        {
-            ck_tile::reference_layernorm2d_fwd<ADataType,
-                                               GammaDataType,
-                                               BetaDataType,
-                                               ComputeDataType,
-                                               YDataType,
-                                               MeanDataType,
-                                               InvStdDataType>(
-                a_host, gamma_host, beta_host, y_host_ref, mean_host_ref, invStd_host_ref, epsilon);
-        }
-
-        y_buf.FromDevice(y_host_dev.data());
-
-        ck_tile::HostTensor<YResidualDataType> y_residual_host_dev({m, n}, {stride, 1});
-        if(fused_add == 1)
-        {
-            y_residual_buf.FromDevice(y_residual_host_dev.data());
-        }
-
-        auto [rtol, atol] = get_elimit<InDataType>();
-
-        if(stride == n)
-        {
-            pass = ck_tile::check_err(
-                y_host_dev, y_host_ref, std::string("OUT Error: Incorrect results!"), rtol, atol);
-            if(fused_add == 1)
-            {
-                pass &= ck_tile::check_err(y_residual_host_dev,
-                                           a_host,
-                                           std::string("ADD Error: Incorrect results!"),
-                                           rtol,
-                                           atol);
-            }
-        }
-        else
-        {
-            for(int i_r = 0; i_r < m; i_r++)
-            {
-                std::vector<YDataType> y_host_dev_row(y_host_dev.begin() + i_r * stride,
-                                                      y_host_dev.begin() + i_r * stride + n);
-                std::vector<YDataType> y_host_ref_row(y_host_ref.begin() + i_r * stride,
-                                                      y_host_ref.begin() + i_r * stride + n);
-                pass &= ck_tile::check_err(y_host_dev_row,
-                                           y_host_ref_row,
-                                           std::string("OUT[") + std::to_string(i_r) +
-                                               std::string("] Error: Incorrect results!"),
-                                           rtol,
-                                           atol);
-                if(fused_add == 1)
-                {
-                    std::vector<YResidualDataType> y_residual_host_dev_row(
-                        y_residual_host_dev.begin() + i_r * stride,
-                        y_residual_host_dev.begin() + i_r * stride + n);
-                    std::vector<YResidualDataType> y_residual_host_ref_row(
-                        a_host.begin() + i_r * stride, a_host.begin() + i_r * stride + n);
-                    pass &= ck_tile::check_err(y_residual_host_dev_row,
-                                               y_residual_host_ref_row,
-                                               std::string("ADD[") + std::to_string(i_r) +
-                                                   std::string("] Error: Incorrect results!"),
-                                               rtol,
-                                               atol);
-                }
-            }
-        }
-        if(fused_quant == 1)
-        {
-            y_scale_buf.FromDevice(y_scale_host_dev.data());
-            pass &= ck_tile::check_err(y_scale_host_dev,
-                                       y_scale_host_ref,
-                                       std::string("SCALE Error: Incorrect results!"),
-                                       rtol,
-                                       atol);
-        }
-
-        std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
-#else
-        std::cout << std::flush << std::endl;
-#endif
+        auto o_dev        = o_buf.ToHost<ODataType>();
+        auto [rtol, atol] = get_elimit<ADataType>();
+        pass &= ck_tile::check_err(
+            o_dev, o_host, std::string("OUT Error: Incorrect results!"), rtol, atol);
+        std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
     }
+    std::cout << std::flush << std::endl;
 
     return pass;
 }
