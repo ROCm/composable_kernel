@@ -25,6 +25,8 @@ struct WarpGemmAtrributeMfma
     static constexpr index_t kN = Impl::kN;
     static constexpr index_t kK = Impl::kK;
 
+    CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return 1; }
+
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
         tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
@@ -87,6 +89,8 @@ struct WarpGemmAtrributeMfmaIterateK
     static constexpr index_t kM = Impl::kM;
     static constexpr index_t kN = Impl::kN;
     static constexpr index_t kK = Impl::kK * kKIter;
+
+    CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return kKIter; }
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -197,6 +201,8 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
     static constexpr index_t kN = Impl::kM;
     static constexpr index_t kK = Impl::kK;
 
+    CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return 1; }
+
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
         tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
@@ -257,6 +263,8 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
     static constexpr index_t kM = Impl::kN;
     static constexpr index_t kN = Impl::kM;
     static constexpr index_t kK = Impl::kK;
+
+    CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return 1; }
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -325,6 +333,8 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
     static constexpr index_t kM = Impl::kN;
     static constexpr index_t kN = Impl::kM;
     static constexpr index_t kK = Impl::kK * kKIter;
+
+    CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return kKIter; }
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -438,6 +448,8 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
     static constexpr index_t kN      = Impl::kM;
     static constexpr index_t kK      = Impl::kK * kKIter;
     static constexpr index_t SFactor = SFactor_; // group how many CM1 together
+
+    CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return kKIter; }
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -575,6 +587,8 @@ struct WarpGemmAtrributeMfmaIterateK_SwizzleA
     static constexpr index_t kN      = Impl::kN;
     static constexpr index_t kK      = Impl::kK * kKIter;
     static constexpr index_t SFactor = SFactor_; // group how many CM1 together
+
+    CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return kKIter; }
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,

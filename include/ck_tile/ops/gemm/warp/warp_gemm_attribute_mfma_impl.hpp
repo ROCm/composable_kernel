@@ -24,7 +24,7 @@ enum class WGAttrCtlEnum
 #define DISPATCH_MFMA_(mfma_, dmod_, amod_, bmod_, cmod_)       \
     if constexpr(post_nop_)                                     \
     {                                                           \
-        asm volatile(mfma_ " %0, %1, %2, %3\n"                  \
+        asm volatile(mfma_ " %0, %1, %2, %3 ; yyy\n"            \
                            "s_nop 3"                            \
                      : dmod_(c_vec)                             \
                      : amod_(a_vec), bmod_(b_vec), cmod_(c_vec) \

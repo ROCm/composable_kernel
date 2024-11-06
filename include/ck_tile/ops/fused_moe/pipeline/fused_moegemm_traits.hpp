@@ -33,4 +33,15 @@ struct FusedMoeGemmTraits
     static constexpr bool PadHiddenSize                        = PadHiddenSize_;
     static constexpr bool PadIntermediateSize                  = PadIntermediateSize_;
 };
+
+// Note: this need to be a bit mask
+enum class FusedMoeGemmPipelineSequencerEnum
+{
+    SLD_A = 1 << 0, // shared load a
+    SLD_B = 1 << 1,
+    GLD_A = 1 << 2, // global load a
+    GLD_B = 1 << 3,
+    SST_A = 1 << 4, // shared store a
+    SST_B = 1 << 5,
+};
 } // namespace ck_tile

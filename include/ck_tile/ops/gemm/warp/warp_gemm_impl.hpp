@@ -31,6 +31,11 @@ struct WarpGemmImpl
     using BWarpTensor = static_distributed_tensor<BDataType, BWarpDstr>;
     using CWarpTensor = static_distributed_tensor<CDataType, CWarpDstr>;
 
+    CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access()
+    {
+        return WarpGemmAttribute_::get_num_of_access();
+    }
+
     template <typename CTensor, typename ATensor, typename BTensor, bool post_nop_ = false>
     CK_TILE_DEVICE void
     operator()(CTensor& c, const ATensor& a, const BTensor& b, bool_constant<post_nop_> = {}) const

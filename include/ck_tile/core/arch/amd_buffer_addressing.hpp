@@ -888,6 +888,11 @@ CK_TILE_DEVICE void buffer_store_fence(index_t cnt = 0)
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }
 
+CK_TILE_DEVICE auto async_load_fence_raw(index_t cnt = 0)
+{
+    asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
+}
+
 // buffer load i8
 CK_TILE_DEVICE_EXTERN int8_t
 llvm_amdgcn_raw_buffer_load_i8(int32x4_t srsrc,

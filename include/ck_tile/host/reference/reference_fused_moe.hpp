@@ -97,7 +97,7 @@ void reference_fused_moe(
     int max_num_tokens_padded = topk * tokens + experts * (block_m - 1);
     // assert();
     auto f = [&](auto i_flatten) {
-        ck_tile::index_t i_tile   = i_flatten / block_m;
+        ck_tile::index_t i_tile = i_flatten / block_m;
         if(i_tile >= num_sorted_tiles)
             return;
         ck_tile::index_t i_expert = sorted_expert_ids_host.mData[i_tile];
@@ -136,7 +136,7 @@ void reference_fused_moe(
             {
                 AccDataType tmp;
                 Activation{}(tmp, acc_0(0, i_n));
-                y(0, i_n) = tmp * acc_0(0, i_n + hidden_size);  // TODO: elementwise mul
+                y(0, i_n) = tmp * acc_0(0, i_n + hidden_size); // TODO: elementwise mul
             }
         }
 

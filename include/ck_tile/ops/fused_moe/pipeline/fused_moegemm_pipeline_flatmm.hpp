@@ -156,10 +156,10 @@ struct FusedMoeGemmPipeline_Flatmm
         using g_thread_type = decltype(load_tile(g_win));
         using d_thread_type = decltype(load_tile(d_win));
 
-        // using WarpGemm0  = Policy::template GetWarpGemm0<Problem>();
-        // using WarpGemm1  = Policy::template GetWarpGemm1<Problem>();
-        // auto warp_gemm_0 = WarpGemm0{};
-        // auto warp_gemm_1 = WarpGemm1{};
+        using WarpGemm0  = decltype(Policy::template GetWarpGemm0<Problem>());
+        using WarpGemm1  = decltype(Policy::template GetWarpGemm1<Problem>());
+        auto warp_gemm_0 = WarpGemm0{};
+        auto warp_gemm_1 = WarpGemm1{};
 
         // issues_warps_lanes
         auto a_sst_win0 =
@@ -175,7 +175,7 @@ struct FusedMoeGemmPipeline_Flatmm
                              {0, 0, 0});
         // m*k
         auto a_sld_win0 = [&]() {
-            using WG                        = decltype(Policy::template GetWarpGemm0<Problem>());
+            using WG                        = WarpGemm0;
             constexpr auto a_outer_dstr_enc = tile_distribution_encoding<
                 sequence<>,
                 tuple<sequence<BlockShape::Repeat_M0, BlockShape::WarpPerBlock_M0>,
@@ -196,7 +196,7 @@ struct FusedMoeGemmPipeline_Flatmm
 
         // m*k
         auto a_sld_win1 = [&]() {
-            using WG                        = decltype(Policy::template GetWarpGemm0<Problem>());
+            using WG                        = WarpGemm0;
             constexpr auto a_outer_dstr_enc = tile_distribution_encoding<
                 sequence<>,
                 tuple<sequence<BlockShape::Repeat_M0, BlockShape::WarpPerBlock_M0>,
@@ -242,10 +242,12 @@ struct FusedMoeGemmPipeline_Flatmm
         constexpr auto issues_d = number<d_win.get_num_of_access()>{};
         constexpr auto issues_o = number<o_win.get_num_of_access()>{};
         constexpr auto issues_gemm0 =
-            number<BlockShape::Repeat_M0 * BlockShape::Repeat_N0 * BlockShape::Repeat_K0>{};
+            number<BlockShape::Repeat_M0 * BlockShape::Repeat_N0 * BlockShape::Repeat_K0 *
+                   warp_gemm_0.get_num_of_access()>{};
         constexpr auto issues_gemm1 =
-            number<BlockShape::Repeat_M1 * BlockShape::Repeat_N1 * BlockShape::Repeat_K1>{};
-        constexpr auto issues_sld_a = number<a_sld_win0.get_num_of_access()>{};
+            number<BlockShape::Repeat_M1 * BlockShape::Repeat_N1 * BlockShape::Repeat_K1 *
+                   warp_gemm_1.get_num_of_access()>{};
+        // constexpr auto issues_sld_a = number<a_sld_win0.get_num_of_access()>{};
 
         const index_t num_blocks_k0 =
             (hidden_size + BlockShape::Block_K0 - 1) / BlockShape::Block_K0;
@@ -284,11 +286,9 @@ struct FusedMoeGemmPipeline_Flatmm
             }
             load_tile_raw(g_, g_win, i_access, FALSE, PreNop{});
         };
-        auto move_g =
-            [&]() {
-                move_tile_window(g_win,
-                                 {number<0>{}, number<BlockShape::Block_Kr0>{}, number<0>{}});
-            };
+        auto move_g = [&]() {
+            move_tile_window(g_win, {number<0>{}, number<BlockShape::Block_Kr0>{}, number<0>{}});
+        };
         statically_indexed_array<d_thread_type, 2> ds;
 
         auto gld_d = [&]<typename PreNop = bool_constant<false>>(
@@ -314,16 +314,17 @@ struct FusedMoeGemmPipeline_Flatmm
         // clang-format off
         auto gemm_0 = [&]<typename PostNop = bool_constant<false>>
         (auto& t_c, auto& t_a, auto& t_b, auto i_access, PostNop = {}) {
-            auto warp_gemm = Policy::template GetWarpGemm0<Problem>();
-            using WarpGemm = remove_cvref_t<decltype(warp_gemm)>;
+            using WarpGemm = remove_cvref_t<decltype(warp_gemm_0)>;
 
+            constexpr auto repeat_sub = WarpGemm::get_num_of_access();
             constexpr auto repeat_m = BlockShape::Repeat_M0;
             // constexpr auto repeat_n = BlockShape::Repeat_N0;
             constexpr auto repeat_k = BlockShape::Repeat_K0;
             // loop order n->m->k
-            constexpr auto i_k = i_access % repeat_k;
-            constexpr auto i_m = (i_access / repeat_k) % repeat_m;
-            constexpr auto i_n = (i_access / repeat_k) / repeat_m;
+            constexpr auto i_sub = i_access % repeat_sub;
+            constexpr auto i_k = (i_access / repeat_sub) % repeat_k;
+            constexpr auto i_m = (i_access / (repeat_sub * repeat_k )) % repeat_m;
+            constexpr auto i_n = (i_access / (repeat_sub * repeat_k )) / repeat_m;
 
             using AWarpTensor = typename WarpGemm::AWarpTensor;
             using BWarpTensor = typename WarpGemm::BWarpTensor;
@@ -355,7 +356,7 @@ struct FusedMoeGemmPipeline_Flatmm
                         merge_sequences(sequence<i_m, i_n>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-            WarpGemm{}(w_c, w_a, w_b, PostNop{});
+            warp_gemm_0(w_c, w_a, w_b, number<i_sub>{}, PostNop{});
 
             t_c.set_y_sliced_thread_data(
                         merge_sequences(sequence<i_m, i_n>{}, c_warp_y_index_zeros),
@@ -367,16 +368,17 @@ struct FusedMoeGemmPipeline_Flatmm
         // clang-format off
         auto gemm_1 = [&]<typename PostNop = bool_constant<false>>
         (auto& t_c, auto& t_a, auto& t_b, auto i_access, PostNop = {}) {
-            auto warp_gemm = Policy::template GetWarpGemm1<Problem>();
-            using WarpGemm = remove_cvref_t<decltype(warp_gemm)>;
+            using WarpGemm = remove_cvref_t<decltype(warp_gemm_1)>;
 
-            constexpr auto repeat_m = BlockShape::Repeat_M1;
-            // constexpr auto repeat_n = BlockShape::Repeat_N1;
-            constexpr auto repeat_k = BlockShape::Repeat_K1;
+            constexpr auto repeat_sub = WarpGemm::get_num_of_access();
+            constexpr auto repeat_m = BlockShape::Repeat_M0;
+            // constexpr auto repeat_n = BlockShape::Repeat_N0;
+            constexpr auto repeat_k = BlockShape::Repeat_K0;
             // loop order n->m->k
-            constexpr auto i_k = i_access % repeat_k;
-            constexpr auto i_m = (i_access / repeat_k) % repeat_m;
-            constexpr auto i_n = (i_access / repeat_k) / repeat_m;
+            constexpr auto i_sub = i_access % repeat_sub;
+            constexpr auto i_k = (i_access / repeat_sub) % repeat_k;
+            constexpr auto i_m = (i_access / (repeat_sub * repeat_k )) % repeat_m;
+            constexpr auto i_n = (i_access / (repeat_sub * repeat_k )) / repeat_m;
 
             using AWarpTensor = typename WarpGemm::AWarpTensor;
             using BWarpTensor = typename WarpGemm::BWarpTensor;
@@ -408,7 +410,7 @@ struct FusedMoeGemmPipeline_Flatmm
                         merge_sequences(sequence<i_m, i_n>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-            WarpGemm{}(w_c, w_a, w_b, PostNop{});
+            warp_gemm_1(w_c, w_a, w_b, number<i_sub>{}, PostNop{});
 
             t_c.set_y_sliced_thread_data(
                         merge_sequences(sequence<i_m, i_n>{}, c_warp_y_index_zeros),
@@ -416,84 +418,72 @@ struct FusedMoeGemmPipeline_Flatmm
                         w_c.get_thread_buffer());
         };
         // clang-format on
-        _Pragma("clang diagnostic pop")
+        _Pragma("clang diagnostic pop");
 
-            // this gemm pipeline is designed with assumption that issues of buffer-load/ds_read can
-            // be hide under mfma. In other words, issues of mfma is >= memory this is true if we
-            // pre-shuffle B matrix, and A matrix is relatively small we prefer use multiple mfma
-            // paired with 1 buffer-load B matrix, to get max throughput of buffer_load. and by
-            // preshuffle, we always pack to dwordx4 load, and this will already extend to multiple
-            // mfma but that is already consumed inside warpgemm-impl. So indeed how many extra
-            // mfma(that can reuse the B matrix) only affected by M repeat.
-            auto pipeline_gemm0 = [&]() {
-                constexpr index_t total_loops    = issues_gemm0;
-                constexpr index_t mfma_per_ld = total_loops / (issues_g + issues_a + issues_sld_a);
+        // this gemm pipeline is designed with assumption that issues of buffer-load/ds_read can
+        // be hide under mfma. In other words, issues of mfma is >= memory this is true if we
+        // pre-shuffle B matrix, and A matrix is relatively small we prefer use multiple mfma
+        // paired with 1 buffer-load B matrix, to get max throughput of buffer_load. and by
+        // preshuffle, we always pack to dwordx4 load, and this will already extend to multiple
+        // mfma but that is already consumed inside warpgemm-impl. So indeed how many extra
+        // mfma(that can reuse the B matrix) only affected by M repeat.
+        auto pipeline_gemm0 = [&]() {
+            constexpr index_t total_loops = issues_gemm0;
+            constexpr auto sr             = Policy::template GetSequencer_0<Problem>();
+            static_assert(sr.size() == total_loops);
+            constexpr index_t SLD_A =
+                static_cast<index_t>(FusedMoeGemmPipelineSequencerEnum::SLD_A);
+            constexpr index_t GLD_A =
+                static_cast<index_t>(FusedMoeGemmPipelineSequencerEnum::GLD_A);
+            constexpr index_t GLD_B =
+                static_cast<index_t>(FusedMoeGemmPipelineSequencerEnum::GLD_B);
+            constexpr auto c_sld_a_0 = MAKE_SC();
+            constexpr auto c_gld_a_0 = MAKE_SC();
+            constexpr auto c_gld_b_0 = MAKE_SC();
+            // compute buffer 1
+            static_for<0, total_loops, 1>{}([&](auto i_issue) {
+                gemm_0(acc_0, as[I0], gs[I0], i_issue);
+                constexpr index_t slot = sr.at(i_issue);
 
-                // compute buffer 0
-                static_for<0, total_loops, 1>{}([&](auto i_issue) {
-                    gemm_0(acc_0, as[I0], gs[I0], i_issue);
+                if constexpr(slot & SLD_A)
+                    sld_a(as[I1], a_sld_win1, number<NEXT_SCI(c_sld_a_0, i_issue)>{});
+                if constexpr(slot & GLD_A)
+                    gld_a(a_sst_win0, number<NEXT_SCI(c_gld_a_0, i_issue)>{});
+                if constexpr(slot & GLD_B)
+                    gld_g(gs[I0], number<NEXT_SCI(c_gld_b_0, i_issue)>{});
+            });
+            move_g();
+            move_a();
+            block_sync_load_raw(issues_a + issues_g);
+            lds_load_fence();
 
-                    if constexpr(i_issue % mfma_per_ld == 0)
-                    {
-                        constexpr index_t ld_id = 0;
+            constexpr auto c_sld_a_1 = MAKE_SC();
+            constexpr auto c_gld_a_1 = MAKE_SC();
+            constexpr auto c_gld_b_1 = MAKE_SC();
 
-                        if constexpr(ld_id < issues_g)
-                        {
-                            gld_g(gs[I0], number<ld_id>{});
-                        }
-                        if constexpr(ld_id - issues_g < +issues_a)
-                        {
-                            gld_a(a_sst_win0, number<ld_id - issues_g>{});
-                        }
-                        if constexpr(ld_id - issues_g - issues_a < issues_sld_a)
-                        {
-                            sld_a(as[I1], a_sld_win1, number<ld_id - issues_g - issues_a>{});
-                        }
+            // compute buffer 1
+            static_for<0, total_loops, 1>{}([&](auto i_issue) {
+                gemm_0(acc_0, as[I1], gs[I1], i_issue);
+                constexpr index_t slot = sr.at(i_issue);
 
-                        ld_id++;
-                    }
-
-                });
-                move_g();
-                move_a();
-                block_sync_load_raw(issues_a + issues_g);
-                lds_load_fence();
-
-                // compute buffer 1
-                static_for<0, total_loops, 1>{}([&](auto i_issue) {
-                    gemm_0(acc_0, as[I1], gs[I1], i_issue);
-
-                    if constexpr(i_issue % mfma_per_ld == 0)
-                    {
-                        constexpr index_t ld_id = 0;
-
-                        if constexpr(ld_id < issues_g)
-                        {
-                            gld_g(gs[I1], number<ld_id>{});
-                        }
-                        if constexpr(ld_id - issues_g < +issues_a)
-                        {
-                            gld_a(a_sst_win1, number<ld_id - issues_g>{});
-                        }
-                        if constexpr(ld_id - issues_g - issues_a < issues_sld_a)
-                        {
-                            sld_a(as[I0], a_sld_win0, number<ld_id - issues_g - issues_a>{});
-                        }
-
-                        ld_id++;
-                    }
-                });
-                move_g();
-                move_a();
-                block_sync_load_raw(issues_a + issues_g);
-                lds_load_fence();
-            };
+                if constexpr(slot & SLD_A)
+                    sld_a(as[I0], a_sld_win0, number<NEXT_SCI(c_sld_a_1, i_issue)>{});
+                if constexpr(slot & GLD_A)
+                    gld_a(a_sst_win1, number<NEXT_SCI(c_gld_a_1, i_issue)>{});
+                if constexpr(slot & GLD_B)
+                    gld_g(gs[I1], number<NEXT_SCI(c_gld_b_1, i_issue)>{});
+            });
+            move_g();
+            move_a();
+            block_sync_load_raw(issues_a + issues_g);
+            lds_load_fence();
+        };
 
         auto pipeline_gemm0_tail = [&]() {
             constexpr index_t total_loops    = issues_gemm0;
             constexpr index_t mfma_per_gld_g = total_loops / issues_g; // BlockShape::Repeat_M0;
             // constexpr index_t mfma_per_gld_a = total_loops / issues_a;
-            constexpr index_t mfma_per_sld_a = total_loops / issues_sld_a;
+            // constexpr index_t mfma_per_sld_a = total_loops / issues_sld_a;
 
             // compute buffer 0
             static_for<0, total_loops, 1>{}([&](auto i_issue) {
@@ -515,7 +505,7 @@ struct FusedMoeGemmPipeline_Flatmm
             });
             // if cycle_mfma>gld_a sync here
             block_sync_load_raw(issues_g);
-            sld_a(as[I1], a_sld_win1, NEG1{});
+            sld_a(as[I1], a_sld_win1, NEG1);
 
             // compute buffer 1
             static_for<0, total_loops, 1>{}([&](auto i_issue) {
