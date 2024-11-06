@@ -96,7 +96,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     ck_tile::HostTensor<WeightType> sorted_weights_host({max_output_ids}, {1});
     ck_tile::HostTensor<IndexType> expert_ids_host({max_output_ids / unit_size}, {1});
     ck_tile::HostTensor<IndexType> sorted_id_cnt_host({1}, {1});
-    ck_tile::HostTensor<IndexType> moe_buf_host({moe_buf_size}, {1});
+    ck_tile::HostTensor<float> moe_buf_host({moe_buf_size}, {1});
 
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(weights_host);
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(moe_buf_host);
@@ -127,7 +127,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                           unit_size,
                           experts,
                           topk,
-                          moe_buf_size};
+                          static_cast<ck_tile::index_t>(moe_buf_host.get_element_space_size_in_bytes())};
 
     ck_tile::stream_config sc{nullptr,
                               true,
@@ -162,7 +162,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
         ck_tile::HostTensor<IndexType> sorted_ids_ref({max_output_ids}, {1});
         ck_tile::HostTensor<WeightType> sorted_weights_ref({max_output_ids}, {1});
         ck_tile::HostTensor<IndexType> expert_ids_ref({max_output_ids / unit_size}, {1});
-        ck_tile::HostTensor<IndexType> moe_buf_ref({moe_buf_size}, {1});
+        ck_tile::HostTensor<WeightType> moe_buf_ref({moe_buf_size}, {1});
 
         moe_buf_ref.SetZero();
         int32_t total_tokens_post_pad = 0;

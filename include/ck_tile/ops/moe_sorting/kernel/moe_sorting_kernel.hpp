@@ -107,7 +107,7 @@ struct MoeSortingKernel
         const index_t offset = (blockIdx.x - 1) * blockDim.x + threadIdx.x;
         if(offset < buf_bytes / 16)
         {
-            buf[offset] = uint8x16_t(0);
+            buf[offset] = uint8x16_t{0};
         }
     }
 

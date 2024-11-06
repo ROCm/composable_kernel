@@ -24,6 +24,11 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
             printf("lds size exceed, only support experts <127 \n");
             return -1;
         }
+        if(a.moe_buf_set_bytes % 16)
+        {
+            printf("buf set size %d unaligned, must be multiple of 16\n", a.moe_buf_set_bytes);
+            return -1;
+        }
         using index_t              = ck_tile::index_t;
         using ms_weight_type       = float;
         index_t smem_io_unroll_num = ck_tile::integer_divide_ceil(a.tokens * a.topk, 64);
