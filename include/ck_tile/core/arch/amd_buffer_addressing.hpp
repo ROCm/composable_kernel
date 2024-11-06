@@ -640,6 +640,11 @@ CK_TILE_DEVICE void buffer_load_fence(index_t cnt = 0)
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }
 
+CK_TILE_DEVICE void lds_load_fence(index_t cnt = 0)
+{
+    asm volatile("s_waitcnt lgkmcnt(%0)" : : "n"(cnt) : "memory");
+}
+
 template <typename scalar_type, index_t N, bool pre_nop = false>
 struct buffer_atomic_add_if;
 
