@@ -354,9 +354,10 @@ CK_TILE_DEVICE constexpr index_t block_tile_welford_calculate_max_count(int row_
 }
 
 // Note: this function must be called after all the computation
-template <bool FastFdiv_ = false, typename VarDistributedTensor_>
+template <typename VarDistributedTensor_, bool FastFdiv_ = false>
 CK_TILE_DEVICE constexpr void block_tile_welford_post_scale_var(VarDistributedTensor_& var_tensor,
-                                                                int count)
+                                                                int count,
+                                                                bool_constant<FastFdiv_> = {})
 {
     using DataType = typename VarDistributedTensor_::DataType;
     tile_elementwise_inout(

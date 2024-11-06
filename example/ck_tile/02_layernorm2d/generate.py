@@ -274,7 +274,7 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
 #include "layernorm2d_fwd_api_common.hpp"
 
 // clang-format off
-//                                      prec_i           prec_o           prec_sy           rm  rn  tm    tn  vn  pd     mv     2p      add  sweep
+//                                      prec_i           prec_o           prec_sy           rm  rn  tm    tn  vn  pd     mv    rpcf    2p      add  sweep
 {F_instance_def}
 // clang-format on
 
