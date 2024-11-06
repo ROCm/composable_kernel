@@ -30,27 +30,41 @@ using DeviceGemmV2Instance =
         ALayout,   BLayout,  CLayout,   
         ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
+#if 0
         256,
-        256, 224, 
+        256, 224,
         32, 4, 4,
         16,   16,
         8,    7,
-        S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
+        S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 4, 4, 0,
-        S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
+        S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 4, 4, 0,
         2, 1, S<1, 64, 1, 4>, 4,
-        ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3, ComputeType, ComputeType, ComputeType, ComputeType>;
-// clang-format on
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ComputeType, ComputeType, ComputeType, ComputeType>;
+#else
+        256,
+        256, 256,
+        32, 4, 4,
+        32,   32,
+        4,    4,
+        S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        2, 4, 4, 0,
+        S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        2, 4, 4, 0,
+        2, 1, S<1, 64, 1, 4>, 4,
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ComputeType, ComputeType, ComputeType, ComputeType>;
+#endif
+      // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                        BDataType,
-                                                                        CDataType,
-                                                                        AccDataType,
-                                                                        AElementOp,
-                                                                        BElementOp,
-                                                                        CElementOp,
-                                                                        float>;
+    using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                            BDataType,
+                                                                            CDataType,
+                                                                            AccDataType,
+                                                                            AElementOp,
+                                                                            BElementOp,
+                                                                            CElementOp,
+                                                                            float>;
 
 #include "run_gemm_example_v2.inc"
 

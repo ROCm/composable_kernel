@@ -16,6 +16,12 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
+
+void add_device_gemm_xdl_universal_f32_f32_f32_comp_tf32_mk_nk_mn_comp_default_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmV2<Row, Col, Row, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
 #ifdef CK_ENABLE_FP16
 void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
@@ -255,6 +261,7 @@ void add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v2_kpadding_instances
         DeviceGemmV2<Row, Col, Row, F8, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
+
 #ifdef CK_ENABLE_BF16
 void add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
@@ -542,6 +549,17 @@ struct DeviceOperationInstanceFactory<
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+        if constexpr(is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
+                     is_same_v<CDataType, float>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_universal_f32_f32_f32_comp_tf32_mk_nk_mn_comp_default_instances(
+                    op_ptrs);
+            }
+        }
 
 #ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&

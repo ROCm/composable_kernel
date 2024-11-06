@@ -156,7 +156,11 @@ int profile_gemm_universal(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-    if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
+    if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(F32{}, F32{}, F32{}, F32{}, F32{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(F16{}, F16{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
     }
