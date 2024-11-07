@@ -22,10 +22,10 @@ auto create_args(int argc, char* argv[])
         .insert("pr_i", "int32", "index data type. (currently only int32 supported now)")
         .insert("pr_w", "fp32", "output weight data type(currently only fp32 supported now)")
         .insert("t", "128", "number of input tokens")
-        .insert("e", "8", "number of experts")
+        .insert("e", "8", "number of num_experts")
         .insert("k", "4", "topk")
         .insert("unit", "32", "unit_size")
-        .insert("moe_buf_size", "-1", "moe_buf_size")
+        .insert("moe_buf_size", "0", "moe_buf_size")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "when set to 1 it will print kernel name")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
@@ -66,7 +66,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     std::string index_prec  = args.get_str("pr_i");
     std::string weight_prec = args.get_str("pr_w");
     int tokens              = args.get_int("t");
-    int experts             = args.get_int("e");
+    int num_experts         = args.get_int("e");
     int topk                = args.get_int("k");
     int seed                = args.get_int("seed");
     int unit_size           = args.get_int("unit");
@@ -74,18 +74,18 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     int kname               = args.get_int("kname");
     int warmup              = args.get_int("warmup");
     int repeat              = args.get_int("repeat");
-    int max_output_ids      = ck_tile::integer_least_multiple(topk * tokens, unit_size) * experts;
+    int max_output_ids = ck_tile::integer_least_multiple(topk * tokens, unit_size) * num_experts;
 
     if(seed < 0)
     {
         seed = std::time(nullptr);
     }
 
-    if(topk > experts)
+    if(topk > num_experts)
     {
-        printf("topk:%d value should be smaller than, or equal to number of experts:%d\n",
+        printf("topk:%d value should be smaller than, or equal to number of num_experts:%d\n",
                topk,
-               experts);
+               num_experts);
         return false;
     }
 
@@ -94,41 +94,44 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     ck_tile::HostTensor<WeightType> weights_host({tokens, topk}, {topk, 1});
     ck_tile::HostTensor<IndexType> sorted_ids_host({max_output_ids}, {1});
     ck_tile::HostTensor<WeightType> sorted_weights_host({max_output_ids}, {1});
-    ck_tile::HostTensor<IndexType> expert_ids_host({max_output_ids / unit_size}, {1});
+    ck_tile::HostTensor<IndexType> sorted_expert_ids_host({max_output_ids / unit_size}, {1});
     ck_tile::HostTensor<IndexType> sorted_id_cnt_host({1}, {1});
-    ck_tile::HostTensor<float> moe_buf_host({moe_buf_size}, {1});
+    ck_tile::HostTensor<float> moe_buf_host({moe_buf_size});
 
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(weights_host);
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(moe_buf_host);
-    topid_unique_gen<IndexType>(topk_ids_host.mData, tokens, topk, experts, seed);
+    topid_unique_gen<IndexType>(topk_ids_host.mData, tokens, topk, num_experts, seed);
 
     ck_tile::DeviceMem topk_ids_dev(topk_ids_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem weights_dev(weights_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem sorted_ids_dev(sorted_ids_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem sorted_weights_dev(sorted_weights_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem expert_ids_dev(expert_ids_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem sorted_expert_ids_dev(
+        sorted_expert_ids_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem sorted_id_cnt_dev(sorted_id_cnt_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem moe_buf_dev(moe_buf_host.get_element_space_size_in_bytes());
 
     topk_ids_dev.ToDevice(topk_ids_host.data());
     weights_dev.ToDevice(weights_host.data());
-    moe_buf_dev.ToDevice(moe_buf_host.data());
+    if(moe_buf_size > 0)
+    {
+        moe_buf_dev.ToDevice(moe_buf_host.data());
+    }
 
-    moe_sorting_trait trait{index_prec, weight_prec, experts, topk, unit_size, tokens};
+    moe_sorting_trait trait{index_prec, weight_prec, num_experts, topk, unit_size, tokens};
 
-    moe_sorting_args karg{
-        topk_ids_dev.GetDeviceBuffer(),
-        weights_dev.GetDeviceBuffer(),
-        sorted_ids_dev.GetDeviceBuffer(),
-        sorted_weights_dev.GetDeviceBuffer(),
-        expert_ids_dev.GetDeviceBuffer(),
-        sorted_id_cnt_dev.GetDeviceBuffer(),
-        moe_buf_dev.GetDeviceBuffer(),
-        tokens,
-        unit_size,
-        experts,
-        topk,
-        static_cast<ck_tile::index_t>(moe_buf_host.get_element_space_size_in_bytes())};
+    moe_sorting_args karg{topk_ids_dev.GetDeviceBuffer(),
+                          weights_dev.GetDeviceBuffer(),
+                          sorted_ids_dev.GetDeviceBuffer(),
+                          sorted_weights_dev.GetDeviceBuffer(),
+                          sorted_expert_ids_dev.GetDeviceBuffer(),
+                          sorted_id_cnt_dev.GetDeviceBuffer(),
+                          moe_buf_size > 0 ? moe_buf_dev.GetDeviceBuffer() : nullptr,
+                          tokens,
+                          unit_size,
+                          num_experts,
+                          topk,
+                          static_cast<ck_tile::index_t>(moe_buf_size * sizeof(float))};
 
     ck_tile::stream_config sc{nullptr,
                               true,
@@ -136,11 +139,11 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                               warmup,
                               repeat};
     auto ms = moe_sorting(trait, karg, sc);
-    printf("[%s|%s]tokens:%d, experts:%d, topk:%d,  ms:%f , ",
+    printf("[%s|%s]tokens:%d, num_experts:%d, topk:%d,  ms:%f , ",
            index_prec.c_str(),
            weight_prec.c_str(),
            tokens,
-           experts,
+           num_experts,
            topk,
            ms);
     if(ms < 0)
@@ -153,27 +156,28 @@ bool test_moe_sorting(ck_tile::ArgParser args)
 
     sorted_ids_dev.FromDevice(sorted_ids_host.data());
     sorted_weights_dev.FromDevice(sorted_weights_host.data());
-    expert_ids_dev.FromDevice(expert_ids_host.data());
+    sorted_expert_ids_dev.FromDevice(sorted_expert_ids_host.data());
     sorted_id_cnt_dev.FromDevice(sorted_id_cnt_host.data());
-    moe_buf_dev.FromDevice(moe_buf_host.data());
+    if(moe_buf_size > 0)
+    {
+        moe_buf_dev.FromDevice(moe_buf_host.data());
+    }
 
     bool rtn = true;
     if(validate)
     {
         ck_tile::HostTensor<IndexType> sorted_ids_ref({max_output_ids}, {1});
         ck_tile::HostTensor<WeightType> sorted_weights_ref({max_output_ids}, {1});
-        ck_tile::HostTensor<IndexType> expert_ids_ref({max_output_ids / unit_size}, {1});
-        ck_tile::HostTensor<WeightType> moe_buf_ref({moe_buf_size}, {1});
+        ck_tile::HostTensor<IndexType> sorted_expert_ids_ref({max_output_ids / unit_size}, {1});
 
-        moe_buf_ref.SetZero();
-        int32_t total_tokens_post_pad = 0;
+        int32_t ref_total_tokens_post_pad = 0;
         ck_tile::reference_moe_sorting<WeightType, IndexType>(topk_ids_host,
                                                               weights_host,
                                                               sorted_ids_ref,
                                                               sorted_weights_ref,
-                                                              expert_ids_ref,
-                                                              total_tokens_post_pad,
-                                                              experts,
+                                                              sorted_expert_ids_ref,
+                                                              ref_total_tokens_post_pad,
+                                                              num_experts,
                                                               unit_size);
         rtn &= ck_tile::check_err(
             sorted_ids_host, sorted_ids_ref, std::string("OUT Error: Incorrect ids!"), 1e-6, 1e-6);
@@ -182,11 +186,18 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                                   std::string("OUT Error: Incorrect w!"),
                                   1e-6,
                                   1e-6);
-        rtn &= ck_tile::check_err(
-            expert_ids_host, expert_ids_ref, std::string("OUT Error: Incorrect eid!"), 1e-6, 1e-6);
-        rtn &= ck_tile::check_err(
-            moe_buf_host, moe_buf_ref, std::string("OUT Error: Incorrect zero buf!"), 0, 0);
-        rtn &= total_tokens_post_pad == sorted_id_cnt_host.mData[0];
+        rtn &= ck_tile::check_err(sorted_expert_ids_host,
+                                  sorted_expert_ids_ref,
+                                  std::string("OUT Error: Incorrect eid!"),
+                                  1e-6,
+                                  1e-6);
+        if(moe_buf_size)
+        {
+            ck_tile::HostTensor<WeightType> moe_buf_ref({moe_buf_size});
+            rtn &= ck_tile::check_err(
+                moe_buf_host, moe_buf_ref, std::string("OUT Error: Incorrect zero buf!"), 0, 0);
+        }
+        rtn &= ref_total_tokens_post_pad == sorted_id_cnt_host.mData[0];
     }
 
     printf("valid:%s\n", rtn ? "y" : "n");

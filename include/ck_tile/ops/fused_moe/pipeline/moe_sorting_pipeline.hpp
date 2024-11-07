@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/moe_sorting/pipeline/moe_sorting_policy.hpp"
+#include "ck_tile/ops/fused_moe/pipeline/moe_sorting_policy.hpp"
 #include <string>
 #include <type_traits>
 
@@ -25,10 +25,10 @@ namespace ck_tile {
 //     template <typename TopkIdWindow, typename WeightWindow>
 //     CK_TILE_DEVICE auto operator()(const TopkIdWindow& topk_id_window,
 //                                    const WeightWindow& weight_window,
-//                                     index_t* sorted_token_ids,
-//                                     WeightType* sorted_weights,
-//                                     index_t* expert_ids,
-//                                     index_t* total_tokens_post_pad,
+//                                     index_t* p_sorted_token_ids,
+//                                     WeightType* p_sorted_weights,
+//                                     index_t* p_sorted_expert_ids,
+//                                     index_t* p_total_tokens_post_pad,
 //                                     const index_t num_experts,
 //                                     const index_t unit_size,
 //                                     const size_t numel,

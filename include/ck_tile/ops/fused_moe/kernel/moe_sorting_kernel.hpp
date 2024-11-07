@@ -16,10 +16,10 @@ struct MoeSortingHostArgs
 {
     const void* p_topk_ids;
     const void* p_weights;
-    void* sorted_token_ids;
-    void* sorted_weights;
-    void* expert_ids;
-    void* total_tokens_post_pad;
+    void* p_sorted_token_ids;
+    void* p_sorted_weights;
+    void* p_sorted_expert_ids;
+    void* p_total_tokens_post_pad;
     void* moe_buf;
     index_t tokens;
     index_t unit_size;
@@ -44,10 +44,10 @@ struct MoeSortingKernel
     {
         const void* p_topk_ids;
         const void* p_weights;
-        void* sorted_token_ids;
-        void* sorted_weights;
-        void* expert_ids;
-        void* total_tokens_post_pad;
+        void* p_sorted_token_ids;
+        void* p_sorted_weights;
+        void* p_sorted_expert_ids;
+        void* p_total_tokens_post_pad;
         void* moe_buf;
         index_t tokens;
         index_t num_experts;
@@ -79,16 +79,16 @@ struct MoeSortingKernel
     CK_TILE_HOST static constexpr auto MakeKargs(const Hargs& h)
     {
         Kargs k;
-        k.p_topk_ids            = h.p_topk_ids;
-        k.p_weights             = h.p_weights;
-        k.sorted_token_ids      = h.sorted_token_ids;
-        k.sorted_weights        = h.sorted_weights;
-        k.expert_ids            = h.expert_ids;
-        k.moe_buf               = h.moe_buf;
-        k.total_tokens_post_pad = h.total_tokens_post_pad;
-        k.tokens                = h.tokens;
-        k.num_experts           = h.num_experts;
-        k.moe_buf_set_bytes     = h.moe_buf_set_bytes;
+        k.p_topk_ids              = h.p_topk_ids;
+        k.p_weights               = h.p_weights;
+        k.p_sorted_token_ids      = h.p_sorted_token_ids;
+        k.p_sorted_weights        = h.p_sorted_weights;
+        k.p_sorted_expert_ids     = h.p_sorted_expert_ids;
+        k.moe_buf                 = h.moe_buf;
+        k.p_total_tokens_post_pad = h.p_total_tokens_post_pad;
+        k.tokens                  = h.tokens;
+        k.num_experts             = h.num_experts;
+        k.moe_buf_set_bytes       = h.moe_buf_set_bytes;
 
         const auto blocks   = BlockSize(h);
         k.tokens_per_thread = integer_divide_ceil(h.tokens * h.topk, blocks.x);
@@ -113,10 +113,10 @@ struct MoeSortingKernel
 
     CK_TILE_DEVICE void moe_align_block_size_kernel(const IndexType* __restrict__ topk_id,
                                                     const WeightType* __restrict__ weights,
-                                                    index_t* sorted_token_ids,
-                                                    WeightType* sorted_weights,
-                                                    index_t* expert_ids,
-                                                    index_t* total_tokens_post_pad,
+                                                    index_t* p_sorted_token_ids,
+                                                    WeightType* p_sorted_weights,
+                                                    index_t* p_sorted_expert_ids,
+                                                    index_t* p_total_tokens_post_pad,
                                                     const index_t num_experts,
                                                     const index_t tokens_per_thread,
                                                     const index_t numel,
@@ -166,14 +166,14 @@ struct MoeSortingKernel
                 }();
                 cumsum[i] = cumsum[i - 1] + current_units;
             }
-            *total_tokens_post_pad = unit_size_mdiv.div(cumsum[num_experts]);
+            *p_total_tokens_post_pad = unit_size_mdiv.div(cumsum[num_experts]);
         }
         __syncthreads();
         if(tid < num_experts)
         {
             for(int i = cumsum[tid]; i < cumsum[tid + 1]; i += unit_size_mdiv.divisor)
             {
-                expert_ids[unit_size_mdiv.div(i)] = tid;
+                p_sorted_expert_ids[unit_size_mdiv.div(i)] = tid;
             }
         }
 
@@ -183,8 +183,8 @@ struct MoeSortingKernel
             index_t expert_id = topk_id[i];
             index_t rank_post_pad =
                 tokens_cnts[calc_index(num_experts, tid, expert_id)] + cumsum[expert_id];
-            sorted_token_ids[rank_post_pad] = topk_mdiv.div(i);
-            sorted_weights[rank_post_pad]   = weights[i];
+            p_sorted_token_ids[rank_post_pad] = topk_mdiv.div(i);
+            p_sorted_weights[rank_post_pad]   = weights[i];
             ++tokens_cnts[calc_index(num_experts, tid, expert_id)];
         }
 
@@ -195,8 +195,8 @@ struct MoeSortingKernel
                 cumsum[tid] + tokens_cnts[calc_index(num_experts, blockDim.x, tid)];
             while(expert_offset < cumsum[tid + 1])
             {
-                sorted_token_ids[expert_offset] = prefill_token;
-                sorted_weights[expert_offset]   = static_cast<WeightType>(0.0);
+                p_sorted_token_ids[expert_offset] = prefill_token;
+                p_sorted_weights[expert_offset]   = static_cast<WeightType>(0.0);
                 expert_offset++;
             }
         }
@@ -206,17 +206,21 @@ struct MoeSortingKernel
     {
         if(blockIdx.x > 0)
         {
-            return moe_buf_set_zero_kernel(reinterpret_cast<uint8x16_t*>(kargs.moe_buf),
-                                           kargs.moe_buf_set_bytes);
+            if(kargs.moe_buf)
+            {
+                moe_buf_set_zero_kernel(reinterpret_cast<uint8x16_t*>(kargs.moe_buf),
+                                        kargs.moe_buf_set_bytes);
+            }
+            return;
         }
         const size_t numel = kargs.tokens * kargs.topk_mdiv.divisor;
         extern __shared__ char smem[];
         return moe_align_block_size_kernel(static_cast<const IndexType*>(kargs.p_topk_ids),
                                            static_cast<const WeightType*>(kargs.p_weights),
-                                           static_cast<IndexType*>(kargs.sorted_token_ids),
-                                           static_cast<WeightType*>(kargs.sorted_weights),
-                                           static_cast<IndexType*>(kargs.expert_ids),
-                                           static_cast<IndexType*>(kargs.total_tokens_post_pad),
+                                           static_cast<IndexType*>(kargs.p_sorted_token_ids),
+                                           static_cast<WeightType*>(kargs.p_sorted_weights),
+                                           static_cast<IndexType*>(kargs.p_sorted_expert_ids),
+                                           static_cast<IndexType*>(kargs.p_total_tokens_post_pad),
                                            kargs.num_experts,
                                            kargs.tokens_per_thread,
                                            numel,
