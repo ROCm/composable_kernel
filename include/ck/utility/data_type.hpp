@@ -1845,7 +1845,7 @@ struct NumericUtils<half_t>
     static constexpr bool has_inf       = true;
     using bitwise_type                  = uint16_t;
 };
-  
+
 template <>
 struct NumericUtils<bhalf_t>
 {
