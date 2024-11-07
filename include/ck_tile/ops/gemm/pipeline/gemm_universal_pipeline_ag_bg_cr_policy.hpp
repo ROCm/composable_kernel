@@ -31,14 +31,14 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 TransposeC>;
 
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
-        using LayoutA   = remove_cvref_t<typename Problem::LayoutA>;
+        using ALayout   = remove_cvref_t<typename Problem::ALayout>;
 
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t K1        = WarpGemm::kK;
         constexpr index_t K0        = KPerBlock / K1;
 
-        if constexpr(std::is_same<tensor_layout::gemm::RowMajor, LayoutA>::value)
+        if constexpr(std::is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
             constexpr auto MLdsLayer        = 32 * 4 / KPerBlock / sizeof(ADataType) < 1
                                                   ? 1
@@ -173,7 +173,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 TransposeC>;
 
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
-        using LayoutB   = remove_cvref_t<typename Problem::LayoutB>;
+        using BLayout   = remove_cvref_t<typename Problem::BLayout>;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -181,7 +181,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t K1 = WarpGemm::kK;
         constexpr index_t K0 = KPerBlock / K1;
 
-        if constexpr(std::is_same<tensor_layout::gemm::ColumnMajor, LayoutB>::value)
+        if constexpr(std::is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
             // NLdsLayer * K0 as logical Bank
             constexpr auto NLdsLayer = 32 * 4 / KPerBlock / sizeof(BDataType) < 1
@@ -381,14 +381,14 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 Problem::BlockGemmShape::WarpTile::at(I1),
                                                 Problem::BlockGemmShape::WarpTile::at(I2),
                                                 TransposeC>;
-        using LayoutB  = remove_cvref_t<typename Problem::LayoutB>;
+        using BLayout  = remove_cvref_t<typename Problem::BLayout>;
 
         constexpr index_t BlockSize = Problem::kBlockSize;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-        if constexpr(std::is_same_v<LayoutB, ck_tile::tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             constexpr index_t N1           = WarpGemm::kN;
             constexpr index_t N0           = NPerBlock / N1;
@@ -498,9 +498,9 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 Problem::BlockGemmShape::WarpTile::at(I1),
                                                 Problem::BlockGemmShape::WarpTile::at(I2),
                                                 TransposeC>;
-        using LayoutB  = remove_cvref_t<typename Problem::LayoutB>;
+        using BLayout  = remove_cvref_t<typename Problem::BLayout>;
 
-        static_assert(std::is_same_v<LayoutB, ck_tile::tensor_layout::gemm::RowMajor>);
+        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;

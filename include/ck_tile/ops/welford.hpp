@@ -6,4 +6,5 @@
 #include "ck_tile/ops/welford/block/block_welford.hpp"
 #include "ck_tile/ops/welford/block/block_welford_problem.hpp"
 #include "ck_tile/ops/welford/thread/thread_welford.hpp"
+#include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"

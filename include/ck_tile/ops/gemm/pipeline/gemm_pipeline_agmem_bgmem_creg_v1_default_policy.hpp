@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -74,8 +74,6 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        using namespace ck_tile;
-
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
@@ -96,7 +94,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeA()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
         constexpr index_t smem_size_a = sizeof(typename Problem::ADataType) *
                                         MakeALdsBlockDescriptor<Problem>().get_element_space_size();
@@ -104,7 +102,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeB()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
         constexpr index_t smem_size_b = sizeof(typename Problem::BDataType) *
                                         MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
@@ -112,7 +110,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
@@ -244,14 +242,14 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
     {
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
-        using LayoutB   = remove_cvref_t<typename Problem::LayoutB>;
+        using BLayout   = remove_cvref_t<typename Problem::BLayout>;
 
         constexpr index_t BlockSize = Problem::kBlockSize;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-        if constexpr(std::is_same_v<LayoutB, ck_tile::tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t N1           = MEM_VEC_SIZE / sizeof(BDataType);
             constexpr index_t N0           = NPerBlock / N1;
@@ -331,9 +329,9 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledBRegBlockDescriptor()
     {
-        using LayoutB   = remove_cvref_t<typename Problem::LayoutB>;
+        using BLayout   = remove_cvref_t<typename Problem::BLayout>;
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
-        static_assert(std::is_same_v<LayoutB, ck_tile::tensor_layout::gemm::RowMajor>);
+        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
