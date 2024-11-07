@@ -37,8 +37,8 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 0.2});
-        out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.1, 0.1});
+        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
+        out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-1, 1});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
@@ -128,7 +128,12 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
 
         wei_device_buf.FromDevice(wei_device_result.mData.data());
 
-        return ck::utils::check_err(wei_device_result.mData, wei_host_result.mData);
+        return ck::utils::check_err(
+            wei_device_result.mData,
+            wei_host_result.mData,
+            "Error: Incorrect results!",
+            1e-3,
+            1e-3); // the errors must be consistent with the less precise type of In/Out DataTypes
     }
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
