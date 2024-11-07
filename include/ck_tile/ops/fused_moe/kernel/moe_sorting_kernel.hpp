@@ -84,11 +84,11 @@ struct MoeSortingKernel
         k.p_sorted_token_ids      = h.p_sorted_token_ids;
         k.p_sorted_weights        = h.p_sorted_weights;
         k.p_sorted_expert_ids     = h.p_sorted_expert_ids;
-        k.p_moe_buf                 = h.p_moe_buf;
+        k.p_moe_buf               = h.p_moe_buf;
         k.p_total_tokens_post_pad = h.p_total_tokens_post_pad;
         k.tokens                  = h.tokens;
         k.num_experts             = h.num_experts;
-        k.moe_buf_bytes       = h.moe_buf_bytes;
+        k.moe_buf_bytes           = h.moe_buf_bytes;
 
         const auto blocks   = BlockSize(h);
         k.tokens_per_thread = integer_divide_ceil(h.tokens * h.topk, blocks.x);

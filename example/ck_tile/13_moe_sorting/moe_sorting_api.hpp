@@ -11,10 +11,6 @@ struct moe_sorting_trait
 {
     std::string index_type;
     std::string weight_type; // currently always float
-    int experts;
-    int topk;
-    int unit_size;
-    int tokens;
 };
 
 struct moe_sorting_args : public ck_tile::MoeSortingHostArgs

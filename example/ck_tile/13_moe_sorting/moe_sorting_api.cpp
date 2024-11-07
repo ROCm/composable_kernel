@@ -19,7 +19,7 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
 {
     if(t.weight_type == "fp32" && t.index_type == "int32")
     {
-        if(t.experts > 127)
+        if(a.num_experts > 127)
         {
             printf("lds size exceed, only support experts <127 \n");
             return -1;

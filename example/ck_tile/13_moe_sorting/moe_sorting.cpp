@@ -118,7 +118,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
         moe_buf_dev.ToDevice(moe_buf_host.data());
     }
 
-    moe_sorting_trait trait{index_prec, weight_prec, num_experts, topk, unit_size, tokens};
+    moe_sorting_trait trait{index_prec, weight_prec};
 
     moe_sorting_args karg{topk_ids_dev.GetDeviceBuffer(),
                           weights_dev.GetDeviceBuffer(),
