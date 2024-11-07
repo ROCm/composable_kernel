@@ -40,8 +40,8 @@ using BF8  = ck::bf8_t;
 struct ExecutionConfig final
 {
     bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = true;
+    int init_method      = 2;
+    bool time_kernel     = false;
 };
 
 #define DefaultConvParams                                                                \

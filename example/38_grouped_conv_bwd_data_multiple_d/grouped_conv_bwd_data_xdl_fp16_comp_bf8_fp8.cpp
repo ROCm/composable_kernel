@@ -12,6 +12,7 @@ using DsDataType       = ck::Tuple<>;
 using InDataType       = FP16;
 using AComputeType     = BF8;
 using BComputeType     = FP8;
+using VerifyDataType   = BF8; // is used for selection of check tolerances
 
 using OutLayout = ck::tensor_layout::convolution::GNHWK;
 using WeiLayout = ck::tensor_layout::convolution::GKYXC;

@@ -10,6 +10,7 @@ using AccDataType      = FP32;
 using CShuffleDataType = FP16;
 using DsDataType       = ck::Tuple<>;
 using InDataType       = FP16;
+using VerifyDataType   = FP16; // is used for selection of check tolerances
 
 using OutLayout = ck::tensor_layout::convolution::GNHWK;
 using WeiLayout = ck::tensor_layout::convolution::GKYXC;
