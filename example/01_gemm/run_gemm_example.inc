@@ -166,6 +166,14 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n);
         break;
+    case 6:
+        a_m_k.GenerateTensorValue(GeneratorTensor_PI<ADataType>{});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
+        break;
+    case 7:
+        a_m_k.GenerateTensorValue(GeneratorTensor_PI_A<ADataType>{});
+        b_k_n.GenerateTensorValue(GeneratorTensor_PI_B<BDataType>{});
+        break;
     default:
         ck::utils::FillUniformDistribution<ADataType>{-0.1f, 0.1f}(a_m_k);
         ck::utils::FillUniformDistribution<BDataType>{-0.1f, 0.1f}(b_k_n);
@@ -368,6 +376,32 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #endif
         if(pass)
             std::cout << "Verification on CPU: PASS" << std::endl;
+
+        if(config.init_method == 6 || config.init_method == 7)
+        {
+            std::cout << std::fixed << std::setprecision(16);
+
+            // AccDataType a = ck::type_convert<AccDataType>(a_m_k(0, 10));
+            // AccDataType b = ck::type_convert<AccDataType>(b_k_n(0, 10));
+            // std::cout << "a(0,10): " << a << std::endl;
+            // std::cout << "b(0,10): " << b << std::endl;
+            // std::cout << "a: " << ck::type_convert<AccDataType>(a_m_k(0, 0)) << std::endl;
+            // std::cout << "a: " << ck::type_convert<AccDataType>(a_m_k(0, 1)) << std::endl;
+            // std::cout << "a: " << ck::type_convert<AccDataType>(a_m_k(0, 2)) << std::endl;
+            // std::cout << "b: " << ck::type_convert<AccDataType>(b_k_n(0, 0)) << std::endl;
+            // std::cout << "b: " << ck::type_convert<AccDataType>(b_k_n(1, 0)) << std::endl;
+            // std::cout << "b: " << ck::type_convert<AccDataType>(b_k_n(2, 0)) << std::endl;
+
+            AccDataType d = ck::type_convert<AccDataType>(c_m_n_device_result(0, 10));
+            AccDataType h = ck::type_convert<AccDataType>(c_m_n_host_result(10, 0));
+            std::cout << "device result: " << d << std::endl;
+            std::cout << "host result: " << h << std::endl;
+            std::cout << "expected result: " << M_PI << std::endl;
+            std::cout << "device - host: " << std::abs(d - h) << std::endl;
+            std::cout << "device - expected: " << std::abs(d - M_PI) << std::endl;
+            std::cout << "atol: " << get_atol<CDataType>() << std::endl;
+            std::cout << std::endl << std::endl;
+        }
     }
 
     if((config.do_verification == 2) || (config.do_verification == 3))
