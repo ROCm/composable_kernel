@@ -121,10 +121,10 @@ struct GridwiseTensorRearrange
             __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
         // Global Memory
-        const index_t a_batch_offset =
-            __builtin_amdgcn_readfirstlane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
-        const index_t c_batch_offset =
-            __builtin_amdgcn_readfirstlane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
+        const index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
+        const index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx)));
 
         const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_global + a_batch_offset, in_grid_desc.GetElementSpaceSize());

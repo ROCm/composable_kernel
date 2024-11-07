@@ -137,7 +137,7 @@ if(GPU_TARGETS)
 else()
     set(USER_GPU_TARGETS 0)
 endif()
-find_package(hip)
+find_package(hip REQUIRED)
 # No assumption that HIP kernels are launched with uniform block size for backward compatibility
 # SWDEV-413293 and https://reviews.llvm.org/D155213
 math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
@@ -145,20 +145,20 @@ message("hip_version_flat=${hip_VERSION_FLAT}")
 
 message("checking which targets are supported")
 #In order to build just the CK library (without tests and examples) for all supported GPU targets
-#use -D GPU_ARCHS="gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201" 
+#use -D GPU_ARCHS="gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201"
 #the GPU_TARGETS flag will be reset in this case in order to avoid conflicts.
 #
 #In order to build CK along with all tests and examples it should be OK to set GPU_TARGETS to just 1 or 2 similar architectures.
 if(NOT ENABLE_ASAN_PACKAGING)
     if(NOT WIN32 AND ${hip_VERSION_FLAT} LESS 600300000)
         # WORKAROUND: compiler does not yet fully support gfx12 targets, need to fix version above
-        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx950")
+        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
     else()
         set(CK_GPU_TARGETS "gfx950")
     endif()
 else()
     #build CK only for xnack-supported targets when using ASAN
-    set(CK_GPU_TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx940:xnack+;gfx941:xnack+;gfx942:xnack+")
+    set(CK_GPU_TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx942:xnack+")
 endif()
 
 #if user set GPU_ARCHS on the cmake command line, overwrite default target list with user's list
@@ -170,7 +170,10 @@ else()
         set(CK_GPU_TARGETS ${GPU_TARGETS})
     endif()
 endif()
-
+#if the user did not set GPU_TARGETS, delete whatever was set by HIP package
+if(NOT USER_GPU_TARGETS)
+    set(GPU_TARGETS "")
+endif()
 #make sure all the targets on the list are actually supported by the current compiler
 rocm_check_target_ids(SUPPORTED_GPU_TARGETS
         TARGETS ${CK_GPU_TARGETS})
@@ -194,6 +197,11 @@ endif()
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx90a" OR SUPPORTED_GPU_TARGETS MATCHES "gfx94")
     add_definitions(-DCK_USE_FNUZ_FP8)
     set(CK_USE_FNUZ_FP8 "ON")
+endif()
+
+option(CK_USE_FP8_ON_UNSUPPORTED_ARCH "Enable FP8 GEMM instances on older architectures" OFF)
+if(CK_USE_FP8_ON_UNSUPPORTED_ARCH AND (SUPPORTED_GPU_TARGETS MATCHES "gfx90a" OR SUPPORTED_GPU_TARGETS MATCHES "gfx908"))
+    add_definitions(-DCK_USE_FP8_ON_UNSUPPORTED_ARCH)
 endif()
 
 # CK config file to record supported datatypes, etc.
@@ -322,7 +330,6 @@ link_libraries(${OpenMP_gomp_LIBRARY})
 link_libraries(${OpenMP_pthread_LIBRARY})
 
 ## HIP
-find_package(HIP REQUIRED)
 # Override HIP version in config.h, if necessary.
 # The variables set by find_package() can't be overwritten,
 # therefore let's use intermediate variables.
