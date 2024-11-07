@@ -79,15 +79,9 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, ELayout{}));
 #endif
 
-    std::cout << "a_g_m_k: " << a_g_m_k.mDesc << ", size = "
-              << sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize() / 1024 / 1024 << " MB"
-              << std::endl;
-    std::cout << "b_g_k_n: " << b_g_k_n.mDesc << ", size = "
-              << sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpaceSize() / 1024 / 1024 << " MB"
-              << std::endl;
-    std::cout << "e_g_m_n: " << e_g_m_n_device_result.mDesc << ", size = "
-              << sizeof(EDataType) * e_g_m_n_device_result.mDesc.GetElementSpaceSize() / 1024 / 1024
-              << " MB" << std::endl;
+    std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
+    std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
+    std::cout << "e_g_m_n: " << e_g_m_n_device_result.mDesc << std::endl;
 
     switch(config.init_method)
     {

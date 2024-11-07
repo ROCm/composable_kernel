@@ -83,21 +83,11 @@ bool run_batched_gemm_rowwise(const ProblemSize& problem_size, const ExecutionCo
     Tensor<EDataType> e_g_m_n_device_result(
         f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, ELayout{}));
 
-    std::cout << "a_g_m_k: " << a_g_m_k.mDesc << ", size = "
-              << sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize() / 1024 / 1024 << " MB"
-              << std::endl;
-    std::cout << "b_g_k_n: " << b_g_k_n.mDesc << ", size = "
-              << sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpaceSize() / 1024 / 1024 << " MB"
-              << std::endl;
-    std::cout << "d0_g_m_n: " << d0_g_m_n.mDesc << ", size = "
-              << sizeof(D0DataType) * d0_g_m_n.mDesc.GetElementSpaceSize() / 1024 / 1024 << " MB"
-              << std::endl;
-    std::cout << "d1_g_m_n: " << d1_g_m_n.mDesc << ", size = "
-              << sizeof(D1DataType) * d1_g_m_n.mDesc.GetElementSpaceSize() / 1024 / 1024 << " MB"
-              << std::endl;
-    std::cout << "e_g_m_n: " << e_g_m_n_device_result.mDesc << ", size = "
-              << sizeof(EDataType) * e_g_m_n_device_result.mDesc.GetElementSpaceSize() / 1024 / 1024
-              << " MB" << std::endl;
+    std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
+    std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
+    std::cout << "d0_g_m_n: " << d0_g_m_n.mDesc << std::endl;
+    std::cout << "d1_g_m_n: " << d1_g_m_n.mDesc << std::endl;
+    std::cout << "e_g_m_n: " << e_g_m_n_device_result.mDesc << std::endl;
 
     switch(config.init_method)
     {
