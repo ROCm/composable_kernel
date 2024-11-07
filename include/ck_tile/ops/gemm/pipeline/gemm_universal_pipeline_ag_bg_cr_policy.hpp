@@ -388,7 +388,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             constexpr index_t N1           = WarpGemm::kN;
             constexpr index_t N0           = NPerBlock / N1;
@@ -500,7 +500,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 TransposeC>;
         using BLayout  = remove_cvref_t<typename Problem::BLayout>;
 
-        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
+        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>);
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;

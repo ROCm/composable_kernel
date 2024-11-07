@@ -249,7 +249,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             constexpr index_t N1           = MEM_VEC_SIZE / sizeof(BDataType);
             constexpr index_t N0           = NPerBlock / N1;
@@ -331,7 +331,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     {
         using BLayout   = remove_cvref_t<typename Problem::BLayout>;
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
-        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
+        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>);
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;

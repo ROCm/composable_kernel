@@ -100,7 +100,7 @@ struct GemmKernel
         }();
 
         auto b_tensor_view = [&]() {
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
                 const auto b_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     b_start,
@@ -148,7 +148,7 @@ struct GemmKernel
             {i_m, 0});
 
         auto b_pad_view = [&]() {
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
             {
                 return pad_tensor_view(
                     b_tensor_view,

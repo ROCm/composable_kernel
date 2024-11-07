@@ -150,7 +150,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             store_tile(a_copy_lds_window, a_block_tile_tmp);
 
             // LDS write 0
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                     Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
@@ -187,7 +187,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             store_tile(a_copy_lds_window, a_block_tile_tmp);
 
             // LDS write i + 1
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
                 auto b_shuffle_tmp_loop = make_static_distributed_tensor<BDataType>(
                     Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
