@@ -15,11 +15,13 @@ void add_device_gemm_xdl_universal_f32_f32_f32_comp_tf32_mk_nk_mn_mem_v1_default
 {
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_universal_f32_f32_f32_comp_tf32_mk_nk_mn_mem_instances<Intrawave, GemmDefault>{});
+        device_gemm_xdl_universal_f32_f32_f32_comp_tf32_mk_nk_mn_mem_instances<Intrawave,
+                                                                               GemmDefault>{});
 
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_universal_f32_f32_f32_comp_tf32_mk_nk_mn_mem_instances<Intrawave, GemmMNKPadding>{});
+        device_gemm_xdl_universal_f32_f32_f32_comp_tf32_mk_nk_mn_mem_instances<Intrawave,
+                                                                               GemmMNKPadding>{});
 }
 
 } // namespace instance

@@ -32,6 +32,11 @@ void add_device_gemm_xdl_universal_f32_f32_f32_comp_tf32_mk_nk_mn_mem_v2_default
         DeviceGemmV2<Row, Col, Row, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
+void add_device_gemm_xdl_universal_f32_f32_f32_comp_tf32_mk_kn_mn_comp_default_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmV2<Row, Row, Row, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
 #ifdef CK_ENABLE_FP16
 void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
@@ -563,8 +568,14 @@ struct DeviceOperationInstanceFactory<
         if constexpr(is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
                      is_same_v<CDataType, float>)
         {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_universal_f32_f32_f32_comp_tf32_mk_kn_mn_comp_default_instances(
+                    op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_universal_f32_f32_f32_comp_tf32_mk_nk_mn_comp_default_instances(
                     op_ptrs);
