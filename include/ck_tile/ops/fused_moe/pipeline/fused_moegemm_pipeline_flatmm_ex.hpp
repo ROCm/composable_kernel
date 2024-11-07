@@ -19,7 +19,7 @@ we need to design the pipeline such that all waves along gemm-N dim (gemm-m only
     +----+----+----+----+
 */
 template <typename Problem_, typename Policy_ = FusedMoeGemmPipelineFlatmmPolicy>
-struct FusedMoeGemmPipeline_Flatmm
+struct FusedMoeGemmPipeline_FlatmmEx
 {
     using Problem = remove_cvref_t<Problem_>;
     using Policy  = remove_cvref_t<Policy_>;

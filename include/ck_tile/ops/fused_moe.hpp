@@ -6,7 +6,7 @@
 #include "ck_tile/ops/fused_moe/kernel/fused_moegemm_kernel.hpp"
 #include "ck_tile/ops/fused_moe/kernel/fused_moegemm_shape.hpp"
 #include "ck_tile/ops/fused_moe/kernel/fused_moegemm_tile_partitioner.hpp"
-#include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_pipeline_flatmm.hpp"
+#include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_pipeline_flatmm_ex.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_pipeline_flatmm_policy.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_pipeline_problem.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_traits.hpp"
