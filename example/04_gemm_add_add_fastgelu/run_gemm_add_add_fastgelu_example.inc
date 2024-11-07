@@ -1,5 +1,87 @@
 #pragma once
 
+template <typename DataType>
+inline __host__ __device__ constexpr double get_rtol()
+{
+    if constexpr(std::is_same_v<DataType, float>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, double>)
+    {
+        return 1e-6;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+    {
+        return 5e-2;
+    }
+    else if constexpr(std::is_same_v<DataType, int32_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, int8_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+    {
+        return 2e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+    {
+        return 2e-1;
+    }
+    else
+    {
+        return 1e-3;
+    }
+}
+
+template <typename DataType>
+inline __host__ __device__ constexpr double get_atol()
+{
+    if constexpr(std::is_same_v<DataType, float>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, double>)
+    {
+        return 1e-6;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+    {
+        return 5e-2;
+    }
+    else if constexpr(std::is_same_v<DataType, int32_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, int8_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+    {
+        return 2e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+    {
+        return 2e-1;
+    }
+    else
+    {
+        return 1e-3;
+    }
+}
+
 bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
 #if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
@@ -150,7 +232,11 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
 
         return ck::utils::check_err(e_m_n_device_result_converted, e_m_n_host_result);
 #else
-        return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
+        return ck::utils::check_err(e_m_n_device_result,
+                                    e_m_n_host_result,
+                                    "Error: Incorrect results!",
+                                    get_rtol<EDataType>(),
+                                    get_atol<EDataType>());
 #endif
     }
 
