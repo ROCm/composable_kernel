@@ -43,5 +43,6 @@ enum class FusedMoeGemmPipelineSequencerEnum
     GLD_B = 1 << 3,
     SST_A = 1 << 4, // shared store a
     SST_B = 1 << 5,
+    GST_O = 1 << 6, // global store out
 };
 } // namespace ck_tile

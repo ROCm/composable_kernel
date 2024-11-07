@@ -11,4 +11,7 @@ template float fused_moegemm_<
     fmoe_<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t, float, float, float, float, S<32, 512, 128, 128>, S<1, 4, 1>, S<32, 32, 16>, 1, 0>
 >(const ck_tile::stream_config& s, fused_moegemm_args a);
 
+template float fused_moegemm_<
+    fmoe_<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t, float, float, float, float, S<32, 256, 128, 128>, S<1, 4, 1>, S<32, 32, 16>, 1, 0>
+>(const ck_tile::stream_config& s, fused_moegemm_args a);
 // clang-format on

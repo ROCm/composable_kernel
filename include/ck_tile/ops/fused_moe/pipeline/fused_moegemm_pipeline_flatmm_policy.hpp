@@ -641,6 +641,75 @@ struct FusedMoeGemmPipelineFlatmmPolicy
             return seq_all;
             // clang-format on
         }
+        else if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
+                          std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
+                          S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 16 &&
+                          S_::Block_M0 == 32 && S_::Block_N0 == 256 && S_::Block_K0 == 128 &&
+                          S_::Block_N1 == 128)
+        {
+            // Total 32 instructions, 16 buffer-load-dwordx4 gld_b, 8x buffer-load-dwordx1-async
+            // gld_a 8x ds_read_b128 sld_a total 64 slot :)
+            // clang-format off
+            constexpr auto seq_all =
+                    //       0       1       2        3       4      5        6       7
+                   sequence<GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,    // 0
+                            GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,    // 1
+                            GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A,    // 2
+                            GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A>{};    // 3
+            return seq_all;
+            // clang-format on
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSequencer_1()
+    {
+        // this function return seq<...> used to identify gld/sld/valu... inside mfma sequence
+        // the purpose is to hide thoes instructions under mfma
+        // every value inside seq<...> is a mask, indicating a specific operation
+        using S_                = typename Problem::BlockShape;
+        constexpr index_t GLD_B = static_cast<index_t>(FusedMoeGemmPipelineSequencerEnum::GLD_B);
+        constexpr index_t GST_O = static_cast<index_t>(FusedMoeGemmPipelineSequencerEnum::GST_O);
+        if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
+                     std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
+                     S_::Warp_M1 == 32 && S_::Warp_N1 == 32 && S_::Warp_K1 == 16 &&
+                     S_::Block_M0 == 32 && S_::Block_N0 == 512 && S_::Block_K0 == 128 &&
+                     S_::Block_N1 == 128)
+        {
+            // Total 64 instructions, 32 buffer-load-dwordx4 gld_b, 8x buffer-load-dwordx1-async
+            // gld_a 8x ds_read_b128 sld_a total 64 slot :)
+            // clang-format off
+            constexpr auto seq_all =
+                    //       0       1       2        3       4      5        6       7
+                   sequence<GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,    // 0
+                            GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,    // 1
+                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 2
+                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 3
+                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 4
+                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 5
+                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 6
+                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0>{}; // 7
+            return seq_all;
+            // clang-format on
+        }
+        else if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
+                          std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
+                          S_::Warp_M1 == 32 && S_::Warp_N1 == 32 && S_::Warp_K1 == 16 &&
+                          S_::Block_M0 == 32 && S_::Block_N0 == 256 && S_::Block_K0 == 128 &&
+                          S_::Block_N1 == 128)
+        {
+            // Total 64 instructions, 32 buffer-load-dwordx4 gld_b, 8x buffer-load-dwordx1-async
+            // gld_a 8x ds_read_b128 sld_a total 64 slot :)
+            // clang-format off
+            constexpr auto seq_all =
+                    //       0       1       2        3       4      5        6       7
+                   sequence<GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,    // 0
+                            GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,    // 1
+                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 2
+                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0>{};    // 3
+            return seq_all;
+            // clang-format on
+        }
     }
 
     template <typename Problem>
