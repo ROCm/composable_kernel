@@ -388,7 +388,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t N1           = WarpGemm::kN;
             constexpr index_t N0           = NPerBlock / N1;

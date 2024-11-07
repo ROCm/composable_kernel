@@ -18,9 +18,9 @@ template <typename ALayout, typename BLayout, typename CLayout>
 float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
     // ToDo: This will be modified by the codegen code later.
-    constexpr ck_tile::index_t M_Tile = 256;
-    constexpr ck_tile::index_t N_Tile = 256;
-    constexpr ck_tile::index_t K_Tile = 64;
+    constexpr ck_tile::index_t M_Tile = 128;
+    constexpr ck_tile::index_t N_Tile = 128;
+    constexpr ck_tile::index_t K_Tile = 32;
 
     constexpr ck_tile::index_t M_Warp = 2;
     constexpr ck_tile::index_t N_Warp = 2;
@@ -31,9 +31,9 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr ck_tile::index_t K_Warp_Tile = 8;
 
     // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadA = true;
-    constexpr bool kPadB = true;
-    constexpr bool kPadC = true;
+    constexpr bool kPadM = true;
+    constexpr bool kPadN = true;
+    constexpr bool kPadK = true;
 
     constexpr int kBlockPerCu = 1;
 
@@ -46,9 +46,9 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     using TilePartitioner = ck_tile::GemmTilePartitioner<GemmShape>;
 
     using GemmEpilogue = ck_tile::Default2DEpilogue<
-        ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, false, kPadC>>;
+        ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
 
-    using Traits = ck_tile::TileGemmTraits<kPadA, kPadB, kPadC, GemmShape, ADataType, BDataType, AccDataType, ALayout, BLayout, CLayout>;
+    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, GemmShape, ADataType, BDataType, AccDataType, ALayout, BLayout, CLayout>;
 
     using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
         ck_tile::GemmPipelineProblem<Traits>>;
@@ -64,11 +64,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         constexpr auto tail_number_v  = tail_number_.value;
 
         using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<
-            ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                  BDataType,
-                                                  AccDataType,
-                                                  GemmShape,
-                                                  Traits,
+            ck_tile::UniversalGemmPipelineProblem<Traits,
                                                   ck_tile::GemmPipelineScheduler::Intrawave,
                                                   has_hot_loop_v,
                                                   tail_number_v>>;
