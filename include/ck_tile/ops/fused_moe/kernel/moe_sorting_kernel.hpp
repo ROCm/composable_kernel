@@ -20,12 +20,12 @@ struct MoeSortingHostArgs
     void* p_sorted_weights;
     void* p_sorted_expert_ids;
     void* p_total_tokens_post_pad;
-    void* moe_buf;
+    void* p_moe_buf;
     index_t tokens;
     index_t unit_size;
     index_t num_experts;
     index_t topk;
-    index_t moe_buf_set_bytes;
+    index_t moe_buf_bytes;
 };
 
 template <typename Problem_>
@@ -48,10 +48,10 @@ struct MoeSortingKernel
         void* p_sorted_weights;
         void* p_sorted_expert_ids;
         void* p_total_tokens_post_pad;
-        void* moe_buf;
+        void* p_moe_buf;
         index_t tokens;
         index_t num_experts;
-        index_t moe_buf_set_bytes;
+        index_t moe_buf_bytes;
 
         index_t tokens_per_thread;
         mdiv unit_size_mdiv;
@@ -61,7 +61,7 @@ struct MoeSortingKernel
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
     {
         // TODO: assume num-experts not too much
-        return dim3(1 + ck_tile::integer_divide_ceil(h.moe_buf_set_bytes, BlockSize(h).x * 16));
+        return dim3(1 + ck_tile::integer_divide_ceil(h.moe_buf_bytes, BlockSize(h).x * 16));
     }
 
     CK_TILE_HOST static constexpr auto BlockSize(const Hargs& h)
@@ -84,11 +84,11 @@ struct MoeSortingKernel
         k.p_sorted_token_ids      = h.p_sorted_token_ids;
         k.p_sorted_weights        = h.p_sorted_weights;
         k.p_sorted_expert_ids     = h.p_sorted_expert_ids;
-        k.moe_buf                 = h.moe_buf;
+        k.p_moe_buf                 = h.p_moe_buf;
         k.p_total_tokens_post_pad = h.p_total_tokens_post_pad;
         k.tokens                  = h.tokens;
         k.num_experts             = h.num_experts;
-        k.moe_buf_set_bytes       = h.moe_buf_set_bytes;
+        k.moe_buf_bytes       = h.moe_buf_bytes;
 
         const auto blocks   = BlockSize(h);
         k.tokens_per_thread = integer_divide_ceil(h.tokens * h.topk, blocks.x);
@@ -206,10 +206,10 @@ struct MoeSortingKernel
     {
         if(blockIdx.x > 0)
         {
-            if(kargs.moe_buf)
+            if(kargs.p_moe_buf)
             {
-                moe_buf_set_zero_kernel(reinterpret_cast<uint8x16_t*>(kargs.moe_buf),
-                                        kargs.moe_buf_set_bytes);
+                moe_buf_set_zero_kernel(reinterpret_cast<uint8x16_t*>(kargs.p_moe_buf),
+                                        kargs.moe_buf_bytes);
             }
             return;
         }
