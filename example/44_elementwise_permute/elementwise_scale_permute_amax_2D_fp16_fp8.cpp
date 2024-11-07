@@ -68,7 +68,7 @@ using DeviceElementwisePermuteInstance = ck::tensor_operation::device::DeviceEle
 
 using DeviceReduceInstance =
     ck::tensor_operation::device::DeviceReduceMultiBlock<OutputDataType,
-                                                         OutputDataType,
+                                                         ScaleDataType,
                                                          OutputDataType,
                                                          NumDim,
                                                          NumDim,
@@ -108,7 +108,8 @@ void reference_scale_permute_amax(Tensor<InputDataType>& input,
             host_output_scaled_casted_transposed(m, k) = y1;
             const OutputDataType y_fabs =
                 ck::type_convert<OutputDataType>(ck::math::abs(ck::type_convert<float>(y0)));
-            host_output_amax(0) = ck::math::max(y_fabs, host_output_amax(0));
+            host_output_amax(0) = ck::type_convert<OutputDataType>(ck::math::max(
+                ck::type_convert<float>(y_fabs), ck::type_convert<float>(host_output_amax(0))));
         }
     }
 }
