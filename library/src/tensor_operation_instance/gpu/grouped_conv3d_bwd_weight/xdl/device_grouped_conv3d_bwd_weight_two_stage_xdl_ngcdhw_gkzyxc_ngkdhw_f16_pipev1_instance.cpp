@@ -10,11 +10,11 @@ namespace device {
 namespace instance {
 
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
-void add_device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_f16_pipev2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
+void add_device_grouped_conv3d_bwd_weight_two_stage_xdl_ngcdhw_gkzyxc_ngkdhw_f16_pipev1_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NGCDHW,
+                                                           GKZYXC,
+                                                           NGKDHW,
                                                            F16,
                                                            F16,
                                                            F16,
@@ -25,14 +25,14 @@ void add_device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_f16_pi
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_f16_instances<
-            2,
-            NHWGC,
-            GKYXC,
-            NHWGK,
+        device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_f16_generic_instances<
+            3,
+            NGCDHW,
+            GKZYXC,
+            NGKDHW,
             ConvBwdWeightDefault,
             BlockGemmPipelineScheduler::Intrawave,
-            BlockGemmPipelineVersion::v2>{});
+            BlockGemmPipelineVersion::v1>{});
 }
 
 } // namespace instance
