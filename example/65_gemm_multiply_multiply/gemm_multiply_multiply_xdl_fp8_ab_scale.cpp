@@ -188,15 +188,15 @@ int main(int argc, char* argv[])
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         break;
     case 6:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_PI<ADataType>{});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{0.5f});
+        a0_m_k.GenerateTensorValue(GeneratorTensor_PI<A0DataType>{});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{0.5f});
         a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{0.5});
         b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{4});
 
         break;
     case 7:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_PI_A<ADataType>{});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_PI_B<BDataType>{});
+        a0_m_k.GenerateTensorValue(GeneratorTensor_PI_A<A0DataType>{});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_PI_B<B0DataType>{});
         a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{2});
         b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{0.5});
 
@@ -254,23 +254,28 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
+    std::cout << "Compute GEMM on device...  \n";
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 20, 50});
+    std::cout << "DONE!" << std::endl;
+    if(time_kernel)
+    {
+        std::size_t flop = std::size_t(2) * M * N * K;
+        std::size_t num_btype =
+            sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(EDataType) * M * N;
 
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_btype =
-        sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(EDataType) * M * N;
+        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl;
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s" << std::endl;
+    }
 
     e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
     if(do_verification)
     {
+        std::cout << "Running verification on CPU." << std::endl;
         Tensor<AccDataType> c_m_n({M, N});
         Tensor<float> a_m_k({M, K});
         Tensor<float> b_k_n({K, N});
@@ -324,16 +329,16 @@ int main(int argc, char* argv[])
         {
             std::cout << std::fixed << std::setprecision(16);
 
-            float a = ck::type_convert<float>(a0_device_buf(0, 10));
-            float b = ck::type_convert<float>(b0_device_buf(0, 10));
+            float a = ck::type_convert<float>(a0_m_k(0, 10));
+            float b = ck::type_convert<float>(b0_k_n(0, 10));
             std::cout << "a(0,10): " << a << std::endl;
             std::cout << "b(0,10): " << b << std::endl;
-            std::cout << "a: " << ck::type_convert<float>(a0_device_buf(0, 0)) << std::endl;
-            std::cout << "a: " << ck::type_convert<float>(a0_device_buf(0, 1)) << std::endl;
-            std::cout << "a: " << ck::type_convert<float>(a0_device_buf(0, 2)) << std::endl;
-            std::cout << "b: " << ck::type_convert<float>(b0_device_buf(0, 0)) << std::endl;
-            std::cout << "b: " << ck::type_convert<float>(b0_device_buf(1, 0)) << std::endl;
-            std::cout << "b: " << ck::type_convert<float>(b0_device_buf(2, 0)) << std::endl;
+            std::cout << "a: " << ck::type_convert<float>(a0_m_k(0, 0)) << std::endl;
+            std::cout << "a: " << ck::type_convert<float>(a0_m_k(0, 1)) << std::endl;
+            std::cout << "a: " << ck::type_convert<float>(a0_m_k(0, 2)) << std::endl;
+            std::cout << "b: " << ck::type_convert<float>(b0_k_n(0, 0)) << std::endl;
+            std::cout << "b: " << ck::type_convert<float>(b0_k_n(1, 0)) << std::endl;
+            std::cout << "b: " << ck::type_convert<float>(b0_k_n(2, 0)) << std::endl;
 
             float d = ck::type_convert<float>(e_m_n_device_result(0, 10));
             float h = ck::type_convert<float>(e_m_n_host_result(10, 0));
@@ -343,13 +348,16 @@ int main(int argc, char* argv[])
             std::cout << "device - host: " << std::abs(d - h) << std::endl;
             std::cout << "device - expected: " << std::abs(d - M_PI) << std::endl;
             std::cout << "atol: " << 5e-2 << std::endl;
-            std::cout << std::endl << std::endl;
         }
 
-        return ck::utils::check_err(
-                   e_m_n_device_result, e_m_n_host_result, "Error: Incorrect results!", 5e-2, 5e-2)
-                   ? 0
-                   : 1;
+        if(ck::utils::check_err(
+               e_m_n_device_result, e_m_n_host_result, "Error: Incorrect results!", 5e-2, 5e-2))
+        {
+            std::cout << "Verification on CPU: PASS" << std::endl;
+            return 0;
+        }
+        else
+            return 1;
     }
 
     return 0;
