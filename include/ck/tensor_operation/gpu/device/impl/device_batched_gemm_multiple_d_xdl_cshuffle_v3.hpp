@@ -316,7 +316,6 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         {
         }
     };
-    // using Argument = typename GridwiseGemm::Argument;
 
     // Invoker
     struct Invoker : public BaseInvoker
