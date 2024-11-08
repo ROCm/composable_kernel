@@ -78,7 +78,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
-    int init_method      = 1;
+    int init_method      = 5;
     bool time_kernel     = false;
 
     // GEMM shape
@@ -186,6 +186,20 @@ int main(int argc, char* argv[])
         b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        break;
+    case 6:
+        a0_m_k.GenerateTensorValue(GeneratorTensor_PI<ADataType>{});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{0.5f});
+        a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{0.5});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{4});
+
+        break;
+    case 7:
+        a0_m_k.GenerateTensorValue(GeneratorTensor_PI_A<ADataType>{});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_PI_B<BDataType>{});
+        a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{2});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{0.5});
+
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
@@ -305,6 +319,32 @@ int main(int argc, char* argv[])
 #endif
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
+
+        if(init_method == 6 || init_method == 7)
+        {
+            std::cout << std::fixed << std::setprecision(16);
+
+            float a = ck::type_convert<float>(a0_device_buf(0, 10));
+            float b = ck::type_convert<float>(b0_device_buf(0, 10));
+            std::cout << "a(0,10): " << a << std::endl;
+            std::cout << "b(0,10): " << b << std::endl;
+            std::cout << "a: " << ck::type_convert<float>(a0_device_buf(0, 0)) << std::endl;
+            std::cout << "a: " << ck::type_convert<float>(a0_device_buf(0, 1)) << std::endl;
+            std::cout << "a: " << ck::type_convert<float>(a0_device_buf(0, 2)) << std::endl;
+            std::cout << "b: " << ck::type_convert<float>(b0_device_buf(0, 0)) << std::endl;
+            std::cout << "b: " << ck::type_convert<float>(b0_device_buf(1, 0)) << std::endl;
+            std::cout << "b: " << ck::type_convert<float>(b0_device_buf(2, 0)) << std::endl;
+
+            float d = ck::type_convert<float>(e_m_n_device_result(0, 10));
+            float h = ck::type_convert<float>(e_m_n_host_result(10, 0));
+            std::cout << "device result: " << d << std::endl;
+            std::cout << "host result: " << h << std::endl;
+            std::cout << "expected result: " << M_PI << std::endl;
+            std::cout << "device - host: " << std::abs(d - h) << std::endl;
+            std::cout << "device - expected: " << std::abs(d - M_PI) << std::endl;
+            std::cout << "atol: " << 5e-2 << std::endl;
+            std::cout << std::endl << std::endl;
+        }
 
         return ck::utils::check_err(
                    e_m_n_device_result, e_m_n_host_result, "Error: Incorrect results!", 5e-2, 5e-2)

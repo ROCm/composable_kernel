@@ -8,7 +8,7 @@ bool run_convnd_fwd_example(int argc, char* argv[])
     print_helper_msg();
 
     bool do_verification = true;
-    int init_method      = 1;
+    int init_method      = 2;
     bool time_kernel     = false;
 
     ck::utils::conv::ConvParam conv_param{

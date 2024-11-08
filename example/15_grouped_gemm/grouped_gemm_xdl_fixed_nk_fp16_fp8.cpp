@@ -75,7 +75,7 @@ struct ProblemSize final
 struct ExecutionConfig final
 {
     bool do_verification = true;
-    int init_method      = 1;
+    int init_method      = 2;
     int k_batch          = 1;
     bool time_kernel     = false;
 };
