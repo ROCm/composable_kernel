@@ -74,7 +74,8 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     int kname               = args.get_int("kname");
     int warmup              = args.get_int("warmup");
     int repeat              = args.get_int("repeat");
-    int max_output_ids = ck_tile::integer_least_multiple(topk * tokens, unit_size) * num_experts;
+    int max_output_ids =
+        ck_tile::integer_least_multiple(topk * tokens + num_experts * unit_size - topk, unit_size);
 
     if(seed < 0)
     {

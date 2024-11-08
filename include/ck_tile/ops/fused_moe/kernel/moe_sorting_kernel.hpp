@@ -166,7 +166,7 @@ struct MoeSortingKernel
                 }();
                 cumsum[i] = cumsum[i - 1] + current_units;
             }
-            *p_total_tokens_post_pad = unit_size_mdiv.div(cumsum[num_experts]);
+            *p_total_tokens_post_pad = cumsum[num_experts];
         }
         __syncthreads();
         if(tid < num_experts)

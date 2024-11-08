@@ -72,7 +72,7 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
         }
         out_expert_id += expert_slices[e];
     }
-
+    unit_cnt *= unit_size;
     return;
 }
 } // namespace ck_tile
