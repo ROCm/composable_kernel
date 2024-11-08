@@ -88,10 +88,6 @@ __global__ void
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    // auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
-
-    // const index_t num_blocks_per_batch =
-    //__builtin_amdgcn_readfirstlane(get_grid_size() / karg.Batch);
     const index_t g_idx = blockIdx.z;
 
     const auto a_batch_offset = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
