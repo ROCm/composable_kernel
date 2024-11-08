@@ -9,8 +9,10 @@ using ck::e8m0_scale_t;
 using ck::f4_convert_rne;
 using ck::f4_convert_sr;
 using ck::f4_t;
+using ck::Number;
 using ck::scaled_type_convert;
 using ck::type_convert;
+using ck::vector_type;
 
 using ck::utils::cast_from_float;
 using ck::utils::cast_to_float;
@@ -219,4 +221,58 @@ TEST(FP4, ScaledConvertFP32Stochastic)
     ASSERT_NEAR(neg_float * min_scale,
                 scaled_type_convert<float>(cast_from_float(min_scale), f4_convert_sr(neg_float)),
                 abs_tol);
+}
+
+TEST(FP4, TestSize)
+{
+    ASSERT_EQ(1, sizeof(f4_t));
+    ASSERT_EQ(2, sizeof(vector_type<f4_t, 2>));
+    ASSERT_EQ(4, sizeof(vector_type<f4_t, 4>));
+}
+
+TEST(FP4, TestAlignment)
+{
+    ASSERT_EQ(1, alignof(f4_t));
+    ASSERT_EQ(1, alignof(vector_type<f4_t, 2>));
+    ASSERT_EQ(2, alignof(vector_type<f4_t, 4>));
+}
+
+TEST(FP4, TestAsType2)
+{
+    // test size
+    const int size             = 2;
+    std::vector<f4_t> test_vec = {f4_t{0b0010}, f4_t{0b1001}};
+    // reference vector
+    vector_type<f4_t, size> right_vec;
+    // check default CTOR
+    ck::static_for<0, size, 1>{}(
+        [&](auto i) { ASSERT_EQ(right_vec.template AsType<f4_t>()(Number<i>{}), 0); });
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}(
+        [&](auto i) { right_vec.template AsType<f4_t>()(Number<i>{}) = test_vec.at(i); });
+    // copy the vector
+    vector_type<f4_t, size> left_vec{right_vec};
+    // check if values were copied correctly
+    ck::static_for<0, size, 1>{}(
+        [&](auto i) { ASSERT_EQ(left_vec.template AsType<f4_t>()(Number<i>{}), test_vec.at(i)); });
+}
+
+TEST(FP4, TestAsType4)
+{
+    // test size
+    const int size             = 4;
+    std::vector<f4_t> test_vec = {f4_t{0b0010}, f4_t{0b1001}, f4_t{0b0001}, f4_t{0b0111}};
+    // reference vector
+    vector_type<f4_t, size> right_vec;
+    // check default CTOR
+    ck::static_for<0, size, 1>{}(
+        [&](auto i) { ASSERT_EQ(right_vec.template AsType<f4_t>()(Number<i>{}), 0); });
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}(
+        [&](auto i) { right_vec.template AsType<f4_t>()(Number<i>{}) = test_vec.at(i); });
+    // copy the vector
+    vector_type<f4_t, size> left_vec{right_vec};
+    // check if values were copied correctly
+    ck::static_for<0, size, 1>{}(
+        [&](auto i) { ASSERT_EQ(left_vec.template AsType<f4_t>()(Number<i>{}), test_vec.at(i)); });
 }
