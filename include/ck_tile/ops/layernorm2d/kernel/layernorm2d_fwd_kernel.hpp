@@ -29,6 +29,9 @@ struct Layernorm2dFwdHostArgs
     index_t m;
     index_t n;
     index_t stride; // row_stride
+    index_t xr_stride = -1;
+    index_t y_stride  = -1;
+    index_t yr_stride = -1;
 };
 
 // TODO: Extract some type to wrapper class
@@ -94,6 +97,9 @@ struct Layernorm2dFwd
         index_t m;
         index_t n;
         index_t stride; // row_stride
+        index_t xr_stride = -1;
+        index_t y_stride  = -1;
+        index_t yr_stride = -1;
     };
     using Hargs = Layernorm2dFwdHostArgs;
 
@@ -112,7 +118,10 @@ struct Layernorm2dFwd
                      hargs.epsilon,
                      hargs.m,
                      hargs.n,
-                     hargs.stride};
+                     hargs.stride,
+                     hargs.xr_stride == -1 ? hargs.stride : hargs.xr_stride,
+                     hargs.y_stride == -1 ? hargs.stride : hargs.y_stride,
+                     hargs.yr_stride == -1 ? hargs.stride : hargs.yr_stride};
     }
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& hargs)
@@ -201,7 +210,7 @@ struct Layernorm2dFwd
                 const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                     static_cast<const XResidualDataType*>(kargs.p_x_residual),
                     make_tuple(kargs.m, kargs.n),
-                    make_tuple(kargs.stride, 1),
+                    make_tuple(kargs.xr_stride, 1),
                     number<Vector_N>{},
                     number<1>{});
 
@@ -250,7 +259,7 @@ struct Layernorm2dFwd
             auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<YDataType*>(kargs.p_y),
                 make_tuple(kargs.m, kargs.n),
-                make_tuple(kargs.stride, 1),
+                make_tuple(kargs.y_stride, 1),
                 number<Vector_N>{},
                 number<1>{});
 
@@ -266,7 +275,7 @@ struct Layernorm2dFwd
                 auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                     static_cast<YResidualDataType*>(kargs.p_y_residual),
                     make_tuple(kargs.m, kargs.n),
-                    make_tuple(kargs.stride, 1),
+                    make_tuple(kargs.yr_stride, 1),
                     number<Vector_N>{},
                     number<1>{});
 
