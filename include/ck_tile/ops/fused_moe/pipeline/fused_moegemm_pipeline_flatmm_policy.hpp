@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_traits.hpp"
+#include "ck_tile/ops/flatmm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
@@ -318,6 +319,8 @@ struct FusedMoeGemmPipelineFlatmmPolicy
         using S_ = typename Problem::BlockShape;
         if constexpr(PermuteEnum == FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten)
         {
+            // number<S_::WarpPerBlock_N0>{}.rrr();
+            // number<S_::Repeat_N0>{}.eee();
             return MakeGlobalTileDistribution_Nr_Kr_W<S_::WarpPerBlock_N0,
                                                       S_::WarpPerBlock_K0,
                                                       S_::Repeat_N0, /// hidden_radio_0,
@@ -556,7 +559,7 @@ struct FusedMoeGemmPipelineFlatmmPolicy
         constexpr index_t Block_N = Problem::BlockShape::Block_N0;
 
         constexpr index_t KVector = GetSmemKPack_Y<Problem>(); // async copy 1 dword
-        constexpr index_t KPad    = KVector;                   // pad between warps
+        constexpr index_t KPad    = 0;                         // pad between warps
 
         constexpr auto desc =
             make_naive_tensor_descriptor(make_tuple(number<Block_M>{}, number<Block_N>{}),
@@ -573,7 +576,7 @@ struct FusedMoeGemmPipelineFlatmmPolicy
         constexpr index_t Block_N = Problem::BlockShape::Block_N0;
 
         constexpr index_t KVector = GetSmemKPack_Y<Problem>(); // async copy 1 dword
-        constexpr index_t KPad    = KVector;                   // pad between warps
+        constexpr index_t KPad    = 0; // KVector;                   // pad between warps
 
         constexpr auto desc =
             make_naive_tensor_descriptor(make_tuple(number<Block_M>{}, number<Block_N>{}),
@@ -589,7 +592,7 @@ struct FusedMoeGemmPipelineFlatmmPolicy
         using S_ = typename Problem::BlockShape;
         // A is vgpr, B is agpr. But since we transposed, so also need swap this
         // TODO: this is ugly
-        constexpr auto wg_ctrl = WGAttrCtlEnum::Raw_vav;
+        constexpr auto wg_ctrl = WGAttrCtlEnum::Raw_avv;
         // TODO: ugly
         if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::bf16_t> &&
                      std::is_same_v<typename Problem::GDataType, ck_tile::bf16_t> &&
@@ -716,7 +719,7 @@ struct FusedMoeGemmPipelineFlatmmPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemm1()
     {
         using S_               = typename Problem::BlockShape;
-        constexpr auto wg_ctrl = WGAttrCtlEnum::Raw_vav;
+        constexpr auto wg_ctrl = WGAttrCtlEnum::Raw_avv;
         // TODO: ugly
         if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
                      std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
@@ -811,6 +814,32 @@ struct FusedMoeGemmPipelineFlatmmPolicy
         auto y_block_tensor =
             make_static_distributed_tensor<typename Problem::YDataType>(y_block_dstr);
         return y_block_tensor;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetUK_0()
+    {
+        using S_ = typename Problem::BlockShape;
+        if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::bf16_t> &&
+                     std::is_same_v<typename Problem::GDataType, ck_tile::bf16_t> &&
+                     S_::Block_M0 == 32 && S_::Block_N0 == 512 && S_::Block_K0 == 128 &&
+                     S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 32)
+        {
+            return FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16{};
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetUK_1()
+    {
+        using S_ = typename Problem::BlockShape;
+        if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
+                     std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
+                     S_::Block_M1 == 32 && S_::Block_N1 == 128 && S_::Block_K1 == 512 &&
+                     S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 32)
+        {
+            return FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16{};
+        }
     }
 };
 } // namespace ck_tile

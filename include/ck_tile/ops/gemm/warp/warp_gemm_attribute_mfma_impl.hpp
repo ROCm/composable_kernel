@@ -18,6 +18,7 @@ enum class WGAttrCtlEnum
     Raw_vaa  = 2, // c-vgpr, a-agpr, b-agpr
     Raw_vav  = 3, // c-vgpr, a-agpr, b-vgpr
     Raw_vva  = 4, // c-vgpr, a-vgpr, b-agpr
+    Raw_avv  = 5, // c-agpr, a-vgpr, b-vgpr
     // raw_a_a_a = 3,  // c-agpr, a-agpr, b-agpr
 };
 
@@ -36,6 +37,28 @@ enum class WGAttrCtlEnum
                      : dmod_(c_vec)                             \
                      : amod_(a_vec), bmod_(b_vec), cmod_(c_vec) \
                      :);                                        \
+    }
+
+#define DISPATCH_MFMA_CTRL_(mfma_, ctrl_)              \
+    if constexpr(ctrl_ == WGAttrCtlEnum::Raw_vvv)      \
+    {                                                  \
+        DISPATCH_MFMA_(mfma_, "+v", "v", "v", "v")     \
+    }                                                  \
+    else if constexpr(ctrl_ == WGAttrCtlEnum::Raw_vaa) \
+    {                                                  \
+        DISPATCH_MFMA_(mfma_, "+v", "a", "a", "v")     \
+    }                                                  \
+    else if constexpr(ctrl_ == WGAttrCtlEnum::Raw_vav) \
+    {                                                  \
+        DISPATCH_MFMA_(mfma_, "+v", "a", "v", "v")     \
+    }                                                  \
+    else if constexpr(ctrl_ == WGAttrCtlEnum::Raw_vva) \
+    {                                                  \
+        DISPATCH_MFMA_(mfma_, "+v", "v", "a", "v")     \
+    }                                                  \
+    else if constexpr(ctrl_ == WGAttrCtlEnum::Raw_avv) \
+    {                                                  \
+        DISPATCH_MFMA_(mfma_, "+a", "v", "v", "a")     \
     }
 
 // FP16
@@ -72,22 +95,7 @@ struct WarpGemmAttributeMfmaImplF16F16F32M32N32K8
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-        if constexpr(Ctrl == WGAttrCtlEnum::Raw_vvv)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_32x32x8f16", "+v", "v", "v", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vaa)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_32x32x8f16", "+v", "a", "a", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vav)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_32x32x8f16", "+v", "a", "v", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vva)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_32x32x8f16", "+v", "v", "a", "v")
-        }
+        DISPATCH_MFMA_CTRL_("v_mfma_f32_32x32x8f16", Ctrl)
         else
         {
 #if defined(__gfx9__)
@@ -147,22 +155,7 @@ struct WarpGemmAttributeMfmaImplF16F16F32M16N16K16
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-        if constexpr(Ctrl == WGAttrCtlEnum::Raw_vvv)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_16x16x16f16", "+v", "v", "v", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vaa)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_16x16x16f16", "+v", "a", "a", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vav)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_16x16x16f16", "+v", "a", "v", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vva)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_16x16x16f16", "+v", "v", "a", "v")
-        }
+        DISPATCH_MFMA_CTRL_("v_mfma_f32_16x16x16f16", Ctrl)
         else
         {
 #if defined(__gfx9__)
@@ -223,22 +216,7 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-        if constexpr(Ctrl == WGAttrCtlEnum::Raw_vvv)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_32x32x8bf16_1k", "+v", "v", "v", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vaa)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_32x32x8bf16_1k", "+v", "a", "a", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vav)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_32x32x8bf16_1k", "+v", "a", "v", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vva)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_32x32x8bf16_1k", "+v", "v", "a", "v")
-        }
+        DISPATCH_MFMA_CTRL_("v_mfma_f32_32x32x8bf16_1k", Ctrl)
         else
         {
 #if defined(__gfx90a__) || defined(__gfx94__)
@@ -324,23 +302,7 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-        if constexpr(Ctrl == WGAttrCtlEnum::Raw_vvv)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_16x16x16bf16_1k", "+v", "v", "v", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vaa)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_16x16x16bf16_1k", "+v", "a", "a", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vav)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_16x16x16bf16_1k", "+v", "a", "v", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vva)
-        {
-            DISPATCH_MFMA_("v_mfma_f32_16x16x16bf16_1k", "+v", "v", "a", "v")
-        }
-        else
+        DISPATCH_MFMA_CTRL_("v_mfma_f32_16x16x16bf16_1k", Ctrl)
         {
 #if defined(__gfx90a__) || defined(__gfx94__)
             c_vec = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(a_vec, b_vec, c_vec, 0, 0, 0);
@@ -623,22 +585,7 @@ struct WarpGemmAttributeMfmaImpl_i32_32x32x16_i8
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-        if constexpr(Ctrl == WGAttrCtlEnum::Raw_vvv)
-        {
-            DISPATCH_MFMA_("v_mfma_i32_32x32x16_i8", "+v", "v", "v", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vaa)
-        {
-            DISPATCH_MFMA_("v_mfma_i32_32x32x16_i8", "+v", "a", "a", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vav)
-        {
-            DISPATCH_MFMA_("v_mfma_i32_32x32x16_i8", "+v", "a", "v", "v")
-        }
-        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vva)
-        {
-            DISPATCH_MFMA_("v_mfma_i32_32x32x16_i8", "+v", "v", "a", "v")
-        }
+        DISPATCH_MFMA_CTRL_("v_mfma_i32_32x32x16_i8", Ctrl)
         else
         {
 #if defined(__gfx94__)

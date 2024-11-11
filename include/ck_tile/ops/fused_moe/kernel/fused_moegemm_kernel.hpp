@@ -133,7 +133,8 @@ struct FusedMoeGemmKernel
     using IndexDataType        = typename Pipeline::Problem::IndexDataType;
     using YDataType            = typename Pipeline::Problem::YDataType;
 
-    using Traits = typename Pipeline::Problem::Traits;
+    using Traits                = typename Pipeline::Problem::Traits;
+    static constexpr bool UseUK = true;
 
     static constexpr bool IsGateOnly          = Traits::IsGateOnly;
     static constexpr bool UseSmoothQuant      = Traits::UseSmoothQuant;
@@ -211,157 +212,179 @@ struct FusedMoeGemmKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        // allocate LDS
-        // __shared__ char smem_ptr[GetSmemSize()];
-        IndexDataType num_sorted_tiles = __builtin_amdgcn_readfirstlane(
-            *reinterpret_cast<const IndexDataType*>(kargs.num_sorted_tiles_ptr));
-        constexpr index_t hidden_radio_0 = IsGateOnly ? 1 : 2;
+        if constexpr(UseUK)
+        {
+            __shared__ CK_TILE_LDS_ADDR ADataType smem[GetSmemSize()];
+            IndexDataType num_sorted_tiles = __builtin_amdgcn_readfirstlane(
+                *reinterpret_cast<const IndexDataType*>(kargs.num_sorted_tiles_ptr));
 
-        index_t nr_0 = kargs.intermediate_size / BlockShape::Block_Nr0;
-        index_t kr_0 = kargs.hidden_size / BlockShape::Block_Kr0;
-        index_t nr_1 = kargs.hidden_size / BlockShape::Block_Nr1;       // should be same as kr_0
-        index_t kr_1 = kargs.intermediate_size / BlockShape::Block_Kr1; // should be same as nr_0
+            num_sorted_tiles = num_sorted_tiles / BlockShape::Block_M0;
 
-        index_t expert_stride_0 = kargs.intermediate_size * hidden_radio_0 * kargs.hidden_size;
-        index_t expert_stride_1 = kargs.intermediate_size * kargs.hidden_size;
+            const auto [sorted_tile_id, intermediate_tile_id] =
+                Partitioner{}(num_sorted_tiles, kargs.intermediate_size);
+            if(sorted_tile_id >= num_sorted_tiles)
+                return;
 
-        __shared__ CK_TILE_LDS_ADDR ADataType smem[GetSmemSize()];
+            Pipeline{}(kargs, smem, sorted_tile_id, intermediate_tile_id);
+        }
+        else
+        {
+            // allocate LDS
+            // __shared__ char smem_ptr[GetSmemSize()];
+            IndexDataType num_sorted_tiles = __builtin_amdgcn_readfirstlane(
+                *reinterpret_cast<const IndexDataType*>(kargs.num_sorted_tiles_ptr));
+            constexpr index_t hidden_radio_0 = IsGateOnly ? 1 : 2;
 
-        // note this is in unit of tile, need multiple tile size to get the index
-        const auto [sorted_tile_id, intermediate_tile_id] =
-            Partitioner{}(num_sorted_tiles, kargs.intermediate_size);
-        if(sorted_tile_id >= num_sorted_tiles)
-            return;
+            index_t nr_0 = kargs.intermediate_size / BlockShape::Block_Nr0;
+            index_t kr_0 = kargs.hidden_size / BlockShape::Block_Kr0;
+            index_t nr_1 = kargs.hidden_size / BlockShape::Block_Nr1; // should be same as kr_0
+            index_t kr_1 =
+                kargs.intermediate_size / BlockShape::Block_Kr1; // should be same as nr_0
 
-        const IndexDataType expert_id = __builtin_amdgcn_readfirstlane(
-            reinterpret_cast<const IndexDataType*>(kargs.sorted_expert_ids_ptr)[sorted_tile_id]);
+            index_t expert_stride_0 = kargs.intermediate_size * hidden_radio_0 * kargs.hidden_size;
+            index_t expert_stride_1 = kargs.intermediate_size * kargs.hidden_size;
 
-        // index along intermediate_size
-        // index_t hidden_idx = __builtin_amdgcn_readfirstlane(intermediate_tile_id *
-        // BlockShape::Block_N0);
-        index_t interm_idx_nr =
-            __builtin_amdgcn_readfirstlane(intermediate_tile_id * BlockShape::Block_Nr0);
+            __shared__ CK_TILE_LDS_ADDR ADataType smem[GetSmemSize()];
 
-        const auto a_coord         = Pipeline::GetACoord(); // 2d thread offset, [i_row, i_col]
-        const auto sorted_token_id = a_coord[number<0>{}] + sorted_tile_id * BlockShape::Block_M0;
+            // note this is in unit of tile, need multiple tile size to get the index
+            const auto [sorted_tile_id, intermediate_tile_id] =
+                Partitioner{}(num_sorted_tiles, kargs.intermediate_size);
+            if(sorted_tile_id >= num_sorted_tiles)
+                return;
 
-        index_t token_id =
-            reinterpret_cast<const index_t*>(kargs.sorted_token_ids_ptr)[sorted_token_id];
-        auto topk_weight =
-            reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr)[sorted_token_id];
+            const IndexDataType expert_id =
+                __builtin_amdgcn_readfirstlane(reinterpret_cast<const IndexDataType*>(
+                    kargs.sorted_expert_ids_ptr)[sorted_tile_id]);
 
-        const auto a_window = [&]() {
-            // A is already pre-padded in previous kernel
-            const ADataType* a_ptr = reinterpret_cast<const ADataType*>(kargs.a_ptr);
-            const auto a_view_     = make_naive_tensor_view<address_space_enum::global>(
-                a_ptr,
-                make_tuple(kargs.num_tokens, kargs.hidden_size),
-                make_tuple(kargs.stride_token, 1),
-                number<Pipeline::kAlignmentA>{},
-                number<1>{});
+            // index along intermediate_size
+            // index_t hidden_idx = __builtin_amdgcn_readfirstlane(intermediate_tile_id *
+            // BlockShape::Block_N0);
+            index_t interm_idx_nr =
+                __builtin_amdgcn_readfirstlane(intermediate_tile_id * BlockShape::Block_Nr0);
 
-            // gather is here use indexing transform
-            const auto a_gather_view_ = transform_tensor_view(
-                a_view_,
-                make_tuple(make_indexing_transform(kargs.num_tokens, token_id),
-                           make_pass_through_transform(kargs.hidden_size)),
-                make_tuple(sequence<0>{}, sequence<1>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+            const auto a_coord = Pipeline::GetACoord(); // 2d thread offset, [i_row, i_col]
+            const auto sorted_token_id =
+                a_coord[number<0>{}] + sorted_tile_id * BlockShape::Block_M0;
 
-            const auto a_window_ = make_tile_window(
-                a_gather_view_,
-                make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}),
-                {0, 0});
-            return a_window_;
-        }();
+            index_t token_id =
+                reinterpret_cast<const index_t*>(kargs.sorted_token_ids_ptr)[sorted_token_id];
+            auto topk_weight = reinterpret_cast<const TopkWeightDataType*>(
+                kargs.sorted_weight_ptr)[sorted_token_id];
 
-        // TODO: gtile using NSub to have less register pressure
-        const auto g_window = [&]() {
-            const GDataType* g_ptr = reinterpret_cast<const GDataType*>(kargs.g_ptr) +
-                                     static_cast<long_index_t>(expert_id) * expert_stride_0 +
-                                     interm_idx_nr * kr_0 * BlockShape::Block_W0;
-            const auto g_view_ = make_naive_tensor_view<address_space_enum::global>(
-                g_ptr,
-                make_tuple(nr_0, kr_0, number<BlockShape::Block_W0>{}),
-                make_tuple(kr_0 * BlockShape::Block_W0, number<BlockShape::Block_W0>{}, 1),
-                number<Pipeline::kAlignmentG>{},
-                number<1>{});
-            const auto g_view_1_ =
-                pad_tensor_view(g_view_,
-                                make_tuple(number<BlockShape::Block_Nr0>{},
-                                           number<BlockShape::Block_Kr0>{},
-                                           number<BlockShape::Block_W0>{}),
-                                sequence<PadIntermediateSize, PadHiddenSize, 0>{});
+            const auto a_window = [&]() {
+                // A is already pre-padded in previous kernel
+                const ADataType* a_ptr = reinterpret_cast<const ADataType*>(kargs.a_ptr);
+                const auto a_view_     = make_naive_tensor_view<address_space_enum::global>(
+                    a_ptr,
+                    make_tuple(kargs.num_tokens, kargs.hidden_size),
+                    make_tuple(kargs.stride_token, 1),
+                    number<Pipeline::kAlignmentA>{},
+                    number<1>{});
 
-            const auto g_window_ = make_tile_window(g_view_1_,
-                                                    make_tuple(number<BlockShape::Block_Nr0>{},
-                                                               number<BlockShape::Block_Kr0>{},
-                                                               number<BlockShape::Block_W0>{}),
-                                                    {0, 0, 0});
-            return g_window_;
-        }();
+                // gather is here use indexing transform
+                const auto a_gather_view_ = transform_tensor_view(
+                    a_view_,
+                    make_tuple(make_indexing_transform(kargs.num_tokens, token_id),
+                               make_pass_through_transform(kargs.hidden_size)),
+                    make_tuple(sequence<0>{}, sequence<1>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
 
-        const auto d_window = [&]() {
-            const DDataType* d_ptr = reinterpret_cast<const DDataType*>(kargs.d_ptr) +
-                                     static_cast<long_index_t>(expert_id) * expert_stride_1 +
-                                     interm_idx_nr * BlockShape::Block_W1;
-            // note interm_idx_nr is along the gemm-k dim of 2nd gemm
+                const auto a_window_ = make_tile_window(
+                    a_gather_view_,
+                    make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}),
+                    {0, 0});
+                return a_window_;
+            }();
 
-            const auto d_view_ = make_naive_tensor_view<address_space_enum::global>(
-                d_ptr,
-                make_tuple(nr_1, kr_1, BlockShape::Block_W1),
-                make_tuple(kr_1 * BlockShape::Block_W1, BlockShape::Block_W1, 1),
-                number<Pipeline::kAlignmentD>{},
-                number<1>{});
-            const auto d_view_1_ =
-                pad_tensor_view(d_view_,
-                                make_tuple(number<BlockShape::Block_Nr1>{},
-                                           number<BlockShape::Block_Kr1>{},
-                                           number<BlockShape::Block_W1>{}),
-                                sequence<PadHiddenSize, PadIntermediateSize, 0>{});
+            // TODO: gtile using NSub to have less register pressure
+            const auto g_window = [&]() {
+                const GDataType* g_ptr = reinterpret_cast<const GDataType*>(kargs.g_ptr) +
+                                         static_cast<long_index_t>(expert_id) * expert_stride_0 +
+                                         interm_idx_nr * kr_0 * BlockShape::Block_W0;
+                const auto g_view_ = make_naive_tensor_view<address_space_enum::global>(
+                    g_ptr,
+                    make_tuple(nr_0, kr_0, number<BlockShape::Block_W0>{}),
+                    make_tuple(kr_0 * BlockShape::Block_W0, number<BlockShape::Block_W0>{}, 1),
+                    number<Pipeline::kAlignmentG>{},
+                    number<1>{});
+                const auto g_view_1_ =
+                    pad_tensor_view(g_view_,
+                                    make_tuple(number<BlockShape::Block_Nr0>{},
+                                               number<BlockShape::Block_Kr0>{},
+                                               number<BlockShape::Block_W0>{}),
+                                    sequence<PadIntermediateSize, PadHiddenSize, 0>{});
 
-            const auto d_window_ = make_tile_window(d_view_1_,
-                                                    make_tuple(number<BlockShape::Block_Nr1>{},
-                                                               number<BlockShape::Block_Kr1>{},
-                                                               number<BlockShape::Block_W1>{}),
-                                                    {0, 0, 0});
-            return d_window_;
-        }();
+                const auto g_window_ = make_tile_window(g_view_1_,
+                                                        make_tuple(number<BlockShape::Block_Nr0>{},
+                                                                   number<BlockShape::Block_Kr0>{},
+                                                                   number<BlockShape::Block_W0>{}),
+                                                        {0, 0, 0});
+                return g_window_;
+            }();
 
-        auto o_window = [&]() {
-            ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr);
-            auto o_view_     = make_naive_tensor_view<address_space_enum::global,
-                                                  memory_operation_enum::atomic_add>(
-                o_ptr,
-                make_tuple(kargs.num_tokens, kargs.hidden_size),
-                make_tuple(kargs.stride_token, 1),
-                number<Pipeline::kAlignmentO>{},
-                number<1>{});
+            const auto d_window = [&]() {
+                const DDataType* d_ptr = reinterpret_cast<const DDataType*>(kargs.d_ptr) +
+                                         static_cast<long_index_t>(expert_id) * expert_stride_1 +
+                                         interm_idx_nr * BlockShape::Block_W1;
+                // note interm_idx_nr is along the gemm-k dim of 2nd gemm
 
-            // gather is here
-            auto o_scatter_view_ = transform_tensor_view(
-                o_view_,
-                make_tuple(make_indexing_transform(kargs.num_tokens, token_id),
-                           make_pass_through_transform(kargs.hidden_size)),
-                make_tuple(sequence<0>{}, sequence<1>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+                const auto d_view_ = make_naive_tensor_view<address_space_enum::global>(
+                    d_ptr,
+                    make_tuple(nr_1, kr_1, BlockShape::Block_W1),
+                    make_tuple(kr_1 * BlockShape::Block_W1, BlockShape::Block_W1, 1),
+                    number<Pipeline::kAlignmentD>{},
+                    number<1>{});
+                const auto d_view_1_ =
+                    pad_tensor_view(d_view_,
+                                    make_tuple(number<BlockShape::Block_Nr1>{},
+                                               number<BlockShape::Block_Kr1>{},
+                                               number<BlockShape::Block_W1>{}),
+                                    sequence<PadHiddenSize, PadIntermediateSize, 0>{});
 
-            auto o_window_ = make_tile_window(
-                o_scatter_view_,
-                make_tuple(number<BlockShape::Block_M1>{}, number<BlockShape::Block_N1>{}),
-                {0, 0});
-            return o_window_;
-        }();
+                const auto d_window_ = make_tile_window(d_view_1_,
+                                                        make_tuple(number<BlockShape::Block_Nr1>{},
+                                                                   number<BlockShape::Block_Kr1>{},
+                                                                   number<BlockShape::Block_W1>{}),
+                                                        {0, 0, 0});
+                return d_window_;
+            }();
 
-        // do compute yeah
-        Pipeline{}(a_window,
-                   g_window,
-                   d_window,
-                   o_window,
-                   topk_weight,
-                   smem,
-                   kargs.hidden_size,
-                   kargs.intermediate_size);
+            auto o_window = [&]() {
+                ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr);
+                auto o_view_     = make_naive_tensor_view<address_space_enum::global,
+                                                      memory_operation_enum::atomic_add>(
+                    o_ptr,
+                    make_tuple(kargs.num_tokens, kargs.hidden_size),
+                    make_tuple(kargs.stride_token, 1),
+                    number<Pipeline::kAlignmentO>{},
+                    number<1>{});
+
+                // gather is here
+                auto o_scatter_view_ = transform_tensor_view(
+                    o_view_,
+                    make_tuple(make_indexing_transform(kargs.num_tokens, token_id),
+                               make_pass_through_transform(kargs.hidden_size)),
+                    make_tuple(sequence<0>{}, sequence<1>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+
+                auto o_window_ = make_tile_window(
+                    o_scatter_view_,
+                    make_tuple(number<BlockShape::Block_M1>{}, number<BlockShape::Block_N1>{}),
+                    {0, 0});
+                return o_window_;
+            }();
+
+            // do compute yeah
+            Pipeline{}(a_window,
+                       g_window,
+                       d_window,
+                       o_window,
+                       topk_weight,
+                       smem,
+                       kargs.hidden_size,
+                       kargs.intermediate_size,
+                       kargs.stride_token);
+        }
     }
 };
 

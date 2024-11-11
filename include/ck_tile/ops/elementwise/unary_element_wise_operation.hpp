@@ -572,6 +572,49 @@ struct FastGelu
     }
 };
 
+struct FastGeluAsm
+{
+    template <typename Y, typename X>
+    CK_TILE_HOST void operator()(Y& y, const X& x) const;
+
+    template <typename Y, typename X>
+    CK_TILE_DEVICE void operator()(Y& y, const X& x) const;
+
+    template <>
+    CK_TILE_HOST void operator()<float, float>(float& y, const float& x) const
+    {
+        // const float u   = -2.f * x * (0.035677f * x * x + 0.797885f);
+        const float c1  = -2.0 * 0.035677f;
+        const float c2  = -2.0 * 0.797885f;
+        const float u   = x * (c1 * x * x + c2);
+        const float emu = exp(u);
+        y               = x / (1.f + emu);
+    }
+
+    // device code, use lower precision "__ocml_exp_f32" and "rcp"
+    template <>
+    CK_TILE_DEVICE void operator()<float, float>(float& y, const float& x) const
+    {
+        // const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
+        const float c1     = 0xbd92220c; // -2.0 * 0.035677f;
+        const float c2     = -2.0 * 0.797885f;
+        const float log2e_ = 0x3fb8aa3b; // log2e_v<float>;
+        float tmp;
+
+        asm volatile("v_mul_f32 %[v_tmp], %[v_x], %[v_x]        ; x*x\n"
+                     "v_fma_f32 %[v_tmp], %[v_tmp], %[s_c1], %[v_c2]  ; c1*x*x+c2\n"
+                     "v_mul_f32 %[v_tmp], %[v_tmp], %[v_x]      ; x*(c1*x*x+c2)\n"
+                     "v_mul_f32 %[v_tmp], %[v_tmp], %[s_log2e]  ; log2e*x*(c1*x*x+c2)\n"
+                     "v_exp_f32 %[v_tmp], %[v_tmp]              ; emu = exp2(log2e*x*(c1*x*x+c2))\n"
+                     "v_add_f32 %[v_tmp], %[v_tmp], 1.0         ; emu+1.0f\n"
+                     "v_rcp_f32 %[v_tmp], %[v_tmp]              ; 1/(emu+1.0f)\n"
+                     "v_mul_f32 %[v_y], %[v_tmp], %[v_x]        ; x * 1/(emu+1f)\n"
+                     : [v_y] "=v"(y), [v_tmp] "+v"(tmp)
+                     : [v_x] "v"(x), [s_c1] "s"(c1), [v_c2] "v"(c2), [s_log2e] "s"(log2e_)
+                     :);
+    }
+};
+
 // https://paperswithcode.com/method/gelu
 // y = 0.5*x*(1+erf(x/sqrt(2)))
 struct Gelu

@@ -33,11 +33,12 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
                                              typename Ts_::YSmoothScaleDataType,
                                              typename Ts_::TopkWeightDataType,
                                              typename Ts_::IndexDataType,
-                                             ck_tile::element_wise::Gelu, // TODO: hardcoded
+                                             ck_tile::element_wise::FastGeluAsm, // TODO: hardcoded
                                              f_shape,
                                              f_traits>;
 
-    using f_pipeline    = ck_tile::FusedMoeGemmPipeline_FlatmmEx<f_problem>;
+    // using f_pipeline    = ck_tile::FusedMoeGemmPipeline_FlatmmEx<f_problem>;
+    using f_pipeline    = ck_tile::FusedMoeGemmPipeline_FlatmmUk<f_problem>;
     using f_partitioner = ck_tile::FusedMoeGemmTilePartitioner_Linear<f_shape>;
     using f_kernel      = ck_tile::FusedMoeGemmKernel<f_partitioner, f_pipeline, void>;
 

@@ -624,6 +624,40 @@ struct tile_window_linear
         WINDOW_DISPATCH_ISSUE();
     }
 
+    // return [m0_init_value, size_per_issue]
+    // m0_init_value-> directly use this to set m0 value
+    // size_per_issue-> direclty use this to inc m0 every issue
+    template <typename LdsTileWindow_>
+    CK_TILE_DEVICE auto get_smem_info(LdsTileWindow_&& lds_tile) const
+    {
+        using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
+        using LdsDataType   = typename LdsTileWindow::DataType;
+
+        // issues * warps * lanes
+        static_assert(LdsTileWindow::get_num_of_dimension() == 3); // TODO: hard coded
+
+        const index_t size_per_buf =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<0>{}, number<0>{}, number<0>{})) *
+            sizeof(LdsDataType);
+
+        const index_t size_per_wave =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<0>{}, number<1>{}, number<0>{})) *
+                sizeof(LdsDataType) -
+            size_per_buf;
+
+        const index_t size_per_issue =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<1>{}, number<0>{}, number<0>{})) *
+                sizeof(LdsDataType) -
+            size_per_buf;
+
+        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
+
+        return make_tuple(m0_init_value, size_per_issue);
+    }
+
     // TODO: currently async load only implemented in inline asm
     template <typename LdsTileWindow_,
               index_t i_access           = -1,

@@ -12,6 +12,7 @@ set(TILE_EXAPMLE_FUSED_MOE_COMPILE_OPTIONS)
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
 list(APPEND TILE_EXAPMLE_FUSED_MOE_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
 list(APPEND TILE_EXAPMLE_FUSED_MOE_COMPILE_OPTIONS -DCK_TILE_BUFFER_LOAD_AGPR=1) # TODO: enable load to a
+list(APPEND TILE_EXAPMLE_FUSED_MOE_COMPILE_OPTIONS -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=4) # rta
 # list(APPEND TILE_EXAPMLE_FUSED_MOE_COMPILE_OPTIONS  -mllvm -greedy-reverse-local-assignment=1)
 list(APPEND TILE_EXAPMLE_FUSED_MOE_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
 
