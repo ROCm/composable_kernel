@@ -105,9 +105,9 @@ auto create_args(int argc, char* argv[])
         .insert("prec_kw", "auto", "topk-weight data type. auto will set to fp32")
         .insert("fquant", "0", "fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant")
         .insert(
-            "gate_only", "0", "w0(gate/up) style, 0:gate+up will double interm size, 1:only gate")
+            "gate_only", "1", "w0(gate/up) style, 0:gate+up will double interm size, 1:only gate")
         .insert("balance",
-                "1",
+                "0",
                 "if set to 1, will try balance the expert in topk-ids(convenient for testing)")
         .insert("warmup", "5", "cold iter")
         .insert("repeat", "20", "hot iter");
@@ -121,6 +121,8 @@ auto create_args(int argc, char* argv[])
 template <typename I, typename W, typename O, typename ST, typename SW, typename SQ, typename KW>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
+    std::cout << "xxxx " << __LINE__ << std::flush << std::endl;
+
     ck_tile::index_t tokens            = arg_parser.get_int("t");
     ck_tile::index_t experts           = arg_parser.get_int("e");
     ck_tile::index_t topk              = arg_parser.get_int("k");
@@ -150,7 +152,28 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int balance         = arg_parser.get_int("balance");
     int tp              = arg_parser.get_int("tp");
 
-    ck_tile::index_t shared_intermediate_size = intermediate_size * (gate_only ? 1 : 2) / tp;
+    // w0 (Gate+Up or Gate only, N size)
+    ck_tile::index_t shared_intermediate_size_0 = intermediate_size * (gate_only ? 1 : 2) / tp;
+    // w1 (Down, N size)
+    ck_tile::index_t shared_intermediate_size_1 = intermediate_size / tp;
+
+    auto prec_str = [&]() {
+        auto base_str = prec_i;
+        if(prec_i != prec_w)
+            base_str += "x" + prec_w;
+        if(prec_i != prec_o)
+            base_str += "=" + prec_o;
+        if(fused_quant != 0)
+        {
+            base_str += std::string("(") + prec_st + "|" + prec_sw + "|" + prec_sq + ")";
+        }
+        return base_str;
+    }();
+
+    std::cout << "[" << prec_str << "]"
+              << " t:" << tokens << ", e:" << experts << ", k:" << topk << ", st:" << stride
+              << ", hidden:" << hidden_size << ", interm:" << intermediate_size << ", tp:" << tp
+              << ", go:" << gate_only << ", q:" << fused_quant << std::flush;
 
     using TypeConfig           = FusedMoeGemmTypeConfig<I, W, O, ST, SW, SQ, KW>;
     using ADataType            = typename TypeConfig::ADataType;
@@ -167,35 +190,35 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // host verify
     ck_tile::HostTensor<ADataType> a_host({tokens, hidden_size}, {stride, 1});
-    ck_tile::HostTensor<GDataType> g_host({experts, shared_intermediate_size, hidden_size});
-    ck_tile::HostTensor<DDataType> d_host({experts, intermediate_size, hidden_size});
+    ck_tile::HostTensor<GDataType> g_host({experts, shared_intermediate_size_0, hidden_size});
+    ck_tile::HostTensor<DDataType> d_host({experts, shared_intermediate_size_1, hidden_size});
     ck_tile::HostTensor<ODataType> o_host({tokens, hidden_size}, {stride, 1});
     ck_tile::HostTensor<AScaleDataType> sa_host({tokens});
-    ck_tile::HostTensor<GScaleDataType> sg_host({shared_intermediate_size});
-    ck_tile::HostTensor<DScaleDataType> sd_host({intermediate_size});
-    ck_tile::HostTensor<YSmoothScaleDataType> sy_host({intermediate_size});   // smooth-quant
-    ck_tile::HostTensor<IndexDataType> topk_ids_host({tokens, topk});         // to be sort
-    ck_tile::HostTensor<TopkWeightDataType> topk_weight_host({tokens, topk}); // to be sort
+    ck_tile::HostTensor<GScaleDataType> sg_host({shared_intermediate_size_0});
+    ck_tile::HostTensor<DScaleDataType> sd_host({shared_intermediate_size_1});
+    ck_tile::HostTensor<YSmoothScaleDataType> sy_host({shared_intermediate_size_1}); // smooth-quant
+    ck_tile::HostTensor<IndexDataType> topk_ids_host({tokens, topk});                // to be sort
+    ck_tile::HostTensor<TopkWeightDataType> topk_weight_host({tokens, topk});        // to be sort
 
-    int max_num_tokens_padded = topk * tokens + experts * (block_m - 1);
+    int max_num_tokens_padded = topk * tokens + experts * block_m - topk;
     ck_tile::HostTensor<IndexDataType> sorted_token_ids_host({max_num_tokens_padded});
     ck_tile::HostTensor<TopkWeightDataType> sorted_weight_host({max_num_tokens_padded});
     ck_tile::HostTensor<IndexDataType> sorted_expert_ids_host(
         {(max_num_tokens_padded + block_m - 1) / block_m});
     ck_tile::HostTensor<IndexDataType> num_sorted_tiles_host({1});
 
-    // permute weight
-    ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w);
-    ck_tile::HostTensor<DDataType> d_perm_host = shuffle_moe_weight(d_host, prec_w);
-
     ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
-    ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f}(g_perm_host);
-    ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f}(d_perm_host);
+    ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f}(g_host);
+    ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f}(d_host);
     ck_tile::FillUniformDistribution<AScaleDataType>{-.5f, .5f}(sa_host);
     ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f}(sg_host);
     ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f}(sd_host);
     ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f}(sy_host);
     ck_tile::FillUniformDistribution<TopkWeightDataType>{-.5f, .5f}(topk_weight_host);
+
+    // permute weight
+    ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w, 1);
+    ck_tile::HostTensor<DDataType> d_perm_host = shuffle_moe_weight(d_host, prec_w, 1);
 
     // do moe sorting
     if(balance)
@@ -223,6 +246,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
         num_sorted_tiles_host.mData[0],
         experts,
         block_m);
+
+    // std::cout << sorted_token_ids_host << std::endl;
+    // std::cout << num_sorted_tiles_host << std::endl;
+
     // done, preparing GPU buffer
     ck_tile::DeviceMem a_buf(a_host);
     ck_tile::DeviceMem g_perm_buf(g_perm_host);
@@ -237,24 +264,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem sorted_weight_buf(sorted_weight_host);
     ck_tile::DeviceMem sorted_expert_ids_buf(sorted_expert_ids_host);
     ck_tile::DeviceMem num_sorted_tiles_buf(num_sorted_tiles_host);
-
-    auto prec_str = [&]() {
-        auto base_str = prec_i;
-        if(prec_i != prec_w)
-            base_str += "x" + prec_w;
-        if(prec_i != prec_o)
-            base_str += "=" + prec_o;
-        if(fused_quant != 0)
-        {
-            base_str += std::string("(") + prec_st + "|" + prec_sw + "|" + prec_sq + ")";
-        }
-        return base_str;
-    }();
-
-    std::cout << "[" << prec_str << "]"
-              << " t:" << tokens << ", e:" << experts << ", k:" << topk << ", st:" << stride
-              << ", hidden:" << hidden_size << ", interm:" << intermediate_size << ", tp:" << tp
-              << ", go:" << gate_only << ", q:" << fused_quant << std::flush;
 
     fused_moegemm_traits traits{prec_i,
                                 prec_w,
@@ -280,7 +289,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                             sorted_expert_ids_buf.GetDeviceBuffer(),
                             num_sorted_tiles_buf.GetDeviceBuffer(),
                             hidden_size,
-                            intermediate_size,
+                            shared_intermediate_size_0,
                             tokens,
                             experts,
                             topk,
@@ -302,8 +311,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float gb_per_sec = num_byte / 1.E6 / ave_time;
     std::cout << ", " << ave_time * 1.E3 << " us, " << gb_per_sec << " GB/s" << std::flush;
 #else
-    std::size_t flop_gemm_0 = 2 * tokens * topk * shared_intermediate_size * hidden_size;
-    std::size_t flop_gemm_1 = 2 * tokens * topk * hidden_size * hidden_size;
+    std::size_t flop_gemm_0 = 2 * tokens * topk * shared_intermediate_size_0 * hidden_size;
+    std::size_t flop_gemm_1 = 2 * tokens * topk * shared_intermediate_size_1 * hidden_size;
     double tflops = (flop_gemm_0 + flop_gemm_1) / (static_cast<double>(ave_time) * 1e-3) / 1e12;
 
     // float gb_per_sec = num_byte / 1.E6 / ave_time;
@@ -331,7 +340,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             tokens,
             experts,
             hidden_size,
-            intermediate_size,
+            shared_intermediate_size_0,
             topk,
             gate_only);
 

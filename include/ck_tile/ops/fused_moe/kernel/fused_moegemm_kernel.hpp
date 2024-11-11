@@ -99,7 +99,7 @@ struct FusedMoeGemmHostArgs
     const void* num_sorted_tiles_ptr;  // [1]
 
     index_t hidden_size;       // k
-    index_t intermediate_size; // n (TP slice this)
+    index_t intermediate_size; // n / TP, for Gate. if Gate+Up, Down need divide by 2
     index_t num_tokens;        // input number of tokens for current iteration
     index_t num_experts;       // number of groups
     index_t topk;              // need this?
@@ -176,7 +176,7 @@ struct FusedMoeGemmKernel
         const void* num_sorted_tiles_ptr;
 
         index_t hidden_size;       // k
-        index_t intermediate_size; // n (TP slice this)
+        index_t intermediate_size; // n / TP, for Gate. if Gate+Up, Down need divide by 2
         index_t num_tokens;        // input number of tokens for current iteration
         index_t num_experts;       // number of groups
         index_t topk;              // need this?
@@ -198,7 +198,7 @@ struct FusedMoeGemmKernel
     {
         constexpr index_t block_m = BlockShape::Block_M0;
         int max_num_tokens_padded =
-            hargs.topk * hargs.num_tokens + hargs.num_experts * (block_m - 1);
+            hargs.topk * hargs.num_tokens + hargs.num_experts * block_m - hargs.topk;
         return Partitioner::GridSize(max_num_tokens_padded, hargs.intermediate_size);
     }
 

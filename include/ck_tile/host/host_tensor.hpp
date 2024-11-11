@@ -590,6 +590,22 @@ struct HostTensor
                                       size() * FromSize / ToSize};
     }
 
+    friend std::ostream& operator<<(std::ostream& os, const HostTensor<T>& t)
+    {
+        os << t.mDesc;
+        os << "[";
+        for(typename Data::size_type idx = 0; idx < t.mData.size(); ++idx)
+        {
+            if(0 < idx)
+            {
+                os << ", ";
+            }
+            os << t.mData[idx];
+        }
+        os << "]";
+        return os;
+    }
+
     Descriptor mDesc;
     Data mData;
 };

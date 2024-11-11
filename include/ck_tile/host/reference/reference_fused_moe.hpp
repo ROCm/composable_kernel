@@ -21,6 +21,7 @@ namespace ck_tile {
 // weight_id_per_expert is: [[a], [g, j, m], [d, k], [b, e, h, l, n], [], [c, f, i, o]]
 //
 // max_num_tokens_padded : topk * input_tokens + num_experts * (M_a - 1)
+// max_num_tokens_padded : topk * input_tokens + num_experts * M_a - topk (updated)
 // * this could be larger than actual, since actual tokens are on GPU
 //
 // sorted_token_ids_ptr   : [0, 6, 6, 6, 2, 3, 4, 6, 1, 3, 6, 6, 0, 1, 2, 3, 4, 6, 6, 6, 6, 6, 6, 6,
@@ -94,7 +95,7 @@ void reference_fused_moe(
 
     ck_tile::HostTensor<AccDataType> out_topk_tokens({tokens, topk, hidden_size});
 
-    int max_num_tokens_padded = topk * tokens + experts * (block_m - 1);
+    int max_num_tokens_padded = topk * tokens + experts * block_m - topk;
     // assert();
     auto f = [&](auto i_flatten) {
         ck_tile::index_t i_tile = i_flatten / block_m;
