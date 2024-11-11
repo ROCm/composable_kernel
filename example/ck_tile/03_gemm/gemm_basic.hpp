@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <iomanip>
 #include <string>
 
 #include "ck_tile/core.hpp"
