@@ -22,21 +22,35 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
     static constexpr bool TransposeC = true;
 
-    template <typename Problem, typename DataType, index_t kMNPerBlock>
-    CK_TILE_HOST_DEVICE static constexpr auto GetKPack()
+    template <typename Problem, typename DataType, index_t MNPerBlock>
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorLoadSize()
     {
-        constexpr index_t kBlockSize  = Problem::kBlockSize;
-        constexpr index_t kKPerBlock  = Problem::BlockGemmShape::kK;
-        constexpr index_t kMaxVecLoad = 16 / sizeof(DataType);
-        constexpr index_t kMinVecLoad = 4 / sizeof(DataType);
+        constexpr index_t BlockSize           = Problem::kBlockSize;
+        constexpr index_t KPerBlock           = Problem::BlockGemmShape::kK;
+        constexpr index_t elements_per_thread = MNPerBlock * KPerBlock / BlockSize;
 
-        constexpr index_t total_pixels = kMNPerBlock * kKPerBlock / kBlockSize;
-
-        constexpr index_t kVecLoad = ((total_pixels / kMaxVecLoad) >= kMinVecLoad)
-                                         ? kMaxVecLoad
-                                         : (total_pixels / kMinVecLoad);
-
-        return kVecLoad;
+        if constexpr(elements_per_thread % (16 / sizeof(DataType)) == 0)
+        {
+            return (16 / sizeof(DataType));
+        }
+        else if constexpr(elements_per_thread % (8 / sizeof(DataType)) == 0)
+        {
+            return (8 / sizeof(DataType));
+        }
+        else if constexpr(elements_per_thread % (4 / sizeof(DataType)) == 0 &&
+                          sizeof(DataType) >= 4)
+        {
+            return (4 / sizeof(DataType));
+        }
+        else if constexpr(elements_per_thread % (2 / sizeof(DataType)) == 0 &&
+                          sizeof(DataType) >= 2)
+        {
+            return (2 / sizeof(DataType));
+        }
+        else
+        {
+            return 1;
+        }
     }
 
     template <typename Problem>
@@ -47,10 +61,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t KPack =
-            GetKPack<Problem,
-                     ADataType,
-                     MPerBlock>(); // Problem::BlockGemmShape::WarpTile::at(number<2>{});
+        constexpr index_t KPack     = GetVectorLoadSize<Problem, ADataType, MPerBlock>();
 
         constexpr auto DataTypeSize = sizeof(ADataType);
         constexpr auto MLdsLayer =
@@ -101,10 +112,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t KPack =
-            GetKPack<Problem,
-                     BDataType,
-                     NPerBlock>(); // Problem::BlockGemmShape::WarpTile::at(number<2>{});
+        constexpr index_t KPack     = GetVectorLoadSize<Problem, BDataType, NPerBlock>();
 
         constexpr auto DataTypeSize = sizeof(BDataType);
         constexpr auto NLdsLayer =
@@ -181,7 +189,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t K1 = GetKPack<Problem, typename Problem::ADataType, MPerBlock>();
+        constexpr index_t K1 = GetVectorLoadSize<Problem, typename Problem::ADataType, MPerBlock>();
         constexpr index_t K0 = KPerBlock / K1;
         constexpr index_t M2 = get_warp_size() / K0;
 
@@ -207,7 +215,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t K1 = GetKPack<Problem, typename Problem::BDataType, NPerBlock>();
+        constexpr index_t K1 = GetVectorLoadSize<Problem, typename Problem::BDataType, NPerBlock>();
         constexpr index_t K0 = KPerBlock / K1;
         constexpr index_t N2 = get_warp_size() / K0;
 
