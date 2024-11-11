@@ -85,7 +85,6 @@ struct GemmKernel
             }
             else
             {
-
                 return make_naive_tensor_view<address_space_enum::global>(
                     a_start,
                     make_tuple(kargs.M, kargs.K),
