@@ -25,7 +25,7 @@ struct SmoothquantPipelineOnePass
     static constexpr bool kNeedCrossWarpSync = Problem::kNeedCrossWarpSync;
     static constexpr bool kPadM              = false; // TODO - BlockSmoothquantProblem::kPadM
     static constexpr bool kPadN              = Problem::kPadN;
-    static constexpr bool UseMax3            = true; // TODO - Trait
+    static constexpr bool UseMax3            = true; // TODO - Move to trait
 
     static constexpr const char* name = []() {
         if constexpr(kNeedCrossWarpSync)
@@ -83,14 +83,14 @@ struct SmoothquantPipelineOnePass
             if constexpr(UseMax3 && std::is_same_v<ComputeDataType, float> &&
                          x_size_per_row % 2 == 0)
             {
-                return reduce(y,
-                              reduce_absmax_func.GetIdentityValue<ComputeDataType>(),
-                              reduce_absmax3_func,
-                              sequence<1, 2>{});
+                return block_reduce2d(y,
+                                      reduce_absmax_func.GetIdentityValue<ComputeDataType>(),
+                                      reduce_absmax3_func,
+                                      sequence<1, 2>{});
             }
             else
             {
-                block_reduce2d(
+                return block_reduce2d(
                     y, reduce_absmax_func.GetIdentityValue<ComputeDataType>(), reduce_absmax_func);
             }
         }();
