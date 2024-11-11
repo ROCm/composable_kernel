@@ -36,6 +36,7 @@ struct Layernorm2dFwdPipelineOnePass
     static constexpr bool kNeedCrossWarpSync = Problem::kNeedCrossWarpSync;
     static constexpr bool kPadM              = false; // TODO - BlockLayernorm2dFwdProblem::kPadM
     static constexpr bool kPadN              = Problem::Traits::kPadN;
+    static constexpr bool kFastFDiv          = Problem::Traits::kFastFDiv;
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
@@ -125,7 +126,15 @@ struct Layernorm2dFwdPipelineOnePass
         // compute inv-std
         auto inv_std = tile_elementwise_in(
             [&](const auto& v_) {
-                return type_convert<ComputeDataType>(1.0f) / (sqrt(v_ + epsilon));
+                if(kFastFDiv && std::is_same_v<ComputeDataType, float>)
+                {
+                    return type_convert<ComputeDataType>(1.0f) *
+                           __builtin_amdgcn_rcpf(sqrt(v_ + epsilon));
+                }
+                else
+                {
+                    return type_convert<ComputeDataType>(1.0f) / sqrt(v_ + epsilon);
+                }
             },
             var);
 
