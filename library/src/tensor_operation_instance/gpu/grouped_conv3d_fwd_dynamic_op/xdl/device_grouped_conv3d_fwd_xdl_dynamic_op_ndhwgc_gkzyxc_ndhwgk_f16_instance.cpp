@@ -31,6 +31,8 @@ void add_device_grouped_conv3d_fwd_xdl_dynamic_op_ndhwgc_gkzyxc_ndhwgk_f16_insta
                                                              Tuple<>,
                                                              NDHWGK,
                                                              ConvFwdDefault>{});
+#if 0 // Enable with dynamic op optimizations (at now generating a lot of virtual functions cause
+      // long compilation time)
     add_device_operation_instances(
         instances,
         device_grouped_conv_fwd_xdl_dynamic_op_f16_instances<3,
@@ -47,6 +49,7 @@ void add_device_grouped_conv3d_fwd_xdl_dynamic_op_ndhwgc_gkzyxc_ndhwgk_f16_insta
                                                              Tuple<>,
                                                              NDHWGK,
                                                              ConvFwd1x1S1P0>{});
+#endif
 }
 
 } // namespace instance

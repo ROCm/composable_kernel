@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include <tuple>
 
+// This file is not support cross warp reduce
 namespace ck_tile {
 
 /*
@@ -300,7 +301,10 @@ struct BlockReduce2D
                     .get_static_tile_distribution_encoding(),
                 ReduceDim{}));
 
-        return make_static_distributed_tensor<InDataType>(acc_dstr);
+        auto dst_ = make_static_distributed_tensor<InDataType>(acc_dstr);
+        // init acc_tensor
+        tile_elementwise_inout([&](auto& x_) { x_ = type_convert<InDataType>(reduce_init); }, dst_);
+        return dst_;
     }
 
     // return number of pixels each lane need to reduce
