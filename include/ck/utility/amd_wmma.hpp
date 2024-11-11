@@ -9,7 +9,8 @@
 // TODO: Add arch limitation
 namespace ck {
 
-#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx1103__)
+#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
+    defined(__gfx1103__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
 /********************************WAVE32 MODE***********************************************/
@@ -260,7 +261,7 @@ struct intrin_wmma_i32_16x16x16_iu8_w64<16, 16, neg_a, neg_b, clamp>
 // gfx12
 /********************************WAVE32 MODE***********************************************/
 
-#if defined(__gfx1200__) || defined(__gfx1201__)
+#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
 #define __gfx12__
 #endif
 
