@@ -53,9 +53,9 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
         constexpr ck_tile::index_t N_Warp_Tile = 32;
         constexpr ck_tile::index_t K_Warp_Tile = 8;
 
-        constexpr bool kPadA = true;
-        constexpr bool kPadB = true;
-        constexpr bool kPadC = true;
+        constexpr bool kPadM = true;
+        constexpr bool kPadN = true;
+        constexpr bool kPadK = true;
 
         constexpr int kBlockPerCu = 1;
 
@@ -68,12 +68,21 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
         using TilePartitioner = ck_tile::GemmTilePartitioner<GemmShape>;
 
         using GemmEpilogue = ck_tile::Default2DEpilogue<
-            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, false, kPadC>>;
+            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
 
-        using Traits = ck_tile::TileGemmTraits<kPadA, kPadB, kPadC, ALayout, BLayout, CLayout>;
+        using Traits = ck_tile::TileGemmTraits<kPadM,
+                                               kPadN,
+                                               kPadK,
+                                               GemmShape,
+                                               ADataType,
+                                               BDataType,
+                                               AccDataType,
+                                               ALayout,
+                                               BLayout,
+                                               CLayout>;
 
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
+        using BaseGemmPipeline =
+            ck_tile::BaseGemmPipelineAgBgCrMem<ck_tile::GemmPipelineProblem<Traits>>;
 
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
@@ -108,7 +117,7 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
 
             if(s.log_level_ > 0)
             {
-                std::cout << "Lunching kernel with args:"
+                std::cout << "Launching kernel with args:"
                           << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                           << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
                           << "}" << std::endl;
