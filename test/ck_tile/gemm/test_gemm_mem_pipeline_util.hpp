@@ -70,19 +70,10 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
         using GemmEpilogue = ck_tile::Default2DEpilogue<
             ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
 
-        using Traits = ck_tile::TileGemmTraits<kPadM,
-                                               kPadN,
-                                               kPadK,
-                                               GemmShape,
-                                               ADataType,
-                                               BDataType,
-                                               AccDataType,
-                                               ALayout,
-                                               BLayout,
-                                               CLayout>;
+        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
 
-        using BaseGemmPipeline =
-            ck_tile::BaseGemmPipelineAgBgCrMem<ck_tile::GemmPipelineProblem<Traits>>;
+        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
+            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
 
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
@@ -93,7 +84,11 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
             constexpr auto tail_number_v  = tail_number_.value;
 
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<
-                ck_tile::UniversalGemmPipelineProblem<Traits,
+                ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                      BDataType,
+                                                      AccDataShape,
+                                                      GemmShape,
+                                                      Traits,
                                                       ck_tile::GemmPipelineScheduler::Intrawave,
                                                       has_hot_loop_v,
                                                       tail_number_v>>;

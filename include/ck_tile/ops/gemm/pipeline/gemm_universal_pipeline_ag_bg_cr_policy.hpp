@@ -18,8 +18,6 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
     static constexpr bool TransposeC = true;
 
-    static constexpr index_t VectorLoadSize = 16;
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
@@ -336,14 +334,14 @@ struct UniversalGemmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
     {
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
-        return VectorLoadSize / sizeof(ADataType);
+        return Problem::VectorLoadSize / sizeof(ADataType);
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
     {
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
-        return VectorLoadSize / sizeof(BDataType);
+        return Problem::VectorLoadSize / sizeof(BDataType);
     }
 
     template <typename Problem>
@@ -359,7 +357,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
-            constexpr index_t M1           = VectorLoadSize / sizeof(ADataType);
+            constexpr index_t M1           = Problem::VectorLoadSize / sizeof(ADataType);
             constexpr index_t M0           = MPerBlock / M1;
             constexpr index_t total_pixels = MPerBlock * KPerBlock / BlockSize;
             static_assert(total_pixels % M1 == 0);
@@ -397,7 +395,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         }
         else
         {
-            constexpr index_t K1 = VectorLoadSize / sizeof(ADataType);
+            constexpr index_t K1 = Problem::VectorLoadSize / sizeof(ADataType);
             constexpr index_t K0 = KPerBlock / K1;
             constexpr index_t M2 = get_warp_size() / K0;
             if constexpr(get_warp_size() % (M2 * K0) == 0)
@@ -442,7 +440,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            constexpr index_t N1           = VectorLoadSize / sizeof(BDataType);
+            constexpr index_t N1           = Problem::VectorLoadSize / sizeof(BDataType);
             constexpr index_t N0           = NPerBlock / N1;
             constexpr index_t total_pixels = NPerBlock * KPerBlock / BlockSize;
             static_assert(total_pixels % N1 == 0);
@@ -481,7 +479,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         else
         {
 
-            constexpr index_t K1 = VectorLoadSize / sizeof(BDataType);
+            constexpr index_t K1 = Problem::VectorLoadSize / sizeof(BDataType);
             constexpr index_t K0 = KPerBlock / K1;
             constexpr index_t N2 = get_warp_size() / K0;
             // coalesce reading for each blocks
@@ -527,7 +525,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t M1           = VectorLoadSize / sizeof(ADataType);
+        constexpr index_t M1           = Problem::VectorLoadSize / sizeof(ADataType);
         constexpr index_t M0           = MPerBlock / M1;
         constexpr index_t total_pixels = MPerBlock * KPerBlock / BlockSize;
         static_assert(total_pixels % M1 == 0);
@@ -575,7 +573,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t N1           = VectorLoadSize / sizeof(BDataType);
+        constexpr index_t N1           = Problem::VectorLoadSize / sizeof(BDataType);
         constexpr index_t N0           = NPerBlock / N1;
         constexpr index_t total_pixels = NPerBlock * KPerBlock / BlockSize;
         static_assert(total_pixels % N1 == 0);

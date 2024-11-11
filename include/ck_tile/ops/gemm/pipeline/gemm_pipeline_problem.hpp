@@ -7,65 +7,146 @@
 
 namespace ck_tile {
 
-static constexpr int _VectorSize = 16;
-
-template <typename TileGemmTraits_>
-struct GemmPipelineProblem
+template <typename ADataType_,
+          typename BDataType_,
+          typename CDataType_,
+          typename BlockGemmShape_,
+          typename TileGemmTraits_>
+struct GemmPipelineProblemBase
 {
     using GemmTraits = remove_cvref_t<TileGemmTraits_>;
 
-    using ADataType = remove_cvref_t<typename GemmTraits::ADataType>;
-    using BDataType = remove_cvref_t<typename GemmTraits::BDataType>;
-    using CDataType = remove_cvref_t<typename GemmTraits::CDataType>;
+    using ADataType = remove_cvref_t<ADataType_>;
+    using BDataType = remove_cvref_t<BDataType_>;
+    using CDataType = remove_cvref_t<CDataType_>;
 
-    using BlockGemmShape = remove_cvref_t<typename GemmTraits::BlockGemmShape>;
+    using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
     using ALayout = remove_cvref_t<typename GemmTraits::ALayout>;
     using BLayout = remove_cvref_t<typename GemmTraits::BLayout>;
     using CLayout = remove_cvref_t<typename GemmTraits::CLayout>;
 
-    static constexpr index_t kBlockSize = GemmTraits::kBlockSize;
+    static constexpr index_t VectorLoadSize = GemmTraits::_VectorSize;
+    static constexpr index_t kBlockSize     = BlockGemmShape::NumWarps * get_warp_size();
 
     static constexpr bool kPadM = GemmTraits::kPadM;
     static constexpr bool kPadN = GemmTraits::kPadN;
     static constexpr bool kPadK = GemmTraits::kPadK;
 
-    static constexpr index_t VectorSizeA = GemmTraits::VectorSizeA;
-    static constexpr index_t VectorSizeB = GemmTraits::VectorSizeB;
-    static constexpr index_t VectorSizeC = GemmTraits::VectorSizeC;
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
+    {
+        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+        {
+            constexpr index_t pixels_per_thread =
+                BlockGemmShape::kM * BlockGemmShape::kK / kBlockSize;
+            return pixels_per_thread < VectorLoadSize / sizeof(ADataType)
+                       ? pixels_per_thread
+                       : VectorLoadSize / sizeof(ADataType);
+        }
+        else
+        {
+            return VectorLoadSize / sizeof(ADataType);
+        }
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentB()
+    {
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            constexpr index_t pixels_per_thread =
+                BlockGemmShape::kN * BlockGemmShape::kK / kBlockSize;
+            return pixels_per_thread < VectorLoadSize / sizeof(BDataType)
+                       ? pixels_per_thread
+                       : VectorLoadSize / sizeof(BDataType);
+        }
+        else
+        {
+            return VectorLoadSize / sizeof(BDataType);
+        }
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentC()
+    {
+        if constexpr(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+        {
+            constexpr index_t N1 = kBlockSize / get_warp_size();
+            constexpr index_t N2 = std::min(BlockGemmShape::kN / N1, get_warp_size());
+            constexpr index_t M0 = get_warp_size() / N2;
+            constexpr index_t M1 = BlockGemmShape::kM / M0;
+
+            return std::min(M1, static_cast<index_t>(VectorLoadSize / sizeof(CDataType)));
+        }
+        else
+        {
+            constexpr index_t M1 = kBlockSize / get_warp_size();
+            constexpr index_t M2 = std::min(BlockGemmShape::kM / M1, get_warp_size());
+            constexpr index_t N0 = get_warp_size() / M2;
+            constexpr index_t N1 = BlockGemmShape::kN / N0;
+
+            return std::min(N1, static_cast<index_t>(VectorLoadSize / sizeof(CDataType)));
+        }
+    }
+
+    static constexpr index_t VectorSizeA = []() {
+        if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+        {
+            return kPadK ? 1 : GetAlignmentA();
+        }
+        else
+        {
+            return kPadM ? 1 : GetAlignmentA();
+        }
+    }();
+
+    static constexpr index_t VectorSizeB = []() {
+        if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+        {
+            return kPadN ? 1 : GetAlignmentB();
+        }
+        else
+        {
+            return kPadK ? 1 : GetAlignmentB();
+        }
+    }();
+
+    static constexpr index_t VectorSizeC = []() {
+        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        {
+            return kPadN ? 1 : GetAlignmentC();
+        }
+        else
+        {
+            return kPadM ? 1 : GetAlignmentC();
+        }
+    }();
 };
 
-template <typename TileGemmTraits_,
+// Alias for GemmPipelineProblem
+template <typename ADataType_,
+          typename BDataType_,
+          typename CDataType_,
+          typename BlockGemmShape_,
+          typename TileGemmTraits_>
+using GemmPipelineProblem =
+    GemmPipelineProblemBase<ADataType_, BDataType_, CDataType_, BlockGemmShape_, TileGemmTraits_>;
+
+template <typename ADataType_,
+          typename BDataType_,
+          typename CDataType_,
+          typename BlockGemmShape_,
+          typename TileGemmTraits_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full>
-struct UniversalGemmPipelineProblem
+struct UniversalGemmPipelineProblem : public GemmPipelineProblemBase<ADataType_,
+                                                                     BDataType_,
+                                                                     CDataType_,
+                                                                     BlockGemmShape_,
+                                                                     TileGemmTraits_>
 {
-    using GemmTraits = remove_cvref_t<TileGemmTraits_>;
-
-    using BlockGemmShape = remove_cvref_t<typename GemmTraits::BlockGemmShape>;
-
-    using ADataType = remove_cvref_t<typename GemmTraits::ADataType>;
-    using BDataType = remove_cvref_t<typename GemmTraits::BDataType>;
-    using CDataType = remove_cvref_t<typename GemmTraits::CDataType>;
-
-    using ALayout = remove_cvref_t<typename GemmTraits::ALayout>;
-    using BLayout = remove_cvref_t<typename GemmTraits::BLayout>;
-    using CLayout = remove_cvref_t<typename GemmTraits::CLayout>;
-
     static constexpr auto Scheduler  = Scheduler_;
     static constexpr auto HasHotLoop = HasHotLoop_;
     static constexpr auto TailNum    = TailNum_;
-
-    static constexpr index_t kBlockSize = GemmTraits::kBlockSize;
-
-    static constexpr bool kPadM = GemmTraits::kPadM;
-    static constexpr bool kPadN = GemmTraits::kPadN;
-    static constexpr bool kPadK = GemmTraits::kPadK;
-
-    static constexpr index_t VectorSizeA = GemmTraits::VectorSizeA;
-    static constexpr index_t VectorSizeB = GemmTraits::VectorSizeB;
-    static constexpr index_t VectorSizeC = GemmTraits::VectorSizeC;
 };
 
 } // namespace ck_tile

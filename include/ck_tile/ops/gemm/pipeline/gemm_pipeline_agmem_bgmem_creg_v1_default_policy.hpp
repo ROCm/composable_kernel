@@ -12,8 +12,6 @@ namespace ck_tile {
 struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 {
 
-    static constexpr index_t VectorLoadSize = 16;
-
 #if 0
     // 2d
     template <typename Problem>
@@ -124,14 +122,14 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
     {
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
-        return VectorLoadSize / sizeof(ADataType);
+        return Problem::VectorLoadSize / sizeof(ADataType);
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
     {
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
-        return VectorLoadSize / sizeof(BDataType);
+        return Problem::VectorLoadSize / sizeof(BDataType);
     }
 #elif 1
     // fake XOR
@@ -218,7 +216,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
-            constexpr index_t M1           = VectorLoadSize / sizeof(ADataType);
+            constexpr index_t M1           = Problem::VectorLoadSize / sizeof(ADataType);
             constexpr index_t M0           = MPerBlock / M1;
             constexpr index_t total_pixels = MPerBlock * KPerBlock / BlockSize;
             static_assert(total_pixels % M1 == 0);
@@ -303,7 +301,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            constexpr index_t N1           = VectorLoadSize / sizeof(BDataType);
+            constexpr index_t N1           = Problem::VectorLoadSize / sizeof(BDataType);
             constexpr index_t N0           = NPerBlock / N1;
             constexpr index_t total_pixels = NPerBlock * KPerBlock / BlockSize;
             static_assert(total_pixels % N1 == 0);
@@ -342,7 +340,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         else
         {
 
-            constexpr index_t K1 = VectorLoadSize / sizeof(BDataType);
+            constexpr index_t K1 = Problem::VectorLoadSize / sizeof(BDataType);
             constexpr index_t K0 = KPerBlock / K1;
             constexpr index_t N2 = get_warp_size() / K0;
             // coalesce reading for each blocks
@@ -388,7 +386,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t N1           = VectorLoadSize / sizeof(BDataType);
+        constexpr index_t N1           = Problem::VectorLoadSize / sizeof(BDataType);
         constexpr index_t N0           = kNPerBlock / N1;
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
         static_assert(total_pixels % N1 == 0);
@@ -436,7 +434,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t M1           = VectorLoadSize / sizeof(ADataType);
+        constexpr index_t M1           = Problem::VectorLoadSize / sizeof(ADataType);
         constexpr index_t M0           = kMPerBlock / M1;
         constexpr index_t total_pixels = kMPerBlock * kKPerBlock / kBlockSize;
         static_assert(total_pixels % M1 == 0);
