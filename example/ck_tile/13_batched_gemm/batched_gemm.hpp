@@ -7,6 +7,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
 
 template <typename DataType>
 struct BatchedGemmTypeConfig;
@@ -18,28 +19,6 @@ struct BatchedGemmTypeConfig<ck_tile::half_t>
     using BDataType   = ck_tile::half_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
-    // ToDo: Add more bias config to support different categories of GEMM.
-};
-
-template <typename T>
-struct DataTypeTraits;
-
-template <>
-struct DataTypeTraits<float>
-{
-    static constexpr const char* name = "fp32";
-};
-
-template <>
-struct DataTypeTraits<double>
-{
-    static constexpr const char* name = "fp64";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::half_t>
-{
-    static constexpr const char* name = "fp16";
 };
 
 using Types = BatchedGemmTypeConfig<ck_tile::half_t>;
@@ -50,34 +29,22 @@ using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
 using CDataType   = Types::CDataType;
 
-struct batched_gemm_args
+struct batched_gemm_kargs : public ck_tile::BatchedGemmHostArgs
 {
-    const void* p_a;
-    const void* p_b;
-    void* p_c;
-    ck_tile::index_t k_batch;
-    ck_tile::index_t M;
-    ck_tile::index_t N;
-    ck_tile::index_t K;
-    ck_tile::index_t stride_A;
-    ck_tile::index_t stride_B;
-    ck_tile::index_t stride_C;
-    ck_tile::index_t batch_stride_A;
-    ck_tile::index_t batch_stride_B;
-    ck_tile::index_t batch_stride_C;
-    ck_tile::index_t batch_count;
 };
 
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("k_batch", "1", "Batch Size")
-        .insert("m", "256", "m dimension")
+    arg_parser.insert("m", "256", "m dimension")
         .insert("n", "128", "n dimension")
         .insert("k", "128", "k dimension")
         .insert("stride_a", "128", "Tensor A stride")
         .insert("stride_b", "128", "Tensor B stride")
         .insert("stride_c", "128", "Tensor C stride")
+        .insert("a_layout", "R", "A tensor data layout - Row by default")
+        .insert("b_layout", "R", "B tensor data layout - Row by default")
+        .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("batch_stride_a", "32768", "Batch A stride")
         .insert("batch_stride_b", "16384", "Batch B stride")
         .insert("batch_stride_c", "32768", "Batch C stride")
@@ -93,4 +60,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-float gemm_calc(batched_gemm_args args, const ck_tile::stream_config& s);
+float gemm_calc(batched_gemm_kargs args, const ck_tile::stream_config& s);

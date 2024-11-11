@@ -15,7 +15,7 @@
 #include "batched_gemm.hpp"
 
 template <typename ALayout, typename BLayout, typename CLayout>
-float gemm_calc(const batched_gemm_args& args, const ck_tile::stream_config& s)
+float gemm_calc(const batched_gemm_kargs& args, const ck_tile::stream_config& s)
 {
     // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadA        = true;
@@ -81,22 +81,9 @@ float gemm_calc(const batched_gemm_args& args, const ck_tile::stream_config& s)
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel = ck_tile::BatchedGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
 
-    auto kargs = Kernel::MakeKargs(args.p_a,
-                                   args.p_b,
-                                   args.p_c,
-                                   args.k_batch,
-                                   args.M,
-                                   args.N,
-                                   args.K,
-                                   args.stride_A,
-                                   args.stride_B,
-                                   args.stride_C,
-                                   args.batch_stride_A,
-                                   args.batch_stride_B,
-                                   args.batch_stride_C,
-                                   args.batch_count);
+    auto kargs = Kernel::MakeKargs(args);
 
-    const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch, args.batch_count);
+    const dim3 grids      = Kernel::GridSize(args);
     constexpr dim3 blocks = Kernel::BlockSize();
 
     if(s.log_level_ > 0)

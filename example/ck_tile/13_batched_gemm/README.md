@@ -15,10 +15,12 @@ This will result in an executable `build/bin/tile_example_batched_gemm`
 ## example
 ```
 args:
-        -k_batch     Batch Size (default:1)
               -m     m dimension (default:256)
               -n     n dimension (default:128)
               -k     k dimension (default:128)
+       -a_layout     A tensor data layout (default:R) (R for Row, C for Col)
+       -b_layout     B tensor data layout (default:R) (R for Row, C for Col)
+       -c_layout     C tensor data layout (default:R) (R for Row, C for Col)
        -stride_a     Tensor A stride (default:128)
        -stride_b     Tensor B stride (default:128)
        -stride_c     Tensor C stride (default:128)

@@ -7,7 +7,6 @@ template <typename ALayout, typename BLayout, typename CLayout>
 float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                           ck_tile::DeviceMem& b_k_n_dev_buf,
                           ck_tile::DeviceMem& c_m_n_dev_buf,
-                          ck_tile::index_t k_batch,
                           ck_tile::index_t M,
                           ck_tile::index_t N,
                           ck_tile::index_t K,
@@ -21,11 +20,10 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                           int n_warmup,
                           int n_repeat)
 {
-    batched_gemm_args args;
-    args.p_a            = a_m_k_dev_buf.GetDeviceBuffer();
-    args.p_b            = b_k_n_dev_buf.GetDeviceBuffer();
-    args.p_c            = c_m_n_dev_buf.GetDeviceBuffer();
-    args.k_batch        = k_batch;
+    batched_gemm_kargs args;
+    args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
+    args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
+    args.c_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
     args.M              = M;
     args.N              = N;
     args.K              = K;
@@ -56,14 +54,18 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-int run_batched_gemm_example(int argc, char* argv[])
+template <typename ALayout, typename BLayout, typename CLayout>
+int run_batched_gemm_example_with_layouts(int argc,
+                                          char* argv[],
+                                          const ALayout a_layout                  = ALayout{},
+                                          const BLayout b_layout                  = BLayout{},
+                                          [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return -1;
 
-    ck_tile::index_t k_batch = arg_parser.get_int("k_batch");
-
+    ////
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
@@ -79,10 +81,6 @@ int run_batched_gemm_example(int argc, char* argv[])
 
     int n_warmup = arg_parser.get_int("warmup");
     int n_repeat = arg_parser.get_int("repeat");
-
-    using ALayout = ck_tile::tensor_layout::gemm::RowMajor;
-    using BLayout = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using CLayout = ck_tile::tensor_layout::gemm::RowMajor;
 
     using namespace ck_tile::literals;
 
@@ -124,18 +122,16 @@ int run_batched_gemm_example(int argc, char* argv[])
             return stride;
     };
 
-    stride_A = f_get_default_stride(M, K, stride_A, ALayout{});
-    stride_B = f_get_default_stride(K, N, stride_B, BLayout{});
-    stride_C = f_get_default_stride(M, N, stride_C, CLayout{});
+    stride_A = f_get_default_stride(M, K, stride_A, a_layout);
+    stride_B = f_get_default_stride(K, N, stride_B, b_layout);
+    stride_C = f_get_default_stride(M, N, stride_C, c_layout);
 
     ck_tile::HostTensor<ADataType> a_m_k(
-        f_host_tensor_descriptor(batch_count, M, K, stride_A, batch_stride_A, ALayout{}));
+        f_host_tensor_descriptor(batch_count, M, K, stride_A, batch_stride_A, a_layout));
     ck_tile::HostTensor<BDataType> b_k_n(
-        f_host_tensor_descriptor(batch_count, K, N, stride_B, batch_stride_B, BLayout{}));
+        f_host_tensor_descriptor(batch_count, K, N, stride_B, batch_stride_B, b_layout));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
-        f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, CLayout{}));
-
-    // TODO: add different init types
+        f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, c_layout));
 
     ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
     ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
@@ -152,7 +148,6 @@ int run_batched_gemm_example(int argc, char* argv[])
     invoke_batched_gemm<ALayout, BLayout, CLayout>(a_m_k_dev_buf,
                                                    b_k_n_dev_buf,
                                                    c_m_n_dev_buf,
-                                                   k_batch,
                                                    M,
                                                    N,
                                                    K,
@@ -217,4 +212,38 @@ int run_batched_gemm_example(int argc, char* argv[])
     }
 
     return pass;
+}
+
+int run_batched_gemm_example(int argc, char* argv[])
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+    std::string a_layout = arg_parser.get_str("a_layout");
+    std::string b_layout = arg_parser.get_str("b_layout");
+
+    if(a_layout == "R" && b_layout == "R")
+    {
+        return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
+    }
+    else if(a_layout == "R" && b_layout == "C")
+    {
+        return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "C")
+    {
+        return run_batched_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "R")
+    {
+        return run_batched_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+    }
 }

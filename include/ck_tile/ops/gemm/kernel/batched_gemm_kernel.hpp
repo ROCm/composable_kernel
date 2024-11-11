@@ -8,9 +8,25 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 
 namespace ck_tile {
+
+struct BatchedGemmHostArgs
+{
+    const void* a_ptr;
+    const void* b_ptr;
+    void* c_ptr;
+    index_t M;
+    index_t N;
+    index_t K;
+    index_t stride_A;
+    index_t stride_B;
+    index_t stride_C;
+    index_t batch_stride_A;
+    index_t batch_stride_B;
+    index_t batch_stride_C;
+    index_t batch_count;
+};
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct BatchedGemmKernel
@@ -27,24 +43,11 @@ struct BatchedGemmKernel
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    __host__ static constexpr auto
-    GridSize(index_t M, index_t N, index_t KBatch, index_t BatchCount)
-    {
-        if(KBatch > 1)
-        {
-            std::runtime_error("split k is not supported");
-        }
-        return TilePartitioner::GridSize(M, N, KBatch * BatchCount);
-    }
-
-    __host__ static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
-
-    struct BatchedGemmCommonKargs
+    struct BatchedGemmKargs
     {
         const void* a_ptr;
         const void* b_ptr;
         void* c_ptr;
-        index_t k_batch;
         index_t M;
         index_t N;
         index_t K;
@@ -57,35 +60,34 @@ struct BatchedGemmKernel
         index_t batch_count;
     };
 
-    CK_TILE_HOST static constexpr BatchedGemmCommonKargs MakeKargs(const void* a_ptr,
-                                                                   const void* b_ptr,
-                                                                   void* c_ptr,
-                                                                   index_t k_batch,
-                                                                   index_t M,
-                                                                   index_t N,
-                                                                   index_t K,
-                                                                   index_t stride_A,
-                                                                   index_t stride_B,
-                                                                   index_t stride_C,
-                                                                   index_t batch_stride_A,
-                                                                   index_t batch_stride_B,
-                                                                   index_t batch_stride_C,
-                                                                   index_t batch_count)
+    using Kargs = BatchedGemmKargs;
+    using Hargs = BatchedGemmHostArgs;
+
+    // index_t M, index_t N, index_t BatchCount
+    __host__ static constexpr auto GridSize(const Hargs& h)
     {
-        return BatchedGemmCommonKargs{a_ptr,
-                                      b_ptr,
-                                      c_ptr,
-                                      k_batch,
-                                      M,
-                                      N,
-                                      K,
-                                      stride_A,
-                                      stride_B,
-                                      stride_C,
-                                      batch_stride_A,
-                                      batch_stride_B,
-                                      batch_stride_C,
-                                      batch_count};
+        return TilePartitioner::GridSize(h.M, h.N, h.batch_count);
+    }
+
+    __host__ static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+
+    CK_TILE_HOST static constexpr BatchedGemmKargs MakeKargs(const Hargs& h)
+    {
+        Kargs k;
+        k.a_ptr          = h.a_ptr;
+        k.b_ptr          = h.b_ptr;
+        k.c_ptr          = h.c_ptr;
+        k.M              = h.M;
+        k.N              = h.N;
+        k.K              = h.K;
+        k.stride_A       = h.stride_A;
+        k.stride_B       = h.stride_B;
+        k.stride_C       = h.stride_C;
+        k.batch_stride_A = h.batch_stride_A;
+        k.batch_stride_B = h.batch_stride_B;
+        k.batch_stride_C = h.batch_stride_C;
+        k.batch_count    = h.batch_count;
+        return k;
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -93,21 +95,26 @@ struct BatchedGemmKernel
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    CK_TILE_DEVICE void operator()(BatchedGemmCommonKargs kargs) const
+    CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         const auto [i_m, i_n] = TilePartitioner{}();
-        const auto i_batch    = blockIdx.z;
+        const auto i_batch    = __builtin_amdgcn_readfirstlane(blockIdx.z);
+
         //  options
-        const ADataType* a_start = static_cast<const ADataType*>(kargs.a_ptr) +
-                                   __builtin_amdgcn_readfirstlane(i_batch * kargs.batch_stride_A);
-        const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr) +
-                                   __builtin_amdgcn_readfirstlane(i_batch * kargs.batch_stride_B);
+        const auto batch_stride_A = __builtin_amdgcn_readfirstlane(kargs.batch_stride_A);
+        const auto batch_offset_A = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_A);
+        const ADataType* a_start  = static_cast<const ADataType*>(kargs.a_ptr);
+
+        const auto batch_stride_B = __builtin_amdgcn_readfirstlane(kargs.batch_stride_B);
+        const auto batch_offset_B = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_B);
+        const BDataType* b_start  = static_cast<const BDataType*>(kargs.b_ptr);
+
         // Convert pointers to tensor views
         auto a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
-                    a_start,
+                    a_start + batch_offset_A,
                     make_tuple(kargs.M, kargs.K),
                     make_tuple(kargs.stride_A, 1),
                     number<GemmPipeline::VectorSizeA>{},
@@ -116,10 +123,10 @@ struct BatchedGemmKernel
             else
             {
                 return make_naive_tensor_view<address_space_enum::global>(
-                    a_start,
+                    a_start + batch_offset_A,
                     make_tuple(kargs.M, kargs.K),
                     make_tuple(1, kargs.stride_A),
-                    number<GemmPipeline::VectorSizeA>{},
+                    number<1>{},
                     number<1>{});
             }
         }();
@@ -128,16 +135,16 @@ struct BatchedGemmKernel
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
-                    b_start,
+                    b_start + batch_offset_B,
                     make_tuple(kargs.N, kargs.K),
                     make_tuple(1, kargs.stride_B),
-                    number<GemmPipeline::VectorSizeB>{},
+                    number<1>{},
                     number<1>{});
             }
             else
             {
                 return make_naive_tensor_view<address_space_enum::global>(
-                    b_start,
+                    b_start + batch_offset_B,
                     make_tuple(kargs.N, kargs.K),
                     make_tuple(kargs.stride_B, 1),
                     number<GemmPipeline::VectorSizeB>{},
@@ -179,13 +186,14 @@ struct BatchedGemmKernel
         auto c_block_tile =
             GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr);
 
-        CDataType* c_start = static_cast<CDataType*>(kargs.c_ptr) +
-                             __builtin_amdgcn_readfirstlane(i_batch * kargs.batch_stride_C);
-        auto c_tensor_view = [&]() {
+        const auto batch_stride_C = __builtin_amdgcn_readfirstlane(kargs.batch_stride_C);
+        const auto batch_offset_C = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_C);
+        CDataType* c_start        = static_cast<CDataType*>(kargs.c_ptr);
+        auto c_tensor_view        = [&]() {
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
-                    c_start,
+                    c_start + batch_offset_C,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(kargs.stride_C, 1),
                     number<GemmPipeline::VectorSizeC>{},
@@ -194,10 +202,10 @@ struct BatchedGemmKernel
             else
             {
                 return make_naive_tensor_view<address_space_enum::global>(
-                    c_start,
+                    c_start + batch_offset_C,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(1, kargs.stride_C),
-                    number<GemmPipeline::VectorSizeC>{},
+                    number<1>{},
                     number<1>{});
             }
         }();
