@@ -63,7 +63,6 @@ struct BatchedGemmKernel
     using Kargs = BatchedGemmKargs;
     using Hargs = BatchedGemmHostArgs;
 
-    // index_t M, index_t N, index_t BatchCount
     __host__ static constexpr auto GridSize(const Hargs& h)
     {
         return TilePartitioner::GridSize(h.M, h.N, h.batch_count);
