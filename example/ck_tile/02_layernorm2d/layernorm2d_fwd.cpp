@@ -57,8 +57,8 @@ template <typename InDataType,
           bool SaveMeanVar>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
-    ck_tile::index_t m      = arg_parser.get_int("m");
-    ck_tile::index_t n      = arg_parser.get_int("n");
+    ck_tile::index_t m        = arg_parser.get_int("m");
+    ck_tile::index_t n        = arg_parser.get_int("n");
     ck_tile::index_t x_stride = arg_parser.get_int("x_stride");
     if(x_stride < 0)
         x_stride = n;
@@ -174,9 +174,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }();
 
     std::cout << "[" << prec_str << "]"
-              << " m:" << m << ", n:" << n
-              << ", x_stride:" << x_stride << ", xr_stride:" << xr_stride
-              << ", y_stride:" << y_stride << ", yr_stride:" << yr_stride << std::flush;
+              << " m:" << m << ", n:" << n << ", x_stride:" << x_stride
+              << ", xr_stride:" << xr_stride << ", y_stride:" << y_stride
+              << ", yr_stride:" << yr_stride << std::flush;
 
     layernorm2d_fwd_traits traits{
         prec_i, prec_o, prec_sx, prec_sy, SaveMeanVar, fused_add, fused_quant};
