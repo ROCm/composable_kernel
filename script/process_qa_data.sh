@@ -22,6 +22,7 @@ python3 process_perf_data.py perf_gemm_bilinear.log
 python3 process_perf_data.py perf_reduction.log
 python3 process_perf_data.py perf_splitK_gemm.log
 python3 process_perf_data.py perf_onnx_gemm.log
+python3 process_perf_data.py perf_mixed_gemm.log
 
 file=./perf_fmha_fwd_gfx942.log
 if [ -e "$file" ]; then
