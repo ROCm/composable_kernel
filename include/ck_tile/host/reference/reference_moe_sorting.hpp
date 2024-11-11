@@ -11,7 +11,7 @@ namespace ck_tile {
 template <typename WeightType, typename IndexType = index_t>
 CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
                                         const HostTensor<WeightType>& weights,
-                                        HostTensor<IndexType>& sorted_token_ids,
+                                        HostTensor<IndexType>& p_sorted_token_ids,
                                         HostTensor<WeightType>& sorted_weight,
                                         HostTensor<IndexType>& sorted_expert_ids,
                                         index_t& unit_cnt,
@@ -53,7 +53,7 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
         }
     }
 
-    IndexType* out_tokens    = sorted_token_ids.data();
+    IndexType* out_tokens    = p_sorted_token_ids.data();
     WeightType* out_weights  = sorted_weight.data();
     IndexType* out_expert_id = sorted_expert_ids.data();
     for(index_t e = 0; e < experts; e++)
@@ -72,7 +72,7 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
         }
         out_expert_id += expert_slices[e];
     }
-
+    unit_cnt *= unit_size;
     return;
 }
 } // namespace ck_tile
