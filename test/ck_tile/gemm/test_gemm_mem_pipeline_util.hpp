@@ -93,11 +93,7 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
             constexpr auto tail_number_v  = tail_number_.value;
 
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<
-                ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                      BDataType,
-                                                      AccDataType,
-                                                      GemmShape,
-                                                      Traits,
+                ck_tile::UniversalGemmPipelineProblem<Traits,
                                                       ck_tile::GemmPipelineScheduler::Intrawave,
                                                       has_hot_loop_v,
                                                       tail_number_v>>;
