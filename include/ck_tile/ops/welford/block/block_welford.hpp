@@ -47,8 +47,11 @@ struct BlockWelford
 
                     auto x = ck_tile::type_convert<ComputeDataType>(x_tensor[in_dstr_idx]);
 
-                    welford_update(
-                        mean_tensor(out_dstr_idx), var_tensor(out_dstr_idx), x, cur_count_);
+                    welford_update(mean_tensor(out_dstr_idx),
+                                   var_tensor(out_dstr_idx),
+                                   x,
+                                   cur_count_,
+                                   constant<kFastFDiv>{});
                 });
             }
         });
@@ -159,7 +162,8 @@ struct BlockWelfordSync
                                       v_local_count,
                                       v_remote_mean,
                                       v_remote_var,
-                                      v_remote_count);
+                                      v_remote_count,
+                                      constant<kFastFDiv>{});
                     });
                 }
             });
@@ -307,7 +311,8 @@ struct BlockWelfordCrossWarpSync
                               v_local_count,
                               v_remote_mean,
                               v_remote_var,
-                              v_remote_count);
+                              v_remote_count,
+                              constant<kFastFDiv>{});
             });
 
             mean_tensor.get_thread_buffer()(i_0) = v_local_mean;
