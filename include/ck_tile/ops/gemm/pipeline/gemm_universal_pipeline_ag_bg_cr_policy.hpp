@@ -96,7 +96,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
             constexpr auto KPerThreadForWrite  = Problem::kBlockSize / MThreads;
             constexpr auto K0PerThreadForWrite = KIterPerWarp / KPerThreadForWrite;
-            constexpr auto KPerThreadForRead   = 64 / WarpGemm::kM;
+            constexpr auto KPerThreadForRead   = get_warp_size() / WarpGemm::kM;
             constexpr auto K0PerThreadForRead  = KIterPerWarp / KPerThreadForRead;
 
             static_assert(KPerThreadForRead <= KIterPerWarp,
@@ -258,7 +258,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
             constexpr auto KPerThreadForWrite  = Problem::kBlockSize / NThreads;
             constexpr auto K0PerThreadForWrite = KIterPerWarp / KPerThreadForWrite;
-            constexpr auto KPerThreadForRead   = 64 / WarpGemm::kN;
+            constexpr auto KPerThreadForRead   = get_warp_size() / WarpGemm::kN;
             constexpr auto K0PerThreadForRead  = KIterPerWarp / KPerThreadForRead;
 
             static_assert(KPerThreadForRead <= KIterPerWarp,
