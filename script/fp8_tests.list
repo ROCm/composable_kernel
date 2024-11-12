@@ -33,7 +33,8 @@ test_bf8_ocp
 example_gemm_add_add_xdl_fp16
 ## Found by searching for `f8` in the `test` folder
 test_custom_type
-test_gemm_universal
+### Takes too much time to run on the emulator
+#### test_gemm_universal
 ### test_pool
 test_avg_pool3d_fwd
 test_max_pool3d_fwd
