@@ -54,7 +54,6 @@ struct UniversalGemmPipelineAgBgCrPolicy
     {
 
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
-        using ALayout   = remove_cvref_t<typename Problem::ALayout>;
 
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -106,8 +105,6 @@ struct UniversalGemmPipelineAgBgCrPolicy
     {
 
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
-
-        using BLayout = remove_cvref_t<typename Problem::BLayout>;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
