@@ -105,9 +105,12 @@ struct UniversalGemmPipelineAgBgCrPolicy
             static_assert(KIterPerWarp == K0PerThreadForWrite * KPerThreadForWrite);
             static_assert(KIterPerWarp == K0PerThreadForRead * KPerThreadForRead);
 
-            constexpr auto kfold = (KPerWarp * MThreads * sizeof(ADataType) > 128)
+            // # bytes per 32 LDS banks: 32 * 4 bytes
+            constexpr auto BankLength = 128;
+
+            constexpr auto kfold = (KPerWarp * MThreads * sizeof(ADataType) > BankLength)
                                        ? 1
-                                       : 128 / (KPerWarp * MThreads * sizeof(ADataType));
+                                       : BankLength / (KPerWarp * MThreads * sizeof(ADataType));
             constexpr auto KPerThreadForReadPerm =
                 (kfold * K0PerThreadForWrite / K0PerThreadForRead) > 1
                     ? KPerThreadForRead / (kfold * K0PerThreadForWrite / K0PerThreadForRead)
@@ -115,11 +118,11 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
             // 1<=mpair<=kN0
             constexpr auto mpair =
-                (KPerWarp * WarpGemm::kM * sizeof(ADataType) > 128)
+                (KPerWarp * WarpGemm::kM * sizeof(ADataType) > BankLength)
                     ? 1
-                    : ((128 / (KPerWarp * WarpGemm::kM * sizeof(ADataType))) > MThreads
+                    : ((BankLength / (KPerWarp * WarpGemm::kM * sizeof(ADataType))) > MThreads
                            ? MThreads
-                           : 128 / (KPerWarp * WarpGemm::kM * sizeof(ADataType)));
+                           : BankLength / (KPerWarp * WarpGemm::kM * sizeof(ADataType)));
 
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(number<KPerThreadForWrite / kfold / KPerThreadForReadPerm>{},
@@ -267,9 +270,12 @@ struct UniversalGemmPipelineAgBgCrPolicy
             static_assert(KIterPerWarp == K0PerThreadForWrite * KPerThreadForWrite);
             static_assert(KIterPerWarp == K0PerThreadForRead * KPerThreadForRead);
 
-            constexpr auto kfold = (KPerWarp * NThreads * sizeof(BDataType) > 128)
+            // # bytes per 32 LDS banks: 32 * 4 bytes
+            constexpr auto BankLength = 128;
+
+            constexpr auto kfold = (KPerWarp * NThreads * sizeof(BDataType) > BankLength)
                                        ? 1
-                                       : 128 / (KPerWarp * NThreads * sizeof(BDataType));
+                                       : BankLength / (KPerWarp * NThreads * sizeof(BDataType));
             constexpr auto KPerThreadForReadPerm =
                 (kfold * K0PerThreadForWrite / K0PerThreadForRead) > 1
                     ? KPerThreadForRead / (kfold * K0PerThreadForWrite / K0PerThreadForRead)
@@ -277,11 +283,11 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
             // 1<=npair<=kN0
             constexpr auto npair =
-                (KPerWarp * WarpGemm::kN * sizeof(BDataType) > 128)
+                (KPerWarp * WarpGemm::kN * sizeof(BDataType) > BankLength)
                     ? 1
-                    : ((128 / (KPerWarp * WarpGemm::kN * sizeof(BDataType))) > NThreads
+                    : ((BankLength / (KPerWarp * WarpGemm::kN * sizeof(BDataType))) > NThreads
                            ? NThreads
-                           : 128 / (KPerWarp * WarpGemm::kN * sizeof(BDataType)));
+                           : BankLength / (KPerWarp * WarpGemm::kN * sizeof(BDataType)));
 
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(number<KPerThreadForWrite / kfold / KPerThreadForReadPerm>{},
