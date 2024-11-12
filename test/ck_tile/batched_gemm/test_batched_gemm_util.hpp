@@ -1,0 +1,135 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+#pragma once
+
+#include <sstream>
+#include <gtest/gtest.h>
+
+#include "ck_tile/core.hpp"
+#include "ck_tile/host.hpp"
+#include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/ops/epilogue.hpp"
+#include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
+
+template <typename Tuple>
+class TestCkTileBatchedGemm : public ::testing::Test
+{
+    protected:
+    using ALayout     = std::tuple_element_t<0, Tuple>;
+    using BLayout     = std::tuple_element_t<1, Tuple>;
+    using CLayout     = std::tuple_element_t<2, Tuple>;
+    using ADataType   = std::tuple_element_t<3, Tuple>;
+    using BDataType   = std::tuple_element_t<4, Tuple>;
+    using AccDataType = std::tuple_element_t<5, Tuple>;
+    using CDataType   = std::tuple_element_t<6, Tuple>;
+
+    struct batched_gemm_kargs : public ck_tile::BatchedGemmHostArgs
+    {
+    };
+
+    template <typename ALayout, typename BLayout, typename CLayout>
+    void gemm_calc(const batched_gemm_kargs& args, const ck_tile::stream_config& s)
+    {
+        // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
+        constexpr bool kPadA        = true;
+        constexpr bool kPadB        = true;
+        constexpr bool kPadC        = true;
+        constexpr bool kTilePermute = false;
+        // The rank and permutation will also be generate out by the CodeGen part.
+        constexpr ck_tile::index_t kOutputRank = 2;
+
+        constexpr int kBlockPerCu = 1;
+
+        // This part comes from the Codegen
+        constexpr ck_tile::index_t M_Tile = 128;
+        constexpr ck_tile::index_t N_Tile = 128;
+        constexpr ck_tile::index_t K_Tile = 32;
+
+        constexpr ck_tile::index_t M_Warp = 2;
+        constexpr ck_tile::index_t N_Warp = 2;
+        constexpr ck_tile::index_t K_Warp = 1;
+
+        constexpr ck_tile::index_t M_Warp_Tile = 32;
+        constexpr ck_tile::index_t N_Warp_Tile = 32;
+        constexpr ck_tile::index_t K_Warp_Tile = 8;
+
+        // Whether doing the CShuffle (transpose before the global memory), depending on the output
+        // layout.
+        constexpr bool CShuffleEpilogue =
+            std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>;
+
+        using CodegenGemmShape =
+            ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
+                                   ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
+                                   ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+
+        using TilePartitioner = ck_tile::GemmTilePartitioner<CodegenGemmShape>;
+
+        using GemmEpilogue = std::conditional_t<
+            CShuffleEpilogue,
+            ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
+                                                                       CDataType,
+                                                                       kPadA,
+                                                                       kPadB,
+                                                                       kTilePermute,
+                                                                       kOutputRank,
+                                                                       1,
+                                                                       0,
+                                                                       TilePartitioner::kM,
+                                                                       TilePartitioner::kN>>,
+            ck_tile::Default2DEpilogue<
+                ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>>;
+
+        using CodegenGemmTraits =
+            ck_tile::TileGemmTraits<kPadA, kPadB, kPadC, ALayout, BLayout, CLayout>;
+
+        using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
+                                                                    BDataType,
+                                                                    AccDataType,
+                                                                    CodegenGemmShape,
+                                                                    CodegenGemmTraits>;
+
+        using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
+                                                                    BDataType,
+                                                                    AccDataType,
+                                                                    CodegenGemmShape,
+                                                                    CodegenGemmTraits>;
+
+        using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
+        // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
+        // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
+        using Kernel =
+            ck_tile::BatchedGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
+
+        auto kargs = Kernel::MakeKargs(args);
+
+        const dim3 grids      = Kernel::GridSize(args);
+        constexpr dim3 blocks = Kernel::BlockSize();
+
+        if(s.log_level_ > 0)
+        {
+            std::cout << "Lunching kernel with args:"
+                      << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                      << std::endl;
+        }
+
+        ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+    }
+
+    public:
+    void Run(const int M,
+             const int N,
+             const int K,
+             const int StrideA = 0,
+             const int StrideB = 0,
+             const int StrideC = 0)
+    {
+        for(auto kb : k_batches_)
+        {
+            RunSingle(M, N, K, StrideA, StrideB, StrideC, kb);
+        }
+    }
+}
