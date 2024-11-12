@@ -40,35 +40,38 @@ using DeviceConvBwdWeightInstance =
         WeiElementOp,         // WeiElementwiseOperation
         OutElementOp,         // OutElementwiseOperation
         ConvBwdWeightDefault, // ConvolutionBackwardWeightSpecialization
-        256,                  // BlockSize
-        128,                  // MPerBlock
-        128,                  // NPerBlock
-        4,                    // K0PerBlock
+        64,                   // BlockSize
+        16,                   // MPerBlock
+        16,                   // NPerBlock
+        32,                   // K0PerBlock
         8,                    // K1
-        32,                   // MPerXdl
-        32,                   // NPerXdl
-        2,                    // MXdlPerWave
-        2,                    // NXdlPerWave
-        S<1, 4, 16, 4>,       // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<0, 3, 1, 2>,        // ABlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1, 3>,        // ABlockTransferSrcAccessOrder
-        2,                    // ABlockTransferSrcVectorDim
+        16,                   // MPerXdl
+        16,                   // NPerXdl
+        1,                    // MXdlPerWave
+        1,                    // NXdlPerWave
+        S<4, 16, 1>,          // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<2, 0, 1>,           // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,           // ABlockTransferSrcAccessOrder
+        1,                    // ABlockTransferSrcVectorDim
         1,                    // ABlockTransferSrcScalarPerVector
-        1,                    // ABlockTransferDstScalarPerVector_K1
-        true,                 // ABlockLdsAddExtraM
-        S<1, 4, 16, 4>,       // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<0, 3, 1, 2>,        // BBlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1, 3>,        // BBlockTransferSrcAccessOrder
-        2,                    // BBlockTransferSrcVectorDim
+        4,                    // ABlockTransferDstScalarPerVector_K1
+        false,                // ABlockLdsAddExtraM
+        S<4, 16, 1>,          // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<2, 0, 1>,           // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,           // BBlockTransferSrcAccessOrder
+        1,                    // BBlockTransferSrcVectorDim
         1,                    // BBlockTransferSrcScalarPerVector
-        1,                    // BBlockTransferDstScalarPerVector_K1
-        true,                 // BBlockLdsAddExtraN
+        4,                    // BBlockTransferDstScalarPerVector_K1
+        false,                // BBlockLdsAddExtraN
         1,                    // CShuffleMXdlPerWavePerShuffle
         1,                    // CShuffleNXdlPerWavePerShuffle
-        S<1, 32, 1, 4>,       // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        S<1, 8, 1, 8>,        // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         2,                    // CBlockTransferScalarPerVector_NWaveNPerXdl
-        ComputeTypeA,         // ComputeTypeA
-        ComputeTypeB>;        // ComputeTypeB
+        ck::BlockGemmPipelineScheduler::Intrawave, // BlkGemmPipeSched
+        ck::BlockGemmPipelineVersion::v1,          // BlkGemmPipelineVer
+        1,                                         // NumGroupsToMerge
+        ComputeTypeA,                              // ComputeTypeA
+        ComputeTypeB>;                             // ComputeTypeB
 
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,

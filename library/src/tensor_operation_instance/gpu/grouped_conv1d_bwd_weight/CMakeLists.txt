@@ -1,8 +1,17 @@
 # ONLY XDL_AND_DL_KERNELS
 set(GROUPED_CONV1D_BWD_WEIGHT
-    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f16_instance.cpp
-    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f32_instance.cpp
-    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_bf16_f32_bf16_instance.cpp)
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_bf16_f32_bf16_default_pipev2_instance.cpp
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_bf16_f32_bf16_default_pipev5_instance.cpp
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_bf16_f32_bf16_pad0_pipev2_instance.cpp
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_bf16_f32_bf16_pad0_pipev5_instance.cpp
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f16_default_pipev2_instance.cpp
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f16_default_pipev5_instance.cpp
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f16_pad0_pipev2_instance.cpp
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f16_pad0_pipev5_instance.cpp
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f32_default_pipev2_instance.cpp
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f32_default_pipev5_instance.cpp
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f32_pad0_pipev2_instance.cpp
+    xdl/device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f32_pad0_pipev5_instance.cpp)
 
 if(DL_KERNELS)
     list(APPEND GROUPED_CONV1D_BWD_WEIGHT
@@ -15,3 +24,4 @@ if(DL_KERNELS)
 endif()
 
 add_instance_library(device_grouped_conv1d_bwd_weight_instance ${GROUPED_CONV1D_BWD_WEIGHT})
+
