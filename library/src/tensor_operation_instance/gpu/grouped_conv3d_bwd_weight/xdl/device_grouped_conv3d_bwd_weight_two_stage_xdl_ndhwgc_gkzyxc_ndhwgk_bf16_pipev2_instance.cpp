@@ -25,7 +25,7 @@ void add_device_grouped_conv3d_bwd_weight_two_stage_xdl_ndhwgc_gkzyxc_ndhwgk_bf1
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_two_stage_xdl_c_shuffle_bf16_instances<
+        device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_bf16_instances<
             3,
             NDHWGC,
             GKZYXC,
