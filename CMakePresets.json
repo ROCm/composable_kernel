@@ -17,8 +17,8 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "BUILD_DEV": "ON",
-                "CMAKE_CXX_COMPILER": "/opt/rocm/llvm/bin/clang++",
-                "CMAKE_PREFIX_PATH": "/opt/rocm",
+                "CMAKE_CXX_COMPILER": "/opt/rocm-6.3.0/llvm/bin/clang++",
+                "CMAKE_PREFIX_PATH": "/opt/rocm-6.3.0",
                 "CMAKE_CXX_COMPILER_LAUNCHER": "sccache",
                 "CMAKE_C_COMPILER_LAUNCHER": "sccache"
             },
