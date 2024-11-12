@@ -170,7 +170,7 @@ CK_TILE_DEVICE void shuffle_tile(OutTensor& out, const InTensor& in)
     }
     else
     {
-        // NOT implemented
+        static_assert(false, "The shuffle should always happen!");
     }
 }
 
