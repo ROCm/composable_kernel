@@ -178,20 +178,6 @@ struct UniversalGemmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
-    {
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-        return Problem::VectorLoadSize / sizeof(ADataType);
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
-    {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
-        return Problem::VectorLoadSize / sizeof(BDataType);
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
     {
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
@@ -209,7 +195,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
             constexpr index_t total_pixels = MPerBlock * KPerBlock / BlockSize;
             static_assert(total_pixels % M1 == 0);
             constexpr index_t K3    = total_pixels / M1;
-            constexpr index_t KPack = GetSmemPackA<Problem>();
+            constexpr index_t KPack = GetVectorLoadSize<Problem, ADataType, MPerBlock>();
             static_assert(KPack % K3 == 0);
             constexpr index_t K2 = KPack / K3;
             if constexpr(get_warp_size() % (K2 * M0) == 0)
@@ -292,7 +278,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
             constexpr index_t total_pixels = NPerBlock * KPerBlock / BlockSize;
             static_assert(total_pixels % N1 == 0);
             constexpr index_t K3    = total_pixels / N1;
-            constexpr index_t KPack = GetSmemPackB<Problem>();
+            constexpr index_t KPack = GetVectorLoadSize<Problem, BDataType, NPerBlock>();
             static_assert(KPack % K3 == 0);
             constexpr index_t K2 = KPack / K3;
             if constexpr(get_warp_size() % (K2 * N0) == 0)
@@ -377,7 +363,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t total_pixels = MPerBlock * KPerBlock / BlockSize;
         static_assert(total_pixels % M1 == 0);
         constexpr index_t K3     = total_pixels / M1;
-        constexpr index_t kKPack = GetSmemPackB<Problem>();
+        constexpr index_t kKPack = GetVectorLoadSize<Problem, ADataType, MPerBlock>();
         static_assert(kKPack % K3 == 0);
         constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
         constexpr index_t warp_size = get_warp_size();
@@ -425,7 +411,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t total_pixels = NPerBlock * KPerBlock / BlockSize;
         static_assert(total_pixels % N1 == 0);
         constexpr index_t K3     = total_pixels / N1;
-        constexpr index_t kKPack = GetSmemPackB<Problem>();
+        constexpr index_t kKPack = GetVectorLoadSize<Problem, BDataType, NPerBlock>();
         static_assert(kKPack % K3 == 0);
         constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
         constexpr index_t warp_size = get_warp_size();
