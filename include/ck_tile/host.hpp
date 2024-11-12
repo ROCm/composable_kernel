@@ -19,6 +19,7 @@
 #include "ck_tile/host/reference/reference_batched_masking.hpp"
 #include "ck_tile/host/reference/reference_batched_rotary_position_embedding.hpp"
 #include "ck_tile/host/reference/reference_batched_softmax.hpp"
+#include "ck_tile/host/reference/reference_batched_transpose.hpp"
 #include "ck_tile/host/reference/reference_elementwise.hpp"
 #include "ck_tile/host/reference/reference_gemm.hpp"
 #include "ck_tile/host/reference/reference_im2col.hpp"
