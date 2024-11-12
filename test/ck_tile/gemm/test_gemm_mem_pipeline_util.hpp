@@ -86,7 +86,7 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<
                 ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                       BDataType,
-                                                      AccDataShape,
+                                                      AccDataType,
                                                       GemmShape,
                                                       Traits,
                                                       ck_tile::GemmPipelineScheduler::Intrawave,
