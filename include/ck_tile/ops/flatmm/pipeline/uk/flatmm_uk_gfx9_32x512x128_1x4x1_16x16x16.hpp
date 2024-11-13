@@ -13,6 +13,26 @@ namespace ck_tile {
 // require 4 wave, occupancy=1c
 // agpr useage:256
 // vgpr usage:64(A local) + 64(acc) + 8(os_a) + 8(os_b) = 144 (rem:112)
+//
+// for this gemm, 4 16x16x16 transposed layout
+//  input A vpgpr layout
+//   v0-v15: [ 0:15](gemm_m)x128(gemm_k)
+//  v16-v31: [16:31](gemm_m)x128(gemm_k)
+
+//  input B vpgpr layout
+//   v0-v15: [  0: 15](gemm_n)x128(gemm_k)
+//  v16-v31: [ 64: 79](gemm_n)x128(gemm_k)
+//  ......................
+//  v111-v127: [448:463](gemm_n)x128(gemm_k)
+
+//  output C vpgpr layout
+//   v0-v3 : [ 0:15](gemm_m)x[ 0: 15](gemm_n)
+//   v4-v7 : [16:31](gemm_m)x[ 0: 15](gemm_n)
+//   v8-v11: [ 0:15](gemm_m)x[64: 79](gemm_n)
+//  v12-v15: [16:31](gemm_m)x[64: 79](gemm_n)
+//  ......................
+//  v56-v59: [ 0:15](gemm_m)x[448:463](gemm_n)
+//  v60-v63: [16:31](gemm_m)x[448:463](gemm_n)
 struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
 {
     static constexpr index_t Block_M = 32;
@@ -42,7 +62,7 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
     static constexpr index_t Repeat_N = Block_N / (Warp_N * WarpPerBlock_N); // 8
     static constexpr index_t Repeat_K = Block_K / (Warp_K * WarpPerBlock_K); // 8/2=4
 
-    static CK_TILE_DEVICE constexpr auto MakeCBlockTile()
+    static CK_TILE_DEVICE constexpr auto MakeCBlockDist()
     {
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
@@ -53,11 +73,17 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
             sequence<0, 0>>{};
 
         using WG        = WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution;
-        using CDataType = float;
 
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
+        return c_block_dstr;
+    }
+
+    static CK_TILE_DEVICE constexpr auto MakeCBlockTile()
+    {
+        using CDataType = float;
+        constexpr auto c_block_dstr = MakeCBlockDist();
         auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
         return c_block_tensor;
     }
@@ -153,21 +179,8 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
     // template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadDesc_A()
     {
-        // A async->LDS
-        // Note that, this descriptor is only to construct the layout inside LDS
-        // in real Gemm pipeline, ds_read may not follow this pattern
-        // (may follow that in tile_distribution)
-        // below code is almost the same as SmemStore dist, with difference:
-        //  1). modify the GuaranteedLastDimensionVectorLength of naive tensor desc
-        //  2). return discriptor is in NxK 2d layout
-        // constexpr index_t Block_M = Problem::BlockShape::Block_M0;
-        // constexpr index_t Block_K = Problem::BlockShape::Block_K0;
-        // constexpr index_t BlockSize = Problem::BlockShape::BlockSize;
-        constexpr index_t warpSize = ck_tile::get_warp_size();
-        // constexpr index_t NumWarps = Problem::BlockShape::NumWarps;
-
+        // load from LDS to register, every wave has same layout
         constexpr index_t KPack_  = 8;      // GetSmemKPack_A<Problem>(); // LDS
-        constexpr index_t KVector = 2;      // GetAlignment_A<Problem>(); // async copy 1 dword
         constexpr index_t KPad    = KPack_; // pad between warps
 
         constexpr index_t kAMLane     = 16;
@@ -176,29 +189,12 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
         constexpr index_t kKIter      = 2;
         static_assert(KPack_ == (kABKPerLane * kKIter));
 
-        static_assert(Block_K % KVector == 0);
-        constexpr index_t LanesPerK = Block_K / KVector; // how many thread loading K
-        if constexpr(LanesPerK >= warpSize)
-        {
-            // need multiple waves to load K
-            static_assert(LanesPerK % warpSize == 0);
-            constexpr index_t wavesPerK = LanesPerK / warpSize;
-            if constexpr(wavesPerK >= NumWarps)
-            {
-                // TODO: need multiple issues along K to load all data
-            }
-            else
-            {
-                // TODO: every wave load the same data!
-                static_assert(Block_K % (kABKLane * KPack_) == 0);
-                constexpr index_t issue_along_k = Block_K / (kABKLane * KPack_); // 4
-                constexpr index_t issue_along_m = Block_M / (kAMLane);           // 2
-                constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
-                    make_tuple(number<issue_along_m>{},            // m0
-                               number<kAMLane>{},                  // m1
-                               number<issue_along_k>{},            // k0
-                               number<kABKLane>{},                 // k1
-                               number<KPack_>{}),                  // k2
+        constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
+                    make_tuple(number<Repeat_M>{},            // m0 y
+                               number<kAMLane>{},             // m1 p
+                               number<Repeat_K>{},            // k0 y
+                               number<kABKLane>{},            // k1 p
+                               number<KPack_>{}),             // k2 y-vector
                     make_tuple(number<kAMLane*(Block_K + KPad)>{}, // m0
                                number<Block_K + KPad>{},           // m1
                                number<kABKLane * KPack_>{},        // k0
@@ -207,21 +203,16 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
                     number<KPack_>{},                              // lds load vector
                     number<1>{});
 
-                constexpr auto lds_desc_m_k = transform_tensor_descriptor(
-                    lds_block_desc_0,
-                    make_tuple(make_merge_transform(
-                                   make_tuple(number<issue_along_m>{}, number<kAMLane>{})),
-                               make_merge_transform(make_tuple(
-                                   number<issue_along_k>{}, number<kABKLane>{}, number<KPack_>{}))),
-                    make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
+        constexpr auto lds_desc_m_k = transform_tensor_descriptor(
+            lds_block_desc_0,
+            make_tuple(make_merge_transform(
+                            make_tuple(number<Repeat_M>{}, number<kAMLane>{})),
+                        make_merge_transform(make_tuple(
+                            number<Repeat_K>{}, number<kABKLane>{}, number<KPack_>{}))),
+            make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
 
-                return lds_desc_m_k;
-            }
-        }
-        else
-        {
-        }
+        return lds_desc_m_k;
     }
 
     static constexpr auto GetGemm_AWarpEnc()
@@ -271,10 +262,10 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
         auto a_sld = [&]() {
             constexpr auto a_warp_enc_      = GetGemm_AWarpEnc();
             constexpr auto a_outer_dstr_enc = tile_distribution_encoding<
-                sequence<>,
+                sequence<WarpPerBlock_N>,
                 tuple<sequence<Repeat_M, WarpPerBlock_M>, sequence<Repeat_K>>,
-                tuple<sequence<1>>,
-                tuple<sequence<1>>,
+                tuple<sequence<1, 0>>,
+                tuple<sequence<1, 0>>,
                 sequence<1, 2>,
                 sequence<0, 0>>{};
             constexpr auto a_block_dstr_encode =
@@ -299,6 +290,12 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
                 return number<a_sld.get_bottom_linear_offset(i_access) * sizeof(bf16_t)>{};
             },
             number<a_sld.get_num_of_access()>{});
+
+
+        printf("----- tid:%d, a_sld:%d\n", static_cast<index_t>(threadIdx.x),
+                        static_cast<index_t>(a_sld.cached_coords_[number<0>{}].get_offset()));
+
+
 
         index_t loop_cnt = k / Block_K;
 

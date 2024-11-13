@@ -340,12 +340,15 @@ struct FusedMoeGemmPipeline_FlatmmUk
                            number<row_ids_a.size()>{});
 
         auto bridge_sst_win = [&]() {
-            return make_tile_window(
+            constexpr auto desc_ = Policy::template MakeBridgeLdsStoreForUKDesc<Problem>();
+            constexpr auto dist_ = Policy::template GetUK_0<Problem>().MakeCBlockDist();
+            return make_tile_window_linear(
                 make_tensor_view<address_space_enum::lds>(
                     reinterpret_cast<YDataType*>(smem),
-                    Policy::template MakeBridgeLdsStoreDesc<Problem>()),
-                Policy::template MakeBridgeLdsStoreDesc<Problem>().get_lengths(),
-                {0, 0});
+                    desc_),
+                desc_.get_lengths(),
+                {0, 0},
+                dist_);
         }();
         auto o_res =
             make_wave_buffer_resource(reinterpret_cast<const ODataType*>(kargs.o_ptr),
@@ -439,8 +442,56 @@ struct FusedMoeGemmPipeline_FlatmmUk
                               BlockShape::Block_W0); // tile offset for B matrix each unroll
 
         // return ;
+        //sweep_tile(acc_0,
+        //           [&](auto idx) { typename Problem::GateActivation{}(acc_0(idx), acc_0[idx]); });
         sweep_tile(acc_0,
-                   [&](auto idx) { typename Problem::GateActivation{}(acc_0(idx), acc_0[idx]); });
+                   [&](auto idx0, auto idx1) {
+                        fp32x2_t v_ {acc_0(idx0), acc_0(idx1)};
+                        typename Problem::GateActivation{}(v_, v_);
+                        acc_0(idx0) = v_.x;
+                        acc_0(idx1) = v_.y;
+                    },
+                    sequence<1, 2>{});
+
+#if 0
+        printf("bid:%d,%d, tid:%d, sorted_tile_id:%d(, intermediate_tile_id:%d, e:%d, "
+               "interm_idx_nr:%d, coords:a:%d,%d,%d, row_ids_a:%d,%d,%d, (%d)g_coords:%d.%d.%d, bridge_sst_win:%d"
+               "acc:%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f\n",
+               static_cast<int>(blockIdx.x),
+               static_cast<int>(blockIdx.y),
+               static_cast<int>(threadIdx.x),
+               sorted_tile_id,
+               intermediate_tile_id,
+               expert_id,
+               interm_idx_nr,
+               row_coords_a[0],
+               row_coords_a[1],
+               row_coords_a[7],
+               row_ids_a[0],
+               row_ids_a[1],
+               row_ids_a[7],
+               kr_0 * BlockShape::Block_W0,
+               g_coords[number<0>{}],
+               g_coords[number<1>{}],
+               g_coords[number<7>{}],
+               bridge_sst_win.cached_coords_[number<0>{}].get_offset(),
+                acc_0.get_thread_buffer()[number<0>{}],
+                acc_0.get_thread_buffer()[number<1>{}],
+                acc_0.get_thread_buffer()[number<2>{}],
+                acc_0.get_thread_buffer()[number<3>{}],
+                acc_0.get_thread_buffer()[number<4>{}],
+                acc_0.get_thread_buffer()[number<5>{}],
+                acc_0.get_thread_buffer()[number<6>{}],
+                acc_0.get_thread_buffer()[number<7>{}],
+                acc_0.get_thread_buffer()[number<8 + 0>{}],
+                acc_0.get_thread_buffer()[number<8 + 1>{}],
+                acc_0.get_thread_buffer()[number<8 + 2>{}],
+                acc_0.get_thread_buffer()[number<8 + 3>{}],
+                acc_0.get_thread_buffer()[number<8 + 4>{}],
+                acc_0.get_thread_buffer()[number<8 + 5>{}],
+                acc_0.get_thread_buffer()[number<8 + 6>{}],
+                acc_0.get_thread_buffer()[number<8 + 7>{}]);
+#endif
 
         auto y_pre = cast_tile<YDataType>(acc_0);
         store_tile(bridge_sst_win, y_pre);

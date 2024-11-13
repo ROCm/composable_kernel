@@ -207,8 +207,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {(max_num_tokens_padded + block_m - 1) / block_m});
     ck_tile::HostTensor<IndexDataType> num_sorted_tiles_host({1});
 
-#if 1
-#if 1
+#if 0
+#   if 1
     ck_tile::FillStepRange<ADataType>{-.5f, .5f, 0.01f}(a_host);
     ck_tile::FillStepRange<GDataType>{-.5f, .5f, 0.01f}(g_host);
     ck_tile::FillStepRange<DDataType, false>{.5f, -.5f, -0.01f}(d_host);
@@ -217,7 +217,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::FillStepRange<DScaleDataType>{0.f, 1.f, 0.01f}(sd_host);
     ck_tile::FillStepRange<YSmoothScaleDataType>{0.f, 1.f, 0.01f}(sy_host);
     ck_tile::FillStepRange<TopkWeightDataType>{-.5f, .5f, 0.01f}(topk_weight_host);
-#else
+#   else
     ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
     ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f}(g_host);
     ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f}(d_host);
@@ -226,7 +226,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f}(sd_host);
     ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f}(sy_host);
     ck_tile::FillUniformDistribution<TopkWeightDataType>{-.5f, .5f}(topk_weight_host);
-#endif
+#   endif
 
     // permute weight
     ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w, 1);
@@ -266,6 +266,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<DDataType> d_perm_host = shuffle_moe_weight(d_host, prec_w, 1);
     std::cout << "------- @@@ " << __LINE__ << std::flush << std::endl;
 
+#   if 0
     ck_tile::reference_moe_sorting<TopkWeightDataType, IndexDataType>(
         topk_ids_host,
         topk_weight_host,
@@ -318,8 +319,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     return 1;
-#endif
+#   endif
 
+#endif
+    (void)balance;
     ck_tile::reference_moe_sorting<TopkWeightDataType, IndexDataType>(
         topk_ids_host,
         topk_weight_host,

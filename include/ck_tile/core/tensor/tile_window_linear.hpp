@@ -432,23 +432,34 @@ struct tile_window_linear
     CK_TILE_DEVICE static constexpr index_t get_bottom_linear_offset(number<i_access>)
     {
         constexpr auto linear_coord = get_bottom_linear_coordinate(number<i_access>{});
-        // since this is linear offset, we assum bottom X tensor is always linear
-        constexpr index_t linear_offset = [&]() {
-            constexpr auto x_idx_ = linear_coord;
-            constexpr auto x_len_ = TileDstr{}.get_lengths();
-            static_assert(x_idx_.size() == x_len_.size());
-            constexpr index_t x_dims_ = x_idx_.size();
-            index_t cu_stride_        = 1;
-            index_t cu_offset_        = 0;
-            static_for<0, x_dims_, 1>{}([&](auto i_) {
-                auto r_i_ = number<x_dims_ - i_ - 1>{};
-                cu_offset_ += x_idx_[r_i_] * cu_stride_;
-                cu_stride_ *= x_len_[r_i_];
-            });
-            return cu_offset_;
-        }();
-
-        return linear_offset;
+        constexpr auto is_pure_linear_tensor =  reduce_on_sequence(LinearBottomDims{}, multiplies{}, number<1>{});
+        if constexpr (is_pure_linear_tensor) {
+            // this case usually is a LDS window, everything is build time know.
+            // we directly use BottomTensorView to compute the offset, in case there is any padding
+            auto bottom_tensor_coord = make_tensor_coordinate(
+                BottomTensorView{}.get_tensor_descriptor(), linear_coord);
+            return bottom_tensor_coord.get_offset();
+        } else {
+            // this case usually is a global window, where last dim can be linear
+            // we hack here, that use the original TileDstr to compute the linear offset
+            // ... hoping that there is no extra padding between other dims, which make sense
+            // since that sould introduce runtime length
+            constexpr index_t linear_offset = [&]() {
+                constexpr auto x_idx_ = linear_coord;
+                constexpr auto x_len_ = TileDstr{}.get_lengths();
+                static_assert(x_idx_.size() == x_len_.size());
+                constexpr index_t x_dims_ = x_idx_.size();
+                index_t cu_stride_        = 1;
+                index_t cu_offset_        = 0;
+                static_for<0, x_dims_, 1>{}([&](auto i_) {
+                    auto r_i_ = number<x_dims_ - i_ - 1>{};
+                    cu_offset_ += x_idx_[r_i_] * cu_stride_;
+                    cu_stride_ *= x_len_[r_i_];
+                });
+                return cu_offset_;
+            }();
+            return linear_offset;
+        }
     }
 
     CK_TILE_DEVICE constexpr auto get_num_of_access() const { return traits::NumAccess; }
