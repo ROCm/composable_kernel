@@ -241,17 +241,13 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
         return enc_{};
     }
 
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        return 32 * (128 + 8) * sizeof(bf16_t);
+    }
+
     // TODO: need paired with tile_window_linear!
     // TODO: need call init_raw() before call this function!
-#if 0
-    template <typename AWindow, typename BWindow, typename SmemWindow>
-    CK_TILE_DEVICE auto operator()(const AWindow& a_window_,
-                                   const BWindow& b_window_,
-                                   SmemWindow& smem_window_,
-                                   index_t k,
-                                   index_t stride_a,
-                                   index_t stride_b)    // stride b is fixed to blockKr * blockW, but still can adjust
-#else
     template <typename ARes, typename ACoords, typename BRes, typename BCoords>
     CK_TILE_DEVICE auto
     operator()(const ARes& res_a,
@@ -260,9 +256,8 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
                const BCoords& cached_coords_b,
                CK_TILE_LDS_ADDR void* smem,
                index_t k,
-               index_t stride_a,
-               index_t stride_b) // stride b is fixed to blockKr * blockW, but still can adjust
-#endif
+               index_t tile_offset_a, // for each tile, the offset to move for each unroll
+               index_t tile_offset_b) // for each tile, the offset to move for each unroll
     {
         static_assert(ACoords::size() == Block_M * Block_K / BlockSize / 2 /*2x per dword*/); // 8
         static_assert(BCoords::size() == Repeat_N);
@@ -292,8 +287,8 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
                 make_static_tile_distribution(a_block_dstr_encode));
         }();
 
-        const index_t stride_a_bytes = stride_a * sizeof(bf16_t);
-        const index_t stride_b_bytes = stride_b * sizeof(bf16_t);
+        const index_t tile_offset_a_bytes = tile_offset_a * sizeof(bf16_t);
+        const index_t tile_offset_b_bytes = tile_offset_b * sizeof(bf16_t);
 
         const auto [m0_init_value, size_per_issue] = get_async_store_smem_info(a_sst);
         constexpr auto smem_buf_size =
@@ -343,9 +338,9 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
             "buffer_load_dword   %[v_os_a7], s[16:19], 0 offen lds    \n"
             "s_add_u32 m0, %[smem_sz], %[s_m0_init]                       \n"
             "s_cmp_gt_i32  %[s_loop_cnt] 1             ; move a with cond \n"
-            "s_cselect_b32 s86, %[s_stride_a], 0                          \n"
-            "s_add_u32     s16, s86, s16                                  \n"
-            "s_addc_u32    s17, 0, s17                                    \n"
+            "s_cselect_b32 s86, %[s_tile_os_a], 0      ; move a with cond  \n"
+            "s_add_u32     s16, s86, s16               ; move a with cond \n"
+            "s_addc_u32    s17, 0, s17                 ; move a with cond \n"
             "; -- prefetch A1\n"
             "buffer_load_dword   %[v_os_a0], s[16:19], 0 offen lds    \n"
             "s_add_u32     m0, %[s_size_per_issue], m0                  \n"
@@ -364,9 +359,9 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
             "buffer_load_dword   %[v_os_a7], s[16:19], 0 offen lds    \n"
             "s_add_u32 m0, 0, %[s_m0_init]                                \n"
             "s_cmp_gt_i32  %[s_loop_cnt] 2             ; move a with cond \n"
-            "s_cselect_b32 s86, %[s_stride_a], 0                          \n"
-            "s_add_u32     s16, s86, s16                                  \n"
-            "s_addc_u32    s17, 0, s17                                    \n"
+            "s_cselect_b32 s86, %[s_tile_os_a], 0      ; move a with cond  \n"
+            "s_add_u32     s16, s86, s16               ; move a with cond \n"
+            "s_addc_u32    s17, 0, s17                 ; move a with cond \n"
             "; -- prefetch B0\n"
             "buffer_load_dwordx4  acc[0:3], %[v_os_b0], s[20:23], 0 offen \n"
             "buffer_load_dwordx4  acc[4:7], %[v_os_b0], s[20:23], 0 offen offset:1024  \n"
@@ -381,39 +376,39 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
             "buffer_load_dwordx4  acc[40:43], %[v_os_b2], s[20:23], 0 offen offset:2048  \n"
             "buffer_load_dwordx4  acc[44:47], %[v_os_b2], s[20:23], 0 offen offset:3072  \n"
             "buffer_load_dwordx4  acc[48:51], %[v_os_b3], s[20:23], 0 offen  \n"
-            "buffer_load_dwordx4  acc[52:55], %[v_os_b3], s[20:23], 0 offen offset:1024  \n"
-            "buffer_load_dwordx4  acc[56:59], %[v_os_b3], s[20:23], 0 offen offset:2048  \n"
-            "buffer_load_dwordx4  acc[60:63], %[v_os_b3], s[20:23], 0 offen offset:3072  \n"
-            "buffer_load_dwordx4  acc[64:67], %[v_os_b4], s[20:23], 0 offen                 \n"
-            "buffer_load_dwordx4  acc[68:71], %[v_os_b4], s[20:23], 0 offen offset:1024  \n"
-            "buffer_load_dwordx4  acc[72:75], %[v_os_b4], s[20:23], 0 offen offset:2048  \n"
-            "buffer_load_dwordx4  acc[76:79], %[v_os_b4], s[20:23], 0 offen offset:3072  \n"
-            "buffer_load_dwordx4  acc[80:83], %[v_os_b5], s[20:23], 0 offen                 \n"
-            "buffer_load_dwordx4  acc[84:87], %[v_os_b5], s[20:23], 0 offen offset:1024  \n"
-            "buffer_load_dwordx4  acc[88:91], %[v_os_b5], s[20:23], 0 offen offset:2048  \n"
-            "buffer_load_dwordx4  acc[92:95], %[v_os_b5], s[20:23], 0 offen offset:3072  \n"
-            "buffer_load_dwordx4  acc[96:99], %[v_os_b6], s[20:23], 0 offen                 \n"
+            "buffer_load_dwordx4  acc[52:55], %[v_os_b3], s[20:23], 0 offen offset:1024    \n"
+            "buffer_load_dwordx4  acc[56:59], %[v_os_b3], s[20:23], 0 offen offset:2048    \n"
+            "buffer_load_dwordx4  acc[60:63], %[v_os_b3], s[20:23], 0 offen offset:3072    \n"
+            "buffer_load_dwordx4  acc[64:67], %[v_os_b4], s[20:23], 0 offen                \n"
+            "buffer_load_dwordx4  acc[68:71], %[v_os_b4], s[20:23], 0 offen offset:1024    \n"
+            "buffer_load_dwordx4  acc[72:75], %[v_os_b4], s[20:23], 0 offen offset:2048    \n"
+            "buffer_load_dwordx4  acc[76:79], %[v_os_b4], s[20:23], 0 offen offset:3072    \n"
+            "buffer_load_dwordx4  acc[80:83], %[v_os_b5], s[20:23], 0 offen                \n"
+            "buffer_load_dwordx4  acc[84:87], %[v_os_b5], s[20:23], 0 offen offset:1024    \n"
+            "buffer_load_dwordx4  acc[88:91], %[v_os_b5], s[20:23], 0 offen offset:2048    \n"
+            "buffer_load_dwordx4  acc[92:95], %[v_os_b5], s[20:23], 0 offen offset:3072    \n"
+            "buffer_load_dwordx4  acc[96:99], %[v_os_b6], s[20:23], 0 offen                \n"
             "buffer_load_dwordx4  acc[100:103], %[v_os_b6], s[20:23], 0 offen offset:1024  \n"
             "buffer_load_dwordx4  acc[104:107], %[v_os_b6], s[20:23], 0 offen offset:2048  \n"
             "buffer_load_dwordx4  acc[108:111], %[v_os_b6], s[20:23], 0 offen offset:3072  \n"
-            "buffer_load_dwordx4  acc[112:115], %[v_os_b7], s[20:23], 0 offen               \n"
-            "buffer_load_dwordx4  acc[116:119], %[v_os_b7], s[20:23], 0 offen offset:1024   \n"
-            "buffer_load_dwordx4  acc[120:123], %[v_os_b7], s[20:23], 0 offen offset:2048   \n"
-            "buffer_load_dwordx4  acc[124:127], %[v_os_b7], s[20:23], 0 offen offset:3072   \n"
+            "buffer_load_dwordx4  acc[112:115], %[v_os_b7], s[20:23], 0 offen              \n"
+            "buffer_load_dwordx4  acc[116:119], %[v_os_b7], s[20:23], 0 offen offset:1024  \n"
+            "buffer_load_dwordx4  acc[120:123], %[v_os_b7], s[20:23], 0 offen offset:2048  \n"
+            "buffer_load_dwordx4  acc[124:127], %[v_os_b7], s[20:23], 0 offen offset:3072  \n"
             "s_cmp_gt_i32  %[s_loop_cnt] 1             ; move b with cond \n"
-            "s_cselect_b32 s86, %[s_stride_b], 0                          \n"
-            "s_add_u32     s20, s86, s20                                  \n"
-            "s_addc_u32    s21, 0, s21                                    \n"
-            "s_waitcnt     vmcnt(40)\n"
-            "s_barrier \n"
-            "ds_read_b128  v[64:67], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_0]  \n"    // 1024: N stride, 64 K stride
-            "ds_read_b128  v[68:71], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_1]  \n"
-            "ds_read_b128  v[72:75], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_2]  \n"
-            "ds_read_b128  v[76:79], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_3]  \n"
-            "ds_read_b128  v[80:83], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_4]  \n"
-            "ds_read_b128  v[84:87], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_5]  \n"
-            "ds_read_b128  v[88:91], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_6]  \n"
-            "ds_read_b128  v[92:95], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_7]  \n"
+            "s_cselect_b32 s86, %[s_tile_os_b], 0      ; move b with cond \n"
+            "s_add_u32     s20, s86, s20               ; move b with cond \n"
+            "s_addc_u32    s21, 0, s21                 ; move b with cond \n"
+            "s_waitcnt     vmcnt(40)                        \n"
+            "s_barrier                                      \n"
+            "ds_read_b128  v[64:67], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_0]\n"    // 1024: N stride, 64 K stride
+            "ds_read_b128  v[68:71], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_1]\n"
+            "ds_read_b128  v[72:75], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_2]\n"
+            "ds_read_b128  v[76:79], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_3]\n"
+            "ds_read_b128  v[80:83], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_4]\n"
+            "ds_read_b128  v[84:87], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_5]\n"
+            "ds_read_b128  v[88:91], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_6]\n"
+            "ds_read_b128  v[92:95], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_7]\n"
             "L_start%=:                                                         \n"
             "  s_waitcnt     vmcnt(24) & lgkmcnt(0)                             \n"
             "  s_barrier                                                        \n"
@@ -601,18 +596,18 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
             "  v_mfma_f32_16x16x16_bf16  %[v_acc_15], acc[118:119], v[86:87], %[v_acc_15] \n"
             "  v_mfma_f32_16x16x16_bf16  %[v_acc_15], acc[120:121], v[88:89], %[v_acc_15] \n"
             "  v_mfma_f32_16x16x16_bf16  %[v_acc_15], acc[122:123], v[90:91], %[v_acc_15] \n"
-            "  buffer_load_dwordx4  acc[252:255], %[v_os_b7], s[20:23], 0 offen offset:3072 \n"
+            "  buffer_load_dwordx4  acc[252:255], %[v_os_b7], s[20:23], 0 offen offset:3072\n"
             "  v_mfma_f32_16x16x16_bf16  %[v_acc_15], acc[124:125], v[92:93], %[v_acc_15] \n"
             "  v_mfma_f32_16x16x16_bf16  %[v_acc_15], acc[126:127], v[94:95], %[v_acc_15] \n"
             "  s_sub_i32     %[s_loop_cnt], %[s_loop_cnt], 1                \n"
             "  s_cmp_gt_i32  %[s_loop_cnt] 0                                \n"
             "  s_cbranch_scc0 L_end%=                                       \n"
             "  s_cmp_gt_i32  %[s_loop_cnt] 2             ; move a with cond \n"
-            "  s_cselect_b32 s86, %[s_stride_a], 0                          \n"
+            "  s_cselect_b32 s86, %[s_tile_os_a], 0                          \n"
             "  s_add_u32     s16, s86, s16                                  \n"
             "  s_addc_u32    s17, 0, s17                                    \n"
             "  s_cmp_gt_i32  %[s_loop_cnt] 1             ; move b with cond \n"
-            "  s_cselect_b32 s86, %[s_stride_b], 0                          \n"
+            "  s_cselect_b32 s86, %[s_tile_os_b], 0                          \n"
             "  s_add_u32     s20, s86, s20                                  \n"
             "  s_addc_u32    s21, 0, s21                                    \n"
             "  ;------------------------------------------                  \n"
@@ -809,11 +804,11 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
             "  s_cmp_gt_i32  %[s_loop_cnt] 0                                \n"
             "  s_cbranch_scc0 L_end%=                                       \n"
             "  s_cmp_gt_i32  %[s_loop_cnt] 2             ; move a with cond \n"
-            "  s_cselect_b32 s86, %[s_stride_a], 0                          \n"
+            "  s_cselect_b32 s86, %[s_tile_os_a], 0                          \n"
             "  s_add_u32     s16, s86, s16                                  \n"
             "  s_addc_u32    s17, 0, s17                                    \n"
             "  s_cmp_gt_i32  %[s_loop_cnt] 1             ; move b with cond \n"
-            "  s_cselect_b32 s86, %[s_stride_b], 0                          \n"
+            "  s_cselect_b32 s86, %[s_tile_os_b], 0                          \n"
             "  s_add_u32     s20, s86, s20                                  \n"
             "  s_addc_u32    s21, 0, s21                                    \n"
             "  s_branch     L_start%=                                       \n"
@@ -875,8 +870,8 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
                 [sld_os_5]"n"(sld_os[number<5>{}].value),
                 [sld_os_6]"n"(sld_os[number<6>{}].value),
                 [sld_os_7]"n"(sld_os[number<7>{}].value),
-                [s_stride_a]"s"(stride_a_bytes),
-                [s_stride_b]"s"(stride_b_bytes)
+                [s_tile_os_a]"s"(tile_offset_a_bytes),
+                [s_tile_os_b]"s"(tile_offset_b_bytes)
             : "memory", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9",
           "a10", "a11", "a12", "a13", "a14", "a15", "a16", "a17", "a18", "a19",
           "a20", "a21", "a22", "a23", "a24", "a25", "a26", "a27", "a28", "a29",

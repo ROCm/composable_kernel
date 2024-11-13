@@ -153,9 +153,25 @@ struct FusedMoeGemmKernel
 
     CK_TILE_HOST static std::string GetName()
     {
-        // sync with generate.py
+#define _SS_ std::string
+#define _TS_ std::to_string
         // clang-format off
-        return "";
+        using S_ = BlockShape;
+
+        auto prec_str = [&] () {
+            std::string base_str = _SS_(t2s<ADataType>::name);
+            if (!std::is_same_v<ADataType, GDataType>) {
+                base_str += _SS_("_") + _SS_(t2s<GDataType>::name);
+            }
+            return base_str;
+        }();
+
+        return _SS_("fused_moe_") + _SS_(prec_str) + "_" +
+             _TS_(S_::Block_M0) + "x" + _TS_(S_::Block_N0) + "x" + _TS_(S_::Block_K0) + "x" + _TS_(S_::Block_N1) + "_" +
+             _TS_(S_::WarpPerBlock_M0) + "x" + _TS_(S_::WarpPerBlock_N0) + "x" + _TS_(S_::WarpPerBlock_K0) + "_" +
+             _TS_(S_::Warp_M0) + "x" + _TS_(S_::Warp_N0) + "x" + _TS_(S_::Warp_K0) + "_" + _SS_(Pipeline::name);
+#undef _SS_
+#undef _TS_
         // clang-format on
     }
 
@@ -199,16 +215,13 @@ struct FusedMoeGemmKernel
         constexpr index_t block_m = BlockShape::Block_M0;
         int max_num_tokens_padded =
             hargs.topk * hargs.num_tokens + hargs.num_experts * block_m - hargs.topk;
+        // printf("xxx max_num_tokens_padded:%d\n", max_num_tokens_padded);
         return Partitioner::GridSize(max_num_tokens_padded, hargs.intermediate_size);
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(BlockSize_); }
 
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
-    {
-        // return max(Pipeline::GetSmemSize(), Epilogue::GetSmemSize());
-        return Pipeline::GetSmemSize();
-    }
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return Pipeline::GetSmemSize(); }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
@@ -222,6 +235,11 @@ struct FusedMoeGemmKernel
 
             const auto [sorted_tile_id, intermediate_tile_id] =
                 Partitioner{}(num_sorted_tiles, kargs.intermediate_size);
+            // if(threadIdx.x == 0)
+            // printf("bid:%d,%d, num_sorted_tiles:%d, sorted_tile_id:%d(%d),
+            // intermediate_tile_id:%d\n", static_cast<int>(blockIdx.x),
+            //     static_cast<int>(blockIdx.y), num_sorted_tiles, sorted_tile_id, sorted_tile_id >=
+            //     num_sorted_tiles? 1 : 0, intermediate_tile_id);
             if(sorted_tile_id >= num_sorted_tiles)
                 return;
 

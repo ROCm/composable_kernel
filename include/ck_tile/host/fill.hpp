@@ -235,6 +235,44 @@ struct FillMonotonicSeq
     }
 };
 
+template <typename T, bool IsAscending = true>
+struct FillStepRange
+{
+    float start_value_{0};
+    float end_value_{3};
+    float step_{1};
+
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        std::generate(first, last, [=, n = start_value_]() mutable {
+            auto tmp = n;
+            n += step_;
+            if constexpr(IsAscending)
+            {
+                if(n > end_value_)
+                    n = start_value_;
+            }
+            else
+            {
+                if(n < end_value_)
+                    n = start_value_;
+            }
+
+            return type_convert<T>(tmp);
+        });
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const -> std::void_t<
+        decltype(std::declval<const FillStepRange&>()(std::begin(std::forward<ForwardRange>(range)),
+                                                      std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
+
 template <typename T>
 struct FillConstant
 {

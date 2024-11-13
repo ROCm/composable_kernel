@@ -41,6 +41,17 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
     using BDataType = bf16_t;
     using ODataType = bf16_t;
 
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        //                    y     y     p     p      p      y
+        // reg before shfl  M0(2)*N0(2)*Nl(4)*Nw(4)*Mw(16)*Nv(4)
+        // but order is N0*M0*Nv
+        // in LDS we need store as
+        //          M0(2)* N0(2) *  Nl(4) * Nw(4) * (Mw(16)*Nv(4) + 4)
+        //             y    y       wave-id  lid/16  lid%16   v
+        return 2 * 2 * 4 * 4 * (16 * 4 + 4) * sizeof(bf16_t);
+    }
+
     // TODO: need paired with tile_window_linear!
     // TODO: need call init_raw() before call this function!
     // template <typename AWindow, typename BWindow, typename OWindow, typename ScaleTensor>
@@ -48,30 +59,26 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
               typename BCoords,
               typename ORes,
               typename OCoords,
+              typename OFlags,
               typename ScaleTensor>
     CK_TILE_DEVICE auto
     operator()(const BRes& res_b,
                const BCoords& cached_coords_b,
                const ORes& res_o,
                const OCoords& cached_coords_o,
+               const OFlags& o_flags, // this should be in sgpr
                CK_TILE_LDS_ADDR void* smem,
                // OWindow& o_window_,
                index_t n, // loop along n dim
                const ScaleTensor& scale_,
-               index_t stride_b, // stride b is fixed to blockKr * blockW, but still can adjust
-               index_t stride_o)
+               index_t tile_offset_b, // stride b is fixed to blockKr * blockW, but still can adjust
+               index_t tile_offset_o)
     {
-        // auto cached_coords_b = b_window_.cached_coords_;
-        // auto res_b           =
-        // b_window_.get_bottom_tensor_view().get_buffer_view().cached_buf_res_; auto
-        // cached_coords_o = o_window_.cached_coords_; auto res_o           =
-        // o_window_.get_bottom_tensor_view().get_buffer_view().cached_buf_res_;
-
         static_assert(BCoords::size() == 8); // 8
         static_assert(OCoords::size() == 8);
 
-        const index_t stride_b_bytes = stride_b * sizeof(BDataType);
-        const index_t stride_o_bytes = stride_o * sizeof(ODataType);
+        const index_t tile_stride_b_bytes = tile_offset_b * sizeof(BDataType);
+        const index_t tile_stride_o_bytes = tile_offset_o * sizeof(ODataType);
 
         static_assert(ScaleTensor::size() == 2);
         float s0 = scale_[number<0>{}];
@@ -143,6 +150,7 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
         asm volatile(
             ";-------------------------------------------------------------\n"
             " s_mov_b32 s52, 0x07060302 ; v_perm\n"
+            " s_mov_b64 s[38:39], exec ; save current exec\n"
             " s_mov_b32 s8,    %[s_res_o0] \n"
             " s_mov_b32 s9,    %[s_res_o1] \n"
             " s_mov_b32 s12,    %[s_res_b0] \n"
@@ -247,10 +255,9 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  buffer_load_dwordx4  acc[120:123], %[v_os_b7], s[12:15], 0 offen offset:2048 \n"
             "  buffer_load_dwordx4  acc[124:127], %[v_os_b7], s[12:15], 0 offen offset:3072 \n"
             "  s_cmp_gt_i32  %[s_loop_cnt] 1             ; move b with cond \n"
-            "  s_cselect_b32 s86, %[s_stride_b], 0                          \n"
+            "  s_cselect_b32 s86, %[s_tile_os_b], 0                          \n"
             "  s_add_u32     s12, s86, s12                                  \n"
             "  s_addc_u32    s13, 0, s13                                    \n"
-            "  s_waitcnt     vmcnt(24)                               \n"
             "L_start%=:                    \n"
             "  s_waitcnt     vmcnt(32)                               \n"
             "  s_barrier                                             \n"
@@ -517,39 +524,37 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  ds_read_b32   %[c6], %[v_sfl_sld] offset:4416 + %[shfl_base]                    \n"
             "  ds_read_b32   %[c7], %[v_sfl_sld] offset:4448 + %[shfl_base]                    \n"
             "  s_waitcnt     lgkmcnt(0)                              \n"
-            //"  s_mov_b64     exec, s[16:17]                          \n"
+            //  "s_endpgm\n"
+            "  s_mov_b64     exec, %[s_execflag_0]                    \n"
             "  global_atomic_pk_add_bf16   %[v_os_o0], %[c0], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[18:19]                          \n"
+            "  s_mov_b64     exec, %[s_execflag_1]                    \n"
+            
             "  global_atomic_pk_add_bf16   %[v_os_o1], %[c1], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[20:21]                          \n"
+            "  s_mov_b64     exec, %[s_execflag_2]                    \n"
+
             "  global_atomic_pk_add_bf16   %[v_os_o2], %[c2], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[22:23]                          \n"
+            "  s_mov_b64     exec, %[s_execflag_3]                    \n"
             "  global_atomic_pk_add_bf16   %[v_os_o3], %[c3], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[24:25]                          \n"
+            "  s_mov_b64     exec, %[s_execflag_4]                    \n"
             "  global_atomic_pk_add_bf16   %[v_os_o4], %[c4], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[26:27]                          \n"
+            "  s_mov_b64     exec, %[s_execflag_5]                    \n"
             "  global_atomic_pk_add_bf16   %[v_os_o5], %[c5], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[28:29]                          \n"
+            // "s_endpgm\n"
+            "  s_mov_b64     exec, %[s_execflag_6]                    \n"
             "  global_atomic_pk_add_bf16   %[v_os_o6], %[c6], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[30:31]                          \n"
+            "  s_mov_b64     exec, %[s_execflag_7]                    \n"
             "  global_atomic_pk_add_bf16   %[v_os_o7], %[c7], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
+            "  s_mov_b64     exec, s[38:39]                           \n"
             "  s_sub_i32     %[s_loop_cnt], %[s_loop_cnt], 1     ; k--      \n"
             "  s_cmp_gt_i32  %[s_loop_cnt] 0                                \n"
             "  s_cbranch_scc0 L_end%=                                       \n"
             "  s_cmp_gt_i32  %[s_loop_cnt] 1             ; move b with cond \n"
-            "  s_cselect_b32 s86, %[s_stride_b], 0                          \n"
+            "  s_cselect_b32 s86, %[s_tile_os_b], 0                          \n"
             "  s_add_u32     s12, s86, s12                                  \n"
             "  s_addc_u32    s13, 0, s13                                    \n"
-            "  s_add_u32     s8, %[s_stride_o], s8                             \n"
+            "  s_add_u32     s8, %[s_tile_os_o], s8                             \n"
             "  s_addc_u32    s9, 0, s9                               \n"
+                
             //"  s_addk_i32    s80, 0x0080                             \n"
             //"  s_cmp_lt_i32  s80, s81                                \n"
             //"  s_cbranch_scc0  label_0E98                            \n"
@@ -817,38 +822,31 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  ds_read_b32   %[c22], %[v_sfl_sld] offset:4416 + %[shfl_base]                  \n"
             "  ds_read_b32   %[c23], %[v_sfl_sld] offset:4448 + %[shfl_base]                  \n"
             "  s_waitcnt     lgkmcnt(0)                              \n"
-            //"  s_mov_b64     exec, s[16:17]                          \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o0], %[c16], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[18:19]                          \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o1], %[c17], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[20:21]                          \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o2], %[c18], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[22:23]                          \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o3], %[c19], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[24:25]                          \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o4], %[c20], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[26:27]                          \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o5], %[c21], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[28:29]                          \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o6], %[c22], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
-            //"  s_mov_b64     exec, s[30:31]                          \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o7], %[c23], s[8:9]  \n"
-            //"  s_mov_b64     exec, s[36:37]                          \n"
+            "  s_mov_b64     exec, %[s_execflag_0]                    \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o0], %[c0], s[8:9]  \n"
+            "  s_mov_b64     exec, %[s_execflag_1]                    \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o1], %[c1], s[8:9]  \n"
+            "  s_mov_b64     exec, %[s_execflag_2]                    \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o2], %[c2], s[8:9]  \n"
+            "  s_mov_b64     exec, %[s_execflag_3]                    \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o3], %[c3], s[8:9]  \n"
+            "  s_mov_b64     exec, %[s_execflag_4]                    \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o4], %[c4], s[8:9]  \n"
+            "  s_mov_b64     exec, %[s_execflag_5]                    \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o5], %[c5], s[8:9]  \n"
+            "  s_mov_b64     exec, %[s_execflag_6]                    \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o6], %[c6], s[8:9]  \n"
+            "  s_mov_b64     exec, %[s_execflag_7]                    \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o7], %[c7], s[8:9]  \n"
+            "  s_mov_b64     exec, s[38:39]                           \n"
             "  s_sub_i32     %[s_loop_cnt], %[s_loop_cnt], 1     ; k--      \n"
             "  s_cmp_gt_i32  %[s_loop_cnt] 0                                \n"
             "  s_cbranch_scc0 L_end%=                                       \n"
             "  s_cmp_gt_i32  %[s_loop_cnt] 1             ; move b with cond \n"
-            "  s_cselect_b32 s86, %[s_stride_b], 0                          \n"
+            "  s_cselect_b32 s86, %[s_tile_os_b], 0                          \n"
             "  s_add_u32     s12, s86, s12                                  \n"
             "  s_addc_u32    s13, 0, s13                                    \n"
-            "  s_add_u32     s8, %[s_stride_o], s8                             \n"
+            "  s_add_u32     s8, %[s_tile_os_o], s8                             \n"
             "  s_addc_u32    s9, 0, s9                               \n"
             "  s_branch      L_start%=          \n"
             "L_end%=:                                                \n"
@@ -917,13 +915,22 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
                 [v_os_b6]"v"(static_cast<index_t>(cached_coords_b[number<6>{}] * sizeof(BDataType))),
                 [v_os_b7]"v"(static_cast<index_t>(cached_coords_b[number<7>{}] * sizeof(BDataType))),
 
-                [s_stride_o]"s"(stride_o_bytes),
-                [s_stride_b]"s"(stride_b_bytes),
+                [s_tile_os_o]"s"(tile_stride_o_bytes),
+                [s_tile_os_b]"s"(tile_stride_b_bytes),
                 [scale_0]"v"(s0),
                 [scale_1]"v"(s1),
                 [v_nan_lo]"v"(nan_lo),
-                [v_nan_hi]"v"(nan_hi)
-            : "memory", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9",
+                [v_nan_hi]"v"(nan_hi),
+                [s_execflag_0]"s"(o_flags[number<0>{}]),
+                [s_execflag_1]"s"(o_flags[number<1>{}]),
+                [s_execflag_2]"s"(o_flags[number<2>{}]),
+                [s_execflag_3]"s"(o_flags[number<3>{}]),
+                [s_execflag_4]"s"(o_flags[number<4>{}]),
+                [s_execflag_5]"s"(o_flags[number<5>{}]),
+                [s_execflag_6]"s"(o_flags[number<6>{}]),
+                [s_execflag_7]"s"(o_flags[number<7>{}])
+            :
+          "memory", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9",
           "a10", "a11", "a12", "a13", "a14", "a15", "a16", "a17", "a18", "a19",
           "a20", "a21", "a22", "a23", "a24", "a25", "a26", "a27", "a28", "a29",
           "a30", "a31", "a32", "a33", "a34", "a35", "a36", "a37", "a38", "a39",
@@ -953,9 +960,13 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
           "a236", "a237", "a238", "a239", "a240", "a241", "a242", "a243",
           "a244", "a245", "a246", "a247", "a248", "a249", "a250", "a251",
           "a252", "a253", "a254", "a255", 
-          "s16", "s17", "s18", "s19", "s20", "s21", "s22", "s23",
+          "s8", "s9", "s12", "s13", "s14", "s15", "s38", "s39", "s52", "s86",
           // "s32", "s33",
           "v50", "v54", "v55",
+          "v64","v65","v66","v67","v68","v69","v70","v71",
+          "v72","v73","v74","v75","v76","v77","v78","v79",
+          "v80","v81","v82","v83","v84","v85","v86","v87",
+          "v88","v89","v90","v91","v92","v93","v94","v95",
           "v128", "v129", "v130", "v131",
           "v132", "v133", "v134", "v135", "v136", "v137", "v138", "v139",
           "v140", "v141", "v142", "v143", "v144", "v145", "v146", "v147",

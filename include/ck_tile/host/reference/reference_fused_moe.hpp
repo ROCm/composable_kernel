@@ -53,14 +53,14 @@ template <typename AccDataType, // you only need to explcitly set this one
           typename IndexDataType>
 void reference_fused_moe(
     const ck_tile::HostTensor<ADataType>& a_host,       // [tokens, hidden_size]
-    const ck_tile::HostTensor<GDataType>& g_host,       // [experts, interme_size, hidden_size]
-    const ck_tile::HostTensor<DDataType>& d_host,       // [experts, hidden_size, hidden_size]
+    const ck_tile::HostTensor<GDataType>& g_host,       // [experts, interme_size_0, hidden_size]
+    const ck_tile::HostTensor<DDataType>& d_host,       // [experts, hidden_size, interme_size_1]
     const ck_tile::HostTensor<AScaleDataType>& sa_host, // [tokens, 1],
-    const ck_tile::HostTensor<GScaleDataType>& sg_host, // [experts, 1, interme_size]
+    const ck_tile::HostTensor<GScaleDataType>& sg_host, // [experts, 1, interme_size_0]
     const ck_tile::HostTensor<DScaleDataType>& sd_host, // [experts, 1, hidden_size],
-    const ck_tile::HostTensor<YSmoothScaleDataType>& sy_host,          // [experts, 1, interme_size]
-    ck_tile::HostTensor<ODataType>& o_host,                            // [tokens, hidden_size]
-    const ck_tile::HostTensor<IndexDataType>& sorted_token_ids_host,   // [max_num_tokens_padded]
+    const ck_tile::HostTensor<YSmoothScaleDataType>& sy_host,        // [experts, 1, interme_size_0]
+    ck_tile::HostTensor<ODataType>& o_host,                          // [tokens, hidden_size]
+    const ck_tile::HostTensor<IndexDataType>& sorted_token_ids_host, // [max_num_tokens_padded]
     const ck_tile::HostTensor<TopkWeightDataType>& sorted_weight_host, // [max_num_tokens_padded]
     const ck_tile::HostTensor<IndexDataType>&
         sorted_expert_ids_host, // [(max_num_tokens_padded + block_size - 1) / block_size]
@@ -73,7 +73,7 @@ void reference_fused_moe(
     ck_tile::index_t tokens,
     ck_tile::index_t experts,
     ck_tile::index_t hidden_size,
-    ck_tile::index_t intermediate_size,
+    ck_tile::index_t intermediate_size, // this size is for gate/up
     ck_tile::index_t topk,
     ck_tile::index_t gate_only)
 {
@@ -81,7 +81,9 @@ void reference_fused_moe(
     assert(sorted_weight_host.get_num_of_dimension() == 1);
     assert(sorted_expert_ids_host.get_num_of_dimension() == 1);
     assert(num_sorted_tiles_host.get_element_size() == 1);
-    ck_tile::index_t num_sorted_tiles = num_sorted_tiles_host.mData[0];
+    ck_tile::index_t num_sorted_tiles    = num_sorted_tiles_host.mData[0] / block_m;
+    ck_tile::index_t intermediate_size_0 = intermediate_size;
+    ck_tile::index_t intermediate_size_1 = intermediate_size / (gate_only ? 1 : 2);
 
     // TODO: better remove this in the future, or modify the token_id value
     auto get_topk_id = [&](ck_tile::index_t token_id_, ck_tile::index_t expert_id_) {
@@ -90,6 +92,7 @@ void reference_fused_moe(
             if(token_ids_host(token_id_, i_) == expert_id_)
                 return i_;
         }
+        throw std::runtime_error("not correct token/expert pair\n");
         return -1; // TODO: not correct!!
     };
 
@@ -108,9 +111,9 @@ void reference_fused_moe(
         ck_tile::index_t i_topk = get_topk_id(i_token, i_expert); // TODO: ugly
         auto weight             = sorted_weight_host.mData[i_flatten];
 
-        ck_tile::HostTensor<AccDataType> acc_0({1, intermediate_size});
+        ck_tile::HostTensor<AccDataType> acc_0({1, intermediate_size_0});
         // first gemm
-        for(ck_tile::index_t i_n = 0; i_n < intermediate_size; i_n++)
+        for(ck_tile::index_t i_n = 0; i_n < intermediate_size_0; i_n++)
         {
             AccDataType acc = static_cast<AccDataType>(0);
             for(ck_tile::index_t i_k = 0; i_k < hidden_size; i_k++)
@@ -121,32 +124,38 @@ void reference_fused_moe(
             acc_0(0, i_n) = acc;
         }
 
-        ck_tile::HostTensor<AccDataType> y({1, hidden_size});
+        ck_tile::HostTensor<AccDataType> y({1, intermediate_size_1});
         if(gate_only)
         {
-            assert(hidden_size == intermediate_size);
-            for(ck_tile::index_t i_n = 0; i_n < hidden_size; i_n++)
+            if(intermediate_size_1 != intermediate_size_0)
+                throw std::runtime_error(
+                    "intermediate_size not correct, 0:" + std::to_string(intermediate_size_0) +
+                    ", 1:" + std::to_string(intermediate_size_1));
+            for(ck_tile::index_t i_n = 0; i_n < intermediate_size_1; i_n++)
             {
                 Activation{}(y(0, i_n), acc_0(0, i_n));
             }
         }
         else
         {
-            assert(hidden_size * 2 == intermediate_size);
-            for(ck_tile::index_t i_n = 0; i_n < hidden_size; i_n++)
+            if(intermediate_size_1 * 2 != intermediate_size_0)
+                throw std::runtime_error(
+                    "intermediate_size not correct, 0:" + std::to_string(intermediate_size_0) +
+                    ", 1:" + std::to_string(intermediate_size_1));
+            for(ck_tile::index_t i_n = 0; i_n < intermediate_size_1; i_n++)
             {
                 AccDataType tmp;
                 Activation{}(tmp, acc_0(0, i_n));
-                y(0, i_n) = tmp * acc_0(0, i_n + hidden_size); // TODO: elementwise mul
+                y(0, i_n) = tmp * acc_0(0, i_n + intermediate_size_1); // TODO: elementwise mul
             }
         }
 
-        // second gemm
+        // second gemm, loop along gemm-n
         ck_tile::HostTensor<AccDataType> acc_1({1, hidden_size});
         for(ck_tile::index_t i_n = 0; i_n < hidden_size; i_n++)
         {
             AccDataType acc = static_cast<AccDataType>(0);
-            for(ck_tile::index_t i_k = 0; i_k < hidden_size; i_k++)
+            for(ck_tile::index_t i_k = 0; i_k < intermediate_size_1; i_k++)
             {
                 acc += y(0, i_k) * type_convert<AccDataType>(d_host(i_expert, i_n, i_k));
             }
@@ -165,12 +174,12 @@ void reference_fused_moe(
     auto r = [&](auto i_token) {
         for(ck_tile::index_t i_n = 0; i_n < hidden_size; i_n++)
         {
-            ODataType acc = type_convert<ODataType>(0);
+            AccDataType acc = type_convert<ODataType>(0);
             for(ck_tile::index_t i_topk = 0; i_topk < topk; i_topk++)
             {
                 acc += out_topk_tokens(i_token, i_topk, i_n);
             }
-            o_host(i_token, i_n) = acc;
+            o_host(i_token, i_n) = type_convert<ODataType>(acc);
         }
     };
     make_ParallelTensorFunctor(r, tokens)(std::thread::hardware_concurrency());

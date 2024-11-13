@@ -66,17 +66,15 @@ struct FusedMoeGemmPipeline_FlatmmUk
         }
     }();
 
-    static constexpr const char* name = "fused_moe_flatmm_uk";
-
-    // TODO: there are multiple buffers
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize_A()
-    {
-        return Policy::template GetSmemSize_A<Problem>();
-    }
+    static constexpr const char* name = "flatmm_uk";
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return Policy::template GetSmemSize<Problem>();
+        constexpr index_t smem_0 = Policy::template GetUK_1<Problem>().GetSmemSize();
+        constexpr index_t smem_1 = Policy::template GetUK_1<Problem>().GetSmemSize();
+        constexpr index_t smem_bridge =
+            BlockShape::Block_M0 * BlockShape::Block_N0 * sizeof(YDataType);
+        return max(smem_0, max(smem_1, smem_bridge));
     }
 
     // this is the thread-offset along row/col
@@ -154,7 +152,7 @@ struct FusedMoeGemmPipeline_FlatmmUk
     {
         constexpr index_t n_size = coords.size();
 
-        array<index_t, n_size> w;
+        array<TopkWeightDataType, n_size> w;
         static_for<0, n_size, 1>{}([&](auto i) {
             w.at(i) = sorted_weight_ptr[coords[i]]; // base_coord + i * MLans;
         });
@@ -207,34 +205,49 @@ struct FusedMoeGemmPipeline_FlatmmUk
                                    index_t sorted_tile_id,
                                    index_t intermediate_tile_id)
     {
-        index_t nr_0 = kargs.intermediate_size / BlockShape::Block_Nr0;
-        index_t kr_0 = kargs.hidden_size / BlockShape::Block_Kr0;
-        index_t nr_1 = kargs.hidden_size / BlockShape::Block_Nr1;       // should be same as kr_0
-        index_t kr_1 = kargs.intermediate_size / BlockShape::Block_Kr1; // should be same as nr_0
+        constexpr index_t hidden_radio_0            = IsGateOnly ? 1 : 2;
+        ck_tile::index_t shared_intermediate_size_0 = kargs.intermediate_size;
+        // w1 (Down, N size)
+        ck_tile::index_t shared_intermediate_size_1 = kargs.intermediate_size / hidden_radio_0;
+
+        index_t nr_0 = shared_intermediate_size_0 / BlockShape::Warp_N0; // divide N in W
+        index_t kr_0 = kargs.hidden_size / BlockShape::Warp_K0;          // divide K in W
+        index_t nr_1 = kargs.hidden_size / BlockShape::Warp_N1;
+        index_t kr_1 = shared_intermediate_size_1 / BlockShape::Warp_K1;
 
         const IndexDataType expert_id = __builtin_amdgcn_readfirstlane(
             reinterpret_cast<const IndexDataType*>(kargs.sorted_expert_ids_ptr)[sorted_tile_id]);
-        constexpr index_t hidden_radio_0 = IsGateOnly ? 1 : 2;
-        index_t expert_stride_0 = kargs.intermediate_size * hidden_radio_0 * kargs.hidden_size;
-        index_t expert_stride_1 = kargs.intermediate_size * kargs.hidden_size;
+        index_t expert_stride_0 = shared_intermediate_size_0 * kargs.hidden_size;
+        index_t expert_stride_1 = shared_intermediate_size_1 * kargs.hidden_size;
 
-        index_t interm_idx_nr =
-            __builtin_amdgcn_readfirstlane(intermediate_tile_id * BlockShape::Block_Nr0);
+        // nr*kr*w
+        index_t interm_idx_nr = __builtin_amdgcn_readfirstlane(
+            intermediate_tile_id *
+            BlockShape::Block_Nr0); // intermediate_tile_id * Block_N / (N in W)
+
+        // printf("bid:%d,%d, sorted_tile_id:%d(, intermediate_tile_id:%d, expert_id:%d,
+        // interm_idx_nr:%d\n", static_cast<int>(blockIdx.x),
+        //     static_cast<int>(blockIdx.y), sorted_tile_id, intermediate_tile_id, expert_id,
+        //     interm_idx_nr);
 
         auto row_coords_a = GetRowCoords_A(sorted_tile_id * BlockShape::Block_M0);
         auto row_ids_a    = GetRowID_A(
             row_coords_a, reinterpret_cast<const IndexDataType*>(kargs.sorted_token_ids_ptr));
-        auto a_coords = generate_tuple([&](auto i) { return row_ids_a[i] * kargs.stride_token; },
-                                       number<row_ids_a.size()>{});
+        auto a_coords = generate_tuple(
+            [&](auto i) {
+                return row_ids_a[i] * kargs.stride_token +
+                       threadIdx.x % (BlockShape::Block_K0 / kAlignmentA) * kAlignmentA;
+            },
+            number<row_ids_a.size()>{});
         auto a_res =
             make_wave_buffer_resource(reinterpret_cast<const ADataType*>(kargs.a_ptr),
                                       kargs.num_tokens * kargs.stride_token * sizeof(ADataType));
 
-        const auto g_win = [&]() {
+        auto g_win = [&]() {
             const GDataType* g_ptr = reinterpret_cast<const GDataType*>(kargs.g_ptr) +
                                      static_cast<long_index_t>(expert_id) * expert_stride_0 +
                                      interm_idx_nr * kr_0 * BlockShape::Block_W0;
-            const auto g_view_ = make_naive_tensor_view<address_space_enum::global>(
+            auto g_view_ = make_naive_tensor_view<address_space_enum::global>(
                 g_ptr,
                 make_tuple(nr_0, kr_0, number<BlockShape::Block_W0>{}),
                 make_tuple(kr_0 * BlockShape::Block_W0, number<BlockShape::Block_W0>{}, 1),
@@ -243,14 +256,14 @@ struct FusedMoeGemmPipeline_FlatmmUk
 
             // number<BlockShape::Block_Nr0>{}.fff();
             // number<kAlignmentG>{}.zzz();
-            const auto g_window_ =
-                make_tile_window_linear(g_view_,
-                                        make_tuple(number<BlockShape::Block_Nr0>{},
-                                                   number<BlockShape::Block_Kr0>{},
-                                                   number<BlockShape::Block_W0>{}),
-                                        {0, 0, 0},
-                                        Policy::template MakeGlobalTileDistribution_G<Problem>(),
-                                        sequence<0, 1, 1>{});
+            auto g_window_ = make_tile_window_linear_raw(
+                g_view_,
+                make_tuple(number<BlockShape::Block_Nr0>{},
+                           number<BlockShape::Block_Kr0>{},
+                           number<BlockShape::Block_W0>{}),
+                {0, 0, 0},
+                Policy::template MakeGlobalTileDistribution_G<Problem>(),
+                sequence<0, 1, 1>{});
             return g_window_;
         }();
         // number<decltype(g_win)::NumAccess_NonLinear>{}.rrr2();
@@ -271,14 +284,14 @@ struct FusedMoeGemmPipeline_FlatmmUk
                 number<kAlignmentD>{},
                 number<1>{});
 
-            const auto d_window_ =
-                make_tile_window_linear(d_view_,
-                                        make_tuple(number<BlockShape::Block_Nr1>{},
-                                                   number<BlockShape::Block_Kr1>{},
-                                                   number<BlockShape::Block_W1>{}),
-                                        {0, 0, 0},
-                                        Policy::template MakeGlobalTileDistribution_D<Problem>(),
-                                        sequence<0, 1, 1>{});
+            const auto d_window_ = make_tile_window_linear_raw(
+                d_view_,
+                make_tuple(number<BlockShape::Block_Nr1>{},
+                           number<BlockShape::Block_Kr1>{},
+                           number<BlockShape::Block_W1>{}),
+                {0, 0, 0},
+                Policy::template MakeGlobalTileDistribution_D<Problem>(),
+                sequence<0, 1, 1>{});
             return d_window_;
         }();
         auto d_res = d_win.get_bottom_tensor_view().get_buffer_view().cached_buf_res_;
@@ -309,14 +322,23 @@ struct FusedMoeGemmPipeline_FlatmmUk
                     constexpr auto i_nr_  = number<i % Nr_>{};
                     constexpr auto i_kr0_ = number<i / Nr_>{};
 
-                    return i_nr_ * kargs.intermediate_size * Nw_ * Nl_ + i_kr0_ * Kr1_ * W_ +
+                    return i_nr_ * shared_intermediate_size_1 * Nw_ * Nl_ + i_kr0_ * Kr1_ * W_ +
                            base_os_;
                 },
                 number<num_offsets_>{});
         }();
 #endif
-        auto o_coords = generate_tuple([&](auto i) { return row_ids_a[i] * kargs.stride_token; },
-                                       number<a_coords.size()>{});
+        auto o_coords = generate_tuple(
+            [&](auto i) {
+                return row_ids_a[i] * kargs.stride_token +
+                       threadIdx.x % (BlockShape::Block_N1 / kAlignmentO) * kAlignmentO;
+            },
+            number<row_ids_a.size()>{});
+
+        auto o_flags =
+            generate_tuple([&](auto i) { return cmp_lt_to_exec(row_ids_a[i], kargs.num_tokens); },
+                           number<row_ids_a.size()>{});
+
         auto bridge_sst_win = [&]() {
             return make_tile_window(
                 make_tensor_view<address_space_enum::lds>(
@@ -332,7 +354,79 @@ struct FusedMoeGemmPipeline_FlatmmUk
         auto row_coords_o = GetRowCoords_O(sorted_tile_id * BlockShape::Block_M0);
         auto w_scale      = GetWeightScale(
             row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr));
+#if 0
+        printf("bid:%d,%d, tid:%d, sorted_tile_id:%d(, intermediate_tile_id:%d, e:%d, "
+               "interm_idx_nr:%d, coords:a:%d,%d,%d, row_ids_a:%d,%d,%d, (%d)g_coords:%d.%d.%d, "
+               "o_coords:%d,%d,%d,%d,%d,%d,%d,%d(%d,%d,%d,%d,%d,%d,%d,%d)\n",
+               static_cast<int>(blockIdx.x),
+               static_cast<int>(blockIdx.y),
+               static_cast<int>(threadIdx.x),
+               sorted_tile_id,
+               intermediate_tile_id,
+               expert_id,
+               interm_idx_nr,
+               row_coords_a[0],
+               row_coords_a[1],
+               row_coords_a[7],
+               row_ids_a[0],
+               row_ids_a[1],
+               row_ids_a[7],
+               kr_0 * BlockShape::Block_W0,
+               g_coords[number<0>{}],
+               g_coords[number<1>{}],
+               g_coords[number<7>{}],
+               o_coords[number<0>{}],
+               o_coords[number<1>{}],
+               o_coords[number<2>{}],
+               o_coords[number<3>{}],
+               o_coords[number<4>{}],
+               o_coords[number<5>{}],
+               o_coords[number<6>{}],
+               o_coords[number<7>{}],
+               // (row_ids_a[0] >= kargs.num_tokens ? 1 : 0),
+               // (row_ids_a[1] >= kargs.num_tokens ? 1 : 0),
+               // (row_ids_a[2] >= kargs.num_tokens ? 1 : 0),
+               // (row_ids_a[3] >= kargs.num_tokens ? 1 : 0),
+               // (row_ids_a[4] >= kargs.num_tokens ? 1 : 0),
+               // (row_ids_a[5] >= kargs.num_tokens ? 1 : 0),
+               // (row_ids_a[6] >= kargs.num_tokens ? 1 : 0),
+               // (row_ids_a[7] >= kargs.num_tokens ? 1 : 0)
 
+               (row_ids_a[0] < kargs.num_tokens && static_cast<index_t>(o_coords[number<0>{}]) >=
+                                                       (kargs.num_tokens * kargs.stride_token)
+                    ? 7777
+                    : 0),
+               (row_ids_a[1] < kargs.num_tokens && static_cast<index_t>(o_coords[number<1>{}]) >=
+                                                       (kargs.num_tokens * kargs.stride_token)
+                    ? 7777
+                    : 0),
+               (row_ids_a[2] < kargs.num_tokens && static_cast<index_t>(o_coords[number<2>{}]) >=
+                                                       (kargs.num_tokens * kargs.stride_token)
+                    ? 7777
+                    : 0),
+               (row_ids_a[3] < kargs.num_tokens && static_cast<index_t>(o_coords[number<3>{}]) >=
+                                                       (kargs.num_tokens * kargs.stride_token)
+                    ? 7777
+                    : 0),
+               (row_ids_a[4] < kargs.num_tokens && static_cast<index_t>(o_coords[number<4>{}]) >=
+                                                       (kargs.num_tokens * kargs.stride_token)
+                    ? 7777
+                    : 0),
+               (row_ids_a[5] < kargs.num_tokens && static_cast<index_t>(o_coords[number<5>{}]) >=
+                                                       (kargs.num_tokens * kargs.stride_token)
+                    ? 7777
+                    : 0),
+               (row_ids_a[6] < kargs.num_tokens && static_cast<index_t>(o_coords[number<6>{}]) >=
+                                                       (kargs.num_tokens * kargs.stride_token)
+                    ? 7777
+                    : 0),
+               (row_ids_a[7] < kargs.num_tokens && static_cast<index_t>(o_coords[number<7>{}]) >=
+                                                       (kargs.num_tokens * kargs.stride_token)
+                    ? 7777
+                    : 0)
+
+        );
+#endif
         auto uk_0  = Policy::template GetUK_0<Problem>();
         auto acc_0 = uk_0(a_res,
                           a_coords,
@@ -340,25 +434,29 @@ struct FusedMoeGemmPipeline_FlatmmUk
                           g_coords,
                           smem,
                           kargs.hidden_size,
-                          kargs.stride_token,
-                          BlockShape::Block_Kr0 * BlockShape::Block_W0);
+                          BlockShape::Block_K0, // tile offset for B matrix each unroll
+                          BlockShape::Block_Kr0 *
+                              BlockShape::Block_W0); // tile offset for B matrix each unroll
 
+        // return ;
         sweep_tile(acc_0,
                    [&](auto idx) { typename Problem::GateActivation{}(acc_0(idx), acc_0[idx]); });
 
         auto y_pre = cast_tile<YDataType>(acc_0);
         store_tile(bridge_sst_win, y_pre);
+        block_sync_lds();
 
         auto uk_1 = Policy::template GetUK_1<Problem>();
         uk_1(d_res,
              d_coords,
              o_res,
              o_coords,
+             o_flags,
              smem,
-             kargs.hidden_size,
+             kargs.hidden_size, // total n number
              w_scale,
-             BlockShape::Block_Kr0 * BlockShape::Block_W0,
-             kargs.stride_token);
+             BlockShape::Block_Nr1 * kr_1 * BlockShape::Block_W1, // along N
+             BlockShape::Block_N1);                               // along N
     }
 };
 
