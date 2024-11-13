@@ -324,6 +324,7 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
         // check consistency of desc
         if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1) && AK == BK))
         {
+            printf("consistency of desc is wrong \n");
             return false;
         }
 
@@ -353,12 +354,14 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
 
         if(!valid)
         {
+            printf("gridwise validity error 0 \n");
             return false;
         }
 
         // check tile size
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && AK % KPerBlock == 0))
         {
+            printf("gridwise validity error 1 \n");
             return false;
         }
 
@@ -367,12 +370,14 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
 
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
+            printf("gridwise validity error 2 \n");
             return false;
         }
 
         // check block-to-E-tile
         if(!block_2_etile_map.CheckValidity(e_grid_desc_m_n))
         {
+            printf("gridwise validity error 3 \n");
             return false;
         }
 
@@ -381,6 +386,7 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
 
         if(!(e_grid_desc_m_n.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
         {
+            printf("gridwise validity error 4 \n");
             return false;
         }
 

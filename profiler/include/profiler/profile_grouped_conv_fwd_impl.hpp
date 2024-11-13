@@ -159,6 +159,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             out_device_buf.SetZero();
 
             std::string op_name = op_ptr->GetTypeString();
+            std::cout << op_name << " supports this argument!!!!!!!!!!!!!!" << std::endl;
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

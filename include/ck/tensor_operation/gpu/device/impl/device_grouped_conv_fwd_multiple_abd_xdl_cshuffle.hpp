@@ -1101,14 +1101,17 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         // check device
         if(get_device_name() == "gfx908")
         {
+            printf("device is gfx908 \n");
             // FIXME: re-enable fp64 when SWDEV-335738 is fixed
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
+                printf("accDataType is wrong \n");
                 return false;
             }
         }
         if(!ck::is_xdl_supported())
         {
+            printf("not xdl supported \n");
             return false;
         }
 
@@ -1116,6 +1119,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
+            printf("convforwardspecialization is Filter1x1Stride1Pad0 \n");
             // check if it's 1x1, stride=1 conv
             for(index_t i = 0; i < NDimSpatial; ++i)
             {
@@ -1126,6 +1130,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
                 if(!(X == 1 && ConvStride == 1 && LeftPad == 0 && RightPad == 0))
                 {
+                    printf("argument doesn't support Filter1x1Stride1Pad0 \n");
                     return false;
                 }
             }
@@ -1133,6 +1138,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         else if constexpr(ConvForwardSpecialization ==
                           ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
+            printf("convforwardspecialization is Filter1x1Pad0 \n");
             // check if it's 1x1 conv
             for(index_t i = 0; i < NDimSpatial; ++i)
             {
@@ -1142,14 +1148,17 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
                 if(!(X == 1 && LeftPad == 0 && RightPad == 0))
                 {
+                    printf("argument doesn't support Filter1x1Pad0 \n");
                     return false;
                 }
             }
         }
         else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter3x3)
         {
+            printf("convforwardspecialization is Filter3x3 \n");
             if(C != 1)
             {
+                printf("channel != 1 \n");
                 return false;
             }
             for(index_t i = 0; i < NDimSpatial; ++i)
@@ -1158,28 +1167,34 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
                 if(filter_spatial_dim != I3)
                 {
+                    printf("filter spatial dim != 3 \n");
                     return false;
                 }
             }
             if constexpr(!is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>())
             {
+                printf("!is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout> \n");
                 return false;
             }
         }
 
         if constexpr(NumGroupsToMerge > 1)
         {
+            printf("number of groups to merge is > 1 \n");
             if(!(C == 1))
             {
+                printf("channel != 1 \n");
                 return false;
             }
             if(G % NumGroupsToMerge != 0)
             {
+                printf("number of groups is wrong \n");
                 return false;
             }
             if constexpr(!(is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>() ||
                            is_NGCSpatial_GKSpatial_NGKSpatial<ALayout, BLayout, ELayout>()))
             {
+                printf("layout is wrong \n");
                 return false;
             }
         }
@@ -1202,12 +1217,14 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                       is_NGCSpatial_GKSpatial_NGKSpatial<ALayout, BLayout, ELayout>()) &&
                      G % ABlockTransferSrcScalarPerVector == 0))
                 {
+                    printf("vector access of A is wrong 0 \n");
                     return false;
                 }
             }
         }
         else
         {
+            printf("vector access of B is wrong 1 \n");
             return false;
         }
 
@@ -1222,11 +1239,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             if(!(BBlockTransferSrcVectorDim == 2 && C % BBlockTransferSrcScalarPerVector == 0))
             {
+                printf("vector access of B is wrong 0\n");
                 return false;
             }
         }
         else
         {
+            printf("vector access of B is wrong 1 \n");
             return false;
         }
 
@@ -1245,6 +1264,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             {
                 if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
                 {
+                    printf("vector access of CDE is wrong 0\n");
                     valid = false;
                 }
 
@@ -1254,6 +1274,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     if(arg.ds_g_n_k_wos_lengths_[i][0] != arg.e_g_n_k_wos_lengths_[0] ||
                        arg.ds_g_n_k_wos_lengths_[i][2] != arg.e_g_n_k_wos_lengths_[2])
                     {
+                        printf("G and K must be the same shape \n");
                         valid = false;
                     }
                 }
@@ -1264,6 +1285,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     {
                         if(arg.ds_g_n_k_wos_lengths_[i][d] != arg.e_g_n_k_wos_lengths_[d])
                         {
+                            printf("E and D must be the same shape \n");
                             valid = false;
                         }
                     }
@@ -1271,6 +1293,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
             else
             {
+                printf("CDE layout is wrong \n");
                 valid = false;
             }
         });
@@ -1280,11 +1303,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             if((G * C) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
+                printf("vectorization is wrong 0\n");
                 return false;
             }
 
             if((G * K) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
+                printf("vectorization is wrong 1\n");
                 return false;
             }
 
@@ -1295,17 +1320,20 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
             if(input_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
+                printf("vectorization is wrong 2\n");
                 return false;
             }
 
             if(output_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
+                printf("vectorization is wrong 3\n");
                 return false;
             }
         }
 
         if(!valid)
         {
+            printf("layout is wrong \n");
             return false;
         }
 
@@ -1319,11 +1347,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
             {
+                printf("vector access of E is wrong \n");
                 return false;
             }
         }
         else
         {
+            printf("layout is wrong \n");
             return false;
         }
 
