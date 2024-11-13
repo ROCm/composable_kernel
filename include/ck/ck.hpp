@@ -113,6 +113,10 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #define CK_USE_AMD_MFMA_GFX940
 #endif
 
+#if defined(__gfx950__)
+#define CK_USE_AMD_MFMA_GFX950
+#endif
+
 // buffer load
 #define CK_USE_AMD_BUFFER_LOAD 1
 
