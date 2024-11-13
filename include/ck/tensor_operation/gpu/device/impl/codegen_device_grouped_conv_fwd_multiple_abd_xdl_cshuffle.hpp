@@ -9,6 +9,7 @@
 #include <iterator>
 #include <numeric>
 #include <sstream>
+#include <stdio.h>
 
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -262,8 +263,14 @@ __global__ void
 
 } // namespace
 
+
+#ifdef CK_CODE_GEN_RTC
 template <typename T>
 using is_tuple = decltype(ck::declval<T&>().IsTuple());
+#else
+template <typename T>
+using is_tuple = decltype(std::declval<T&>().IsTuple());
+#endif
 
 //
 // @brief      Device Convolution operation.
@@ -746,6 +753,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
                 if(!(X == 1 && ConvStride == 1 && LeftPad == 0 && RightPad == 0))
                 {
+		    printf("Check 1");
                     return false;
                 }
             }
@@ -762,6 +770,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
                 if(!(X == 1 && LeftPad == 0 && RightPad == 0))
                 {
+		    printf("Check 2");
                     return false;
                 }
             }
@@ -779,11 +788,13 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
             if(!(ABlockTransferSrcVectorDim == 2 && C % ABlockTransferSrcScalarPerVector == 0))
             {
+		printf("Check 3");
                 return false;
             }
         }
         else
         {
+	    printf("Check 4");
             return false;
         }
 
@@ -800,11 +811,13 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
             if(!(BBlockTransferSrcVectorDim == 2 && C % BBlockTransferSrcScalarPerVector == 0))
             {
+		printf("Check 5");
                 return false;
             }
         }
         else
         {
+            printf("Check 6");
             return false;
         }
 
@@ -825,6 +838,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
                 if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
                 {
+		    printf("Check 7");
                     valid = false;
                 }
 
@@ -834,6 +848,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     if(arg.ds_g_n_k_wos_lengths_[i][0] != arg.e_g_n_k_wos_lengths_[0] ||
                        arg.ds_g_n_k_wos_lengths_[i][2] != arg.e_g_n_k_wos_lengths_[2])
                     {
+		        printf("Check 8");
                         valid = false;
                     }
                 }
@@ -844,6 +859,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     {
                         if(arg.ds_g_n_k_wos_lengths_[i][d] != arg.e_g_n_k_wos_lengths_[d])
                         {
+		            printf("Check 9");
                             valid = false;
                         }
                     }
@@ -851,12 +867,14 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
             else
             {
+		printf("Check 10");
                 valid = false;
             }
         });
 
         if(!valid)
         {
+	    printf("Check 11");
             return false;
         }
 
@@ -871,11 +889,13 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
             if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
             {
+		printf("Check 12");
                 return false;
             }
         }
         else
         {
+            printf("Check 13");
             return false;
         }
 
@@ -887,6 +907,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 generate_tuple([&](auto) { return arg.a_grid_desc_m_k_; }, Number<NumATensor>{});
             const auto bs_grid_desc_bk0_n_bk1 =
                 generate_tuple([&](auto) { return arg.b_grid_desc_n_k_; }, Number<NumBTensor>{});
+            printf("Check 14");
             return GridwiseGemm::CheckValidity(as_grid_desc_ak0_m_ak1,
                                                bs_grid_desc_bk0_n_bk1,
                                                arg.ds_grid_desc_m_n_,
@@ -895,6 +916,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         }
         else
         {
+	    printf("Check 15");
             return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                                arg.b_grid_desc_n_k_,
                                                arg.ds_grid_desc_m_n_,
