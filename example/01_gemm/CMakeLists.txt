@@ -23,7 +23,6 @@ add_example_executable(example_gemm_xdl_fp16_v2 gemm_xdl_fp16_v2.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_v2)
 
 add_example_executable(example_gemm_xdl_fp16_streamk_v3 gemm_xdl_fp16_streamk_v3.cpp)
-target_compile_options(example_gemm_xdl_fp16_streamk_v3 PRIVATE -ggdb -O1 -march=native)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_streamk_v3)
 add_example_executable(example_gemm_xdl_fp16_v3 gemm_xdl_fp16_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_v3)
@@ -77,6 +76,9 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8)
 
 add_example_executable(example_gemm_xdl_fp8_bf8 gemm_xdl_fp8_bf8.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_bf8)
+
+add_example_executable(example_gemm_xdl_fp8_streamk_v3 gemm_xdl_fp8_streamk_v3.cpp)
+add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_streamk_v3)
 
 add_example_executable(example_gemm_xdl_fp16_fp8 gemm_xdl_fp16_fp8.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8)

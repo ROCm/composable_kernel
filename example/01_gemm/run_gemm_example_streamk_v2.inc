@@ -176,6 +176,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_device_ref_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -196,6 +197,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_device_ref_buf(sizeof(CDataType) *
+                                   c_m_n_device_ref_result.mDesc.GetElementSpaceSize());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
@@ -260,14 +263,13 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     // }
 
     bool pass = true;
-    if(config.do_verification)
+    if((config.do_verification == 1) || (config.do_verification == 3))
     {
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
         auto ref_argument = ref_gemm.MakeArgument(
             a_m_k, b_k_n, c_m_n_host_result, PassThrough{}, PassThrough{}, PassThrough{});
-        printf("inside do verification\n");
         ref_invoker.Run(ref_argument);
 
         ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
@@ -280,28 +282,49 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         return ck::utils::check_err(c_m_n_device_result_converted, c_m_n_host_result);
 #else
-        printf("device copy initiated\n"); // HS
-        // if((workspace_size != 0) && (Streamk_sel > 0))
-        // {
-        //     printf("entered if\n");
-        //     workspace.FromDevice(c_m_n_device_result.mData.data());
-        // }
-        // else
-        //     c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
-        // printf("device copy finished\n"); // HS
-        // pass &= ck::utils::check_err(c_m_n_device_result,
-        //                              c_m_n_host_result,
-        //                              "Error: Incorrect results!",
-        //                              get_rtol<CDataType>(),
-        //                              get_atol<CDataType>());
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_host_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
 #endif
+    }
+
+    if((config.do_verification == 2) || (config.do_verification == 3))
+    {
+        // GPU verification
+        auto ref_gemm_gpu    = ReferenceGemmInstanceGPU{};
+        auto ref_invoker_gpu = ref_gemm_gpu.MakeInvoker();
+
+        auto ref_argument_gpu = ref_gemm_gpu.MakeArgument(
+            static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+            static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_m_n_device_ref_buf.GetDeviceBuffer()),
+            M,
+            N,
+            K,
+            a_element_op,
+            b_element_op,
+            c_element_op);
+
+        std::cout << "Running verification on GPU." << std::endl;
+        ref_invoker_gpu.Run(ref_argument_gpu, StreamConfig{});
+
+        c_m_n_device_ref_buf.FromDevice(c_m_n_device_ref_result.mData.data());
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_device_ref_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
     }
 
     if(config.time_kernel)
     {
-        printf("before running timing\n");
-        ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-        printf("after running timing\n");
+        ave_time         = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
         std::size_t flop = 2_uz * M * N * K;
         std::size_t num_btype =
             sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
