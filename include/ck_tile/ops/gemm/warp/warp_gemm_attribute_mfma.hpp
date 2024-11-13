@@ -25,39 +25,79 @@ struct WarpGemmAtrributeMfma
     static constexpr index_t kN = Impl::kN;
     static constexpr index_t kK = Impl::kK;
 
-    using AWarpDstrEncoding = std::conditional_t<
-        Impl::kAMBlock == 1,
-        tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-            tuple<sequence<2, 1>>,
-            tuple<sequence<0, 0>>,
-            sequence<2>,
-            sequence<1>>,
-        tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-            tuple<sequence<2, 1>>,
-            tuple<sequence<0, 0>>,
-            sequence<2>,
-            sequence<1>>>;
+    static_assert(!(1 < Impl::kAMBlock && 1 < Impl::kBNBlock));
 
-    using BWarpDstrEncoding = std::conditional_t<
-        Impl::kBNBlock == 1,
-        tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-            tuple<sequence<2, 1>>,
-            tuple<sequence<0, 0>>,
-            sequence<2>,
-            sequence<1>>,
-        tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-            tuple<sequence<2, 1>>,
-            tuple<sequence<0, 0>>,
-            sequence<2>,
-            sequence<1>>>;
+    CK_TILE_DEVICE static constexpr auto get_awarp_dstr_encoding()
+    {
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+    }
+
+    CK_TILE_DEVICE static constexpr auto get_bwarp_dstr_encoding()
+    {
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+    }
+
+    using AWarpDstrEncoding = decltype(get_awarp_dstr_encoding());
+
+    using BWarpDstrEncoding = decltype(get_bwarp_dstr_encoding());
 
     using CWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
