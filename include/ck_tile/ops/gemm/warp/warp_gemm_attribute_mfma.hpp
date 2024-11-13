@@ -25,21 +25,39 @@ struct WarpGemmAtrributeMfma
     static constexpr index_t kN = Impl::kN;
     static constexpr index_t kK = Impl::kK;
 
-    using AWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-        tuple<sequence<2, 1>>,
-        tuple<sequence<0, 0>>,
-        sequence<2>,
-        sequence<1>>;
+    using AWarpDstrEncoding = std::conditional_t<
+        Impl::kAMBlock == 1,
+        tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+            tuple<sequence<2, 1>>,
+            tuple<sequence<0, 0>>,
+            sequence<2>,
+            sequence<1>>,
+        tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+            tuple<sequence<2, 1>>,
+            tuple<sequence<0, 0>>,
+            sequence<2>,
+            sequence<1>>>;
 
-    using BWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-        tuple<sequence<2, 1>>,
-        tuple<sequence<0, 0>>,
-        sequence<2>,
-        sequence<1>>;
+    using BWarpDstrEncoding = std::conditional_t<
+        Impl::kBNBlock == 1,
+        tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+            tuple<sequence<2, 1>>,
+            tuple<sequence<0, 0>>,
+            sequence<2>,
+            sequence<1>>,
+        tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+            tuple<sequence<2, 1>>,
+            tuple<sequence<0, 0>>,
+            sequence<2>,
+            sequence<1>>>;
 
     using CWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
