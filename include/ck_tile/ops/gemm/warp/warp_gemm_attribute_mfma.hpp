@@ -41,23 +41,25 @@ struct WarpGemmAtrributeMfma
         }
         else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
         {
+            // each M blocks share the same data
             return tile_distribution_encoding<
-                sequence<>,
+                sequence<Impl::kBNBlock>,
                 tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
+                tuple<sequence<0, 2, 1>>,
+                tuple<sequence<0, 0, 0>>,
                 sequence<2>,
                 sequence<1>>{};
         }
         else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
         {
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
+            // convert from single block thread mapping
+            return tile_distribution_encoding<sequence<>,
+                                              tuple<sequence<Impl::kAMBlock, Impl::kAMLane>,
+                                                    sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                                              tuple<sequence<1, 2, 1>>,
+                                              tuple<sequence<0, 0, 1>>,
+                                              sequence<2>,
+                                              sequence<1>>{};
         }
     }
 
@@ -75,21 +77,23 @@ struct WarpGemmAtrributeMfma
         }
         else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
         {
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
+            // convert from single block thread mapping
+            return tile_distribution_encoding<sequence<>,
+                                              tuple<sequence<Impl::kBNBlock, Impl::kBNLane>,
+                                                    sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                                              tuple<sequence<1, 2, 1>>,
+                                              tuple<sequence<0, 0, 1>>,
+                                              sequence<2>,
+                                              sequence<1>>{};
         }
         else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
         {
+            // each N blocks share the same data
             return tile_distribution_encoding<
-                sequence<>,
+                sequence<Impl::kAMBlock>,
                 tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
+                tuple<sequence<0, 2, 1>>,
+                tuple<sequence<0, 0, 0>>,
                 sequence<2>,
                 sequence<1>>{};
         }
