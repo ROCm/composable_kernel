@@ -381,10 +381,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                         {
                             tildes = {i_ztilde, i_ytilde, i_xtilde};
                         }
-                        else
-                        {
-                            throw std::runtime_error("wrong! only implemented for 2D and 3D now");
-                        }
 
                         const auto a_grid_desc_ak0_m_ak1 =
                             transform_conv_to_gemm.template MakeADescriptor_AK0_M_AK1<ALayout>(
@@ -748,6 +744,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
             {
                 return false;
             }
+        }
+        
+        // check number of dimension, only implemented for 2D and 3D now
+        if(NDimSpatial != 2 && NDimSpatial != 3)
+        {
+            return false;
         }
 
         return true;
