@@ -139,7 +139,7 @@ struct WarpGemmAttributeMfmaImplF16F16F32M4N64K4
     static constexpr index_t kABKLane    = 1;
     static constexpr index_t kABKPerLane = 4;
 
-    static constexpr index_t kCMLane     = 4;
+    static constexpr index_t kCMLane     = 1;
     static constexpr index_t kCNLane     = 4;
     static constexpr index_t kCM0PerLane = 1;
     static constexpr index_t kCM1PerLane = 4;
