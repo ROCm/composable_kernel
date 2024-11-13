@@ -9,15 +9,16 @@
 namespace ck_tile {
 
 // host side args
+// X = A + B, Y = Rmsnorm2d(X), QY = RowwiseDynamicQuant(Y) = SaturateCast(Y / YScale)
 struct AddRmsnorm2dRdquantFwdHostArgs
 {
-    const void* p_a;
-    const void* p_b;
-    const void* p_gamma;
+    const void* p_a;     // [m ,n], input, fp16/bf16
+    const void* p_b;     // [m ,n], input, fp16/bf16
+    const void* p_gamma; // [1, n], gamma, prec same as input
 
-    void* p_x;
-    void* p_yscale;
-    void* p_qy;
+    void* p_x;      // [m, n], output, p_a + p_b, fp16/bf16
+    void* p_yscale; // [m, 1], output, rowwise quant scale (amax / 127) of reuslt of rmsnorm2d(x)
+    void* p_qy;     // [m, n], output, result of quant tensor of rmsnorm2d(x) int8
 
     float epsilon;
 
@@ -90,7 +91,7 @@ struct AddRmsnorm2dRdquantFwd
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& hargs)
     {
-        return integer_divide_ceil(hargs.m, Block_M);
+        return dim3(integer_divide_ceil(hargs.m, Block_M));
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return Problem::BlockShape::BlockSize; }
@@ -170,7 +171,7 @@ struct AddRmsnorm2dRdquantFwd
                 number<1>{});
 
             const auto tmp2_ =
-                pad_tensor_view(tmp_, make_tuple(number<Block_N>{}), sequence<kPadM>{});
+                pad_tensor_view(tmp_, make_tuple(number<Block_N>{}), sequence<kPadN>{});
 
             return make_tile_window(tmp2_, make_tuple(number<Block_N>{}), {0});
         }();
