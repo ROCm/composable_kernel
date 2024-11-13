@@ -745,7 +745,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                 return false;
             }
         }
-        
+
         // check number of dimension, only implemented for 2D and 3D now
         if(NDimSpatial != 2 && NDimSpatial != 3)
         {
