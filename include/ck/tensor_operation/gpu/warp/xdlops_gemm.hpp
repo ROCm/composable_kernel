@@ -37,7 +37,18 @@ enum struct MfmaInstr
     mfma_f32_32x32x16f8bf8,
     mfma_f32_16x16x32f8bf8,
     mfma_f32_32x32x16bf8f8,
-    mfma_f32_16x16x32bf8f8
+    mfma_f32_16x16x32bf8f8,
+    // mi355 new mfma instructions
+    mfma_f32_32x32x16f16,
+    mfma_f32_16x16x32f16,
+    mfma_f32_32x32x16bf16,
+    mfma_f32_16x16x32bf16,
+    mfma_i32_32x32x32i8,
+    mfma_i32_16x16x64i8,
+    mfma_f32_32x32x64f8f6f4,
+    mfma_f32_16x16x128f8f6f4,
+    mfma_scale_f32_32x32x64f8f6f4,
+    mfma_scale_f32_16x16x128f8f6f4
 };
 
 template <MfmaInstr instr>
@@ -199,6 +210,50 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x8f16>
 };
 
 template <>
+struct mfma_type<MfmaInstr::mfma_f32_32x32x16f16>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 4;
+    static constexpr index_t num_regs_per_blk    = 16;
+    static constexpr index_t num_threads_per_blk = 32;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 2;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 32;
+    static constexpr index_t n_per_blk           = 32;
+    static constexpr index_t k_per_blk           = 8;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f32_32x32x16f16<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct mfma_type<MfmaInstr::mfma_f32_16x16x32f16>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 1;
+    static constexpr index_t num_regs_per_blk    = 4;
+    static constexpr index_t num_threads_per_blk = 16;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 4;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 16;
+    static constexpr index_t n_per_blk           = 16;
+    static constexpr index_t k_per_blk           = 8;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f32_16x16x32f16<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
 struct mfma_type<MfmaInstr::mfma_f32_16x16x16f16>
 {
     static constexpr index_t group_size          = 4;
@@ -265,6 +320,28 @@ struct mfma_type<MfmaInstr::mfma_f32_4x4x4f16>
 };
 
 template <>
+struct mfma_type<MfmaInstr::mfma_f32_32x32x16bf16>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 4;
+    static constexpr index_t num_regs_per_blk    = 16;
+    static constexpr index_t num_threads_per_blk = 32;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 2;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 32;
+    static constexpr index_t n_per_blk           = 32;
+    static constexpr index_t k_per_blk           = 8;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f32_32x32x16bf16<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
 struct mfma_type<MfmaInstr::mfma_f32_32x32x8bf16_1k>
 {
     static constexpr index_t group_size          = 4;
@@ -283,6 +360,28 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x8bf16_1k>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
         intrin_mfma_f32_32x32x8bf16_1k<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct mfma_type<MfmaInstr::mfma_f32_16x16x32bf16>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 1;
+    static constexpr index_t num_regs_per_blk    = 4;
+    static constexpr index_t num_threads_per_blk = 16;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 4;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 16;
+    static constexpr index_t n_per_blk           = 16;
+    static constexpr index_t k_per_blk           = 8;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f32_16x16x32bf16<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -437,6 +536,50 @@ struct mfma_type<MfmaInstr::mfma_i32_16x16x32i8>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
         intrin_mfma_i32_16x16x32i8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct mfma_type<MfmaInstr::mfma_i32_32x32x32i8>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 4;
+    static constexpr index_t num_regs_per_blk    = 16;
+    static constexpr index_t num_threads_per_blk = 32;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 2;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 32;
+    static constexpr index_t n_per_blk           = 32;
+    static constexpr index_t k_per_blk           = 16;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_i32_32x32x32i8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct mfma_type<MfmaInstr::mfma_i32_16x16x64i8>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 1;
+    static constexpr index_t num_regs_per_blk    = 4;
+    static constexpr index_t num_threads_per_blk = 16;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 4;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 16;
+    static constexpr index_t n_per_blk           = 16;
+    static constexpr index_t k_per_blk           = 16;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_i32_16x16x64i8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -638,6 +781,95 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x32bf8f8>
     }
 };
 
+// TODO: fix mfma...f8f6f4 instructions
+template <>
+struct mfma_type<MfmaInstr::mfma_f32_32x32x64f8f6f4>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 4;
+    static constexpr index_t num_regs_per_blk    = 16;
+    static constexpr index_t num_threads_per_blk = 32;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 2;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 32;
+    static constexpr index_t n_per_blk           = 32;
+    static constexpr index_t k_per_blk           = 8;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct mfma_type<MfmaInstr::mfma_f32_16x16x128f8f6f4>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 1;
+    static constexpr index_t num_regs_per_blk    = 4;
+    static constexpr index_t num_threads_per_blk = 16;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 4;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 16;
+    static constexpr index_t n_per_blk           = 16;
+    static constexpr index_t k_per_blk           = 8;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 4;
+    static constexpr index_t num_regs_per_blk    = 16;
+    static constexpr index_t num_threads_per_blk = 32;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 2;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 32;
+    static constexpr index_t n_per_blk           = 32;
+    static constexpr index_t k_per_blk           = 8;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 1;
+    static constexpr index_t num_regs_per_blk    = 4;
+    static constexpr index_t num_threads_per_blk = 16;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 4;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 16;
+    static constexpr index_t n_per_blk           = 16;
+    static constexpr index_t k_per_blk           = 8;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
 template <typename base_type,
           index_t MPerXdlops,
           index_t NPerXdlops,
@@ -713,13 +945,21 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<half_t, 32, 32>()
     {
+#if defined(CK_USE_AMD_MFMA_GFX950)
+        return MfmaInstr::mfma_f32_32x32x16f16;
+#else
         return MfmaInstr::mfma_f32_32x32x8f16;
+#endif
     }
 
     template <>
     constexpr auto GetMfma<half_t, 16, 16>()
     {
+#if defined(CK_USE_AMD_MFMA_GFX950)
+        return MfmaInstr::mfma_f32_16x16x32f16;
+#else
         return MfmaInstr::mfma_f32_16x16x16f16;
+#endif
     }
 
     template <>
@@ -743,7 +983,9 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<bhalf_t, 32, 32>()
     {
-#if defined(CK_USE_AMD_MFMA_BF16_1K_OP)
+#if defined(CK_USE_AMD_MFMA_GFX950)
+        return MfmaInstr::mfma_f32_32x32x16bf16;
+#elif defined(CK_USE_AMD_MFMA_BF16_1K_OP)
         return MfmaInstr::mfma_f32_32x32x8bf16_1k;
 #else
         return MfmaInstr::mfma_f32_32x32x4bf16;
@@ -753,14 +995,27 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<bhalf_t, 16, 16>()
     {
-#if defined(CK_USE_AMD_MFMA_BF16_1K_OP)
+#if defined(CK_USE_AMD_MFMA_GFX950)
+        return MfmaInstr::mfma_f32_16x16x32bf16;
+#elif defined(CK_USE_AMD_MFMA_BF16_1K_OP)
         return MfmaInstr::mfma_f32_16x16x16bf16_1k;
 #else
         return MfmaInstr::mfma_f32_16x16x8bf16;
 #endif
     }
 
-#if defined(CK_USE_AMD_MFMA_GFX940)
+#if defined(CK_USE_AMD_MFMA_GFX950)
+    template <>
+    constexpr auto GetMfma<int8_t, 32, 32>()
+    {
+        return MfmaInstr::mfma_i32_32x32x32i8;
+    }
+    template <>
+    constexpr auto GetMfma<int8_t, 16, 16>()
+    {
+        return MfmaInstr::mfma_i32_16x16x64i8;
+    }
+#elif defined(CK_USE_AMD_MFMA_GFX940)
     template <>
     constexpr auto GetMfma<int8_t, 32, 32>()
     {
