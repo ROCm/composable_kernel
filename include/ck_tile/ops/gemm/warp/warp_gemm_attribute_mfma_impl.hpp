@@ -22,6 +22,9 @@ struct WarpGemmAttributeMfmaImplF16F16F32M32N32K8
     static constexpr index_t kN = 32;
     static constexpr index_t kK = 8;
 
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
     static constexpr index_t kAMLane     = 32;
     static constexpr index_t kBNLane     = 32;
     static constexpr index_t kABKLane    = 2;
@@ -72,6 +75,9 @@ struct WarpGemmAttributeMfmaImplF16F16F32M16N16K16
     static constexpr index_t kM = 16;
     static constexpr index_t kN = 16;
     static constexpr index_t kK = 16;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
 
     static constexpr index_t kAMLane     = 16;
     static constexpr index_t kBNLane     = 16;
@@ -124,6 +130,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8
     static constexpr index_t kM = 32;
     static constexpr index_t kN = 32;
     static constexpr index_t kK = 8;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
 
     static constexpr index_t kAMLane     = 32;
     static constexpr index_t kBNLane     = 32;
@@ -201,6 +210,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16
     static constexpr index_t kM = 16;
     static constexpr index_t kN = 16;
     static constexpr index_t kK = 16;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
 
     static constexpr index_t kAMLane     = 16;
     static constexpr index_t kBNLane     = 16;
@@ -280,6 +292,9 @@ struct WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base
     static constexpr index_t kM = 32;
     static constexpr index_t kN = 32;
     static constexpr index_t kK = 16;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
 
     static constexpr index_t kAMLane     = 32;
     static constexpr index_t kBNLane     = 32;
