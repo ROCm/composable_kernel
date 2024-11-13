@@ -15,10 +15,7 @@
 #include "batched_transpose_api.hpp"
 #include "batched_transpose.hpp"
 
-#ifndef TEST_BATCHED_TRANSPOSE_VERBOSE
-#define TEST_BATCHED_TRANSPOSE_VERBOSE 1
-#endif
-
+#if 0
 template <typename T>
 void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
 {
@@ -58,6 +55,7 @@ void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
     }
     std::cout << "--------------------" << std::endl;
 }
+#endif
 
 // different threshold for different dtype
 template <typename DataType>
@@ -96,16 +94,14 @@ auto get_elimit<ck_tile::fp8_t>(std::string init_method)
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("v", "1", "weather do CPU validation or not")
+    arg_parser.insert("v", "1", "wether do CPU validation or not")
         .insert("pr", "fp16", "input data type. fp16/fp32 (representing 8/16/32 bit data)")
         .insert("N", "2", "input batch size. ")
         .insert("C", "16", "input channel size.")
         .insert("H", "1", "input height size.")
         .insert("W", "16", "input width size. ")
-        .insert("stride_dim0", "256", "input dim0 stride. ")
-        .insert("stride_dim1", "16", "input dim1 stride.")
-        .insert("stride_dim2", "16", "input dim2 stride.")
-        .insert("stride_dim3", "1", "input dim3 stride. ")
+        .insert("layout_in", "NCHW", "input tensor data layout - NCHW by default")
+        .insert("layout_out", "NHWC", "output tensor data layout - NHWC by default ")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "t to 1 will print kernel name");
 
@@ -116,29 +112,55 @@ auto create_args(int argc, char* argv[])
 template <typename Type>
 bool test_batched_transpose(ck_tile::ArgParser args)
 {
-    int validate     = args.get_int("v");
-    std::string prec = args.get_str("pr");
-    int N            = args.get_int("N");
-    int C            = args.get_int("C");
-    int H            = args.get_int("H");
-    int W            = args.get_int("W");
-    int stride_dim0  = args.get_int("stride_dim0");
-    int stride_dim1  = args.get_int("stride_dim1");
-    int stride_dim2  = args.get_int("stride_dim2");
-    int stride_dim3  = args.get_int("stride_dim3");
-    int seed         = args.get_int("seed");
+    int validate           = args.get_int("v");
+    std::string prec       = args.get_str("pr");
+    int N                  = args.get_int("N");
+    int C                  = args.get_int("C");
+    int H                  = args.get_int("H");
+    int W                  = args.get_int("W");
+    std::string layout_in  = args.get_str("layout_in");
+    std::string layout_out = args.get_str("layout_out");
+    int seed               = args.get_int("seed");
 
-    std::string layout_in = "NCHW", layout_out = "NHWC";
-    int stride_out_dim0 = stride_dim0, stride_out_dim1 = W * C, stride_out_dim2 = C,
-        stride_out_dim3 = 1;
-    if(stride_dim0 == C * H * W && stride_dim1 == 1 && stride_dim2 == W * C && stride_dim3 == C)
+    int dim_in[4], dim_out[4];
+    int stride_dim_in[4], stride_dim_out[4];
+    if(layout_in == "NCHW" && layout_out == "NHWC")
     {
-        layout_in       = "NHWC";
-        layout_out      = "NCHW";
-        stride_out_dim0 = stride_dim0;
-        stride_out_dim1 = H * W;
-        stride_out_dim2 = W;
-        stride_out_dim3 = 1;
+        dim_in[0]         = N;
+        dim_in[1]         = C;
+        dim_in[2]         = H;
+        dim_in[3]         = W;
+        dim_out[0]        = N;
+        dim_out[1]        = H;
+        dim_out[2]        = W;
+        dim_out[3]        = C;
+        stride_dim_in[0]  = C * H * W;
+        stride_dim_in[1]  = H * W;
+        stride_dim_in[2]  = W;
+        stride_dim_in[3]  = 1;
+        stride_dim_out[0] = C * H * W;
+        stride_dim_out[1] = C * W;
+        stride_dim_out[2] = C;
+        stride_dim_out[3] = 1;
+    }
+    else if(layout_in == "NHWC" && layout_out == "NCHW")
+    {
+        dim_in[0]         = N;
+        dim_in[1]         = H;
+        dim_in[2]         = W;
+        dim_in[3]         = C;
+        dim_out[0]        = N;
+        dim_out[1]        = C;
+        dim_out[2]        = H;
+        dim_out[3]        = W;
+        stride_dim_in[0]  = C * H * W;
+        stride_dim_in[1]  = C * W;
+        stride_dim_in[2]  = C;
+        stride_dim_in[3]  = 1;
+        stride_dim_out[0] = C * H * W;
+        stride_dim_out[1] = H * W;
+        stride_dim_out[2] = W;
+        stride_dim_out[3] = 1;
     }
 
     if(seed < 0)
@@ -150,26 +172,24 @@ bool test_batched_transpose(ck_tile::ArgParser args)
     // int repeat = args.get_int("repeat");
 
     // tokens already considered batch size
-    ck_tile::HostTensor<Type> x_host({N, C, H, W},
-                                     {stride_dim0, stride_dim1, stride_dim2, stride_dim3});
+    ck_tile::HostTensor<Type> x_host(
+        {dim_in[0], dim_in[1], dim_in[2], dim_in[3]},
+        {stride_dim_in[0], stride_dim_in[1], stride_dim_in[2], stride_dim_in[3]});
     ck_tile::HostTensor<Type> y_host(
-        {N, H, W, C}, {stride_out_dim0, stride_out_dim1, stride_out_dim2, stride_out_dim3});
+        {dim_out[0], dim_out[1], dim_out[2], dim_out[3]},
+        {stride_dim_out[0], stride_dim_out[1], stride_dim_out[2], stride_dim_out[3]});
 
-    {
-        // random require per-row unique
-        auto rand_gen =
-            ck_tile::FillUniformDistribution_Unique<Type>{-5.f, 5.f, static_cast<uint32_t>(seed)};
+    // {
+    //     for(int i_t = 0; i_t < N; i_t++)
+    //     {
+    //         ck_tile::HostTensor<Type> x_batch({stride_dim_in[0]});
+    //         for(int j = 0; j < stride_dim_in[0]; j++)
+    //             x_batch(j) = static_cast<Type>(j % 1000);
+    //         std::copy(x_batch.begin(), x_batch.end(), x_host.begin() + i_t * stride_dim_in[0]);
+    //     }
+    // }
 
-        for(int i_t = 0; i_t < N; i_t++)
-        {
-            ck_tile::HostTensor<Type> x_batch({stride_dim0});
-            for(int j = 0; j < stride_dim0; j++)
-                x_batch(j) = static_cast<Type>(j);
-            // rand_gen(x_batch);
-            std::copy(x_batch.begin(), x_batch.end(), x_host.begin() + i_t * stride_dim0);
-            rand_gen.clear();
-        }
-    }
+    ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
 
     ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
@@ -186,13 +206,6 @@ bool test_batched_transpose(ck_tile::ArgParser args)
             break;
         }
     }
-    // printf("kparam:tile_size:[%d %d] pack[%d, %d] ediv[%d %d]\n",
-    //        kparam.tile_x,
-    //        kparam.tile_y,
-    //        kparam.pack_x,
-    //        kparam.pack_y,
-    //        kparam.ediv_x,
-    //        kparam.ediv_y);
 
     auto trait = batched_transpose_trait{prec, layout_in};
 
@@ -202,9 +215,6 @@ bool test_batched_transpose(ck_tile::ArgParser args)
     uint32_t dim_block_w = (width + kparam.tile_x - 1) / kparam.tile_x;
     uint32_t dim_stride  = height * width;
     uint32_t dim_blocks  = dim_block_h * dim_block_w;
-
-    // auto magic_h = ck_tile::magic_division::calculate_magic_numbers(dim_block_h);
-    // auto magic_w = ck_tile::magic_division::calculate_magic_numbers(dim_block_w);
 
     batched_transpose_kargs karg = [&]() {
         batched_transpose_kargs a_;
@@ -220,9 +230,7 @@ bool test_batched_transpose(ck_tile::ArgParser args)
         return a_;
     }();
 
-#if TEST_BATCHED_TRANSPOSE_VERBOSE
     ck_tile::stream_config sc{nullptr, true};
-    // ck_tile::stream_config sc{nullptr};
 
     auto ms = batched_transpose(trait, karg, sc);
     printf("[%s]N:%d, C:%d, H:%d, W:%d, layout_in:%s, %f\n",
@@ -236,10 +244,7 @@ bool test_batched_transpose(ck_tile::ArgParser args)
     if(ms < 0)
         printf("not supported\n");
     fflush(stdout);
-#else
-    ck_tile::stream_config sc{nullptr};
-    auto ms = batched_transpose(trait, karg, sc);
-#endif
+
     if(ms < 0)
     {
         return false;
@@ -252,10 +257,11 @@ bool test_batched_transpose(ck_tile::ArgParser args)
     {
         // this host buffer will not copy to GPU, so no need use stride
         ck_tile::HostTensor<Type> y_ref(
-            {N, H, W, C}, {stride_out_dim0, stride_out_dim1, stride_out_dim2, stride_out_dim3});
+            {dim_out[0], dim_out[1], dim_out[2], dim_out[3]},
+            {stride_dim_out[0], stride_dim_out[1], stride_dim_out[2], stride_dim_out[3]});
 
         // dump_host_tensor_4d(x_host);
-        ck_tile::reference_batched_transpose<Type>(x_host, y_ref, layout_in);
+        ck_tile::reference_batched_transpose<Type>(x_host, y_ref, layout_in, layout_out);
         // printf("y reference:\n");
         // dump_host_tensor_4d(y_ref);
 
@@ -267,10 +273,8 @@ bool test_batched_transpose(ck_tile::ArgParser args)
         rtn &= ck_tile::check_err(
             y_host, y_ref, std::string("y Error: Incorrect results!"), rtol, atol);
     }
-#if TEST_BATCHED_TRANSPOSE_VERBOSE
     printf("valid:%s\n", rtn ? "y" : "n");
     fflush(stdout);
-#endif
     return rtn;
 }
 
