@@ -28,5 +28,5 @@ make -j 15                                                              \
             test_fp8                                                    \
             example_gemm_add_add_xdl_fp16                               \
             test_custom_type                                            \
+            test_gemm_universal                                         \
             test_pool
-#            test_gemm_universal                                         \
