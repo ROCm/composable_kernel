@@ -863,6 +863,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t K0 = kKPerBlock / K1;
             constexpr index_t N2 = get_warp_size() / K0;
             constexpr index_t N1 = kBlockSize / get_warp_size();
+            static_assert(N2 != 0, "N2 is zero, which will lead to a division by zero error.");
+            static_assert(N1 != 0, "N1 is zero, which will lead to a division by zero error.");
             constexpr index_t N0 = kNPerBlock / (N2 * N1);
             static_assert(N0 != 0);
 
