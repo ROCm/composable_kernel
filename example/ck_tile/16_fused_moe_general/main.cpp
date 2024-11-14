@@ -88,12 +88,12 @@ auto create_args(int argc, char* argv[])
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("t", "128", "num input tokens")
         .insert("e", "32", "num of experts")
-        .insert("k", "5", "topk")
-        .insert("h", "8192", "hidden_size of this model")
-        .insert("i", "8192", "intermediate_size between 2 gemms of FFN")
+        .insert("k", "2", "topk")
+        .insert("h", "32", "hidden_size of this model")
+        .insert("i", "32", "intermediate_size between 2 gemms of FFN")
         .insert("stride", "-1", "stride per row, if -1 then equal to hidden_size")
         .insert("bm", "32", "blocking factor for sorted tokens")
-        .insert("tp", "8", "tensor parallel size")
+        .insert("tp", "1", "tensor parallel size")
         .insert("v", "1", "cpu validation or not")
         .insert("kname", "1", "print kernel name or not")
         .insert("prec_i", "bf16", "input precision")
@@ -237,7 +237,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         topid_unique_gen<IndexDataType>(topk_ids_host.mData, tokens, topk, experts, 11913);
     }
-    
+
     ck_tile::reference_moe_sorting<TopkWeightDataType, IndexDataType>(
         topk_ids_host,
         topk_weight_host,
