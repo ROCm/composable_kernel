@@ -305,10 +305,10 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         using BlockWarps  = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile    = typename Problem::BlockGemmShape::WarpTile;
 
-        static constexpr index_t WarpTileM = WarpTile::at(number<0>{});
-        static constexpr index_t WarpTileN = WarpTile::at(number<1>{});
-        static constexpr index_t WarpTileK = WarpTile::at(number<2>{});
-        using WarpGemm                     = WarpGemmMfmaDispatcher<typename Problem::ADataType,
+        constexpr index_t WarpTileM = WarpTile::at(number<0>{});
+        constexpr index_t WarpTileN = WarpTile::at(number<1>{});
+        constexpr index_t WarpTileK = WarpTile::at(number<2>{});
+        using WarpGemm              = WarpGemmMfmaDispatcher<typename Problem::ADataType,
                                                 typename Problem::BDataType,
                                                 AccDataType,
                                                 WarpTileM,
