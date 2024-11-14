@@ -207,17 +207,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {(max_num_tokens_padded + block_m - 1) / block_m});
     ck_tile::HostTensor<IndexDataType> num_sorted_tiles_host({1});
 
-#if 1
-#   if 0
-    ck_tile::FillStepRange<ADataType>{-.5f, .5f, 0.01f}(a_host);
-    ck_tile::FillStepRange<GDataType>{-.5f, .5f, 0.01f}(g_host);
-    ck_tile::FillStepRange<DDataType, false>{.5f, -.5f, -0.01f}(d_host);
-    ck_tile::FillStepRange<AScaleDataType>{0.f, 1.f, 0.01f}(sa_host);
-    ck_tile::FillStepRange<GScaleDataType>{0.f, 1.f, 0.01f}(sg_host);
-    ck_tile::FillStepRange<DScaleDataType>{0.f, 1.f, 0.01f}(sd_host);
-    ck_tile::FillStepRange<YSmoothScaleDataType>{0.f, 1.f, 0.01f}(sy_host);
-    ck_tile::FillStepRange<TopkWeightDataType>{-.5f, .5f, 0.01f}(topk_weight_host);
-#   else
     ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
     ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f}(g_host);
     ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f}(d_host);
@@ -226,7 +215,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f}(sd_host);
     ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f}(sy_host);
     ck_tile::FillUniformDistribution<TopkWeightDataType>{0.0f, 1.0f}(topk_weight_host);
-#   endif
+
 
     // permute weight
     ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w, 1);
@@ -248,81 +237,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         topid_unique_gen<IndexDataType>(topk_ids_host.mData, tokens, topk, experts, 11913);
     }
-#else
-    a_host.loadtxt("../../ater/input_torch.txt");
-
-    topk_ids_host.loadtxt("../../ater/topk_ids_torch.txt", "int");
-    // topk_ids_host.savetxt("topk_ids_2.txt");
-    topk_weight_host.loadtxt("../../ater/topk_weights_torch.txt", "float");
-    std::cout << "------- @@@ " << __LINE__ << std::flush << std::endl;
-
-    g_host.loadtxt("../../ater/w1_torch.txt", "float");
-    std::cout << "------- @@@ " << __LINE__ << std::flush << std::endl;
-    d_host.loadtxt("../../ater/w2_torch.txt", "float");
-    std::cout << "------- @@@ " << __LINE__ << std::flush << std::endl;
-
-    ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w, 1);
-    std::cout << "------- @@@ " << __LINE__ << std::flush << std::endl;
-    ck_tile::HostTensor<DDataType> d_perm_host = shuffle_moe_weight(d_host, prec_w, 1);
-    std::cout << "------- @@@ " << __LINE__ << std::flush << std::endl;
-
-#   if 0
-    ck_tile::reference_moe_sorting<TopkWeightDataType, IndexDataType>(
-        topk_ids_host,
-        topk_weight_host,
-        sorted_token_ids_host,
-        sorted_weight_host,
-        sorted_expert_ids_host,
-        num_sorted_tiles_host.mData[0],
-        experts,
-        block_m);
-
-    std::cout << "------- @@@ " << __LINE__ << std::flush << std::endl;
-    std::cout << sorted_token_ids_host << std::endl;
-    std::cout << num_sorted_tiles_host << std::endl;
-    std::cout << sorted_expert_ids_host << std::endl;
-
-    ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Gelu>(
-        a_host,
-        g_host,
-        d_host,
-        sa_host,
-        sg_host,
-        sd_host,
-        sy_host,
-        o_host,
-        sorted_token_ids_host,
-        sorted_weight_host,
-        sorted_expert_ids_host,
-        num_sorted_tiles_host,
-        topk_ids_host,
-        block_m,
-        tokens,
-        experts,
-        hidden_size,
-        shared_intermediate_size_0,
-        topk,
-        gate_only);
-
-    std::cout << "------- >" << std::endl;
-    std::cout << o_host << std::endl;
-    (void)balance;
-
-    {
-        ck_tile::HostTensor<ODataType> o_host_torch({tokens, hidden_size}, {stride, 1});
-        o_host_torch.loadtxt("../../ater/ref2_torch.txt");
-
-        auto [rtol, atol] = get_elimit<ADataType>();
-        bool pass = ck_tile::check_err(
-                o_host, o_host_torch, std::string("OUT-Torch Error: Incorrect results!"), rtol, atol);
-        std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
-    }
-
-    return 1;
-#   endif
-
-#endif
-    (void)balance;
+    
     ck_tile::reference_moe_sorting<TopkWeightDataType, IndexDataType>(
         topk_ids_host,
         topk_weight_host,

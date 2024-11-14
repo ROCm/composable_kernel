@@ -292,8 +292,8 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
             number<a_sld.get_num_of_access()>{});
 
 
-        printf("----- tid:%d, a_sld:%d\n", static_cast<index_t>(threadIdx.x),
-                        static_cast<index_t>(a_sld.cached_coords_[number<0>{}].get_offset()));
+        // printf("----- tid:%d, a_sld:%d\n", static_cast<index_t>(threadIdx.x),
+        //                 static_cast<index_t>(a_sld.cached_coords_[number<0>{}].get_offset()));
 
 
 
