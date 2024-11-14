@@ -301,16 +301,21 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using AccDataType     = float;
-        using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
-        using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
+        using AccDataType = float;
+        using BlockWarps  = typename Problem::BlockGemmShape::BlockWarps;
+        using WarpTile    = typename Problem::BlockGemmShape::WarpTile;
+
+        static constexpr index_t WarpTileM = WarpTile::at(number<0>{});
+        static constexpr index_t WarpTileN = WarpTile::at(number<1>{});
+        static constexpr index_t WarpTileK = WarpTile::at(number<2>{});
+        using WarpGemm                     = WarpGemmMfmaDispatcher<typename Problem::ADataType,
                                                 typename Problem::BDataType,
                                                 AccDataType,
-                                                WarpTile::at(number<0>{}),
-                                                WarpTile::at(number<1>{}),
-                                                WarpTile::at(number<2>{}),
-                                                /*TransposeC=*/true>;
+                                                WarpTileM,
+                                                WarpTileN,
+                                                WarpTileK,
+                                                /*TransposeC=*/WarpTileM == WarpTileN>;
+
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
                                                                       typename Problem::CDataType,
