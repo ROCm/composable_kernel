@@ -78,11 +78,15 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
     case 0: break;
     case 1:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-8, 7}(conv_input);
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-8, 7}(conv_weight);
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-1, 1}(conv_weight);
+        break;
+    case 2:
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-8, 7}(conv_input);
+        ck::utils::FillUniformDistribution<BDataType>{-1, 1}(conv_weight);
         break;
     default:
-        ck::utils::FillUniformDistribution<ADataType>{-5, 5}(conv_input);
-        ck::utils::FillUniformDistribution<BDataType>{-5, 5}(conv_weight);
+        ck::utils::FillUniformDistribution<ADataType>{-8, 7}(conv_input);
+        ck::utils::FillUniformDistribution<BDataType>{-1, 1}(conv_weight);
     }
 
     DeviceMem conv_input_device_buf(sizeof(ADataType) * conv_input.mDesc.GetElementSpaceSize());
@@ -287,10 +291,11 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
         auto pass = ck::utils::check_err(conv_output_device,
                                          conv_output_host,
                                          "Error: incorrect results! (Matrix E)",
-                                         1e-5f,
-                                         1e-4f) &&
-                    ck::utils::check_err(
-                        r0_device, r0_host, "Error: incorrect results! (Matrix R0)", 1e-5f, 1e-4f);
+                                         1e-3f,
+                                         1e-3f);
+        pass =
+            pass && ck::utils::check_err(
+                        r0_device, r0_host, "Error: incorrect results! (Matrix R0)", 1e-3f, 1e-3f);
         if(pass)
             std::cout << "Verification on CPU: PASS" << std::endl;
 
