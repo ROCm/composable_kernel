@@ -79,9 +79,7 @@ struct BlockUniversalGemmAsBsCr
     using BDataType = remove_cvref_t<typename Traits::BDataType>;
     using CDataType = remove_cvref_t<typename Traits::CDataType>;
 
-    using AWarpTile = remove_cvref_t<typename Traits::AWarpTile>;
-    using BWarpTile = remove_cvref_t<typename Traits::BWarpTile>;
-    using WarpGemm  = remove_cvref_t<typename Traits::WarpGemm>;
+    using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
     static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
     static constexpr index_t MIterPerWarp = Traits::MIterPerWarp;
@@ -92,12 +90,6 @@ struct BlockUniversalGemmAsBsCr
 
     static constexpr auto Scheduler = Traits::Scheduler;
 
-    statically_indexed_array<statically_indexed_array<AWarpTile, KIterPerWarp>, MIterPerWarp>
-        a_warp_tiles_;
-
-    statically_indexed_array<statically_indexed_array<BWarpTile, KIterPerWarp>, NIterPerWarp>
-        b_warp_tiles_;
-
     private:
     template <GemmPipelineScheduler Scheduler, typename GemmTraits>
     struct BlockGemmImpl
@@ -107,14 +99,19 @@ struct BlockUniversalGemmAsBsCr
     template <typename GemmTraits>
     struct BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits>
     {
-        template <typename ASmemBlockWindow,
-                  typename BSmemBlockWindow,
-                  typename AWarpTiles,
-                  typename BWarpTiles>
+        statically_indexed_array<
+            statically_indexed_array<typename GemmTraits::AWarpTile, GemmTraits::KIterPerWarp>,
+            GemmTraits::MIterPerWarp>
+            a_warp_tiles_;
+
+        statically_indexed_array<
+            statically_indexed_array<typename GemmTraits::BWarpTile, GemmTraits::KIterPerWarp>,
+            GemmTraits::NIterPerWarp>
+            b_warp_tiles_;
+
+        template <typename ASmemBlockWindow, typename BSmemBlockWindow>
         CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
-                                          const BSmemBlockWindow& b_block_window,
-                                          AWarpTiles& a_warp_tiles,
-                                          BWarpTiles& b_warp_tiles)
+                                          const BSmemBlockWindow& b_block_window)
         {
             static_assert(
                 GemmTraits::MPerBlock == ASmemBlockWindow{}.get_window_lengths()[number<0>{}] &&
@@ -183,27 +180,22 @@ struct BlockUniversalGemmAsBsCr
             static_for<0, GemmTraits::KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, GemmTraits::MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block window
-                    load_tile(a_warp_tiles(mIter)(kIter), a_warp_windows(mIter)(kIter));
+                    load_tile(a_warp_tiles_(mIter)(kIter), a_warp_windows(mIter)(kIter));
 
                     static_for<0, GemmTraits::NIterPerWarp, 1>{}([&](auto nIter) {
                         // read B warp tensor from B Block window
-                        load_tile(b_warp_tiles(nIter)(kIter), b_warp_windows(nIter)(kIter));
+                        load_tile(b_warp_tiles_(nIter)(kIter), b_warp_windows(nIter)(kIter));
                     });
                 });
             });
         }
 
         // C += A * B
-        template <typename CBlockTensor,
-                  typename ASmemBlockWindow,
-                  typename BSmemBlockWindow,
-                  typename AWarpTiles,
-                  typename BWarpTiles>
-        CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
-                                       [[maybe_unused]] const ASmemBlockWindow& a_block_window,
-                                       [[maybe_unused]] const BSmemBlockWindow& b_block_window,
-                                       const AWarpTiles& a_warp_tiles,
-                                       const BWarpTiles& b_warp_tiles) const
+        template <typename CBlockTensor, typename ASmemBlockWindow, typename BSmemBlockWindow>
+        CK_TILE_DEVICE void
+        operator()(CBlockTensor& c_block_tensor,
+                   [[maybe_unused]] const ASmemBlockWindow& a_block_window,
+                   [[maybe_unused]] const BSmemBlockWindow& b_block_window) const
         {
             static_assert(
                 std::is_same_v<typename GemmTraits::CDataType, typename CBlockTensor::DataType>,
@@ -236,8 +228,9 @@ struct BlockUniversalGemmAsBsCr
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                         // warp GEMM
-                        typename GemmTraits::WarpGemm{}(
-                            c_warp_tensor, a_warp_tiles[mIter][kIter], b_warp_tiles[nIter][kIter]);
+                        typename GemmTraits::WarpGemm{}(c_warp_tensor,
+                                                        a_warp_tiles_[mIter][kIter],
+                                                        b_warp_tiles_[nIter][kIter]);
 
                         // write C warp tensor into C block tensor
                         c_block_tensor.set_y_sliced_thread_data(
@@ -257,29 +250,29 @@ struct BlockUniversalGemmAsBsCr
         static constexpr index_t NumMacClusters = GemmTraits::InterWaveSchedulingMacClusters;
         static constexpr index_t KPerInnerLoop =
             ck_tile::max(KPerThread / NumMacClusters, GemmTraits::KPack);
-        static constexpr index_t KRepeat = KPerThread / KPerInnerLoop;
+        static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
+        static constexpr index_t KInnerLoopIter = KPerInnerLoop / GemmTraits::WarpGemm::kK;
 
-        template <typename ASmemBlockWindow,
-                  typename BSmemBlockWindow,
-                  typename AWarpTiles,
-                  typename BWarpTiles>
+        statically_indexed_array<
+            statically_indexed_array<typename GemmTraits::AWarpTile, KInnerLoopIter>,
+            GemmTraits::MIterPerWarp>
+            a_warp_tiles_;
+
+        statically_indexed_array<
+            statically_indexed_array<typename GemmTraits::BWarpTile, KInnerLoopIter>,
+            GemmTraits::NIterPerWarp>
+            b_warp_tiles_;
+
+        template <typename ASmemBlockWindow, typename BSmemBlockWindow>
         CK_TILE_DEVICE void LocalPrefetch([[maybe_unused]] const ASmemBlockWindow& a_block_window,
-                                          [[maybe_unused]] const BSmemBlockWindow& b_block_window,
-                                          [[maybe_unused]] AWarpTiles& a_warp_tiles,
-                                          [[maybe_unused]] BWarpTiles& b_warp_tiles)
+                                          [[maybe_unused]] const BSmemBlockWindow& b_block_window)
 
         {
         }
 
-        template <typename ASmemBlockWindow,
-                  typename BSmemBlockWindow,
-                  typename AWarpTiles,
-                  typename BWarpTiles,
-                  index_t KIdx>
+        template <typename ASmemBlockWindow, typename BSmemBlockWindow, index_t KIdx>
         CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
-                                          const BSmemBlockWindow& b_block_window,
-                                          AWarpTiles& a_warp_tiles,
-                                          BWarpTiles& b_warp_tiles)
+                                          const BSmemBlockWindow& b_block_window)
         {
             static_assert(
                 GemmTraits::MPerBlock == ASmemBlockWindow{}.get_window_lengths()[number<0>{}] &&
@@ -294,9 +287,8 @@ struct BlockUniversalGemmAsBsCr
                                              typename BSmemBlockWindow::DataType>,
                           "wrong!");
 
-            const index_t iMWarp             = get_warp_id() / GemmTraits::NWarp;
-            const index_t iNWarp             = get_warp_id() % GemmTraits::NWarp;
-            constexpr index_t KInnerLoopIter = KPerInnerLoop / GemmTraits::WarpGemm::kK;
+            const index_t iMWarp = get_warp_id() / GemmTraits::NWarp;
+            const index_t iNWarp = get_warp_id() % GemmTraits::NWarp;
 
             // TODO: refactor warp_window tile type to class member as it should be
             // compile-time known information.
@@ -349,29 +341,21 @@ struct BlockUniversalGemmAsBsCr
             static_for<0, KInnerLoopIter, 1>{}([&](auto kIter) {
                 static_for<0, GemmTraits::MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block window
-                    load_tile(a_warp_tiles(mIter)(KIdx * KInnerLoopIter + kIter),
-                              a_warp_windows(mIter)(kIter));
+                    load_tile(a_warp_tiles(mIter)(kIter), a_warp_windows(mIter)(kIter));
 
                     static_for<0, GemmTraits::NIterPerWarp, 1>{}([&](auto nIter) {
                         // read B warp tensor from B Block window
-                        load_tile(b_warp_tiles(nIter)(KIdx * KInnerLoopIter + kIter),
-                                  b_warp_windows(nIter)(kIter));
+                        load_tile(b_warp_tiles(nIter)(kIter), b_warp_windows(nIter)(kIter));
                     });
                 });
             });
         }
 
         // C += A * B
-        template <typename CBlockTensor,
-                  typename ASmemBlockWindow,
-                  typename BSmemBlockWindow,
-                  typename AWarpTiles,
-                  typename BWarpTiles>
+        template <typename CBlockTensor, typename ASmemBlockWindow, typename BSmemBlockWindow>
         CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
                                        const ASmemBlockWindow& a_block_window,
-                                       const BSmemBlockWindow& b_block_window,
-                                       const AWarpTiles& a_warp_tiles,
-                                       const BWarpTiles& b_warp_tiles) const
+                                       const BSmemBlockWindow& b_block_window) const
         {
             static_assert(
                 std::is_same_v<typename GemmTraits::CDataType, typename CBlockTensor::DataType>,
@@ -380,14 +364,13 @@ struct BlockUniversalGemmAsBsCr
             using CWarpDstr   = typename GemmTraits::WarpGemm::CWarpDstr;
             using CWarpTensor = typename GemmTraits::WarpGemm::CWarpTensor;
 
-            constexpr index_t KInnerLoopIter = KPerInnerLoop / GemmTraits::WarpGemm::kK;
             constexpr auto c_warp_y_lengths =
                 to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
             constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
             // hot loop:
             static_for<0, KRepeat, 1>{}([&](auto kIter) {
-                LocalPrefetch<kIter>(a_block_window, b_block_window, a_warp_tiles, b_warp_tiles);
+                LocalPrefetch<kIter>(a_block_window, b_block_window);
                 __builtin_amdgcn_sched_barrier(0);
                 // NOTE: Synchronize threads in a workgroup at the start of each MAC
                 // cluster, but except the first, as we can shorten non-MAC cluster a bit
@@ -437,10 +420,9 @@ struct BlockUniversalGemmAsBsCr
                                 __builtin_amdgcn_sched_barrier(0);
                             }
                             // warp GEMM
-                            typename GemmTraits::WarpGemm{}(
-                                c_warp_tensor,
-                                a_warp_tiles[mIter][kInnerIter * kIter + kIter],
-                                b_warp_tiles[nIter][kInnerIter * kIter + kIter]);
+                            typename GemmTraits::WarpGemm{}(c_warp_tensor,
+                                                            a_warp_tiles_[mIter][kInnerIter],
+                                                            b_warp_tiles_[nIter][kInnerIter]);
 
                             // write C warp tensor into C block tensor
                             c_block_tensor.set_y_sliced_thread_data(
@@ -466,6 +448,8 @@ struct BlockUniversalGemmAsBsCr
         }
     };
 
+    BlockGemmImpl<Scheduler, Traits> block_gemm_impl_;
+
     public:
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
@@ -489,8 +473,7 @@ struct BlockUniversalGemmAsBsCr
     CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
                                       const BSmemBlockWindow& b_block_window)
     {
-        BlockGemmImpl<Scheduler, Traits>{}.template LocalPrefetch(
-            a_block_window, b_block_window, a_warp_tiles_, b_warp_tiles_);
+        block_gemm_impl_.template LocalPrefetch(a_block_window, b_block_window);
     }
 
     // C += A * B
@@ -499,8 +482,7 @@ struct BlockUniversalGemmAsBsCr
                                    const ASmemBlockWindow& a_block_window,
                                    const BSmemBlockWindow& b_block_window) const
     {
-        BlockGemmImpl<Scheduler, Traits>{}.template operator()(
-            c_block_tensor, a_block_window, b_block_window, a_warp_tiles_, b_warp_tiles_);
+        block_gemm_impl_.template operator()(c_block_tensor, a_block_window, b_block_window);
     }
 
     // C = A * B
@@ -509,8 +491,7 @@ struct BlockUniversalGemmAsBsCr
                                    const BSmemBlockWindow& b_block_window) const
     {
         auto c_block_tensor = MakeCBlockTile();
-        BlockGemmImpl<Scheduler, Traits>{}.template operator()(
-            c_block_tensor, a_block_window, b_block_window, a_warp_tiles_, b_warp_tiles_);
+        block_gemm_impl_.template operator()(c_block_tensor, a_block_window, b_block_window);
         return c_block_tensor;
     }
 };
