@@ -213,18 +213,13 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
     {
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
-        constexpr index_t MaxVectorSize = 16 / sizeof(ADataType);
-        static_assert(0 < ElemPerThread);
-
-        constexpr index_t K1 = min(MaxVectorSize, ElemPerThread);
+        constexpr index_t K1 =
+            GetVectorSize<kMPerBlock, kKPerBlock, kBlockSize, typename Problem::ADataType>();
         constexpr index_t K0 = kKPerBlock / K1;
         constexpr index_t M2 = get_warp_size() / K0;
 #if 1 // coalesce reading for each blocks
@@ -257,18 +252,13 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
     {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
-        constexpr index_t MaxVectorSize = 16 / sizeof(BDataType);
-        static_assert(0 < ElemPerThread);
-
-        constexpr index_t K1 = min(MaxVectorSize, ElemPerThread);
+        constexpr index_t K1 =
+            GetVectorSize<kNPerBlock, kKPerBlock, kBlockSize, typename Problem::BDataType>();
         constexpr index_t K0 = kKPerBlock / K1;
         constexpr index_t N2 = get_warp_size() / K0;
 #if 1 // coalesce reading for each blocks
