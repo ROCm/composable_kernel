@@ -127,7 +127,7 @@ struct WarpGemmAttributeMfmaImplF16F16F32M4N64K4
     using CVecType = ext_vector_t<float, 4>;
 
     static constexpr index_t kM = 4;
-    static constexpr index_t kN = 4;
+    static constexpr index_t kN = 64;
     static constexpr index_t kK = 4;
 
     static constexpr index_t kAMBlock = 1;

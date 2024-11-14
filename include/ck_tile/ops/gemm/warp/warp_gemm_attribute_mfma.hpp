@@ -84,9 +84,8 @@ struct WarpGemmAtrributeMfmaIterateK
         ext_vector_t<BDataType, vector_traits<typename Impl::BVecType>::vector_size * kKIter>;
     using CVecType = typename Impl::CVecType;
 
-    /// TODO: hide block info in WarpGemmAttributeMfmaImpl<>
-    static constexpr index_t kM = (Impl::kM * Impl::kAMBlock);
-    static constexpr index_t kN = (Impl::kN * Impl::kBNBlock);
+    static constexpr index_t kM = Impl::kM;
+    static constexpr index_t kN = Impl::kN;
     static constexpr index_t kK = Impl::kK * kKIter;
 
     static_assert(Impl::kAMBlock == 1, "Multi-block on M direction is not supported");
