@@ -754,6 +754,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 if(!(X == 1 && ConvStride == 1 && LeftPad == 0 && RightPad == 0))
                 {
 		    printf("Check 1");
+	            printf("X: %d Left Pad: %d Right Pad %d Conv Stride: %d", X, LeftPad, RightPad, ConvStride );
                     return false;
                 }
             }
@@ -771,6 +772,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 if(!(X == 1 && LeftPad == 0 && RightPad == 0))
                 {
 		    printf("Check 2");
+	            printf("X: %d Left Pad: %d Right Pad %d", X, LeftPad, RightPad );
                     return false;
                 }
             }
@@ -788,6 +790,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
             if(!(ABlockTransferSrcVectorDim == 2 && C % ABlockTransferSrcScalarPerVector == 0))
             {
+		printf("ABlockTransferSrcVectorDim: %d ABlockTransferSrcScalarPerVector: %d, C: %d", ABlockTransferSrcVectorDim, ABlockTransferSrcScalarPerVector, C );
 		printf("Check 3");
                 return false;
             }
@@ -795,6 +798,11 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         else
         {
 	    printf("Check 4");
+	    printf(" ALayout: %d %d %d %d %d %d %d %d %d",is_same_v<ALayout, ctc::G_NW_C> , is_same_v<ALayout, ctc::G_NHW_C> ,
+                     is_same_v<ALayout, ctc::G_NDHW_C> , is_same_v<ALayout, ctc::GNWC> ,
+                     is_same_v<ALayout, ctc::GNHWC> , is_same_v<ALayout, ctc::GNDHWC> ,
+                     is_same_v<ALayout, ctc::NWGC> , is_same_v<ALayout, ctc::NHWGC> ,
+                     is_same_v<ALayout, ctc::NDHWGC>);
             return false;
         }
 
@@ -812,12 +820,18 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             if(!(BBlockTransferSrcVectorDim == 2 && C % BBlockTransferSrcScalarPerVector == 0))
             {
 		printf("Check 5");
+		printf("BBlockTransferSrcVectorDim: %d BBlockTransferSrcScalarPerVector: %d, C: %d", BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector, C );
                 return false;
             }
         }
         else
         {
             printf("Check 6");
+	    printf("B Layout:  %d %d %d %d %d %d %d %d %d", is_same_v<BLayout, ctc::G_K_X_C>, is_same_v<BLayout, ctc::G_K_YX_C>,
+                     is_same_v<BLayout, ctc::G_K_ZYX_C>, is_same_v<BLayout, ctc::GKXC>,
+                     is_same_v<BLayout, ctc::GKYXC>, is_same_v<BLayout, ctc::GKZYXC>,
+                     is_same_v<BLayout, ctc::KXGC>, is_same_v<BLayout, ctc::KYXGC>,
+                     is_same_v<BLayout, ctc::KZYXGC>);
             return false;
         }
 
@@ -826,7 +840,6 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         static_for<0, NumDTensor, 1>{}([&](auto i) {
             using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-
             // FIXME: layout
             if constexpr(is_same_v<DLayout, ctc::G_NW_K> || is_same_v<DLayout, ctc::G_NHW_K> ||
                          is_same_v<DLayout, ctc::G_NDHW_K> || is_same_v<DLayout, ctc::GNWK> ||
@@ -839,6 +852,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
                 {
 		    printf("Check 7");
+		    printf("CDEBlockTransferScalarPerVector_NPerBlock: %d, K: %d", CDEBlockTransferScalarPerVector_NPerBlock, K );
                     valid = false;
                 }
 
@@ -849,6 +863,8 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                        arg.ds_g_n_k_wos_lengths_[i][2] != arg.e_g_n_k_wos_lengths_[2])
                     {
 		        printf("Check 8");
+			printf("1: arg.ds_g_n_k_wos_lengths_[i][0]: %d, arg.e_g_n_k_wos_lengths_[0]: %d", arg.ds_g_n_k_wos_lengths_[i][0], arg.e_g_n_k_wos_lengths_[0]);
+			printf("2: arg.ds_g_n_k_wos_lengths_[i][2]: %d, arg.e_g_n_k_wos_lengths_[2]: %d", arg.ds_g_n_k_wos_lengths_[i][2], arg.e_g_n_k_wos_lengths_[2]);
                         valid = false;
                     }
                 }
@@ -860,6 +876,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         if(arg.ds_g_n_k_wos_lengths_[i][d] != arg.e_g_n_k_wos_lengths_[d])
                         {
 		            printf("Check 9");
+			    printf("1: arg.ds_g_n_k_wos_lengths_[i][d]: %d, arg.e_g_n_k_wos_lengths_[d]: %d", arg.ds_g_n_k_wos_lengths_[i][d], arg.e_g_n_k_wos_lengths_[d]);
                             valid = false;
                         }
                     }
@@ -868,6 +885,11 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             else
             {
 		printf("Check 10");
+		 printf("DLayout %d %d %d %d %d %d %d %d %d %d",is_same_v<DLayout, ctc::G_NW_K>, is_same_v<DLayout, ctc::G_NHW_K>,
+                         is_same_v<DLayout, ctc::G_NDHW_K>, is_same_v<DLayout, ctc::GNWK>,
+                         is_same_v<DLayout, ctc::GNHWK>, is_same_v<DLayout, ctc::GNDHWK>,
+                         is_same_v<DLayout, ctc::NWGK>, is_same_v<DLayout, ctc::NHWGK>,
+                         is_same_v<DLayout, ctc::NDHWGK>, is_same_v<DLayout, ctc::G_K>);
                 valid = false;
             }
         });
@@ -875,6 +897,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         if(!valid)
         {
 	    printf("Check 11");
+	    printf("Ds vector access issue");
             return false;
         }
 
@@ -890,12 +913,18 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
             {
 		printf("Check 12");
+		printf("CDEBlockTransferScalarPerVector_NPerBlock: %d K: %d", CDEBlockTransferScalarPerVector_NPerBlock, K);
                 return false;
             }
         }
         else
         {
             printf("Check 13");
+	     printf("ELayout %d %d %d %d %d %d %d %d %d", is_same_v<ELayout, ctc::G_NW_K>, is_same_v<ELayout, ctc::G_NHW_K>,
+                     is_same_v<ELayout, ctc::G_NDHW_K>, is_same_v<ELayout, ctc::GNWK>,
+                     is_same_v<ELayout, ctc::GNHWK>, is_same_v<ELayout, ctc::GNDHWK>,
+                     is_same_v<ELayout, ctc::NWGK>, is_same_v<ELayout, ctc::NHWGK>,
+                     is_same_v<ELayout, ctc::NDHWGK>);
             return false;
         }
 
