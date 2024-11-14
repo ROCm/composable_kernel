@@ -12,26 +12,30 @@ namespace ck_tile {
 // Default policy class should not be templated, put template on member functions instead
 struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 {
+    template <index_t TileSizeMN, index_t TileSizeK, index_t BlockSize, typename DataType>
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSize()
+    {
+        constexpr index_t ElemPerThread = (TileSizeMN * TileSizeK) / BlockSize;
+        constexpr index_t MaxVectorSize = 16 / sizeof(DataType);
+        static_assert(0 < ElemPerThread);
+
+        return min(MaxVectorSize, ElemPerThread);
+    }
+
 #if 0
     // 2d
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
     
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
-        constexpr index_t MaxVectorSize  = 16 / sizeof(ADataType);
-        static_assert(0 < ElemPerThread);
-
-        constexpr index_t ActualVectorSize = min(MaxVectorSize, ElemPerThread);
+        constexpr index_t VectorSize = GetVectorSize<kMPerBlock, kKPerBlock, kBlockSize, typename Problem::ADataType>();
 
         constexpr auto a_lds_block_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(kMPerBlock, kKPerBlock), number<ActualVectorSize>{});
+            make_naive_tensor_descriptor_packed(make_tuple(kMPerBlock, kKPerBlock), number<VectorSize>{});
 
         return a_lds_block_desc;
     }
@@ -40,21 +44,15 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
     
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
-        constexpr index_t MaxVectorSize  = 16 / sizeof(BDataType);
-        static_assert(0 < ElemPerThread);
-
-        constexpr index_t ActualVectorSize = min(MaxVectorSize, ElemPerThread);
+        constexpr index_t VectorSize = GetVectorSize<kNPerBlock, kKPerBlock, kBlockSize, typename Problem::BDataType>();
 
         constexpr auto b_lds_block_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(kNPerBlock, kKPerBlock), number<ActualVectorSize>{});
+            make_naive_tensor_descriptor_packed(make_tuple(kNPerBlock, kKPerBlock), number<VectorSize>{});
 
         return b_lds_block_desc;
     }
@@ -63,34 +61,25 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
-        constexpr index_t MaxVectorSize = 16 / sizeof(ADataType);
-        static_assert(0 < ElemPerThread);
+        constexpr index_t VectorSize =
+            GetVectorSize<kMPerBlock, kKPerBlock, kBlockSize, typename Problem::ADataType>();
 
-        constexpr index_t ActualVectorSize = min(MaxVectorSize, ElemPerThread);
-
-        constexpr auto a_lds_block_desc_0 =
-            make_naive_tensor_descriptor(make_tuple(number<kKPerBlock / ActualVectorSize>{},
-                                                    number<kMPerBlock>{},
-                                                    number<ActualVectorSize>{}),
-                                         make_tuple(number<(kMPerBlock + 1) * ActualVectorSize>{},
-                                                    number<ActualVectorSize>{},
-                                                    number<1>{}),
-                                         number<ActualVectorSize>{},
-                                         number<1>{});
+        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(
+                number<kKPerBlock / VectorSize>{}, number<kMPerBlock>{}, number<VectorSize>{}),
+            make_tuple(number<(kMPerBlock + 1) * VectorSize>{}, number<VectorSize>{}, number<1>{}),
+            number<VectorSize>{},
+            number<1>{});
 
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_0,
-            make_tuple(
-                make_pass_through_transform(kMPerBlock),
-                make_merge_transform(make_tuple(kKPerBlock / ActualVectorSize, ActualVectorSize))),
+            make_tuple(make_pass_through_transform(kMPerBlock),
+                       make_merge_transform(make_tuple(kKPerBlock / VectorSize, VectorSize))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -101,34 +90,25 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
-        constexpr index_t MaxVectorSize = 16 / sizeof(BDataType);
-        static_assert(0 < ElemPerThread);
+        constexpr index_t VectorSize =
+            GetVectorSize<kNPerBlock, kKPerBlock, kBlockSize, typename Problem::BDataType>();
 
-        constexpr index_t ActualVectorSize = min(MaxVectorSize, ElemPerThread);
-
-        constexpr auto b_lds_block_desc_0 =
-            make_naive_tensor_descriptor(make_tuple(number<kKPerBlock / ActualVectorSize>{},
-                                                    number<kNPerBlock>{},
-                                                    number<ActualVectorSize>{}),
-                                         make_tuple(number<(kNPerBlock + 1) * ActualVectorSize>{},
-                                                    number<ActualVectorSize>{},
-                                                    number<1>{}),
-                                         number<ActualVectorSize>{},
-                                         number<1>{});
+        constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(
+                number<kKPerBlock / VectorSize>{}, number<kNPerBlock>{}, number<VectorSize>{}),
+            make_tuple(number<(kNPerBlock + 1) * VectorSize>{}, number<VectorSize>{}, number<1>{}),
+            number<VectorSize>{},
+            number<1>{});
 
         constexpr auto b_lds_block_desc = transform_tensor_descriptor(
             b_lds_block_desc_0,
-            make_tuple(
-                make_pass_through_transform(kNPerBlock),
-                make_merge_transform(make_tuple(kKPerBlock / ActualVectorSize, ActualVectorSize))),
+            make_tuple(make_pass_through_transform(kNPerBlock),
+                       make_merge_transform(make_tuple(kKPerBlock / VectorSize, VectorSize))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -139,24 +119,17 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
-        using namespace ck_tile;
-
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
-        constexpr index_t MaxVectorSize = 16 / sizeof(ADataType);
-        static_assert(0 < ElemPerThread);
-
         constexpr auto a_lds_block_desc_d1_d2_d3 = make_naive_tensor_descriptor_packed(
             make_tuple(number<kMPerBlock / 2>{}, number<2>{}, number<kKPerBlock>{}),
             number<kKPerBlock>{});
 
-        constexpr index_t kK1 = min(MaxVectorSize, ElemPerThread);
+        constexpr index_t kK1 =
+            GetVectorSize<kMPerBlock, kKPerBlock, kBlockSize, typename Problem::ADataType>();
 
         constexpr auto a_lds_block_desc_d4_d5_d6 = transform_tensor_descriptor(
             a_lds_block_desc_d1_d2_d3,
@@ -180,24 +153,17 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        using namespace ck_tile;
-
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
-        constexpr index_t MaxVectorSize = 16 / sizeof(BDataType);
-        static_assert(0 < ElemPerThread);
-
         constexpr auto b_lds_block_desc_d1_d2_d3 = make_naive_tensor_descriptor_packed(
             make_tuple(number<kNPerBlock / 2>{}, number<2>{}, number<kKPerBlock>{}),
             number<kKPerBlock>{});
 
-        constexpr index_t kK1 = min(MaxVectorSize, ElemPerThread);
+        constexpr index_t kK1 =
+            GetVectorSize<kNPerBlock, kKPerBlock, kBlockSize, typename Problem::BDataType>();
 
         constexpr auto b_lds_block_desc_d4_d5_d6 = transform_tensor_descriptor(
             b_lds_block_desc_d1_d2_d3,
