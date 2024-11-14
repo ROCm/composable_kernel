@@ -161,6 +161,9 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
         return false;
     }
 
+    // XXX: DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle will not initialize r0.
+    r0_device_buf.SetValue(ck::NumericLimits<R0DataType>::Lowest());
+
     const float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
 
     if(config.time_kernel)
