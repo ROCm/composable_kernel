@@ -23,6 +23,16 @@ struct GemmBasicTypeConfig<ck_tile::half_t>
     // ToDo: Add more bias config to support different categories of GEMM.
 };
 
+template <>
+struct GemmBasicTypeConfig<ck_tile::bf16_t>
+{
+    using ADataType   = ck_tile::bf16_t;
+    using BDataType   = ck_tile::bf16_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::bf16_t;
+    // ToDo: Add more bias config to support different categories of GEMM.
+};
+
 template <typename T>
 struct DataTypeTraits;
 
