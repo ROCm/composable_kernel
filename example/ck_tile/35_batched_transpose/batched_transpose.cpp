@@ -94,7 +94,7 @@ auto get_elimit<ck_tile::fp8_t>(std::string init_method)
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("v", "1", "wether do CPU validation or not")
+    arg_parser.insert("v", "1", "whether do CPU validation or not")
         .insert("pr", "fp16", "input data type. fp16/fp32 (representing 8/16/32 bit data)")
         .insert("N", "2", "input batch size. ")
         .insert("C", "16", "input channel size.")
@@ -124,70 +124,39 @@ bool test_batched_transpose(ck_tile::ArgParser args)
 
     int dim_in[4], dim_out[4];
     int stride_dim_in[4], stride_dim_out[4];
-    if(layout_in == "NCHW" && layout_out == "NHWC")
-    {
-        dim_in[0]         = N;
-        dim_in[1]         = C;
-        dim_in[2]         = H;
-        dim_in[3]         = W;
-        dim_out[0]        = N;
-        dim_out[1]        = H;
-        dim_out[2]        = W;
-        dim_out[3]        = C;
-        stride_dim_in[0]  = C * H * W;
-        stride_dim_in[1]  = H * W;
-        stride_dim_in[2]  = W;
-        stride_dim_in[3]  = 1;
-        stride_dim_out[0] = C * H * W;
-        stride_dim_out[1] = C * W;
-        stride_dim_out[2] = C;
-        stride_dim_out[3] = 1;
-    }
-    else if(layout_in == "NHWC" && layout_out == "NCHW")
-    {
-        dim_in[0]         = N;
-        dim_in[1]         = H;
-        dim_in[2]         = W;
-        dim_in[3]         = C;
-        dim_out[0]        = N;
-        dim_out[1]        = C;
-        dim_out[2]        = H;
-        dim_out[3]        = W;
-        stride_dim_in[0]  = C * H * W;
-        stride_dim_in[1]  = C * W;
-        stride_dim_in[2]  = C;
-        stride_dim_in[3]  = 1;
-        stride_dim_out[0] = C * H * W;
-        stride_dim_out[1] = H * W;
-        stride_dim_out[2] = W;
-        stride_dim_out[3] = 1;
-    }
+    bool nchw2nhwc = layout_in == "NCHW" && layout_out == "NHWC";
+    bool nhwc2nchw = layout_in == "NHWC" && layout_out == "NCHW";
+    assert(nchw2nhwc != nhwc2nchw);
+    (void)nhwc2nchw;
+
+    dim_in[0]         = N;
+    dim_in[1]         = nchw2nhwc ? C : H;
+    dim_in[2]         = nchw2nhwc ? H : W;
+    dim_in[3]         = nchw2nhwc ? W : C;
+    dim_out[0]        = N;
+    dim_out[1]        = nchw2nhwc ? H : C;
+    dim_out[2]        = nchw2nhwc ? W : H;
+    dim_out[3]        = nchw2nhwc ? C : W;
+    stride_dim_in[0]  = C * H * W;
+    stride_dim_in[1]  = nchw2nhwc ? H * W : C * W;
+    stride_dim_in[2]  = nchw2nhwc ? W : C;
+    stride_dim_in[3]  = 1;
+    stride_dim_out[0] = C * H * W;
+    stride_dim_out[1] = nchw2nhwc ? C * W : H * W;
+    stride_dim_out[2] = nchw2nhwc ? C : W;
+    stride_dim_out[3] = 1;
 
     if(seed < 0)
     {
         seed = std::time(nullptr);
     }
-    // int kname = args.get_int("kname");
-    // int warmup = args.get_int("warmup");
-    // int repeat = args.get_int("repeat");
 
-    // tokens already considered batch size
     ck_tile::HostTensor<Type> x_host(
         {dim_in[0], dim_in[1], dim_in[2], dim_in[3]},
         {stride_dim_in[0], stride_dim_in[1], stride_dim_in[2], stride_dim_in[3]});
     ck_tile::HostTensor<Type> y_host(
         {dim_out[0], dim_out[1], dim_out[2], dim_out[3]},
         {stride_dim_out[0], stride_dim_out[1], stride_dim_out[2], stride_dim_out[3]});
-
-    // {
-    //     for(int i_t = 0; i_t < N; i_t++)
-    //     {
-    //         ck_tile::HostTensor<Type> x_batch({stride_dim_in[0]});
-    //         for(int j = 0; j < stride_dim_in[0]; j++)
-    //             x_batch(j) = static_cast<Type>(j % 1000);
-    //         std::copy(x_batch.begin(), x_batch.end(), x_host.begin() + i_t * stride_dim_in[0]);
-    //     }
-    // }
 
     ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
 
@@ -209,8 +178,8 @@ bool test_batched_transpose(ck_tile::ArgParser args)
 
     auto trait = batched_transpose_trait{prec, layout_in};
 
-    uint32_t height      = layout_in == "NCHW" ? C : H * W;
-    uint32_t width       = layout_in == "NCHW" ? H * W : C;
+    uint32_t height      = nchw2nhwc ? C : H * W;
+    uint32_t width       = nchw2nhwc ? H * W : C;
     uint32_t dim_block_h = (height + kparam.tile_y - 1) / kparam.tile_y;
     uint32_t dim_block_w = (width + kparam.tile_x - 1) / kparam.tile_x;
     uint32_t dim_stride  = height * width;

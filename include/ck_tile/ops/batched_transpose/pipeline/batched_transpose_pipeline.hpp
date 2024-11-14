@@ -29,8 +29,7 @@ struct BatchedTransposePipeline
     static constexpr bool kPadN                  = Problem::kPadN;
 
     template <typename InputWindow, typename OutputWindow>
-    CK_TILE_DEVICE auto
-    operator()(const InputWindow& input_window, OutputWindow& out_window)
+    CK_TILE_DEVICE auto operator()(const InputWindow& input_window, OutputWindow& out_window)
     {
         auto inp_win =
             make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
@@ -50,6 +49,7 @@ struct BatchedTransposePipeline
         constexpr auto smem_stride     = 16 + padding_element;
         __shared__ InputType smem[16 * smem_stride];
 
+        // according coordinate to load each block data from global memory to shared memory.
         __syncthreads();
         sweep_tile_span(span_2d_x[number<0>{}], [&](auto idx0) {
             sweep_tile_span(span_2d_x[number<1>{}], [&](auto idx1) {
@@ -74,3 +74,4 @@ struct BatchedTransposePipeline
     }
 };
 } // namespace ck_tile
+
