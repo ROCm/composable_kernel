@@ -73,6 +73,11 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
     Tensor<EDataType> conv_output_device(conv_output_g_n_k_wos_desc);
     Tensor<R0DataType> r0_device(r0_desc);
 
+    std::cout << "input: " << conv_input.mDesc << std::endl;
+    std::cout << "weight: " << conv_weight.mDesc << std::endl;
+    std::cout << "output: " << conv_output_device.mDesc << std::endl;
+    std::cout << "reduction: " << r0_device.mDesc << std::endl << std::endl;
+
     switch(config.init_method)
     {
     case 0: break;
@@ -203,7 +208,7 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
                                                   BElementOp{},
                                                   PassThrough{});
 
-        std::cout << "Running verification on CPU." << std::endl;
+        std::cout << "\nRunning verification on CPU." << std::endl;
         ref_invoker.Run(ref_argument);
 
         Tensor<R0DataType> r0_host(r0_device.mDesc);
