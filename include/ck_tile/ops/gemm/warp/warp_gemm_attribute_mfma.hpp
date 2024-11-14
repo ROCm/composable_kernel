@@ -84,8 +84,9 @@ struct WarpGemmAtrributeMfmaIterateK
         ext_vector_t<BDataType, vector_traits<typename Impl::BVecType>::vector_size * kKIter>;
     using CVecType = typename Impl::CVecType;
 
-    static constexpr index_t kM = Impl::kM;
-    static constexpr index_t kN = Impl::kN;
+    /// TODO: hide block info in WarpGemmAttributeMfmaImpl<>
+    static constexpr index_t kM = (Impl::kM * Impl::kAMBlock);
+    static constexpr index_t kN = (Impl::kN * Impl::kBNBlock);
     static constexpr index_t kK = Impl::kK * kKIter;
 
     static_assert(!(1 < Impl::kAMBlock && 1 < Impl::kBNBlock),
