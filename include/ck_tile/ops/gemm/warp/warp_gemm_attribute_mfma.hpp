@@ -189,7 +189,7 @@ struct WarpGemmAtrributeMfmaIterateK
             return tile_distribution_encoding<
                 sequence<>,
                 tuple<sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>,
-                      sequence<Impl::kCNLane>>,
+                      sequence<Impl::kBNBlock * Impl::kCNLane>>,
                 tuple<sequence<1, 2>>,
                 tuple<sequence<1, 0>>,
                 sequence<1, 1>,
@@ -197,6 +197,7 @@ struct WarpGemmAtrributeMfmaIterateK
         }
         else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
         {
+            /// FIXME: use correct code here
             return tile_distribution_encoding<
                 sequence<>,
                 tuple<sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>,
