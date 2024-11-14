@@ -31,7 +31,7 @@ typename std::enable_if<
     bool>::type
 check_err(const Range& out,
           const RefRange& ref,
-          const std::string& msg = "Error: Incorrect results!",
+          const std::string& msg = "#Emin @debug Error: Incorrect results!",
           double rtol            = 1e-5,
           double atol            = 3e-6)
 {
@@ -55,12 +55,30 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            
+            // #Emin @debug // Added CK_LOGGING
+            // if(err_count < 5)
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
-                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                // if(err_count < ref.size())
+                // {
+                //     std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                //             << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                // }
+                res = false;
+
+            }else
+            {
+                if(err_count < 5)
+                {
+                    std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                            << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                }
+                res = false;
+
             }
-            res = false;
+
+           
         }
     }
     if(!res)
@@ -106,12 +124,34 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            // if(err_count < 5)
+            // {
+            //     std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+            //               << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            // }
+            // res = false;
+
+             // #Emin @debug // Added CK_LOGGING
+            // if(err_count < 5)
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
-                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                if(err_count < 1000000)
+                {
+                    std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                            << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                }
+                res = false;
+
+            }else
+            {
+                if(err_count < 5)
+                {
+                    std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                            << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                }
+                res = false;
+
             }
-            res = false;
         }
     }
     if(!res)
@@ -156,12 +196,34 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            // if(err_count < 5)
+            // {
+            //     std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+            //               << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            // }
+            // res = false;
+
+             // #Emin @debug // Added CK_LOGGING
+            // if(err_count < 5)
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
-                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                // if(err_count < ref.size())
+                // {
+                //     std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                //             << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                // }
+                res = false;
+
+            }else
+            {
+                if(err_count < 5)
+                {
+                    std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                            << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                }
+                res = false;
+
             }
-            res = false;
         }
     }
     if(!res)
@@ -213,12 +275,34 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            // if(err_count < 5)
+            // {
+            //     std::cerr << msg << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r
+            //               << std::endl;
+            // }
+            // res = false;
+
+             // #Emin @debug // Added CK_LOGGING
+            // if(err_count < 5)
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cerr << msg << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r
-                          << std::endl;
+                // if(err_count < ref.size())
+                // {
+                //     std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                //             << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                // }
+                res = false;
+
+            }else
+            {
+                if(err_count < 5)
+                {
+                    std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                            << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                }
+                res = false;
+
             }
-            res = false;
         }
     }
     if(!res)
@@ -262,12 +346,34 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            // if(err_count < 5)
+            // {
+            //     std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+            //               << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            // }
+            // res = false;
+
+             // #Emin @debug // Added CK_LOGGING
+            // if(err_count < 5)
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
-                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                // if(err_count < ref.size())
+                // {
+                //     std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                //             << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                // }
+                res = false;
+
+            }else
+            {
+                if(err_count < 5)
+                {
+                    std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                            << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                }
+                res = false;
+
             }
-            res = false;
         }
     }
     if(!res)
@@ -308,12 +414,34 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            // if(err_count < 5)
+            // {
+            //     std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+            //               << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            // }
+            // res = false;
+
+             // #Emin @debug // Added CK_LOGGING
+            // if(err_count < 5)
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
-                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                if(err_count < ref.size())
+                {
+                    std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                            << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                }
+                res = false;
+
+            }else
+            {
+                if(err_count < 5)
+                {
+                    std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                            << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+                }
+                res = false;
+
             }
-            res = false;
         }
     }
     if(!res)

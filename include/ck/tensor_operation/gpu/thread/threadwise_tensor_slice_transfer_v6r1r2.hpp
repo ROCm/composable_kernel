@@ -102,6 +102,14 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
 
             auto dst_vector_container = dst_vector_type{};
 
+            // Emin @debug
+             // Debug: Print source vector data if valid
+            if (threadIdx.x == 0 && threadIdx.y == 0 && is_src_valid) {
+                // printf("Threadwise_tensor slice v6r1r2 line 108: Src Vector Data at idx %d: %f\n", static_cast<int>(idx_1d.value), static_cast<float>());
+                // printf("Threadwise_tensor slice v6r1r2 line 108: Src Vector Data at idx %d: %f \n", static_cast<int>(idx_1d.value), static_cast<float>(src_vector_container.template AsType<SrcData>().At(Number<0>{})));
+                printf("Threadwise_tensor slice v6r1r2 line 108: Src Vector Data at idx %d: %hu \n", static_cast<int>(idx_1d.value), src_vector_container.template AsType<SrcData>().At(Number<0>{}));
+            }
+
             // apply pointwise operation
             static_for<0, ScalarPerVector, 1>{}([&](auto i) {
                 SrcData v;
@@ -109,8 +117,31 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                 // apply element-wise operation
                 element_op_(v, src_vector_container.template AsType<SrcData>()[i]);
 
+                // Emin @debug
+                // Debug: Print element-wise operation result
+                // if (threadIdx.x == 0 && threadIdx.y == 0) {
+                //     printf("Threadwise_tensor slice v6r1r2 line 121 : Element-wise Operation Result at idx %d: %f\n", static_cast<int>(i.value), static_cast<float>(v));
+                // }
+
+                 // Debug: Print SrcData before and after applying element-wise operation
+                if (threadIdx.x == 0 && threadIdx.y == 0) {
+                    // printf("Threadwise_tensor_slice_v6r1r2 line 127 : SrcData before element-wise op at idx %d: %f \n", static_cast<int>(i.value), static_cast<float>(src_vector_container.template AsType<SrcData>().At(Number<i>{})));
+                    printf("Threadwise_tensor_slice_v6r1r2 line 127 : SrcData before element-wise op at idx %d , i %d: %hu \n",static_cast<int>(idx_1d.value),  static_cast<int>(i.value), src_vector_container.template AsType<SrcData>().At(Number<i>{}));
+                    // printf("SrcData after element-wise op at idx %d: %f \n", static_cast<int>(i.value), static_cast<float>(v));
+                    printf("Threadwise_tensor_slice_v6r1r2 line 129 : SrcData after element-wise op at idx %d , i %d: %hu \n", static_cast<int>(idx_1d.value) , static_cast<int>(i.value), v);
+                }
+
                 // apply type convert
                 dst_vector_container.template AsType<DstData>()(i) = type_convert<DstData>(v);
+
+                // Emin @debug
+                // Debug: Print type conversion result
+                if (threadIdx.x == 0 && threadIdx.y == 0) {
+                    // printf("Threadwise_tensor slice v6r1r2 line 121 : Type Conversion Result at idx %d: %f\n", static_cast<int>(i.value), static_cast<float>(dst_vector_container.template AsType<DstData>()[i]));
+                    //   printf("DstData after type conversion at idx %d: %f \n", static_cast<int>(i.value), static_cast<float>(dst_vector_container.template AsType<DstData>().At(Number<i>{})));
+                    printf("Threadwise_tensor_slice_v6r1r2 line 140 : DstData after type conversion at idx %d, i  %d: %hu \n", static_cast<int>(idx_1d.value) , static_cast<int>(i.value), dst_vector_container.template AsType<DstData>().At(Number<i>{}));
+                
+                }
             });
 
             const bool is_dst_valid =
@@ -121,6 +152,11 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                 dst_coord_.GetOffset(),
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
+
+            //  // Debug: Print data before copying from dst_vector into dst_buf
+            // if (threadIdx.x == 0 && threadIdx.y == 0 && is_dst_valid) {
+            //     printf("Dst Vector Data being copied to dst_buf at idx %d: %v4hu", static_cast<int>(idx_1d.value), dst_buf.template AsType<dst_vector_t>().At(I0));
+            // }
 
             // move coordinate
             if constexpr(idx_1d.value != num_access - 1)

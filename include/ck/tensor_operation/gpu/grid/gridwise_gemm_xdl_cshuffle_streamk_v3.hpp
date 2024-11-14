@@ -1065,6 +1065,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             }
         }
 
+        // #Emin# Need to make this code comment out or remove
         if constexpr(is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
@@ -1148,11 +1149,20 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         bool is_sk_block, is_dp_block;
         index_t num_k_block_main_loop;
 
+
+        // Emin @debug
+        // Debug: Print initial problem size and grid configuration
+        
+        // if (threadIdx.x == 0 && threadIdx.y == 0) {
+        //     printf("Gridwise_gemm_sk Line:1157 Problem M: %d, N: %d, K: %d, Grid Size: %d\n", problem.M, problem.N, problem.K, problem.Grid_size);
+        // }
+
+
         for(auto block_idx = get_block_1d_id();
             block_idx < block_2_ctile_map_streamk.get_grid_dims();
             block_idx += gridDim.x)
         {
-
+            // Determine if the block is stream-k or data-parallel
             is_sk_block =
                 static_cast<uint32_t>(block_idx) < block_2_ctile_map_streamk.sk_num_blocks;
             is_dp_block =
@@ -1160,8 +1170,16 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 static_cast<uint32_t>(block_idx) <
                     block_2_ctile_map_streamk.reduction_start_block_idx;
 
+            // Get the iteration range for the current block
             block_2_ctile_map_streamk.get_block_itr(block_idx, iter_start, iter_end);
             num_k_block_main_loop = iter_end - iter_start;
+
+            // Emin @debug
+            // Debug: Print block information
+            if (threadIdx.x == 0 && threadIdx.y == 0) {
+                printf("Block Index: %d, Iteration Start: %d, Iteration End: %d, Is Stream-K: %d, Is Data-Parallel: %d\n",
+                       block_idx, iter_start, iter_end, is_sk_block, is_dp_block);
+            }
 
             while(true)
             {
@@ -1173,6 +1191,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     iter_end - 1, tile_idx, iter_offset);
                 iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
 
+                // Create grid descriptors for A, B, C matrices
                 const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(problem.M,
                                                                                  problem.MPadded,
                                                                                  problem.K,
@@ -1191,6 +1210,17 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
                     MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n, problem.MBlock, problem.NBlock);
+
+                // Emin @debug
+                // Debug: Print grid descriptor sizes
+                if (threadIdx.x == 0 && threadIdx.y == 0) {
+                    printf("A Grid Desc Size: %ld, B Grid Desc Size: %ld, C Grid Desc Size: %ld\n",
+                           a_grid_desc_ak0_m_ak1.GetElementSpaceSize(),
+                           b_grid_desc_bk0_n_bk1.GetElementSpaceSize(),
+                           c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+                }
+
+                // Create dynamic buffers for A, B, C matrices in global memory       
                 auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
@@ -1199,6 +1229,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 
                 const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+
+                 // Map tile index to spatial coordinates (M, N)
 
                 auto block_work_idx =
                     block_2_ctile_map_streamk.tile_to_spatial(tile_idx, problem.M, problem.N);
@@ -1216,9 +1248,17 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 const index_t k0_block_data_idx_on_grid =
                     __builtin_amdgcn_readfirstlane(iter_offset * AK0Number);
 
+                // Emin @debug
+                // Debug: Print block data indices on grid
+                if (threadIdx.x == 0 && threadIdx.y == 0) {
+                    printf("M Block Data Index on Grid: %d, N Block Data Index on Grid: %d, K0 Block Data Index: %d\n",
+                           m_block_data_idx_on_grid, n_block_data_idx_on_grid, k0_block_data_idx_on_grid);
+                }
+
                 // lds max alignment
                 constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
 
+                // Create shared memory buffers for A and B matrices in LDS
                 // A matrix in LDS memory, dst of blockwise copy
                 constexpr auto a_block_desc_ak0_m_ak1 =
                     GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
@@ -1308,6 +1348,16 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 constexpr auto b_block_slice_copy_step =
                     make_multi_index(KPerBlock / BK1Number, 0, 0);
 
+                // Emin @debug
+                // Debug: Print shared memory buffer sizes for A and B
+                // if (threadIdx.x == 0 && threadIdx.y == 0) {
+                //     printf("Shared Memory Buffer Size - A: %d, B: %d\n",
+                //            a_block_desc_ak0_m_ak1.GetElementSpaceSize(),
+                //            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+                // }
+
+
+
                 // Blockwise GEMM pipeline
                 static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
                 auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
@@ -1316,6 +1366,12 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
                     (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
                     KPerBlock);
+
+                // Emin @debug
+                // Debug: Print number of K blocks in main loop
+                if (threadIdx.x == 0 && threadIdx.y == 0) {
+                    printf("Number of K Blocks in Main Loop: %d\n", num_k_block_main_loop);
+                }
 
                 blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                     a_grid_desc_ak0_m_ak1,
@@ -1508,6 +1564,13 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         // make sure it's safe to write to LDS
                         block_sync_lds();
 
+                        // Emin @debug
+                        // Debug: Print before writing C to LDS
+                        if (threadIdx.x == 0 && threadIdx.y == 0) {
+                            printf("Gridwise_gemm_sk line 1570 --Block %d, Access %d: Writing C from VGPR to LDS.\n", block_idx, static_cast<int>(access_id));
+                        }
+
+
                         // each thread write its data from VGPR to LDS
                         c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                                       sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
@@ -1535,6 +1598,10 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         }
                         else if(is_sk_block)
                         {
+                            if (threadIdx.x == 0 && threadIdx.y == 0) {
+                                printf("Gridwise_gemm_sk line 1602 --is_sk_block !! each block copy data from LDS to global.\n");
+                            }
+
                             // each block copy its data from LDS to global
                             c_shuffle_block_copy_lds_to_global
                                 .template Run<decltype(c_shuffle_block_buf),
