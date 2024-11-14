@@ -34,11 +34,11 @@ struct fmoe_ // traits, ugly name, only used for internal
     using TopkWeightDataType   = ck_tile::remove_cvref_t<typename TypeConfig::TopkWeightDataType>;
     using IndexDataType        = ck_tile::remove_cvref_t<typename TypeConfig::IndexDataType>;
 
-    static constexpr ck_tile::index_t BT_ = BlockTIle_::at(ck_tile::number<0>{}); // block token
+    static constexpr ck_tile::index_t BT_ = BlockTIle_::at(ck_tile::number<0>{}); // block token(block_m0, block_m1)
     static constexpr ck_tile::index_t BI_ =
-        BlockTIle_::at(ck_tile::number<1>{}); // block intermediate
-    static constexpr ck_tile::index_t BH_ = BlockTIle_::at(ck_tile::number<2>{}); // block hidden
-    static constexpr ck_tile::index_t BD_ = BlockTIle_::at(ck_tile::number<3>{}); // block down
+        BlockTIle_::at(ck_tile::number<1>{}); // block intermediate  (block_n0, block_k1)
+    static constexpr ck_tile::index_t BH_ = BlockTIle_::at(ck_tile::number<2>{}); // block hidden(block_k0)
+    static constexpr ck_tile::index_t BD_ = BlockTIle_::at(ck_tile::number<3>{}); // block down(block_n1)
 
     using BlockTile_0    = ck_tile::sequence<BT_, BI_, BH_>;
     using WarpPerBlock_0 = ck_tile::remove_cvref_t<WarpPerBlock_>;
