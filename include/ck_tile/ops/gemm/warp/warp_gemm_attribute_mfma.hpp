@@ -89,8 +89,7 @@ struct WarpGemmAtrributeMfmaIterateK
     static constexpr index_t kN = (Impl::kN * Impl::kBNBlock);
     static constexpr index_t kK = Impl::kK * kKIter;
 
-    static_assert(!(1 < Impl::kAMBlock && 1 < Impl::kBNBlock),
-                  "Multi-block on both M & N directions is not supported");
+    static_assert(Impl::kAMBlock == 1, "Multi-block on M direction is not supported");
 
     CK_TILE_DEVICE static constexpr auto get_awarp_dstr_encoding()
     {
@@ -114,19 +113,6 @@ struct WarpGemmAtrributeMfmaIterateK
                       sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
                 tuple<sequence<0, 2, 1>>,
                 tuple<sequence<0, 0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
-        }
-        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
-        {
-            /// FIXME: use correct code here
-            // single block to multi-block thread mapping
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kAMLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
                 sequence<2>,
                 sequence<1>>{};
         }
@@ -157,19 +143,6 @@ struct WarpGemmAtrributeMfmaIterateK
                 sequence<2>,
                 sequence<1>>{};
         }
-        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
-        {
-            /// FIXME: use correct code here
-            // each N blocks share the same data
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kBNLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
-        }
     }
 
     CK_TILE_DEVICE static constexpr auto get_cwarp_dstr_encoding()
@@ -191,18 +164,6 @@ struct WarpGemmAtrributeMfmaIterateK
                 sequence<>,
                 tuple<sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>,
                       sequence<Impl::kBNBlock * Impl::kCNLane>>,
-                tuple<sequence<1, 2>>,
-                tuple<sequence<1, 0>>,
-                sequence<1, 1>,
-                sequence<0, 2>>{};
-        }
-        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
-        {
-            /// FIXME: use correct code here
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>,
-                      sequence<Impl::kCNLane>>,
                 tuple<sequence<1, 2>>,
                 tuple<sequence<1, 0>>,
                 sequence<1, 1>,
