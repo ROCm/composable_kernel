@@ -207,8 +207,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {(max_num_tokens_padded + block_m - 1) / block_m});
     ck_tile::HostTensor<IndexDataType> num_sorted_tiles_host({1});
 
-#if 0
-#   if 1
+#if 1
+#   if 0
     ck_tile::FillStepRange<ADataType>{-.5f, .5f, 0.01f}(a_host);
     ck_tile::FillStepRange<GDataType>{-.5f, .5f, 0.01f}(g_host);
     ck_tile::FillStepRange<DDataType, false>{.5f, -.5f, -0.01f}(d_host);
@@ -225,7 +225,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f}(sg_host);
     ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f}(sd_host);
     ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f}(sy_host);
-    ck_tile::FillUniformDistribution<TopkWeightDataType>{-.5f, .5f}(topk_weight_host);
+    ck_tile::FillUniformDistribution<TopkWeightDataType>{0.0f, 1.0f}(topk_weight_host);
 #   endif
 
     // permute weight
@@ -333,12 +333,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         experts,
         block_m);
 
-    std::cout << sorted_token_ids_host << std::endl;
-    std::cout << num_sorted_tiles_host << std::endl;
-    std::cout << sorted_expert_ids_host << std::endl;
-    std::cout << topk_weight_host << std::endl;
+    // std::cout << sorted_token_ids_host << std::endl;
+    // std::cout << num_sorted_tiles_host << std::endl;
+    // std::cout << sorted_expert_ids_host << std::endl;
+    // std::cout << topk_weight_host << std::endl;
 
-    std::cout << sorted_weight_host << std::endl;
+    // std::cout << sorted_weight_host << std::endl;
 
     // done, preparing GPU buffer
     ck_tile::DeviceMem a_buf(a_host);
