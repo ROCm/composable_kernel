@@ -35,23 +35,22 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-    kernel_batched_gemm_xdl_cshuffle_v3_multi_d(BatchedGemmArg karg)
+        kernel_batched_gemm_xdl_cshuffle_v3_multi_d(BatchedGemmArg karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
+    const index_t g_idx = blockIdx.z % karg.Batch;
 
-    const index_t g_idx = blockIdx.z;
-
-    const auto a_batch_offset = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
-    const auto b_batch_offset = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
-    const auto c_batch_offset = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
+    const auto a_batch_offset  = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
+    const auto b_batch_offset  = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
+    const auto ds_batch_offset = karg.compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
+    const auto c_batch_offset  = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
 
     // populate pointer, desc for Ds
     static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
         // D pointer
-        karg.p_ds_grid(i) =
-            karg.p_ds_grid(i) + static_cast<long_index_t>(karg.BatchStrideDs[i]) * g_idx;
+        karg.p_ds_grid(i) = karg.p_ds_grid(i) + ds_batch_offset[i];
     });
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
@@ -79,7 +78,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-    kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds(BatchedGemmArg karg)
+        kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds(BatchedGemmArg karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
@@ -87,17 +86,17 @@ __global__ void
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    const index_t g_idx = blockIdx.z;
+    const index_t g_idx = blockIdx.z % karg.Batch;
 
-    const auto a_batch_offset = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
-    const auto b_batch_offset = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
-    const auto c_batch_offset = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
+    const auto a_batch_offset  = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
+    const auto b_batch_offset  = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
+    const auto ds_batch_offset = karg.compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
+    const auto c_batch_offset  = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
 
     // populate pointer, desc for Ds
     static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
         // D pointer
-        karg.p_ds_grid(i) =
-            karg.p_ds_grid(i) + static_cast<long_index_t>(karg.BatchStrideDs[i]) * g_idx;
+        karg.p_ds_grid(i) = karg.p_ds_grid(i) + ds_batch_offset[i];
     });
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
@@ -239,8 +238,12 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
     {
         ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
                                        index_t BatchStrideB,
+                                       std::array<ck::index_t, NumDTensor> BatchStrideDs,
                                        index_t BatchStrideC)
-            : BatchStrideA_(BatchStrideA), BatchStrideB_(BatchStrideB), BatchStrideC_(BatchStrideC)
+            : BatchStrideA_(BatchStrideA),
+              BatchStrideB_(BatchStrideB),
+              BatchStrideDs_(BatchStrideDs),
+              BatchStrideC_(BatchStrideC)
         {
         }
 
@@ -254,6 +257,17 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
             return static_cast<long_index_t>(BatchStrideB_) * g_idx;
         }
 
+        __host__ __device__ constexpr auto GetDsPtrOffset(index_t g_idx) const
+        {
+            std::array<long_index_t, NumDTensor> ds_offset_;
+
+            static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
+                ds_offset_[i] = static_cast<long_index_t>(BatchStrideDs_[i]) * g_idx;
+            });
+
+            return ds_offset_;
+        }
+
         __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
         {
             return static_cast<long_index_t>(BatchStrideC_) * g_idx;
@@ -262,13 +276,13 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         private:
         index_t BatchStrideA_;
         index_t BatchStrideB_;
+        const std::array<ck::index_t, NumDTensor> BatchStrideDs_;
         index_t BatchStrideC_;
     };
 
     struct Argument : public GridwiseGemm::Argument
     {
         index_t Batch;
-        const std::array<ck::index_t, NumDTensor> BatchStrideDs;
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
 
         Argument(const ADataType* p_a_grid_,
@@ -306,8 +320,8 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                                      b_element_op_,
                                      c_element_op_},
               Batch{Batch_},
-              BatchStrideDs{BatchStrideDs_},
-              compute_ptr_offset_of_batch{BatchStrideA_, BatchStrideB_, BatchStrideE_}
+              compute_ptr_offset_of_batch{
+                  BatchStrideA_, BatchStrideB_, BatchStrideDs_, BatchStrideE_}
         {
         }
     };
