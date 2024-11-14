@@ -114,7 +114,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
         return b_lds_block_desc;
     }
-#elif 1
+#elif 1 // make sure we have added callee declarations before enabling codes below
     // fake XOR
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
