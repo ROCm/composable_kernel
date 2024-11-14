@@ -43,4 +43,4 @@ test_max_pool2d_bwd
 test_avg_pool2d_fwd
 test_max_pool2d_fwd
 
-## Total Tests: 37
+## Total Tests: 39 (1 - disabled {test_gemm_universal}, 2 - not executed {fnuz})
