@@ -25,7 +25,8 @@ struct WarpGemmAtrributeMfma
     static constexpr index_t kN = Impl::kN;
     static constexpr index_t kK = Impl::kK;
 
-    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1, "Only support single block for now");
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -87,7 +88,8 @@ struct WarpGemmAtrributeMfmaIterateK
     static constexpr index_t kN = Impl::kN;
     static constexpr index_t kK = Impl::kK * kKIter;
 
-    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1, "Only support single block for now");
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -172,7 +174,8 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
     static constexpr index_t kN = Impl::kM;
     static constexpr index_t kK = Impl::kK;
 
-    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1, "Only support single block for now");
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -232,7 +235,8 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
     static constexpr index_t kN = Impl::kM;
     static constexpr index_t kK = Impl::kK;
 
-    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1, "Only support single block for now");
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -299,7 +303,8 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
     static constexpr index_t kN = Impl::kM;
     static constexpr index_t kK = Impl::kK * kKIter;
 
-    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1, "Only support single block for now");
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -387,7 +392,8 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
     static constexpr index_t kK      = Impl::kK * kKIter;
     static constexpr index_t SFactor = SFactor_; // group how many CM1 together
 
-    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1, "Only support single block for now");
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -500,7 +506,8 @@ struct WarpGemmAtrributeMfmaIterateK_SwizzleA
     static constexpr index_t kK      = Impl::kK * kKIter;
     static constexpr index_t SFactor = SFactor_; // group how many CM1 together
 
-    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1, "Only support single block for now");
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
