@@ -88,8 +88,8 @@ struct WarpGemmAtrributeMfmaIterateK
     static constexpr index_t kN = Impl::kN;
     static constexpr index_t kK = Impl::kK * kKIter;
 
-    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
-                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
+    static_assert(!(1 < Impl::kAMBlock && 1 < Impl::kBNBlock),
+                  "Multi-block on both M & N directions is not supported");
 
     CK_TILE_DEVICE static constexpr auto get_awarp_dstr_encoding()
     {
@@ -106,17 +106,20 @@ struct WarpGemmAtrributeMfmaIterateK
         }
         else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
         {
+            // each M blocks share the same data
             return tile_distribution_encoding<
-                sequence<>,
+                sequence<Impl::kBNBlock>,
                 tuple<sequence<Impl::kAMLane>,
                       sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
+                tuple<sequence<0, 2, 1>>,
+                tuple<sequence<0, 0, 0>>,
                 sequence<2>,
                 sequence<1>>{};
         }
         else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
         {
+            /// FIXME: use correct code here
+            // single block to multi-block thread mapping
             return tile_distribution_encoding<
                 sequence<>,
                 tuple<sequence<Impl::kAMLane>,
@@ -143,17 +146,20 @@ struct WarpGemmAtrributeMfmaIterateK
         }
         else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
         {
+            // single block to multi-block thread mapping
             return tile_distribution_encoding<
                 sequence<>,
-                tuple<sequence<Impl::kBNLane>,
+                tuple<sequence<Impl::kBNBlock, Impl::kBNLane>,
                       sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
+                tuple<sequence<1, 2, 1>>,
+                tuple<sequence<0, 0, 1>>,
                 sequence<2>,
                 sequence<1>>{};
         }
         else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
         {
+            /// FIXME: use correct code here
+            // each N blocks share the same data
             return tile_distribution_encoding<
                 sequence<>,
                 tuple<sequence<Impl::kBNLane>,
