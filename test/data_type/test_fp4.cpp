@@ -9,6 +9,7 @@ using ck::e8m0_scale_t;
 using ck::f4_convert_rne;
 using ck::f4_convert_sr;
 using ck::f4_t;
+using ck::f4x2_pk_t;
 using ck::Number;
 using ck::scaled_type_convert;
 using ck::type_convert;
@@ -17,7 +18,7 @@ using ck::vector_type;
 using ck::utils::cast_from_float;
 using ck::utils::cast_to_float;
 
-TEST(FP8, NumericLimits)
+TEST(FP4, NumericLimits)
 {
     // constants given for negative zero nan mode
     EXPECT_EQ(ck::NumericLimits<f4_t>::Min(), f4_t{0x2});
@@ -89,7 +90,7 @@ TEST(FP4, ScaledConvertFP32Nearest)
     float max_fp4 = 6.0f;
     // set maximum scale
     float max_scale = std::pow(2,
-                               ck::NumericLimits<e8m0_scale_t>::Max() -
+                               ck::NumericLimits<e8m0_scale_t>::Max().data -
                                    ck::NumericUtils<e8m0_scale_t>::bias); // 0xFE -> float
     // set minimum scale
     float min_scale = std::pow(2, -ck::NumericUtils<e8m0_scale_t>::bias); // 0x00 -> float
@@ -161,7 +162,7 @@ TEST(FP4, ScaledConvertFP32Stochastic)
     float max_fp4 = 6.0f;
     // set maximum scale
     float max_scale = std::pow(2,
-                               ck::NumericLimits<e8m0_scale_t>::Max() -
+                               ck::NumericLimits<e8m0_scale_t>::Max().data -
                                    ck::NumericUtils<e8m0_scale_t>::bias); // 0xFE -> float
     // set minimum scale
     float min_scale = std::pow(2, -ck::NumericUtils<e8m0_scale_t>::bias); // 0x00 -> float
@@ -225,54 +226,242 @@ TEST(FP4, ScaledConvertFP32Stochastic)
 
 TEST(FP4, TestSize)
 {
-    ASSERT_EQ(1, sizeof(f4_t));
-    ASSERT_EQ(2, sizeof(vector_type<f4_t, 2>));
-    ASSERT_EQ(4, sizeof(vector_type<f4_t, 4>));
+    ASSERT_EQ(1, sizeof(f4x2_pk_t));
+    ASSERT_EQ(1, sizeof(vector_type<f4x2_pk_t, 1>));
+    ASSERT_EQ(2, sizeof(vector_type<f4x2_pk_t, 2>));
+    ASSERT_EQ(4, sizeof(vector_type<f4x2_pk_t, 4>));
+    ASSERT_EQ(8, sizeof(vector_type<f4x2_pk_t, 8>));
+    ASSERT_EQ(16, sizeof(vector_type<f4x2_pk_t, 16>));
+    ASSERT_EQ(32, sizeof(vector_type<f4x2_pk_t, 32>));
 }
 
 TEST(FP4, TestAlignment)
 {
-    ASSERT_EQ(1, alignof(f4_t));
-    ASSERT_EQ(1, alignof(vector_type<f4_t, 2>));
-    ASSERT_EQ(2, alignof(vector_type<f4_t, 4>));
+    ASSERT_EQ(1, alignof(f4x2_pk_t));
+    ASSERT_EQ(1, alignof(vector_type<f4x2_pk_t, 1>));
+    ASSERT_EQ(2, alignof(vector_type<f4x2_pk_t, 2>));
+    ASSERT_EQ(4, alignof(vector_type<f4x2_pk_t, 4>));
+    ASSERT_EQ(8, alignof(vector_type<f4x2_pk_t, 8>));
+    ASSERT_EQ(16, alignof(vector_type<f4x2_pk_t, 16>));
+    ASSERT_EQ(32, alignof(vector_type<f4x2_pk_t, 32>));
 }
 
+// test vector of 1 f4x2_pk_t, contains 2 f4_t
+TEST(FP4, TestAsType1)
+{
+    // test size
+    const int size                        = 1;
+    std::vector<f4x2_pk_t::type> test_vec = {f4x2_pk_t::type{0b0010}, f4x2_pk_t::type{0b1001}};
+    // reference vector
+    vector_type<f4x2_pk_t, size> right_vec;
+    // check default CTOR
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+    });
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<f4x2_pk_t>()(Number<i>{}) =
+            f4x2_pk_t{}.pack(test_vec.at(i), test_vec.at(i + 1));
+    });
+    // copy the vector
+    vector_type<f4x2_pk_t, size> left_vec{right_vec};
+    // check if values were copied correctly
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+    });
+}
+
+// test vector of 2 f4x2_pk_t, contains 4 f4_t
 TEST(FP4, TestAsType2)
 {
     // test size
-    const int size             = 2;
-    std::vector<f4_t> test_vec = {f4_t{0b0010}, f4_t{0b1001}};
+    const int size                        = 2;
+    std::vector<f4x2_pk_t::type> test_vec = {f4x2_pk_t::type{0b0010},
+                                             f4x2_pk_t::type{0b1001},
+                                             f4x2_pk_t::type{0b0001},
+                                             f4x2_pk_t::type{0b0111}};
     // reference vector
-    vector_type<f4_t, size> right_vec;
+    vector_type<f4x2_pk_t, size> right_vec;
     // check default CTOR
-    ck::static_for<0, size, 1>{}(
-        [&](auto i) { ASSERT_EQ(right_vec.template AsType<f4_t>()(Number<i>{}), 0); });
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+    });
     // assign test values to the vector
-    ck::static_for<0, size, 1>{}(
-        [&](auto i) { right_vec.template AsType<f4_t>()(Number<i>{}) = test_vec.at(i); });
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<f4x2_pk_t>()(Number<i>{}) =
+            f4x2_pk_t{}.pack(test_vec.at(i), test_vec.at(i + 1));
+    });
     // copy the vector
-    vector_type<f4_t, size> left_vec{right_vec};
+    vector_type<f4x2_pk_t, size> left_vec{right_vec};
     // check if values were copied correctly
-    ck::static_for<0, size, 1>{}(
-        [&](auto i) { ASSERT_EQ(left_vec.template AsType<f4_t>()(Number<i>{}), test_vec.at(i)); });
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+    });
 }
 
+// test vector of 4 f4x2_pk_t, contains 8 f4_t
 TEST(FP4, TestAsType4)
 {
     // test size
-    const int size             = 4;
-    std::vector<f4_t> test_vec = {f4_t{0b0010}, f4_t{0b1001}, f4_t{0b0001}, f4_t{0b0111}};
+    const int size                        = 4;
+    std::vector<f4x2_pk_t::type> test_vec = {f4x2_pk_t::type{0b0010},
+                                             f4x2_pk_t::type{0b1001},
+                                             f4x2_pk_t::type{0b0001},
+                                             f4x2_pk_t::type{0b0111},
+                                             f4x2_pk_t::type{0b1010},
+                                             f4x2_pk_t::type{0b0001},
+                                             f4x2_pk_t::type{0b1001},
+                                             f4x2_pk_t::type{0b1111}};
     // reference vector
-    vector_type<f4_t, size> right_vec;
+    vector_type<f4x2_pk_t, size> right_vec;
     // check default CTOR
-    ck::static_for<0, size, 1>{}(
-        [&](auto i) { ASSERT_EQ(right_vec.template AsType<f4_t>()(Number<i>{}), 0); });
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+    });
     // assign test values to the vector
-    ck::static_for<0, size, 1>{}(
-        [&](auto i) { right_vec.template AsType<f4_t>()(Number<i>{}) = test_vec.at(i); });
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<f4x2_pk_t>()(Number<i>{}) =
+            f4x2_pk_t{}.pack(test_vec.at(i), test_vec.at(i + 1));
+    });
     // copy the vector
-    vector_type<f4_t, size> left_vec{right_vec};
+    vector_type<f4x2_pk_t, size> left_vec{right_vec};
     // check if values were copied correctly
-    ck::static_for<0, size, 1>{}(
-        [&](auto i) { ASSERT_EQ(left_vec.template AsType<f4_t>()(Number<i>{}), test_vec.at(i)); });
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+    });
+}
+
+// test vector of 8 f4x2_pk_t, contains 16 f4_t
+TEST(FP4, TestAsType8)
+{
+    // test size
+    const int size                        = 8;
+    std::vector<f4x2_pk_t::type> test_vec = {f4x2_pk_t::type{0b0010},
+                                             f4x2_pk_t::type{0b1001},
+                                             f4x2_pk_t::type{0b0001},
+                                             f4x2_pk_t::type{0b0111},
+                                             f4x2_pk_t::type{0b1010},
+                                             f4x2_pk_t::type{0b0001},
+                                             f4x2_pk_t::type{0b1001},
+                                             f4x2_pk_t::type{0b1111},
+                                             f4x2_pk_t::type{0b0001},
+                                             f4x2_pk_t::type{0b0111},
+                                             f4x2_pk_t::type{0b1010},
+                                             f4x2_pk_t::type{0b0001},
+                                             f4x2_pk_t::type{0b0010},
+                                             f4x2_pk_t::type{0b1001},
+                                             f4x2_pk_t::type{0b1001},
+                                             f4x2_pk_t::type{0b1111}};
+    // reference vector
+    vector_type<f4x2_pk_t, size> right_vec;
+    // check default CTOR
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+    });
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<f4x2_pk_t>()(Number<i>{}) =
+            f4x2_pk_t{}.pack(test_vec.at(i), test_vec.at(i + 1));
+    });
+    // copy the vector
+    vector_type<f4x2_pk_t, size> left_vec{right_vec};
+    // check if values were copied correctly
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+    });
+}
+
+// test vector of 16 f4x2_pk_t, contains 32 f4_t
+TEST(FP4, TestAsType16)
+{
+    // test size
+    const int size                        = 16;
+    std::vector<f4x2_pk_t::type> test_vec = {
+        f4x2_pk_t::type{0b0010}, f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b0111}, f4x2_pk_t::type{0b1010}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1111}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b0111}, f4x2_pk_t::type{0b1010}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b0010}, f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1001},
+        f4x2_pk_t::type{0b1111}, f4x2_pk_t::type{0b0010}, f4x2_pk_t::type{0b1001},
+        f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b0111}, f4x2_pk_t::type{0b1010},
+        f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1111},
+        f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b0111}, f4x2_pk_t::type{0b1010},
+        f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b0010}, f4x2_pk_t::type{0b1001},
+        f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1111}};
+    // reference vector
+    vector_type<f4x2_pk_t, size> right_vec;
+    // check default CTOR
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+    });
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<f4x2_pk_t>()(Number<i>{}) =
+            f4x2_pk_t{}.pack(test_vec.at(i), test_vec.at(i + 1));
+    });
+    // copy the vector
+    vector_type<f4x2_pk_t, size> left_vec{right_vec};
+    // check if values were copied correctly
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+    });
+}
+
+// test vector of 32 f4x2_pk_t, contains 64 f4_t
+TEST(FP4, TestAsType32)
+{
+    // test size
+    const int size                        = 32;
+    std::vector<f4x2_pk_t::type> test_vec = {
+        f4x2_pk_t::type{0b0010}, f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b0111}, f4x2_pk_t::type{0b1010}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1111}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b0111}, f4x2_pk_t::type{0b1010}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b0010}, f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1001},
+        f4x2_pk_t::type{0b1111}, f4x2_pk_t::type{0b0010}, f4x2_pk_t::type{0b1001},
+        f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b0111}, f4x2_pk_t::type{0b1010},
+        f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1111},
+        f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b0111}, f4x2_pk_t::type{0b1010},
+        f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b0010}, f4x2_pk_t::type{0b1001},
+        f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1111}, f4x2_pk_t::type{0b0010},
+        f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b0111},
+        f4x2_pk_t::type{0b1010}, f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b1001},
+        f4x2_pk_t::type{0b1111}, f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b0111},
+        f4x2_pk_t::type{0b1010}, f4x2_pk_t::type{0b0001}, f4x2_pk_t::type{0b0010},
+        f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1111},
+        f4x2_pk_t::type{0b0010}, f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b0111}, f4x2_pk_t::type{0b1010}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1111}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b0111}, f4x2_pk_t::type{0b1010}, f4x2_pk_t::type{0b0001},
+        f4x2_pk_t::type{0b0010}, f4x2_pk_t::type{0b1001}, f4x2_pk_t::type{0b1001},
+        f4x2_pk_t::type{0b1111}};
+    // reference vector
+    vector_type<f4x2_pk_t, size> right_vec;
+    // check default CTOR
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+    });
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<f4x2_pk_t>()(Number<i>{}) =
+            f4x2_pk_t{}.pack(test_vec.at(i), test_vec.at(i + 1));
+    });
+    // copy the vector
+    vector_type<f4x2_pk_t, size> left_vec{right_vec};
+    // check if values were copied correctly
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+    });
 }

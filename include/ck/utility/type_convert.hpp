@@ -566,6 +566,18 @@ inline __host__ __device__ float type_convert<float, f4_t>(f4_t data)
 #endif
 }
 
+template <>
+inline __host__ __device__ float type_convert<float, e8m0_scale_t>(e8m0_scale_t scale)
+{
+    return utils::cast_to_float(scale);
+}
+
+template <>
+inline __host__ __device__ e8m0_scale_t type_convert<e8m0_scale_t, float>(float scale)
+{
+    return utils::cast_from_float(scale);
+}
+
 // Declare a template function for scaled conversion
 template <typename Y, typename X>
 __host__ __device__ constexpr Y scaled_type_convert(e8m0_scale_t scale, X x);

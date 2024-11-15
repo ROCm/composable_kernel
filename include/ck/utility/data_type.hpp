@@ -7,13 +7,43 @@
 
 namespace ck {
 
-using bhalf_t      = ushort;
-using half_t       = _Float16;
-using int4_t       = _BitInt(4);
-using f4_t         = unsigned _BitInt(4);
-using f8_t         = _BitInt(8);
-using bf8_t        = unsigned _BitInt(8);
-using e8m0_scale_t = uint8_t;
+using bhalf_t = ushort;
+using half_t  = _Float16;
+using int4_t  = _BitInt(4);
+using f4_t    = unsigned _BitInt(4);
+using f8_t    = _BitInt(8);
+using bf8_t   = unsigned _BitInt(8);
+
+struct e8m0_scale_t
+{
+    using type = uint8_t;
+    type data;
+    constexpr e8m0_scale_t() : data{type{}} {}
+    constexpr e8m0_scale_t(type init) : data{init} {}
+
+    bool operator==(const e8m0_scale_t& other) const { return (data == other.data); }
+};
+
+struct f4x2_pk_t
+{
+    using type = uint8_t;
+    type data;
+    f4x2_pk_t() : data{type{}} {}
+    f4x2_pk_t(type init) : data{init} {}
+
+    __host__ __device__ inline type unpack(const size_t index)
+    {
+        // if (index == 0) return (data << 4) >> 4;
+        if(index == 0)
+            return data & 0b00001111;
+        return (data >> 4);
+    }
+
+    __host__ __device__ inline type pack(const type x0, const type x1)
+    {
+        return (x1 << 4) | (x0 & 0b00001111);
+    }
+};
 
 inline constexpr auto next_pow2(uint32_t x)
 {
@@ -28,7 +58,7 @@ inline constexpr bool is_native_type()
     return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
            is_same<T, bhalf_t>::value || is_same<T, int32_t>::value || is_same<T, int8_t>::value ||
            is_same<T, uint8_t>::value || is_same<T, f8_t>::value || is_same<T, bf8_t>::value ||
-           is_same<T, bool>::value;
+           is_same<T, bool>::value || is_same<T, f4_t>::value;
 }
 
 // vector_type
@@ -1587,136 +1617,6 @@ struct vector_type<T, 64, typename std::enable_if_t<!is_native_type<T>()>>
     }
 };
 
-template <>
-struct vector_type<f4_t, 2, typename std::enable_if_t<!is_native_type<f4_t>()>>
-{
-    using d1_t = f4_t;
-    using d2_t = uint8_t;
-
-    using type = d2_t;
-
-    union alignas(next_pow2(sizeof(type)))
-    {
-        d2_t d2_;
-        StaticallyIndexedArray<d1_t, 2> d1x2_;
-        StaticallyIndexedArray<d2_t, 1> d2x1_;
-    } data_;
-
-    __host__ __device__ constexpr vector_type() : data_{type{}} {}
-
-    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
-
-    template <typename X>
-    __host__ __device__ constexpr const auto& AsType() const
-    {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value,
-                      "Something went wrong, please check src and dst types.");
-
-        if constexpr(is_same<X, d1_t>::value)
-        {
-            return data_.d1x2_;
-        }
-        else if constexpr(is_same<X, d2_t>::value)
-        {
-            return data_.d2x1_;
-        }
-        else
-        {
-            return err;
-        }
-    }
-
-    template <typename X>
-    __host__ __device__ constexpr auto& AsType()
-    {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value,
-                      "Something went wrong, please check src and dst types.");
-
-        if constexpr(is_same<X, d1_t>::value)
-        {
-            return data_.d1x2_;
-        }
-        else if constexpr(is_same<X, d2_t>::value)
-        {
-            return data_.d2x1_;
-        }
-        else
-        {
-            return err;
-        }
-    }
-};
-
-template <>
-struct vector_type<f4_t, 4, typename std::enable_if_t<!is_native_type<f4_t>()>>
-{
-    using d1_t = f4_t;
-    using d2_t = uint8_t;
-    using d4_t = uint16_t;
-
-    using type = d4_t;
-
-    union alignas(next_pow2(sizeof(type)))
-    {
-        d4_t d4_;
-        StaticallyIndexedArray<d1_t, 4> d1x4_;
-        StaticallyIndexedArray<d2_t, 2> d2x2_;
-        StaticallyIndexedArray<d4_t, 1> d4x1_;
-    } data_;
-
-    __host__ __device__ constexpr vector_type() : data_{type{}} {}
-
-    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
-
-    template <typename X>
-    __host__ __device__ constexpr const auto& AsType() const
-    {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d4_t>::value,
-                      "Something went wrong, please check src and dst types.");
-
-        if constexpr(is_same<X, d1_t>::value)
-        {
-            return data_.d1x4_;
-        }
-        else if constexpr(is_same<X, d2_t>::value)
-        {
-            return data_.d2x2_;
-        }
-        else if constexpr(is_same<X, d4_t>::value)
-        {
-            return data_.d4x1_;
-        }
-        else
-        {
-            return err;
-        }
-    }
-
-    template <typename X>
-    __host__ __device__ constexpr auto& AsType()
-    {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d4_t>::value,
-                      "Something went wrong, please check src and dst types.");
-
-        if constexpr(is_same<X, d1_t>::value)
-        {
-            return data_.d1x4_;
-        }
-        else if constexpr(is_same<X, d2_t>::value)
-        {
-            return data_.d2x2_;
-        }
-        else if constexpr(is_same<X, d4_t>::value)
-        {
-            return data_.d4x1_;
-        }
-        else
-        {
-            return err;
-        }
-    }
-};
-
 using int64_t = long;
 
 // fp64
@@ -1786,6 +1686,14 @@ using uint8x8_t  = typename vector_type<uint8_t, 8>::type;
 using uint8x16_t = typename vector_type<uint8_t, 16>::type;
 using uint8x32_t = typename vector_type<uint8_t, 32>::type;
 using uint8x64_t = typename vector_type<uint8_t, 64>::type;
+
+// f4
+using f4x2_t  = typename vector_type<f4x2_pk_t, 1>::type;
+using f4x4_t  = typename vector_type<f4x2_pk_t, 2>::type;
+using f4x8_t  = typename vector_type<f4x2_pk_t, 4>::type;
+using f4x16_t = typename vector_type<f4x2_pk_t, 8>::type;
+using f4x32_t = typename vector_type<f4x2_pk_t, 16>::type;
+using f4x64_t = typename vector_type<f4x2_pk_t, 32>::type;
 
 template <typename T>
 struct NumericLimits
