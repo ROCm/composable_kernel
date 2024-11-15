@@ -26,6 +26,7 @@ struct Layernorm2dFwdPipelineDefaultPolicy
                 sequence<1, 1, 2, 2>,
                 sequence<0, 3, 0, 3>>{});
     }
+
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeGammaBetaBlockTileDistribution()
     {
@@ -44,9 +45,10 @@ struct Layernorm2dFwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockWelford()
     {
-        using P_ = BlockWelfordProblem<typename Problem::XDataType,
+        using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                        typename Problem::ComputeDataType,
-                                       typename Problem::BlockShape>;
+                                       typename Problem::BlockShape,
+                                       Problem::Traits::kFastFDiv>;
 
         return BlockWelford<P_>{};
     }
@@ -54,9 +56,10 @@ struct Layernorm2dFwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockWelfordSync()
     {
-        using P_ = BlockWelfordProblem<typename Problem::XDataType,
+        using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                        typename Problem::ComputeDataType,
-                                       typename Problem::BlockShape>;
+                                       typename Problem::BlockShape,
+                                       Problem::Traits::kFastFDiv>;
 
         return BlockWelfordSync<P_>{};
     }
@@ -64,9 +67,10 @@ struct Layernorm2dFwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockWelfordCrossWarpSync()
     {
-        using P_ = BlockWelfordProblem<typename Problem::XDataType,
+        using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                        typename Problem::ComputeDataType,
-                                       typename Problem::BlockShape>;
+                                       typename Problem::BlockShape,
+                                       Problem::Traits::kFastFDiv>;
 
         return BlockWelfordCrossWarpSync<P_>{};
     }
@@ -76,13 +80,14 @@ struct Layernorm2dFwdPipelineDefaultPolicy
     {
         if constexpr(Problem::kNeedCrossWarpSync)
         {
-            using P_ = BlockWelfordProblem<typename Problem::XDataType,
+            using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                            typename Problem::ComputeDataType,
-                                           typename Problem::BlockShape>;
+                                           typename Problem::BlockShape,
+                                           Problem::Traits::kFastFDiv>;
 
             using block_welford = BlockWelford<P_>;
             using x_block_tile =
-                decltype(make_static_distributed_tensor<typename Problem::XDataType>(
+                decltype(make_static_distributed_tensor<typename Problem::ComputeDataType>(
                     MakeXBlockTileDistribution<Problem>()));
             using mean_var_block_tile =
                 decltype(block_welford::template MakeMeanVarBlockTile<x_block_tile>());
