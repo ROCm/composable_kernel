@@ -56,7 +56,6 @@ void add_device_batched_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_defaul
                                                           PassThrough,
                                                           PassThrough,
                                                           PassThrough>>>& instances);
-
 #endif
 
 #ifdef CK_ENABLE_FP8
@@ -98,7 +97,6 @@ void add_device_batched_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v2_default_in
                                                           PassThrough,
                                                           PassThrough,
                                                           PassThrough>>>& instances);
-
 #endif
 
 template <typename ADataType,
