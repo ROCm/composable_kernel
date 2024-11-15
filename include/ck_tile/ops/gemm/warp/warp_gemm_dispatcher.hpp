@@ -29,6 +29,10 @@ template<> struct WarpGemmMfmaDispatcher<half_t, half_t, float, 16, 16, 16, fals
 template<> struct WarpGemmMfmaDispatcher<half_t, half_t, float, 16, 16, 16, true> { using Type = WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution; };
 template<> struct WarpGemmMfmaDispatcher<half_t, half_t, float, 16, 16, 32, false> { using Type = WarpGemmMfmaF16F16F32M16N16K32; };
 template<> struct WarpGemmMfmaDispatcher<half_t, half_t, float, 16, 16, 32, true> { using Type = WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution; };
+template<> struct WarpGemmMfmaDispatcher<half_t, half_t, float, 4, 64, 16, false> { using Type = WarpGemmMfmaF16F16F32M4N64K16; };
+template<> struct WarpGemmMfmaDispatcher<half_t, half_t, float, 4, 64, 16, true> { using Type = WarpGemmMfmaF16F16F32M4N64K16TransposedCDistribution; };
+template<> struct WarpGemmMfmaDispatcher<half_t, half_t, float, 64, 4, 16, false> { using Type = WarpGemmMfmaF16F16F32M64N4K16; };
+template<> struct WarpGemmMfmaDispatcher<half_t, half_t, float, 64, 4, 16, true> { using Type = WarpGemmMfmaF16F16F32M64N4K16TransposedCDistribution; };
 
 template<> struct WarpGemmMfmaDispatcher<half_t, half_t, float, 32, 32,  8, false, true> { using Type = WarpGemmMfmaF16F16F32M32N32K8SwizzleA; };
 template<> struct WarpGemmMfmaDispatcher<half_t, half_t, float, 32, 32, 16, false, true> { using Type = WarpGemmMfmaF16F16F32M32N32K16SwizzleA; };
@@ -42,6 +46,10 @@ template<> struct WarpGemmMfmaDispatcher<bf16_t, bf16_t, float, 16, 16, 16, fals
 template<> struct WarpGemmMfmaDispatcher<bf16_t, bf16_t, float, 16, 16, 16, true> { using Type = WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution; };
 template<> struct WarpGemmMfmaDispatcher<bf16_t, bf16_t, float, 16, 16, 32, false> { using Type = WarpGemmMfmaBf16Bf16F32M16N16K32; };
 template<> struct WarpGemmMfmaDispatcher<bf16_t, bf16_t, float, 16, 16, 32, true> { using Type = WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution; };
+template<> struct WarpGemmMfmaDispatcher<bf16_t, bf16_t, float, 4, 64, 16, false> { using Type = WarpGemmMfmaBf16Bf16F32M4N64K16; };
+template<> struct WarpGemmMfmaDispatcher<bf16_t, bf16_t, float, 4, 64, 16, true> { using Type = WarpGemmMfmaBf16Bf16F32M4N64K16TransposedCDistribution; };
+template<> struct WarpGemmMfmaDispatcher<bf16_t, bf16_t, float, 64, 4, 16, false> { using Type = WarpGemmMfmaBf16Bf16F32M64N4K16; };
+template<> struct WarpGemmMfmaDispatcher<bf16_t, bf16_t, float, 64, 4, 16, true> { using Type = WarpGemmMfmaBf16Bf16F32M64N4K16TransposedCDistribution; };
 
 template<> struct WarpGemmMfmaDispatcher<bf16_t, bf16_t, float, 32, 32,  8, false, true> { using Type = WarpGemmMfmaBf16Bf16F32M32N32K8SwizzleA; };
 template<> struct WarpGemmMfmaDispatcher<bf16_t, bf16_t, float, 32, 32, 16, false, true> { using Type = WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleA; };

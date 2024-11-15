@@ -22,6 +22,9 @@ struct WarpGemmAttributeMfmaImplF16F16F32M32N32K8
     static constexpr index_t kN = 32;
     static constexpr index_t kK = 8;
 
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
     static constexpr index_t kAMLane     = 32;
     static constexpr index_t kBNLane     = 32;
     static constexpr index_t kABKLane    = 2;
@@ -73,6 +76,9 @@ struct WarpGemmAttributeMfmaImplF16F16F32M16N16K16
     static constexpr index_t kN = 16;
     static constexpr index_t kK = 16;
 
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
     static constexpr index_t kAMLane     = 16;
     static constexpr index_t kBNLane     = 16;
     static constexpr index_t kABKLane    = 4;
@@ -110,6 +116,116 @@ struct WarpGemmAttributeMfmaImplF16F16F32M16N16K16
     }
 };
 
+struct WarpGemmAttributeMfmaImplF16F16F32M4N64K4
+{
+    using ADataType = fp16_t;
+    using BDataType = fp16_t;
+    using CDataType = float;
+
+    using AVecType = ext_vector_t<fp16_t, 4>;
+    using BVecType = ext_vector_t<fp16_t, 4>;
+    using CVecType = ext_vector_t<float, 4>;
+
+    static constexpr index_t kM = 4;
+    static constexpr index_t kN = 64;
+    static constexpr index_t kK = 4;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 16;
+
+    // we only write down single block (4 threads) thread mapping here
+    static constexpr index_t kAMLane     = 4;
+    static constexpr index_t kBNLane     = 4;
+    static constexpr index_t kABKLane    = 1;
+    static constexpr index_t kABKPerLane = 4;
+
+    static constexpr index_t kCMLane     = 1;
+    static constexpr index_t kCNLane     = 4;
+    static constexpr index_t kCM0PerLane = 1;
+    static constexpr index_t kCM1PerLane = 4;
+
+    // c_vec += a_vec * b_vec
+    CK_TILE_DEVICE void
+    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx9__)
+        c_vec = __builtin_amdgcn_mfma_f32_4x4x4f16(a_vec, b_vec, c_vec, 0, 0, 0);
+#else
+        ignore = c_vec;
+        ignore = a_vec;
+        ignore = b_vec;
+#endif
+    }
+
+    // c_vec = a_vec * b_vec
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx9__)
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_mfma_f32_4x4x4f16(a_vec, b_vec, fp32x4_t{0.f}, 0, 0, 0));
+#else
+        ignore = a_vec;
+        ignore = b_vec;
+        return CVecType{0.f};
+#endif
+    }
+};
+
+struct WarpGemmAttributeMfmaImplF16F16F32M64N4K4
+{
+    using ADataType = fp16_t;
+    using BDataType = fp16_t;
+    using CDataType = float;
+
+    using AVecType = ext_vector_t<fp16_t, 4>;
+    using BVecType = ext_vector_t<fp16_t, 4>;
+    using CVecType = ext_vector_t<float, 4>;
+
+    static constexpr index_t kM = 64;
+    static constexpr index_t kN = 4;
+    static constexpr index_t kK = 4;
+
+    static constexpr index_t kAMBlock = 16;
+    static constexpr index_t kBNBlock = 1;
+
+    // we only write down single block (4 threads) thread mapping here
+    static constexpr index_t kAMLane     = 4;
+    static constexpr index_t kBNLane     = 4;
+    static constexpr index_t kABKLane    = 1;
+    static constexpr index_t kABKPerLane = 4;
+
+    static constexpr index_t kCMLane     = 1;
+    static constexpr index_t kCNLane     = 4;
+    static constexpr index_t kCM0PerLane = 1;
+    static constexpr index_t kCM1PerLane = 4;
+
+    // c_vec += a_vec * b_vec
+    CK_TILE_DEVICE void
+    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx9__)
+        c_vec = __builtin_amdgcn_mfma_f32_4x4x4f16(a_vec, b_vec, c_vec, 0, 0, 0);
+#else
+        ignore = c_vec;
+        ignore = a_vec;
+        ignore = b_vec;
+#endif
+    }
+
+    // c_vec = a_vec * b_vec
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx9__)
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_mfma_f32_4x4x4f16(a_vec, b_vec, fp32x4_t{0.f}, 0, 0, 0));
+#else
+        ignore = a_vec;
+        ignore = b_vec;
+        return CVecType{0.f};
+#endif
+    }
+};
+
 // Bf16
 struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8
 {
@@ -124,6 +240,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8
     static constexpr index_t kM = 32;
     static constexpr index_t kN = 32;
     static constexpr index_t kK = 8;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
 
     static constexpr index_t kAMLane     = 32;
     static constexpr index_t kBNLane     = 32;
@@ -202,6 +321,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16
     static constexpr index_t kN = 16;
     static constexpr index_t kK = 16;
 
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
     static constexpr index_t kAMLane     = 16;
     static constexpr index_t kBNLane     = 16;
     static constexpr index_t kABKLane    = 4;
@@ -265,6 +387,116 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16
     }
 };
 
+struct WarpGemmAttributeMfmaImplBf16Bf16F32M4N64K4
+{
+    using ADataType = bf16_t;
+    using BDataType = bf16_t;
+    using CDataType = float;
+
+    using AVecType = ext_vector_t<bf16_t, 4>;
+    using BVecType = ext_vector_t<bf16_t, 4>;
+    using CVecType = ext_vector_t<float, 4>;
+
+    static constexpr index_t kM = 4;
+    static constexpr index_t kN = 64;
+    static constexpr index_t kK = 4;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 16;
+
+    // we only write down single block (4 threads) thread mapping here
+    static constexpr index_t kAMLane     = 4;
+    static constexpr index_t kBNLane     = 4;
+    static constexpr index_t kABKLane    = 1;
+    static constexpr index_t kABKPerLane = 4;
+
+    static constexpr index_t kCMLane     = 1;
+    static constexpr index_t kCNLane     = 4;
+    static constexpr index_t kCM0PerLane = 1;
+    static constexpr index_t kCM1PerLane = 4;
+
+    // c_vec += a_vec * b_vec
+    CK_TILE_DEVICE void
+    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx9__)
+        c_vec = __builtin_amdgcn_mfma_f32_4x4x4bf16_1k(a_vec, b_vec, c_vec, 0, 0, 0);
+#else
+        ignore = c_vec;
+        ignore = a_vec;
+        ignore = b_vec;
+#endif
+    }
+
+    // c_vec = a_vec * b_vec
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx9__)
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_mfma_f32_4x4x4bf16_1k(a_vec, b_vec, fp32x4_t{0.f}, 0, 0, 0));
+#else
+        ignore = a_vec;
+        ignore = b_vec;
+        return CVecType{0.f};
+#endif
+    }
+};
+
+struct WarpGemmAttributeMfmaImplBf16Bf16F32M64N4K4
+{
+    using ADataType = bf16_t;
+    using BDataType = bf16_t;
+    using CDataType = float;
+
+    using AVecType = ext_vector_t<bf16_t, 4>;
+    using BVecType = ext_vector_t<bf16_t, 4>;
+    using CVecType = ext_vector_t<float, 4>;
+
+    static constexpr index_t kM = 64;
+    static constexpr index_t kN = 4;
+    static constexpr index_t kK = 4;
+
+    static constexpr index_t kAMBlock = 16;
+    static constexpr index_t kBNBlock = 1;
+
+    // we only write down single block (4 threads) thread mapping here
+    static constexpr index_t kAMLane     = 4;
+    static constexpr index_t kBNLane     = 4;
+    static constexpr index_t kABKLane    = 1;
+    static constexpr index_t kABKPerLane = 4;
+
+    static constexpr index_t kCMLane     = 1;
+    static constexpr index_t kCNLane     = 4;
+    static constexpr index_t kCM0PerLane = 1;
+    static constexpr index_t kCM1PerLane = 4;
+
+    // c_vec += a_vec * b_vec
+    CK_TILE_DEVICE void
+    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx9__)
+        c_vec = __builtin_amdgcn_mfma_f32_4x4x4bf16_1k(a_vec, b_vec, c_vec, 0, 0, 0);
+#else
+        ignore = c_vec;
+        ignore = a_vec;
+        ignore = b_vec;
+#endif
+    }
+
+    // c_vec = a_vec * b_vec
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx9__)
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_mfma_f32_4x4x4bf16_1k(a_vec, b_vec, fp32x4_t{0.f}, 0, 0, 0));
+#else
+        ignore = a_vec;
+        ignore = b_vec;
+        return CVecType{0.f};
+#endif
+    }
+};
+
 // FP8
 template <typename AType_, typename BType_>
 struct WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base
@@ -280,6 +512,9 @@ struct WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base
     static constexpr index_t kM = 32;
     static constexpr index_t kN = 32;
     static constexpr index_t kK = 16;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
 
     static constexpr index_t kAMLane     = 32;
     static constexpr index_t kBNLane     = 32;

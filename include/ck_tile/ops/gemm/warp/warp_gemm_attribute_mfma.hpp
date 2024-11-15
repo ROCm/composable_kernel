@@ -25,6 +25,9 @@ struct WarpGemmAtrributeMfma
     static constexpr index_t kN = Impl::kN;
     static constexpr index_t kK = Impl::kK;
 
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
+
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
         tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
@@ -85,30 +88,130 @@ struct WarpGemmAtrributeMfmaIterateK
     static constexpr index_t kN = Impl::kN;
     static constexpr index_t kK = Impl::kK * kKIter;
 
-    using AWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-        tuple<sequence<2, 1>>,
-        tuple<sequence<0, 0>>,
-        sequence<2>,
-        sequence<1>>;
+    static_assert(Impl::kAMBlock == 1 || Impl::kBNBlock == 1,
+                  "Multi-block on both M & N directions is not supported");
 
-    using BWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-        tuple<sequence<2, 1>>,
-        tuple<sequence<0, 0>>,
-        sequence<2>,
-        sequence<1>>;
+    CK_TILE_DEVICE static constexpr auto get_awarp_dstr_encoding()
+    {
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kAMLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
+        {
+            // each M blocks share the same data
+            return tile_distribution_encoding<
+                sequence<Impl::kBNBlock>,
+                tuple<sequence<Impl::kAMLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<0, 2, 1>>,
+                tuple<sequence<0, 0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
+        {
+            // single block to multi-block thread mapping
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kAMBlock, Impl::kAMLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<1, 2, 1>>,
+                tuple<sequence<0, 0, 1>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+    }
 
-    using CWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>,
-              sequence<Impl::kCNLane>>,
-        tuple<sequence<1, 2>>,
-        tuple<sequence<1, 0>>,
-        sequence<1, 1>,
-        sequence<0, 2>>;
+    CK_TILE_DEVICE static constexpr auto get_bwarp_dstr_encoding()
+    {
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kBNLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
+        {
+            // single block to multi-block thread mapping
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kBNBlock, Impl::kBNLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<1, 2, 1>>,
+                tuple<sequence<0, 0, 1>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
+        {
+            // each N blocks share the same data
+            return tile_distribution_encoding<
+                sequence<Impl::kAMBlock>,
+                tuple<sequence<Impl::kBNLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<0, 2, 1>>,
+                tuple<sequence<0, 0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+    }
+
+    CK_TILE_DEVICE static constexpr auto get_cwarp_dstr_encoding()
+    {
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>,
+                      sequence<Impl::kCNLane>>,
+                tuple<sequence<1, 2>>,
+                tuple<sequence<1, 0>>,
+                sequence<1, 1>,
+                sequence<0, 2>>{};
+        }
+        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>,
+                      sequence<Impl::kBNBlock * Impl::kCNLane>>,
+                tuple<sequence<1, 2>>,
+                tuple<sequence<1, 0>>,
+                sequence<1, 1>,
+                sequence<0, 2>>{};
+        }
+        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<
+                    sequence<Impl::kCM0PerLane, Impl::kAMBlock * Impl::kCMLane, Impl::kCM1PerLane>,
+                    sequence<Impl::kCNLane>>,
+                tuple<sequence<1, 2>>,
+                tuple<sequence<1, 0>>,
+                sequence<1, 1>,
+                sequence<0, 2>>{};
+        }
+    }
+
+    using AWarpDstrEncoding = decltype(get_awarp_dstr_encoding());
+
+    using BWarpDstrEncoding = decltype(get_bwarp_dstr_encoding());
+
+    using CWarpDstrEncoding = decltype(get_cwarp_dstr_encoding());
 
     // c_vec += a_vec * b_vec
     CK_TILE_DEVICE void
@@ -168,6 +271,9 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
     static constexpr index_t kN = Impl::kM;
     static constexpr index_t kK = Impl::kK;
 
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
+
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
         tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
@@ -225,6 +331,9 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
     static constexpr index_t kM = Impl::kN;
     static constexpr index_t kN = Impl::kM;
     static constexpr index_t kK = Impl::kK;
+
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -291,30 +400,130 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
     static constexpr index_t kN = Impl::kM;
     static constexpr index_t kK = Impl::kK * kKIter;
 
-    using AWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-        tuple<sequence<2, 1>>,
-        tuple<sequence<0, 0>>,
-        sequence<2>,
-        sequence<1>>;
+    static_assert(Impl::kAMBlock == 1 || Impl::kBNBlock == 1,
+                  "Multi-block on both M & N directions is not supported");
 
-    using BWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-        tuple<sequence<2, 1>>,
-        tuple<sequence<0, 0>>,
-        sequence<2>,
-        sequence<1>>;
+    CK_TILE_DEVICE static constexpr auto get_awarp_dstr_encoding()
+    {
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kBNLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
+        {
+            // single block to multi-block thread mapping
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kBNBlock, Impl::kBNLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<1, 2, 1>>,
+                tuple<sequence<0, 0, 1>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
+        {
+            // each N blocks share the same data
+            return tile_distribution_encoding<
+                sequence<Impl::kAMBlock>,
+                tuple<sequence<Impl::kBNLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<0, 2, 1>>,
+                tuple<sequence<0, 0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+    }
 
-    using CWarpDstrEncoding = tile_distribution_encoding<
-        sequence<>,
-        tuple<sequence<Impl::kCNLane>,
-              sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>>,
-        tuple<sequence<2, 1>>,
-        tuple<sequence<1, 0>>,
-        sequence<2, 2>,
-        sequence<0, 2>>;
+    CK_TILE_DEVICE static constexpr auto get_bwarp_dstr_encoding()
+    {
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kAMLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
+        {
+            // each M blocks share the same data
+            return tile_distribution_encoding<
+                sequence<Impl::kBNBlock>,
+                tuple<sequence<Impl::kAMLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<0, 2, 1>>,
+                tuple<sequence<0, 0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
+        {
+            // single block to multi-block thread mapping
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kAMBlock, Impl::kAMLane>,
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<1, 2, 1>>,
+                tuple<sequence<0, 0, 1>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+    }
+
+    CK_TILE_DEVICE static constexpr auto get_cwarp_dstr_encoding()
+    {
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kCNLane>,
+                      sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<1, 0>>,
+                sequence<2, 2>,
+                sequence<0, 2>>{};
+        }
+        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kBNBlock * Impl::kCNLane>,
+                      sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<1, 0>>,
+                sequence<2, 2>,
+                sequence<0, 2>>{};
+        }
+        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<
+                    sequence<Impl::kCNLane>,
+                    sequence<Impl::kCM0PerLane, Impl::kAMBlock * Impl::kCMLane, Impl::kCM1PerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<1, 0>>,
+                sequence<2, 2>,
+                sequence<0, 2>>{};
+        }
+    }
+
+    using AWarpDstrEncoding = decltype(get_awarp_dstr_encoding());
+
+    using BWarpDstrEncoding = decltype(get_bwarp_dstr_encoding());
+
+    using CWarpDstrEncoding = decltype(get_cwarp_dstr_encoding());
 
     // c_vec += a_vec * b_vec
     CK_TILE_DEVICE void
@@ -376,6 +585,9 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
     static constexpr index_t kN      = Impl::kM;
     static constexpr index_t kK      = Impl::kK * kKIter;
     static constexpr index_t SFactor = SFactor_; // group how many CM1 together
+
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -487,6 +699,9 @@ struct WarpGemmAtrributeMfmaIterateK_SwizzleA
     static constexpr index_t kN      = Impl::kN;
     static constexpr index_t kK      = Impl::kK * kKIter;
     static constexpr index_t SFactor = SFactor_; // group how many CM1 together
+
+    static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
+                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
