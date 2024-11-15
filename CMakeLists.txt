@@ -570,10 +570,10 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
         LIBRARY_NAME composablekernel
         PACKAGE_NAME examples
    )
-   #add_subdirectory(example)
-   #if(BUILD_TESTING)
-	   #add_subdirectory(test)
-   #endif()
+   add_subdirectory(example)
+   if(BUILD_TESTING)
+	   add_subdirectory(test)
+   endif()
 endif()
 
 rocm_package_setup_component(profiler
@@ -582,9 +582,9 @@ rocm_package_setup_component(profiler
 )
 add_subdirectory(profiler)
 
-#if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
-  #add_subdirectory(codegen)
-#endif()
+if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
+  add_subdirectory(codegen)
+endif()
 
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)

@@ -395,10 +395,11 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         rotating_mem.Next();
                         // clear c mem
                         if(arg_.KBatch > 1)
-                            hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
-                                                             0,
-                                                             arg.Batch * arg_.M * arg_.N * sizeof(CDataType),
-                                                             stream_config.stream_id_));
+                            hipGetErrorString(
+                                hipMemsetAsync(arg_.p_c_grid,
+                                               0,
+                                               arg.Batch * arg_.M * arg_.N * sizeof(CDataType),
+                                               stream_config.stream_id_));
                     };
 
                     ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(

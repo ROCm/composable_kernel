@@ -166,25 +166,25 @@ bool profile_gemm_universal_batched_impl(int do_verification,
 
             auto argument_ptr =
                 op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                        static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                        {},
-                        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                        M,
-                        N,
-                        K,
-                        BatchCount,
-                        StrideA,
-                        StrideB,
-                        {},
-                        StrideC,
-                        BatchStrideA,
-                        BatchStrideB,
-                        {},
-                        BatchStrideC,
-                        ck::tensor_operation::element_wise::PassThrough{},
-                        ck::tensor_operation::element_wise::PassThrough{},
-                        ck::tensor_operation::element_wise::PassThrough{},
-                        kbatch_curr);
+                                            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                                            {},
+                                            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                            M,
+                                            N,
+                                            K,
+                                            BatchCount,
+                                            StrideA,
+                                            StrideB,
+                                            {},
+                                            StrideC,
+                                            BatchStrideA,
+                                            BatchStrideB,
+                                            {},
+                                            BatchStrideC,
+                                            ck::tensor_operation::element_wise::PassThrough{},
+                                            ck::tensor_operation::element_wise::PassThrough{},
+                                            ck::tensor_operation::element_wise::PassThrough{},
+                                            kbatch_curr);
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -193,21 +193,21 @@ bool profile_gemm_universal_batched_impl(int do_verification,
                 std::string op_name = op_ptr->GetTypeString();
 
                 float ave_time = invoker_ptr->Run(
-                        argument_ptr.get(),
-                        StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter, true, rotating_count});
+                    argument_ptr.get(),
+                    StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter, true, rotating_count});
 
                 std::size_t flop = std::size_t(2) * BatchCount * M * N * K;
 
                 std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
-                        sizeof(CDataType) * M * N) *
-                    BatchCount;
+                                         sizeof(CDataType) * M * N) *
+                                        BatchCount;
 
                 float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
                 float gb_per_sec = num_btype / 1.E6 / ave_time;
 
                 std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                    << " GB/s, " << op_name << ", KBatch " << kbatch_curr << std::endl;
+                          << " GB/s, " << op_name << ", KBatch " << kbatch_curr << std::endl;
 
                 if(tflops > best_tflops)
                 {
@@ -228,19 +228,20 @@ bool profile_gemm_universal_batched_impl(int do_verification,
                     {
                         LogRangeAsType<float>(std::cout << "a : ", a_g_m_k.mData, ",") << std::endl;
                         LogRangeAsType<float>(std::cout << "b: ", b_g_k_n.mData, ",") << std::endl;
-                        LogRangeAsType<float>(std::cout << "c_host: ", c_g_m_n_host_result.mData, ",")
+                        LogRangeAsType<float>(
+                            std::cout << "c_host: ", c_g_m_n_host_result.mData, ",")
                             << std::endl;
                         LogRangeAsType<float>(
-                                std::cout << "c_device: ", c_g_m_n_device_result.mData, ",")
+                            std::cout << "c_device: ", c_g_m_n_device_result.mData, ",")
                             << std::endl;
                     }
                 }
             }
             else
             {
-                std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
+                std::cout << op_ptr->GetTypeString() << " does not support this problem"
+                          << std::endl;
             }
-
         }
     }
 
@@ -281,9 +282,8 @@ bool profile_gemm_universal_batched_impl(int do_verification,
 
     std::cout << " B = " << BatchCount << " M = " << M << " N = " << N << " K = " << K
               << " StrideA = " << StrideA << " StrideB = " << StrideB << " StrideC = " << StrideC
-              << " KBatch = " << best_kbatch 
-              << ": " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
-              << " GB/s, " << best_op_name << std::endl;
+              << " KBatch = " << best_kbatch << ": " << best_ave_time << " ms, " << best_tflops
+              << " TFlops, " << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
 
     return pass;
 }
