@@ -30,6 +30,8 @@ void add_device_grouped_conv3d_fwd_xdl_dynamic_op_ndhwgc_gkzyxc_ndhwgk_int8_inst
                                                               Tuple<>,
                                                               NDHWGK,
                                                               ConvFwdDefault>{});
+#if 0 // Enable with dynamic op optimizations (at now generating a lot of virtual functions cause
+      // long compilation time)
     add_device_operation_instances(
         instances,
         device_grouped_conv_fwd_xdl_dynamic_op_int8_instances<3,
@@ -46,6 +48,7 @@ void add_device_grouped_conv3d_fwd_xdl_dynamic_op_ndhwgc_gkzyxc_ndhwgk_int8_inst
                                                               Tuple<>,
                                                               NDHWGK,
                                                               ConvFwd1x1S1P0>{});
+#endif
 }
 
 } // namespace instance
