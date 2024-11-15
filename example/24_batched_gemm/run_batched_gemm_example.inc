@@ -17,6 +17,8 @@ struct ProblemSize final
     ck::index_t batch_stride_C = M * N;
 
     ck::index_t batch_count = 16;
+
+    ck::index_t KBatch = 1;
 };
 
 struct ExecutionConfig final
@@ -46,7 +48,8 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
            batch_stride_A,
            batch_stride_B,
            batch_stride_C,
-           batch_count] = problem_size;
+           batch_count,
+           KBatch] = problem_size;
 
     // GEMM shape
     auto f_host_tensor_descriptor = [](std::size_t batch_count_,
@@ -136,7 +139,8 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                       batch_stride_C,
                                       a_element_op,
                                       b_element_op,
-                                      cde_element_op);
+                                      cde_element_op,
+                                      KBatch);
 
     if(!gemm.IsSupportedArgument(argument))
     {

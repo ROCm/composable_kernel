@@ -89,7 +89,8 @@ struct DeviceBatchedGemmV2MultiD : public BaseOperator
                         index_t BatchStrideE,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
-                        CDEElementwiseOperation cde_element_op) = 0;
+                        CDEElementwiseOperation cde_element_op,
+                        index_t KBatch) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
