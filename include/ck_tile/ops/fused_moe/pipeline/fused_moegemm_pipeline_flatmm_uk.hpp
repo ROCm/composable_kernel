@@ -342,13 +342,11 @@ struct FusedMoeGemmPipeline_FlatmmUk
         auto bridge_sst_win = [&]() {
             constexpr auto desc_ = Policy::template MakeBridgeLdsStoreForUKDesc<Problem>();
             constexpr auto dist_ = Policy::template GetUK_0<Problem>().MakeCBlockDist();
-            return make_tile_window_linear(
-                make_tensor_view<address_space_enum::lds>(
-                    reinterpret_cast<YDataType*>(smem),
-                    desc_),
-                desc_.get_lengths(),
-                {0, 0},
-                dist_);
+            return make_tile_window_linear(make_tensor_view<address_space_enum::lds>(
+                                               reinterpret_cast<YDataType*>(smem), desc_),
+                                           desc_.get_lengths(),
+                                           {0, 0},
+                                           dist_);
         }();
         auto o_res =
             make_wave_buffer_resource(reinterpret_cast<const ODataType*>(kargs.o_ptr),
@@ -442,16 +440,17 @@ struct FusedMoeGemmPipeline_FlatmmUk
                               BlockShape::Block_W0); // tile offset for B matrix each unroll
 
         // return ;
-        //sweep_tile(acc_0,
+        // sweep_tile(acc_0,
         //           [&](auto idx) { typename Problem::GateActivation{}(acc_0(idx), acc_0[idx]); });
-        sweep_tile(acc_0,
-                   [&](auto idx0, auto idx1) {
-                        fp32x2_t v_ {acc_0(idx0), acc_0(idx1)};
-                        typename Problem::GateActivation{}(v_, v_);
-                        acc_0(idx0) = v_.x;
-                        acc_0(idx1) = v_.y;
-                    },
-                    sequence<1, 2>{});
+        sweep_tile(
+            acc_0,
+            [&](auto idx0, auto idx1) {
+                fp32x2_t v_{acc_0(idx0), acc_0(idx1)};
+                typename Problem::GateActivation{}(v_, v_);
+                acc_0(idx0) = v_.x;
+                acc_0(idx1) = v_.y;
+            },
+            sequence<1, 2>{});
 
 #if 0
         printf("bid:%d,%d, tid:%d, sorted_tile_id:%d(, intermediate_tile_id:%d, e:%d, "

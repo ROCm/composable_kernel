@@ -135,7 +135,7 @@ void reference_fused_moe(
             for(ck_tile::index_t i_n = 0; i_n < intermediate_size_1; i_n++)
             {
                 Activation{}(y(0, i_n), acc_0(0, i_n));
-                //printf("ie:%2d, it:%3d, in:%d, %f\n", i_expert, i_token, i_n, y(0, i_n));
+                // printf("ie:%2d, it:%3d, in:%d, %f\n", i_expert, i_token, i_n, y(0, i_n));
             }
         }
         else

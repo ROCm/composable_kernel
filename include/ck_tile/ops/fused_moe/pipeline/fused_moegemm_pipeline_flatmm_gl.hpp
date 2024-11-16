@@ -70,12 +70,16 @@ struct FusedMoeGemmPipeline_FlatmmGl
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
+        // matrix a or tokens smem
+        constexpr index_t smem_mat_a =
+            BlockShape::Block_M0 * BlockShape::Block_K0 * sizeof(ADataType);
+        // shuffle C matrix
         constexpr index_t smem_bridge =
             BlockShape::Block_M0 * BlockShape::Block_N0 * sizeof(YDataType);
-        return  smem_bridge;
+
+        return max(smem_mat_a, smem_bridge);
     }
 
-    
     template <typename Karg>
     CK_TILE_DEVICE auto operator()(const Karg& kargs,
                                    CK_TILE_LDS_ADDR void* smem,
@@ -86,7 +90,6 @@ struct FusedMoeGemmPipeline_FlatmmGl
         ignore = smem;
         ignore = sorted_tile_id;
         ignore = intermediate_tile_id;
-
     }
 };
 

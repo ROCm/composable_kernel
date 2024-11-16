@@ -590,39 +590,40 @@ struct FusedMoeGemmPipelineFlatmmPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeBridgeLdsStoreForUKDesc()
     {
         constexpr index_t WarpPerBlock_N = Problem::BlockShape::WarpPerBlock_N0;
-        constexpr index_t Repeat_N = Problem::BlockShape::Repeat_N0;
-        constexpr index_t Repeat_M = Problem::BlockShape::Repeat_M0;
+        constexpr index_t Repeat_N       = Problem::BlockShape::Repeat_N0;
+        constexpr index_t Repeat_M       = Problem::BlockShape::Repeat_M0;
 
         constexpr index_t kAMLane     = 16;
         constexpr index_t kABKLane    = 4;
         constexpr index_t kABKPerLane = 4;
 
-        constexpr index_t KPack       = kABKPerLane;
+        constexpr index_t KPack = kABKPerLane;
 
         constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
-                    make_tuple(number<Repeat_M>{},                  // m
-                               number<Repeat_N>{},                  // n
-                               number<WarpPerBlock_N>{},            // n
-                               number<kABKLane>{},                  // n
-                               number<kAMLane>{},                   // m
-                               number<KPack>{}),                    // n
-                    make_tuple(number<Repeat_N * WarpPerBlock_N * kABKLane * kAMLane * KPack>{},  //  m
-                               number<WarpPerBlock_N * kABKLane * kAMLane * KPack>{},   //  n
-                               number<kABKLane * kAMLane * KPack>{},                    //  n
-                               number<kAMLane * KPack>{},                               //  n
-                               number<KPack>{},                                         //  m
-                               number<1>{}),                                            //  n
-                    number<KPack>{},                // lds store vector(actually no explicit store)
-                    number<1>{});
+            make_tuple(number<Repeat_M>{},                                               // m
+                       number<Repeat_N>{},                                               // n
+                       number<WarpPerBlock_N>{},                                         // n
+                       number<kABKLane>{},                                               // n
+                       number<kAMLane>{},                                                // m
+                       number<KPack>{}),                                                 // n
+            make_tuple(number<Repeat_N * WarpPerBlock_N * kABKLane * kAMLane * KPack>{}, //  m
+                       number<WarpPerBlock_N * kABKLane * kAMLane * KPack>{},            //  n
+                       number<kABKLane * kAMLane * KPack>{},                             //  n
+                       number<kAMLane * KPack>{},                                        //  n
+                       number<KPack>{},                                                  //  m
+                       number<1>{}),                                                     //  n
+            number<KPack>{}, // lds store vector(actually no explicit store)
+            number<1>{});
 
         constexpr auto desc = transform_tensor_descriptor(
-                lds_block_desc_0,
-                make_tuple(
-                    make_merge_transform(make_tuple(number<Repeat_M>{}, number<kAMLane>{})),
-                    make_merge_transform(make_tuple(number<Repeat_N>{}, number<WarpPerBlock_N>{}, number<kABKLane>{}, number<KPack>{}))
-                ),
-                make_tuple(sequence<0, 4>{}, sequence<1, 2, 3, 5>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+            lds_block_desc_0,
+            make_tuple(make_merge_transform(make_tuple(number<Repeat_M>{}, number<kAMLane>{})),
+                       make_merge_transform(make_tuple(number<Repeat_N>{},
+                                                       number<WarpPerBlock_N>{},
+                                                       number<kABKLane>{},
+                                                       number<KPack>{}))),
+            make_tuple(sequence<0, 4>{}, sequence<1, 2, 3, 5>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
 
         return desc;
     }

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/ops/fused_moe/kernel/fused_moegemm_kernel.hpp"
+#include "ck_tile/ops/fused_moe/kernel/fused_moegemm_general_kernel.hpp"
 #include "ck_tile/ops/fused_moe/kernel/fused_moegemm_shape.hpp"
 #include "ck_tile/ops/fused_moe/kernel/fused_moegemm_tile_partitioner.hpp"
 #include "ck_tile/ops/fused_moe/kernel/moe_sorting_kernel.hpp"

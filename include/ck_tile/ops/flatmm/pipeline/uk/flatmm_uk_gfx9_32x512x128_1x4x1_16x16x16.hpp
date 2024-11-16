@@ -72,7 +72,7 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
             sequence<2, 1>, // !! note here is different
             sequence<0, 0>>{};
 
-        using WG        = WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution;
+        using WG = WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution;
 
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
@@ -82,7 +82,7 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
 
     static CK_TILE_DEVICE constexpr auto MakeCBlockTile()
     {
-        using CDataType = float;
+        using CDataType             = float;
         constexpr auto c_block_dstr = MakeCBlockDist();
         auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
         return c_block_tensor;
@@ -180,8 +180,8 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadDesc_A()
     {
         // load from LDS to register, every wave has same layout
-        constexpr index_t KPack_  = 8;      // GetSmemKPack_A<Problem>(); // LDS
-        constexpr index_t KPad    = KPack_; // pad between warps
+        constexpr index_t KPack_ = 8;      // GetSmemKPack_A<Problem>(); // LDS
+        constexpr index_t KPad   = KPack_; // pad between warps
 
         constexpr index_t kAMLane     = 16;
         constexpr index_t kABKLane    = 4;
@@ -189,26 +189,25 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
         constexpr index_t kKIter      = 2;
         static_assert(KPack_ == (kABKPerLane * kKIter));
 
-        constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
-                    make_tuple(number<Repeat_M>{},            // m0 y
-                               number<kAMLane>{},             // m1 p
-                               number<Repeat_K>{},            // k0 y
-                               number<kABKLane>{},            // k1 p
-                               number<KPack_>{}),             // k2 y-vector
-                    make_tuple(number<kAMLane*(Block_K + KPad)>{}, // m0
-                               number<Block_K + KPad>{},           // m1
-                               number<kABKLane * KPack_>{},        // k0
-                               number<KPack_>{},                   // k1
-                               number<1>{}),                       // k2
-                    number<KPack_>{},                              // lds load vector
-                    number<1>{});
+        constexpr auto lds_block_desc_0 =
+            make_naive_tensor_descriptor(make_tuple(number<Repeat_M>{}, // m0 y
+                                                    number<kAMLane>{},  // m1 p
+                                                    number<Repeat_K>{}, // k0 y
+                                                    number<kABKLane>{}, // k1 p
+                                                    number<KPack_>{}),  // k2 y-vector
+                                         make_tuple(number<kAMLane*(Block_K + KPad)>{}, // m0
+                                                    number<Block_K + KPad>{},           // m1
+                                                    number<kABKLane * KPack_>{},        // k0
+                                                    number<KPack_>{},                   // k1
+                                                    number<1>{}),                       // k2
+                                         number<KPack_>{}, // lds load vector
+                                         number<1>{});
 
         constexpr auto lds_desc_m_k = transform_tensor_descriptor(
             lds_block_desc_0,
-            make_tuple(make_merge_transform(
-                            make_tuple(number<Repeat_M>{}, number<kAMLane>{})),
-                        make_merge_transform(make_tuple(
-                            number<Repeat_K>{}, number<kABKLane>{}, number<KPack_>{}))),
+            make_tuple(make_merge_transform(make_tuple(number<Repeat_M>{}, number<kAMLane>{})),
+                       make_merge_transform(
+                           make_tuple(number<Repeat_K>{}, number<kABKLane>{}, number<KPack_>{}))),
             make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -291,11 +290,8 @@ struct FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16
             },
             number<a_sld.get_num_of_access()>{});
 
-
         // printf("----- tid:%d, a_sld:%d\n", static_cast<index_t>(threadIdx.x),
         //                 static_cast<index_t>(a_sld.cached_coords_[number<0>{}].get_offset()));
-
-
 
         index_t loop_cnt = k / Block_K;
 

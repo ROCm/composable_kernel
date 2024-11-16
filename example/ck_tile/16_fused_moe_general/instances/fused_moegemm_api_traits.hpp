@@ -48,7 +48,7 @@ struct fmoe_ // traits, ugly name, only used for internal
     using WarpTile_0     = ck_tile::remove_cvref_t<WarpTile_>;
     ;
 
-    using BlockTile_1    = ck_tile::sequence<BT_, BD_, BI_ / (GateOnly_ ? 1 : 2)>;
+    using BlockTile_1    = ck_tile::sequence<BT_, BD_, BI_>;
     using WarpPerBlock_1 = ck_tile::remove_cvref_t<WarpPerBlock_>;
     using WarpTile_1     = ck_tile::remove_cvref_t<WarpTile_>;
 
