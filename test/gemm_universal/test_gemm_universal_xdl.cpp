@@ -56,7 +56,7 @@ class TestGemmUniversal_KM_NK
 using KernelTypes_MK_KN = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
     std::tuple<      F16,       F16,             F16,     F16>,
-#if defined(CK_ENABLE_FP8) && defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH)
+#if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94))
     std::tuple<      F16,        F8,             F16,     F16>,
     std::tuple<       F8,       F16,             F16,     F16>,
     std::tuple<       F8,        F8,              F8,    BF16>,
@@ -66,7 +66,7 @@ using KernelTypes_MK_KN = ::testing::Types<
 using KernelTypes_MK_NK = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
     std::tuple<      F16,       F16,             F16,     F16>,
-#if defined(CK_ENABLE_FP8) && defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH)
+#if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94))
     std::tuple<      F16,        F8,             F16,     F16>,
     std::tuple<       F8,       F16,             F16,     F16>,
     std::tuple<       F8,        F8,              F8,    BF16>,
