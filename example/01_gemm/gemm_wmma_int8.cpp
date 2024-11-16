@@ -5,11 +5,11 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma.hpp"
 
-using ADataType        = ck::int8_t;
-using BDataType        = ck::int8_t;
-using AccDataType      = cK::int32_t;
-using CShuffleDataType = ck::int8_t;
-using CDataType        = ck::int8_t;
+using ADataType        = int8_t;
+using BDataType        = int8_t;
+using AccDataType      = int32_t;
+using CShuffleDataType = int8_t;
+using CDataType        = int8_t;
 
 using ALayout = Row;
 using BLayout = Col;

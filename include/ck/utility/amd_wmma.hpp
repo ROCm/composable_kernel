@@ -13,6 +13,11 @@ namespace ck {
     defined(__gfx1103__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
+
+#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
+#define __gfx12__
+#endif
+
 /********************************WAVE32 MODE***********************************************/
 
 // src: fp16, dst: fp32
@@ -260,10 +265,6 @@ struct intrin_wmma_i32_16x16x16_iu8_w64<16, 16, neg_a, neg_b, clamp>
 
 // gfx12
 /********************************WAVE32 MODE***********************************************/
-
-#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
-#define __gfx12__
-#endif
 
 // src: fp16, dst: fp32
 template <index_t MPerWave, index_t NPerWave>
