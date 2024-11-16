@@ -16,6 +16,7 @@ summary of the key design of this fused-moe operator:
 * fuse 2 group-gemm + activation + `topk-weight` multiply into single kernel, using atomic for 2nd gemm accumualation
 * fuse buffer-zeroing in `moe-sorgin`, user no longer need call extra torch.zero() for the out buffer
 * fused scatter-gather for row index(same as vllm)
+* pre-shuffle B matric(weight) to maximize memory throughput. input(activation) keep original layout `[batch, hidden]`.
 * extrem optimized pipeline using block-inline-asm(we call it `micro-kernel` or `uk`), while not breaking the *composable* design of ck
 
 ## 
