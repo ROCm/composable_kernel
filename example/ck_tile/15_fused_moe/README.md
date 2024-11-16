@@ -10,11 +10,10 @@ this is a common pre-process step before the actual moe-gemm. The purpose is to 
 ![](misc/moe-1.png)
 After `moe-sorting`, we can view this algorithm as expert-by-expert, as below:
 ![](misc/moe-2.png)
-In training case the mean/variance need to store out (TBD, not supported yet)
 
 ## optimization
 summary of the key design of this fused-moe operator:
-* fuse 2 group-gemm into single kernel, using atomic for 2nd gemm accumualation
+* fuse 2 group-gemm + activation + `topk-weight` multiply into single kernel, using atomic for 2nd gemm accumualation
 * fuse buffer-zeroing in `moe-sorgin`, user no longer need call extra torch.zero() for the out buffer
 * fused scatter-gather for row index(same as vllm)
 * extrem optimized pipeline using block-inline-asm(we call it `micro-kernel` or `uk`), while not breaking the *composable* design of ck
