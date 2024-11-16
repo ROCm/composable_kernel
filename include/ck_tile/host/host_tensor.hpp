@@ -666,7 +666,7 @@ struct HostTensor
 
     // can save to a txt file and read from torch as:
     // torch.from_numpy(np.loadtxt('f.txt', dtype=np.int32/np.float32...)).view([...]).contiguous()
-    void savetxt(std::string file_name)
+    void savetxt(std::string file_name, std::string dtype = "float")
     {
         std::ofstream file(file_name);
 
@@ -674,7 +674,12 @@ struct HostTensor
         {
             for(auto& itm : mData)
             {
-                file << itm << std::endl;
+                if(dtype == "float")
+                    file << type_convert<float>(itm) << std::endl;
+                else if(dtype == "int")
+                    file << type_convert<int>(itm) << std::endl;
+                else
+                    file << itm << std::endl;
             }
             file.close();
         }

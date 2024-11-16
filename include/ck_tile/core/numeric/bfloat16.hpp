@@ -191,21 +191,27 @@ uint16_t float_to_bf16_rta_asm(float f)
     union
     {
         float fp32;
-        uint32_t int32;
+        struct
+        {
+            uint16_t lo;
+            uint16_t hi;
+        };
     } u = {f};
 
-    static constexpr uint32_t FP32_NAN            = 0x7fff0000;
-    static constexpr uint32_t ROUND_BIAS_FOR_BF16 = 0x7fff;
+    const uint32_t low_nan = 0x7fff;
+    const uint32_t hi_nan  = 0x7fff0000;
 
     using uint32x2_t = uint32_t __attribute__((ext_vector_type(2)));
     uint32x2_t check_nan;
+
     asm volatile("v_cmp_u_f32 %[s_cnan], %[v_x], %[v_x] \n"
                  "v_add3_u32 %[v_x], %[v_x], %[v_blo], 1 \n"
                  "v_cndmask_b32 %[v_x], %[v_x], %[v_bhi], %[s_cnan]"
-                 : [s_cnan] "=s"(check_nan), [v_x] "+v"(u.fp32)
-                 : [v_blo] "v"(ROUND_BIAS_FOR_BF16), [v_bhi] "v"(FP32_NAN));
+                 : [s_cnan] "+s"(check_nan), [v_x] "+v"(u.fp32)
+                 : [v_blo] "v"(low_nan), [v_bhi] "v"(hi_nan));
 
-    return uint16_t(u.int32);
+    // Note: in above code snipet, we use hi 16 bit
+    return u.hi;
 }
 
 // Truncate instead of rounding, preserving SNaN

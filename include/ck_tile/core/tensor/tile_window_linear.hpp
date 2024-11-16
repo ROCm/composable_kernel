@@ -432,14 +432,18 @@ struct tile_window_linear
     CK_TILE_DEVICE static constexpr index_t get_bottom_linear_offset(number<i_access>)
     {
         constexpr auto linear_coord = get_bottom_linear_coordinate(number<i_access>{});
-        constexpr auto is_pure_linear_tensor =  reduce_on_sequence(LinearBottomDims{}, multiplies{}, number<1>{});
-        if constexpr (is_pure_linear_tensor) {
+        constexpr auto is_pure_linear_tensor =
+            reduce_on_sequence(LinearBottomDims{}, multiplies{}, number<1>{});
+        if constexpr(is_pure_linear_tensor)
+        {
             // this case usually is a LDS window, everything is build time know.
             // we directly use BottomTensorView to compute the offset, in case there is any padding
-            auto bottom_tensor_coord = make_tensor_coordinate(
-                BottomTensorView{}.get_tensor_descriptor(), linear_coord);
+            auto bottom_tensor_coord =
+                make_tensor_coordinate(BottomTensorView{}.get_tensor_descriptor(), linear_coord);
             return bottom_tensor_coord.get_offset();
-        } else {
+        }
+        else
+        {
             // this case usually is a global window, where last dim can be linear
             // we hack here, that use the original TileDstr to compute the linear offset
             // ... hoping that there is no extra padding between other dims, which make sense

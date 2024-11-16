@@ -88,31 +88,6 @@ struct FusedMoeGemmPipelineFlatmmPolicy
         return 16 / sizeof(typename Problem::YDataType);
     }
 
-#if 0
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetWaveFlattenShape()
-    {
-        using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
-
-        constexpr index_t Kv = GetAlignment_G<{Problem}>();
-        constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
-        constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
-        return sequence<Kw, Nw, Kv>{};
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockTileNrKr()
-    {
-        using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
-
-        constexpr index_t Kv = GetAlignment_G<{Problem}>();
-        constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
-        constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
-        return sequence<Problem::BlockShape::Block_K0 / Nw,
-                        Problem::BlockShape::Block_K0 / (Kw * Kv)>{};
-    }
-#endif
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize_A()
     {
@@ -232,53 +207,6 @@ struct FusedMoeGemmPipelineFlatmmPolicy
         }
     }
 
-#if 0
-    // Caution: this will require global memory pre-shuffled to follow the mfma layout
-    template <index_t NPerBlock,
-              index_t KPerBlock,
-              index_t WavesPerBlock_N,
-              index_t WavesPerBlock_K,
-              typename WarpGemm,
-              index_t Alignment,
-              FusedMoeGemmWeightPermuteEnum PermuteEnum =
-                  FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_MatrixCore_Swizzled()
-    {
-        static_assert(Alignment % WarpGemm::WarpGemmAttribute::Impl::kABKPerLane == 0);
-
-        if constexpr(PermuteEnum == FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten)
-        {
-            constexpr index_t Kv = Alignment;
-            constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
-            constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
-
-            static_assert(KPerBlock % (K1 * K2) == 0);
-            constexpr index_t Nr = NPerBlock / Nw;
-            constexpr index_t Kr = KPerBlock / (Kv * Kw);
-
-            constexpr index_t Nr_p = WavesPerBlock_N;
-            constexpr index_t Kr_p = WavesPerBlock_K;
-            constexpr index_t Nr_y = Nr / Nr_p;
-            constexpr index_t Kr_y = Kr / Kr_p;
-
-            return make_static_tile_distribution(
-                tile_distribution_encoding<
-                    sequence<1>, // 0
-                    // major       1                     2                     3
-                    // minor       0     1               0     1               0   1   2
-                    tuple<sequence<Nr_y, Nr_p>, sequence<Kr_y, Kr_p>, sequence<Kw, Nw, Kv>>,
-
-                    //            Nr_p, Kr_p         Kw Nw
-                    tuple<sequence<1, 2>, sequence<3, 3>>,
-                    tuple<sequence<1, 1>, sequence<0, 1>>,
-
-                    //       Nr_y Kr_y Kv
-                    sequence<1, 2, 3>,
-                    sequence<0, 0, 2>>{});
-            // clang-format on
-        }
-    }
-#endif
     template <index_t WarpPerBlock_N_,
               index_t WarpPerBlock_K_,
               index_t Repeat_N_,
@@ -590,39 +518,40 @@ struct FusedMoeGemmPipelineFlatmmPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeBridgeLdsStoreForUKDesc()
     {
         constexpr index_t WarpPerBlock_N = Problem::BlockShape::WarpPerBlock_N0;
-        constexpr index_t Repeat_N = Problem::BlockShape::Repeat_N0;
-        constexpr index_t Repeat_M = Problem::BlockShape::Repeat_M0;
+        constexpr index_t Repeat_N       = Problem::BlockShape::Repeat_N0;
+        constexpr index_t Repeat_M       = Problem::BlockShape::Repeat_M0;
 
         constexpr index_t kAMLane     = 16;
         constexpr index_t kABKLane    = 4;
         constexpr index_t kABKPerLane = 4;
 
-        constexpr index_t KPack       = kABKPerLane;
+        constexpr index_t KPack = kABKPerLane;
 
         constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
-                    make_tuple(number<Repeat_M>{},                  // m
-                               number<Repeat_N>{},                  // n
-                               number<WarpPerBlock_N>{},            // n
-                               number<kABKLane>{},                  // n
-                               number<kAMLane>{},                   // m
-                               number<KPack>{}),                    // n
-                    make_tuple(number<Repeat_N * WarpPerBlock_N * kABKLane * kAMLane * KPack>{},  //  m
-                               number<WarpPerBlock_N * kABKLane * kAMLane * KPack>{},   //  n
-                               number<kABKLane * kAMLane * KPack>{},                    //  n
-                               number<kAMLane * KPack>{},                               //  n
-                               number<KPack>{},                                         //  m
-                               number<1>{}),                                            //  n
-                    number<KPack>{},                // lds store vector(actually no explicit store)
-                    number<1>{});
+            make_tuple(number<Repeat_M>{},                                               // m
+                       number<Repeat_N>{},                                               // n
+                       number<WarpPerBlock_N>{},                                         // n
+                       number<kABKLane>{},                                               // n
+                       number<kAMLane>{},                                                // m
+                       number<KPack>{}),                                                 // n
+            make_tuple(number<Repeat_N * WarpPerBlock_N * kABKLane * kAMLane * KPack>{}, //  m
+                       number<WarpPerBlock_N * kABKLane * kAMLane * KPack>{},            //  n
+                       number<kABKLane * kAMLane * KPack>{},                             //  n
+                       number<kAMLane * KPack>{},                                        //  n
+                       number<KPack>{},                                                  //  m
+                       number<1>{}),                                                     //  n
+            number<KPack>{}, // lds store vector(actually no explicit store)
+            number<1>{});
 
         constexpr auto desc = transform_tensor_descriptor(
-                lds_block_desc_0,
-                make_tuple(
-                    make_merge_transform(make_tuple(number<Repeat_M>{}, number<kAMLane>{})),
-                    make_merge_transform(make_tuple(number<Repeat_N>{}, number<WarpPerBlock_N>{}, number<kABKLane>{}, number<KPack>{}))
-                ),
-                make_tuple(sequence<0, 4>{}, sequence<1, 2, 3, 5>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+            lds_block_desc_0,
+            make_tuple(make_merge_transform(make_tuple(number<Repeat_M>{}, number<kAMLane>{})),
+                       make_merge_transform(make_tuple(number<Repeat_N>{},
+                                                       number<WarpPerBlock_N>{},
+                                                       number<kABKLane>{},
+                                                       number<KPack>{}))),
+            make_tuple(sequence<0, 4>{}, sequence<1, 2, 3, 5>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
 
         return desc;
     }

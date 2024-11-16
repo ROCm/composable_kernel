@@ -620,8 +620,8 @@ struct FastGeluAsm
     CK_TILE_HOST void operator()<fp32x2_t, fp32x2_t>(fp32x2_t& y, const fp32x2_t& x) const
     {
         // const float u   = -2.f * x * (0.035677f * x * x + 0.797885f);
-        const float c1  = -2.0 * 0.035677f;
-        const float c2  = -2.0 * 0.797885f;
+        const float c1   = -2.0 * 0.035677f;
+        const float c2   = -2.0 * 0.797885f;
         const float u0   = x.x * (c1 * x.x * x.x + c2);
         const float emu0 = exp(u0);
         y.x              = x.x / (1.f + emu0);
@@ -636,30 +636,37 @@ struct FastGeluAsm
     {
         // const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
         const uint32_t c1     = 0xbd92220c; // -2.0 * 0.035677f;
-        const float c2        = -2.0 * 0.797885f;
+        float c2              = -2.0 * 0.797885f;
         const uint32_t log2e_ = 0x3fb8aa3b; // log2e_v<float>;
+        // float x0 = x.x;
+        // float x1 = x.y;
         float tmp0, tmp1;
-        float y0, y1;
+        float y0 = x.x, y1 = x.y;
 
-        asm volatile("v_mul_f32 %[v_tmp0], %[v_x0], %[v_x0]        ; x*x\n"
-                     "v_mul_f32 %[v_tmp1], %[v_x1], %[v_x1]        ; x*x\n"
-                     "v_fma_f32 %[v_tmp0], %[v_tmp0], %[s_c1], %[v_c2]  ; c1*x*x+c2\n"
-                     "v_fma_f32 %[v_tmp1], %[v_tmp1], %[s_c1], %[v_c2]  ; c1*x*x+c2\n"
-                     "v_mul_f32 %[v_tmp0], %[v_tmp0], %[v_x0]      ; x*(c1*x*x+c2)\n"
-                     "v_mul_f32 %[v_tmp1], %[v_tmp1], %[v_x1]      ; x*(c1*x*x+c2)\n"
-                     "v_mul_f32 %[v_tmp0], %[v_tmp0], %[s_log2e]  ; log2e*x*(c1*x*x+c2)\n"
-                     "v_mul_f32 %[v_tmp1], %[v_tmp1], %[s_log2e]  ; log2e*x*(c1*x*x+c2)\n"
-                     "v_exp_f32 %[v_tmp0], %[v_tmp0]              ; emu = exp2(log2e*x*(c1*x*x+c2))\n"
-                     "v_exp_f32 %[v_tmp1], %[v_tmp1]              ; emu = exp2(log2e*x*(c1*x*x+c2))\n"
-                     "v_add_f32 %[v_tmp0], %[v_tmp0], 1.0         ; emu+1.0f\n"
-                     "v_add_f32 %[v_tmp1], %[v_tmp1], 1.0         ; emu+1.0f\n"
-                     "v_rcp_f32 %[v_tmp0], %[v_tmp0]              ; 1/(emu+1.0f)\n"
-                     "v_rcp_f32 %[v_tmp1], %[v_tmp1]              ; 1/(emu+1.0f)\n"
-                     "v_mul_f32 %[v_y0], %[v_tmp0], %[v_x0]        ; x * 1/(emu+1f)\n"
-                     "v_mul_f32 %[v_y1], %[v_tmp1], %[v_x1]        ; x * 1/(emu+1f)\n"
-                     : [v_y0] "=v"(y0), [v_y1] "=v"(y1), [v_tmp0] "+v"(tmp0), [v_tmp1] "+v"(tmp1)
-                     : [v_x0] "v"(x.x), [v_x1] "v"(x.y), [s_c1] "s"(c1), [v_c2] "v"(c2), [s_log2e] "s"(log2e_)
-                     :);
+        asm volatile(
+            "v_mul_f32 %[v_tmp0], %[v_y0], %[v_y0]        ; x*x\n"
+            "v_mul_f32 %[v_tmp1], %[v_y1], %[v_y1]        ; x*x\n"
+            "v_fma_f32 %[v_tmp0], %[v_tmp0], %[s_c1], %[v_c2]  ; c1*x*x+c2\n"
+            "v_fma_f32 %[v_tmp1], %[v_tmp1], %[s_c1], %[v_c2]  ; c1*x*x+c2\n"
+            "v_mul_f32 %[v_tmp0], %[v_tmp0], %[v_y0]      ; x*(c1*x*x+c2)\n"
+            "v_mul_f32 %[v_tmp1], %[v_tmp1], %[v_y1]      ; x*(c1*x*x+c2)\n"
+            "v_mul_f32 %[v_tmp0], %[v_tmp0], %[s_log2e]  ; log2e*x*(c1*x*x+c2)\n"
+            "v_mul_f32 %[v_tmp1], %[v_tmp1], %[s_log2e]  ; log2e*x*(c1*x*x+c2)\n"
+            "v_exp_f32 %[v_tmp0], %[v_tmp0]              ; emu = exp2(log2e*x*(c1*x*x+c2))\n"
+            "v_exp_f32 %[v_tmp1], %[v_tmp1]              ; emu = exp2(log2e*x*(c1*x*x+c2))\n"
+            "v_add_f32 %[v_tmp0], %[v_tmp0], 1.0         ; emu+1.0f\n"
+            "v_add_f32 %[v_tmp1], %[v_tmp1], 1.0         ; emu+1.0f\n"
+            "v_rcp_f32 %[v_tmp0], %[v_tmp0]              ; 1/(emu+1.0f)\n"
+            "v_rcp_f32 %[v_tmp1], %[v_tmp1]              ; 1/(emu+1.0f)\n"
+            "v_mul_f32 %[v_y0], %[v_tmp0], %[v_y0]        ; x * 1/(emu+1f)\n"
+            "v_mul_f32 %[v_y1], %[v_tmp1], %[v_y1]        ; x * 1/(emu+1f)\n"
+            : [v_y0] "+v"(y0),
+              [v_y1] "+v"(y1),
+              [v_c2] "+v"(c2),
+              [v_tmp0] "+v"(tmp0),
+              [v_tmp1] "+v"(tmp1)
+            : [s_c1] "s"(c1), [s_log2e] "s"(log2e_)
+            :);
         y.x = y0;
         y.y = y1;
     }

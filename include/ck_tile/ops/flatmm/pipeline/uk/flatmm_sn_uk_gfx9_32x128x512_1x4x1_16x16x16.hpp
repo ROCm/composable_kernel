@@ -35,11 +35,29 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
     static constexpr index_t Block_Kr = Block_K / (Warp_K * KPack); // 4
 
     static constexpr index_t Repeat_M = Block_M / (Warp_M * WarpPerBlock_M); // 2
-    static constexpr index_t Repeat_N = Block_N / (Warp_N * WarpPerBlock_N); // 8
-    static constexpr index_t Repeat_K = Block_K / (Warp_K * WarpPerBlock_K); // 8
+    static constexpr index_t Repeat_N = Block_N / (Warp_N * WarpPerBlock_N); // 2
+    static constexpr index_t Repeat_K = Block_K / (Warp_K * WarpPerBlock_K); // 32
 
     using BDataType = bf16_t;
     using ODataType = bf16_t;
+
+    static CK_TILE_DEVICE constexpr auto MakeCBlockDist()
+    {
+        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<Repeat_M, WarpPerBlock_M>, sequence<Repeat_N, WarpPerBlock_N>>,
+            tuple<sequence<1, 2>>,
+            tuple<sequence<1, 1>>,
+            sequence<2, 1>, // !! note here is different
+            sequence<0, 0>>{};
+
+        using WG = WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution;
+
+        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
+        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
+        return c_block_dstr;
+    }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -68,7 +86,6 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
                const OCoords& cached_coords_o,
                const OFlags& o_flags, // this should be in sgpr
                CK_TILE_LDS_ADDR void* smem,
-               // OWindow& o_window_,
                index_t n, // loop along n dim
                const ScaleTensor& scale_,
                index_t tile_offset_b, // stride b is fixed to blockKr * blockW, but still can adjust
@@ -134,19 +151,21 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
         // in LDS we need store as
         //          M0(2)* N0(2) *  Nl(4) * Nw(4) * (Mw(16)*Nv(4) + 4)
         //             y    y       wave-id  lid/16  lid%16   v
-        int sfl_sst = (threadIdx.x % 16 * 4 + 4) * (threadIdx.x / 16);
+        // sst(v3) = (v0/16*34 + v0%16 * 2 + wid*136) * 4
+        int sfl_sst = (threadIdx.x % 16 * 4) + (threadIdx.x / 16) * (64 + 4);
         sfl_sst *= 2;
 
         // from LDS we need load as
         //          M0(2)*    N0(2) *  Nl(4) * Nw(4) * (Mw(16)         *  Nv(4) + 4)
         //        ( 2 issue)    (rem 32-lane)        (4 wave*4issue)   2lane*1ussue(pk2)
+        // sld(v4) = v0/2 *34*4  + v0 % 2 *4 + wid*2 *4
         int sfl_sld = (lane_id % 2) * 2 + (lane_id / 2) * (64 + 4) + (threadIdx.x / 64) * 4;
         sfl_sld *= 2;
 
         // B nr->kr
         // clang-format off
-        _Pragma("clang diagnostic push");
-        _Pragma("clang diagnostic ignored \"-Winline-asm\"");
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Winline-asm"
         asm volatile(
             ";-------------------------------------------------------------\n"
             " s_mov_b32 s52, 0x07060302 ; v_perm\n"
@@ -258,6 +277,7 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  s_cselect_b32 s86, %[s_tile_os_b], 0                          \n"
             "  s_add_u32     s12, s86, s12                                  \n"
             "  s_addc_u32    s13, 0, s13                                    \n"
+            "  s_waitcnt 0                    \n"
             "L_start%=:                    \n"
             "  s_waitcnt     vmcnt(32)                               \n"
             "  s_barrier                                             \n"
@@ -424,11 +444,6 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  v_mfma_f32_16x16x16_bf16  [%[c12], %[c13], %[c14], %[c15]], acc[122:123], v[250:251], [%[c12], %[c13], %[c14], %[c15]] \n"
             "  v_mfma_f32_16x16x16_bf16  [%[c12], %[c13], %[c14], %[c15]], acc[124:125], v[252:253], [%[c12], %[c13], %[c14], %[c15]] \n"
             "  v_mfma_f32_16x16x16_bf16  [%[c12], %[c13], %[c14], %[c15]], acc[126:127], v[254:255], [%[c12], %[c13], %[c14], %[c15]]\n"
-            // "  s_add_u32     s60, 0x00000100, s80                    \n"
-            // "  s_cmp_lt_u32  s60, s81                                \n"
-            // "  s_cselect_b32  s56, s56, 0                            \n"
-            // "  s_add_u32     s12, s56, s12                           \n"
-            // "  s_addc_u32    s13, 0, s13                             \n"
             "  v_mul_f32     %[c0], %[scale_0], %[c0]                            \n"
             "  v_mul_f32     %[c1], %[scale_0], %[c1]                            \n"
             "  v_mul_f32     %[c2], %[scale_0], %[c2]                            \n"
@@ -445,68 +460,68 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  v_mul_f32     %[c13], %[scale_1], %[c13]                            \n"
             "  v_mul_f32     %[c14], %[scale_1], %[c14]                            \n"
             "  v_mul_f32     %[c15], %[scale_1], %[c15]                            \n"
-            "  v_cmp_u_f32   s[32:33], %[c0], %[c0]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c0], %[c0]                      \n"
             "  v_add3_u32    v50, %[c0], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c1], %[c1]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c1], %[c1]                      \n"
             "  v_add3_u32    v50, %[c1], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c0], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c2], %[c2]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c2], %[c2]                      \n"
             "  v_add3_u32    v50, %[c2], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c3], %[c3]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c3], %[c3]                      \n"
             "  v_add3_u32    v50, %[c3], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c1], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c4], %[c4]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c4], %[c4]                      \n"
             "  v_add3_u32    v50, %[c4], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c5], %[c5]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c5], %[c5]                      \n"
             "  v_add3_u32    v50, %[c5], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c2], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c6], %[c6]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c6], %[c6]                      \n"
             "  v_add3_u32    v50, %[c6], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c7], %[c7]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c7], %[c7]                      \n"
             "  v_add3_u32    v50, %[c7], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c3], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c8], %[c8]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c8], %[c8]                      \n"
             "  v_add3_u32    v50, %[c8], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c9], %[c9]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c9], %[c9]                      \n"
             "  v_add3_u32    v50, %[c9], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c4], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c10], %[c10]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c10], %[c10]                      \n"
             "  v_add3_u32    v50, %[c10], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c11], %[c11]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c11], %[c11]                      \n"
             "  v_add3_u32    v50, %[c11], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c5], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c12], %[c12]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c12], %[c12]                      \n"
             "  v_add3_u32    v50, %[c12], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c13], %[c13]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c13], %[c13]                      \n"
             "  v_add3_u32    v50, %[c13], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c6], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c14], %[c14]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c14], %[c14]                      \n"
             "  v_add3_u32    v50, %[c14], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c15], %[c15]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c15], %[c15]                      \n"
             "  v_add3_u32    v50, %[c15], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c7], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
             "  ds_write_b64  %[v_sfl_sst], [%[c0],%[c1]] offset:0    + %[shfl_base]               \n"
@@ -524,14 +539,11 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  ds_read_b32   %[c6], %[v_sfl_sld] offset:4416 + %[shfl_base]                    \n"
             "  ds_read_b32   %[c7], %[v_sfl_sld] offset:4448 + %[shfl_base]                    \n"
             "  s_waitcnt     lgkmcnt(0)                              \n"
-            //  "s_endpgm\n"
             "  s_mov_b64     exec, %[s_execflag_0]                    \n"
             "  global_atomic_pk_add_bf16   %[v_os_o0], %[c0], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_1]                    \n"
-            
             "  global_atomic_pk_add_bf16   %[v_os_o1], %[c1], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_2]                    \n"
-
             "  global_atomic_pk_add_bf16   %[v_os_o2], %[c2], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_3]                    \n"
             "  global_atomic_pk_add_bf16   %[v_os_o3], %[c3], s[8:9]  \n"
@@ -539,7 +551,6 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  global_atomic_pk_add_bf16   %[v_os_o4], %[c4], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_5]                    \n"
             "  global_atomic_pk_add_bf16   %[v_os_o5], %[c5], s[8:9]  \n"
-            // "s_endpgm\n"
             "  s_mov_b64     exec, %[s_execflag_6]                    \n"
             "  global_atomic_pk_add_bf16   %[v_os_o6], %[c6], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_7]                    \n"
@@ -554,10 +565,6 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  s_addc_u32    s13, 0, s13                                    \n"
             "  s_add_u32     s8, %[s_tile_os_o], s8                             \n"
             "  s_addc_u32    s9, 0, s9                               \n"
-                
-            //"  s_addk_i32    s80, 0x0080                             \n"
-            //"  s_cmp_lt_i32  s80, s81                                \n"
-            //"  s_cbranch_scc0  label_0E98                            \n"
             "  s_waitcnt     vmcnt(32)                               \n"
             "  s_barrier                                             \n"
             "  v_mfma_f32_16x16x16_bf16  [%[c16],%[c17],%[c18],%[c19]], acc[128:129], v[128:129], 0 \n"
@@ -723,11 +730,6 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  v_mfma_f32_16x16x16_bf16  [%[c28],%[c29],%[c30],%[c31]], acc[250:251], v[250:251], [%[c28],%[c29],%[c30],%[c31]] \n"
             "  v_mfma_f32_16x16x16_bf16  [%[c28],%[c29],%[c30],%[c31]], acc[252:253], v[252:253], [%[c28],%[c29],%[c30],%[c31]] \n"
             "  v_mfma_f32_16x16x16_bf16  [%[c28],%[c29],%[c30],%[c31]], acc[254:255], v[254:255], [%[c28],%[c29],%[c30],%[c31]]\n"
-            // "  s_add_u32     s60, 0x00000100, s80                    \n"
-            // "  s_cmp_lt_u32  s60, s81                                \n"
-            // "  s_cselect_b32  s56, s56, 0                            \n"
-            // "  s_add_u32     s12, s56, s12                           \n"
-            // "  s_addc_u32    s13, 0, s13                             \n"
             "  v_mul_f32     %[c16], %[scale_0], %[c16]                            \n"
             "  v_mul_f32     %[c17], %[scale_0], %[c17]                            \n"
             "  v_mul_f32     %[c18], %[scale_0], %[c18]                            \n"
@@ -744,68 +746,68 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  v_mul_f32     %[c29], %[scale_1], %[c29]                            \n"
             "  v_mul_f32     %[c30], %[scale_1], %[c30]                            \n"
             "  v_mul_f32     %[c31], %[scale_1], %[c31]                            \n"
-            "  v_cmp_u_f32   s[32:33], %[c16], %[c16]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c16], %[c16]                      \n"
             "  v_add3_u32    v50, %[c16], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c17], %[c17]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c17], %[c17]                      \n"
             "  v_add3_u32    v50, %[c17], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c16], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c18], %[c18]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c18], %[c18]                      \n"
             "  v_add3_u32    v50, %[c18], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c19], %[c19]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c19], %[c19]                      \n"
             "  v_add3_u32    v50, %[c19], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c17], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c20], %[c20]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c20], %[c20]                      \n"
             "  v_add3_u32    v50, %[c20], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c21], %[c21]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c21], %[c21]                      \n"
             "  v_add3_u32    v50, %[c21], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c18], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c22], %[c22]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c22], %[c22]                      \n"
             "  v_add3_u32    v50, %[c22], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c23], %[c23]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c23], %[c23]                      \n"
             "  v_add3_u32    v50, %[c23], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c19], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c24], %[c24]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c24], %[c24]                      \n"
             "  v_add3_u32    v50, %[c24], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c25], %[c25]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c25], %[c25]                      \n"
             "  v_add3_u32    v50, %[c25], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c20], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c26], %[c26]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c26], %[c26]                      \n"
             "  v_add3_u32    v50, %[c26], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c27], %[c27]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c27], %[c27]                      \n"
             "  v_add3_u32    v50, %[c27], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c21], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c28], %[c28]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c28], %[c28]                      \n"
             "  v_add3_u32    v50, %[c28], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c29], %[c29]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c29], %[c29]                      \n"
             "  v_add3_u32    v50, %[c29], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c22], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
-            "  v_cmp_u_f32   s[32:33], %[c30], %[c30]                      \n"
+            "  v_cmp_u_f32   s[36:37], %[c30], %[c30]                      \n"
             "  v_add3_u32    v50, %[c30], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[32:33]                \n"
-            "  v_cmp_u_f32   s[32:33], %[c31], %[c31]                      \n"
+            "  v_cndmask_b32  v54, v50, %[v_nan_hi], s[36:37]                \n"
+            "  v_cmp_u_f32   s[36:37], %[c31], %[c31]                      \n"
             "  v_add3_u32    v50, %[c31], %[v_nan_lo], 1                        \n"
-            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[32:33]                \n"
+            "  v_cndmask_b32  v55, v50, %[v_nan_hi], s[36:37]                \n"
             "  v_perm_b32    %[c23], v55, v54, s52                      \n"
             "  ;------------------------------  \n"
             "  ds_write_b64  %[v_sfl_sst], [%[c16],%[c17]] offset:0    + %[shfl_base]         \n"
@@ -824,21 +826,21 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
             "  ds_read_b32   %[c23], %[v_sfl_sld] offset:4448 + %[shfl_base]                  \n"
             "  s_waitcnt     lgkmcnt(0)                              \n"
             "  s_mov_b64     exec, %[s_execflag_0]                    \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o0], %[c0], s[8:9]  \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o0], %[c16], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_1]                    \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o1], %[c1], s[8:9]  \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o1], %[c17], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_2]                    \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o2], %[c2], s[8:9]  \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o2], %[c18], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_3]                    \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o3], %[c3], s[8:9]  \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o3], %[c19], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_4]                    \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o4], %[c4], s[8:9]  \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o4], %[c20], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_5]                    \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o5], %[c5], s[8:9]  \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o5], %[c21], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_6]                    \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o6], %[c6], s[8:9]  \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o6], %[c22], s[8:9]  \n"
             "  s_mov_b64     exec, %[s_execflag_7]                    \n"
-            "  global_atomic_pk_add_bf16   %[v_os_o7], %[c7], s[8:9]  \n"
+            "  global_atomic_pk_add_bf16   %[v_os_o7], %[c23], s[8:9]  \n"
             "  s_mov_b64     exec, s[38:39]                           \n"
             "  s_sub_i32     %[s_loop_cnt], %[s_loop_cnt], 1     ; k--      \n"
             "  s_cmp_gt_i32  %[s_loop_cnt] 0                                \n"
@@ -962,7 +964,7 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
           "a244", "a245", "a246", "a247", "a248", "a249", "a250", "a251",
           "a252", "a253", "a254", "a255", 
           "s8", "s9", "s12", "s13", "s14", "s15", "s38", "s39", "s52", "s86",
-          // "s32", "s33",
+           "s36", "s37",
           "v50", "v54", "v55",
           "v64","v65","v66","v67","v68","v69","v70","v71",
           "v72","v73","v74","v75","v76","v77","v78","v79",
@@ -986,7 +988,7 @@ struct FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16
           "v244", "v245", "v246", "v247", "v248", "v249", "v250", "v251",
           "v252", "v253", "v254", "v255"
         );
-        _Pragma("clang diagnostic pop");
+#pragma clang diagnostic pop
         // clang-format on
     }
 };
