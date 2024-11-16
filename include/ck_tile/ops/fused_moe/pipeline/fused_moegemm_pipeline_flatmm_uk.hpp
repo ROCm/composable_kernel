@@ -70,7 +70,7 @@ struct FusedMoeGemmPipeline_FlatmmUk
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        constexpr index_t smem_0 = Policy::template GetUK_1<Problem>().GetSmemSize();
+        constexpr index_t smem_0 = Policy::template GetUK_0<Problem>().GetSmemSize();
         constexpr index_t smem_1 = Policy::template GetUK_1<Problem>().GetSmemSize();
         constexpr index_t smem_bridge =
             BlockShape::Block_M0 * BlockShape::Block_N0 * sizeof(YDataType);
@@ -333,7 +333,6 @@ struct FusedMoeGemmPipeline_FlatmmUk
         auto y_pre = cast_tile<YDataType>(acc_0);
 
         block_sync_lds();
-        __builtin_amdgcn_sched_barrier(0);
 
         store_tile(bridge_sst_win, y_pre);
         block_sync_lds();

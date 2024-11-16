@@ -795,7 +795,7 @@ struct FusedMoeGemmPipelineFlatmmPolicy
                      S_::Block_M0 == 32 && S_::Block_N0 == 512 && S_::Block_K0 == 128 &&
                      S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 32)
         {
-            return FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16{};
+            return Flatmm_32x512x128_1x4x1_16x16x16_BF16{};
         }
     }
 
@@ -808,7 +808,7 @@ struct FusedMoeGemmPipelineFlatmmPolicy
                      S_::Block_M1 == 32 && S_::Block_N1 == 128 && S_::Block_K1 == 512 &&
                      S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 32)
         {
-            return FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16{};
+            return FlatmmSn_32x128x512_1x4x1_16x16x16_BF16{};
         }
     }
 };

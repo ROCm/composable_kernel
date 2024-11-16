@@ -595,7 +595,6 @@ struct FastGeluAsm
     template <>
     CK_TILE_DEVICE void operator()<float, float>(float& y, const float& x) const
     {
-        // const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
         const uint32_t c1     = 0xbd92220c; // -2.0 * 0.035677f;
         const float c2        = -2.0 * 0.797885f;
         const uint32_t log2e_ = 0x3fb8aa3b; // log2e_v<float>;
@@ -619,7 +618,6 @@ struct FastGeluAsm
     template <>
     CK_TILE_HOST void operator()<fp32x2_t, fp32x2_t>(fp32x2_t& y, const fp32x2_t& x) const
     {
-        // const float u   = -2.f * x * (0.035677f * x * x + 0.797885f);
         const float c1   = -2.0 * 0.035677f;
         const float c2   = -2.0 * 0.797885f;
         const float u0   = x.x * (c1 * x.x * x.x + c2);
@@ -634,12 +632,9 @@ struct FastGeluAsm
     template <>
     CK_TILE_DEVICE void operator()<fp32x2_t, fp32x2_t>(fp32x2_t& y, const fp32x2_t& x) const
     {
-        // const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
         const uint32_t c1     = 0xbd92220c; // -2.0 * 0.035677f;
         float c2              = -2.0 * 0.797885f;
         const uint32_t log2e_ = 0x3fb8aa3b; // log2e_v<float>;
-        // float x0 = x.x;
-        // float x1 = x.y;
         float tmp0, tmp1;
         float y0 = x.x, y1 = x.y;
 
@@ -663,6 +658,10 @@ struct FastGeluAsm
             : [v_y0] "+v"(y0),
               [v_y1] "+v"(y1),
               [v_c2] "+v"(c2),
+              // NOTE! it is totally possible that c2/y0/y1 share same register, they are all local
+              // tmp variables we need to expicitly hint compiler they may read+write, to allow
+              // allocate different register , the side effect is c2=** may issue for every such
+              // inline asm block
               [v_tmp0] "+v"(tmp0),
               [v_tmp1] "+v"(tmp1)
             : [s_c1] "s"(c1), [s_log2e] "s"(log2e_)
