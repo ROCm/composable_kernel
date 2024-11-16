@@ -105,7 +105,11 @@ list(APPEND GEMM_INSTANCES device_gemm_xdl_f64_f64_f64_mk_kn_mn_instance.cpp
     device_gemm_wmma_bf16_bf16_bf16_mk_kn_mn_instance.cpp
     device_gemm_wmma_bf16_bf16_bf16_mk_nk_mn_instance.cpp
     device_gemm_wmma_bf16_bf16_bf16_km_kn_mn_instance.cpp
-    device_gemm_wmma_bf16_bf16_bf16_km_nk_mn_instance.cpp)
+    device_gemm_wmma_bf16_bf16_bf16_km_nk_mn_instance.cpp
+    device_gemm_wmma_int8_int8_int8_mk_kn_mn_instance.cpp
+    device_gemm_wmma_int8_int8_int8_mk_nk_mn_instance.cpp
+    device_gemm_wmma_int8_int8_int8_km_kn_mn_instance.cpp
+    device_gemm_wmma_int8_int8_int8_km_nk_mn_instance.cpp)
 
 add_instance_library(device_gemm_instance ${GEMM_INSTANCES})
 
