@@ -8,7 +8,7 @@
 using ADataType        = int8_t;
 using BDataType        = int8_t;
 using AccDataType      = int32_t;
-using CShuffleDataType = int8_t;
+using CShuffleDataType = int32_t;
 using CDataType        = int8_t;
 
 using ALayout = Row;

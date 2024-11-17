@@ -153,7 +153,7 @@ struct TestGemm
         auto f_generate_tensor_value = [](auto& tensor, auto type) {
             using dataType = decltype(type);
 
-            tensor.GenerateTensorValue(GeneratorTensor_2<dataType>{-2, 2});
+            tensor.GenerateTensorValue(GeneratorTensor_2<dataType>{-5, 5});
         };
 
         f_generate_tensor_value(a_m_k, ADataType{});
