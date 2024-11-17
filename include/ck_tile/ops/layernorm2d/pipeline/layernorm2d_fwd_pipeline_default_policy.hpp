@@ -47,7 +47,8 @@ struct Layernorm2dFwdPipelineDefaultPolicy
     {
         using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                        typename Problem::ComputeDataType,
-                                       typename Problem::BlockShape>;
+                                       typename Problem::BlockShape,
+                                       Problem::Traits::kFastFDiv>;
 
         return BlockWelford<P_>{};
     }
@@ -57,7 +58,8 @@ struct Layernorm2dFwdPipelineDefaultPolicy
     {
         using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                        typename Problem::ComputeDataType,
-                                       typename Problem::BlockShape>;
+                                       typename Problem::BlockShape,
+                                       Problem::Traits::kFastFDiv>;
 
         return BlockWelfordSync<P_>{};
     }
@@ -67,7 +69,8 @@ struct Layernorm2dFwdPipelineDefaultPolicy
     {
         using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                        typename Problem::ComputeDataType,
-                                       typename Problem::BlockShape>;
+                                       typename Problem::BlockShape,
+                                       Problem::Traits::kFastFDiv>;
 
         return BlockWelfordCrossWarpSync<P_>{};
     }
@@ -79,7 +82,8 @@ struct Layernorm2dFwdPipelineDefaultPolicy
         {
             using P_ = BlockWelfordProblem<typename Problem::ComputeDataType,
                                            typename Problem::ComputeDataType,
-                                           typename Problem::BlockShape>;
+                                           typename Problem::BlockShape,
+                                           Problem::Traits::kFastFDiv>;
 
             using block_welford = BlockWelford<P_>;
             using x_block_tile =

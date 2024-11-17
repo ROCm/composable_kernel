@@ -7,12 +7,13 @@
 
 namespace ck_tile {
 
-template <typename XDataType_, typename ComputeDataType_, typename BlockShape_>
+template <typename XDataType_, typename ComputeDataType_, typename BlockShape_, bool kFastFDiv_>
 struct BlockWelfordProblem
 {
-    using XDataType       = remove_cvref_t<XDataType_>;
-    using ComputeDataType = remove_cvref_t<ComputeDataType_>;
-    using BlockShape      = remove_cvref_t<BlockShape_>;
+    using XDataType                 = remove_cvref_t<XDataType_>;
+    using ComputeDataType           = remove_cvref_t<ComputeDataType_>;
+    using BlockShape                = remove_cvref_t<BlockShape_>;
+    static constexpr bool kFastFDiv = kFastFDiv_;
 };
 
 } // namespace ck_tile
