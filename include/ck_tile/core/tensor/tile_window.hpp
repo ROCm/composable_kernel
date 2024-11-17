@@ -292,12 +292,15 @@ struct tile_window_with_static_distribution
     {
         constexpr auto tile_dstr = TileDstr{};
         auto dst_tensor          = make_static_distributed_tensor<DataType>(tile_dstr);
-        load(dst_tensor, bool_constant<oob_conditional_check>{});
+        load(dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
         return dst_tensor;
     }
 
-    template <typename DistributedTensor, bool oob_conditional_check = true>
+    template <typename DistributedTensor,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true>
     CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
+                             number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
     {
         using Traits   = load_store_traits;

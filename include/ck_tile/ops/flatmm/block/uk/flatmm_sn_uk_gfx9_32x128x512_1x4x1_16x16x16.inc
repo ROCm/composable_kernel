@@ -17,14 +17,14 @@
 #   define _UK_ATOMIC_ADD_ "global_atomic_pk_add_bf16"
 
 #elif CK_TILE_FLATMM_UK_MFMA == CK_TILE_FLATMM_UK_MFMA_FP16
-#define _UK_MFMA_ "v_mfma_f32_16x16x16_fp16"
+#define _UK_MFMA_ "v_mfma_f32_16x16x16_f16"
 
 #   define _UK_PK_CVT_(x0_, x1_, y_)                \
     "  v_cvt_f16_f32  v54, " x0_ "  \n"             \
     "  v_cvt_f16_f32  v55, " x1_ "  \n"             \
-    "  v_perm_b32    " y_ ", v55, v54, s52          \n"
+    "  v_pack_b32_f16 " y_ ", v54, v55  \n"
 
-#   define _UK_ATOMIC_ADD_ "global_atomic_pk_add_fp16"
+#   define _UK_ATOMIC_ADD_ "global_atomic_pk_add_f16"
 
 #endif
 

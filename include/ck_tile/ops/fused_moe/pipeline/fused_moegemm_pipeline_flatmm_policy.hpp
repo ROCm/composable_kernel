@@ -795,7 +795,14 @@ struct FusedMoeGemmPipelineFlatmmPolicy
                      S_::Block_M0 == 32 && S_::Block_N0 == 512 && S_::Block_K0 == 128 &&
                      S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 32)
         {
-            return Flatmm_32x512x128_1x4x1_16x16x16_BF16{};
+            return Flatmm_32x512x128_1x4x1_16x16x32_BF16{};
+        }
+        else if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::fp16_t> &&
+                          std::is_same_v<typename Problem::GDataType, ck_tile::fp16_t> &&
+                          S_::Block_M0 == 32 && S_::Block_N0 == 512 && S_::Block_K0 == 128 &&
+                          S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 32)
+        {
+            return Flatmm_32x512x128_1x4x1_16x16x32_FP16{};
         }
     }
 
@@ -805,10 +812,19 @@ struct FusedMoeGemmPipelineFlatmmPolicy
         using S_ = typename Problem::BlockShape;
         if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
                      std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
+                     std::is_same_v<typename Problem::TopkWeightDataType, float> &&
                      S_::Block_M1 == 32 && S_::Block_N1 == 128 && S_::Block_K1 == 512 &&
                      S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 32)
         {
-            return FlatmmSn_32x128x512_1x4x1_16x16x16_BF16{};
+            return FlatmmSn_32x128x512_1x4x1_16x16x32_BF16{};
+        }
+        else if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::fp16_t> &&
+                          std::is_same_v<typename Problem::DDataType, ck_tile::fp16_t> &&
+                          std::is_same_v<typename Problem::TopkWeightDataType, float> &&
+                          S_::Block_M1 == 32 && S_::Block_N1 == 128 && S_::Block_K1 == 512 &&
+                          S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 32)
+        {
+            return FlatmmSn_32x128x512_1x4x1_16x16x32_FP16{};
         }
     }
 };

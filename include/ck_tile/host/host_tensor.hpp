@@ -679,7 +679,9 @@ struct HostTensor
                 else if(dtype == "int")
                     file << type_convert<int>(itm) << std::endl;
                 else
-                    file << itm << std::endl;
+                    // TODO: we didn't implement operator<< for all custom
+                    // data types, here fall back to float in case compile error
+                    file << type_convert<float>(itm) << std::endl;
             }
             file.close();
         }

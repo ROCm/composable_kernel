@@ -109,7 +109,10 @@ auto create_args(int argc, char* argv[])
         .insert("balance",
                 "0",
                 "if set to 1, will try balance the expert in topk-ids(convenient for testing)")
-        .insert("init", "1", "init method. 0:random uniform(slow) 1:random stepped float(fast)")
+        .insert("init",
+                "1",
+                "init method. 0:random uniform(slow) 1:random stepped float(fast). 2:rand "
+                "normalized(slow)")
         .insert("warmup", "5", "cold iter")
         .insert("repeat", "20", "hot iter");
 
@@ -209,7 +212,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {(max_num_tokens_padded + block_m - 1) / block_m});
     ck_tile::HostTensor<IndexDataType> num_sorted_tiles_host({1});
 
-    if(init == 1)
+    if(init == 0)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
+        ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f}(g_host);
+        ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f}(d_host);
+        ck_tile::FillUniformDistribution<AScaleDataType>{-.5f, .5f}(sa_host);
+        ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f}(sg_host);
+        ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f}(sd_host);
+        ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f}(sy_host);
+        ck_tile::FillUniformDistribution<TopkWeightDataType>{-.5f, .5f}(topk_weight_host);
+    }
+    else if(init == 1)
     {
         ck_tile::FillStepRange<ADataType>{-.5f, .5f, 0.01f}(a_host);
         ck_tile::FillStepRange<GDataType>{-.5f, .5f, 0.01f}(g_host);
@@ -220,16 +234,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillStepRange<YSmoothScaleDataType>{0.f, 1.f, 0.01f}(sy_host);
         ck_tile::FillStepRange<TopkWeightDataType>{-.5f, .5f, 0.01f}(topk_weight_host);
     }
-    else if(init == 0)
+    else if(init == 2)
     {
-        ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
-        ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f}(g_host);
-        ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f}(d_host);
-        ck_tile::FillUniformDistribution<AScaleDataType>{-.5f, .5f}(sa_host);
-        ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f}(sg_host);
-        ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f}(sd_host);
-        ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f}(sy_host);
-        ck_tile::FillUniformDistribution<TopkWeightDataType>{-.5f, .5f}(topk_weight_host);
+        ck_tile::FillNormalDistribution<ADataType>{-.5f, .5f, 0.01f}(a_host);
+        ck_tile::FillNormalDistribution<GDataType>{-.5f, .5f, 0.01f}(g_host);
+        ck_tile::FillNormalDistribution<DDataType>{.5f, -.5f, -0.01f}(d_host);
+        ck_tile::FillNormalDistribution<AScaleDataType>{0.f, 1.f, 0.01f}(sa_host);
+        ck_tile::FillNormalDistribution<GScaleDataType>{0.f, 1.f, 0.01f}(sg_host);
+        ck_tile::FillNormalDistribution<DScaleDataType>{0.f, 1.f, 0.01f}(sd_host);
+        ck_tile::FillNormalDistribution<YSmoothScaleDataType>{0.f, 1.f, 0.01f}(sy_host);
+        ck_tile::FillNormalDistribution<TopkWeightDataType>{-.5f, .5f, 0.01f}(topk_weight_host);
     }
 
     // permute weight
@@ -352,20 +366,34 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-#if 0
-    std::size_t num_byte = sizeof(ADataType) * m * n + sizeof(GammaDataType) * n +
-                           sizeof(BetaDataType) * n + sizeof(YDataType) * m * n;
+    double tflops = [&]() {
+        double flop_gemm_0 =
+            2 * static_cast<double>(tokens) * topk * shared_intermediate_size_0 * hidden_size;
+        double flop_gemm_1 =
+            2 * static_cast<double>(tokens) * topk * shared_intermediate_size_1 * hidden_size;
+        return (flop_gemm_0 + flop_gemm_1) / (static_cast<double>(ave_time) * 1e-3) / 1e12;
+    }();
 
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
-    std::cout << ", " << ave_time * 1.E3 << " us, " << gb_per_sec << " GB/s" << std::flush;
-#else
-    std::size_t flop_gemm_0 = 2 * tokens * topk * shared_intermediate_size_0 * hidden_size;
-    std::size_t flop_gemm_1 = 2 * tokens * topk * shared_intermediate_size_1 * hidden_size;
-    double tflops = (flop_gemm_0 + flop_gemm_1) / (static_cast<double>(ave_time) * 1e-3) / 1e12;
+    // TODO: this method we use expert-by-expert view, just for reference
+    double tbps = [&]() {
+        double token_bytes =
+            static_cast<double>(tokens) * topk / experts * hidden_size * sizeof(ADataType);
+        double w0_bytes = static_cast<double>(shared_intermediate_size_0) * experts * hidden_size *
+                          sizeof(GDataType);
+        double w1_bytes = static_cast<double>(shared_intermediate_size_1) * experts * hidden_size *
+                          sizeof(DDataType);
+        double o_bytes =
+            static_cast<double>(tokens) * topk / experts * hidden_size * sizeof(ODataType);
+        double topk_weights_bytes = static_cast<double>(tokens) * topk * sizeof(TopkWeightDataType);
+        // ignore index, they are too small
+
+        return (token_bytes + w0_bytes + w1_bytes + o_bytes + topk_weights_bytes) /
+               (static_cast<double>(ave_time) * 1e-3) / 1e12;
+    }();
 
     // float gb_per_sec = num_byte / 1.E6 / ave_time;
-    std::cout << ", " << ave_time * 1.E3 << " us, " << tflops << " tflops" << std::flush;
-#endif
+    std::cout << ", " << ave_time * 1.E3 << " us, " << tflops << " tflops, " << tbps << " TB/s"
+              << std::flush;
     bool pass = true;
 
     if(do_validation)
@@ -393,7 +421,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             gate_only);
 
         auto o_dev = o_buf.ToHost<ODataType>();
-        o_dev.savetxt("gpu-out.txt", "float");
+        // o_dev.savetxt("gpu-out.txt", "float");
         auto [rtol, atol] = get_elimit<ADataType>();
         pass &= ck_tile::check_err(
             o_dev, o_host, std::string("OUT Error: Incorrect results!"), rtol, atol);
@@ -426,6 +454,13 @@ int main(int argc, char* argv[])
     if(prec_i == "bf16" && prec_w == "bf16" && prec_o == "bf16" && prec_kw == "fp32")
     {
         return run<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t, float, float, float, float>(
+                   arg_parser)
+                   ? 0
+                   : -2;
+    }
+    else if(prec_i == "fp16" && prec_w == "fp16" && prec_o == "fp16" && prec_kw == "fp32")
+    {
+        return run<ck_tile::fp16_t, ck_tile::fp16_t, ck_tile::fp16_t, float, float, float, float>(
                    arg_parser)
                    ? 0
                    : -2;

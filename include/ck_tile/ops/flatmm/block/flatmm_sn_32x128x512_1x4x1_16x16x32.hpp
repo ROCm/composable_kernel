@@ -12,7 +12,7 @@ namespace ck_tile {
 // "S"tream update output along "N"
 // A in smem, B load from global
 // require 4 wave, occupancy=1c
-struct FlatmmSn_32x128x512_1x4x1_16x16x16_Base
+struct FlatmmSn_32x128x512_1x4x1_16x16x32_Base
 {
     static constexpr index_t Block_M = 32;
     static constexpr index_t Block_N = 128;
@@ -24,20 +24,20 @@ struct FlatmmSn_32x128x512_1x4x1_16x16x16_Base
 
     static constexpr index_t Warp_M = 16;
     static constexpr index_t Warp_N = 16;
-    static constexpr index_t Warp_K = 16;
+    static constexpr index_t Warp_K = 32;
 
     static constexpr index_t BlockSize = 256;
 
-    static constexpr index_t KPack = 2; // this is used to gurantee every threads can do dwordx4
+    // static constexpr index_t KPack = 2; // this is used to gurantee every threads can do dwordx4
 
     // TODO: note Nr/Kr/W need consider KPack
-    static constexpr index_t Block_W  = Warp_N * Warp_K * KPack;    // 512 element
-    static constexpr index_t Block_Nr = Block_N / Warp_N;           // 32 element, 4 per wave
-    static constexpr index_t Block_Kr = Block_K / (Warp_K * KPack); // 4
+    static constexpr index_t Block_W  = Warp_N * Warp_K;  // 512 element
+    static constexpr index_t Block_Nr = Block_N / Warp_N; // 32 element, 4 per wave
+    static constexpr index_t Block_Kr = Block_K / Warp_K; // 4
 
     static constexpr index_t Repeat_M = Block_M / (Warp_M * WarpPerBlock_M); // 2
     static constexpr index_t Repeat_N = Block_N / (Warp_N * WarpPerBlock_N); // 2
-    static constexpr index_t Repeat_K = Block_K / (Warp_K * WarpPerBlock_K); // 32
+    static constexpr index_t Repeat_K = Block_K / (Warp_K * WarpPerBlock_K); // 16
 
     static CK_TILE_DEVICE constexpr auto MakeCBlockDist()
     {
@@ -69,7 +69,7 @@ struct FlatmmSn_32x128x512_1x4x1_16x16x16_Base
     }
 };
 
-struct FlatmmSn_32x128x512_1x4x1_16x16x16_BF16 : public FlatmmSn_32x128x512_1x4x1_16x16x16_Base
+struct FlatmmSn_32x128x512_1x4x1_16x16x32_BF16 : public FlatmmSn_32x128x512_1x4x1_16x16x32_Base
 {
     using BDataType = bf16_t;
     using ODataType = bf16_t;
@@ -314,7 +314,7 @@ struct FlatmmSn_32x128x512_1x4x1_16x16x16_BF16 : public FlatmmSn_32x128x512_1x4x
     }
 };
 
-struct FlatmmSn_32x128x512_1x4x1_16x16x16_FP16 : public FlatmmSn_32x128x512_1x4x1_16x16x16_Base
+struct FlatmmSn_32x128x512_1x4x1_16x16x32_FP16 : public FlatmmSn_32x128x512_1x4x1_16x16x32_Base
 {
     using BDataType = bf16_t;
     using ODataType = bf16_t;

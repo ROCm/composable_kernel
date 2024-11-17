@@ -177,7 +177,7 @@ void reference_fused_moe(
     auto r = [&](auto i_token) {
         for(ck_tile::index_t i_n = 0; i_n < hidden_size; i_n++)
         {
-            AccDataType acc = type_convert<ODataType>(0);
+            AccDataType acc = type_convert<AccDataType>(0);
             for(ck_tile::index_t i_topk = 0; i_topk < topk; i_topk++)
             {
                 acc += out_topk_tokens(i_token, i_topk, i_n);

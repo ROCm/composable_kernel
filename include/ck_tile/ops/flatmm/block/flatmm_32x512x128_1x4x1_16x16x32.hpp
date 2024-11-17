@@ -34,7 +34,7 @@ namespace ck_tile {
 //  ......................
 //  v56-v59: [ 0:15](gemm_m)x[448:463](gemm_n)
 //  v60-v63: [16:31](gemm_m)x[448:463](gemm_n)
-struct Flatmm_32x512x128_1x4x1_16x16x16_Base // for f16/bf16
+struct Flatmm_32x512x128_1x4x1_16x16x32_Base // for f16/bf16
 {
     static constexpr index_t Block_M = 32;
     static constexpr index_t Block_N = 512;
@@ -238,7 +238,7 @@ struct Flatmm_32x512x128_1x4x1_16x16x16_Base // for f16/bf16
     }
 };
 
-struct Flatmm_32x512x128_1x4x1_16x16x16_BF16 : public Flatmm_32x512x128_1x4x1_16x16x16_Base
+struct Flatmm_32x512x128_1x4x1_16x16x32_BF16 : public Flatmm_32x512x128_1x4x1_16x16x32_Base
 {
     using ADataType = bf16_t;
     using BDataType = bf16_t;
@@ -425,7 +425,7 @@ struct Flatmm_32x512x128_1x4x1_16x16x16_BF16 : public Flatmm_32x512x128_1x4x1_16
     }
 };
 
-struct Flatmm_32x512x128_1x4x1_16x16x16_FP16 : public Flatmm_32x512x128_1x4x1_16x16x16_Base
+struct Flatmm_32x512x128_1x4x1_16x16x32_FP16 : public Flatmm_32x512x128_1x4x1_16x16x32_Base
 {
     using ADataType = fp16_t;
     using BDataType = fp16_t;

@@ -5,7 +5,7 @@
 #if CK_TILE_FLATMM_UK_MFMA == CK_TILE_FLATMM_UK_MFMA_BF16
 #define _UK_MFMA_ "v_mfma_f32_16x16x16_bf16"
 #elif CK_TILE_FLATMM_UK_MFMA == CK_TILE_FLATMM_UK_MFMA_FP16
-#define _UK_MFMA_ "v_mfma_f32_16x16x16_fp16"
+#define _UK_MFMA_ "v_mfma_f32_16x16x16_f16"
 #endif
 
 "s_mov_b32 s16,    %[s_res_a0] \n"
