@@ -8,13 +8,13 @@
 #include <iostream>
 #include <iomanip>
 #include <numeric>
-#include <thread>
 #include <utility>
 #include <vector>
 #include <functional>
 #include <fstream>
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/joinable_thread.hpp"
 #include "ck_tile/host/ranges.hpp"
 
 namespace ck_tile {
@@ -213,23 +213,6 @@ CK_TILE_HOST HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old
 
     return HostTensorDescriptor(new_lengths, new_strides);
 }
-
-struct joinable_thread : std::thread
-{
-    template <typename... Xs>
-    joinable_thread(Xs&&... xs) : std::thread(std::forward<Xs>(xs)...)
-    {
-    }
-
-    joinable_thread(joinable_thread&&) = default;
-    joinable_thread& operator=(joinable_thread&&) = default;
-
-    ~joinable_thread()
-    {
-        if(this->joinable())
-            this->join();
-    }
-};
 
 template <typename F, typename... Xs>
 struct ParallelTensorFunctor

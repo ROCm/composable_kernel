@@ -46,9 +46,14 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
     constexpr dim3 blocks                  = f_kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
+    static int printed = 0;
+
     auto kargs = f_kernel::MakeKargs(a);
-    if(s.log_level_ > 0)
+    if(s.log_level_ > 0 && printed == 0)
+    {
         std::cout << ", " << f_kernel::GetName() << std::flush;
+        printed = 1;
+    }
 
     return ck_tile::launch_kernel(
         s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(f_kernel{}, grids, blocks, 0, kargs));

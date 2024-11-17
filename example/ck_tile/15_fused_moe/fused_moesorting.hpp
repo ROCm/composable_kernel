@@ -7,14 +7,14 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/fused_moe.hpp"
 
-struct moe_sorting_trait
+struct fused_moesorting_trait
 {
     std::string index_type;
     std::string weight_type; // currently always float
 };
 
-struct moe_sorting_args : public ck_tile::MoeSortingHostArgs
+struct fused_moesorting_args : public ck_tile::MoeSortingHostArgs
 {
 };
 
-float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_config s);
+float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_tile::stream_config s);
