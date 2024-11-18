@@ -230,7 +230,15 @@ struct PageBlockNavigator
     CK_TILE_HOST_DEVICE
     DataType* get_block_ptr(index_t block_index) const
     {
-        return physical_blocks + physical_block_indices[block_index] * block_stride + fixed_offset;
+        if(block_index < num_blocks)
+        {
+            return physical_blocks + physical_block_indices[block_index] * block_stride +
+                   fixed_offset;
+        }
+        else
+        {
+            return nullptr;
+        }
     }
 
     CK_TILE_HOST_DEVICE int32_t get_block_index(const WindowOrigin& global_window_origin) const

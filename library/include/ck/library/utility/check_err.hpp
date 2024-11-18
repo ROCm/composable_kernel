@@ -24,7 +24,7 @@ namespace ck {
 namespace utils {
 
 template <typename ComputeDataType, typename OutDataType, typename AccDataType = ComputeDataType>
-double get_relative_threshold(const int numberOfAccumulations = 1)
+double get_relative_threshold(const int number_of_accumulations = 1)
 {
     using F8   = ck::f8_t;
     using F16  = ck::half_t;
@@ -79,13 +79,13 @@ double get_relative_threshold(const int numberOfAccumulations = 1)
     }
     else
     {
-        acc_error = std::pow(2, -NumericUtils<AccDataType>::mant) * 0.5 * numberOfAccumulations;
+        acc_error = std::pow(2, -NumericUtils<AccDataType>::mant) * 0.5 * number_of_accumulations;
     }
     return std::max(acc_error, midway_error);
 }
 
 template <typename ComputeDataType, typename OutDataType, typename AccDataType = ComputeDataType>
-double get_absolute_threshold(const double max_possible_num, const int numberOfAccumulations = 1)
+double get_absolute_threshold(const double max_possible_num, const int number_of_accumulations = 1)
 {
     using F8   = ck::f8_t;
     using F16  = ck::half_t;
@@ -142,7 +142,7 @@ double get_absolute_threshold(const double max_possible_num, const int numberOfA
     else
     {
         acc_error =
-            std::pow(2, expo - NumericUtils<AccDataType>::mant) * 0.5 * numberOfAccumulations;
+            std::pow(2, expo - NumericUtils<AccDataType>::mant) * 0.5 * number_of_accumulations;
     }
     return std::max(acc_error, midway_error);
 }
