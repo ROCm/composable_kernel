@@ -29,6 +29,7 @@ struct static_distributed_tensor
         remove_cvref_t<decltype(StaticTileDistribution{}.get_ys_to_d_descriptor())>;
 
     static constexpr index_t kThreadElementSpaceSize = ThreadTensorDesc{}.get_element_space_size();
+    static_assert(0 < kThreadElementSpaceSize, "Make sure tile distribution is valid");
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_dimension()
     {
