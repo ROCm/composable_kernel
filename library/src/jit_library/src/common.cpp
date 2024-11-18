@@ -22,8 +22,7 @@ std::string ToString(DataType dt)
 std::unordered_map<std::string_view, std::string_view> GetHeaders()
 {
     auto headers = ck_headers();
-    headers.insert(
-        {"ck/config.h", ""});
+    headers.insert({"ck/config.h", ""});
     return headers;
 }
 
