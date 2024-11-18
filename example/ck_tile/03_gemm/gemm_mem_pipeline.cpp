@@ -31,9 +31,9 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr ck_tile::index_t K_Warp_Tile = 8;
 
     // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadA = true;
-    constexpr bool kPadB = true;
-    constexpr bool kPadC = true;
+    constexpr bool kPadM = true;
+    constexpr bool kPadN = true;
+    constexpr bool kPadK = true;
 
     constexpr int kBlockPerCu = 1;
 
@@ -46,9 +46,9 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     using TilePartitioner = ck_tile::GemmTilePartitioner<GemmShape>;
 
     using GemmEpilogue = ck_tile::Default2DEpilogue<
-        ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, false, kPadC>>;
+        ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
 
-    using Traits = ck_tile::TileGemmTraits<kPadA, kPadB, kPadC, ALayout, BLayout, CLayout>;
+    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
 
     using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
