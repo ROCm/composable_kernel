@@ -11,6 +11,7 @@ namespace ck_tile {
 // Default policy class should not be templated, put template on member functions instead
 struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 {
+
 #if 0
     // 2d
     template <typename Problem>
@@ -116,6 +117,20 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
         return smem_size;
     }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
+    {
+        using ADataType = remove_cvref_t<typename Problem::ADataType>;
+        return Problem::VectorLoadSize / sizeof(ADataType);
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
+    {
+        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        return Problem::VectorLoadSize / sizeof(BDataType);
+    }
 #elif 1
     // fake XOR
     template <typename Problem>
@@ -192,80 +207,269 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
     {
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
+        using ALayout   = remove_cvref_t<typename Problem::ALayout>;
 
-        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t BlockSize = Problem::kBlockSize;
 
-        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t K1 = 16 / sizeof(ADataType);
-        constexpr index_t K0 = kKPerBlock / K1;
-        constexpr index_t M2 = get_warp_size() / K0;
-#if 1 // coalesce reading for each blocks
-        constexpr index_t M1 = kBlockSize / get_warp_size();
-        static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
-        static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");
-        constexpr index_t M0 = kMPerBlock / (M2 * M1);
+        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+        {
+            constexpr index_t M1           = Problem::VectorLoadSize / sizeof(ADataType);
+            constexpr index_t M0           = MPerBlock / M1;
+            constexpr index_t total_pixels = MPerBlock * KPerBlock / BlockSize;
+            static_assert(total_pixels % M1 == 0);
+            constexpr index_t K3    = total_pixels / M1;
+            constexpr index_t KPack = GetSmemPackA<Problem>();
+            static_assert(KPack % K3 == 0);
+            constexpr index_t K2 = KPack / K3;
+            if constexpr(get_warp_size() % (K2 * M0))
+            {
+                constexpr index_t K1 = get_warp_size() / (K2 * M0);
+                constexpr index_t K0 = BlockSize / get_warp_size();
+                static_assert(KPerBlock == K0 * K1 * K2 * K3);
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<M0, M1>, sequence<K0, K1, K2, K3>>,
+                                               tuple<sequence<2>, sequence<2, 1, 2>>,
+                                               tuple<sequence<0>, sequence<1, 0, 2>>,
+                                               sequence<2, 1>,
+                                               sequence<3, 1>>{});
+            }
+            else
+            {
+                constexpr index_t K1   = (K2 * M0) / get_warp_size();
+                constexpr index_t K2_m = K2 / K1;
+                constexpr index_t K0   = BlockSize / get_warp_size() / K1;
+                static_assert(KPerBlock == K0 * K1 * K2_m * K3);
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<M0, M1>, sequence<K0, K1, K2_m, K3>>,
+                                               tuple<sequence<2, 2>, sequence<1, 2>>,
+                                               tuple<sequence<0, 1>, sequence<0, 2>>,
+                                               sequence<2, 1>,
+                                               sequence<3, 1>>{});
+            }
+        }
+        else
+        {
+            constexpr index_t K1 = 16 / sizeof(ADataType);
+            constexpr index_t K0 = KPerBlock / K1;
+            constexpr index_t M2 = get_warp_size() / K0;
+            // coalesce reading for each blocks
+            if constexpr(get_warp_size() % (M2 * K0) == 0)
+            {
+                constexpr index_t M1 = BlockSize / get_warp_size();
+                static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
+                static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");
+                constexpr index_t M0 = MPerBlock / (M2 * M1);
 
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{});
-#else // coalesce reading for each warps
-        constexpr index_t M0 = kBlockSize / get_warp_size();
-        constexpr index_t M1 = kMPerBlock / (M2 * M0);
-
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<1, 1>>{});
-#endif
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+                                               tuple<sequence<1>, sequence<1, 2>>,
+                                               tuple<sequence<1>, sequence<2, 0>>,
+                                               sequence<1, 2>,
+                                               sequence<0, 1>>{});
+            }
+            else
+            {
+                constexpr index_t M0 = BlockSize / get_warp_size();
+                constexpr index_t M1 = MPerBlock / (M2 * M0);
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+                                               tuple<sequence<1>, sequence<1, 2>>,
+                                               tuple<sequence<0>, sequence<2, 0>>,
+                                               sequence<1, 2>,
+                                               sequence<1, 1>>{});
+            }
+        }
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
     {
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        using BLayout   = remove_cvref_t<typename Problem::BLayout>;
 
+        constexpr index_t BlockSize = Problem::kBlockSize;
+
+        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            constexpr index_t N1           = Problem::VectorLoadSize / sizeof(BDataType);
+            constexpr index_t N0           = NPerBlock / N1;
+            constexpr index_t total_pixels = NPerBlock * KPerBlock / BlockSize;
+            static_assert(total_pixels % N1 == 0);
+            constexpr index_t K3    = total_pixels / N1;
+            constexpr index_t KPack = GetSmemPackB<Problem>();
+            static_assert(KPack % K3 == 0);
+            constexpr index_t K2 = KPack / K3;
+            if constexpr(get_warp_size() % (K2 * N0) == 0)
+            {
+                constexpr index_t K1 = get_warp_size() / (K2 * N0);
+                constexpr index_t K0 = BlockSize / get_warp_size();
+                static_assert(KPerBlock == K0 * K1 * K2 * K3);
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<N0, N1>, sequence<K0, K1, K2, K3>>,
+                                               tuple<sequence<2>, sequence<2, 1, 2>>,
+                                               tuple<sequence<0>, sequence<1, 0, 2>>,
+                                               sequence<2, 1>,
+                                               sequence<3, 1>>{});
+            }
+            else
+            {
+                constexpr index_t K1   = (K2 * N0) / get_warp_size();
+                constexpr index_t K2_m = K2 / K1;
+                constexpr index_t K0   = BlockSize / get_warp_size() / K1;
+                static_assert(KPerBlock == K0 * K1 * K2_m * K3);
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<N0, N1>, sequence<K0, K1, K2_m, K3>>,
+                                               tuple<sequence<2, 2>, sequence<1, 2>>,
+                                               tuple<sequence<0, 1>, sequence<0, 2>>,
+                                               sequence<2, 1>,
+                                               sequence<3, 1>>{});
+            }
+        }
+        else
+        {
+
+            constexpr index_t K1 = Problem::VectorLoadSize / sizeof(BDataType);
+            constexpr index_t K0 = KPerBlock / K1;
+            constexpr index_t N2 = get_warp_size() / K0;
+            // coalesce reading for each blocks
+            if constexpr(get_warp_size() % (N2 * K0) == 0)
+            {
+                constexpr index_t N1 = BlockSize / get_warp_size();
+                static_assert(N2 != 0, "N2 is zero, which will lead to a division by zero error.");
+                static_assert(N1 != 0, "N1 is zero, which will lead to a division by zero error.");
+                constexpr index_t N0 = NPerBlock / (N2 * N1);
+
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                               tuple<sequence<1>, sequence<1, 2>>,
+                                               tuple<sequence<1>, sequence<2, 0>>,
+                                               sequence<1, 2>,
+                                               sequence<0, 1>>{});
+            }
+            // coalesce reading for each warps
+            else
+            {
+                constexpr index_t N0 = BlockSize / get_warp_size();
+                constexpr index_t N1 = NPerBlock / (N2 * N0);
+
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                               tuple<sequence<1>, sequence<1, 2>>,
+                                               tuple<sequence<0>, sequence<2, 0>>,
+                                               sequence<1, 2>,
+                                               sequence<1, 1>>{});
+            }
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledBRegBlockDescriptor()
+    {
+        using BLayout   = remove_cvref_t<typename Problem::BLayout>;
+        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>);
         constexpr index_t kBlockSize = Problem::kBlockSize;
-
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        constexpr index_t K1 = 16 / sizeof(BDataType);
-        constexpr index_t K0 = kKPerBlock / K1;
-        constexpr index_t N2 = get_warp_size() / K0;
-#if 1 // coalesce reading for each blocks
-        constexpr index_t N1 = kBlockSize / get_warp_size();
-        static_assert(N2 != 0, "M2 is zero, which will lead to a division by zero error.");
-        static_assert(N1 != 0, "M1 is zero, which will lead to a division by zero error.");
-        constexpr index_t N0 = kNPerBlock / (N2 * N1);
+        constexpr index_t N1           = Problem::VectorLoadSize / sizeof(BDataType);
+        constexpr index_t N0           = kNPerBlock / N1;
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+        static_assert(total_pixels % N1 == 0);
+        constexpr index_t K3     = total_pixels / N1;
+        constexpr index_t kKPack = GetSmemPackB<Problem>();
+        static_assert(kKPack % K3 == 0);
+        constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
+        constexpr index_t warp_size = get_warp_size();
+        if constexpr(warp_size % (K2 * N0) == 0)
+        {
+            constexpr index_t K1 = warp_size / (K2 * N0);
+            constexpr index_t K0 = kBlockSize / warp_size;
 
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{});
-#else // coalesce reading for each warps
-        constexpr index_t N0 = kBlockSize / get_warp_size();
-        constexpr index_t N1 = kNPerBlock / (N2 * N0);
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<N0, N1>, sequence<K0, K1, K2, K3>>,
+                                           tuple<sequence<2>, sequence<2, 1, 2>>,
+                                           tuple<sequence<0>, sequence<1, 0, 2>>,
+                                           sequence<1, 2>,
+                                           sequence<1, 3>>{});
+        }
+        else
+        {
+            constexpr index_t K1   = (K2 * N0) / get_warp_size();
+            constexpr index_t K2_m = K2 / K1;
+            constexpr index_t K0   = kBlockSize / get_warp_size() / K1;
+            static_assert(kKPerBlock == K0 * K1 * K2_m * K3);
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<N0, N1>, sequence<K0, K1, K2_m, K3>>,
+                                           tuple<sequence<2, 2>, sequence<1, 2>>,
+                                           tuple<sequence<0, 1>, sequence<0, 2>>,
+                                           sequence<1, 2>,
+                                           sequence<1, 3>>{});
+        }
+    }
 
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<1, 1>>{});
-#endif
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledARegBlockDescriptor()
+    {
+        using ALayout   = remove_cvref_t<typename Problem::ALayout>;
+        using ADataType = remove_cvref_t<typename Problem::ADataType>;
+        static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>);
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+
+        constexpr index_t M1           = Problem::VectorLoadSize / sizeof(ADataType);
+        constexpr index_t M0           = kMPerBlock / M1;
+        constexpr index_t total_pixels = kMPerBlock * kKPerBlock / kBlockSize;
+        static_assert(total_pixels % M1 == 0);
+        constexpr index_t K3     = total_pixels / M1;
+        constexpr index_t kKPack = GetSmemPackA<Problem>();
+        static_assert(kKPack % K3 == 0);
+        constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
+        constexpr index_t warp_size = get_warp_size();
+        if constexpr(warp_size % (K2 * M0) == 0)
+        {
+            constexpr index_t K1 = warp_size / (K2 * M0);
+            constexpr index_t K0 = kBlockSize / warp_size;
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<M0, M1>, sequence<K0, K1, K2, K3>>,
+                                           tuple<sequence<2>, sequence<2, 1, 2>>,
+                                           tuple<sequence<0>, sequence<1, 0, 2>>,
+                                           sequence<1, 2>,
+                                           sequence<1, 3>>{});
+        }
+        else
+        {
+            constexpr index_t K1   = (K2 * M0) / get_warp_size();
+            constexpr index_t K2_m = K2 / K1;
+            constexpr index_t K0   = kBlockSize / get_warp_size() / K1;
+            static_assert(kKPerBlock == K0 * K1 * K2_m * K3);
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<M0, M1>, sequence<K0, K1, K2_m, K3>>,
+                                           tuple<sequence<2, 2>, sequence<1, 2>>,
+                                           tuple<sequence<0, 1>, sequence<0, 2>>,
+                                           sequence<1, 2>,
+                                           sequence<1, 3>>{});
+        }
     }
 
     template <typename Problem>
