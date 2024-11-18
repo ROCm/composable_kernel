@@ -50,43 +50,9 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
     template <typename Problem, typename BlockGemm>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
     {
-        constexpr auto config   = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WG                = remove_cvref_t<decltype(config.template at<0>())>;
-        constexpr index_t MWarp = config.template at<1>();
-
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
-
-        constexpr index_t K2 = WG::kK / WG::WarpGemmAttribute::Impl::kABKLane;
-        constexpr index_t K1 = WG::WarpGemmAttribute::Impl::kABKLane;
-        constexpr index_t K0 = kKPerBlock / (K1 * K2);
-
-        constexpr index_t M2 = WG::WarpGemmAttribute::Impl::kAMLane;
-        constexpr index_t M1 = MWarp;
-        constexpr index_t M0 = kMPerBlock / (M2 * M1);
-
-        if constexpr(1 < Problem::kNumGemm0Warps)
-        {
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>,
-                                           tuple<sequence<1>, sequence<2, 1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           sequence<1, 2, 2>,
-                                           sequence<0, 0, 2>>{});
-        }
-        else
-        {
-            static_assert(MWarp == 1);
-
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>,
-                                           tuple<sequence<2, 1>>,
-                                           tuple<sequence<1, 2>>,
-                                           sequence<1, 2, 2>,
-                                           sequence<0, 0, 2>>{});
-        }
+        return BlockGemm::template MakeABlockTileDistribution<
+            Problem::BlockFmhaShape::kM0,
+            Problem::BlockFmhaShape::kSubQKHeaddim>();
     }
 
     template <typename Problem>
