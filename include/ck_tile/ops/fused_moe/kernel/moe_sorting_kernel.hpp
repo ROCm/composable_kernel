@@ -12,6 +12,9 @@
 
 namespace ck_tile {
 
+#define MOE_SORTING_MOCK_ID(token_id_, topk_id_) \
+    static_cast<uint32_t>(((token_id_)&0x00ffffff) | (((topk_id_)&0xff) << 28))
+
 struct MoeSortingHostArgs
 {
     const void* p_topk_ids;
@@ -183,8 +186,14 @@ struct MoeSortingKernel
             index_t expert_id = topk_id[i];
             index_t rank_post_pad =
                 tokens_cnts[calc_index(num_experts, tid, expert_id)] + cumsum[expert_id];
+#if CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
+            uint32_t curr_token_id, curr_topk_id;
+            topk_mdiv.divmod(i, curr_token_id, curr_topk_id);
+            p_sorted_token_ids[rank_post_pad] = MOE_SORTING_MOCK_ID(curr_token_id, curr_topk_id);
+#else
             p_sorted_token_ids[rank_post_pad] = topk_mdiv.div(i);
-            p_sorted_weights[rank_post_pad]   = weights[i];
+#endif
+            p_sorted_weights[rank_post_pad] = weights[i];
             ++tokens_cnts[calc_index(num_experts, tid, expert_id)];
         }
 
@@ -229,4 +238,7 @@ struct MoeSortingKernel
                                            smem);
     }
 };
+
+#undef MOE_SORTING_MOCK_ID
+
 } // namespace ck_tile

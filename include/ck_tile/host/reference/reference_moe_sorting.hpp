@@ -8,6 +8,9 @@
 
 namespace ck_tile {
 
+#define MOE_SORTING_MOCK_ID(token_id_, topk_id_) \
+    static_cast<uint32_t>(((token_id_)&0x00ffffff) | (((topk_id_)&0xff) << 28))
+
 template <typename WeightType, typename IndexType = index_t>
 CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
                                         const HostTensor<WeightType>& weights,
@@ -46,8 +49,11 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
                     expert_token_weights[e][i] = 0;
                 }
             }
-
-            expert_tokens[e][idx]        = t;
+#if CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
+            expert_tokens[e][idx] = MOE_SORTING_MOCK_ID(t, k);
+#else
+            expert_tokens[e][idx] = t;
+#endif
             expert_token_weights[e][idx] = w;
             expert_slice_idxs[e]++;
         }
@@ -75,4 +81,7 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
     unit_cnt *= unit_size;
     return;
 }
+
+#undef MOE_SORTING_MOCK_ID
+
 } // namespace ck_tile
