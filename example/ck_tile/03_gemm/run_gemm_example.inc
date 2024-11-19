@@ -115,8 +115,8 @@ int run_gemm_example_with_layouts(int argc,
 
     // TODO: add different init types
 
-    ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
-    ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
+    ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+    ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
