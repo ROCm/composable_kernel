@@ -735,6 +735,7 @@ struct FmhaFwdKernel
         window_size_left, window_size_right, mask_type, p_drop, s_randval, 
         std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
     }
+
     __host__ static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                             ck_tile::index_t nhead_,
                                             ck_tile::index_t seqlen_q_,
