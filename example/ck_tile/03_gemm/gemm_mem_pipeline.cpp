@@ -18,6 +18,7 @@ template <typename ALayout, typename BLayout, typename CLayout>
 float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
     // ToDo: This will be modified by the codegen code later.
+    // Memory friendly for Interwave scheduler
     constexpr ck_tile::index_t M_Tile = 256;
     constexpr ck_tile::index_t N_Tile = 32;
     constexpr ck_tile::index_t K_Tile = 64;
@@ -28,7 +29,20 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
+    constexpr ck_tile::index_t K_Warp_Tile = 8;
+
+    // Compute friendly for Intrawave scheduler
+    // constexpr ck_tile::index_t M_Tile = 224;
+    // constexpr ck_tile::index_t N_Tile = 256;
+    // constexpr ck_tile::index_t K_Tile = 64;
+
+    // constexpr ck_tile::index_t M_Warp = 4;
+    // constexpr ck_tile::index_t N_Warp = 1;
+    // constexpr ck_tile::index_t K_Warp = 1;
+
+    // constexpr ck_tile::index_t M_Warp_Tile = 16;
+    // constexpr ck_tile::index_t N_Warp_Tile = 16;
+    // constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadM = true;

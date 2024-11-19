@@ -112,7 +112,6 @@ int run_gemm_example_with_layouts(int argc,
         f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
 
     // TODO: add different init types
-
     ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
     ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
 
