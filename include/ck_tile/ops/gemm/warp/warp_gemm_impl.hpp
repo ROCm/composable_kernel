@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,9 +11,10 @@ struct WarpGemmImpl
 {
     using WarpGemmAttribute = remove_cvref_t<WarpGemmAttribute_>;
 
-    static constexpr index_t kM = WarpGemmAttribute::kM;
-    static constexpr index_t kN = WarpGemmAttribute::kN;
-    static constexpr index_t kK = WarpGemmAttribute::kK;
+    static constexpr index_t kM          = WarpGemmAttribute::kM;
+    static constexpr index_t kN          = WarpGemmAttribute::kN;
+    static constexpr index_t kK          = WarpGemmAttribute::kK;
+    static constexpr index_t kKPerThread = WarpGemmAttribute::kKPerThread;
 
     using ADataType = typename WarpGemmAttribute::ADataType;
     using BDataType = typename WarpGemmAttribute::BDataType;

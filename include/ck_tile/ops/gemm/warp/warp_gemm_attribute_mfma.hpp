@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -21,9 +21,10 @@ struct WarpGemmAtrributeMfma
     using BVecType = typename Impl::BVecType;
     using CVecType = typename Impl::CVecType;
 
-    static constexpr index_t kM = Impl::kM;
-    static constexpr index_t kN = Impl::kN;
-    static constexpr index_t kK = Impl::kK;
+    static constexpr index_t kM          = Impl::kM;
+    static constexpr index_t kN          = Impl::kN;
+    static constexpr index_t kK          = Impl::kK;
+    static constexpr index_t kKPerThread = Impl::kABKPerLane;
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -81,9 +82,10 @@ struct WarpGemmAtrributeMfmaIterateK
         ext_vector_t<BDataType, vector_traits<typename Impl::BVecType>::vector_size * kKIter>;
     using CVecType = typename Impl::CVecType;
 
-    static constexpr index_t kM = Impl::kM;
-    static constexpr index_t kN = Impl::kN;
-    static constexpr index_t kK = Impl::kK * kKIter;
+    static constexpr index_t kM          = Impl::kM;
+    static constexpr index_t kN          = Impl::kN;
+    static constexpr index_t kK          = Impl::kK * kKIter;
+    static constexpr index_t kKPerThread = Impl::kABKPerLane * kKIter;
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -164,9 +166,10 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
     using BVecType = typename Impl::AVecType;
     using CVecType = typename Impl::CVecType;
 
-    static constexpr index_t kM = Impl::kN;
-    static constexpr index_t kN = Impl::kM;
-    static constexpr index_t kK = Impl::kK;
+    static constexpr index_t kM          = Impl::kN;
+    static constexpr index_t kN          = Impl::kM;
+    static constexpr index_t kK          = Impl::kK;
+    static constexpr index_t kKPerThread = Impl::kABKPerLane;
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -222,9 +225,10 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
     using BVecType = typename Impl::AVecType;
     using CVecType = typename Impl::CVecType;
 
-    static constexpr index_t kM = Impl::kN;
-    static constexpr index_t kN = Impl::kM;
-    static constexpr index_t kK = Impl::kK;
+    static constexpr index_t kM          = Impl::kN;
+    static constexpr index_t kN          = Impl::kM;
+    static constexpr index_t kK          = Impl::kK;
+    static constexpr index_t kKPerThread = Impl::kABKPerLane;
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -287,9 +291,10 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
         ext_vector_t<BDataType, vector_traits<typename Impl::BVecType>::vector_size * kKIter>;
     using CVecType = typename Impl::CVecType;
 
-    static constexpr index_t kM = Impl::kN;
-    static constexpr index_t kN = Impl::kM;
-    static constexpr index_t kK = Impl::kK * kKIter;
+    static constexpr index_t kM          = Impl::kN;
+    static constexpr index_t kN          = Impl::kM;
+    static constexpr index_t kK          = Impl::kK * kKIter;
+    static constexpr index_t kKPerThread = Impl::kABKPerLane * kKIter;
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -372,10 +377,11 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
         ext_vector_t<BDataType, vector_traits<typename Impl::BVecType>::vector_size * kKIter>;
     using CVecType = typename Impl::CVecType;
 
-    static constexpr index_t kM      = Impl::kN;
-    static constexpr index_t kN      = Impl::kM;
-    static constexpr index_t kK      = Impl::kK * kKIter;
-    static constexpr index_t SFactor = SFactor_; // group how many CM1 together
+    static constexpr index_t kM          = Impl::kN;
+    static constexpr index_t kN          = Impl::kM;
+    static constexpr index_t kK          = Impl::kK * kKIter;
+    static constexpr index_t kKPerThread = Impl::kABKPerLane * kKIter;
+    static constexpr index_t SFactor     = SFactor_; // group how many CM1 together
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
@@ -483,10 +489,11 @@ struct WarpGemmAtrributeMfmaIterateK_SwizzleA
         ext_vector_t<BDataType, vector_traits<typename Impl::BVecType>::vector_size * kKIter>;
     using CVecType = typename Impl::CVecType;
 
-    static constexpr index_t kM      = Impl::kM;
-    static constexpr index_t kN      = Impl::kN;
-    static constexpr index_t kK      = Impl::kK * kKIter;
-    static constexpr index_t SFactor = SFactor_; // group how many CM1 together
+    static constexpr index_t kM          = Impl::kM;
+    static constexpr index_t kN          = Impl::kN;
+    static constexpr index_t kK          = Impl::kK * kKIter;
+    static constexpr index_t kKPerThread = Impl::kABKPerLane * kKIter;
+    static constexpr index_t SFactor     = SFactor_; // group how many CM1 together
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
