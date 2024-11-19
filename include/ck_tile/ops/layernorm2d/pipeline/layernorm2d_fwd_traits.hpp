@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -39,6 +39,7 @@ template<> struct Layernorm2dFusedQuantEnumName<Layernorm2dFusedQuantEnum::SMOOT
 
 template <bool kPadN_,
           bool kSaveMeanInvStd_,
+          bool kFastFDiv_,
           bool kTwoPass_,
           Layernorm2dFusedAddEnum kFusedAdd_,
           Layernorm2dFusedQuantEnum kFusedQuant_>
@@ -46,6 +47,7 @@ struct Layernorm2dFwdTraits
 {
     static constexpr bool kPadN                            = kPadN_;
     static constexpr bool kSaveMeanInvStd                  = kSaveMeanInvStd_;
+    static constexpr bool kFastFDiv                        = kFastFDiv_;
     static constexpr bool kTwoPass                         = kTwoPass_;
     static constexpr Layernorm2dFusedAddEnum kFusedAdd     = kFusedAdd_;
     static constexpr Layernorm2dFusedQuantEnum kFusedQuant = kFusedQuant_;

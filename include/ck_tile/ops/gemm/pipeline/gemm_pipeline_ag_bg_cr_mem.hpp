@@ -113,9 +113,9 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr index_t VectorSizeB = Problem::VectorSizeB;
     static constexpr index_t VectorSizeC = Problem::VectorSizeC;
 
-    static constexpr bool kPadA = Problem::kPadA;
-    static constexpr bool kPadB = Problem::kPadB;
-    static constexpr bool kPadC = Problem::kPadC;
+    static constexpr bool kPadM = Problem::kPadM;
+    static constexpr bool kPadN = Problem::kPadN;
+    static constexpr bool kPadK = Problem::kPadK;
 
     // Where is the right place for HasHotLoop and TailNum ???
     static constexpr bool HasHotLoop = Problem::HasHotLoop;

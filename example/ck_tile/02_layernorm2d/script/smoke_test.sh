@@ -1,6 +1,5 @@
 #!/bin/sh
-# call from top of CK folder
-EXE=./build/bin/tile_example_layernorm2d_fwd
+EXE="$(find . -name tile_example_layernorm2d_fwd -type f | head -n 1)"
 
 for fquant in "" "-fquant=1 -prec_o=int8"; do
 for pr_i in "fp16" "bf16" ; do
