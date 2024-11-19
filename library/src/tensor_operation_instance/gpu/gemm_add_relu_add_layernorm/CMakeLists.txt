@@ -1,8 +1,7 @@
-if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
+# ONLY XDL_KERNELS
 add_instance_library(device_gemm_add_relu_add_layernorm_instance
    device_gemm_add_relu_add_xdl_c_shuffle_layernorm_f16_km_kn_mn_mn_mn_instance.cpp
    device_gemm_add_relu_add_xdl_c_shuffle_layernorm_f16_km_nk_mn_mn_mn_instance.cpp
    device_gemm_add_relu_add_xdl_c_shuffle_layernorm_f16_mk_kn_mn_mn_mn_instance.cpp
    device_gemm_add_relu_add_xdl_c_shuffle_layernorm_f16_mk_nk_mn_mn_mn_instance.cpp
 )
-endif()

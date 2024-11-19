@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
+#include <ostream>
 
 #include "ck/utility/integral_constant.hpp"
 #include "ck/utility/type.hpp"
@@ -897,3 +899,14 @@ template <index_t NSize, index_t I>
 using uniform_sequence_gen_t = typename uniform_sequence_gen<NSize, I>::type;
 
 } // namespace ck
+
+template <ck::index_t... Is>
+std::ostream& operator<<(std::ostream& os, const ck::Sequence<Is...>)
+{
+    using S = ck::Sequence<Is...>;
+    os << "{";
+    ck::static_for<0, S::Size() - ck::Number<1>{}, 1>{}(
+        [&](auto i) { os << S::At(i).value << ", "; });
+    os << S::At(S::Size() - ck::Number<1>{}).value << "}";
+    return os;
+}

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,6 +22,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_contraction.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 #include "ck/host_utility/io.hpp"
 
@@ -31,10 +32,15 @@ namespace profiler {
 using Bilinear = ck::tensor_operation::element_wise::Bilinear;
 using Scale    = ck::tensor_operation::element_wise::Scale;
 
-template <typename ALayout,
+using F32 = float;
+using F64 = double;
+
+template <index_t NumDimMNK,
+          typename ALayout,
           typename BLayout,
           typename CDELayout,
           typename DataType,
+          typename ComputeDataType,
           typename DTupleDataType,
           typename CDElementOp>
 int profile_contraction_impl(ck::index_t do_verification,
@@ -45,10 +51,10 @@ int profile_contraction_impl(ck::index_t do_verification,
                              const std::vector<ck::index_t>& M,
                              const std::vector<ck::index_t>& N,
                              const std::vector<ck::index_t>& K,
-                             const std::vector<ck::index_t>& StridesA,
-                             const std::vector<ck::index_t>& StridesB,
-                             const std::vector<ck::index_t>& StridesE,
-                             const std::vector<ck::index_t>& StridesD)
+                             const std::vector<ck::index_t>& StridesA, // [M0, M1, K0, K1]
+                             const std::vector<ck::index_t>& StridesB, // [N0, N1, K0, K1]
+                             const std::vector<ck::index_t>& StridesE, // [M0, M1, N0, N1]
+                             const std::vector<ck::index_t>& StridesD) // [M0, M1, N0, N1]
 {
     bool pass = true;
 
@@ -63,13 +69,13 @@ int profile_contraction_impl(ck::index_t do_verification,
     };
 
     Tensor<DataType> a_m_k(f_host_tensor_descriptor(M, K, StridesA));
-    Tensor<DataType> b_k_n(f_host_tensor_descriptor(K, N, StridesB));
+    Tensor<DataType> b_n_k(f_host_tensor_descriptor(N, K, StridesB));
     Tensor<DataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StridesE));
     Tensor<DataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StridesE));
     Tensor<DataType> d_m_n(f_host_tensor_descriptor(M, N, StridesD));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
-    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
+    std::cout << "b_n_k: " << b_n_k.mDesc << std::endl;
     std::cout << "d_m_n: " << d_m_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
 
@@ -78,12 +84,12 @@ int profile_contraction_impl(ck::index_t do_verification,
     case 0: break;
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<DataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<DataType>{-5, 5});
+        b_n_k.GenerateTensorValue(GeneratorTensor_2<DataType>{-5, 5});
         d_m_n.GenerateTensorValue(GeneratorTensor_2<DataType>{-5, 5});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<DataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<DataType>{-0.5, 0.5});
+        b_n_k.GenerateTensorValue(GeneratorTensor_3<DataType>{-0.5, 0.5});
         d_m_n.GenerateTensorValue(GeneratorTensor_3<DataType>{-0.5, 0.5});
     }
 
@@ -91,34 +97,41 @@ int profile_contraction_impl(ck::index_t do_verification,
     using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 
     DeviceMem a_device_buf(sizeof(DataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(DataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(DataType) * b_n_k.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(DataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
     DeviceMem d_device_buf(sizeof(DataType) * d_m_n.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
+    b_device_buf.ToDevice(b_n_k.mData.data());
     e_device_buf.SetZero();
     d_device_buf.ToDevice(d_m_n.mData.data());
 
-    const std::vector<index_t> a_ms_ks_lengths = {M[0], M[1], K[0], K[1]};
-    const std::vector<index_t> b_ns_ks_lengths = {N[0], N[1], K[0], K[1]};
-    const std::vector<index_t> e_ms_ns_lengths = {M[0], M[1], N[0], N[1]};
-    const std::vector<index_t> d_m_n_lengths   = {M[0], M[1], N[0], N[1]};
+    auto merge_dims = [](const std::vector<ck::index_t>& dims01,
+                         const std::vector<ck::index_t>& dims23) {
+        std::vector<ck::index_t> dims_szt(dims01.begin(), dims01.end());
+        dims_szt.insert(dims_szt.end(), dims23.begin(), dims23.end());
+        return dims_szt;
+    };
+
+    const std::vector<index_t> a_ms_ks_lengths = merge_dims(M, K);
+    const std::vector<index_t> b_ns_ks_lengths = merge_dims(N, K);
+    const std::vector<index_t> e_ms_ns_lengths = merge_dims(M, N);
+    const std::vector<index_t> d_m_n_lengths   = merge_dims(M, N);
 
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
 
-    constexpr ck::index_t NumDim = 2;
-    using DeviceOp               = ck::tensor_operation::device::DeviceContractionMultipleD<NumDim,
-                                                                              NumDim,
-                                                                              NumDim,
+    using DeviceOp = ck::tensor_operation::device::DeviceContractionMultipleD<NumDimMNK,
+                                                                              NumDimMNK,
+                                                                              NumDimMNK,
                                                                               DataType,
                                                                               DataType,
                                                                               DTupleDataType,
                                                                               DataType,
                                                                               AElementOp,
                                                                               BElementOp,
-                                                                              CDElementOp>;
+                                                                              CDElementOp,
+                                                                              ComputeDataType>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -126,17 +139,21 @@ int profile_contraction_impl(ck::index_t do_verification,
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
+    using AccDataType =
+        typename std::conditional<std::is_same<ComputeDataType, F64>::value, F64, F32>::type;
+
     // Run reference op
     if(do_verification)
     {
         using ReferenceGemmInstance =
-            ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDim,
-                                                                      NumDim,
-                                                                      NumDim,
+            ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDimMNK,
+                                                                      NumDimMNK,
+                                                                      NumDimMNK,
                                                                       DataType,
                                                                       DataType,
                                                                       DataType,
-                                                                      DataType,
+                                                                      AccDataType,
+                                                                      ComputeDataType,
                                                                       AElementOp,
                                                                       BElementOp>;
 
@@ -146,37 +163,24 @@ int profile_contraction_impl(ck::index_t do_verification,
         Tensor<DataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StridesE));
 
         auto ref_argument =
-            ref_op.MakeArgument(a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op);
+            ref_op.MakeArgument(a_m_k, b_n_k, c_m_n_host_result, a_element_op, b_element_op);
 
         ref_invoker.Run(ref_argument);
 
-        for(size_t m0 = 0; m0 < e_m_n_host_result.mDesc.GetLengths()[0]; ++m0)
-        {
-            for(size_t m1 = 0; m1 < e_m_n_host_result.mDesc.GetLengths()[1]; ++m1)
+        e_m_n_host_result.ForEach([&](auto& self, auto idx) {
+            if constexpr(is_same<CDElementOp, Bilinear>::value)
             {
-                for(size_t n0 = 0; n0 < e_m_n_host_result.mDesc.GetLengths()[2]; ++n0)
-                {
-                    for(size_t n1 = 0; n1 < e_m_n_host_result.mDesc.GetLengths()[3]; ++n1)
-                    {
-                        if constexpr(is_same<CDElementOp, Bilinear>::value)
-                        {
-                            cde_element_op(e_m_n_host_result(m0, m1, n0, n1),
-                                           c_m_n_host_result(m0, m1, n0, n1),
-                                           d_m_n(m0, m1, n0, n1));
-                        }
-                        else if constexpr(is_same<CDElementOp, Scale>::value)
-                        {
-                            cde_element_op(e_m_n_host_result(m0, m1, n0, n1),
-                                           c_m_n_host_result(m0, m1, n0, n1));
-                        }
-                        else
-                        {
-                            static_assert("Unsupported CDElementOp in contraction profiler.");
-                        }
-                    }
-                }
+                cde_element_op(self(idx), c_m_n_host_result(idx), d_m_n(idx));
             }
-        }
+            else if constexpr(is_same<CDElementOp, Scale>::value)
+            {
+                cde_element_op(self(idx), c_m_n_host_result(idx));
+            }
+            else
+            {
+                static_assert("Unsupported CDElementOp in contraction profiler.");
+            }
+        });
     }
 
     std::string best_op_name;
@@ -233,9 +237,12 @@ int profile_contraction_impl(ck::index_t do_verification,
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-        auto nelems_m = M[0] * M[1];
-        auto nelems_n = N[0] * N[1];
-        auto nelems_k = K[0] * K[1];
+        auto nelems_m = ck::accumulate_n<ck::index_t>(
+            a_ms_ks_lengths.begin(), NumDimMNK, 1, std::multiplies<>{});
+        auto nelems_n = ck::accumulate_n<ck::index_t>(
+            b_ns_ks_lengths.begin(), NumDimMNK, 1, std::multiplies<>{});
+        auto nelems_k = ck::accumulate_n<ck::index_t>(
+            a_ms_ks_lengths.begin() + NumDimMNK, NumDimMNK, 1, std::multiplies<>{});
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
@@ -272,8 +279,29 @@ int profile_contraction_impl(ck::index_t do_verification,
             {
                 e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-                float threshold =
-                    static_cast<DataType>(nelems_k) * std::numeric_limits<DataType>::epsilon();
+                // Both the kernel and the reference use `AccDataType`, so an absolute error of both
+                // of them is bounded by `nelems_k * std::numeric_limits<AccDataType>::epsilon()`.
+                // Comparing one to another can result in an absolute error as high as twice that
+                // value.
+                double threshold = 2 * nelems_k * std::numeric_limits<AccDataType>::epsilon();
+                // Handle the possible casting error of either AccDataType -> DataType or
+                // DataType -> ComputeDataType.
+                // TODO: Add a generic solution for calculating thresholds in CK.
+                if constexpr(ck::is_same_v<DataType, ck::bhalf_t> ||
+                             ck::is_same_v<ComputeDataType, ck::bhalf_t>)
+                {
+                    const double epsilon = std::pow(2, -7);
+                    // Maximum relative casting error when rounding to zero.
+                    threshold += epsilon * 2;
+                }
+                else if constexpr(ck::is_same_v<DataType, ck::half_t> ||
+                                  ck::is_same_v<ComputeDataType, ck::half_t>)
+                {
+                    const double epsilon = std::pow(2, -10);
+                    // Maximum relative casting error when rounding to zero.
+                    threshold += epsilon * 2;
+                }
+
                 pass = pass & ck::utils::check_err(e_m_n_device_result,
                                                    e_m_n_host_result,
                                                    "Error: incorrect results!",
@@ -283,7 +311,7 @@ int profile_contraction_impl(ck::index_t do_verification,
                 if(do_log)
                 {
                     LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "b: ", b_n_k.mData, ",") << std::endl;
                     LogRangeAsType<float>(std::cout << "c_host  : ", e_m_n_host_result.mData, ",")
                         << std::endl;
                     LogRangeAsType<float>(std::cout << "c_device: ", e_m_n_device_result.mData, ",")

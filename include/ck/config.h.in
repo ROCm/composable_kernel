@@ -43,6 +43,9 @@
 #ifndef CK_ENABLE_FP8
 #define CK_ENABLE_FP8 "ON"
 #endif
+#ifndef CK_ENABLE_BF8
+#define CK_ENABLE_BF8 "ON"
+#endif
 #ifndef CK_ENABLE_FP16
 #define CK_ENABLE_FP16 "ON"
 #endif
@@ -64,6 +67,10 @@
 
 #ifndef CK_ENABLE_FP8
 #cmakedefine CK_ENABLE_FP8 @CK_ENABLE_FP8@
+#endif
+
+#ifndef CK_ENABLE_BF8
+#cmakedefine CK_ENABLE_BF8 @CK_ENABLE_BF8@
 #endif
 
 #ifndef CK_ENABLE_FP16
@@ -91,10 +98,17 @@
 #endif
 
 //
-// Instances supports in the current CK build
+// CK kernels which support XDL (MI series)
 //
-#ifndef CK_ENABLE_INSTANCES_ONLY
-#cmakedefine CK_ENABLE_INSTANCES_ONLY @CK_ENABLE_INSTANCES_ONLY@
+#ifndef CK_USE_XDL
+#cmakedefine CK_USE_XDL @CK_USE_XDL@
+#endif
+
+//
+// CK Kernels which support WMMA (recent Navi series)
+//
+#ifndef CK_USE_WMMA
+#cmakedefine CK_USE_WMMA @CK_USE_WMMA@
 #endif
 
 // clang-format on

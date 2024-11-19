@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -111,6 +111,15 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
                   const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
                   const CGridDesc_M_N& c_grid_desc_m_n)
     {
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+
+        if(!(a_grid_desc_k0_m_k1.GetElementSpaceSize() * sizeof(FloatAB) <= TwoGB &&
+             b_grid_desc_k0_n_k1.GetElementSpaceSize() * sizeof(FloatAB) <= TwoGB &&
+             c_grid_desc_m_n.GetElementSpaceSize() * sizeof(FloatC) <= TwoGB))
+        {
+            return false;
+        }
+
         const auto M  = a_grid_desc_k0_m_k1.GetLength(I1);
         const auto N  = b_grid_desc_k0_n_k1.GetLength(I1);
         const auto K0 = a_grid_desc_k0_m_k1.GetLength(I0);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -94,14 +94,36 @@ using get_carrier_t = typename get_carrier<SizeInBytes>::type;
 
 } // namespace detail
 
+__device__ inline uint32_t amd_wave_read_first_lane(uint32_t value)
+{
+    return __builtin_amdgcn_readfirstlane(value);
+}
+
 __device__ inline int32_t amd_wave_read_first_lane(int32_t value)
 {
     return __builtin_amdgcn_readfirstlane(value);
 }
 
-template <typename Object,
-          typename = ck::enable_if_t<ck::is_class<Object>::value &&
-                                     ck::is_trivially_copyable<Object>::value>>
+__device__ inline int64_t amd_wave_read_first_lane(int64_t value)
+{
+    constexpr unsigned object_size        = sizeof(int64_t);
+    constexpr unsigned second_part_offset = object_size / 2;
+    auto* const from_obj                  = reinterpret_cast<const std::byte*>(&value);
+    alignas(int64_t) std::byte to_obj[object_size];
+
+    using Sgpr = uint32_t;
+
+    *reinterpret_cast<Sgpr*>(to_obj) =
+        amd_wave_read_first_lane(*reinterpret_cast<const Sgpr*>(from_obj));
+    *reinterpret_cast<Sgpr*>(to_obj + second_part_offset) =
+        amd_wave_read_first_lane(*reinterpret_cast<const Sgpr*>(from_obj + second_part_offset));
+
+    return *reinterpret_cast<int64_t*>(to_obj);
+}
+
+template <
+    typename Object,
+    typename = std::enable_if_t<std::is_class_v<Object> && std::is_trivially_copyable_v<Object>>>
 __device__ auto amd_wave_read_first_lane(const Object& obj)
 {
     using Size                = unsigned;

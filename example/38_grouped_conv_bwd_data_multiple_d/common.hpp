@@ -10,7 +10,6 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle_v1.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -35,6 +34,8 @@ static constexpr auto ConvBwdDataDefault =
 
 using FP16 = ck::half_t;
 using FP32 = float;
+using FP8  = ck::f8_t;
+using BF8  = ck::bf8_t;
 
 struct ExecutionConfig final
 {

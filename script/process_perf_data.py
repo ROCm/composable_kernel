@@ -122,7 +122,7 @@ def parse_logfile(logfile):
         #sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
         test_list=list(range(1,len(tests)+1))
     #parse conv_fwd and conv_bwd performance tests:
-    elif 'conv_fwd' in logfile or 'conv_bwd_data' in logfile:
+    elif 'conv_fwd' in logfile or 'conv_bwd' in logfile:
         for line in open(logfile):
             if 'tflops:' in line:
                 lst=line.split()
@@ -133,11 +133,22 @@ def parse_logfile(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[4])
-    elif 'onnx_gemm' in logfile or 'splitK_gemm' in logfile:
+    elif 'onnx_gemm' in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[33])
+    elif 'splitK_gemm' in logfile or 'mixed_gemm' in logfile:
+        for line in open(logfile):
+            if 'Best Perf' in line:
+                lst=line.split()
+                res.append(lst[36])
+    elif 'perf_fmha' in logfile:
+        for line in open(logfile):
+            if 'TFlops' in line:
+                lst=line.split()
+                line_dict=dict(zip(lst[1:],lst))
+                res.append(line_dict['TFlops,'])
     return res
 
 
@@ -231,7 +242,7 @@ def main():
     sql_hostname = '127.0.0.1'
     sql_username = os.environ["dbuser"]
     sql_password = os.environ["dbpassword"]
-    sql_main_database = 'miopen_perf'
+    sql_main_database = os.environ["ck_perf_db"]
     sql_port = 3306
     ssh_host = os.environ["dbsship"]
     ssh_user = os.environ["dbsshuser"]
@@ -263,14 +274,26 @@ def main():
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_grouped_gemm_tflops"
-        if 'conv_fwd' in filename:
+        if 'perf_conv_fwd' in filename:
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_conv_fwd_tflops"
-        if 'conv_bwd_data' in filename:
+        if 'perf_conv_bwd_data' in filename:
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_conv_bwd_data_tflops"
+        if 'grouped_conv_fwd' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_grouped_conv_fwd_tflops"
+        if 'grouped_conv_bwd_data' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_grouped_conv_bwd_data_tflops"
+        if 'grouped_conv_bwd_weight' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_grouped_conv_bwd_weight_tflops"
         if 'gemm_bilinear' in filename:
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
@@ -295,6 +318,18 @@ def main():
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_splitK_gemm_tflops"
+        if 'mixed_gemm' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_mixed_gemm_tflops"
+        if 'fmha_fwd' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_fmha_fwd_tflops"
+        if 'fmha_bwd' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_fmha_bwd_tflops"
 
         tflops_base = get_baseline(table_name,conn)
         store_new_test_result(table_name, results, testlist, branch_name, node_id, gpu_arch, compute_units, rocm_vers, hip_vers, environment, conn)

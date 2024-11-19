@@ -90,21 +90,27 @@ print_log_header $gemm_bilinear_log $env_type $branch $host_name
 ./profile_gemm_bilinear.sh gemm_bilinear 1 2 $verify 1 0 1 2>&1 | tee -a $gemm_bilinear_log
 ./profile_gemm_bilinear.sh gemm_bilinear 1 3 $verify 1 0 1 2>&1 | tee -a $gemm_bilinear_log
 
-#run conv_fwd tests
-export conv_fwd_log="perf_conv_fwd.log"
-print_log_header $conv_fwd_log $env_type $branch $host_name
-./profile_conv_fwd.sh conv_fwd 0 1 $verify 1 0 1 256 2>&1 | tee -a $conv_fwd_log
-./profile_conv_fwd.sh conv_fwd 1 1 $verify 1 0 1 256 2>&1 | tee -a $conv_fwd_log
-./profile_conv_fwd.sh conv_fwd 2 1 $verify 1 0 1 256 2>&1 | tee -a $conv_fwd_log
-./profile_conv_fwd.sh conv_fwd 3 1 $verify 1 0 1 256 2>&1 | tee -a $conv_fwd_log
+#run grouped_fwd tests
+export grouped_conv_fwd_log="perf_grouped_conv_fwd.log"
+print_log_header $grouped_conv_fwd_log $env_type $branch $host_name
+./profile_grouped_conv_fwd.sh grouped_conv_fwd 0 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_log
+./profile_grouped_conv_fwd.sh grouped_conv_fwd 1 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_log
+./profile_grouped_conv_fwd.sh grouped_conv_fwd 2 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_log
 
-#run conv_bwd_data tests
-export conv_bwd_data_log="perf_conv_bwd_data.log"
-print_log_header $conv_bwd_data_log $env_type $branch $host_name
-./profile_conv_bwd_data.sh conv_bwd_data 0 1 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
-./profile_conv_bwd_data.sh conv_bwd_data 1 1 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
-./profile_conv_bwd_data.sh conv_bwd_data 2 1 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
-./profile_conv_bwd_data.sh conv_bwd_data 3 1 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
+#run grouped_bwd_data tests
+export grouped_conv_bwd_data_log="perf_grouped_conv_bwd_data.log"
+print_log_header $grouped_conv_bwd_data_log $env_type $branch $host_name
+./profile_grouped_conv_bwd_data.sh grouped_conv_bwd_data 0 1 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_bwd_data_log
+./profile_grouped_conv_bwd_data.sh grouped_conv_bwd_data 1 1 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_bwd_data_log
+./profile_grouped_conv_bwd_data.sh grouped_conv_bwd_data 2 1 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_bwd_data_log
+
+#run grouped_bwd_weight tests
+export grouped_conv_bwd_weight_log="perf_grouped_conv_bwd_weight.log"
+print_log_header $grouped_conv_bwd_weight_log $env_type $branch $host_name
+./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 0 2 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
+./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 1 2 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
+./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 2 2 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
+./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 1 2 $verify 1 0 1 256 4 2>&1 | tee -a $grouped_conv_bwd_weight_log
 
 #run resnet50 tests
 export resnet256_log="perf_resnet50_N256.log"
@@ -121,29 +127,25 @@ print_log_header $reduction_log $env_type $branch $host_name
 ./profile_reduce_no_index.sh $verify 2 10 --half 2>&1 | tee -a $reduction_log
 
 #run splitK_gemm tests, first correctness verification, then performance
-export splitK_gemm_ver_log="perf_splitK_gemm_verify.log"
-print_log_header $splitK_gemm_ver_log $env_type $branch $host_name
-./profile_splitK_gemm.sh gemm_splitk 0 0 $verify 1 0 0 4 2>&1 | tee -a $splitK_gemm_ver_log
-./profile_splitK_gemm.sh gemm_splitk 0 1 $verify 1 0 0 4 2>&1 | tee -a $splitK_gemm_ver_log
-./profile_splitK_gemm.sh gemm_splitk 0 2 $verify 1 0 0 4 2>&1 | tee -a $splitK_gemm_ver_log
-./profile_splitK_gemm.sh gemm_splitk 0 3 $verify 1 0 0 4 2>&1 | tee -a $splitK_gemm_ver_log
-./profile_splitK_gemm.sh gemm_splitk 1 0 $verify 1 0 0 4 2>&1 | tee -a $splitK_gemm_ver_log
-./profile_splitK_gemm.sh gemm_splitk 1 1 $verify 1 0 0 4 2>&1 | tee -a $splitK_gemm_ver_log
-./profile_splitK_gemm.sh gemm_splitk 1 2 $verify 1 0 0 4 2>&1 | tee -a $splitK_gemm_ver_log
-./profile_splitK_gemm.sh gemm_splitk 1 3 $verify 1 0 0 4 2>&1 | tee -a $splitK_gemm_ver_log
 export splitK_gemm_log="perf_splitK_gemm.log"
 print_log_header $splitK_gemm_log $env_type $branch $host_name
-./profile_splitK_gemm.sh gemm_splitk 0 0 0 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
-./profile_splitK_gemm.sh gemm_splitk 0 1 0 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
-./profile_splitK_gemm.sh gemm_splitk 0 2 0 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
-./profile_splitK_gemm.sh gemm_splitk 0 3 0 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
-./profile_splitK_gemm.sh gemm_splitk 1 0 0 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
-./profile_splitK_gemm.sh gemm_splitk 1 1 0 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
-./profile_splitK_gemm.sh gemm_splitk 1 2 0 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
-./profile_splitK_gemm.sh gemm_splitk 1 3 0 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 0 0 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 0 1 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 0 2 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 0 3 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 1 0 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 1 1 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 1 2 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 1 3 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
 
 #run ONNX gemm tests
 export onnx_log="perf_onnx_gemm.log"
 print_log_header $onnx_log $env_type $branch $host_name
 ./profile_onnx_gemm.sh gemm 0 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
 ./profile_onnx_gemm.sh gemm 1 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
+
+#run mixed fp16/fp8 and fp8/fp16 gemm tests
+export mixed_gemm_log="perf_mixed_gemm.log"
+print_log_header $mixed_gemm_log $env_type $branch $host_name
+./profile_mixed_gemm.sh gemm_splitk 4 0 $verify 2 0 1 16 2>&1 | tee -a $mixed_gemm_log
+./profile_mixed_gemm.sh gemm_splitk 5 0 $verify 2 0 1 16 2>&1 | tee -a $mixed_gemm_log

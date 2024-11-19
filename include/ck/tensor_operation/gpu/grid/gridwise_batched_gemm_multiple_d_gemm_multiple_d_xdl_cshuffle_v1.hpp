@@ -116,7 +116,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemm0KPrefetchStage>;
+    using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemm0KPrefetchStage, true, true>;
 
     // ck::Tuple<const D0DataType1*, const D0DataType2*, ...>
     static constexpr auto MakeD0sGridPointer()
@@ -880,7 +880,12 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             Gemm1KPack,
             false,      // TransposeC
             Gemm1KPack, // AMmaKStride
-            Gemm1KPack * XdlopsGemm<A0B0B1DataType, Gemm0MPerXdl, Gemm0NPerXdl, Gemm1KPack, false>{}
+            Gemm1KPack * XdlopsGemm<A0B0B1DataType,
+                                    Gemm0MPerXdl,
+                                    Gemm0NPerXdl,
+                                    Gemm1KPack,
+                                    A0B0B1DataType,
+                                    false>{}
                              .K0PerXdlops>{                         // BMmaKStride
                                            make_tuple(0, 0, 0, 0)}; // A_origin
 

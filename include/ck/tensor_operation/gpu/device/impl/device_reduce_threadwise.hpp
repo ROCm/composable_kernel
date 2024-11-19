@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,7 +11,6 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_multiblock.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise.hpp"
 
 namespace ck {
@@ -48,7 +47,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<InDataType,
                                                     OutputIndex>
 
 {
-    static_assert(Rank <= 6, "Bigger Rank size is not supported!");
+    static_assert(Rank <= 12, "Bigger Rank size is not supported!");
 
     static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
                    (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&

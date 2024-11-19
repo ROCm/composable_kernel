@@ -20,8 +20,9 @@ template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename YDataType,
-          typename AccDataType,
-          typename AccElementwiseOperation>
+          typename SaveMeanInvStdDataType,
+          typename ComputeDataType,
+          typename YElementwiseOperation>
 struct ReferenceGroupnorm : public device::BaseOperator
 {
     // x = [N, H, W, G, C]
@@ -35,14 +36,18 @@ struct ReferenceGroupnorm : public device::BaseOperator
                  const Tensor<GammaDataType>& gamma,
                  const Tensor<BetaDataType>& beta,
                  Tensor<YDataType>& y,
-                 AccElementwiseOperation acc_elementwise_op,
+                 Tensor<SaveMeanInvStdDataType>& save_mean,
+                 Tensor<SaveMeanInvStdDataType>& save_inv_std,
+                 YElementwiseOperation y_elementwise_op,
                  const std::vector<index_t> lengths,
-                 AccDataType epsilon)
+                 ComputeDataType epsilon)
             : x_(x),
               gamma_(gamma),
               beta_(beta),
               y_(y),
-              acc_elementwise_op_(acc_elementwise_op),
+              save_mean_(save_mean),
+              save_inv_std_(save_inv_std),
+              y_elementwise_op_(y_elementwise_op),
               lengths_(lengths),
               epsilon_(epsilon)
         {
@@ -52,9 +57,11 @@ struct ReferenceGroupnorm : public device::BaseOperator
         const Tensor<XDataType> gamma_;
         const Tensor<XDataType> beta_;
         Tensor<YDataType>& y_;
-        AccElementwiseOperation acc_elementwise_op_;
+        Tensor<SaveMeanInvStdDataType>& save_mean_;
+        Tensor<SaveMeanInvStdDataType>& save_inv_std_;
+        YElementwiseOperation y_elementwise_op_;
         std::vector<index_t> lengths_;
-        AccDataType epsilon_;
+        ComputeDataType epsilon_;
     };
 
     // Invoker
@@ -68,8 +75,8 @@ struct ReferenceGroupnorm : public device::BaseOperator
             int G = arg.lengths_[3];
             int C = arg.lengths_[4];
 
-            Tensor<AccDataType> mean({N, G});
-            Tensor<AccDataType> var({N, G});
+            Tensor<ComputeDataType> mean({N, G});
+            Tensor<ComputeDataType> var({N, G});
 
             // Compute mean & var in [H, W, C] by Welford Algorithm
             // TODO - parallel for each HWC
@@ -78,9 +85,9 @@ struct ReferenceGroupnorm : public device::BaseOperator
             {
                 for(int g = 0; g < G; ++g)
                 {
-                    AccDataType mean_val = type_convert<AccDataType>(0.0f);
-                    AccDataType var_val  = type_convert<AccDataType>(0.0f);
-                    int32_t curr_count   = 0;
+                    ComputeDataType mean_val = type_convert<ComputeDataType>(0.0f);
+                    ComputeDataType var_val  = type_convert<ComputeDataType>(0.0f);
+                    int32_t curr_count       = 0;
 
                     for(int h = 0; h < H; ++h)
                     {
@@ -89,10 +96,11 @@ struct ReferenceGroupnorm : public device::BaseOperator
                             for(int c = 0; c < C; ++c)
                             {
                                 curr_count++;
-                                AccDataType x = type_convert<AccDataType>(arg.x_(n, h, w, g, c));
-                                AccDataType delta = x - mean_val;
+                                ComputeDataType x =
+                                    type_convert<ComputeDataType>(arg.x_(n, h, w, g, c));
+                                ComputeDataType delta = x - mean_val;
                                 mean_val += delta / curr_count;
-                                AccDataType delta2 = x - mean_val;
+                                ComputeDataType delta2 = x - mean_val;
                                 var_val += delta * delta2;
                             }
                         }
@@ -100,6 +108,12 @@ struct ReferenceGroupnorm : public device::BaseOperator
 
                     mean(n, g) = mean_val;
                     var(n, g)  = var_val / curr_count;
+
+                    arg.save_mean_(n, g) = ck::type_convert<SaveMeanInvStdDataType>(mean(n, g));
+
+                    ComputeDataType divisor =
+                        static_cast<ComputeDataType>(1) / ck::math::sqrt(var(n, g) + arg.epsilon_);
+                    arg.save_inv_std_(n, g) = ck::type_convert<SaveMeanInvStdDataType>(divisor);
                 }
             }
 
@@ -114,15 +128,19 @@ struct ReferenceGroupnorm : public device::BaseOperator
                         {
                             for(int c = 0; c < C; ++c)
                             {
-                                AccDataType x = type_convert<AccDataType>(arg.x_(n, h, w, g, c));
-                                AccDataType gamma    = type_convert<AccDataType>(arg.gamma_(g, c));
-                                AccDataType beta     = type_convert<AccDataType>(arg.beta_(g, c));
-                                AccDataType mean_val = type_convert<AccDataType>(mean(n, g));
-                                AccDataType var_val  = type_convert<AccDataType>(var(n, g));
-                                AccDataType y        = gamma * (x - mean_val) /
-                                                    ck::math::sqrt(arg.epsilon_ + var_val) +
-                                                beta;
-                                arg.acc_elementwise_op_(y, y);
+                                ComputeDataType x =
+                                    type_convert<ComputeDataType>(arg.x_(n, h, w, g, c));
+                                ComputeDataType gamma =
+                                    type_convert<ComputeDataType>(arg.gamma_(g, c));
+                                ComputeDataType beta =
+                                    type_convert<ComputeDataType>(arg.beta_(g, c));
+                                ComputeDataType mean_val =
+                                    type_convert<ComputeDataType>(mean(n, g));
+                                ComputeDataType var_val = type_convert<ComputeDataType>(var(n, g));
+                                ComputeDataType y       = gamma * (x - mean_val) /
+                                                        ck::math::sqrt(arg.epsilon_ + var_val) +
+                                                    beta;
+                                arg.y_elementwise_op_(y, y);
                                 arg.y_(n, h, w, g, c) = type_convert<YDataType>(y);
                             }
                         }
@@ -159,11 +177,14 @@ struct ReferenceGroupnorm : public device::BaseOperator
                              const Tensor<GammaDataType>& gamma,
                              const Tensor<BetaDataType>& beta,
                              Tensor<YDataType>& y,
-                             AccElementwiseOperation acc_elementwise_op,
+                             Tensor<SaveMeanInvStdDataType>& save_mean,
+                             Tensor<SaveMeanInvStdDataType>& save_inv_std,
+                             YElementwiseOperation y_elementwise_op,
                              const std::vector<index_t> lengths,
-                             AccDataType epsilon)
+                             ComputeDataType epsilon)
     {
-        return Argument{x, gamma, beta, y, acc_elementwise_op, lengths, epsilon};
+        return Argument{
+            x, gamma, beta, y, save_mean, save_inv_std, y_elementwise_op, lengths, epsilon};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

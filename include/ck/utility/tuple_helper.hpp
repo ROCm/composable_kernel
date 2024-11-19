@@ -5,6 +5,7 @@
 
 #include "functional4.hpp"
 #include "tuple.hpp"
+#include "is_detected.hpp"
 
 namespace ck {
 
@@ -31,6 +32,28 @@ __host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>&
         [&](auto&&... zs) { return Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
         tx,
         ty);
+}
+
+template <typename... X, typename... Y>
+__host__ __device__ constexpr auto concat_tuple(const Tuple<X...>& tx, const Tuple<Y...>& ty)
+{
+    return unpack2(
+        [&](auto... zs) { return Tuple<decltype(zs)...>{std::forward<decltype(zs)>(zs)...}; },
+        tx,
+        ty);
+}
+
+// Support any number of tuples to concat (also 1)
+template <typename... X>
+__host__ __device__ constexpr auto concat_tuple(const Tuple<X...>& tx)
+{
+    return tx;
+}
+
+template <typename... X, typename... Tuples>
+__host__ __device__ constexpr auto concat_tuple(const Tuple<X...>& tx, const Tuples&... tuples)
+{
+    return concat_tuple(tx, concat_tuple(tuples...));
 }
 
 namespace detail {
@@ -76,6 +99,94 @@ __host__ __device__ constexpr auto transform_tuples(F f, const X& x, const Y& y,
 {
     return detail::transform_tuples_impl(
         f, x, y, z, typename arithmetic_sequence_gen<0, X::Size(), 1>::type{});
+}
+
+// By default unroll to the flatten
+template <index_t Depth = 0, index_t MaxDepth = -1>
+__host__ __device__ constexpr auto UnrollNestedTuple(const Tuple<>& element)
+{
+    return element;
+}
+
+template <index_t Depth = 0, index_t MaxDepth = -1, typename T>
+__host__ __device__ constexpr auto UnrollNestedTuple(const T& element)
+{
+    return make_tuple(element);
+}
+
+template <index_t Depth = 0, index_t MaxDepth = -1, typename... Ts>
+__host__ __device__ constexpr auto UnrollNestedTuple(const Tuple<Ts...>& tuple)
+{
+    if constexpr(Depth == MaxDepth)
+    {
+        return tuple;
+    }
+    else
+    {
+        return unpack(
+            [&](auto&&... ts) {
+                return concat_tuple(UnrollNestedTuple<Depth + 1, MaxDepth>(ts)...);
+            },
+            tuple);
+    }
+}
+
+template <typename... Ts>
+__host__ __device__ constexpr auto TupleReverse(const Tuple<Ts...>& tuple)
+{
+    return generate_tuple(
+        [&](auto i) {
+            using Idx = Number<Tuple<Ts...>::Size() - i - 1>;
+            return tuple.At(Idx{});
+        },
+        Number<Tuple<Ts...>::Size()>{});
+}
+
+// Reduce tuple values in specific range using Function
+template <index_t Idx, index_t End, typename F, typename... Ts>
+__host__ __device__ constexpr auto TupleReduce(F&& f, const Tuple<Ts...>& tuple)
+{
+    static_assert(Idx < End, "Wrong parameters for TupleReduce");
+    if constexpr(Idx + 1 == End)
+    {
+        return tuple.At(Number<Idx>{});
+    }
+    else
+    {
+        return f(tuple.At(Number<Idx>{}), TupleReduce<Idx + 1, End>(f, tuple));
+    }
+}
+
+template <typename T>
+using is_tuple = decltype(std::declval<T&>().IsTuple());
+
+template <typename... Ts>
+__host__ __device__ constexpr auto IsNestedTuple(const Tuple<Ts...>&)
+{
+    return (is_detected<is_tuple, Ts>::value || ...);
+}
+
+template <index_t depth = 0, typename T>
+__host__ __device__ constexpr auto TupleDepth(const T&)
+{
+    return depth;
+}
+
+template <index_t depth = 0, typename... Ts>
+__host__ __device__ constexpr auto TupleDepth(const Tuple<Ts...>&)
+{
+    return math::max(TupleDepth<depth + 1>(Ts{})...);
+}
+
+template <index_t from, index_t to, typename... Ts>
+__host__ __device__ constexpr auto TupleSlice(const Tuple<Ts...>& tuple)
+{
+    return generate_tuple(
+        [&](auto i) {
+            using Idx = Number<from + i>;
+            return tuple.At(Idx{});
+        },
+        Number<to - from>{});
 }
 
 } // namespace ck

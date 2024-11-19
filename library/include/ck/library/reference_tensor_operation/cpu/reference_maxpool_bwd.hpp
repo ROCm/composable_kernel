@@ -53,7 +53,16 @@ struct ReferenceMaxPoolBwd : public device::BaseOperator
             {
                 int index = arg.indices_.mData[i];
                 if(index >= 0 && index < din_length)
-                    buf[index] += ck::type_convert<ConputeDataType>(arg.dout_.mData[i]);
+                {
+                    if constexpr(is_same_v<ConputeDataType, bhalf_t>)
+                    {
+                        float buf_val = ck::type_convert<float>(buf[index]);
+                        buf_val += ck::type_convert<float>(arg.dout_.mData[i]);
+                        buf[index] = ck::type_convert<ConputeDataType>(buf_val);
+                    }
+                    else
+                        buf[index] += ck::type_convert<ConputeDataType>(arg.dout_.mData[i]);
+                }
             }
 
             for(int i = 0; i < din_length; ++i)

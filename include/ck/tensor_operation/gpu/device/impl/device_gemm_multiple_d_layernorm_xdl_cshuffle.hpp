@@ -64,7 +64,7 @@ __global__ void
             index_t NRaw)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemmWelford::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemmWelford::template Run<HasMainKBlockLoop>(
@@ -821,7 +821,9 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
         return (workspace_size);
     };
 
-    void SetWorkSpacePointer(BaseArgument* pArg, void* p_workspace) const override
+    void SetWorkSpacePointer(BaseArgument* pArg,
+                             void* p_workspace,
+                             const StreamConfig& = StreamConfig{}) const override
     {
         Argument* pArg_ = dynamic_cast<Argument*>(pArg);
 

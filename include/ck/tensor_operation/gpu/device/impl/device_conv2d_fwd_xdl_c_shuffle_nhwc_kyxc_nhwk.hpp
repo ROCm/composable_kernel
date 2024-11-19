@@ -579,7 +579,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if DEBUG_LOG
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << DeviceOp{}.GetTypeString() << std::endl;
                 std::cout << "N " << arg.Conv_N_ << ", "
@@ -599,9 +599,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                           << arg.input_left_pads_[1] << ", " << std::endl;
                 std::cout << "InLeftPads " << arg.input_right_pads_[0] << ", "
                           << arg.input_right_pads_[1] << ", " << std::endl;
-            }
 
-            {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
                           << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
                           << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;
@@ -635,7 +633,6 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                            .GetLength(I5)
                     << "}" << std::endl;
             }
-#endif
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iomanip>
 #include <iostream>
@@ -76,19 +76,19 @@ int main(int argc, char* argv[])
     SimpleDeviceMem requant_scale(sizeof(RequantScaleDataType) * G * K);
     SimpleDeviceMem out(sizeof(OutDataType) * N * Ho * Wo * G * K);
 
-    using DeviceOp =
-        ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NumDimSpatial,
-                                                                    InLayout,
-                                                                    WeiLayout,
-                                                                    ck::Tuple<RequantScaleLayout>,
-                                                                    OutLayout,
-                                                                    InDataType,
-                                                                    WeiDataType,
-                                                                    ck::Tuple<RequantScaleDataType>,
-                                                                    OutDataType,
-                                                                    PassThrough,
-                                                                    PassThrough,
-                                                                    OutElementOp>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
+        NumDimSpatial,
+        InLayout,
+        WeiLayout,
+        ck::Tuple<RequantScaleLayout>,
+        OutLayout,
+        InDataType,
+        WeiDataType,
+        ck::Tuple<RequantScaleDataType>,
+        OutDataType,
+        PassThrough,
+        PassThrough,
+        OutElementOp>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();

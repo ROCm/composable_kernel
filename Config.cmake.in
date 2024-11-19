@@ -1,6 +1,6 @@
 @PACKAGE_INIT@
 
-set(_composable_kernel_supported_components device_operations utility jit_library)
+set(_composable_kernel_supported_components device_other_operations device_gemm_operations device_conv_operations device_mha_operations device_contraction_operations device_reduction_operations utility jit_library)
 
 foreach(_comp ${composable_kernel_FIND_COMPONENTS})
 	if(NOT _comp IN_LIST _composable_kernel_supported_components)

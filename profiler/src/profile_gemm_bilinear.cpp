@@ -71,6 +71,9 @@ int profile_gemm_bilinear(int argc, char* argv[])
     using F16 = ck::half_t;
     using F32 = float;
 
+    using I8  = std::int8_t;
+    using I32 = std::int32_t;
+
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
 
@@ -140,6 +143,22 @@ int profile_gemm_bilinear(int argc, char* argv[])
     else if(data_type == MatrixDataType::F16_F16_F16_F16 && layout == MatrixLayout::KM_NK_MN_MN)
     {
         return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Col{}, Col{}, Row{}, Row{});
+    }
+    else if(data_type == MatrixDataType::INT8_INT8_INT8_INT8 && layout == MatrixLayout::MK_KN_MN_MN)
+    {
+        return profile(I8{}, I8{}, I32{}, I8{}, I8{}, Row{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == MatrixDataType::INT8_INT8_INT8_INT8 && layout == MatrixLayout::MK_NK_MN_MN)
+    {
+        return profile(I8{}, I8{}, I32{}, I8{}, I8{}, Row{}, Col{}, Row{}, Row{});
+    }
+    else if(data_type == MatrixDataType::INT8_INT8_INT8_INT8 && layout == MatrixLayout::KM_KN_MN_MN)
+    {
+        return profile(I8{}, I8{}, I32{}, I8{}, I8{}, Col{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == MatrixDataType::INT8_INT8_INT8_INT8 && layout == MatrixLayout::KM_NK_MN_MN)
+    {
+        return profile(I8{}, I8{}, I32{}, I8{}, I8{}, Col{}, Col{}, Row{}, Row{});
     }
     else
     {

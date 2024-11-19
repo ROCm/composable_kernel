@@ -3,7 +3,7 @@
 
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance =
-    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         NDimSpatial,
         InputLayout<NDimSpatial>,
         WeightLayout<NDimSpatial>,

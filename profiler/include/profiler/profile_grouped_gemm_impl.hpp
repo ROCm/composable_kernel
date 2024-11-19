@@ -42,7 +42,9 @@ bool profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& StrideAs,
                                const std::vector<int>& StrideBs,
                                const std::vector<int>& StrideCs,
-                               int kbatch = 1)
+                               int kbatch   = 1,
+                               int n_warmup = 1,
+                               int n_iter   = 10)
 {
     bool pass = true;
 
@@ -85,11 +87,12 @@ bool profile_grouped_gemm_impl(int do_verification,
 
         c_m_n_host_results.push_back(
             Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
-#if DEBUG_LOG
-        std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n[" << i
-                  << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
-                  << "]:" << c_m_n_device_results[i].mDesc << std::endl;
-#endif // DEBUG_LOG
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n["
+                      << i << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
+                      << "]:" << c_m_n_device_results[i].mDesc << std::endl;
+        }
         std::size_t num_thread = 1;
         switch(init_method)
         {
@@ -261,7 +264,8 @@ bool profile_grouped_gemm_impl(int do_verification,
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     c_device_buf[i]->SetZero();
 
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+                invoker_ptr->Run(argument_ptr.get(),
+                                 StreamConfig{nullptr, false, 0, n_warmup, n_iter});
 
                 if(do_verification)
                 {
@@ -307,8 +311,8 @@ bool profile_grouped_gemm_impl(int do_verification,
                     pass = pass && instance_pass;
                 }
 
-                float ave_time =
-                    invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+                float ave_time = invoker_ptr->Run(
+                    argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
 
                 if(time_kernel)
                 {

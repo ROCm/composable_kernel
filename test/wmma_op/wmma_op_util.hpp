@@ -11,6 +11,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/utility/amd_wmma.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 namespace ck {
 namespace wmma_op_util {
@@ -140,10 +141,18 @@ __global__ void matmul(const src_t* a, const src_t* b, dst_t* c)
         p_shared[8 * 16 * lane_hi + 8 * lane_lo + ele + 16 * 16] = b_temp[ele];
     }
 
+#ifdef __gfx12__
+    asm volatile("\
+    s_wait_dscnt 0x0 \n \
+    s_barrier_signal -1 \n \
+    s_barrier_wait -1 \
+    " ::);
+#else
     asm volatile("\
     s_waitcnt lgkmcnt(0) \n \
     s_barrier \
     " ::);
+#endif
 
     for(int ele = 0; ele < 16; ++ele)
     {
@@ -155,10 +164,18 @@ __global__ void matmul(const src_t* a, const src_t* b, dst_t* c)
         a_frag[ele] = p_shared[(ele / 8) * 16 * 8 + 8 * lane + ele % 8];
     }
 
+#ifdef __gfx12__
+    asm volatile("\
+    s_wait_dscnt 0x0 \n \
+    s_barrier_signal -1 \n \
+    s_barrier_wait -1 \
+    " ::);
+#else
     asm volatile("\
     s_waitcnt lgkmcnt(0) \n \
     s_barrier \
     " ::);
+#endif
 
     // sync threads, similar to mma_sync
     // __syncthreads();
@@ -357,7 +374,8 @@ struct TestWmma
             a, b, c_host, a_element_op, b_element_op, c_element_op);
 
         // Act
-        bool is_supported = ck::wmma_op_util::RunDeviceGEMM(wmma_kernel, a, b, c_device);
+        bool is_supported = ck::is_gfx11_supported() &&
+                            ck::wmma_op_util::RunDeviceGEMM(wmma_kernel, a, b, c_device);
 
         if(is_supported)
         {

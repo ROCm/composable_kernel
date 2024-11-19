@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iomanip>
@@ -11,7 +11,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
@@ -94,7 +94,9 @@ template <ck::index_t NumDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
-          ck::index_t NumNonSpatialDim = 3>
+          ck::index_t NumNonSpatialDim = 3,
+          typename AComputeType        = InDataType,
+          typename BComputeType        = AComputeType>
 bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> in_lengths,
                           std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> wei_lengths,
                           std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> out_lengths)
@@ -173,18 +175,20 @@ bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialD
     std::size_t flop      = GetFlops<NumDimSpatial>(out_lengths, wei_lengths);
     std::size_t num_bytes = in_mem_size + wei_mem_size + out_mem_size;
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NumDimSpatial,
-                                                                                 InLayout,
-                                                                                 WeiLayout,
-                                                                                 ck::Tuple<>,
-                                                                                 OutLayout,
-                                                                                 InDataType,
-                                                                                 WeiDataType,
-                                                                                 ck::Tuple<>,
-                                                                                 OutDataType,
-                                                                                 PassThrough,
-                                                                                 PassThrough,
-                                                                                 PassThrough>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NumDimSpatial,
+                                                                                   InLayout,
+                                                                                   WeiLayout,
+                                                                                   ck::Tuple<>,
+                                                                                   OutLayout,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   ck::Tuple<>,
+                                                                                   OutDataType,
+                                                                                   PassThrough,
+                                                                                   PassThrough,
+                                                                                   PassThrough,
+                                                                                   AComputeType,
+                                                                                   BComputeType>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();

@@ -8,18 +8,18 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 void add_device_conv2d_xdl_perchannel_quantization_int8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                                              NHWGC,
-                                                              GKYXC,
-                                                              GK_Tuple,
-                                                              NHWGK,
-                                                              int8_t,
-                                                              int8_t,
-                                                              F32_Tuple,
-                                                              int8_t,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              Mul2_Clamp>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                GK_Tuple,
+                                                                NHWGK,
+                                                                int8_t,
+                                                                int8_t,
+                                                                F32_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                Mul2_Clamp>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_xdl_int8_instances<NHWGC,
@@ -51,18 +51,18 @@ void add_device_conv2d_xdl_perchannel_quantization_int8_instances(
 }
 
 void add_device_conv2d_xdl_relu_perchannel_quantization_int8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                                              NHWGC,
-                                                              GKYXC,
-                                                              GK_Tuple,
-                                                              NHWGK,
-                                                              int8_t,
-                                                              int8_t,
-                                                              F32_Tuple,
-                                                              int8_t,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              Relu_Mul2_Clamp>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                GK_Tuple,
+                                                                NHWGK,
+                                                                int8_t,
+                                                                int8_t,
+                                                                F32_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                Relu_Mul2_Clamp>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_xdl_int8_instances<NHWGC,

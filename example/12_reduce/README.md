@@ -2,7 +2,7 @@
 
 ## Run ```example_reduce_blockwise```
 ```bash
-# -D <xxx> : input 3d/4d/5d tensor lengths
+# -D <xxx> : input 3D/4D/5D tensor lengths
 # -R <xxx> : reduce dimension ids
 # -v <x> :   verification (0=no, 1=yes)
 #arg1: data type (0: fp16, 1: fp32, 3: int8, 5: bp16, 6: fp64, 7: int4)
@@ -22,7 +22,7 @@ Perf: 0.238063 ms, 264.285 GB/s, DeviceReduceBlockWise<256,M_C4_S1,K_C64_S1,InSr
 
 ## Run ```example_reduce_multiblock_atomic_add```
 ```bash
-# -D <xxx> : input 3d/4d/5d tensor lengths
+# -D <xxx> : input 3D/4D/5D tensor lengths
 # -R <xxx> : reduce dimension ids
 # -v <x> :   verification (0=no, 1=yes)
 #arg1: data type (0: fp32, 1: fp64)

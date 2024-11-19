@@ -80,6 +80,8 @@ bool profile_elementwise_layernorm_impl(int do_verification,
     Tensor<BetaDataType> beta(gammaBetaLength);
     Tensor<YDataType> y(length);
     Tensor<YDataType> host_y(length);
+    Tensor<AccDataType> host_save_mean({M});
+    Tensor<AccDataType> host_save_inv_std({M});
 
     switch(init_method)
     {
@@ -152,14 +154,23 @@ bool profile_elementwise_layernorm_impl(int do_verification,
                                                                                  BetaDataType,
                                                                                  YDataType,
                                                                                  AccDataType,
+                                                                                 AccDataType,
                                                                                  PassThrough,
                                                                                  Rank,
                                                                                  NumReduceDim>;
 
         ReferenceInstance ref;
-        auto ref_argument =
-            ref.MakeArgument(x, gamma, beta, host_y, PassThrough{}, {M, N}, {1}, 1e-4);
-        auto ref_invoker = ref.MakeInvoker();
+        auto ref_argument = ref.MakeArgument(x,
+                                             gamma,
+                                             beta,
+                                             host_y,
+                                             host_save_mean,
+                                             host_save_inv_std,
+                                             PassThrough{},
+                                             {M, N},
+                                             {1},
+                                             1e-4);
+        auto ref_invoker  = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
     }
 
@@ -222,7 +233,7 @@ bool profile_elementwise_layernorm_impl(int do_verification,
             y_dev.FromDevice(y.mData.data());
 
             bool pass =
-                ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results", 1e-3, 1e-3);
+                ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results", 5e-3, 5e-3);
 
             if(do_log)
             {

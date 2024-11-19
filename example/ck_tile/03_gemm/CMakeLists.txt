@@ -1,0 +1,2 @@
+add_executable(tile_example_gemm_basic EXCLUDE_FROM_ALL gemm_basic.cpp)
+add_executable(tile_example_gemm_mem_pipeline EXCLUDE_FROM_ALL gemm_mem_pipeline.cpp)

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iomanip>
@@ -85,7 +85,9 @@ template <ck::index_t NumDimSpatial,
           typename OutDataType,
           typename InLayout,
           typename WeiLayout,
-          typename OutLayout>
+          typename OutLayout,
+          typename AComputeType = InDataType,
+          typename BComputeType = AComputeType>
 bool run_grouped_conv_bwd_weight(
     const std::array<ck::index_t, NumDimSpatial + 3>& input_lengths,
     const std::array<ck::index_t, NumDimSpatial + 3>& input_strides,
@@ -113,7 +115,9 @@ bool run_grouped_conv_bwd_weight(
                                                                               OutDataType,
                                                                               PassThrough,
                                                                               PassThrough,
-                                                                              PassThrough>;
+                                                                              PassThrough,
+                                                                              AComputeType,
+                                                                              BComputeType>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -155,6 +159,10 @@ bool run_grouped_conv_bwd_weight(
                                                         split_k);
         auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
+
+        const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
+        SimpleDeviceMem workspace_dev(workspace_sz);
+        op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {

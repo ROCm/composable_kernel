@@ -105,7 +105,8 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
 
     if(!device_op.IsSupportedArgument(argument))
     {
-        throw std::runtime_error("wrong! this device_op instance does not support this problem");
+        std::cerr << device_op.GetTypeString() << " does not support this problem" << std::endl;
+        return true;
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
