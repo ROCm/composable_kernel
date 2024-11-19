@@ -264,13 +264,6 @@ static __device__ float cast_to_f32_from_f8(fp8_storage_t v)
 template <ck_fp8_interpretation_t interpret>
 static __device__ float2_t cast_to_f32x2_from_f8x2(fp8x2_storage_t v)
 {
-    // union
-    // {
-    //     unsigned int i32val;
-    //     unsigned short i16val[2];
-    // } val;
-    // val.i16val[0] = v;
-
     const auto i16val = bit_cast<uint16_t>(v);
 
     static_assert(interpret == CK_E4M3_FNUZ || interpret == CK_E4M3_OCP ||
