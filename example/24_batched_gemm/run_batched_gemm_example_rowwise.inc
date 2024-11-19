@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 #include <random>
 
 #pragma once
@@ -12,9 +14,15 @@ struct ProblemSize final
     ck::index_t stride_B = K;
     ck::index_t stride_C = N;
 
+    ck::index_t stride_D0 = 0;
+    ck::index_t stride_D1 = 0;
+
     ck::index_t batch_stride_A = M * K;
     ck::index_t batch_stride_B = K * N;
     ck::index_t batch_stride_C = M * N;
+
+    ck::index_t batch_stride_D0 = N;
+    ck::index_t batch_stride_D1 = M;
 
     ck::index_t batch_count = 16;
 };
@@ -26,16 +34,9 @@ struct ExecutionConfig final
     bool time_kernel     = false;
 };
 
-bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
+bool run_batched_gemm_rowwise(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
     using namespace ck::literals;
-
-#if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
-    static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
-    static_assert(sizeof(ADataType) == sizeof(KernelADataType));
-    static_assert(sizeof(BDataType) == sizeof(KernelBDataType));
-    static_assert(sizeof(EDataType) == sizeof(KernelEDataType));
-#endif
 
     auto& [M,
            N,
@@ -43,9 +44,13 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
            stride_A,
            stride_B,
            stride_C,
+           stride_D0,
+           stride_D1,
            batch_stride_A,
            batch_stride_B,
            batch_stride_C,
+           batch_stride_D0,
+           batch_stride_D1,
            batch_count] = problem_size;
 
     // GEMM shape
@@ -71,16 +76,17 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         f_host_tensor_descriptor(batch_count, M, K, stride_A, batch_stride_A, ALayout{}));
     Tensor<BDataType> b_g_k_n(
         f_host_tensor_descriptor(batch_count, K, N, stride_B, batch_stride_B, BLayout{}));
-#ifdef BUILD_INT4_EXAMPLE
-    Tensor<KernelEDataType> e_g_m_n_device_result(
-        f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, ELayout{}));
-#else
+    Tensor<D0DataType> d0_g_m_n(
+        f_host_tensor_descriptor(batch_count, M, N, stride_D0, batch_stride_D0, D0Layout{}));
+    Tensor<D1DataType> d1_g_m_n(
+        f_host_tensor_descriptor(batch_count, M, N, stride_D1, batch_stride_D1, D1Layout{}));
     Tensor<EDataType> e_g_m_n_device_result(
         f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, ELayout{}));
-#endif
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
+    std::cout << "d0_g_m_n: " << d0_g_m_n.mDesc << std::endl;
+    std::cout << "d1_g_m_n: " << d1_g_m_n.mDesc << std::endl;
     std::cout << "e_g_m_n: " << e_g_m_n_device_result.mDesc << std::endl;
 
     switch(config.init_method)
@@ -96,20 +102,21 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         break;
     }
 
+    d0_g_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
+    d1_g_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
+
     DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_g_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_g_m_n.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(EDataType) * e_g_m_n_device_result.mDesc.GetElementSpaceSize());
 
-#ifdef BUILD_INT4_EXAMPLE
-    const Tensor<KernelADataType> a_g_m_k_converted(a_g_m_k);
-    const Tensor<KernelBDataType> b_g_k_n_converted(b_g_k_n);
-
-    a_device_buf.ToDevice(a_g_m_k_converted.mData.data());
-    b_device_buf.ToDevice(b_g_k_n_converted.mData.data());
-#else
     a_device_buf.ToDevice(a_g_m_k.mData.data());
     b_device_buf.ToDevice(b_g_k_n.mData.data());
-#endif
+
+    d0_device_buf.ToDevice(d0_g_m_n.mData.data());
+    d1_device_buf.ToDevice(d1_g_m_n.mData.data());
+
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
@@ -118,25 +125,26 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     auto invoker = gemm.MakeInvoker();
 
     // do GEMM
-    auto argument = gemm.MakeArgument(a_device_buf.GetDeviceBuffer(),
-                                      b_device_buf.GetDeviceBuffer(),
-                                      {},
-                                      c_device_buf.GetDeviceBuffer(),
-                                      M,
-                                      N,
-                                      K,
-                                      batch_count,
-                                      stride_A,
-                                      stride_B,
-                                      {},
-                                      stride_C,
-                                      batch_stride_A,
-                                      batch_stride_B,
-                                      {},
-                                      batch_stride_C,
-                                      a_element_op,
-                                      b_element_op,
-                                      cde_element_op);
+    auto argument =
+        gemm.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                          b_device_buf.GetDeviceBuffer(),
+                          {d0_device_buf.GetDeviceBuffer(), d1_device_buf.GetDeviceBuffer()},
+                          c_device_buf.GetDeviceBuffer(),
+                          M,
+                          N,
+                          K,
+                          batch_count,
+                          stride_A,
+                          stride_B,
+                          {stride_D0, stride_D1},
+                          stride_C,
+                          batch_stride_A,
+                          batch_stride_B,
+                          {batch_stride_D0, batch_stride_D1},
+                          batch_stride_C,
+                          a_element_op,
+                          b_element_op,
+                          cde_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -152,14 +160,16 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     {
         c_device_buf.FromDevice(e_g_m_n_device_result.mData.data());
 
+        Tensor<CShuffleDataType> c_g_m_n({batch_count, M, N});
+
         using ReferenceBatchedGemmInstance =
             ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                              BDataType,
-                                                             EDataType,
+                                                             CShuffleDataType,
                                                              AccDataType,
                                                              AElementOp,
                                                              BElementOp,
-                                                             CDEElementOp>;
+                                                             PassThrough>;
 
         auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
         auto ref_invoker      = ref_batched_gemm.MakeInvoker();
@@ -168,18 +178,26 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, ELayout{}));
 
         auto ref_argument = ref_batched_gemm.MakeArgument(
-            a_g_m_k, b_g_k_n, e_g_m_n_host_result, a_element_op, b_element_op, cde_element_op);
+            a_g_m_k, b_g_k_n, c_g_m_n, a_element_op, b_element_op, PassThrough{});
 
         ref_invoker.Run(ref_argument);
 
-#ifdef BUILD_INT4_EXAMPLE
-        const Tensor<EDataType> e_device_result_converted(e_g_m_n_device_result);
-        pass &= ck::utils::check_err(e_device_result_converted, e_g_m_n_host_result);
+        for(int b = 0; b < batch_count; ++b)
+        {
+            for(int m = 0; m < M; ++m)
+            {
+                for(int n = 0; n < N; ++n)
+                {
+                    cde_element_op(e_g_m_n_host_result(b, m, n),
+                                   c_g_m_n(b, m, n),
+                                   d0_g_m_n(b, m, n),
+                                   d1_g_m_n(b, m, n));
+                }
+            }
+        }
 
-#else
         pass = ck::utils::check_err(
             e_g_m_n_device_result, e_g_m_n_host_result, "Error: Incorrect results c");
-#endif
     }
 
     if(config.time_kernel)
@@ -200,7 +218,7 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     return pass ? 0 : 1;
 }
 
-bool run_batched_gemm_example(int argc, char* argv[])
+bool run_batched_gemm_rowwise_example(int argc, char* argv[])
 {
     ProblemSize problem_size;
     ExecutionConfig config;
@@ -248,9 +266,15 @@ bool run_batched_gemm_example(int argc, char* argv[])
     problem_size.stride_B = problem_size.K;
     problem_size.stride_C = problem_size.N;
 
+    problem_size.stride_D0 = 0;
+    problem_size.stride_D1 = 0;
+
     problem_size.batch_stride_A = problem_size.M * problem_size.K;
     problem_size.batch_stride_B = problem_size.K * problem_size.N;
     problem_size.batch_stride_C = problem_size.M * problem_size.N;
 
-    return run_batched_gemm(problem_size, config);
+    problem_size.batch_stride_D0 = problem_size.N;
+    problem_size.batch_stride_D1 = problem_size.M;
+
+    return run_batched_gemm_rowwise(problem_size, config);
 }
