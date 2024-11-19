@@ -358,7 +358,7 @@ if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*clang\\+\
 # Enable tidy on hip
 elseif(CK_BACKEND STREQUAL "HIP" OR CK_BACKEND STREQUAL "HIPNOGPU")
     set(CK_TIDY_ERRORS ALL)
-
+endif()
 
 include(ClangTidy)
 enable_clang_tidy(
