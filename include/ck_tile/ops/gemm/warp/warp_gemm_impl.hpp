@@ -11,9 +11,13 @@ struct WarpGemmImpl
 {
     using WarpGemmAttribute = remove_cvref_t<WarpGemmAttribute_>;
 
-    static constexpr index_t kM          = WarpGemmAttribute::kM;
-    static constexpr index_t kN          = WarpGemmAttribute::kN;
-    static constexpr index_t kK          = WarpGemmAttribute::kK;
+    static constexpr index_t kM = WarpGemmAttribute::kM;
+    static constexpr index_t kN = WarpGemmAttribute::kN;
+    static constexpr index_t kK = WarpGemmAttribute::kK;
+    /// @brief The number of elements in K dimension processed by single thread in wavefront.
+    ///
+    /// @note  Note that WarpGemm may run MFMA instruction multiple times (on different K).
+    ///        In such situation this value reflects this fact.
     static constexpr index_t kKPerThread = WarpGemmAttribute::kKPerThread;
 
     using ADataType = typename WarpGemmAttribute::ADataType;
