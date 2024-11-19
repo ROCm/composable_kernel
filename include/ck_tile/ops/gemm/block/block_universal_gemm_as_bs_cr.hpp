@@ -62,13 +62,8 @@ struct BlockUniversalGemmAsBsCr
         // TODO: Should we have two policies? Interwave & Intrawave ??
         static constexpr index_t InterWaveSchedulingMacClusters = 1;
 
-        static constexpr index_t WarpGemmK0PerLane =
-            WarpGemm::kK / WarpGemm::WarpGemmAttribute::Impl::kABKPerLane;
-        // TODO: verify if below is exactly same:
-        // math::max(math::lcm(AK1Number, BK1Number),
-        //           WarpGemm::WarpGemmAttribute::kABKPerLane;/* ::selected_mfma.k_per_blk */);
-        static constexpr index_t KPack      = WarpGemm::kK;
-        static constexpr index_t KPerThread = KPerBlock / WarpGemmK0PerLane;
+        static constexpr index_t KPack      = WarpGemm::kKPerThread;
+        static constexpr index_t KPerThread = KPerBlock / WarpGemm::kK * KPack;
         static constexpr index_t KRepeat    = KPerThread / KPack;
     };
 
@@ -192,10 +187,9 @@ struct BlockUniversalGemmAsBsCr
 
         // C += A * B
         template <typename CBlockTensor, typename ASmemBlockWindow, typename BSmemBlockWindow>
-        CK_TILE_DEVICE void
-        operator()(CBlockTensor& c_block_tensor,
-                   [[maybe_unused]] const ASmemBlockWindow& a_block_window,
-                   [[maybe_unused]] const BSmemBlockWindow& b_block_window) const
+        CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+                                       [[maybe_unused]] const ASmemBlockWindow& a_block_window,
+                                       [[maybe_unused]] const BSmemBlockWindow& b_block_window)
         {
             static_assert(
                 std::is_same_v<typename GemmTraits::CDataType, typename CBlockTensor::DataType>,
@@ -250,8 +244,10 @@ struct BlockUniversalGemmAsBsCr
         static constexpr index_t NumMacClusters = GemmTraits::InterWaveSchedulingMacClusters;
         static constexpr index_t KPerInnerLoop =
             ck_tile::max(KPerThread / NumMacClusters, GemmTraits::KPack);
+        // TODO: do we really need this?? Are there any cases when this would be >=1 ??
+        // Would we need InterWaveSchedulingMacClusters > 1 ???
         static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
-        static constexpr index_t KInnerLoopIter = KPerInnerLoop / GemmTraits::WarpGemm::kK;
+        static constexpr index_t KInnerLoopIter = KPerInnerLoop / GemmTraits::KPack;
 
         statically_indexed_array<
             statically_indexed_array<typename GemmTraits::AWarpTile, KInnerLoopIter>,
@@ -270,7 +266,7 @@ struct BlockUniversalGemmAsBsCr
         {
         }
 
-        template <typename ASmemBlockWindow, typename BSmemBlockWindow, index_t KIdx>
+        template <index_t KIdx, typename ASmemBlockWindow, typename BSmemBlockWindow>
         CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
                                           const BSmemBlockWindow& b_block_window)
         {
@@ -341,11 +337,11 @@ struct BlockUniversalGemmAsBsCr
             static_for<0, KInnerLoopIter, 1>{}([&](auto kIter) {
                 static_for<0, GemmTraits::MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block window
-                    load_tile(a_warp_tiles(mIter)(kIter), a_warp_windows(mIter)(kIter));
+                    load_tile(a_warp_tiles_(mIter)(kIter), a_warp_windows(mIter)(kIter));
 
                     static_for<0, GemmTraits::NIterPerWarp, 1>{}([&](auto nIter) {
                         // read B warp tensor from B Block window
-                        load_tile(b_warp_tiles(nIter)(kIter), b_warp_windows(nIter)(kIter));
+                        load_tile(b_warp_tiles_(nIter)(kIter), b_warp_windows(nIter)(kIter));
                     });
                 });
             });
@@ -355,7 +351,7 @@ struct BlockUniversalGemmAsBsCr
         template <typename CBlockTensor, typename ASmemBlockWindow, typename BSmemBlockWindow>
         CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
                                        const ASmemBlockWindow& a_block_window,
-                                       const BSmemBlockWindow& b_block_window) const
+                                       const BSmemBlockWindow& b_block_window)
         {
             static_assert(
                 std::is_same_v<typename GemmTraits::CDataType, typename CBlockTensor::DataType>,
@@ -370,7 +366,7 @@ struct BlockUniversalGemmAsBsCr
 
             // hot loop:
             static_for<0, KRepeat, 1>{}([&](auto kIter) {
-                LocalPrefetch<kIter>(a_block_window, b_block_window);
+                LocalPrefetch<kIter.value>(a_block_window, b_block_window);
                 __builtin_amdgcn_sched_barrier(0);
                 // NOTE: Synchronize threads in a workgroup at the start of each MAC
                 // cluster, but except the first, as we can shorten non-MAC cluster a bit
@@ -448,7 +444,7 @@ struct BlockUniversalGemmAsBsCr
         }
     };
 
-    BlockGemmImpl<Scheduler, Traits> block_gemm_impl_;
+    BlockGemmImpl<Scheduler, Traits> block_gemm_impl_{};
 
     public:
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
@@ -480,7 +476,7 @@ struct BlockUniversalGemmAsBsCr
     template <typename CBlockTensor, typename ASmemBlockWindow, typename BSmemBlockWindow>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
                                    const ASmemBlockWindow& a_block_window,
-                                   const BSmemBlockWindow& b_block_window) const
+                                   const BSmemBlockWindow& b_block_window)
     {
         block_gemm_impl_.template operator()(c_block_tensor, a_block_window, b_block_window);
     }
@@ -488,7 +484,7 @@ struct BlockUniversalGemmAsBsCr
     // C = A * B
     template <typename ASmemBlockWindow, typename BSmemBlockWindow>
     CK_TILE_DEVICE auto operator()(const ASmemBlockWindow& a_block_window,
-                                   const BSmemBlockWindow& b_block_window) const
+                                   const BSmemBlockWindow& b_block_window)
     {
         auto c_block_tensor = MakeCBlockTile();
         block_gemm_impl_.template operator()(c_block_tensor, a_block_window, b_block_window);
