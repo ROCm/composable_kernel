@@ -75,7 +75,7 @@ struct GeneratorTensor_1<ck::f4_t>
     float value = 1.0;
 
     template <typename... Is>
-    ck::bhalf_t operator()(Is...)
+    ck::f4_t operator()(Is...)
     {
         return ck::type_convert<ck::f4_t>(value);
     }
