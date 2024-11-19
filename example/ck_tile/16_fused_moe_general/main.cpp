@@ -297,7 +297,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                             tokens,
                             experts,
                             topk,
-                            stride};
+                            stride,
+                            max_num_tokens_padded};
 
     float ave_time = fused_moegemm(
         traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});

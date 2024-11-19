@@ -80,16 +80,30 @@ struct FusedMoeGemmPipeline_FlatmmGl
         return max(smem_mat_a, smem_bridge);
     }
 
-    template <typename Karg>
-    CK_TILE_DEVICE auto operator()(const Karg& kargs,
-                                   CK_TILE_LDS_ADDR void* smem,
-                                   index_t sorted_tile_id,
-                                   index_t intermediate_tile_id)
+    // this is the thread-offset along row/col
+    CK_TILE_HOST_DEVICE static auto GetACoord()
     {
-        ignore = kargs;
+        constexpr auto a_dist = Policy::template MakeGlobalTileDistribution_A<Problem>();
+        const auto a_coord    = a_dist.calculate_index();
+        return a_coord;
+    }
+    template <typename AWindow, typename GWindow, typename DWindow, typename OWindow>
+    CK_TILE_DEVICE auto operator()(const AWindow& a_window_,
+                                   const GWindow& g_window_,
+                                   const DWindow& d_window_,
+                                   OWindow& o_window_,
+                                   TopkWeightDataType /*topk_weight*/,
+                                   CK_TILE_LDS_ADDR void* smem,
+                                   index_t hidden_size,
+                                   index_t intermediate_size)
+    {
+        ignore = a_window_;
+        ignore = g_window_;
+        ignore = d_window_;
+        ignore = o_window_;
         ignore = smem;
-        ignore = sorted_tile_id;
-        ignore = intermediate_tile_id;
+        ignore = hidden_size;
+        ignore = intermediate_size;
     }
 };
 
