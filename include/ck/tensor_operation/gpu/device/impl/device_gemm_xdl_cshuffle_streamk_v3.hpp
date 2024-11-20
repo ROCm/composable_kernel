@@ -153,8 +153,8 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                          StreamKReductionStrategy::Atomic)
             {
 
-                hipMemsetAsync(
-                    arg.p_c_grid, 0, arg.M * arg.N * sizeof(CDataType), stream_config.stream_id_);
+                hip_check_error(hipMemsetAsync(
+                    arg.p_c_grid, 0, arg.M * arg.N * sizeof(CDataType), stream_config.stream_id_));
             }
 
             const auto Run = [&](const auto& kernel) {
@@ -162,11 +162,12 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                 if(arg.Grid_size < 0)
                 {
                     int occupancy, num_cu;
-                    hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0);
+                    hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                        &occupancy, kernel, BlockSize, 0));
                     hipDeviceProp_t dev_prop;
                     hipDevice_t dev;
-                    hipGetDevice(&dev);
-                    hipGetDeviceProperties(&dev_prop, dev);
+                    hip_check_error(hipGetDevice(&dev));
+                    hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
                     num_cu        = dev_prop.multiProcessorCount;
                     arg.Grid_size = num_cu * occupancy;
                     grid_dim      = arg.Grid_size;
@@ -508,11 +509,12 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
         const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
         int occupancy, num_cu;
         const auto calculate_grid_size = [&](const auto& kernel) {
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0);
+            hip_check_error(
+                hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
             hipDeviceProp_t dev_prop;
             hipDevice_t dev;
-            hipGetDevice(&dev);
-            hipGetDeviceProperties(&dev_prop, dev);
+            hip_check_error(hipGetDevice(&dev));
+            hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
             num_cu    = dev_prop.multiProcessorCount;
             Grid_size = num_cu * occupancy;
         };
