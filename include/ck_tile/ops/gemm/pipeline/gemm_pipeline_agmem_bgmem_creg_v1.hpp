@@ -33,9 +33,9 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr index_t VectorSizeB = Problem::VectorSizeB;
     static constexpr index_t VectorSizeC = Problem::VectorSizeC;
 
-    static constexpr bool kPadA = Problem::kPadA;
-    static constexpr bool kPadB = Problem::kPadB;
-    static constexpr bool kPadC = Problem::kPadC;
+    static constexpr bool kPadM = Problem::kPadM;
+    static constexpr bool kPadN = Problem::kPadN;
+    static constexpr bool kPadK = Problem::kPadK;
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     {
@@ -101,11 +101,8 @@ struct GemmPipelineAGmemBGmemCRegV1
                              Policy::template MakeADramTileDistribution<Problem>());
 
         // A LDS tile window for store
-        auto a_copy_lds_window =
-            make_tile_window(a_lds_block,
-                             make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                             {0, 0},
-                             a_copy_dram_window.get_tile_distribution());
+        auto a_copy_lds_window = make_tile_window(
+            a_lds_block, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
 
         // B DRAM tile window for load
         auto b_copy_dram_window =
@@ -115,11 +112,8 @@ struct GemmPipelineAGmemBGmemCRegV1
                              Policy::template MakeBDramTileDistribution<Problem>());
 
         // B LDS tile window for store
-        auto b_copy_lds_window =
-            make_tile_window(b_lds_block,
-                             make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
-                             {0, 0},
-                             b_copy_dram_window.get_tile_distribution());
+        auto b_copy_lds_window = make_tile_window(
+            b_lds_block, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0});
 
         // A LDS tile for block GEMM
         auto a_lds_gemm_window = make_tile_window(
@@ -149,12 +143,32 @@ struct GemmPipelineAGmemBGmemCRegV1
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
             // LDS write 0
-            const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
-            store_tile(a_copy_lds_window, a_block_tile_tmp);
+            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>)
+            {
+                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                    Policy::template MakeShuffledARegBlockDescriptor<Problem>());
+                shuffle_tile(a_shuffle_tmp, a_block_tile);
+                const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_shuffle_tmp);
+                store_tile(a_copy_lds_window, a_block_tile_tmp);
+            }
+            else
+            {
+                store_tile(a_copy_lds_window, tile_elementwise_in(a_element_func, a_block_tile));
+            }
 
             // LDS write 0
-            const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
-            store_tile(b_copy_lds_window, b_block_tile_tmp);
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+            {
+                auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                    Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
+                shuffle_tile(b_shuffle_tmp, b_block_tile);
+                const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_shuffle_tmp);
+                store_tile(b_copy_lds_window, b_block_tile_tmp);
+            }
+            else
+            {
+                store_tile(b_copy_lds_window, tile_elementwise_in(b_element_func, b_block_tile));
+            }
         }
 
         index_t iCounter = num_loop - 1;
@@ -180,8 +194,19 @@ struct GemmPipelineAGmemBGmemCRegV1
             store_tile(a_copy_lds_window, a_block_tile_tmp);
 
             // LDS write i + 1
-            const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
-            store_tile(b_copy_lds_window, b_block_tile_tmp);
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+            {
+                auto b_shuffle_tmp_loop = make_static_distributed_tensor<BDataType>(
+                    Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
+                shuffle_tile(b_shuffle_tmp_loop, b_block_tile);
+                store_tile(b_copy_lds_window,
+                           tile_elementwise_in(b_element_func, b_shuffle_tmp_loop));
+            }
+            else
+            {
+                const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
+                store_tile(b_copy_lds_window, b_block_tile_tmp);
+            }
 
             iCounter--;
         }
