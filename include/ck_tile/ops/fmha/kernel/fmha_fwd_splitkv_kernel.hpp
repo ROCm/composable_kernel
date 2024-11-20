@@ -197,8 +197,10 @@ struct FmhaFwdSplitKVKernel
         const int32_t* seqlen_k_ptr;
 
         ck_tile::index_t batch_stride_q;
-        ck_tile::index_t batch_stride_k;
-        ck_tile::index_t batch_stride_v;
+        ck_tile::index_t batch_stride_k; // when using paged-kvcache, this will be stride/size for
+                                         // single kcache page-block
+        ck_tile::index_t batch_stride_v; // when using paged-kvcache, this will be stride/size for
+                                         // single vcache page-block
         ck_tile::index_t batch_stride_lse_acc;
         ck_tile::index_t batch_stride_o_acc;
     };
@@ -218,8 +220,10 @@ struct FmhaFwdSplitKVKernel
         const int32_t* seqstart_k_ptr;
         const int32_t* seqlen_k_ptr;
 
-        ck_tile::index_t batch_stride_k; // only used for paged-kvcache
-        ck_tile::index_t batch_stride_v; // only used for paged-kvcache
+        ck_tile::index_t batch_stride_k; // only used for paged-kvcache, this will be stride/size
+                                         // for single kcache page-block
+        ck_tile::index_t batch_stride_v; // only used for paged-kvcache, this will be stride/size
+                                         // for single vcache page-block
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, GroupModeKargs, BatchModeKargs>;
