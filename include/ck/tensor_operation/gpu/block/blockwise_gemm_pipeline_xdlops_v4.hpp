@@ -529,7 +529,7 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
             a_thread_buf_tail = a_thread_bufs[mfma_reg_buf];
             b_thread_buf_tail = b_thread_bufs[mfma_reg_buf];
         };
-        
+
         // tail
         if constexpr(TailNum == TailNumber::Odd)
         {

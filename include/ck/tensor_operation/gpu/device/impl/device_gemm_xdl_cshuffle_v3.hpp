@@ -212,8 +212,13 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 }
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-                    constexpr index_t instance_lds_size = MPerBlock*KPerBlock*sizeof(ADataType)+NPerBlock*KPerBlock*sizeof(BDataType);
-                    return ((MPerBlock * NPerBlock / BlockSize <= 128) && (instance_lds_size<=32768)) ? 2 : 1;
+                    constexpr index_t instance_lds_size =
+                        MPerBlock * KPerBlock * sizeof(ADataType) +
+                        NPerBlock * KPerBlock * sizeof(BDataType);
+                    return ((MPerBlock * NPerBlock / BlockSize <= 128) &&
+                            (instance_lds_size <= 32768))
+                               ? 2
+                               : 1;
                 }
                 else
                 {
