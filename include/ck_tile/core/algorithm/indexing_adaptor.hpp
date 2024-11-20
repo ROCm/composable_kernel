@@ -65,6 +65,8 @@ struct indexing_adaptor
     CK_TILE_HOST_DEVICE constexpr indexing_adaptor() = default;
     CK_TILE_HOST_DEVICE constexpr indexing_adaptor(const IndexingType* idx) : cached_idx_(idx) {}
     const IndexingType* cached_idx_;
+    mutable index_t  preUpIndex = 0;
+    mutable index_t  preLowIndex = 0;
 
     template <typename LowIdx, typename UpIdx>
     CK_TILE_HOST_DEVICE constexpr void calculate_lower_index(LowIdx& idx_low,
@@ -74,6 +76,13 @@ struct indexing_adaptor
                       "wrong! inconsistent # of dimension");
 
         idx_low(number<0>{}) = *(cached_idx_ + idx_up[number<0>{}]);
+
+        preUpIndex = idx_up[number<0>{}];
+        preLowIndex = idx_low(number<0>{});
+        if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+        {
+            printf("\n first index from  %d to  %d  \n", idx_up[number<0>{}], idx_low(number<0>{}));
+        }
     }
 
     template <typename LowIdxDiff, typename UpIdxDiff, typename LowIdx, typename UpIdx>
@@ -86,8 +95,22 @@ struct indexing_adaptor
         static_assert(LowIdxDiff::size() == 1 && UpIdxDiff::size() == 1 && LowIdx::size() == 1 &&
                           UpIdx::size() == 1,
                       "wrong! inconsistent # of dimension");
+        
+        int up_index  = idx_diff_up[number<0>{}] + preUpIndex;
+        int low_index = *(cached_idx_ + up_index);
+        idx_diff_low(number<0>{}) = low_index - preLowIndex;
 
-        idx_diff_low(number<0>{}) = idx_diff_up[number<0>{}];
+        preUpIndex = up_index;
+        preLowIndex = low_index;
+
+        if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+        {
+            printf("\n index form %d to %d, diff  from  %d to  %d  \n",
+                   up_index,
+                   low_index,
+                   idx_diff_up[number<0>{}],
+                   idx_diff_low(number<0>{}));
+        }
 
         // pass the diff to lower, but not changing the actually index
     }

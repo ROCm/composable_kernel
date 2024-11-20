@@ -246,8 +246,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
         num_sorted_tiles_host.mData[0],
         experts,
         block_m);
-
-    // std::cout << sorted_token_ids_host << std::endl;
+    // std::cout << std::endl;
+    // for(int i = 0; i < tokens; i++)
+    // {
+    //     std::cout << "Line " << i << "\t";
+    //     for(int j = 0; j < hidden_size; j++)
+    //     {
+    //         std::cout << ck_tile::type_convert<float>(a_host(i,j)) << "\t";
+    //     }
+    //     std::cout << std::endl;
+    // }
+    std::cout << sorted_token_ids_host << std::endl;
     // std::cout << num_sorted_tiles_host << std::endl;
     // std::cout << sorted_expert_ids_host << std::endl;
     // std::cout << topk_weight_host << std::endl;

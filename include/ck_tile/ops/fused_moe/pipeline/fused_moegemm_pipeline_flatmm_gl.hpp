@@ -97,13 +97,35 @@ struct FusedMoeGemmPipeline_FlatmmGl
                                    index_t hidden_size,
                                    index_t intermediate_size)
     {
-        ignore = a_window_;
         ignore = g_window_;
         ignore = d_window_;
         ignore = o_window_;
         ignore = smem;
         ignore = hidden_size;
         ignore = intermediate_size;
+
+        auto a_copy_dram_window =
+            make_tile_window(a_window_.get_bottom_tensor_view(),
+                             make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}),
+                             a_window_.get_window_origin(),
+                             Policy::template MakeGlobalTileDistribution_A<Problem>());
+        auto a_dram = load_tile(a_copy_dram_window);
+        //check a matrix gather right or not
+        constexpr auto a_spans = decltype(a_dram)::get_distributed_spans();
+        int counter = 0;
+        sweep_tile_span(a_spans[number<0>{}], [&](auto idxm) {
+                sweep_tile_span(a_spans[number<1>{}], [&](auto idxk){
+                    constexpr auto i_j_idx = make_tuple(idxm, idxk);
+                    if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0){
+                       counter = counter + 1;
+                       index_t idm_0 = idxm.impl_.at(0);
+                       index_t idn_0 = idxk.impl_.at(0);
+                       printf("in A idm is %d , idn_ is %d , counter is %d, value is: %f \n", idm_0, idn_0, counter, ck_tile::type_convert<float>(a_dram(i_j_idx)));
+                    }
+                });
+            });
+
+        ignore = a_spans;
     }
 };
 
