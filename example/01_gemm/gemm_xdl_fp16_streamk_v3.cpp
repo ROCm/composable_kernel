@@ -47,5 +47,5 @@ using ReferenceGemmInstance = ck::tensor_operation::host::
 
 int main(int argc, char* argv[])
 {
-    return (run_gemm_universal_streamk_example(argc, argv)) ? -1 : 0;
+    return (run_gemm_universal_streamk_example(argc, argv) ? 0 : -1);
 }

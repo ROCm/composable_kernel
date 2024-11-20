@@ -382,6 +382,8 @@ template <index_t N>
 struct non_native_vector_base<f8_ocp_t, N>
 {
     using data_t = f8_ocp_t::data_type;
+    static_assert(sizeof(f8_ocp_t) == sizeof(data_t),
+                  "non_native_vector_base storage size mismatch");
     using data_v = data_t __attribute__((ext_vector_type(sizeof(data_t) * N)));
     using type   = non_native_vector_base<f8_ocp_t, N>;
 

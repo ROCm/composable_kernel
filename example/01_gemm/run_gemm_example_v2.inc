@@ -216,7 +216,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     {
         std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-        return true;
+        return false;
     }
 
     bool pass = true;
@@ -273,7 +273,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                   << " GB/s, " << gemm.GetTypeString() << std::endl;
     }
-    return !pass;
+    return pass;
 }
 
 bool run_gemm_splitk_example(int argc, char* argv[])
@@ -281,5 +281,5 @@ bool run_gemm_splitk_example(int argc, char* argv[])
     ProblemSizeSplitK problem_size;
     ExecutionConfig config;
 
-    return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
+    return parse_cmd_args(argc, argv, problem_size, config) && run_gemm(problem_size, config);
 }
