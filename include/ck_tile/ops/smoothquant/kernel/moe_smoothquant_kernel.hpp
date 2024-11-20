@@ -13,7 +13,7 @@ struct MoeSmoothquantHostArgs
 {
     const void* p_x;        // [tokens ,hidden_size], input, fp16/bf16
     const void* p_xscale;   // [experts, hidden_size], input, columnwise scale, fp32
-    const void* p_topk_ids; // [topk, tokens]
+    const void* p_topk_ids; // [tokens, topk]
 
     void* p_yscale; // [topk * tokens,  1], output, rowwise quant scale
     void* p_qy;     // [topk * tokens, hidden_size], output
@@ -58,7 +58,7 @@ struct MoeSmoothquant
     {
         const void* p_x;        // [tokens ,hidden_size], input, fp16/bf16
         const void* p_xscale;   // [experts, hidden_size], input, columnwise scale, fp32
-        const void* p_topk_ids; // [topk, tokens]
+        const void* p_topk_ids; // [tokens, topk]
 
         void* p_yscale; // [topk, tokens, 1], output, rowwise quant scale
         void* p_qy;     // [topk, tokens, hidden_size], output
@@ -132,7 +132,6 @@ struct MoeSmoothquant
         const index_t i_topk          = blockIdx.x;
         const index_t i_token         = blockIdx.y * Block_M;
         const index_t i_token_in_thrd = __builtin_amdgcn_readfirstlane(
-
             threadIdx.x / Problem::BlockShape::ThreadPerBlock_N);
 
         const index_t i_expert = reinterpret_cast<const index_t*>(
