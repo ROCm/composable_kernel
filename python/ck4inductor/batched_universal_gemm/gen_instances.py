@@ -66,6 +66,10 @@ def parse_instances(str_instances: List[str]) -> List[CKBatchedGemmOperation]:
             if i_next == -1:
                 break
 
+        # ds layout and dtype are parsed as placeholder; reset value
+        template_args[2] = tuple()  # ds layout
+        template_args[6] = tuple()  # ds dtype
+
         new_instance = CKBatchedGemmOperation(
             *template_args,  # type: ignore[arg-type]
         )
