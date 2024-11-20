@@ -254,7 +254,7 @@ struct fmha_fwd_appendkv_args
     ck_tile::index_t batch_stride_block_table; // only used if 'block_table_ptr' is not nullptr
     ck_tile::index_t page_block_size;          // only used if 'block_table_ptr' is not nullptr
 
-    const void* cache_batch_idx;
+    const void* cache_batch_idx; // only used if block_table_ptr is nullptr -> batch mode (kvcache)
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
