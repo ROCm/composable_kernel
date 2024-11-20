@@ -308,13 +308,15 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         c_m_n_device_ref_buf.FromDevice(c_m_n_device_ref_result.mData.data());
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        pass = ck::utils::check_err(c_m_n_device_result,
-                                    c_m_n_device_ref_result,
-                                    "Error: Incorrect results!",
-                                    get_rtol<CDataType>(),
-                                    get_atol<CDataType>());
-        if(pass)
+        auto gpu_pass = ck::utils::check_err(c_m_n_device_result,
+                                             c_m_n_device_ref_result,
+                                             "Error: Incorrect results!",
+                                             get_rtol<CDataType>(),
+                                             get_atol<CDataType>());
+        if(gpu_pass)
             std::cout << "Verification on GPU: PASS" << std::endl;
+
+        pass &= gpu_pass;
     }
 
     if(config.time_kernel)
