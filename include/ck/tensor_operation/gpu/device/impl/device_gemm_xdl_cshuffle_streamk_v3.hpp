@@ -162,13 +162,11 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                 if(arg.Grid_size < 0)
                 {
                     int occupancy, num_cu;
-                    hipError_t rtn;
-                    rtn = hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                        &occupancy, kernel, BlockSize, 0);
+                    hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0);
                     hipDeviceProp_t dev_prop;
                     hipDevice_t dev;
-                    rtn           = hipGetDevice(&dev);
-                    rtn           = hipGetDeviceProperties(&dev_prop, dev);
+                    hipGetDevice(&dev);
+                    hipGetDeviceProperties(&dev_prop, dev);
                     num_cu        = dev_prop.multiProcessorCount;
                     arg.Grid_size = num_cu * occupancy;
                     grid_dim      = arg.Grid_size;
@@ -510,12 +508,11 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
         const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
         int occupancy, num_cu;
         const auto calculate_grid_size = [&](const auto& kernel) {
-            hipError_t rtn;
-            rtn = hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0);
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0);
             hipDeviceProp_t dev_prop;
             hipDevice_t dev;
-            rtn       = hipGetDevice(&dev);
-            rtn       = hipGetDeviceProperties(&dev_prop, dev);
+            hipGetDevice(&dev);
+            hipGetDeviceProperties(&dev_prop, dev);
             num_cu    = dev_prop.multiProcessorCount;
             Grid_size = num_cu * occupancy;
         };
