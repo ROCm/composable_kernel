@@ -294,7 +294,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 #if !CK_TILE_FMHA_FWD_APPENDKV_API
     if(seqlen_knew != 0)
     {
-        std::cerr << "kvcache is not supported. ignoring the 's_knew' option" << std::endl;
+        std::cerr << "fmha_fwd_appendkv() is not enabled. ignoring the 's_knew' option"
+                  << std::endl;
         seqlen_knew = 0;
     }
 #endif
@@ -325,7 +326,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const bool need_append_kvcache = (0 < seqlen_knew || 0 < rotary_dim);
     if(need_append_kvcache && mode == mode_enum::group)
     {
-        std::cerr << "fmha_fwd_appendkv() enabled. ignoring the 'mode' option" << std::endl;
+        std::cerr << "fmha_fwd_appendkv() will be invoked. ignoring the 'mode' option" << std::endl;
         mode = mode_enum::batch;
     }
     if(!(rotary_dim <= hdim_q))
