@@ -706,7 +706,7 @@ struct FmhaFwdSplitKVKernel
 
                 return make_page_block_navigator<const KDataType, 0>(
                     kargs.k_ptr,
-                    kargs.batch_stride_k,
+                    kargs.batch_stride_k, // kcache page-block stride/size
                     fixed_offset,
                     block_indices,
                     num_blocks,
@@ -736,7 +736,7 @@ struct FmhaFwdSplitKVKernel
 
                 return make_page_block_navigator<const VDataType, 1>(
                     kargs.v_ptr,
-                    kargs.batch_stride_v,
+                    kargs.batch_stride_v, // vcache page-block stride/size
                     fixed_offset,
                     block_indices,
                     num_blocks,
