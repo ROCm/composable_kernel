@@ -41,7 +41,6 @@ __global__ void
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid, karg.p_b_grid, karg.p_c_grid, p_shared, karg, karg.p_workspace_);
-    // karg.block_2_ctile_map_streamk);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -71,7 +70,7 @@ __global__ void
         p_shared_0,
         p_shared_1,
         karg,
-        karg.p_workspace_); // karg.block_2_ctile_map_streamk);
+        karg.p_workspace_);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -1193,7 +1192,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                void* p_shared,
                                Problem& problem,
                                void* p_workspace)
-    // Block2CTileMap_streamk block_2_ctile_map_streamk)
     {
         const AElementwiseOperation a_element_op{};
         const BElementwiseOperation b_element_op{};
@@ -1365,15 +1363,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                            thread_n_cluster_id *
                                                CShuffleBlockTransferScalarPerVector_NPerBlock),
                           CElementwiseOperation{}};
-
-#if 0
-                if(threadIdx.x == 0) {
-                    printf("bid:%d, rid:%d, os:%d,%d, spatial:%d,%d\n", static_cast<int>(blockIdx.x),
-                        reduction_idx, __builtin_amdgcn_readfirstlane(tile_acc_offset_start), __builtin_amdgcn_readfirstlane(tile_acc_offset_end),
-                        __builtin_amdgcn_readfirstlane(spatial_idx[I0]),
-                        __builtin_amdgcn_readfirstlane(spatial_idx[I1]));
-                }
-#endif
 
                     wg_barrier.wait_eq(reduction_idx, tile_acc_offset_end - tile_acc_offset_start);
 
@@ -1925,7 +1914,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                     void* p_shared_1,
                                     Problem& problem,
                                     void* p_workspace)
-    // Block2CTileMap_streamk block_2_ctile_map_streamk)
     {
 
         const AElementwiseOperation a_element_op{};
@@ -2121,8 +2109,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     if(threadIdx.x == 0)
                     {
                         atomicAdd(&p_semaphore[reduction_idx], 1);
-                        // printf("sem=%0d, expected_count=%0d\n", p_semaphore[reduction_idx],
-                        // expected_count);
                     }
 
                     wg_barrier.wait_eq(p_semaphore[reduction_idx], expected_count);

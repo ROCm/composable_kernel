@@ -153,8 +153,8 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                          StreamKReductionStrategy::Atomic)
             {
 
-                hipGetErrorString(hipMemsetAsync(
-                    arg.p_c_grid, 0, arg.M * arg.N * sizeof(CDataType), stream_config.stream_id_));
+                hipMemsetAsync(
+                    arg.p_c_grid, 0, arg.M * arg.N * sizeof(CDataType), stream_config.stream_id_);
             }
 
             const auto Run = [&](const auto& kernel) {
@@ -165,16 +165,11 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                     hipError_t rtn;
                     rtn = hipOccupancyMaxActiveBlocksPerMultiprocessor(
                         &occupancy, kernel, BlockSize, 0);
-                    hip_check_error(rtn);
-
                     hipDeviceProp_t dev_prop;
                     hipDevice_t dev;
-                    rtn = hipGetDevice(&dev);
-                    hip_check_error(rtn);
-                    rtn = hipGetDeviceProperties(&dev_prop, dev);
-                    hip_check_error(rtn);
-                    num_cu = dev_prop.multiProcessorCount;
-
+                    rtn           = hipGetDevice(&dev);
+                    rtn           = hipGetDeviceProperties(&dev_prop, dev);
+                    num_cu        = dev_prop.multiProcessorCount;
                     arg.Grid_size = num_cu * occupancy;
                     grid_dim      = arg.Grid_size;
                 }
@@ -218,12 +213,12 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                             arg.block_2_ctile_map_streamk.get_workspace_size_for_acc(
                                 sizeof(GemmAccDataType));
                         auto preprocess = [&]() {
-                            hipGetErrorString(hipMemsetAsync(
+                            hipMemsetAsync(
                                 workspace_semaphore,
                                 0,
                                 // sizeof(uint32_t),
                                 arg.block_2_ctile_map_streamk.get_workspace_size_for_semaphore(),
-                                stream_config.stream_id_));
+                                stream_config.stream_id_);
                         };
 
                         ave_time = launch_and_time_kernel_with_preprocess(
@@ -242,15 +237,12 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                              BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
 
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        minimum_occupancy>;
+                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                    true,
+                                                                    InMemoryDataOperationEnum::Set,
+                                                                    minimum_occupancy>;
 
-                        Run(kernel);
-                    }
+                    Run(kernel);
                 }
                 // Tail number could be One to Seven
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
@@ -372,53 +364,49 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
                 {
 
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
-                                                                 true,
-                                                                 InMemoryDataOperationEnum::Set,
-                                                                 minimum_occupancy,
-                                                                 TailNumber::Odd>;
-                            Run(kernel);
-                        }
-                        else
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
-                                                                 true,
-                                                                 InMemoryDataOperationEnum::Set,
-                                                                 minimum_occupancy,
-                                                                 TailNumber::Even>;
-                            Run(kernel);
-                        }
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                             true,
+                                                             InMemoryDataOperationEnum::Set,
+                                                             minimum_occupancy,
+                                                             TailNumber::Odd>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                             true,
+                                                             InMemoryDataOperationEnum::Set,
+                                                             minimum_occupancy,
+                                                             TailNumber::Even>;
+                        Run(kernel);
                     }
                 }
                 else
                 {
 
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy,
-                                                            TailNumber::Odd>;
-                            Run(kernel);
-                        }
-                        else
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy,
-                                                            TailNumber::Even>;
-                            Run(kernel);
-                        }
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy,
+                                                        TailNumber::Odd>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy,
+                                                        TailNumber::Even>;
+                        Run(kernel);
                     }
                 }
             }
@@ -428,14 +416,11 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
 
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        false,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        minimum_occupancy>;
-                        Run(kernel);
-                    }
+                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                    false,
+                                                                    InMemoryDataOperationEnum::Set,
+                                                                    minimum_occupancy>;
+                    Run(kernel);
                 }
             }
 
@@ -527,16 +512,11 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
         const auto calculate_grid_size = [&](const auto& kernel) {
             hipError_t rtn;
             rtn = hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0);
-            hip_check_error(rtn);
-
             hipDeviceProp_t dev_prop;
             hipDevice_t dev;
-            rtn = hipGetDevice(&dev);
-            hip_check_error(rtn);
-            rtn = hipGetDeviceProperties(&dev_prop, dev);
-            hip_check_error(rtn);
-            num_cu = dev_prop.multiProcessorCount;
-
+            rtn       = hipGetDevice(&dev);
+            rtn       = hipGetDeviceProperties(&dev_prop, dev);
+            num_cu    = dev_prop.multiProcessorCount;
             Grid_size = num_cu * occupancy;
         };
 
@@ -547,122 +527,116 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                          BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
             {
 
-                {
-                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                                    true,
-                                                                    InMemoryDataOperationEnum::Set,
-                                                                    minimum_occupancy>;
-                    calculate_grid_size(kernel);
-                }
+                const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy>;
+                calculate_grid_size(kernel);
             }
             // Tail number could be One to Seven
             else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
             {
 
+                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
                 {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
+                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                    true,
+                                                                    InMemoryDataOperationEnum::Set,
+                                                                    minimum_occupancy,
+                                                                    TailNumber::One>;
+                    calculate_grid_size(kernel);
+                }
+                else if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Full)
+                {
+                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                    true,
+                                                                    InMemoryDataOperationEnum::Set,
+                                                                    minimum_occupancy,
+                                                                    TailNumber::Full>;
+                    calculate_grid_size(kernel);
+                }
+
+                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 2)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Two)
                     {
                         const auto kernel =
                             kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
                                                         true,
                                                         InMemoryDataOperationEnum::Set,
                                                         minimum_occupancy,
-                                                        TailNumber::One>;
+                                                        TailNumber::Two>;
                         calculate_grid_size(kernel);
                     }
-                    else if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Full)
+                }
+
+                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 3)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Three)
                     {
                         const auto kernel =
                             kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
                                                         true,
                                                         InMemoryDataOperationEnum::Set,
                                                         minimum_occupancy,
-                                                        TailNumber::Full>;
+                                                        TailNumber::Three>;
                         calculate_grid_size(kernel);
                     }
+                }
 
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 2)
+                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 4)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Four)
                     {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Two)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy,
-                                                            TailNumber::Two>;
-                            calculate_grid_size(kernel);
-                        }
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy,
+                                                        TailNumber::Four>;
+                        calculate_grid_size(kernel);
                     }
+                }
 
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 3)
+                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 5)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Five)
                     {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Three)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy,
-                                                            TailNumber::Three>;
-                            calculate_grid_size(kernel);
-                        }
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy,
+                                                        TailNumber::Five>;
+                        calculate_grid_size(kernel);
                     }
+                }
 
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 4)
+                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 6)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Six)
                     {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Four)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy,
-                                                            TailNumber::Four>;
-                            calculate_grid_size(kernel);
-                        }
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy,
+                                                        TailNumber::Six>;
+                        calculate_grid_size(kernel);
                     }
+                }
 
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 5)
+                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 7)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Seven)
                     {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Five)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy,
-                                                            TailNumber::Five>;
-                            calculate_grid_size(kernel);
-                        }
-                    }
-
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 6)
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Six)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy,
-                                                            TailNumber::Six>;
-                            calculate_grid_size(kernel);
-                        }
-                    }
-
-                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 7)
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Seven)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy,
-                                                            TailNumber::Seven>;
-                            calculate_grid_size(kernel);
-                        }
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy,
+                                                        TailNumber::Seven>;
+                        calculate_grid_size(kernel);
                     }
                 }
             }
@@ -670,53 +644,47 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
             else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
             {
 
+                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                 {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
-                                                             true,
-                                                             InMemoryDataOperationEnum::Set,
-                                                             minimum_occupancy,
-                                                             TailNumber::Odd>;
-                        calculate_grid_size(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
-                                                             true,
-                                                             InMemoryDataOperationEnum::Set,
-                                                             minimum_occupancy,
-                                                             TailNumber::Even>;
-                        calculate_grid_size(kernel);
-                    }
+                    const auto kernel =
+                        kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                         true,
+                                                         InMemoryDataOperationEnum::Set,
+                                                         minimum_occupancy,
+                                                         TailNumber::Odd>;
+                    calculate_grid_size(kernel);
+                }
+                else
+                {
+                    const auto kernel =
+                        kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                         true,
+                                                         InMemoryDataOperationEnum::Set,
+                                                         minimum_occupancy,
+                                                         TailNumber::Even>;
+                    calculate_grid_size(kernel);
                 }
             }
             else
             {
 
+                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                 {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        minimum_occupancy,
-                                                        TailNumber::Odd>;
-                        calculate_grid_size(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        minimum_occupancy,
-                                                        TailNumber::Even>;
-                        calculate_grid_size(kernel);
-                    }
+                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                    true,
+                                                                    InMemoryDataOperationEnum::Set,
+                                                                    minimum_occupancy,
+                                                                    TailNumber::Odd>;
+                    calculate_grid_size(kernel);
+                }
+                else
+                {
+                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                    true,
+                                                                    InMemoryDataOperationEnum::Set,
+                                                                    minimum_occupancy,
+                                                                    TailNumber::Even>;
+                    calculate_grid_size(kernel);
                 }
             }
         }
@@ -726,13 +694,11 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
             if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
             {
 
-                {
-                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                                    false,
-                                                                    InMemoryDataOperationEnum::Set,
-                                                                    minimum_occupancy>;
-                    calculate_grid_size(kernel);
-                }
+                const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                false,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy>;
+                calculate_grid_size(kernel);
             }
         }
 

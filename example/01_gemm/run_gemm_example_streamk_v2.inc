@@ -249,19 +249,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         workspace.Realloc(workspace_size);
         gemm.SetWorkSpacePointer(&argument, workspace.GetDeviceBuffer());
     }
-    // if(workspace_size != 0)
-    // {
-    //     float* ws_ptr    = reinterpret_cast<float*>(malloc(workspace_size));
-    //     size_t ws_dwords = workspace_size / sizeof(float);
-    //     workspace.FromDevice(ws_ptr);
-    //     printf("ws size=%0zu\n",workspace_size);
-    //     for(size_t i = 0; i < ws_dwords; i++)
-    //     {
-    //         uint32_t rere = reinterpret_cast<uint32_t*>(ws_ptr)[i];
-    //         printf("%4lu : %f(0x%08x)\n", i, ws_ptr[i], rere);
-    //     }
-    //     free(ws_ptr);
-    // }
 
     bool pass = true;
     if((config.do_verification == 1) || (config.do_verification == 3))

@@ -5,10 +5,9 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_streamk_v3.hpp"
 
-using ADataType   = ck::f8_t;
-using BDataType   = ck::f8_t;
-using AccDataType = float;
-// using CShuffleDataType = ck::f8_t;
+using ADataType        = ck::f8_t;
+using BDataType        = ck::f8_t;
+using AccDataType      = float;
 using CShuffleDataType = ck::half_t;
 using CDataType        = ck::half_t;
 
