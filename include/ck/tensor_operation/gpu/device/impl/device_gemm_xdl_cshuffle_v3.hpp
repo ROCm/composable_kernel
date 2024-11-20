@@ -205,8 +205,21 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 }
             };
 
-            constexpr index_t minimum_occupancy =
-                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
+            constexpr index_t minimum_occupancy = []() {
+                if constexpr(BlkGemmPipeSched == BlockGemmPipelineScheduler::Interwave)
+                {
+                    return 2;
+                }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    constexpr index_t instance_lds_size = MPerBlock*KPerBlock*sizeof(ADataType)+NPerBlock*KPerBlock*sizeof(BDataType);
+                    return ((MPerBlock * NPerBlock / BlockSize <= 128) && (instance_lds_size<=32768)) ? 2 : 1;
+                }
+                else
+                {
+                    return 1;
+                }
+            }();
 
             if(has_main_k_block_loop)
             {
