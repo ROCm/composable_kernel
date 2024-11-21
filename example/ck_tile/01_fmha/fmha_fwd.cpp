@@ -62,7 +62,7 @@ auto create_args(int argc, char* argv[])
                 "-1 to choose s_knew in [1, s] randomly.")
         .insert("s_kpad",
                 "-1",
-                "seqlen_k stride between 2 tokens, currently used in group-mode only\n"
+                "seqlen_k stride between 2 batches, currently used in group-mode only\n"
                 "for kv-cache case, each batch [1,s,h,d]/[1,h,s,d] can have a stride\n"
                 "along seqlen, instead of packed. same as xformer kv_padding")
         .insert("d", "128", "head dim for q, k")
