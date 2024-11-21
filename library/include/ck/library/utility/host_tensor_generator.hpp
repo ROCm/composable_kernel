@@ -249,6 +249,7 @@ struct GeneratorTensor_3<ck::bf8_t>
 };
 #endif
 
+template <>
 struct GeneratorTensor_3<ck::f4_t>
 {
     float min_value = 0;
