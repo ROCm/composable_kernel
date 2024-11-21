@@ -40,7 +40,7 @@ using BF8  = ck::bf8_t;
 struct ExecutionConfig final
 {
     bool do_verification = true;
-    int init_method      = 2;
+    int init_method      = 1;
     bool time_kernel     = false;
 };
 

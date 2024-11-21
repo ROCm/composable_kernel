@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 template <ck::index_t NDimSpatial>
 bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
@@ -37,8 +37,8 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
-        out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-1, 1});
+        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 0.2});
+        out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.1, 0.1});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
@@ -128,12 +128,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
 
         wei_device_buf.FromDevice(wei_device_result.mData.data());
 
-        return ck::utils::check_err(
-            wei_device_result.mData,
-            wei_host_result.mData,
-            "Error: Incorrect results!",
-            1e-3,
-            1e-3); // the errors must be consistent with the less precise type of In/Out DataTypes
+        return ck::utils::check_err(wei_device_result.mData, wei_host_result.mData);
     }
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -50,4 +50,4 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataTyp
 
 #include "run_gemm_example_v2.inc"
 
-int main(int argc, char* argv[]) { return (run_gemm_splitk_example(argc, argv) ? 0 : -1); }
+int main(int argc, char* argv[]) { return !run_gemm_splitk_example(argc, argv); }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -7,7 +7,7 @@ using ADataType        = BF16;
 using BDataType        = BF16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
-using CDataType  = F32; // C matrix doesn't exist in GPU memory, this is used for host verification
+using CDataType  = F32; // C matrix doesn't exsit in GPU memory, this is used for host verification
 using D0DataType = BF16;
 using D1DataType = BF16;
 using DsDataType = ck::Tuple<D0DataType, D1DataType>;

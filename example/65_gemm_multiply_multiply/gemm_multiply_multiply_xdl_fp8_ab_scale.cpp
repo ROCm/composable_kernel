@@ -78,7 +78,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
-    int init_method      = 5;
+    int init_method      = 1;
     bool time_kernel     = false;
 
     // GEMM shape
@@ -187,20 +187,6 @@ int main(int argc, char* argv[])
         a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         break;
-    case 6:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_PI<A0DataType>{});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{0.5f});
-        a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{0.5});
-        b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{4});
-
-        break;
-    case 7:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_PI_A<A0DataType>{});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_PI_B<B0DataType>{});
-        a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{2});
-        b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{0.5});
-
-        break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
         b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
@@ -254,28 +240,23 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    std::cout << "Compute GEMM on device...  \n";
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 20, 50});
-    std::cout << "DONE!" << std::endl;
-    if(time_kernel)
-    {
-        std::size_t flop = std::size_t(2) * M * N * K;
-        std::size_t num_btype =
-            sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(EDataType) * M * N;
 
-        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+    std::size_t flop = std::size_t(2) * M * N * K;
+    std::size_t num_btype =
+        sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(EDataType) * M * N;
 
-        float gb_per_sec = num_btype / 1.E6 / ave_time;
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s" << std::endl;
-    }
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+              << std::endl;
 
     e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
     if(do_verification)
     {
-        std::cout << "Running verification on CPU." << std::endl;
         Tensor<AccDataType> c_m_n({M, N});
         Tensor<float> a_m_k({M, K});
         Tensor<float> b_k_n({K, N});
@@ -325,28 +306,10 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-        if(init_method == 6 || init_method == 7)
-        {
-            std::cout << std::fixed << std::setprecision(16);
-
-            float d = ck::type_convert<float>(e_m_n_device_result(0, 10));
-            float h = ck::type_convert<float>(e_m_n_host_result(10, 0));
-            std::cout << "device result: " << d << std::endl;
-            std::cout << "host result: " << h << std::endl;
-            std::cout << "expected result: " << M_PI << std::endl;
-            std::cout << "device - host: " << std::abs(d - h) << std::endl;
-            std::cout << "device - expected: " << std::abs(d - M_PI) << std::endl;
-            std::cout << "atol: " << 5e-2 << std::endl;
-        }
-
-        if(ck::utils::check_err(
-               e_m_n_device_result, e_m_n_host_result, "Error: Incorrect results!", 5e-2, 5e-2))
-        {
-            std::cout << "Verification on CPU: PASS" << std::endl;
-            return 0;
-        }
-        else
-            return 1;
+        return ck::utils::check_err(
+                   e_m_n_device_result, e_m_n_host_result, "Error: Incorrect results!", 5e-2, 5e-2)
+                   ? 0
+                   : 1;
     }
 
     return 0;

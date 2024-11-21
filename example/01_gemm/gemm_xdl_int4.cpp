@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
@@ -41,5 +41,5 @@ using ReferenceGemmInstance = ck::tensor_operation::host::
 #define BUILD_INT4_EXAMPLE
 #include "run_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return (run_gemm_example(argc, argv) ? 0 : -1); }
+int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
 #endif

@@ -86,7 +86,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
-    int init_method      = 2;
+    int init_method      = 1;
     bool time_kernel     = false;
 
     // GEMM shape

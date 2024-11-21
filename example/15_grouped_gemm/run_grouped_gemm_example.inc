@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -123,12 +123,12 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             b_tensors[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
             break;
         case 2:
-            a_tensors[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{-1.0, 1.0});
+            a_tensors[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
             b_tensors[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
             break;
         default:
-            a_tensors[i].GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
-            b_tensors[i].GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
+            a_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<ADataType, 0>{});
+            b_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
         }
     }
 
@@ -187,7 +187,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     bool pass = true;
     if(config.do_verification)
     {
-        std::cout << "Running verification on CPU." << std::endl;
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                                 BDataType,
                                                                                 EDataType,
@@ -219,8 +218,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             pass &= ck::utils::check_err(c_device_tensors[i], c_host_tensors[i]);
 #endif
         }
-        if(pass)
-            std::cout << "Verification on CPU: PASS" << std::endl;
     }
 
     if(config.time_kernel)

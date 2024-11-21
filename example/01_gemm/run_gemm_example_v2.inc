@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -146,11 +146,19 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
         break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2, 2});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-3, 3});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        break;
+    case 2:
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        break;
+    case 3:
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1.0, 1.0});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
 
@@ -216,13 +224,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     {
         std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-        return false;
+        return true;
     }
 
     bool pass = true;
     if((config.do_verification == 1) || (config.do_verification == 3))
     {
-        std::cout << "Compute reference GEMM on CPU...  ";
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
@@ -230,11 +237,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             a_m_k, b_k_n, c_m_n_host_result, PassThrough{}, PassThrough{}, PassThrough{});
 
         ref_invoker.Run(ref_argument);
-        std::cout << "DONE!" << std::endl;
 
-        std::cout << "Compute GEMM on device...  \n";
         ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
-        std::cout << "DONE!" << std::endl;
 #ifdef BUILD_INT4_EXAMPLE
         Tensor<CDataType> c_m_n_device_result_converted(c_m_n_host_result.mDesc);
 
@@ -246,19 +250,16 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        pass = ck::utils::check_err(c_m_n_device_result,
-                                    c_m_n_host_result,
-                                    "Error: Incorrect results!",
-                                    get_rtol<CDataType>(),
-                                    get_atol<CDataType>());
-        if(pass)
-            std::cout << "Verification on CPU: PASS" << std::endl;
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_host_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
 #endif
     }
 
     if(config.time_kernel)
     {
-        std::cout << "Time GEMM on device...  \n";
         ave_time =
             invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 5, 10, true, 4});
 
@@ -281,5 +282,5 @@ bool run_gemm_splitk_example(int argc, char* argv[])
     ProblemSizeSplitK problem_size;
     ExecutionConfig config;
 
-    return parse_cmd_args(argc, argv, problem_size, config) && run_gemm(problem_size, config);
+    return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
 }

@@ -166,14 +166,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n);
         break;
-    case 6:
-        a_m_k.GenerateTensorValue(GeneratorTensor_PI<ADataType>{});
-        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
-        break;
-    case 7:
-        a_m_k.GenerateTensorValue(GeneratorTensor_PI_A<ADataType>{});
-        b_k_n.GenerateTensorValue(GeneratorTensor_PI_B<BDataType>{});
-        break;
     default:
         ck::utils::FillUniformDistribution<ADataType>{-0.1f, 0.1f}(a_m_k);
         ck::utils::FillUniformDistribution<BDataType>{-0.1f, 0.1f}(b_k_n);
@@ -256,7 +248,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         {
             std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-            return false;
+            return true;
         }
 
         ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
@@ -289,7 +281,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         {
             std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-            return false;
+            return true;
         }
 
         std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
@@ -322,26 +314,19 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         std::cerr << gemm.GetTypeString() << ": the instance does not support the problem config."
                   << std::endl;
-        return false;
+        return true;
     }
 
-    if(config.time_kernel)
-    {
-        std::size_t flop = 2_uz * M * N * K;
-        std::size_t num_btype =
-            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+    std::size_t flop = 2_uz * M * N * K;
+    std::size_t num_btype =
+        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
 
-        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-        float gb_per_sec = num_btype / 1.E6 / ave_time;
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s, " << gemm.GetTypeString() << std::endl;
-    }
-    else
-    {
-        std::cout << "FINISHED: " << gemm.GetTypeString() << std::endl;
-    }
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << gemm.GetTypeString() << std::endl;
 
     bool pass = true;
 
@@ -368,29 +353,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        pass = ck::utils::check_err(c_m_n_device_result,
-                                    c_m_n_host_result,
-                                    "Error: Incorrect results!",
-                                    get_rtol<CDataType>(),
-                                    get_atol<CDataType>());
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_host_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
 #endif
-        if(pass)
-            std::cout << "Verification on CPU: PASS" << std::endl;
-
-        if(config.init_method == 6 || config.init_method == 7)
-        {
-            std::cout << std::fixed << std::setprecision(16);
-
-            AccDataType d = ck::type_convert<AccDataType>(c_m_n_device_result(0, 10));
-            AccDataType h = ck::type_convert<AccDataType>(c_m_n_host_result(10, 0));
-            std::cout << "device result: " << d << std::endl;
-            std::cout << "host result: " << h << std::endl;
-            std::cout << "expected result: " << M_PI << std::endl;
-            std::cout << "device - host: " << std::abs(d - h) << std::endl;
-            std::cout << "device - expected: " << std::abs(d - M_PI) << std::endl;
-            std::cout << "atol: " << get_atol<CDataType>() << std::endl;
-            std::cout << std::endl << std::endl;
-        }
     }
 
     if((config.do_verification == 2) || (config.do_verification == 3))
@@ -416,18 +384,14 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         c_m_n_device_ref_buf.FromDevice(c_m_n_device_ref_result.mData.data());
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        auto gpu_pass = ck::utils::check_err(c_m_n_device_result,
-                                             c_m_n_device_ref_result,
-                                             "Error: Incorrect results!",
-                                             get_rtol<CDataType>(),
-                                             get_atol<CDataType>());
-        if(gpu_pass)
-            std::cout << "Verification on GPU: PASS" << std::endl;
-
-        pass = pass && gpu_pass;
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_device_ref_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
     }
 
-    return pass;
+    return pass == true;
 }
 
 bool run_gemm_example(int argc, char* argv[])
@@ -435,7 +399,7 @@ bool run_gemm_example(int argc, char* argv[])
     ProblemSize problem_size;
     ExecutionConfig config;
 
-    return parse_cmd_args(argc, argv, problem_size, config) && run_gemm(problem_size, config);
+    return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
 }
 
 bool run_gemm_streamk_example(int argc, char* argv[])
@@ -443,5 +407,5 @@ bool run_gemm_streamk_example(int argc, char* argv[])
     ProblemSizeStreamK problem_size;
     ExecutionConfig config;
 
-    return parse_cmd_args(argc, argv, problem_size, config) && run_gemm(problem_size, config);
+    return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
 }
