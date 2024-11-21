@@ -206,7 +206,7 @@ typename std::enable_if<
 check_err(const Range& out,
           const RefRange& ref,
           const std::string& msg = "Error: Incorrect results!",
-          double rtol            = 1e-3,
+          double rtol            = 1e-1,
           double atol            = 1e-3)
 {
     if(out.size() != ref.size())

@@ -173,8 +173,11 @@ struct fmha_fwd_splitkv_args
     //             seqlen_k = kargs.seqlen_k
     // group mode: seqlen_q = kargs.seqstart_q_ptr[b + 1] - kargs.seqstart_q_ptr[b]
     //             seqlen_k = kargs.seqstart_k_ptr[b + 1] - kargs.seqstart_k_ptr[b]
-    // kvcache mode (use same kernel as batch mode):
+    // batch mode (kvcache):
     //             seqlen_q = kargs.seqlen_q
+    //             seqlen_k = kargs.seqlen_k_ptr[b]
+    // group mode (kvcache):
+    //             seqlen_q = kargs.seqstart_q_ptr[b + 1] - kargs.seqstart_q_ptr[b]
     //             seqlen_k = kargs.seqstart_k_ptr[b + 1] - kargs.seqstart_k_ptr[b]
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
@@ -251,7 +254,7 @@ struct fmha_fwd_appendkv_args
     ck_tile::index_t batch_stride_block_table; // only used if 'block_table_ptr' is not nullptr
     ck_tile::index_t page_block_size;          // only used if 'block_table_ptr' is not nullptr
 
-    const void* cache_batch_idx;
+    const void* cache_batch_idx; // only used if block_table_ptr is nullptr -> batch mode (kvcache)
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
@@ -389,6 +392,9 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.nhead_q,
                                      args.nhead_q / args.nhead_k,
                                      args.num_splits,
+                                     args.block_table_ptr,
+                                     args.batch_stride_block_table,
+                                     args.page_block_size,
                                      args.scale_s,
                                      args.scale_p,
                                      args.stride_q,

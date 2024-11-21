@@ -4,18 +4,14 @@ ARG ROCMVERSION=6.2
 ARG compiler_version=""
 ARG compiler_commit=""
 ARG CK_SCCACHE=""
-
-RUN set -xe
-
 ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
-RUN useradd -rm -d /home/jenkins -s /bin/bash -u 1004 jenkins
-# Add rocm repository
-RUN chmod 1777 /tmp
-RUN apt-get update
-RUN apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl
-
 ENV APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
-RUN curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/trusted.gpg.d/rocm-keyring.gpg
+
+# Add rocm repository
+RUN set -xe && \
+    useradd -rm -d /home/jenkins -s /bin/bash -u 1004 jenkins && \
+    apt-get update && apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl && \
+    curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/trusted.gpg.d/rocm-keyring.gpg
 
 RUN if [ "$ROCMVERSION" != "6.3" ]; then \
         sh -c "wget https://repo.radeon.com/amdgpu-install/$ROCMVERSION/ubuntu/focal/amdgpu-install_6.2.60200-1_all.deb  --no-check-certificate" && \
@@ -30,8 +26,8 @@ RUN if [ "$ROCMVERSION" != "6.3" ]; then \
         amdgpu-repo --amdgpu-build=2074281; \
     fi
 
-RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -a /etc/apt/sources.list"
-RUN amdgpu-install -y --usecase=rocm --no-dkms
+RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -a /etc/apt/sources.list" && \
+    amdgpu-install -y --usecase=rocm --no-dkms
 
 ## Sccache binary built from source for ROCm, only install if CK_SCCACHE is defined
 ARG SCCACHE_REPO_URL=http://compute-artifactory.amd.com/artifactory/rocm-generic-experimental/rocm-sccache
@@ -76,66 +72,49 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     clang-format-12 \
     kmod && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf amdgpu-install* && \
+# Remove unnecessary rocm components that take a lot of space
+    apt-get remove -y rocblas rocfft rocsparse composablekernel-dev
 
 # hipTensor requires rocm-llvm-dev for rocm versions > 6.0.1
 RUN if [ "$ROCMVERSION" = "6.1" ]; then \
         sh -c "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated rocm-llvm-dev"; \
     fi
 # Update the cmake to version 3.27.5
-RUN pip install --upgrade cmake==3.27.5
-
+RUN pip install --upgrade cmake==3.27.5 && \
 #Install latest ccache
-RUN git clone https://github.com/ccache/ccache.git && \
-    cd ccache && mkdir build && cd build && cmake .. && make install
-
+    git clone https://github.com/ccache/ccache.git && \
+    cd ccache && mkdir build && cd build && cmake .. && make install && \
 #Install ninja build tracing tools
-RUN wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip
-RUN gunzip /usr/local/bin/ninja.gz
-RUN chmod a+x /usr/local/bin/ninja
-RUN git clone https://github.com/nico/ninjatracing.git
-
+    wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip && \
+    gunzip /usr/local/bin/ninja.gz && \
+    chmod a+x /usr/local/bin/ninja && \
+    git clone https://github.com/nico/ninjatracing.git && \
 #Install latest cppcheck
-RUN git clone https://github.com/danmar/cppcheck.git && \
+    git clone https://github.com/danmar/cppcheck.git && \
     cd cppcheck && mkdir build && cd build && cmake .. && cmake --build .
 WORKDIR /
 
-# Setup ubsan environment to printstacktrace
-RUN ln -s /usr/bin/llvm-symbolizer-3.8 /usr/local/bin/llvm-symbolizer
-ENV UBSAN_OPTIONS=print_stacktrace=1
-
 # Install an init system
-RUN wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb
-RUN dpkg -i dumb-init_*.deb && rm dumb-init_*.deb
-
-ARG PREFIX=/opt/rocm
+RUN wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb && \
+    dpkg -i dumb-init_*.deb && rm dumb-init_*.deb && \
 # Install packages for processing the performance results
-RUN pip3 install --upgrade pip
-RUN pip3 install sqlalchemy==1.4.46
-RUN pip3 install pymysql
-RUN pip3 install pandas==2.0.3
-RUN pip3 install setuptools-rust
-RUN pip3 install sshtunnel==0.4.0
-# Setup ubsan environment to printstacktrace
-ENV UBSAN_OPTIONS=print_stacktrace=1
-
-ENV LC_ALL=C.UTF-8
-ENV LANG=C.UTF-8
-RUN groupadd -f render
-
+    pip3 install --upgrade pip && \
+    pip3 install sqlalchemy==1.4.46 pymysql pandas==2.0.3 setuptools-rust sshtunnel==0.4.0 && \
+# Add render group
+    groupadd -f render && \
 # Install the new rocm-cmake version
-RUN git clone -b master https://github.com/ROCm/rocm-cmake.git  && \
-  cd rocm-cmake && mkdir build && cd build && \
-  cmake  .. && cmake --build . && cmake --build . --target install
+    git clone -b master https://github.com/ROCm/rocm-cmake.git  && \
+    cd rocm-cmake && mkdir build && cd build && \
+    cmake  .. && cmake --build . && cmake --build . --target install
 
 WORKDIR /
-
+# Add alternative compilers, if necessary
 ENV compiler_version=$compiler_version
 ENV compiler_commit=$compiler_commit
-RUN sh -c "echo compiler version = '$compiler_version'"
-RUN sh -c "echo compiler commit = '$compiler_commit'"
-
-ARG DISABLE_CACHE=0
+RUN sh -c "echo compiler version = '$compiler_version'" && \
+    sh -c "echo compiler commit = '$compiler_commit'"
 
 RUN if ( [ "$compiler_version" = "amd-staging" ] || [ "$compiler_version" = "amd-mainline-open" ] ) && [ "$compiler_commit" = "" ]; then \
         git clone -b "$compiler_version" https://github.com/ROCm/llvm-project.git && \
@@ -152,9 +131,3 @@ RUN if ( [ "$compiler_version" = "amd-staging" ] || [ "$compiler_version" = "amd
         make -j 8 ; \
     else echo "using the release compiler"; \
     fi
-
-#clean-up the deb package
-RUN sh -c "rm -rf amdgpu-install*"
-
-#ENV HIP_CLANG_PATH='/llvm-project/build/bin'
-#RUN sh -c "echo HIP_CLANG_PATH = '$HIP_CLANG_PATH'"
