@@ -153,7 +153,6 @@ inline T convert_to_type(float value)
     }
     const int mfmt = NumericUtils<float>::mant;
     uint32_t x;
-    // x = reinterpret_cast<uint32_t&>(value);
     x = bit_cast<uint32_t>(value);
 
     uint32_t head, mantissa;
@@ -256,8 +255,6 @@ inline T convert_to_type(float value)
 template <typename T>
 inline T convert_to_type_sr(float value, uint32_t seed)
 {
-    // using bitwise_type = typename NumericUtils<T>::bitwise_type;
-
     if(std::abs(value) > NumericLimits<T>::Max())
     {
         float max_value = NumericLimits<T>::Max();
@@ -323,7 +320,6 @@ inline T convert_to_type_sr(float value, uint32_t seed)
         }
     }
 
-    // uint32_t f32 = reinterpret_cast<uint32_t&>(value);
     uint32_t f32 = bit_cast<uint32_t>(value);
 
     auto f32_mant = f32 & NumericUtils<float>::mant_mask;

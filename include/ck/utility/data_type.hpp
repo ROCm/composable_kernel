@@ -33,7 +33,6 @@ struct f4x2_pk_t
 
     __host__ __device__ inline type unpack(const size_t index)
     {
-        // if (index == 0) return (data << 4) >> 4;
         if(index == 0)
             return data & 0b00001111;
         return (data >> 4);
