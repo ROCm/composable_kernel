@@ -17,7 +17,11 @@ log = logging.getLogger(__name__)
 
 def _ck_library_dir():
     gemm_instances_path = os.path.join(
-        library_path(), "src", "tensor_operation_instance", "gpu", "gemm_universal_batched"
+        library_path(),
+        "src",
+        "tensor_operation_instance",
+        "gpu",
+        "gemm_universal_batched",
     )
     if not os.path.exists(gemm_instances_path):
         log.error("CK library path %s does not exist", gemm_instances_path)
@@ -38,7 +42,9 @@ def parse_instances(str_instances: List[str]) -> List[CKBatchedGemmOperation]:
 
     op_instances = []
     for line in str_instances:
-        s_template_args = line.split("DeviceBatchedGemmMultiD_Xdl_CShuffle_V3")[-1].strip("<>, ")
+        s_template_args = line.split("DeviceBatchedGemmMultiD_Xdl_CShuffle_V3")[
+            -1
+        ].strip("<>, ")
         template_args = []
         i_current = 0
         while i_current < len(s_template_args):
