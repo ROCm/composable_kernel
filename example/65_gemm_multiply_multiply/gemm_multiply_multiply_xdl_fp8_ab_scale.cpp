@@ -329,17 +329,6 @@ int main(int argc, char* argv[])
         {
             std::cout << std::fixed << std::setprecision(16);
 
-            float a = ck::type_convert<float>(a0_m_k(0, 10));
-            float b = ck::type_convert<float>(b0_k_n(0, 10));
-            std::cout << "a(0,10): " << a << std::endl;
-            std::cout << "b(0,10): " << b << std::endl;
-            std::cout << "a: " << ck::type_convert<float>(a0_m_k(0, 0)) << std::endl;
-            std::cout << "a: " << ck::type_convert<float>(a0_m_k(0, 1)) << std::endl;
-            std::cout << "a: " << ck::type_convert<float>(a0_m_k(0, 2)) << std::endl;
-            std::cout << "b: " << ck::type_convert<float>(b0_k_n(0, 0)) << std::endl;
-            std::cout << "b: " << ck::type_convert<float>(b0_k_n(1, 0)) << std::endl;
-            std::cout << "b: " << ck::type_convert<float>(b0_k_n(2, 0)) << std::endl;
-
             float d = ck::type_convert<float>(e_m_n_device_result(0, 10));
             float h = ck::type_convert<float>(e_m_n_host_result(10, 0));
             std::cout << "device result: " << d << std::endl;
