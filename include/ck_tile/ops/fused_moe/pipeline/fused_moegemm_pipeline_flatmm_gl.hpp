@@ -104,19 +104,20 @@ struct FusedMoeGemmPipeline_FlatmmGl
         ignore = hidden_size;
         ignore = intermediate_size;
 
-        auto a_copy_dram_window =
-            make_tile_window(a_window_.get_bottom_tensor_view(),
-                             make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}),
-                             a_window_.get_window_origin(),
-                             Policy::template MakeGlobalTileDistribution_A<Problem>());
+        auto a_copy_dram_window = make_tile_window(
+            a_window_.get_bottom_tensor_view(),
+            make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}),
+            a_window_.get_window_origin(),
+            Policy::template MakeGlobalTileDistribution_A<Problem>());
         auto a_dram = load_tile(a_copy_dram_window);
+#if 0
         //check a matrix gather right or not
         constexpr auto a_spans = decltype(a_dram)::get_distributed_spans();
         int counter = 0;
         sweep_tile_span(a_spans[number<0>{}], [&](auto idxm) {
                 sweep_tile_span(a_spans[number<1>{}], [&](auto idxk){
                     constexpr auto i_j_idx = make_tuple(idxm, idxk);
-                    if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0){
+                    if(threadIdx.x == 65 && blockIdx.x == 0 && blockIdx.y == 1 && blockIdx.z == 0){
                        counter = counter + 1;
                        index_t idm_0 = idxm.impl_.at(0);
                        index_t idn_0 = idxk.impl_.at(0);
@@ -124,8 +125,8 @@ struct FusedMoeGemmPipeline_FlatmmGl
                     }
                 });
             });
-
-        ignore = a_spans;
+#endif
+        ignore = a_dram;
     }
 };
 

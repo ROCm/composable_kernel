@@ -268,8 +268,8 @@ struct FusedMoeGemmGlKernel
         auto topk_weight =
             reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr)[sorted_token_id];
 
-        const index_t* sorted_token_ids_ptr = reinterpret_cast<const index_t*>(
-            &(reinterpret_cast<const index_t*>(kargs.sorted_token_ids_ptr)[sorted_token_id]));
+        const index_t* sorted_token_ids_ptr =
+            reinterpret_cast<const index_t*>(kargs.sorted_token_ids_ptr);
 
         const auto a_window = [&]() {
             // A is already pre-padded in previous kernel
