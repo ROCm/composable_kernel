@@ -23,8 +23,14 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
 {
     const index_t num_token = topk_ids.mDesc.get_lengths()[0];
     const index_t topk      = topk_ids.mDesc.get_lengths()[1];
-    std::vector<std::vector<IndexType>> expert_tokens(experts,
-                                                      std::vector<IndexType>(unit_size, num_token));
+    // allocate a temp buffer, and fill the value with [number_token|topk]
+    std::vector<std::vector<IndexType>> expert_tokens(
+        experts,
+#if CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
+        std::vector<IndexType>(unit_size, MOE_SORTING_MOCK_ID(num_token, topk)));
+#else
+        std::vector<IndexType>(unit_size, num_token));
+#endif
     std::vector<std::vector<WeightType>> expert_token_weights(
         experts, std::vector<WeightType>(unit_size, 0));
     std::vector<IndexType> expert_slices(experts, 1);
@@ -45,7 +51,11 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
                 expert_token_weights[e].resize(new_size);
                 for(index_t i = (expert_slices[e] - 1) * unit_size; i < new_size; i++)
                 {
-                    expert_tokens[e][i]        = num_token;
+#if CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
+                    expert_tokens[e][i] = MOE_SORTING_MOCK_ID(num_token, topk);
+#else
+                    expert_tokens[e][i] = num_token;
+#endif
                     expert_token_weights[e][i] = 0;
                 }
             }
