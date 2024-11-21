@@ -174,6 +174,13 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         auto v_lds_window = make_tile_window(
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
+        auto p_lds = make_tensor_view<address_space_enum::lds>(
+            reinterpret_cast<PDataType*>(reinterpret_cast<char*>(smem_ptr) +
+                                         Policy::template GetSmemSizeKV<Problem>()),
+            Policy::template MakePLdsBlockDescriptor<Problem>());
+        auto p_lds_window = make_tile_window(
+            p_lds, Policy::template MakePLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
@@ -542,6 +549,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
+            store_tile(p_lds_window, get_slice_tile(p, sequence<0, 0>{}, sequence<kM0, kK1>{}));
+
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
             {
@@ -550,11 +559,14 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                                                   &v_dram_window_  = v_dram_window](auto i_k1) {
                     const auto v = load_tile(v_dram_window_); // load next v
                     block_sync_lds();
-                    gemm_1(o_acc,
-                           get_slice_tile(
-                               p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
-                           v_lds_window);
+                    gemm_1(o_acc, p_lds_window, v_lds_window);
                     block_sync_lds();
+
+                    store_tile(p_lds_window,
+                               get_slice_tile(p,
+                                              sequence<0, (i_k1 + 1) * kK1>{},
+                                              sequence<kM0, (i_k1 + 2) * kK1>{}));
+
                     if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                     {
                         auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
@@ -579,9 +591,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             // tail
             {
                 block_sync_lds();
-                gemm_1(o_acc,
-                       get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
-                       v_lds_window);
+                gemm_1(o_acc, p_lds_window, v_lds_window);
                 block_sync_lds();
             }
         } while(++i_total_loops < num_total_loop);
