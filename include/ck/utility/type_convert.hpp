@@ -786,7 +786,7 @@ inline __host__ __device__ f4x32_t f4_convert_sr(float32_t x, float scale = 1.0f
     {
         float2_t floatx2_array[16];
         float32_t floatx32_array;
-    } float_values{0};
+    } float_values{{0}};
     // TODO: pack in a loop
     tmp_values.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
         tmp_values.bitwise, float_values.floatx2_array[0], rng, scale, 0);
@@ -993,7 +993,6 @@ inline __host__ __device__ float type_convert<float, f4_t>(f4_t x)
 #if defined(__gfx950__)
     float scale = 1.0f;
     return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(x, scale, 0)
-        .template AsType<float>()(Number<0>{});
 #else
     return utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(), x);
 #endif
@@ -1004,8 +1003,14 @@ template <>
 inline __host__ __device__ float2_t type_convert<float2_t, f4x2_t>(f4x2_t x)
 {
 #if defined(__gfx950__)
-    float scale = 1.0f;
-    return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(x, scale, 0);
+    union
+    {
+        uint32_t bitwise;
+        f4x2_t f4x2_array[4];
+    } value{};
+    value.f4x2_array[0] = x;
+    float scale         = 1.0f;
+    return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, scale, 0);
 #else
     float2_t ret{utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(), x.unpack(1)),
                  utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(), x.unpack(0))};
@@ -1023,59 +1028,108 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
         f4x32_t f4x32_array;
         f4x2_t fp4x2[16];
     } value{x};
+    union
+    {
+        uint32_t bitwise;
+        f4x2_t f4x2_array[4];
+    } bitwise_value{};
     float2_t op;
     float32_t ret;
     float scale = 1.0f;
     // TODO: pack in a loop
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[0], type_convert<float>(scale), 0);
+    bitwise_value.f4x2_array[0] = value.fp4x2[0];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[0] = op[0];
     ret[1] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[1], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[1];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[2] = op[0];
     ret[3] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[2], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[2];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[4] = op[0];
     ret[5] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[3], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[3];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[6] = op[0];
     ret[7] = op[1];
 
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[4], type_convert<float>(scale), 0);
+    bitwise_value.f4x2_array[0] = value.fp4x2[4];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[8] = op[0];
     ret[9] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[5], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[5];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[10] = op[0];
     ret[11] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[6], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[6];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[12] = op[0];
     ret[13] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[7], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[7];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[14] = op[0];
     ret[15] = op[1];
 
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[8], type_convert<float>(scale), 0);
+    bitwise_value.f4x2_array[0] = value.fp4x2[8];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[16] = op[0];
     ret[17] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[9], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[9];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[18] = op[0];
     ret[19] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[10], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[10];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[20] = op[0];
     ret[21] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[11], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[11];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[22] = op[0];
     ret[23] = op[1];
 
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[12], type_convert<float>(scale), 0);
+    bitwise_value.f4x2_array[0] = value.fp4x2[12];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[24] = op[0];
     ret[25] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[13], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[13];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[26] = op[0];
     ret[27] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[14], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[14];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[28] = op[0];
     ret[29] = op[1];
-    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[15], type_convert<float>(scale), 0);
+
+    bitwise_value.f4x2_array[0] = value.fp4x2[15];
+    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+        bitwise_value.bitwise, type_convert<float>(scale), 0);
     ret[30] = op[0];
     ret[31] = op[1];
 
