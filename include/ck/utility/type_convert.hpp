@@ -16,10 +16,6 @@ namespace ck {
 #define __gfx94__
 #endif
 
-#if defined(__gfx90a__)
-#define __gfx950__
-#endif
-
 // Convert X to Y, both X and Y are non-const data types.
 template <typename Y,
           typename X,
