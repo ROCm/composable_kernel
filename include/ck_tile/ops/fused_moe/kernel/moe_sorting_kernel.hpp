@@ -47,7 +47,7 @@ namespace ck_tile {
 // low 24 bit is for token id, top 8 bit is for topk id
 //
 // the input after smooth-quant is [topk, token, hidden_dim], originally it is [token, hidden_dim]
-// the input scale for token is always [token, 1], the smooth-quant scale for first gemm is [expert, interm_dim]
+// the input scale for token is [topk, token, 1], the smooth-quant scale for first gemm is [expert, interm_dim]
 //
 // sorted_expert_ids_ptr  : [0, 1, 2, 3, 3, 4, 5]
 // * length is (max_num_tokens_padded + block_size - 1) / block_size
