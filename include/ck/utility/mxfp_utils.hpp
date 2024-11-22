@@ -18,13 +18,13 @@ inline bool getDataHasInf()
 }
 
 template <typename T>
-__host__ __device__ inline bool is_zero(e8m0_scale_t const scale, T const data);
+__host__ __device__ inline bool is_zero(e8m0_bexp_t const scale, T const data);
 
 template <typename T>
-__host__ __device__ inline bool is_nan(e8m0_scale_t const scale, T const data);
+__host__ __device__ inline bool is_nan(e8m0_bexp_t const scale, T const data);
 
 template <typename T>
-__host__ __device__ inline bool is_inf(e8m0_scale_t const scale, T const data);
+__host__ __device__ inline bool is_inf(e8m0_bexp_t const scale, T const data);
 
 template <typename T>
 __host__ __device__ inline int get_exponent_value(T x)
@@ -79,13 +79,13 @@ __host__ __device__ float convert_to_float(T data, int scale_exp)
 
     float data_value  = d_sign * d_exp * d_mant;
     float scale_value = std::pow(
-        2, static_cast<float>((scale_exp - static_cast<int>(NumericUtils<e8m0_scale_t>::bias))));
+        2, static_cast<float>((scale_exp - static_cast<int>(NumericUtils<e8m0_bexp_t>::bias))));
 
     return data_value * scale_value;
 }
 
 template <typename T>
-__host__ __device__ inline float to_float(e8m0_scale_t const scale, T const data);
+__host__ __device__ inline float to_float(e8m0_bexp_t const scale, T const data);
 
 template <typename T>
 __host__ __device__ T sat_convert_to_type(float value);

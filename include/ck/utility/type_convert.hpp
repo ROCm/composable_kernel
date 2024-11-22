@@ -1000,7 +1000,7 @@ inline __host__ __device__ float type_convert<float, f4_t>(f4_t x)
     float_values.float2_array = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(x, scale, 0);
     return float_values.float_array[0];
 #else
-    return utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(), x);
+    return utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
 #endif
 }
 
@@ -1018,8 +1018,8 @@ inline __host__ __device__ float2_t type_convert<float2_t, f4x2_t>(f4x2_t x)
     float scale         = 1.0f;
     return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, scale, 0);
 #else
-    float2_t ret{utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(), x.unpack(1)),
-                 utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(), x.unpack(0))};
+    float2_t ret{utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x.unpack(1)),
+                 utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x.unpack(0))};
     return ret;
 #endif
 }
@@ -1153,72 +1153,72 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
         f4x32_t f4x32_array;
     } f4_values{bit_cast<__uint128_t>(x)};
     // TODO: pack in a loop
-    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[0].unpack(0));
-    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[0].unpack(1));
-    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[1].unpack(0));
-    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[1].unpack(1));
-    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[2].unpack(0));
-    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[2].unpack(1));
-    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[3].unpack(0));
-    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[3].unpack(1));
 
-    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[4].unpack(0));
-    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[4].unpack(1));
-    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[5].unpack(0));
-    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[5].unpack(1));
-    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[6].unpack(0));
-    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[6].unpack(1));
-    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[7].unpack(0));
-    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[7].unpack(1));
 
-    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[8].unpack(0));
-    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[8].unpack(1));
-    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[9].unpack(0));
-    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[9].unpack(1));
-    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[10].unpack(0));
-    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[10].unpack(1));
-    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[11].unpack(0));
-    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[11].unpack(1));
 
-    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[12].unpack(0));
-    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[12].unpack(1));
-    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[13].unpack(0));
-    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[13].unpack(1));
-    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[14].unpack(0));
-    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[14].unpack(1));
-    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[15].unpack(0));
-    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(),
+    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
                                                         f4_values.f4x2_array[15].unpack(1));
 
     return float_values.float32_array;
@@ -1226,24 +1226,24 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
 }
 
 template <>
-inline __host__ __device__ float type_convert<float, e8m0_scale_t>(e8m0_scale_t scale)
+inline __host__ __device__ float type_convert<float, e8m0_bexp_t>(e8m0_bexp_t scale)
 {
     return utils::cast_to_float(scale);
 }
 
 template <>
-inline __host__ __device__ e8m0_scale_t type_convert<e8m0_scale_t, float>(float scale)
+inline __host__ __device__ e8m0_bexp_t type_convert<e8m0_bexp_t, float>(float scale)
 {
     return utils::cast_from_float(scale);
 }
 
 // Declare a template function for scaled conversion
 template <typename Y, typename X>
-__host__ __device__ constexpr Y scaled_type_convert(e8m0_scale_t scale, X x);
+__host__ __device__ constexpr Y scaled_type_convert(e8m0_bexp_t scale, X x);
 
 // convert fp4 to fp32
 template <>
-inline __host__ __device__ float scaled_type_convert<float, f4_t>(e8m0_scale_t scale, f4_t x)
+inline __host__ __device__ float scaled_type_convert<float, f4_t>(e8m0_bexp_t scale, f4_t x)
 {
 #if defined(__gfx950__)
     union
@@ -1261,7 +1261,7 @@ inline __host__ __device__ float scaled_type_convert<float, f4_t>(e8m0_scale_t s
 
 // convert vector of 2 fp4 to vector of 2 fp32
 template <>
-inline __host__ __device__ float2_t scaled_type_convert<float2_t, f4x2_t>(e8m0_scale_t scale,
+inline __host__ __device__ float2_t scaled_type_convert<float2_t, f4x2_t>(e8m0_bexp_t scale,
                                                                           f4x2_t x)
 {
 #if defined(__gfx950__)
@@ -1281,7 +1281,7 @@ inline __host__ __device__ float2_t scaled_type_convert<float2_t, f4x2_t>(e8m0_s
 
 // convert vector of 32 fp4 to vector of 32 fp32
 template <>
-inline __host__ __device__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m0_scale_t scale,
+inline __host__ __device__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m0_bexp_t scale,
                                                                              f4x32_t x)
 {
 #if defined(__gfx950__)
@@ -1450,7 +1450,7 @@ inline __host__ __device__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m
 
 // convert fp32 to fp4
 template <>
-inline __host__ __device__ f4_t scaled_type_convert<f4_t, float>(e8m0_scale_t scale, float x)
+inline __host__ __device__ f4_t scaled_type_convert<f4_t, float>(e8m0_bexp_t scale, float x)
 {
 #if CK_USE_SR_F4_CONVERSION
     return f4_convert_sr(x, type_convert<float>(scale));
@@ -1461,7 +1461,7 @@ inline __host__ __device__ f4_t scaled_type_convert<f4_t, float>(e8m0_scale_t sc
 
 // convert vector of 2 fp32 to vector of 2 fp4
 template <>
-inline __host__ __device__ f4x2_t scaled_type_convert<f4x2_t, float2_t>(e8m0_scale_t scale,
+inline __host__ __device__ f4x2_t scaled_type_convert<f4x2_t, float2_t>(e8m0_bexp_t scale,
                                                                         float2_t x)
 {
 #if CK_USE_SR_F4_CONVERSION
@@ -1473,7 +1473,7 @@ inline __host__ __device__ f4x2_t scaled_type_convert<f4x2_t, float2_t>(e8m0_sca
 
 // convert vector of 32 fp32 to vector of 32 fp4
 template <>
-inline __host__ __device__ f4x32_t scaled_type_convert<f4x32_t, float32_t>(e8m0_scale_t scale,
+inline __host__ __device__ f4x32_t scaled_type_convert<f4x32_t, float32_t>(e8m0_bexp_t scale,
                                                                            float32_t x)
 {
 #if CK_USE_SR_F4_CONVERSION

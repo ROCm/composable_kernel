@@ -14,15 +14,15 @@ using f4_t    = unsigned _BitInt(4);
 using f8_t    = _BitInt(8);
 using bf8_t   = unsigned _BitInt(8);
 
-struct e8m0_scale_t
+struct e8m0_bexp_t
 {
     // E8M0 scale is biased
     using type = uint8_t;
     type data;
-    constexpr e8m0_scale_t() : data{type{}} {}
-    constexpr e8m0_scale_t(type init) : data{init} {}
+    constexpr e8m0_bexp_t() : data{type{}} {}
+    constexpr e8m0_bexp_t(type init) : data{init} {}
 
-    bool operator==(const e8m0_scale_t& other) const { return (data == other.data); }
+    bool operator==(const e8m0_bexp_t& other) const { return (data == other.data); }
 };
 
 struct f4x2_pk_t
@@ -1813,33 +1813,30 @@ struct NumericLimits<f4_t>
 };
 
 template <>
-struct NumericLimits<e8m0_scale_t>
+struct NumericLimits<e8m0_bexp_t>
 {
-    static constexpr e8m0_scale_t binary_min  = 0x00; // 0b00000000
-    static constexpr e8m0_scale_t binary_max  = 0xFE; // 0b11111110
-    static constexpr e8m0_scale_t binary_qnan = 0xFF; // 0b11111111
-    static constexpr e8m0_scale_t binary_1    = 0x7F; // 0b01111111
-    static constexpr e8m0_scale_t binary_2    = 0x80; // 0b10000000
-    static constexpr e8m0_scale_t binary_3    = 0x82; // 0b10000010
-    static constexpr e8m0_scale_t binary_135  = 0x87; // 0b10000111
-    static constexpr e8m0_scale_t binary_142  = 0x8E; // 0b10001110
+    static constexpr e8m0_bexp_t binary_min  = 0x00; // 0b00000000
+    static constexpr e8m0_bexp_t binary_max  = 0xFE; // 0b11111110
+    static constexpr e8m0_bexp_t binary_qnan = 0xFF; // 0b11111111
+    static constexpr e8m0_bexp_t binary_1    = 0x7F; // 0b01111111
+    static constexpr e8m0_bexp_t binary_2    = 0x80; // 0b10000000
+    static constexpr e8m0_bexp_t binary_3    = 0x82; // 0b10000010
+    static constexpr e8m0_bexp_t binary_135  = 0x87; // 0b10000111
+    static constexpr e8m0_bexp_t binary_142  = 0x8E; // 0b10001110
 
-    __host__ __device__ static constexpr e8m0_scale_t Min() { return e8m0_scale_t(binary_min); }
-    __host__ __device__ static constexpr e8m0_scale_t Max() { return e8m0_scale_t(binary_max); }
-    __host__ __device__ static constexpr e8m0_scale_t QuietNaN()
+    __host__ __device__ static constexpr e8m0_bexp_t Min() { return e8m0_bexp_t(binary_min); }
+    __host__ __device__ static constexpr e8m0_bexp_t Max() { return e8m0_bexp_t(binary_max); }
+    __host__ __device__ static constexpr e8m0_bexp_t QuietNaN() { return e8m0_bexp_t(binary_qnan); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_1() { return e8m0_bexp_t(binary_1); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_2() { return e8m0_bexp_t(binary_2); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_3() { return e8m0_bexp_t(binary_3); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_135()
     {
-        return e8m0_scale_t(binary_qnan);
+        return e8m0_bexp_t(binary_135);
     }
-    __host__ __device__ static constexpr e8m0_scale_t Binary_1() { return e8m0_scale_t(binary_1); }
-    __host__ __device__ static constexpr e8m0_scale_t Binary_2() { return e8m0_scale_t(binary_2); }
-    __host__ __device__ static constexpr e8m0_scale_t Binary_3() { return e8m0_scale_t(binary_3); }
-    __host__ __device__ static constexpr e8m0_scale_t Binary_135()
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_142()
     {
-        return e8m0_scale_t(binary_135);
-    }
-    __host__ __device__ static constexpr e8m0_scale_t Binary_142()
-    {
-        return e8m0_scale_t(binary_142);
+        return e8m0_bexp_t(binary_142);
     }
 };
 
@@ -1944,7 +1941,7 @@ struct NumericUtils<f4_t>
 };
 
 template <>
-struct NumericUtils<e8m0_scale_t>
+struct NumericUtils<e8m0_bexp_t>
 {
     static constexpr int exp  = 8;
     static constexpr int mant = 0;

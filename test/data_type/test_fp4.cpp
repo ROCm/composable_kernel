@@ -5,7 +5,7 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
 
-using ck::e8m0_scale_t;
+using ck::e8m0_bexp_t;
 using ck::f4_convert_rne;
 using ck::f4_convert_sr;
 using ck::f4_t;
@@ -90,10 +90,10 @@ TEST(FP4, ScaledConvertFP32Nearest)
     float max_fp4 = 6.0f;
     // set maximum scale
     float max_scale = std::pow(2,
-                               ck::NumericLimits<e8m0_scale_t>::Max().data -
-                                   ck::NumericUtils<e8m0_scale_t>::bias); // 0xFE -> float
+                               ck::NumericLimits<e8m0_bexp_t>::Max().data -
+                                   ck::NumericUtils<e8m0_bexp_t>::bias); // 0xFE -> float
     // set minimum scale
-    float min_scale = std::pow(2, -ck::NumericUtils<e8m0_scale_t>::bias); // 0x00 -> float
+    float min_scale = std::pow(2, -ck::NumericUtils<e8m0_bexp_t>::bias); // 0x00 -> float
     // set arbitrary scale to 256.0
     float test_scale = 256.0f; // 0b10000111
     // convert 0 float to fp4 and back with maximal scale, check if holds
@@ -162,10 +162,10 @@ TEST(FP4, ScaledConvertFP32Stochastic)
     float max_fp4 = 6.0f;
     // set maximum scale
     float max_scale = std::pow(2,
-                               ck::NumericLimits<e8m0_scale_t>::Max().data -
-                                   ck::NumericUtils<e8m0_scale_t>::bias); // 0xFE -> float
+                               ck::NumericLimits<e8m0_bexp_t>::Max().data -
+                                   ck::NumericUtils<e8m0_bexp_t>::bias); // 0xFE -> float
     // set minimum scale
-    float min_scale = std::pow(2, -ck::NumericUtils<e8m0_scale_t>::bias); // 0x00 -> float
+    float min_scale = std::pow(2, -ck::NumericUtils<e8m0_bexp_t>::bias); // 0x00 -> float
     // set arbitrary scale to 256.0
     float test_scale = 256.0f; // 0b10000111
     // convert 0 float to fp4 and back with maximal scale, check if holds

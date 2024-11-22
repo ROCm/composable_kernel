@@ -9,16 +9,16 @@
 namespace ck::utils {
 
 template <>
-__host__ __device__ inline bool is_nan<f4_t>(e8m0_scale_t const scale,
+__host__ __device__ inline bool is_nan<f4_t>(e8m0_bexp_t const scale,
                                              f4_t const dataBytes [[maybe_unused]])
 {
     // no need to check for data as it does not have NaN representation
-    return scale == NumericLimits<e8m0_scale_t>::QuietNaN();
+    return scale == NumericLimits<e8m0_bexp_t>::QuietNaN();
 }
 
 // no infinity representation in ocp_e2m1_mxfp4 will always return false
 template <>
-__host__ __device__ inline bool is_inf<f4_t>(e8m0_scale_t const scale [[maybe_unused]],
+__host__ __device__ inline bool is_inf<f4_t>(e8m0_bexp_t const scale [[maybe_unused]],
                                              f4_t const data [[maybe_unused]])
 {
     // no inf representation for ocp_e2m1_mxfp4
@@ -26,7 +26,7 @@ __host__ __device__ inline bool is_inf<f4_t>(e8m0_scale_t const scale [[maybe_un
 }
 
 template <>
-__host__ __device__ inline bool is_zero<f4_t>(e8m0_scale_t const scale, f4_t const data)
+__host__ __device__ inline bool is_zero<f4_t>(e8m0_bexp_t const scale, f4_t const data)
 {
     if(is_nan<f4_t>(scale, data))
         return false;
@@ -38,7 +38,7 @@ __host__ __device__ inline bool is_zero<f4_t>(e8m0_scale_t const scale, f4_t con
 }
 
 template <>
-__host__ __device__ inline float to_float<f4_t>(e8m0_scale_t const scale, f4_t const data)
+__host__ __device__ inline float to_float<f4_t>(e8m0_bexp_t const scale, f4_t const data)
 {
     if(is_nan<f4_t>(scale, data))
         return std::numeric_limits<float>::quiet_NaN();
@@ -48,7 +48,7 @@ __host__ __device__ inline float to_float<f4_t>(e8m0_scale_t const scale, f4_t c
 
     f4_t prepared_data = data & 0b00001111;
 
-    int scale_exp = get_exponent_value<e8m0_scale_t>(scale);
+    int scale_exp = get_exponent_value<e8m0_bexp_t>(scale);
 
     return convert_to_float<f4_t>(prepared_data, scale_exp);
 }
@@ -73,7 +73,7 @@ __host__ __device__ inline f4_t sat_convert_to_type<f4_t>(float value)
 
     f4_t res = convert_to_type<f4_t>(value);
 
-    if(std::abs(to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(), res)) <
+    if(std::abs(to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), res)) <
        NumericLimits<f4_t>::DataMinSubnorm())
         return value < 0 ? NumericUtils<f4_t>::negative_zero_mask
                          : NumericUtils<f4_t>::positive_zero_mask;
@@ -98,7 +98,7 @@ __host__ __device__ inline f4_t sat_convert_to_type_sr<f4_t>(float value, uint32
 
     f4_t res = convert_to_type_sr<f4_t>(value, seed);
 
-    if(std::abs(to_float<f4_t>(NumericLimits<e8m0_scale_t>::Binary_1(), res)) <
+    if(std::abs(to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), res)) <
        NumericLimits<f4_t>::DataMinSubnorm())
         return value < 0 ? NumericUtils<f4_t>::negative_zero_mask
                          : NumericUtils<f4_t>::positive_zero_mask;
