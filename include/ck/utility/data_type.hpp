@@ -16,6 +16,7 @@ using bf8_t   = unsigned _BitInt(8);
 
 struct e8m0_scale_t
 {
+    // E8M0 scale is biased
     using type = uint8_t;
     type data;
     constexpr e8m0_scale_t() : data{type{}} {}

@@ -10,12 +10,14 @@ namespace ck::utils {
 
 __host__ __device__ inline float cast_to_float(e8m0_scale_t const scale)
 {
-    return std::pow(2, bit_cast<uint8_t>(scale) - NumericUtils<e8m0_scale_t>::bias);
+    // TODO: check performance and try bit shift impl
+    return std::powf(2, bit_cast<uint8_t>(scale) - NumericUtils<e8m0_scale_t>::bias);
 }
 
 __host__ __device__ inline e8m0_scale_t cast_from_float(float const scale)
 {
-    return static_cast<uint8_t>(std::log2(scale) + NumericUtils<e8m0_scale_t>::bias);
+    uint32_t e = bit_cast<uint32_t>(scale) & NumericUtils<float>::nan_mask;
+    return static_cast<uint8_t>(e >> 23);
 }
 
 template <>
