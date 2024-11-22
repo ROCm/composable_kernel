@@ -18,11 +18,11 @@ struct FmhaFwdSplitKVTilePartitioner
     static constexpr ck_tile::index_t kN1 = BlockFmhaShape::kN1;
     static constexpr ck_tile::index_t kK1 = BlockFmhaShape::kK1;
 
-    __host__ static constexpr auto GridSize(ck_tile::index_t batch_size,
-                                            ck_tile::index_t nhead,
-                                            ck_tile::index_t max_seqlen_q,
-                                            ck_tile::index_t hdim_v,
-                                            ck_tile::index_t num_splits)
+    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size,
+                                                ck_tile::index_t nhead,
+                                                ck_tile::index_t max_seqlen_q,
+                                                ck_tile::index_t hdim_v,
+                                                ck_tile::index_t num_splits)
     {
         // TODO: this may need tuning
         return dim3(ck_tile::integer_divide_ceil(max_seqlen_q, kM0) *
@@ -30,6 +30,8 @@ struct FmhaFwdSplitKVTilePartitioner
                     nhead,
                     batch_size);
     }
+
+    CK_TILE_DEVICE static constexpr auto GetBatchSize() { return static_cast<index_t>(gridDim.z); }
 
     CK_TILE_DEVICE auto
     operator()(ck_tile::index_t /*seqlen_q*/, ck_tile::index_t hdim_v, ck_tile::index_t num_splits)
