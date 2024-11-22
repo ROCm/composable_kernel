@@ -156,7 +156,7 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 // set rounding to nearest even as default for f8 conversions
 #define CK_USE_SR_F8_CONVERSION 0
 
-// set rounding to nearest even as default for f8 conversions
+// set rounding to nearest even as default for f4 conversions
 #define CK_USE_SR_F4_CONVERSION 0
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
