@@ -538,7 +538,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             return false;
         }
 
-        if(!is_bf16_atomic_supported() && std::is_same_v<EDataType, ck::bhalf_t> && arg.K_BATCH > 1)
+        if(std::is_same_v<EDataType, ck::bhalf_t> && arg.K_BATCH > 1 && !is_bf16_atomic_supported())
         {
             return false;
         }
