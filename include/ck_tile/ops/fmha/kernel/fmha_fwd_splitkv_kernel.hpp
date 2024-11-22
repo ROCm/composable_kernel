@@ -490,11 +490,14 @@ struct FmhaFwdSplitKVKernel
         const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
 
         long_index_t batch_offset_q       = 0;
-        long_index_t batch_offset_k       = 0;
-        long_index_t batch_offset_v       = 0;
+        long_index_t batch_offset_k       = 0; // unused for paged-kvcache
+        long_index_t batch_offset_v       = 0; // unused for paged-kvcache
         long_index_t batch_offset_bias    = 0;
         long_index_t batch_offset_lse_acc = 0;
         long_index_t batch_offset_o_acc   = 0;
+        index_t total_seqlen_k            = 0; // only used for paged-kvcache
+        index_t kv_l2p_offset =
+            0; // logical-to-physical offset of seqlen_k coordinate. only used for paged-kvcache
 
         if constexpr(kIsGroupMode)
         {
@@ -503,22 +506,14 @@ struct FmhaFwdSplitKVKernel
             const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
 
             batch_offset_q = query_start * kargs.stride_q;
-            if constexpr(kIsPagedKV)
+            batch_offset_k = key_start * kargs.stride_k;
+            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
-                batch_offset_k = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
-                batch_offset_v = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
+                batch_offset_v = key_start * kargs.stride_v;
             }
             else
             {
-                batch_offset_k = key_start * kargs.stride_k;
-                if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-                {
-                    batch_offset_v = key_start * kargs.stride_v;
-                }
-                else
-                {
-                    batch_offset_v = key_start;
-                }
+                batch_offset_v = key_start;
             }
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
@@ -527,6 +522,12 @@ struct FmhaFwdSplitKVKernel
 
             batch_offset_lse_acc = query_start;
             batch_offset_o_acc   = query_start * kargs.stride_o_acc;
+
+            if constexpr(kIsPagedKV)
+            {
+                total_seqlen_k = kargs.seqstart_k_ptr[TilePartitioner::GetBatchSize()];
+                kv_l2p_offset  = kargs.seqstart_k_ptr[i_batch];
+            }
 
             // get real # queries & # keys under group mode
             kargs.seqlen_q = kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch];
@@ -575,6 +576,11 @@ struct FmhaFwdSplitKVKernel
             if(kargs.seqlen_k_ptr != nullptr)
             {
                 kargs.seqlen_k = kargs.seqlen_k_ptr[i_batch];
+            }
+
+            if constexpr(kIsPagedKV)
+            {
+                total_seqlen_k = kargs.seqlen_k;
             }
         }
 
@@ -694,11 +700,12 @@ struct FmhaFwdSplitKVKernel
         auto k_page_block_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
             if constexpr(kIsPagedKV)
             {
+                // in group mode, block table should have only 1 row
                 const auto* block_indices =
                     reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
-                    i_batch_ * kargs.batch_stride_block_table;
+                    (!kIsGroupMode * (i_batch_ * kargs.batch_stride_block_table));
                 const index_t num_blocks =
-                    integer_divide_ceil(kargs.seqlen_k, kargs.page_block_size);
+                    integer_divide_ceil(total_seqlen_k, kargs.page_block_size);
 
                 const long_index_t fixed_offset =
                     static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
@@ -713,7 +720,7 @@ struct FmhaFwdSplitKVKernel
                     kargs.page_block_size,
                     k_dram,
                     make_k_dram(nullptr,
-                                kargs.seqlen_k - (num_blocks - 1) * kargs.page_block_size));
+                                total_seqlen_k - (num_blocks - 1) * kargs.page_block_size));
             }
             else
             {
@@ -724,11 +731,12 @@ struct FmhaFwdSplitKVKernel
         auto v_page_block_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
             if constexpr(kIsPagedKV)
             {
+                // in group mode, block table should have only 1 row
                 const auto* block_indices =
                     reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
-                    i_batch_ * kargs.batch_stride_block_table;
+                    (!kIsGroupMode * (i_batch_ * kargs.batch_stride_block_table));
                 const index_t num_blocks =
-                    integer_divide_ceil(kargs.seqlen_k, kargs.page_block_size);
+                    integer_divide_ceil(total_seqlen_k, kargs.page_block_size);
 
                 const long_index_t fixed_offset =
                     static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
@@ -743,7 +751,7 @@ struct FmhaFwdSplitKVKernel
                     kargs.page_block_size,
                     v_dram,
                     make_v_dram(nullptr,
-                                kargs.seqlen_k - (num_blocks - 1) * kargs.page_block_size));
+                                total_seqlen_k - (num_blocks - 1) * kargs.page_block_size));
             }
             else
             {
@@ -891,6 +899,7 @@ struct FmhaFwdSplitKVKernel
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
+                                      kv_l2p_offset,
                                       smem_ptr);
             }
             else
@@ -907,6 +916,7 @@ struct FmhaFwdSplitKVKernel
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
+                                      kv_l2p_offset,
                                       smem_ptr);
             }
         }();
