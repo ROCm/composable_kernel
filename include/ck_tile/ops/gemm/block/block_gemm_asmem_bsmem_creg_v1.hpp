@@ -42,6 +42,9 @@ struct BlockGemmASmemBSmemCRegV1
                           KPerBlock == BlockGemmShape::kK,
                       "wrong!");
 
+        // if(threadIdx.x == 0 && blockIdx.x==0) {
+        //     printf("MPerBlock %d NPerBlock %d KPerBlock %d \n", MPerBlock, NPerBlock, KPerBlock); 
+        // }
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
         using WG = remove_cvref_t<decltype(config.template at<0>())>;
@@ -60,6 +63,12 @@ struct BlockGemmASmemBSmemCRegV1
         const index_t iMWarp = get_warp_id() / NWarp;
         const index_t iNWarp = get_warp_id() % NWarp;
 
+        // if(threadIdx.x == 0 && blockIdx.x==0) {
+        //     printf("MWarp %d NWarp %d MIterPerWarp %d NIterPerWarp %d KIterPerWarp %d MPerBlockPerIter %d  NPerBlockPerIter %d  KPerBlockPerIter %d \n", MWarp, NWarp,  MIterPerWarp, NIterPerWarp, KIterPerWarp, MPerBlockPerIter, NPerBlockPerIter, KPerBlockPerIter); 
+        // }
+        // MWarp 2 NWarp 2 MIterPerWarp 4 NIterPerWarp 4 KIterPerWarp 4 MPerBlockPerIter 64  NPerBlockPerIter 64  KPerBlockPerIter 8
+
+        
         // construct A-warp-window
         auto a_warp_window_tmp = make_tile_window(
             a_block_window.get_bottom_tensor_view(),
@@ -136,7 +145,6 @@ struct BlockGemmASmemBSmemCRegV1
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
-
         // hot loop:
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {

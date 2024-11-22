@@ -112,10 +112,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
-        index_t smem_size             = 0;
-        smem_size += smem_size_a + smem_size_b;
-
-        return smem_size;
+        return smem_size_a + smem_size_b;
     }
 
     template <typename Problem>
@@ -259,7 +256,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
             constexpr index_t M2 = get_warp_size() / K0;
             // coalesce reading for each blocks
             if constexpr(get_warp_size() % (M2 * K0) == 0)
-            {
+            {//Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
                 constexpr index_t M1 = BlockSize / get_warp_size();
                 static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
                 static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");

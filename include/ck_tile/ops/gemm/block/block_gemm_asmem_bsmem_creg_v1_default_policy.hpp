@@ -40,7 +40,8 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
                 return make_tuple(WarpGemmMfmaF16F16F32M32N32K16{}, 2, 2);
             }
 #else
-            return make_tuple(WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution{}, 4, 1);
+            return make_tuple(WarpGemmMfmaF16F16F32M32N32K8{}, 2, 2);
+            // return make_tuple(WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution{}, 4, 1);
 #endif
         }
         else if constexpr(std::is_same_v<typename Problem::ADataType, bf16_t> &&

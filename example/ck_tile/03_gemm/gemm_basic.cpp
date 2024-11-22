@@ -72,7 +72,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
-    using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;
+    using CodegenGemmPolicy = ck_tile::GemmPipelineAGmemBGmemCRegV1DefaultPolicy;
     using CodegenGemmPipeline =
         ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenGemmPolicy>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
