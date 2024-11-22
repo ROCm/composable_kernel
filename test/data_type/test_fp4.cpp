@@ -256,8 +256,8 @@ TEST(FP4, TestAsType1)
     vector_type<f4x2_pk_t, size> right_vec;
     // check default CTOR
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(), 0);
     });
     // assign test values to the vector
     ck::static_for<0, size, 1>{}([&](auto i) {
@@ -268,8 +268,10 @@ TEST(FP4, TestAsType1)
     vector_type<f4x2_pk_t, size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(),
+                  test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(),
+                  test_vec.at(i + 1));
     });
 }
 
@@ -286,8 +288,8 @@ TEST(FP4, TestAsType2)
     vector_type<f4x2_pk_t, size> right_vec;
     // check default CTOR
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(), 0);
     });
     // assign test values to the vector
     ck::static_for<0, size, 1>{}([&](auto i) {
@@ -298,8 +300,10 @@ TEST(FP4, TestAsType2)
     vector_type<f4x2_pk_t, size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(),
+                  test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(),
+                  test_vec.at(i + 1));
     });
 }
 
@@ -320,8 +324,8 @@ TEST(FP4, TestAsType4)
     vector_type<f4x2_pk_t, size> right_vec;
     // check default CTOR
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(), 0);
     });
     // assign test values to the vector
     ck::static_for<0, size, 1>{}([&](auto i) {
@@ -332,8 +336,10 @@ TEST(FP4, TestAsType4)
     vector_type<f4x2_pk_t, size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(),
+                  test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(),
+                  test_vec.at(i + 1));
     });
 }
 
@@ -362,8 +368,8 @@ TEST(FP4, TestAsType8)
     vector_type<f4x2_pk_t, size> right_vec;
     // check default CTOR
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(), 0);
     });
     // assign test values to the vector
     ck::static_for<0, size, 1>{}([&](auto i) {
@@ -374,8 +380,10 @@ TEST(FP4, TestAsType8)
     vector_type<f4x2_pk_t, size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(),
+                  test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(),
+                  test_vec.at(i + 1));
     });
 }
 
@@ -400,8 +408,8 @@ TEST(FP4, TestAsType16)
     vector_type<f4x2_pk_t, size> right_vec;
     // check default CTOR
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(), 0);
     });
     // assign test values to the vector
     ck::static_for<0, size, 1>{}([&](auto i) {
@@ -412,8 +420,10 @@ TEST(FP4, TestAsType16)
     vector_type<f4x2_pk_t, size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(),
+                  test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(),
+                  test_vec.at(i + 1));
     });
 }
 
@@ -449,8 +459,8 @@ TEST(FP4, TestAsType32)
     vector_type<f4x2_pk_t, size> right_vec;
     // check default CTOR
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), 0);
-        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(), 0);
+        ASSERT_EQ(right_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(), 0);
     });
     // assign test values to the vector
     ck::static_for<0, size, 1>{}([&](auto i) {
@@ -461,7 +471,9 @@ TEST(FP4, TestAsType32)
     vector_type<f4x2_pk_t, size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(0), test_vec.at(i));
-        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).unpack(1), test_vec.at(i + 1));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<0>(),
+                  test_vec.at(i));
+        ASSERT_EQ(left_vec.template AsType<f4x2_pk_t>()(Number<i>{}).template unpack<1>(),
+                  test_vec.at(i + 1));
     });
 }
