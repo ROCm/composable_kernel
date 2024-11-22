@@ -64,7 +64,7 @@ struct FmhaFwdKernel
     template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
     // clang-format on
 
-    __host__ static std::string GetName()
+    CK_TILE_HOST static std::string GetName()
     {
         // sync with generate.py
         // clang-format off
@@ -267,7 +267,7 @@ struct FmhaFwdKernel
     using Kargs = std::conditional_t<kIsGroupMode, FmhaFwdGroupModeKargs, FmhaFwdBatchModeKargs>;
 
     template <bool Cond = !kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
@@ -399,9 +399,9 @@ struct FmhaFwdKernel
         return kargs;
     }
 
-    // std::variant can't take in a list initializer, overload for backward compatibility
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = !kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
@@ -445,53 +445,54 @@ struct FmhaFwdKernel
               bool s_randval,
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
     {
-        MakeKargs(q_ptr,
-                  k_ptr,
-                  v_ptr,
-                  bias_ptr,
-                  rand_val_ptr,
-                  lse_ptr,
-                  o_ptr,
-                  seqlen_q,
-                  seqlen_k,
-                  hdim_q,
-                  hdim_v,
-                  num_head_q,
-                  nhead_ratio_qk,
-                  scale_s,
-                  scale_p,
-                  scale_o,
-                  stride_q,
-                  stride_k,
-                  stride_v,
-                  stride_bias,
-                  stride_randval,
-                  stride_o,
-                  nhead_stride_q,
-                  nhead_stride_k,
-                  nhead_stride_v,
-                  nhead_stride_bias,
-                  nhead_stride_randval,
-                  nhead_stride_lse,
-                  nhead_stride_o,
-                  batch_stride_q,
-                  batch_stride_k,
-                  batch_stride_v,
-                  batch_stride_bias,
-                  batch_stride_randval,
-                  batch_stride_lse,
-                  batch_stride_o,
-                  window_size_left,
-                  window_size_right,
-                  mask_type,
-                  p_drop,
-                  s_randval,
-                  std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
+        return MakeKargs(
+            q_ptr,
+            k_ptr,
+            v_ptr,
+            bias_ptr,
+            rand_val_ptr,
+            lse_ptr,
+            o_ptr,
+            seqlen_q,
+            seqlen_k,
+            hdim_q,
+            hdim_v,
+            num_head_q,
+            nhead_ratio_qk,
+            scale_s,
+            scale_p,
+            scale_o,
+            stride_q,
+            stride_k,
+            stride_v,
+            stride_bias,
+            stride_randval,
+            stride_o,
+            nhead_stride_q,
+            nhead_stride_k,
+            nhead_stride_v,
+            nhead_stride_bias,
+            nhead_stride_randval,
+            nhead_stride_lse,
+            nhead_stride_o,
+            batch_stride_q,
+            batch_stride_k,
+            batch_stride_v,
+            batch_stride_bias,
+            batch_stride_randval,
+            batch_stride_lse,
+            batch_stride_o,
+            window_size_left,
+            window_size_right,
+            mask_type,
+            p_drop,
+            s_randval,
+            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
     }
 
-    // std::variant can't take in a list initializer, overload for backward compatibility
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = !kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
@@ -533,54 +534,55 @@ struct FmhaFwdKernel
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
-              const std::tuple<void*, void*>& drop_seed_offset)
+              const std::tuple<const void*, const void*>& drop_seed_offset)
     {
-        MakeKargs(q_ptr,
-                  k_ptr,
-                  v_ptr,
-                  bias_ptr,
-                  rand_val_ptr,
-                  lse_ptr,
-                  o_ptr,
-                  seqlen_q,
-                  seqlen_k,
-                  hdim_q,
-                  hdim_v,
-                  num_head_q,
-                  nhead_ratio_qk,
-                  scale_s,
-                  scale_p,
-                  scale_o,
-                  stride_q,
-                  stride_k,
-                  stride_v,
-                  stride_bias,
-                  stride_randval,
-                  stride_o,
-                  nhead_stride_q,
-                  nhead_stride_k,
-                  nhead_stride_v,
-                  nhead_stride_bias,
-                  nhead_stride_randval,
-                  nhead_stride_lse,
-                  nhead_stride_o,
-                  batch_stride_q,
-                  batch_stride_k,
-                  batch_stride_v,
-                  batch_stride_bias,
-                  batch_stride_randval,
-                  batch_stride_lse,
-                  batch_stride_o,
-                  window_size_left,
-                  window_size_right,
-                  mask_type,
-                  p_drop,
-                  s_randval,
-                  std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
+        return MakeKargs(
+            q_ptr,
+            k_ptr,
+            v_ptr,
+            bias_ptr,
+            rand_val_ptr,
+            lse_ptr,
+            o_ptr,
+            seqlen_q,
+            seqlen_k,
+            hdim_q,
+            hdim_v,
+            num_head_q,
+            nhead_ratio_qk,
+            scale_s,
+            scale_p,
+            scale_o,
+            stride_q,
+            stride_k,
+            stride_v,
+            stride_bias,
+            stride_randval,
+            stride_o,
+            nhead_stride_q,
+            nhead_stride_k,
+            nhead_stride_v,
+            nhead_stride_bias,
+            nhead_stride_randval,
+            nhead_stride_lse,
+            nhead_stride_o,
+            batch_stride_q,
+            batch_stride_k,
+            batch_stride_v,
+            batch_stride_bias,
+            batch_stride_randval,
+            batch_stride_lse,
+            batch_stride_o,
+            window_size_left,
+            window_size_right,
+            mask_type,
+            p_drop,
+            s_randval,
+            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
     }
 
     template <bool Cond = kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
@@ -702,9 +704,9 @@ struct FmhaFwdKernel
         return kargs;
     }
 
-    // std::variant can't take in a list initializer, overload for backward compatibility
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
@@ -781,9 +783,9 @@ struct FmhaFwdKernel
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
     }
 
-    // std::variant can't take in a list initializer, overload for backward compatibility
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
@@ -819,7 +821,7 @@ struct FmhaFwdKernel
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
-              const std::tuple<void*, void*>& drop_seed_offset)
+              const std::tuple<const void*, const void*>& drop_seed_offset)
     {
         return MakeKargs(
             q_ptr,
@@ -860,15 +862,15 @@ struct FmhaFwdKernel
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
     }
 
-    __host__ static constexpr auto GridSize(ck_tile::index_t batch_size_,
-                                            ck_tile::index_t nhead_,
-                                            ck_tile::index_t seqlen_q_,
-                                            ck_tile::index_t hdim_v_)
+    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
+                                                ck_tile::index_t nhead_,
+                                                ck_tile::index_t seqlen_q_,
+                                                ck_tile::index_t hdim_v_)
     {
         return TilePartitioner::GridSize(batch_size_, nhead_, seqlen_q_, hdim_v_);
     }
 
-    __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {

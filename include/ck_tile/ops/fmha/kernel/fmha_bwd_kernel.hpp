@@ -470,7 +470,7 @@ struct FmhaBwdDQDKDVKernel
         return kargs;
     }
 
-    // std::variant can't take in a list initializer, overload for backward compatibility
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = !kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
@@ -591,7 +591,7 @@ struct FmhaBwdDQDKDVKernel
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
     }
 
-    // std::variant can't take in a list initializer, overload for backward compatibility
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = !kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
@@ -650,7 +650,7 @@ struct FmhaBwdDQDKDVKernel
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
               float p_drop,
-              const std::tuple<void*, void*>& drop_seed_offset)
+              const std::tuple<const void*, const void*>& drop_seed_offset)
     {
         return MakeKargs(
             q_ptr,
@@ -858,7 +858,7 @@ struct FmhaBwdDQDKDVKernel
         return kargs;
     }
 
-    // std::variant can't take in a list initializer, overload for backward compatibility
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
@@ -959,7 +959,7 @@ struct FmhaBwdDQDKDVKernel
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
     }
 
-    // std::variant can't take in a list initializer, overload for backward compatibility
+    // std::variant<> can't take in a list initializer, overload for backward compatibility
     template <bool Cond = kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
@@ -1008,7 +1008,7 @@ struct FmhaBwdDQDKDVKernel
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
               float p_drop,
-              const std::tuple<void*, void*>& drop_seed_offset)
+              const std::tuple<const void*, const void*>& drop_seed_offset)
     {
         return MakeKargs(
             q_ptr,
