@@ -70,15 +70,15 @@ struct FusedMoeGemmPipeline_General
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        // // matrix a or tokens smem
-        // constexpr index_t smem_mat_a =
-        //     BlockShape::Block_M0 * BlockShape::Block_K0 * sizeof(ADataType);
-        // // shuffle C matrix
-        // constexpr index_t smem_bridge =
-        //     BlockShape::Block_M0 * BlockShape::Block_N0 * sizeof(YDataType);
+        // matrix a or tokens smem
+        constexpr index_t smem_mat_a =
+            BlockShape::Block_M0 * BlockShape::Block_K0 * sizeof(ADataType);
+        // shuffle C matrix
+        constexpr index_t smem_bridge =
+            BlockShape::Block_M0 * BlockShape::Block_N0 * sizeof(YDataType);
 
-        // return max(smem_mat_a, smem_bridge);
-        return Policy::template GetSmemSize<Problem>();
+        return max(smem_mat_a, smem_bridge);
+        //return Policy::template GetSmemSize<Problem>();
     }
 
     // this is the thread-offset along row/col
@@ -105,35 +105,46 @@ struct FusedMoeGemmPipeline_General
         ignore = hidden_size;
         ignore = intermediate_size;
 
-        // CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
-        // auto a_lds_view                    = make_tensor_view<address_space_enum::lds>(
-        //     smem_0, Policy::template MakeLdsStoreDesc_A<Problem>());
-        // auto a_lds_win = make_tile_window(a_lds_view, make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}), {0, 0});
+        CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
+        auto a_lds_view                    = make_tensor_view<address_space_enum::lds>(
+            smem_0, Policy::template MakeLdsStoreDesc_A<Problem>());
+        auto a_lds_win = make_tile_window(a_lds_view, make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}), {0, 0});
 
         auto a_global_to_dram_window = make_tile_window(
             a_window_.get_bottom_tensor_view(),
             make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}),
             a_window_.get_window_origin(),
             Policy::template MakeGlobalTileDistribution_A<Problem>());
+
+        // auto o_win = make_tile_window_linear(
+        //     o_window_, Policy::template MakeGlobalTileDistribution_O<Problem>());
+
+
         auto a_dram_block = load_tile(a_global_to_dram_window);
 
-        //store_tile(a_lds_win, a_dram_block);
-        ignore = a_dram_block;
+        store_tile(a_lds_win, a_dram_block);
+        store_tile(o_window_, a_dram_block);
+        
 #if 0
         //check a matrix gather right or not
-        constexpr auto a_spans = decltype(a_dram)::get_distributed_spans();
-        int counter = 0;
+        constexpr auto a_spans = decltype(a_dram_block)::get_distributed_spans();
+        int counter            = 0;
         sweep_tile_span(a_spans[number<0>{}], [&](auto idxm) {
-                sweep_tile_span(a_spans[number<1>{}], [&](auto idxk){
-                    constexpr auto i_j_idx = make_tuple(idxm, idxk);
-                    if(threadIdx.x == 65 && blockIdx.x == 0 && blockIdx.y == 1 && blockIdx.z == 0){
-                       counter = counter + 1;
-                       index_t idm_0 = idxm.impl_.at(0);
-                       index_t idn_0 = idxk.impl_.at(0);
-                       printf("in A idm is %d , idn_ is %d , counter is %d, value is: %f \n", idm_0, idn_0, counter, ck_tile::type_convert<float>(a_dram(i_j_idx)));
-                    }
-                });
+            sweep_tile_span(a_spans[number<1>{}], [&](auto idxk) {
+                constexpr auto i_j_idx = make_tuple(idxm, idxk);
+                if(threadIdx.x == 65 && blockIdx.x == 0 && blockIdx.y == 1 && blockIdx.z == 0)
+                {
+                    counter       = counter + 1;
+                    index_t idm_0 = idxm.impl_.at(0);
+                    index_t idn_0 = idxk.impl_.at(0);
+                    printf("in A idm is %d , idn_ is %d , counter is %d, value is: %f \n",
+                           idm_0,
+                           idn_0,
+                           counter,
+                           ck_tile::type_convert<float>(a_dram_block(i_j_idx)));
+                }
             });
+        });
 #endif
     }
 };

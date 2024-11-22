@@ -60,6 +60,21 @@ auto shuffle_moe_weight(const ck_tile::HostTensor<T>& t, std::string mfma_dtype,
 }
 
 template <typename IndexType>
+void output_matrix_2d(ck_tile::HostTensor<IndexType>& data, int m,int n)
+{
+     std::cout << std::endl;
+    for(int i = 0; i < m; i++)
+    {
+        std::cout << "Line " << i << "\t";
+        for(int j = 0; j < n; j++)
+        {
+            std::cout << ck_tile::type_convert<float>(data(i,j)) << "\t";
+        }
+        std::cout << std::endl;
+    }
+}
+
+template <typename IndexType>
 void topid_unique_gen(
     std::vector<IndexType>& host_tensor, int tokens, int topk, int num_expert, int seed)
 {
@@ -256,6 +271,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     //     }
     //     std::cout << std::endl;
     // }
+    output_matrix_2d(a_host, tokens, hidden_size);
     // std::cout << sorted_token_ids_host << std::endl;
     // std::cout << num_sorted_tiles_host << std::endl;
     // std::cout << sorted_expert_ids_host << std::endl;
@@ -277,6 +293,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem sorted_weight_buf(sorted_weight_host);
     ck_tile::DeviceMem sorted_expert_ids_buf(sorted_expert_ids_host);
     ck_tile::DeviceMem num_sorted_tiles_buf(num_sorted_tiles_host);
+    o_buf.SetZero();
 
     fused_moegemm_traits traits{prec_i,
                                 prec_w,
@@ -363,6 +380,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         pass &= ck_tile::check_err(
             o_dev, o_host, std::string("OUT Error: Incorrect results!"), rtol, atol);
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
+
+        output_matrix_2d(o_dev, tokens, hidden_size);
     }
     std::cout << std::flush << std::endl;
 

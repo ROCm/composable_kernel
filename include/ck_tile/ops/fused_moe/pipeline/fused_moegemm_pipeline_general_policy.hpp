@@ -232,53 +232,6 @@ struct FusedMoeGemmPipelineGeneralPolicy
         }
     }
 
-#if 0
-    // Caution: this will require global memory pre-shuffled to follow the mfma layout
-    template <index_t NPerBlock,
-              index_t KPerBlock,
-              index_t WavesPerBlock_N,
-              index_t WavesPerBlock_K,
-              typename WarpGemm,
-              index_t Alignment,
-              FusedMoeGemmWeightPermuteEnum PermuteEnum =
-                  FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_MatrixCore_Swizzled()
-    {
-        static_assert(Alignment % WarpGemm::WarpGemmAttribute::Impl::kABKPerLane == 0);
-
-        if constexpr(PermuteEnum == FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten)
-        {
-            constexpr index_t Kv = Alignment;
-            constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
-            constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
-
-            static_assert(KPerBlock % (K1 * K2) == 0);
-            constexpr index_t Nr = NPerBlock / Nw;
-            constexpr index_t Kr = KPerBlock / (Kv * Kw);
-
-            constexpr index_t Nr_p = WavesPerBlock_N;
-            constexpr index_t Kr_p = WavesPerBlock_K;
-            constexpr index_t Nr_y = Nr / Nr_p;
-            constexpr index_t Kr_y = Kr / Kr_p;
-
-            return make_static_tile_distribution(
-                tile_distribution_encoding<
-                    sequence<1>, // 0
-                    // major       1                     2                     3
-                    // minor       0     1               0     1               0   1   2
-                    tuple<sequence<Nr_y, Nr_p>, sequence<Kr_y, Kr_p>, sequence<Kw, Nw, Kv>>,
-
-                    //            Nr_p, Kr_p         Kw Nw
-                    tuple<sequence<1, 2>, sequence<3, 3>>,
-                    tuple<sequence<1, 1>, sequence<0, 1>>,
-
-                    //       Nr_y Kr_y Kv
-                    sequence<1, 2, 3>,
-                    sequence<0, 0, 2>>{});
-            // clang-format on
-        }
-    }
-#endif
     template <index_t WarpPerBlock_N_,
               index_t WarpPerBlock_K_,
               index_t Repeat_N_,
@@ -414,11 +367,11 @@ struct FusedMoeGemmPipelineGeneralPolicy
                 constexpr auto lds_block_desc_issues_warps_lanes = transform_tensor_descriptor(
                     lds_block_desc_0,
                     make_tuple(
-                        make_pass_through_transform(number<NumIssues>{}),
-                        make_merge_transform(make_tuple(number<wavesPerM>{}, number<wavesPerK>{})),
-                        make_merge_transform(make_tuple(number<warpSize>{}, number<KVector>{}))),
-                    make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3, 4>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+                       // make_pass_through_transform(),
+                        make_merge_transform(make_tuple(number<NumIssues>{}, number<wavesPerM>{})),
+                        make_merge_transform(make_tuple(number<wavesPerK>{}, number<warpSize>{}, number<KVector>{}))),
+                    make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
 
                 return lds_block_desc_issues_warps_lanes;
             }
@@ -446,12 +399,13 @@ struct FusedMoeGemmPipelineGeneralPolicy
 
             constexpr auto lds_block_desc_issues_warps_lanes = transform_tensor_descriptor(
                 lds_block_desc_0,
-                make_tuple(make_pass_through_transform(number<NumIssues>{}),
-                           make_pass_through_transform(number<NumWarps>{}),
-                           make_merge_transform(make_tuple(
-                               number<LaneGroups>{}, number<LanesPerK>{}, number<KVector>{}))),
-                make_tuple(sequence<0>{}, sequence<2>{}, sequence<1, 3, 4>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+                make_tuple(
+                           //make_pass_through_transform(number<NumIssues>{}),
+                           //make_pass_through_transform(number<NumWarps>{}),
+                           make_merge_transform(make_tuple(number<NumIssues>{},number<LaneGroups>{}, number<NumWarps>{})),
+                           make_merge_transform(make_tuple(number<LanesPerK>{}, number<KVector>{}))),
+                make_tuple(sequence<0, 1, 2>{}, sequence<3, 4>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
 
             return lds_block_desc_issues_warps_lanes;
         }
