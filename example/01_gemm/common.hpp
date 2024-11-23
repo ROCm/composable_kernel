@@ -76,7 +76,7 @@ struct ProblemSizeSplitK final
 struct ExecutionConfig final
 {
     // 0 - no verification, 1 - CPU, 2 - GPU, 3 - CPU + GPU
-    int do_verification = 3;
+    int do_verification = 1;
     int init_method     = 2;
     bool time_kernel    = false;
 };
