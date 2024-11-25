@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck_tile/ops/smoothquant/kernel/moe_smoothquant_kernel.hpp"
 #include "ck_tile/ops/smoothquant/kernel/smoothquant_kernel.hpp"
 #include "ck_tile/ops/smoothquant/pipeline/smoothquant_pipeline_default_policy.hpp"
 #include "ck_tile/ops/smoothquant/pipeline/smoothquant_pipeline_one_pass.hpp"
