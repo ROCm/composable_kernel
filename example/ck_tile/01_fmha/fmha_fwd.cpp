@@ -1046,6 +1046,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                     (0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr);
                 args.batch_stride_block_table = batch_stride_block_table;
                 args.page_block_size          = page_block_size;
+                args.is_gappy = false; // use 'false' for flash-attention integration
 
                 args.cache_batch_idx =
                     (use_cache_batch_idx ? cache_batch_idx_buf.GetDeviceBuffer() : nullptr);
