@@ -17,8 +17,9 @@
 template <typename ALayout, typename BLayout, typename CLayout>
 float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
+#if 1
     // Memory friendly for Interwave scheduler
-    constexpr ck_tile::index_t M_Tile = 256;
+    constexpr ck_tile::index_t M_Tile = 128;
     constexpr ck_tile::index_t N_Tile = 32;
     constexpr ck_tile::index_t K_Tile = 64;
 
@@ -30,22 +31,24 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
 
+#else
     // Compute friendly for Intrawave scheduler
-    // constexpr ck_tile::index_t M_Tile = 224;
-    // constexpr ck_tile::index_t N_Tile = 256;
-    // constexpr ck_tile::index_t K_Tile = 64;
+    constexpr ck_tile::index_t M_Tile = 256;
+    constexpr ck_tile::index_t N_Tile = 256;
+    constexpr ck_tile::index_t K_Tile = 32;
 
-    // constexpr ck_tile::index_t M_Warp = 4;
-    // constexpr ck_tile::index_t N_Warp = 1;
-    // constexpr ck_tile::index_t K_Warp = 1;
+    constexpr ck_tile::index_t M_Warp = 2;
+    constexpr ck_tile::index_t N_Warp = 2;
+    constexpr ck_tile::index_t K_Warp = 1;
 
-    // constexpr ck_tile::index_t M_Warp_Tile = 16;
-    // constexpr ck_tile::index_t N_Warp_Tile = 16;
-    // constexpr ck_tile::index_t K_Warp_Tile = 16;
+    constexpr ck_tile::index_t M_Warp_Tile = 32;
+    constexpr ck_tile::index_t N_Warp_Tile = 32;
+    constexpr ck_tile::index_t K_Warp_Tile = 16;
+#endif
 
-    constexpr bool kPadM = true;
-    constexpr bool kPadN = true;
-    constexpr bool kPadK = true;
+    constexpr bool kPadM = false;
+    constexpr bool kPadN = false;
+    constexpr bool kPadK = false;
 
     constexpr int kBlockPerCu = 1;
 
@@ -81,8 +84,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                                                   AccDataType,
                                                   GemmShape,
                                                   Traits,
-                                                  //   ck_tile::GemmPipelineScheduler::Intrawave,
-                                                  ck_tile::GemmPipelineScheduler::Interwave,
+                                                  ck_tile::GemmPipelineScheduler::Intrawave,
                                                   has_hot_loop_v,
                                                   tail_number_v>>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -187,8 +189,8 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         {
             std::ostringstream err;
             err << "When there's no hot loop, this tail number \"" << tail_num
-                << "\" is not supported! " << __FILE__ << ":" << __LINE__
-                << ", in function: " << __func__;
+                << "\" is not supported! PrefetchStages: " << BaseGemmPipeline::PrefetchStages
+                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
             throw std::runtime_error(err.str());
         }
     }
