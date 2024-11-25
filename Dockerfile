@@ -87,17 +87,17 @@ RUN pip install --upgrade cmake==3.27.5 && \
     git clone https://github.com/ccache/ccache.git && \
     cd ccache && mkdir build && cd build && cmake .. && make install && \
 #Install ninja build tracing tools
+    cd / && \
     wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip && \
     gunzip /usr/local/bin/ninja.gz && \
     chmod a+x /usr/local/bin/ninja && \
     git clone https://github.com/nico/ninjatracing.git && \
 #Install latest cppcheck
     git clone https://github.com/danmar/cppcheck.git && \
-    cd cppcheck && mkdir build && cd build && cmake .. && cmake --build .
-WORKDIR /
-
+    cd cppcheck && mkdir build && cd build && cmake .. && cmake --build . && \
+    cd / && \
 # Install an init system
-RUN wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb && \
+    wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb && \
     dpkg -i dumb-init_*.deb && rm dumb-init_*.deb && \
 # Install packages for processing the performance results
     pip3 install --upgrade pip && \
