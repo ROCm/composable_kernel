@@ -25,6 +25,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     using LSEDataType         = remove_cvref_t<typename Problem::LSEDataType>;
     using PDataType           = remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
+    using ODataType           = remove_cvref_t<typename Problem::ODataType>;
     using FmhaMask            = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
@@ -48,7 +49,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV     = Problem::kPadHeadDimV;
     static constexpr auto BiasEnum         = Problem::BiasEnum;
-    static constexpr bool kStoreLSE        = true; // always store LSE (acc)
+    static constexpr bool kStoreLSE        = Problem::kStoreLSE;
     static constexpr bool kIsPagedKV       = Problem::kIsPagedKV;
     static constexpr bool kHasUnevenSplits = Problem::kHasUnevenSplits;
 
