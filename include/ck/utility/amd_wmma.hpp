@@ -13,6 +13,11 @@ namespace ck {
     defined(__gfx1103__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
+
+#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
+#define __gfx12__
+#endif
+
 /********************************WAVE32 MODE***********************************************/
 
 // src: fp16, dst: fp32
@@ -99,7 +104,7 @@ struct intrin_wmma_bf16_16x16x16_bf16_w32<16, 16, Opsel>
         // opsel usage
         // false: D0.[0:15] = result
         // true : D0.[16:31]= result
-#if defined(__gfx11__)
+#if defined(__gfx11__) || defined(__gfx12__)
         reg_c.template AsType<bhalf16_t>()(Number<0>{}) =
             __builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32(
                 reg_a, reg_b, reg_c.template AsType<bhalf16_t>()[Number<0>{}], Opsel);
@@ -260,10 +265,6 @@ struct intrin_wmma_i32_16x16x16_iu8_w64<16, 16, neg_a, neg_b, clamp>
 
 // gfx12
 /********************************WAVE32 MODE***********************************************/
-
-#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
-#define __gfx12__
-#endif
 
 // src: fp16, dst: fp32
 template <index_t MPerWave, index_t NPerWave>
