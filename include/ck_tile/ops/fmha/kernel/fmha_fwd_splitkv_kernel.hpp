@@ -709,7 +709,6 @@ struct FmhaFwdSplitKVKernel
         auto k_page_block_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
             if constexpr(kIsPagedKV)
             {
-                // in group mode, block table should have only 1 row
                 const auto* block_indices =
                     reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
                     i_batch_ * kargs.batch_stride_block_table;
@@ -740,7 +739,6 @@ struct FmhaFwdSplitKVKernel
         auto v_page_block_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
             if constexpr(kIsPagedKV)
             {
-                // in group mode, block table should have only 1 row
                 const auto* block_indices =
                     reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
                     i_batch_ * kargs.batch_stride_block_table;
