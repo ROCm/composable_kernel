@@ -544,6 +544,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
     }
 
+    const ck_tile::index_t max_num_page_blocks =
+        (0 < page_block_size
+             ? batch * std::max(1, ck_tile::integer_divide_ceil(max_seqlen_k, page_block_size))
+             : 0);
+
     // legalize num_splits according to other options
     if(num_splits < 1)
     {
@@ -585,12 +590,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         (mode == mode_enum::batch ? seqlen_ks[0]
                                   : (seqlen_kpads[0] < 0 ? seqstart_k_host.back()
                                                          : seqstart_k_with_padding_host.back()));
-
-    const ck_tile::index_t max_num_page_blocks =
-        (0 < page_block_size
-             ? (shape_batch *
-                std::max(1, ck_tile::integer_divide_ceil(shape_seqlen_k, page_block_size)))
-             : 0);
 
     ck_tile::HostTensor<QDataType> q_host(
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
@@ -655,9 +654,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                    : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
 
     ck_tile::HostTensor<int32_t> block_table_host(
-        0 < page_block_size
-            ? std::array<ck_tile::index_t, 2>{shape_batch, max_num_page_blocks / shape_batch}
-            : std::array<ck_tile::index_t, 2>{1, 1});
+        0 < page_block_size ? std::array<ck_tile::index_t, 2>{batch, max_num_page_blocks / batch}
+                            : std::array<ck_tile::index_t, 2>{1, 1});
 
     ck_tile::HostTensor<int32_t> cache_batch_idx_host(use_cache_batch_idx
                                                           ? std::array<ck_tile::index_t, 1>{batch}
@@ -929,7 +927,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_lse_acc = (nhead * num_splits * shape_seqlen_q);
         const ck_tile::index_t batch_stride_o_acc = (nhead * num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o     = (nhead * shape_seqlen_q * hdim_v);
-        const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / shape_batch);
+        const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
         // setup split_stride_* arguments (only used in split-kv kernel)
         const ck_tile::index_t split_stride_lse_acc = (shape_seqlen_q);
         const ck_tile::index_t split_stride_o_acc   = (shape_seqlen_q * hdim_v);
@@ -1201,15 +1199,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(0 < page_block_size) {
             if(i_perm) {
                 k_host_ref.ForEach([&](auto& self, auto i) {
-                    self(i) = k_host(block_table_host(b_idx, (i[1] + key_offset) / page_block_size), i[0] / nr, (i[1] + key_offset) % page_block_size, i[2]);
+                    self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[0] / nr, i[1] % page_block_size, i[2]);
                 });
             } else {     
                 k_host_ref.ForEach([&](auto& self, auto i) {
-                    self(i) = k_host(block_table_host(b_idx, (i[1] + key_offset) / page_block_size), (i[1] + key_offset) % page_block_size, i[0] / nr, i[2]);
+                    self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[1] % page_block_size, i[0] / nr, i[2]);
                 });
             }
         } else
-#endif
+#endif 
         {
             if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[0] / nr, i[1] + key_offset, i[2]); });
             else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[1] + key_offset, i[0] / nr, i[2]); });
@@ -1253,11 +1251,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
             if(is_v_rowmajor) {
                 if(i_perm) {
                     v_host_ref.ForEach([&](auto& self, auto i) { 
-                        self(i) = v_host(block_table_host(b_idx, (i[2] + key_offset) / page_block_size), i[0] / nr, (i[2] + key_offset) % page_block_size, i[1]); 
+                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[2] % page_block_size, i[1]); 
                     });
                 } else {
                     v_host_ref.ForEach([&](auto& self, auto i) { 
-                        self(i) = v_host(block_table_host(b_idx, (i[2] + key_offset) / page_block_size), (i[2] + key_offset) % page_block_size, i[0] / nr, i[1]);
+                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[2] % page_block_size, i[0] / nr, i[1]);
                     });
                 }
             }
@@ -1265,11 +1263,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
             {
                 if(i_perm) { 
                     v_host_ref.ForEach([&](auto& self, auto i) { 
-                        self(i) = v_host(block_table_host(b_idx, (i[2] + key_offset) / page_block_size), i[0] / nr, i[1], (i[2] + key_offset) % page_block_size);
+                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[1], i[2] % page_block_size);
                     });
                 } else {
                     v_host_ref.ForEach([&](auto& self, auto i) {
-                        self(i) = v_host(block_table_host(b_idx, (i[2] + key_offset) / page_block_size), i[1], i[0] / nr, (i[2] + key_offset) % page_block_size);
+                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[1], i[0] / nr, i[2] % page_block_size);
                     });
                 }
             }
