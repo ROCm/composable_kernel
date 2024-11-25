@@ -713,7 +713,7 @@ struct FmhaFwdSplitKVKernel
                     reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
                     i_batch_ * kargs.batch_stride_block_table;
                 const index_t num_blocks =
-                    integer_divide_ceil(kargs.seqlen_k, kargs.page_block_size);
+                    integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
 
                 const long_index_t fixed_offset =
                     static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
@@ -728,7 +728,8 @@ struct FmhaFwdSplitKVKernel
                     kargs.page_block_size,
                     k_dram,
                     make_k_dram(nullptr,
-                                kargs.seqlen_k - (num_blocks - 1) * kargs.page_block_size));
+                                (kv_l2p_offset + kargs.seqlen_k) -
+                                    (num_blocks - 1) * kargs.page_block_size));
             }
             else
             {
@@ -743,7 +744,7 @@ struct FmhaFwdSplitKVKernel
                     reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
                     i_batch_ * kargs.batch_stride_block_table;
                 const index_t num_blocks =
-                    integer_divide_ceil(kargs.seqlen_k, kargs.page_block_size);
+                    integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
 
                 const long_index_t fixed_offset =
                     static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
@@ -758,7 +759,8 @@ struct FmhaFwdSplitKVKernel
                     kargs.page_block_size,
                     v_dram,
                     make_v_dram(nullptr,
-                                kargs.seqlen_k - (num_blocks - 1) * kargs.page_block_size));
+                                (kv_l2p_offset + kargs.seqlen_k) -
+                                    (num_blocks - 1) * kargs.page_block_size));
             }
             else
             {
