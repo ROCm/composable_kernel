@@ -573,7 +573,7 @@ struct HostTensor
         return ck_tile::span<Element>{reinterpret_cast<Element*>(data()),
                                       size() * FromSize / ToSize};
     }
-#if 1
+
     friend std::ostream& operator<<(std::ostream& os, const HostTensor<T>& t)
     {
         os << t.mDesc;
@@ -596,7 +596,6 @@ struct HostTensor
         os << "]";
         return os;
     }
-#endif
 
     // read data from a file, as dtype
     // the file could dumped from torch as (targeting tensor is t here)

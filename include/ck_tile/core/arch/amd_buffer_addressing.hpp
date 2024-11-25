@@ -53,11 +53,6 @@ template<> struct buffer_load_trait<4 , thread_buffer<bf16_t, 2>> { using payloa
 // clang-format on
 } // namespace impl
 
-// TODO: this is hot-tmp fix to unblock user case. Need refactor into template arg
-#ifndef CK_TILE_BUFFER_LOAD_AGPR
-#define CK_TILE_BUFFER_LOAD_AGPR 0
-#endif
-
 // TODO: glc/slc/...
 template <index_t bytes, bool pre_nop = false>
 struct buffer_load;
@@ -79,19 +74,6 @@ struct buffer_load<16, pre_nop>
     {
         static_assert(sizeof(T) == 16);
         using mbuf_t = typename impl::buffer_load_trait<16, T>::payload_t;
-#if CK_TILE_BUFFER_LOAD_AGPR
-        if constexpr(pre_nop)
-            asm volatile("s_nop 4\n"
-                         "buffer_load_dwordx4 %0, %1, %2, 0 offen offset:%3"
-                         : "=a"(reinterpret_cast<mbuf_t&>(value))
-                         : "v"(v_offset), "s"(res), "n"(i_offset)
-                         : "memory");
-        else
-            asm volatile("buffer_load_dwordx4 %0, %1, %2, 0 offen offset:%3"
-                         : "=a"(reinterpret_cast<mbuf_t&>(value))
-                         : "v"(v_offset), "s"(res), "n"(i_offset)
-                         : "memory");
-#else
         if constexpr(pre_nop)
             asm volatile("s_nop 4\n"
                          "buffer_load_dwordx4 %0, %1, %2, 0 offen offset:%3"
@@ -103,7 +85,6 @@ struct buffer_load<16, pre_nop>
                          : "+v"(reinterpret_cast<mbuf_t&>(value))
                          : "v"(v_offset), "s"(res), "n"(i_offset)
                          : "memory");
-#endif
     }
 };
 
