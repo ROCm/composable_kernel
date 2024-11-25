@@ -509,7 +509,6 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
                                                                       BlockWarps,
                                                                       WarpGemm>;
 
-        // return BlockGemmASmemBSmemCRegV1<Problem, BlockGemmPolicy>{};
         return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
     }
 };

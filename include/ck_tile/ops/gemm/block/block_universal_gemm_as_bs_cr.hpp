@@ -106,6 +106,140 @@ struct BlockUniversalGemmAsBsCr
     };
 
     template <typename GemmTraits>
+    struct BlockGemmImpl<GemmPipelineScheduler::Default, GemmTraits>
+    {
+        // C += A * B
+        template <typename CBlockTensor, typename ASmemBlockWindow, typename BSmemBlockWindow>
+        CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+                                       const ASmemBlockWindow& a_block_window,
+                                       const BSmemBlockWindow& b_block_window)
+        {
+            static_assert(
+                std::is_same_v<typename GemmTraits::CDataType, typename CBlockTensor::DataType>,
+                "The CDataType as defined in traits should be the same as correspoinding "
+                "C block tensor data type!");
+            static_assert(std::is_same_v<typename GemmTraits::ADataType,
+                                         typename ASmemBlockWindow::DataType> &&
+                              std::is_same_v<typename GemmTraits::BDataType,
+                                             typename BSmemBlockWindow::DataType>,
+                          "The ADataType and BDataType as defined in "
+                          "traits should be the same as correspoinding block window data type!");
+
+            static_assert(
+                GemmTraits::MPerBlock == ASmemBlockWindow{}.get_window_lengths()[number<0>{}] &&
+                    GemmTraits::NPerBlock == BSmemBlockWindow{}.get_window_lengths()[number<0>{}] &&
+                    GemmTraits::KPerBlock == ASmemBlockWindow{}.get_window_lengths()[number<1>{}],
+                "MPerBlock, NPerBlock, KPerBlock defined in "
+                " BlockGemmShape are different from A/B block smem windows apropriate dims!");
+
+            const index_t iMWarp = get_warp_id() / GemmTraits::NWarp;
+            const index_t iNWarp = get_warp_id() - (iMWarp * GemmTraits::NWarp);
+
+            // TODO: refactor warp_window tile type to class member as it should be
+            // compile-time known information.
+            auto a_warp_window_tmp = make_tile_window(
+                a_block_window.get_bottom_tensor_view(),
+                make_tuple(number<GemmTraits::WarpGemm::kM>{}, number<GemmTraits::WarpGemm::kK>{}),
+                a_block_window.get_window_origin() +
+                    multi_index<2>{iMWarp * GemmTraits::WarpGemm::kM, 0},
+                make_static_tile_distribution(typename GemmTraits::WarpGemm::AWarpDstrEncoding{}));
+
+            using AWarpWindow = remove_cvref_t<decltype(a_warp_window_tmp)>;
+
+            static_assert(GemmTraits::AWarpTile::get_num_of_dimension() ==
+                              AWarpWindow::get_num_of_dimension(),
+                          "AWarpWindow number of dimensions must be equal to "
+                          "AWarpTile number of dimensions!");
+            static_assert(GemmTraits::AWarpTile::get_lengths() ==
+                              AWarpWindow{}.get_window_lengths(),
+                          "AWarpWindow lengths must be equal to AWarpTile lengths!");
+
+            statically_indexed_array<
+                statically_indexed_array<AWarpWindow, GemmTraits::KIterPerWarp>,
+                GemmTraits::MIterPerWarp>
+                a_warp_windows;
+
+            // construct B-warp-window
+            auto b_warp_window_tmp = make_tile_window(
+                b_block_window.get_bottom_tensor_view(),
+                make_tuple(number<GemmTraits::WarpGemm::kN>{}, number<GemmTraits::WarpGemm::kK>{}),
+                b_block_window.get_window_origin() +
+                    multi_index<2>{iNWarp * GemmTraits::WarpGemm::kN, 0},
+                make_static_tile_distribution(typename GemmTraits::WarpGemm::BWarpDstrEncoding{}));
+
+            using BWarpWindow = remove_cvref_t<decltype(b_warp_window_tmp)>;
+
+            static_assert(GemmTraits::BWarpTile::get_num_of_dimension() ==
+                              BWarpWindow::get_num_of_dimension(),
+                          "BWarpWindow number of dimensions must be equal to "
+                          "BWarpTile number of dimensions!");
+            static_assert(GemmTraits::BWarpTile::get_lengths() ==
+                              BWarpWindow{}.get_window_lengths(),
+                          "BWarpWindow lengths must be equal to BWarpTile lengths!");
+
+            statically_indexed_array<
+                statically_indexed_array<BWarpWindow, GemmTraits::KIterPerWarp>,
+                GemmTraits::NIterPerWarp>
+                b_warp_windows;
+
+            static_for<0, GemmTraits::MIterPerWarp, 1>{}([&](auto mIter) {
+                static_for<0, GemmTraits::KIterPerWarp, 1>{}([&](auto kIter) {
+                    a_warp_windows(mIter)(kIter) = a_warp_window_tmp;
+
+                    // TODO: I don't have to move 0,0 window!
+                    move_tile_window(a_warp_windows(mIter)(kIter),
+                                     {mIter * GemmTraits::MPerBlockPerIter,
+                                      kIter * GemmTraits::KPerBlockPerIter});
+                });
+            });
+
+            static_for<0, GemmTraits::NIterPerWarp, 1>{}([&](auto nIter) {
+                static_for<0, GemmTraits::KIterPerWarp, 1>{}([&](auto kIter) {
+                    b_warp_windows(nIter)(kIter) = b_warp_window_tmp;
+
+                    move_tile_window(b_warp_windows(nIter)(kIter),
+                                     {nIter * GemmTraits::NPerBlockPerIter,
+                                      kIter * GemmTraits::KPerBlockPerIter});
+                });
+            });
+
+            using CWarpDstr   = typename GemmTraits::WarpGemm::CWarpDstr;
+            using CWarpTensor = typename GemmTraits::WarpGemm::CWarpTensor;
+
+            constexpr auto c_warp_y_lengths =
+                to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+            constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+            // hot loop:
+            static_for<0, GemmTraits::KIterPerWarp, 1>{}([&](auto kIter) {
+                static_for<0, GemmTraits::MIterPerWarp, 1>{}([&](auto mIter) {
+                    const auto a_warp_tile = load_tile(a_warp_windows(mIter)(kIter));
+
+                    static_for<0, GemmTraits::NIterPerWarp, 1>{}([&](auto nIter) {
+                        const auto b_warp_tile = load_tile(b_warp_windows(nIter)(kIter));
+
+                        // read C warp tensor from C block tensor-
+                        CWarpTensor c_warp_tensor;
+
+                        c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                        // warp GEMM
+                        typename GemmTraits::WarpGemm{}(c_warp_tensor, a_warp_tile, b_warp_tile);
+
+                        // write C warp tensor into C block tensor
+                        c_block_tensor.set_y_sliced_thread_data(
+                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                            c_warp_tensor.get_thread_buffer());
+                    });
+                });
+            });
+        }
+    };
+
+    template <typename GemmTraits>
     struct BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits>
     {
         statically_indexed_array<
