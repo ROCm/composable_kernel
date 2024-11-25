@@ -1,6 +1,7 @@
 # fused-moe
 Implementing the fused-moe block operator using ck-tile. This is a scatter/gather-group-gemm based solution, similiar to that of [vllm moe](https://github.com/vllm-project/vllm/blob/main/benchmarks/kernels/benchmark_moe.py), but we introduce more kernel fusion to boost performance
 ![](misc/moe-0.png)
+
 The benifit of this fused-moe:
 * 1.5~2x perf boost compared with current vllm solution
 * zero workspace to reduce memory footprint
