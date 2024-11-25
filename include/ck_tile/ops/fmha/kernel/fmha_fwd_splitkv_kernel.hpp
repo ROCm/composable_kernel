@@ -708,7 +708,7 @@ struct FmhaFwdSplitKVKernel
                 // in group mode, block table should have only 1 row
                 const auto* block_indices =
                     reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
-                    (!kIsGroupMode * (i_batch_ * kargs.batch_stride_block_table));
+                    i_batch_ * kargs.batch_stride_block_table;
                 const index_t num_blocks =
                     integer_divide_ceil(total_seqlen_k, kargs.page_block_size);
 
@@ -739,7 +739,7 @@ struct FmhaFwdSplitKVKernel
                 // in group mode, block table should have only 1 row
                 const auto* block_indices =
                     reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
-                    (!kIsGroupMode * (i_batch_ * kargs.batch_stride_block_table));
+                    i_batch_ * kargs.batch_stride_block_table;
                 const index_t num_blocks =
                     integer_divide_ceil(total_seqlen_k, kargs.page_block_size);
 
