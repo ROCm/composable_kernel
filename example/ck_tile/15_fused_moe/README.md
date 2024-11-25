@@ -1,9 +1,14 @@
 # fused-moe
-Implementing the fused-moe block operator using ck-tile. This is (almost) the same as the fused_moe operator from [vllm moe](https://github.com/vllm-project/vllm/blob/main/benchmarks/kernels/benchmark_moe.py)
+Implementing the fused-moe block operator using ck-tile. This is a scatter/gather-group-gemm based solution, similiar to that of [vllm moe](https://github.com/vllm-project/vllm/blob/main/benchmarks/kernels/benchmark_moe.py), but we introduce more kernel fusion to boost performance
+![](misc/moe-0.png)
+The benifit of this fused-moe:
+* 1.5~2x perf boost compared with current vllm solution
+* zero workspace to reduce memory footprint
+* much less kernel instance, easy to maintain
 
 # Implementation and feature support
 ## moe-sorting
-this is a common pre-process step before the actual moe-gemm. The purpose is to transform the moe loop over from token-by-token to expert-by-expert, make sure very workgroup is working for a single expert (B matrix)
+this is a common pre-process step before the actual moe-gemm. The purpose is to transform the moe loop over from token-by-token to expert-by-expert, make sure very workgroup is working for a single expert (B matrix). Besides, we extend this op to do the zeroing of the output buffer(to be used for reduce buffer with atomic)
 
 ## moe-gemm
 `moe-gemm` is a group-gemm based back-to-back gemm, where the row-id of input token comes from another buffer. Naive understanding of fused-moe is from token-by-token view as below picture:
