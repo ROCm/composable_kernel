@@ -18,7 +18,6 @@
 #pragma once
 namespace ck_tile {
 
-#if 1
 // input a lds store tile, extract some information from it
 // used to set m0 value for gfx9 serious
 template <typename LdsTileWindow_>
@@ -51,36 +50,5 @@ CK_TILE_DEVICE auto get_async_store_smem_info(LdsTileWindow_&& lds_tile)
 
     return make_tuple(m0_init_value, size_per_issue);
 }
-#else
-#define GET_ASYNC_STORE_SMEM_INFO(lds_tile__)                                            \
-    [&](auto lds_tile_) {                                                                \
-        using LdsTileWindow = remove_cvref_t<decltype(lds_tile_)>;                       \
-        using LdsDataType   = typename LdsTileWindow::DataType;                          \
-                                                                                         \
-        /* issues * warps * lanes */                                                     \
-        static_assert(LdsTileWindow::get_num_of_dimension() == 3);                       \
-                                                                                         \
-        const index_t size_per_buf_ =                                                    \
-            lds_tile_.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset( \
-                make_tuple(number<0>{}, number<0>{}, number<0>{})) *                     \
-            sizeof(LdsDataType);                                                         \
-                                                                                         \
-        const index_t size_per_wave_ =                                                   \
-            lds_tile_.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset( \
-                make_tuple(number<0>{}, number<1>{}, number<0>{})) *                     \
-                sizeof(LdsDataType) -                                                    \
-            size_per_buf_;                                                               \
-                                                                                         \
-        const index_t size_per_issue_ =                                                  \
-            lds_tile_.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset( \
-                make_tuple(number<1>{}, number<0>{}, number<0>{})) *                     \
-                sizeof(LdsDataType) -                                                    \
-            size_per_buf_;                                                               \
-                                                                                         \
-        const index_t m0_init_value_ = size_per_buf_ + size_per_wave_ * get_warp_id();   \
-                                                                                         \
-        return make_tuple(m0_init_value_, size_per_issue_);                              \
-    }(lds_tile__)
-#endif
 
 } // namespace ck_tile

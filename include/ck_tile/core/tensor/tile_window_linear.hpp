@@ -436,8 +436,8 @@ struct tile_window_linear
             reduce_on_sequence(LinearBottomDims{}, multiplies{}, number<1>{});
         if constexpr(is_pure_linear_tensor)
         {
-            // this case usually is a LDS window, everything is build time know.
-            // we directly use BottomTensorView to compute the offset, in case there is any padding
+            // this case usually is a LDS window, everything is known at compile tile.
+            // we directly use BottomTensorView transform to compute the offset, in case padding
             auto bottom_tensor_coord =
                 make_tensor_coordinate(BottomTensorView{}.get_tensor_descriptor(), linear_coord);
             return bottom_tensor_coord.get_offset();
@@ -447,7 +447,7 @@ struct tile_window_linear
             // this case usually is a global window, where last dim can be linear
             // we hack here, that use the original TileDstr to compute the linear offset
             // ... hoping that there is no extra padding between other dims, which make sense
-            // since that sould introduce runtime length
+            // since that would introduce runtime length (so can't use linear offset)
             constexpr index_t linear_offset = [&]() {
                 constexpr auto x_idx_ = linear_coord;
                 constexpr auto x_len_ = TileDstr{}.get_lengths();
@@ -637,40 +637,6 @@ struct tile_window_linear
         };
 
         WINDOW_DISPATCH_ISSUE();
-    }
-
-    // return [m0_init_value, size_per_issue]
-    // m0_init_value-> directly use this to set m0 value
-    // size_per_issue-> direclty use this to inc m0 every issue
-    template <typename LdsTileWindow_>
-    CK_TILE_DEVICE auto get_smem_info(LdsTileWindow_&& lds_tile) const
-    {
-        using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
-        using LdsDataType   = typename LdsTileWindow::DataType;
-
-        // issues * warps * lanes
-        static_assert(LdsTileWindow::get_num_of_dimension() == 3); // TODO: hard coded
-
-        const index_t size_per_buf =
-            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
-                make_tuple(number<0>{}, number<0>{}, number<0>{})) *
-            sizeof(LdsDataType);
-
-        const index_t size_per_wave =
-            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
-                make_tuple(number<0>{}, number<1>{}, number<0>{})) *
-                sizeof(LdsDataType) -
-            size_per_buf;
-
-        const index_t size_per_issue =
-            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
-                make_tuple(number<1>{}, number<0>{}, number<0>{})) *
-                sizeof(LdsDataType) -
-            size_per_buf;
-
-        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
-
-        return make_tuple(m0_init_value, size_per_issue);
     }
 
     // TODO: currently async load only implemented in inline asm
