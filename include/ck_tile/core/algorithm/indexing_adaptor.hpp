@@ -80,7 +80,7 @@ struct indexing_adaptor
         pre_up_index_  = idx_up[number<0>{}];
         pre_low_index_ = idx_low(number<0>{});
 #if 0
-        if(threadIdx.x == 65 && blockIdx.x == 0 && blockIdx.y == 1 && blockIdx.z == 0)
+        if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
         {
             printf("\n first index from  %d to  %d  \n", idx_up[number<0>{}], idx_low(number<0>{}));
         }
@@ -105,7 +105,7 @@ struct indexing_adaptor
         pre_up_index_  = up_index;
         pre_low_index_ = low_index;
 #if 0
-        if(threadIdx.x == 65 && blockIdx.x == 0 && blockIdx.y == 1 && blockIdx.z == 0)
+        if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
         {
             printf("\n index form %d to %d, diff  from  %d to  %d  \n",
                    up_index,

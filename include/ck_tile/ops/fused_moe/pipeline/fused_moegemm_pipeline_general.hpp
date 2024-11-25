@@ -78,7 +78,7 @@ struct FusedMoeGemmPipeline_General
             BlockShape::Block_M0 * BlockShape::Block_N0 * sizeof(YDataType);
 
         return max(smem_mat_a, smem_bridge);
-        //return Policy::template GetSmemSize<Problem>();
+        // return Policy::template GetSmemSize<Problem>();
     }
 
     // this is the thread-offset along row/col
@@ -108,7 +108,10 @@ struct FusedMoeGemmPipeline_General
         CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
         auto a_lds_view                    = make_tensor_view<address_space_enum::lds>(
             smem_0, Policy::template MakeLdsStoreDesc_A<Problem>());
-        auto a_lds_win = make_tile_window(a_lds_view, make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}), {0, 0});
+        auto a_lds_win = make_tile_window(
+            a_lds_view,
+            make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}),
+            {0, 0});
 
         auto a_global_to_dram_window = make_tile_window(
             a_window_.get_bottom_tensor_view(),
@@ -116,15 +119,11 @@ struct FusedMoeGemmPipeline_General
             a_window_.get_window_origin(),
             Policy::template MakeGlobalTileDistribution_A<Problem>());
 
-        // auto o_win = make_tile_window_linear(
-        //     o_window_, Policy::template MakeGlobalTileDistribution_O<Problem>());
-
-
         auto a_dram_block = load_tile(a_global_to_dram_window);
 
         store_tile(a_lds_win, a_dram_block);
         store_tile(o_window_, a_dram_block);
-        
+
 #if 0
         //check a matrix gather right or not
         constexpr auto a_spans = decltype(a_dram_block)::get_distributed_spans();
@@ -132,7 +131,7 @@ struct FusedMoeGemmPipeline_General
         sweep_tile_span(a_spans[number<0>{}], [&](auto idxm) {
             sweep_tile_span(a_spans[number<1>{}], [&](auto idxk) {
                 constexpr auto i_j_idx = make_tuple(idxm, idxk);
-                if(threadIdx.x == 65 && blockIdx.x == 0 && blockIdx.y == 1 && blockIdx.z == 0)
+                if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
                 {
                     counter       = counter + 1;
                     index_t idm_0 = idxm.impl_.at(0);

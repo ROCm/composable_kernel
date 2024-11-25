@@ -60,15 +60,15 @@ auto shuffle_moe_weight(const ck_tile::HostTensor<T>& t, std::string mfma_dtype,
 }
 
 template <typename IndexType>
-void output_matrix_2d(ck_tile::HostTensor<IndexType>& data, int m,int n)
+void output_matrix_2d(ck_tile::HostTensor<IndexType>& data, int m, int n)
 {
-     std::cout << std::endl;
+    std::cout << std::endl;
     for(int i = 0; i < m; i++)
     {
         std::cout << "Line " << i << "\t";
         for(int j = 0; j < n; j++)
         {
-            std::cout << ck_tile::type_convert<float>(data(i,j)) << "\t";
+            std::cout << ck_tile::type_convert<float>(data(i, j)) << "\t";
         }
         std::cout << std::endl;
     }
@@ -261,17 +261,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         num_sorted_tiles_host.mData[0],
         experts,
         block_m);
-    // std::cout << std::endl;
-    // for(int i = 0; i < tokens; i++)
-    // {
-    //     std::cout << "Line " << i << "\t";
-    //     for(int j = 0; j < hidden_size; j++)
-    //     {
-    //         std::cout << ck_tile::type_convert<float>(a_host(i,j)) << "\t";
-    //     }
-    //     std::cout << std::endl;
-    // }
-    output_matrix_2d(a_host, tokens, hidden_size);
+
+    // output_matrix_2d(a_host, tokens, hidden_size);
     // std::cout << sorted_token_ids_host << std::endl;
     // std::cout << num_sorted_tiles_host << std::endl;
     // std::cout << sorted_expert_ids_host << std::endl;
@@ -381,7 +372,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
             o_dev, o_host, std::string("OUT Error: Incorrect results!"), rtol, atol);
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
 
-        output_matrix_2d(o_dev, tokens, hidden_size);
+        // std::cout << std::endl;
+        // int count = 0;
+        // for(int i = 0; i < tokens; i++)
+        // {
+        //     std::cout << "Line " << i << "\t";
+        //     for(int j = 0; j < hidden_size; j++)
+        //     {
+        //         std::cout << ck_tile::type_convert<float>(o_dev(count++)) << "\t";
+        //     }
+        //     std::cout << std::endl;
+        // }
     }
     std::cout << std::flush << std::endl;
 

@@ -367,9 +367,10 @@ struct FusedMoeGemmPipelineGeneralPolicy
                 constexpr auto lds_block_desc_issues_warps_lanes = transform_tensor_descriptor(
                     lds_block_desc_0,
                     make_tuple(
-                       // make_pass_through_transform(),
+                        // make_pass_through_transform(),
                         make_merge_transform(make_tuple(number<NumIssues>{}, number<wavesPerM>{})),
-                        make_merge_transform(make_tuple(number<wavesPerK>{}, number<warpSize>{}, number<KVector>{}))),
+                        make_merge_transform(make_tuple(
+                            number<wavesPerK>{}, number<warpSize>{}, number<KVector>{}))),
                     make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -400,10 +401,11 @@ struct FusedMoeGemmPipelineGeneralPolicy
             constexpr auto lds_block_desc_issues_warps_lanes = transform_tensor_descriptor(
                 lds_block_desc_0,
                 make_tuple(
-                           //make_pass_through_transform(number<NumIssues>{}),
-                           //make_pass_through_transform(number<NumWarps>{}),
-                           make_merge_transform(make_tuple(number<NumIssues>{},number<LaneGroups>{}, number<NumWarps>{})),
-                           make_merge_transform(make_tuple(number<LanesPerK>{}, number<KVector>{}))),
+                    // make_pass_through_transform(number<NumIssues>{}),
+                    // make_pass_through_transform(number<NumWarps>{}),
+                    make_merge_transform(
+                        make_tuple(number<NumIssues>{}, number<LaneGroups>{}, number<NumWarps>{})),
+                    make_merge_transform(make_tuple(number<LanesPerK>{}, number<KVector>{}))),
                 make_tuple(sequence<0, 1, 2>{}, sequence<3, 4>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
