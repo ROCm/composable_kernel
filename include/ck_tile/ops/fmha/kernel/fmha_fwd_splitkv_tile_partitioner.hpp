@@ -31,8 +31,6 @@ struct FmhaFwdSplitKVTilePartitioner
                     batch_size);
     }
 
-    CK_TILE_DEVICE static constexpr auto GetBatchSize() { return static_cast<index_t>(gridDim.z); }
-
     CK_TILE_DEVICE auto
     operator()(ck_tile::index_t /*seqlen_q*/, ck_tile::index_t hdim_v, ck_tile::index_t num_splits)
     {
