@@ -73,6 +73,24 @@ CK_TILE_DEVICE void block_sync_lds()
 #endif
 }
 
+CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
+{
+#ifdef __gfx12__
+    asm volatile("s_wait_loadcnt %0 \n"
+                 "s_barrier_signal -1 \n"
+                 "s_barrier_wait -1"
+                 :
+                 : "n"(cnt)
+                 : "memory");
+#else
+    asm volatile("s_waitcnt vmcnt(%0) \n"
+                 "s_barrier"
+                 :
+                 : "n"(cnt)
+                 : "memory");
+#endif
+}
+
 CK_TILE_DEVICE void block_sync_lds_direct_load()
 {
     asm volatile("\

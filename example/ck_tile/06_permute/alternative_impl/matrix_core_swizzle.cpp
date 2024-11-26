@@ -40,7 +40,7 @@ float matrix_core_swizzle(matrix_core_swizzle_traits t,
             else if(t.permute.compare("0,1,3,4,2,5") == 0)
             {
                 constexpr matrix_core_permute_style pstyle =
-                    matrix_core_permute_style::permute_b_nr_kr_kw_nw_kv;
+                    matrix_core_permute_style::b_nr_kr_kw_nw_kv;
                 using Kernel =
                     matrix_core_swizzle_kernel<BLOCK_SIZE, NPerBlock, KPerBlock, pstyle, Inst>;
 
@@ -83,7 +83,7 @@ float matrix_core_swizzle(matrix_core_swizzle_traits t,
             else if(t.permute.compare("0,1,3,4,2,5") == 0)
             {
                 constexpr matrix_core_permute_style pstyle =
-                    matrix_core_permute_style::permute_b_nr_kr_kw_nw_kv;
+                    matrix_core_permute_style::b_nr_kr_kw_nw_kv;
                 using Kernel =
                     matrix_core_swizzle_kernel<BLOCK_SIZE, NPerBlock, KPerBlock, pstyle, Inst>;
 

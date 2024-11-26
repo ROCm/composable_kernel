@@ -292,12 +292,15 @@ struct tile_window_with_static_distribution
     {
         constexpr auto tile_dstr = TileDstr{};
         auto dst_tensor          = make_static_distributed_tensor<DataType>(tile_dstr);
-        load(dst_tensor, bool_constant<oob_conditional_check>{});
+        load(dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
         return dst_tensor;
     }
 
-    template <typename DistributedTensor, bool oob_conditional_check = true>
+    template <typename DistributedTensor,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true>
     CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
+                             number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
     {
         using Traits   = load_store_traits;
@@ -768,6 +771,73 @@ struct tile_window_with_static_distribution
                     0,
                     vec_value,
                     bool_constant<oob_conditional_check>{});
+
+                // move thread coordinate
+                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                {
+                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                    constexpr auto idx_diff_ps_ys = container_concat(
+                        generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                        idx_diff_ys);
+
+                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+                }
+            });
+        });
+    }
+
+    template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true, bool pre_nop>
+    CK_TILE_DEVICE void update_raw(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+                                   number<i_access_unsupport_>          = {},
+                                   bool_constant<oob_conditional_check> = {},
+                                   bool_constant<pre_nop>               = {}) const
+    {
+        using Traits = load_store_traits;
+
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
+
+        constexpr auto tile_dstr = TileDstr{};
+
+        // loop over thread tensor space [y0, y1, ...]
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            /// TODO: use structure binding (to be captured later) if compiled in C++20
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+
+            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+
+                // data index [y0, y1, ...]
+                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+
+                // read from distributed tensor
+                vector_t vec_value;
+
+                static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
+                    constexpr auto idx_ys = generate_tuple(
+                        [&](auto jj) {
+                            return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
+                                                            : idx_ys_start[jj];
+                        },
+                        number<NDimY>{});
+
+                    constexpr index_t d =
+                        tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+
+                    vec_value.template get_as<DataType>()(j) =
+                        dstr_tensor.get_thread_buffer().template at<d>();
+                });
+
+                // write into bottom tensor
+                get_bottom_tensor_view().template update_vectorized_elements_raw<vector_t>(
+                    bottom_tensor_thread_coord,
+                    0,
+                    vec_value,
+                    bool_constant<oob_conditional_check>{},
+                    bool_constant<pre_nop>{});
 
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))

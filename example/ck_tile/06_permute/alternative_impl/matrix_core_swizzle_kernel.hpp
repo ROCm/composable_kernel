@@ -42,8 +42,8 @@ enum class matrix_core_permute_style
 {
     permute_b_n0_k0_n1_k1_n2_k2 = 0, // 0,1,4,2,5,3,6
     permute_b_n0_n1_k0_k1_n2_k2 = 1, // 0,1,2,4,5,3,6
-    permute_b_nr_kr_kw_nw_kv    = 2, // 0,1,3,4,2,5
-    permute_b_nr_kr_waveflatten = permute_b_nr_kr_kw_nw_kv,
+    b_nr_kr_kw_nw_kv            = 2, // 0,1,3,4,2,5
+    b_nr_kr_waveflatten         = b_nr_kr_kw_nw_kv,
 };
 
 // assume this is B matrix, originally we have batch*n*k
@@ -203,7 +203,7 @@ struct matrix_core_swizzle_kernel
             else
             {
                 // clang-format off
-                // permute_b_nr_kr_kw_nw_kv or permute_b_nr_kr_waveflatten
+                // b_nr_kr_kw_nw_kv or b_nr_kr_waveflatten
                 constexpr index_t Kv = Alignment;
                 constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
                 constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
@@ -332,7 +332,7 @@ struct matrix_core_swizzle_kernel
                         make_tuple(sequence<0>{}, sequence<1>{}));
                     return tmp_1;
 #else
-                    // permute_b_nr_kr_waveflatten = permute_b_nr_kr_kw_nw_kv,
+                    // b_nr_kr_waveflatten = b_nr_kr_kw_nw_kv,
                     constexpr index_t kv = Alignment;
                     constexpr index_t nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
                     constexpr index_t kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
@@ -376,13 +376,13 @@ struct matrix_core_swizzle_kernel
                 else
                 {
 #if MERGE_2D_013425
-                    // permute_b_nr_kr_waveflatten = permute_b_nr_kr_kw_nw_kv
+                    // b_nr_kr_waveflatten = b_nr_kr_kw_nw_kv
                     return make_tile_window(dst_view,
                                             make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
                                             {i_n * NPerBlock, i_k * KPerBlock},
                                             get_dst_dist());
 #else
-                    // permute_b_nr_kr_waveflatten = permute_b_nr_kr_kw_nw_kv
+                    // b_nr_kr_waveflatten = b_nr_kr_kw_nw_kv
                     constexpr index_t kv = Alignment;
                     constexpr index_t nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
                     constexpr index_t kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
