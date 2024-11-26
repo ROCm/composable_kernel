@@ -57,7 +57,7 @@ struct indexing_adaptor_onshot_cached
         return ck_tile::is_known_at_compile_time<IndexingType>::value;
     }
 };
-#define Using_Gather  1
+#define Using_Gather 1
 template <typename IndexingType>
 struct indexing_adaptor
 {

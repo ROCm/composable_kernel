@@ -125,11 +125,17 @@ struct FusedMoeGemmPipeline_General
             g_window_.get_window_origin(),
             Policy::template MakeGlobalTileDistribution_G<Problem>());
 
+        // Block GEMM
+        constexpr auto gemm_0 = Policy::template GetBlockGemm0<Problem>();
+        using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
+        auto s_acc              = SaccBlockTileType{};
+
         auto a_dram_block = load_tile(a_global_to_dram_window);
         store_tile(a_lds_win, a_dram_block);
 
         auto g_dram_block = load_tile(g_global_to_dram_window);
         ignore            = g_dram_block;
+        ignore            = s_acc;
 
         store_tile(o_window_, a_dram_block);
 

@@ -8,6 +8,10 @@
 #include "ck_tile/ops/flatmm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_problem.hpp"
+#include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_breg_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_breg_creg_v1.hpp"
 
 namespace ck_tile {
 
@@ -203,6 +207,30 @@ struct FusedMoeGemmPipelineGeneralPolicy
                 tuple<sequence<1>, sequence<2, 1>>,
                 sequence<1, 2, 2>,
                 sequence<0, 0, 2>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm0()
+    {
+        using S_ = typename Problem::BlockShape;
+        using GemmProblem =
+            BlockGemmProblem<typename Problem::ADataType,
+                             typename Problem::GDataType,
+                             typename Problem::AccDataType,
+                             S_::BlockSize,
+                             TileGemmShape<typename S_::BlockTile_0,
+                                           typename S_::WarpPerBlock_0,
+                                           typename S_::WarpTile_0>>;
+
+        constexpr auto warp_gemm = GetWarpGemm0<Problem>();
+        using BlockGemmPolicy =
+            BlockGemmASmemBRegCRegV1CustomPolicy<typename Problem::ADataType,
+                                                 typename Problem::GDataType,
+                                                 typename Problem::AccDataType,
+                                                 typename S_::WarpPerBlock_0,
+                                                 decltype(warp_gemm)>;
+
+        return BlockGemmASmemBRegCRegV1<GemmProblem, BlockGemmPolicy>{};
     }
 
     template <typename Problem>
@@ -474,7 +502,7 @@ struct FusedMoeGemmPipelineGeneralPolicy
         // TODO: ugly
         if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::bf16_t> &&
                      std::is_same_v<typename Problem::GDataType, ck_tile::bf16_t> &&
-                     S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 16)
+                     S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 8)
         {
             return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
                 WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<wg_ctrl>,
