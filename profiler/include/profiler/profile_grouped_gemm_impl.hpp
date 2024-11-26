@@ -41,12 +41,13 @@ bool profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& StrideAs,
                                const std::vector<int>& StrideBs,
                                const std::vector<int>& StrideCs,
-                               const std::vector<int>& kbatches = {1},
+                               const std::vector<int>& kbatches = {},
                                int n_warmup                     = 1,
                                int n_iter                       = 10)
 {
     bool pass = true;
-    // TODO: Fixme
+    // TODO: Fixme - we do not pass compute data type here but need it
+    // to compute error thresholds.
     using ComputeDataType = ADataType;
 
     auto f_host_tensor_descriptor =
@@ -99,9 +100,9 @@ bool profile_grouped_gemm_impl(int do_verification,
         {
         case 0: break;
         case 1:
-            ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k[i]);
-            ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n[i]);
-            max_abs_in_val = 5.f;
+            ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k[i]);
+            ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n[i]);
+            max_abs_in_val = 2.f;
             break;
         default:
             ck::utils::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k[i]);
@@ -294,22 +295,6 @@ bool profile_grouped_gemm_impl(int do_verification,
                         auto rtol = ck::utils::get_relative_threshold<ComputeDataType, CDataType>(
                             gemm_descs[i].K_);
 
-                        // TODO: take a closer look if we have all casting with bhalf correct!
-                        if constexpr(std::is_same_v<ADataType, ck::bhalf_t> ||
-                                     std::is_same_v<BDataType, ck::bhalf_t>)
-                        {
-                            atol = 0.15f;
-                            if(kbatch_curr > 16)
-                                atol = 0.26f;
-                        }
-                        else if constexpr(std::is_same_v<ADataType, ck::f8_t> ||
-                                          std::is_same_v<BDataType, ck::f8_t>)
-                        {
-                            atol = 0.006f;
-                            if(kbatch_curr > 16)
-                                atol = 0.019f;
-                        }
-
                         instance_pass =
                             instance_pass && ck::utils::check_err(c_m_n_device_results[i],
                                                                   c_m_n_host_results[i],
@@ -338,11 +323,12 @@ bool profile_grouped_gemm_impl(int do_verification,
                     pass = pass && instance_pass;
                 }
 
-                float ave_time = invoker_ptr->Run(
-                    argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
-
                 if(time_kernel)
                 {
+                    float ave_time =
+                        invoker_ptr->Run(argument_ptr.get(),
+                                         StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
+
                     std::size_t flop = 0, num_btype = 0;
                     for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     {

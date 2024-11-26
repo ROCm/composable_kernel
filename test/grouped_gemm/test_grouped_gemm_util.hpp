@@ -54,7 +54,7 @@ class TestGroupedGemm : public testing::Test
 
     public:
     static constexpr bool verify_     = true;
-    static constexpr int init_method_ = 2; // integer value initialization
+    static constexpr int init_method_ = 1; // integer value initialization
     static constexpr bool log_        = false;
     static constexpr bool bench_      = false; // measure kernel performance
     static constexpr int n_warmup_    = 0;

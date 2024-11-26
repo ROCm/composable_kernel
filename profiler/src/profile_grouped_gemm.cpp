@@ -89,7 +89,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     const auto StrideAs = argToIntArray(argv[11]);
     const auto StrideBs = argToIntArray(argv[12]);
     const auto StrideCs = argToIntArray(argv[13]);
-    const auto kbatches = argc >= 15 ? argToIntArray(argv[14]) : std::vector<int>{1};
+    const auto kbatches = argc >= 15 ? argToIntArray(argv[14]) : std::vector<int>{};
 
     int n_warmup = 1;
     int n_iter   = 10;

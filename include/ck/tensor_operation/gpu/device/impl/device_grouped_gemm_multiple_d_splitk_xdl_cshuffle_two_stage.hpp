@@ -992,8 +992,10 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 "DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage::Argument structure!");
     }
 
-    // TODO: deprecationo notice!
-    static void SetKBatchSize(Argument& arg, index_t kbatch) { arg.UpdateKBatch(kbatch); }
+    [[deprecated]] static void SetKBatchSize(Argument& arg, index_t kbatch)
+    {
+        arg.UpdateKBatch(kbatch);
+    }
 
     void SetKBatchSize(BaseArgument* p_arg, index_t kbatch) const override
     {
