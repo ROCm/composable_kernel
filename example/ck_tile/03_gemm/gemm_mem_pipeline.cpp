@@ -17,9 +17,24 @@
 template <typename ALayout, typename BLayout, typename CLayout>
 float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
-    // ToDo: This will be modified by the codegen code later.
+#if 1
+    // Memory friendly for Interwave scheduler
     constexpr ck_tile::index_t M_Tile = 128;
-    constexpr ck_tile::index_t N_Tile = 128;
+    constexpr ck_tile::index_t N_Tile = 32;
+    constexpr ck_tile::index_t K_Tile = 64;
+
+    constexpr ck_tile::index_t M_Warp = 4;
+    constexpr ck_tile::index_t N_Warp = 1;
+    constexpr ck_tile::index_t K_Warp = 1;
+
+    constexpr ck_tile::index_t M_Warp_Tile = 32;
+    constexpr ck_tile::index_t N_Warp_Tile = 32;
+    constexpr ck_tile::index_t K_Warp_Tile = 8;
+
+#else
+    // Compute friendly for Intrawave scheduler
+    constexpr ck_tile::index_t M_Tile = 256;
+    constexpr ck_tile::index_t N_Tile = 256;
     constexpr ck_tile::index_t K_Tile = 32;
 
     constexpr ck_tile::index_t M_Warp = 2;
@@ -28,12 +43,12 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 8;
+    constexpr ck_tile::index_t K_Warp_Tile = 16;
+#endif
 
-    // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadM = true;
-    constexpr bool kPadN = true;
-    constexpr bool kPadK = true;
+    constexpr bool kPadM = false;
+    constexpr bool kPadN = false;
+    constexpr bool kPadK = false;
 
     constexpr int kBlockPerCu = 1;
 
@@ -174,8 +189,8 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         {
             std::ostringstream err;
             err << "When there's no hot loop, this tail number \"" << tail_num
-                << "\" is not supported! " << __FILE__ << ":" << __LINE__
-                << ", in function: " << __func__;
+                << "\" is not supported! PrefetchStages: " << BaseGemmPipeline::PrefetchStages
+                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
             throw std::runtime_error(err.str());
         }
     }
