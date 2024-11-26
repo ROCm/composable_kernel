@@ -211,15 +211,16 @@ struct FillNormalDistributionIntegerValue
 template <typename T>
 struct FillMonotonicSeq
 {
-    T init_value_{0};
+    T init_value_{-1024};
     T step_{1};
-
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::generate(first, last, [=, n = init_value_]() mutable {
+        T step_start = init_value_;
+        std::generate(first, last, [&, n = init_value_]() mutable {
             auto tmp = n;
             n += step_;
+            if (n > step_start + 2047) {step_start += step_; n = step_start;}
             return tmp;
         });
     }

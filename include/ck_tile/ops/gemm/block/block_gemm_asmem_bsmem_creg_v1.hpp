@@ -42,9 +42,6 @@ struct BlockGemmASmemBSmemCRegV1
                           KPerBlock == BlockGemmShape::kK,
                       "wrong!");
 
-        // if(threadIdx.x == 0 && blockIdx.x==0) {
-        //     printf("MPerBlock %d NPerBlock %d KPerBlock %d \n", MPerBlock, NPerBlock, KPerBlock); 
-        // }
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
         using WG = remove_cvref_t<decltype(config.template at<0>())>;
@@ -56,12 +53,12 @@ struct BlockGemmASmemBSmemCRegV1
         constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
         constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
 
-        constexpr index_t MPerBlockPerIter = MPerBlock / MIterPerWarp;
-        constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp;
-        constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
+        // constexpr index_t MPerBlockPerIter = MPerBlock / MIterPerWarp;
+        // constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp;
+        // constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
 
-        const index_t iMWarp = get_warp_id() / NWarp;
-        const index_t iNWarp = get_warp_id() % NWarp;
+        // const index_t iMWarp = get_warp_id() / NWarp;
+        // const index_t iNWarp = get_warp_id() % NWarp;
 
         // if(threadIdx.x == 0 && blockIdx.x==0) {
         //     printf("MWarp %d NWarp %d MIterPerWarp %d NIterPerWarp %d KIterPerWarp %d MPerBlockPerIter %d  NPerBlockPerIter %d  KPerBlockPerIter %d \n", MWarp, NWarp,  MIterPerWarp, NIterPerWarp, KIterPerWarp, MPerBlockPerIter, NPerBlockPerIter, KPerBlockPerIter); 
@@ -69,91 +66,69 @@ struct BlockGemmASmemBSmemCRegV1
         // MWarp 2 NWarp 2 MIterPerWarp 4 NIterPerWarp 4 KIterPerWarp 4 MPerBlockPerIter 64  NPerBlockPerIter 64  KPerBlockPerIter 8
 
         
-        // construct A-warp-window
         auto a_warp_window_tmp = make_tile_window(
             a_block_window.get_bottom_tensor_view(),
-            make_tuple(number<WG::kM>{}, number<WG::kK>{}),
-            a_block_window.get_window_origin() + multi_index<2>{iMWarp * WG::kM, 0},
-            make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
-
-#if 0 // FIXME: using array will cause register spill
-        array<array<decltype(a_warp_window_tmp), KIterPerWarp>, MIterPerWarp> a_warp_windows{
-            {a_warp_window_tmp}};
-
-        for(index_t mIter = 0; mIter < MIterPerWarp; mIter++)
-        {
-            for(index_t kIter = 0; kIter < KIterPerWarp; kIter++)
-            {
-                move_tile_window(a_warp_windows(mIter)(kIter),
-                                 {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
-            }
-        }
-#else
-        statically_indexed_array<
-            statically_indexed_array<decltype(a_warp_window_tmp), KIterPerWarp>,
-            MIterPerWarp>
-            a_warp_windows;
-
-        static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                a_warp_windows(mIter)(kIter) = a_warp_window_tmp;
-
-                move_tile_window(a_warp_windows(mIter)(kIter),
-                                 {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
-            });
-        });
-#endif
-
-        // construct B-warp-window
+            make_tuple(MPerBlock, KPerBlock),
+            {0, 0},
+            Policy::template MakeALDSTileDistribution<Problem>());
         auto b_warp_window_tmp = make_tile_window(
             b_block_window.get_bottom_tensor_view(),
-            make_tuple(number<WG::kN>{}, number<WG::kK>{}),
-            b_block_window.get_window_origin() + multi_index<2>{iNWarp * WG::kN, 0},
-            make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
+            make_tuple(NPerBlock, KPerBlock),
+            {0, 0},
+            Policy::template MakeBLDSTileDistribution<Problem>());
 
-#if 0 // FIXME: using array will cause register spill
-        array<array<decltype(b_warp_window_tmp), KIterPerWarp>, NIterPerWarp> b_warp_windows{
-            {b_warp_window_tmp}};
+        auto a_block_tensor = load_tile(a_warp_window_tmp);
+        auto b_block_tensor = load_tile(b_warp_window_tmp);
 
-        for(index_t nIter = 0; nIter < NIterPerWarp; nIter++)
-        {
-            for(index_t kIter = 0; kIter < KIterPerWarp; kIter++)
-            {
-                move_tile_window(b_warp_windows(nIter)(kIter),
-                                 {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
-            }
-        }
-#else
-        statically_indexed_array<
-            statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
-            NIterPerWarp>
-            b_warp_windows;
 
-        static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                b_warp_windows(nIter)(kIter) = b_warp_window_tmp;
+        // if (threadIdx.x == 0) {
+        //     printf("0\n");
+        //     constexpr auto span_2d = decltype(a_block_tensor)::get_distributed_spans();
+        //     sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+        //         sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
+        //             printf("%f %f,", type_convert<float>(a_block_tensor(i_j_idx)), type_convert<float>(b_block_tensor(i_j_idx)));
+        //         });
+        //         printf("\n");
+        //     });
+        // }
+        // __syncthreads();
+        using AWarpDstr = typename WG::AWarpDstr;
+        using BWarpDstr = typename WG::BWarpDstr;
+        using CWarpDstr = typename WG::CWarpDstr;
 
-                move_tile_window(b_warp_windows(nIter)(kIter),
-                                 {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
-            });
-        });
-#endif
-
-        using CWarpDstr   = typename WG::CWarpDstr;
+        using AWarpTensor = typename WG::AWarpTensor;
+        using BWarpTensor = typename WG::BWarpTensor;
         using CWarpTensor = typename WG::CWarpTensor;
 
+        constexpr auto a_warp_y_lengths =
+            to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto b_warp_y_lengths =
+            to_sequence(BWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+
+        constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
+        constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
         // hot loop:
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                // read A warp tensor from A block window
-                const auto a_warp_tensor = load_tile(a_warp_windows(mIter)(kIter));
+                // read A warp tensor from A Block window
+                AWarpTensor a_warp_tensor;
+
+                a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                    // read B warp tensor from B Block window
-                    const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
+                    // read B warp tensor from B block tensor
+                    BWarpTensor b_warp_tensor;
+
+                    b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
+                        merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 
                     // read C warp tensor from C block tensor
                     CWarpTensor c_warp_tensor;
@@ -173,6 +148,36 @@ struct BlockGemmASmemBSmemCRegV1
                 });
             });
         });
+        // constexpr auto c_warp_y_lengths =
+        //     to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        // constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+        // // hot loop:
+        // static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+        //     static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+        //         // read A warp tensor from A block window
+
+        //         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+        //             // read B warp tensor from B Block window
+        //             // const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
+
+        //             // read C warp tensor from C block tensor
+        //             CWarpTensor c_warp_tensor;
+
+        //             c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+        //                 merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+        //                 merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+        //             // warp GEMM
+        //             WG{}(c_warp_tensor, a_warp_tensor(mIter, kIter), b_warp_tensor(nIter, kIter));
+
+        //             // write C warp tensor into C block tensor
+        //             c_block_tensor.set_y_sliced_thread_data(
+        //                 merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+        //                 merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+        //                 c_warp_tensor.get_thread_buffer());
+        //         });
+        //     });
+        // });
     }
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
@@ -217,5 +222,72 @@ struct BlockGemmASmemBSmemCRegV1
         return c_block_tensor;
     }
 };
+        // construct A-warp-window
+        // auto a_warp_window_tmp = make_tile_window(
+        //     a_block_window.get_bottom_tensor_view(),
+        //     make_tuple(number<WG::kM>{}, number<WG::kK>{}),
+        //     a_block_window.get_window_origin() + multi_index<2>{iMWarp * WG::kM, 0},
+        //     make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
+// #if 0 // FIXME: using array will cause register spill
+//         array<array<decltype(a_warp_window_tmp), KIterPerWarp>, MIterPerWarp> a_warp_windows{
+//             {a_warp_window_tmp}};
 
+//         for(index_t mIter = 0; mIter < MIterPerWarp; mIter++)
+//         {
+//             for(index_t kIter = 0; kIter < KIterPerWarp; kIter++)
+//             {
+//                 move_tile_window(a_warp_windows(mIter)(kIter),
+//                                  {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
+//             }
+//         }
+// #else
+//         statically_indexed_array<
+//             statically_indexed_array<decltype(a_warp_window_tmp), KIterPerWarp>,
+//             MIterPerWarp>
+//             a_warp_windows;
+
+//         static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+//             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+//                 a_warp_windows(mIter)(kIter) = a_warp_window_tmp;
+
+//                 move_tile_window(a_warp_windows(mIter)(kIter),
+//                                  {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
+//             });
+//         });
+// #endif
+
+        // construct B-warp-window
+//         auto b_warp_window_tmp = make_tile_window(
+//             b_block_window.get_bottom_tensor_view(),
+//             make_tuple(number<WG::kN>{}, number<WG::kK>{}),
+//             b_block_window.get_window_origin() + multi_index<2>{iNWarp * WG::kN, 0},
+//             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
+
+// #if 0 // FIXME: using array will cause register spill
+//         array<array<decltype(b_warp_window_tmp), KIterPerWarp>, NIterPerWarp> b_warp_windows{
+//             {b_warp_window_tmp}};
+
+//         for(index_t nIter = 0; nIter < NIterPerWarp; nIter++)
+//         {
+//             for(index_t kIter = 0; kIter < KIterPerWarp; kIter++)
+//             {
+//                 move_tile_window(b_warp_windows(nIter)(kIter),
+//                                  {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
+//             }
+//         }
+// #else
+//         statically_indexed_array<
+//             statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
+//             NIterPerWarp>
+//             b_warp_windows;
+
+//         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+//             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+//                 b_warp_windows(nIter)(kIter) = b_warp_window_tmp;
+
+//                 move_tile_window(b_warp_windows(nIter)(kIter),
+//                                  {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
+//             });
+//         });
+// #endif
 } // namespace ck_tile

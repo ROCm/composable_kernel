@@ -133,7 +133,16 @@ struct GemmPipelineAGmemBGmemCRegV1
         // global read 0
         auto a_block_tile = load_tile(a_copy_dram_window);
         auto b_block_tile = load_tile(b_copy_dram_window);
-
+        // if (threadIdx.x == 0) {
+        //     constexpr auto span_2d = decltype(a_block_tile)::get_distributed_spans();
+        //     sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+        //         sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
+        //             printf("%f,", type_convert<float>(a_block_tile(i_j_idx)));
+        //         });
+        //         printf("\n");
+        //     });
+        // }
         {
             // move to 1
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
@@ -170,7 +179,17 @@ struct GemmPipelineAGmemBGmemCRegV1
                 store_tile(b_copy_lds_window, tile_elementwise_in(b_element_func, b_block_tile));
             }
         }
-
+        // __syncthreads();
+        // if (threadIdx.x == 0) {
+        //     for (int j = 0; j < 256; j++) {
+        //         for(int i = 0; i < 32; i++) {
+        //             int ik0 = i /8;
+        //             int ik1 = i % 8;
+        //             printf("%f,", type_convert<float>(p_b_lds[ik1 + j * 8 + ik0 * 8 * 256]));
+        //         }
+        //         printf("\n");
+        //     }
+        // }
         index_t iCounter = num_loop - 1;
         while(iCounter > 0)
         {
@@ -219,6 +238,17 @@ struct GemmPipelineAGmemBGmemCRegV1
             block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
         }
 
+        // if (threadIdx.x == 0) {
+            // constexpr auto span_2d = decltype(c_block_tile)::get_distributed_spans();
+            // sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+            //     sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+            //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
+            //         if(abs(type_convert<float>(c_block_tile(i_j_idx)) - 32) > 0.1)
+            //             printf("%d %f,", threadIdx.x, type_convert<float>(c_block_tile(i_j_idx)));
+            //     });
+            //     printf("\n");
+            // });
+        // }
         return c_block_tile;
     }
 

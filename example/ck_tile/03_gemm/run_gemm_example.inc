@@ -117,6 +117,10 @@ int run_gemm_example_with_layouts(int argc,
 
     ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
     ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+    // ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
+    // ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
+    // ck_tile::FillConstant<ADataType>{1.f}(a_m_k);
+    // ck_tile::FillConstant<BDataType>{1.f}(b_k_n);
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
