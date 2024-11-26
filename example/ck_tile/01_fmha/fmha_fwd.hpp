@@ -184,7 +184,7 @@ struct fmha_fwd_splitkv_args
     //             seqlen_q = kargs.seqstart_q_ptr[b + 1] - kargs.seqstart_q_ptr[b]
     //
     //     when is_gappy=true:
-    //             seqlen_k = kargs.seqlen_k_ptr[b + 1] - kargs.seqlen_k_ptr[b]
+    //             seqlen_k = kargs.seqlen_k_ptr[b]
     //             seqstart_k_ptr[b] now store local offset of each batch
     //
     //     when is_gappy=false:
