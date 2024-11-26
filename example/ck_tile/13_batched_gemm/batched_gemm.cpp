@@ -9,6 +9,7 @@
 #include <string>
 #include <tuple>
 
+#include "ck_tile/core.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
@@ -73,9 +74,6 @@ float gemm_calc(const batched_gemm_kargs& args, const ck_tile::stream_config& s)
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
 
-    using CodegenPipelineProblem = ck_tile::
-        GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
-
     using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
@@ -88,7 +86,7 @@ float gemm_calc(const batched_gemm_kargs& args, const ck_tile::stream_config& s)
 
     if(s.log_level_ > 0)
     {
-        std::cout << "Lunching kernel with args:"
+        std::cout << "Launching kernel with args:"
                   << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                   << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                   << std::endl;

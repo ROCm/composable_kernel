@@ -48,7 +48,9 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
 
     std::cout << "Run " << op_name << "kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << " batch_stride_A =" << batch_stride_A << " batch_stride_B =" << batch_stride_B
+              << " batch_stride_C =" << batch_stride_C << " batch_count =" << batch_count << " : "
+              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
 
     return ave_time;
@@ -65,7 +67,6 @@ int run_batched_gemm_example_with_layouts(int argc,
     if(!result)
         return -1;
 
-    ////
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
@@ -170,8 +171,10 @@ int run_batched_gemm_example_with_layouts(int argc,
             f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, CLayout{}));
         c_m_n_host_ref.SetZero();
 
+        const auto b_n_k = b_k_n.transpose({0, 2, 1});
+
         ck_tile::reference_batched_gemm<ADataType, BDataType, AccDataType, CDataType>(
-            a_m_k, b_k_n, c_m_n_host_ref);
+            a_m_k, b_n_k, c_m_n_host_ref);
 
         pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_host_ref);
 
