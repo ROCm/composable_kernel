@@ -59,13 +59,8 @@ inline constexpr bool is_native_type()
 {
     return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
            is_same<T, bhalf_t>::value || is_same<T, int32_t>::value || is_same<T, int8_t>::value ||
-<<<<<<< HEAD
-           is_same<T, uint8_t>::value || is_same<T, f8_t>::value || is_same<T, bf8_t>::value ||
-           is_same<T, bool>::value || is_same<T, f4_t>::value;
-=======
            is_same<T, uint8_t>::value || is_same<T, f8_fnuz_t>::value ||
-           is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value;
->>>>>>> 1504c3e8f552f519e963f3bc1880946c00a7fbc5
+           is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value || is_same<T, f4_t>::value;
 }
 
 // vector_type
@@ -1779,17 +1774,17 @@ using bf8x32_t = bf8x32_ocp_t;
 using bf8x64_t = bf8x64_ocp_t;
 #elif CK_FP8_TYPE_FNUZ
 // f8
-using f8x2_t = f8x2_fnuz_t;
-using f8x4_t = f8x4_fnuz_t;
-using f8x8_t = f8x8_fnuz_t;
+using f8x2_t  = f8x2_fnuz_t;
+using f8x4_t  = f8x4_fnuz_t;
+using f8x8_t  = f8x8_fnuz_t;
 using f8x16_t = f8x16_fnuz_t;
 using f8x32_t = f8x32_fnuz_t;
 using f8x64_t = f8x64_fnuz_t;
 
 // bf8
-using bf8x2_t = bf8x2_fnuz_t;
-using bf8x4_t = bf8x4_fnuz_t;
-using bf8x8_t = bf8x8_fnuz_t;
+using bf8x2_t  = bf8x2_fnuz_t;
+using bf8x4_t  = bf8x4_fnuz_t;
+using bf8x8_t  = bf8x8_fnuz_t;
 using bf8x16_t = bf8x16_fnuz_t;
 using bf8x32_t = bf8x32_fnuz_t;
 using bf8x64_t = bf8x64_fnuz_t;
@@ -2044,7 +2039,6 @@ struct NumericUtils<half_t>
 };
 
 template <>
-<<<<<<< HEAD
 struct NumericUtils<bhalf_t>
 {
     static constexpr int exp  = 8;
@@ -2054,10 +2048,7 @@ struct NumericUtils<bhalf_t>
 };
 
 template <>
-struct NumericUtils<f8_t>
-=======
 struct NumericUtils<f8_fnuz_t>
->>>>>>> 1504c3e8f552f519e963f3bc1880946c00a7fbc5
 {
     static constexpr int exp  = 4;
     static constexpr int mant = 3;
