@@ -198,7 +198,7 @@ int main()
         throw std::runtime_error("wrong! this device_op instance does not support this problem");
     }
 
-    // init reducetion buffer to 0
+    // init reduction buffer to 0
     r0_device_buf.SetZero();
     r1_device_buf.SetZero();
 

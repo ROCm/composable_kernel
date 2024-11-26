@@ -432,23 +432,38 @@ struct tile_window_linear
     CK_TILE_DEVICE static constexpr index_t get_bottom_linear_offset(number<i_access>)
     {
         constexpr auto linear_coord = get_bottom_linear_coordinate(number<i_access>{});
-        // since this is linear offset, we assum bottom X tensor is always linear
-        constexpr index_t linear_offset = [&]() {
-            constexpr auto x_idx_ = linear_coord;
-            constexpr auto x_len_ = TileDstr{}.get_lengths();
-            static_assert(x_idx_.size() == x_len_.size());
-            constexpr index_t x_dims_ = x_idx_.size();
-            index_t cu_stride_        = 1;
-            index_t cu_offset_        = 0;
-            static_for<0, x_dims_, 1>{}([&](auto i_) {
-                auto r_i_ = number<x_dims_ - i_ - 1>{};
-                cu_offset_ += x_idx_[r_i_] * cu_stride_;
-                cu_stride_ *= x_len_[r_i_];
-            });
-            return cu_offset_;
-        }();
-
-        return linear_offset;
+        constexpr auto is_pure_linear_tensor =
+            reduce_on_sequence(LinearBottomDims{}, multiplies{}, number<1>{});
+        if constexpr(is_pure_linear_tensor)
+        {
+            // this case usually is a LDS window, everything is known at compile tile.
+            // we directly use BottomTensorView transform to compute the offset, in case padding
+            auto bottom_tensor_coord =
+                make_tensor_coordinate(BottomTensorView{}.get_tensor_descriptor(), linear_coord);
+            return bottom_tensor_coord.get_offset();
+        }
+        else
+        {
+            // this case usually is a global window, where last dim can be linear
+            // we hack here, that use the original TileDstr to compute the linear offset
+            // ... hoping that there is no extra padding between other dims, which make sense
+            // since that would introduce runtime length (so can't use linear offset)
+            constexpr index_t linear_offset = [&]() {
+                constexpr auto x_idx_ = linear_coord;
+                constexpr auto x_len_ = TileDstr{}.get_lengths();
+                static_assert(x_idx_.size() == x_len_.size());
+                constexpr index_t x_dims_ = x_idx_.size();
+                index_t cu_stride_        = 1;
+                index_t cu_offset_        = 0;
+                static_for<0, x_dims_, 1>{}([&](auto i_) {
+                    auto r_i_ = number<x_dims_ - i_ - 1>{};
+                    cu_offset_ += x_idx_[r_i_] * cu_stride_;
+                    cu_stride_ *= x_len_[r_i_];
+                });
+                return cu_offset_;
+            }();
+            return linear_offset;
+        }
     }
 
     CK_TILE_DEVICE constexpr auto get_num_of_access() const { return traits::NumAccess; }
@@ -462,6 +477,64 @@ struct tile_window_linear
         constexpr auto tile_dstr = TileDstr{};
 
         auto dst_tensor = make_static_distributed_tensor<DataType>(tile_dstr);
+
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess = number<i_access_>{};
+
+            constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
+            auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
+            auto bottom_tensor_flag         = cached_flags_[IAccess];
+
+            constexpr auto linear_offset = get_bottom_linear_offset(IAccess);
+
+            // read from bottom tensor
+            const vector_t vec_value =
+                get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
+                    bottom_tensor_thread_coord,
+                    linear_offset,
+                    bottom_tensor_flag,
+                    bool_constant<oob_conditional_check>{});
+#if 1
+            // data index [y0, y1, ...]
+            constexpr auto idx_diff_ys = SFC_Ys::get_index(IAccess);
+            // write into distributed tensor
+            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+                constexpr auto idx_ys = generate_tuple(
+                    [&](auto jj) {
+                        return jj == traits::VectorDimY ? (idx_diff_ys[jj] + j) : idx_diff_ys[jj];
+                    },
+                    number<NDimY>{});
+
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+
+                dst_tensor.get_thread_buffer().template at<d>() =
+                    vec_value.template get_as<DataType>()[j];
+            });
+#else
+            constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
+            static_assert(d % traits::ScalarPerVector == 0);
+
+            dst_tensor.get_thread_buffer().template get_as<vector_t>()(
+                number<d / traits::ScalarPerVector>{}) = bit_cast<vector_t>(vec_value);
+#endif
+        };
+
+        WINDOW_DISPATCH_ISSUE();
+
+        return dst_tensor;
+    }
+
+    template <typename DstTile, index_t i_access = -1, bool oob_conditional_check = true>
+    CK_TILE_DEVICE auto load(DstTile& dst_tensor,
+                             number<i_access>                     = {},
+                             bool_constant<oob_conditional_check> = {}) const
+    {
+        using vector_t = typename traits::vector_t;
+        using SFC_Ys   = typename traits::SFC_Ys;
+
+        constexpr auto tile_dstr = TileDstr{};
+
+        // auto dst_tensor = make_static_distributed_tensor<DataType>(tile_dstr);
 
         auto issue = [&](auto i_access_) {
             constexpr auto IAccess = number<i_access_>{};
@@ -844,6 +917,58 @@ struct tile_window_linear
                 bottom_tensor_flag,
                 vec_value,
                 bool_constant<oob_conditional_check>{});
+        };
+
+        WINDOW_DISPATCH_ISSUE();
+    }
+
+    template <index_t i_access = -1, bool oob_conditional_check = true, bool pre_nop = false>
+    CK_TILE_DEVICE void update_raw(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+                                   number<i_access>                     = {},
+                                   bool_constant<oob_conditional_check> = {},
+                                   bool_constant<pre_nop>               = {}) const
+    {
+
+        using vector_t = typename traits::vector_t;
+        using SFC_Ys   = typename traits::SFC_Ys;
+
+        constexpr auto tile_dstr = TileDstr{};
+
+        // loop over thread tensor space [y0, y1, ...]
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess          = number<i_access_>{};
+            constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
+            auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
+            constexpr auto linear_offset    = get_bottom_linear_offset(IAccess);
+            auto bottom_tensor_flag         = cached_flags_[IAccess];
+
+            // data index [y0, y1, ...]
+            constexpr auto idx_ys_start = SFC_Ys::get_index(IAccess);
+
+            // read from distributed tensor
+            vector_t vec_value;
+
+            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+                constexpr auto idx_ys = generate_tuple(
+                    [&](auto jj) {
+                        return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
+                    },
+                    number<NDimY>{});
+
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+
+                vec_value.template get_as<DataType>()(j) =
+                    dstr_tensor.get_thread_buffer().template at<d>();
+            });
+
+            // write into bottom tensor
+            get_bottom_tensor_view().template update_vectorized_elements_raw<vector_t>(
+                bottom_tensor_thread_coord,
+                linear_offset,
+                bottom_tensor_flag,
+                vec_value,
+                bool_constant<oob_conditional_check>{},
+                bool_constant<pre_nop>{});
         };
 
         WINDOW_DISPATCH_ISSUE();

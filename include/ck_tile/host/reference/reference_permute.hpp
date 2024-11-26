@@ -16,7 +16,7 @@ namespace ck_tile {
 */
 template <typename DataType>
 CK_TILE_HOST void
-reference_permute(const HostTensor<DataType>& x, HostTensor<DataType>& y, std::vector<index_t> dims)
+reference_permute(const HostTensor<DataType>& x, HostTensor<DataType>& y, std::vector<index_t> perm)
 {
     const auto x_len = x.mDesc.get_lengths();
     const auto y_len = y.mDesc.get_lengths();
@@ -43,7 +43,7 @@ reference_permute(const HostTensor<DataType>& x, HostTensor<DataType>& y, std::v
             std::vector<size_t> tmp(rank, 0);
             for(index_t i = 0; i < rank; i++)
             {
-                tmp[dims[i]] = y_coord[i];
+                tmp[perm[i]] = y_coord[i];
             }
             return tmp;
         }();
@@ -53,5 +53,24 @@ reference_permute(const HostTensor<DataType>& x, HostTensor<DataType>& y, std::v
     };
 
     make_ParallelTensorFunctor(f, x_elm)(std::thread::hardware_concurrency());
+}
+
+template <typename DataType>
+CK_TILE_HOST auto reference_permute(const HostTensor<DataType>& x, std::vector<index_t> perm)
+{
+    auto x_shape                          = x.get_lengths();
+    ck_tile::index_t rank                 = perm.size();
+    std::vector<ck_tile::index_t> y_shape = [&]() {
+        std::vector<ck_tile::index_t> tmp(rank, 0);
+        for(int i = 0; i < static_cast<int>(rank); i++)
+        {
+            tmp[i] = x_shape[perm[i]];
+        }
+        return tmp;
+    }();
+
+    HostTensor<DataType> y(y_shape);
+    reference_permute(x, y, perm);
+    return y;
 }
 } // namespace ck_tile
