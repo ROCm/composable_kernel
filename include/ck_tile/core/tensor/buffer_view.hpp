@@ -437,31 +437,71 @@ struct buffer_view<address_space_enum::global,
     // i is offset of T, not X. i should be aligned to X
     template <memory_operation_enum Op,
               typename X,
+              bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE void update(index_t i, index_t linear_offset, bool is_valid_element, const X& x)
+    CK_TILE_DEVICE void update(index_t i,
+                               index_t linear_offset,
+                               bool is_valid_element,
+                               const X& x,
+                               bool_constant<oob_conditional_check> = {})
     {
         if constexpr(Op == memory_operation_enum::set)
         {
-            this->template set<X>(i, linear_offset, is_valid_element, x);
+            this->template set<X, oob_conditional_check>(i, linear_offset, is_valid_element, x);
         }
         else if constexpr(Op == memory_operation_enum::atomic_add)
         {
-            this->template atomic_add<X>(i, linear_offset, is_valid_element, x);
+            this->template atomic_add<X, oob_conditional_check>(
+                i, linear_offset, is_valid_element, x);
         }
         else if constexpr(Op == memory_operation_enum::atomic_max)
         {
-            this->template atomic_max<X>(i, linear_offset, is_valid_element, x);
+            this->template atomic_max<X, oob_conditional_check>(
+                i, linear_offset, is_valid_element, x);
         }
         // FIXME: remove memory_operation_enum::add
         else if constexpr(Op == memory_operation_enum::add)
         {
-            auto tmp = this->template get<X>(i, linear_offset, is_valid_element);
-            this->template set<X>(i, linear_offset, is_valid_element, x + tmp);
+            auto tmp =
+                this->template get<X, oob_conditional_check>(i, linear_offset, is_valid_element);
+            this->template set<X, oob_conditional_check>(
+                i, linear_offset, is_valid_element, x + tmp);
             // tmp += x;
             // this->template set<X>(i, is_valid_element, tmp);
+        }
+    }
+
+    // i is offset of T, not X. i should be aligned to X
+    template <memory_operation_enum Op,
+              typename X,
+              bool oob_conditional_check = true,
+              bool pre_nop               = false,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE void update_raw(index_t i,
+                                   index_t linear_offset,
+                                   bool is_valid_element,
+                                   const X& x,
+                                   bool_constant<oob_conditional_check> = {},
+                                   bool_constant<pre_nop>               = {})
+    {
+        if constexpr(Op == memory_operation_enum::set)
+        {
+            this->template set_raw<X, oob_conditional_check>(i, linear_offset, is_valid_element, x);
+        }
+        else if constexpr(Op == memory_operation_enum::atomic_add)
+        {
+            this->template atomic_add_raw<X, oob_conditional_check, pre_nop>(
+                i, linear_offset, is_valid_element, x);
+        }
+        else if constexpr(Op == memory_operation_enum::atomic_max)
+        {
+            // this->template atomic_max_raw<X>(i, linear_offset, is_valid_element, x);
         }
     }
 
@@ -533,6 +573,7 @@ struct buffer_view<address_space_enum::global,
     }
 
     template <typename X,
+              bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
@@ -585,6 +626,39 @@ struct buffer_view<address_space_enum::global,
     }
 
     template <typename X,
+              bool oob_conditional_check = true,
+              bool pre_nop               = true,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE void
+    atomic_add_raw(index_t i, index_t linear_offset, bool is_valid_element, const X& x)
+    {
+        // using scalar_t = typename vector_traits<remove_cvref_t<T>>::scalar_type;
+
+        // X contains multiple T
+        constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector = vector_traits<remove_cvref_t<X>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+        static_assert(get_address_space() == address_space_enum::global, "only support global mem");
+
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
+        amd_buffer_atomic_add_raw<remove_cvref_t<T>,
+                                  t_per_x,
+                                  Coherence,
+                                  oob_conditional_check,
+                                  pre_nop>(
+            x, p_data_, i, linear_offset, is_valid_element, buffer_size_);
+    }
+
+    template <typename X,
+              bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,

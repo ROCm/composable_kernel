@@ -8,12 +8,13 @@
 #include <iostream>
 #include <iomanip>
 #include <numeric>
-#include <thread>
 #include <utility>
 #include <vector>
 #include <functional>
+#include <fstream>
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/joinable_thread.hpp"
 #include "ck_tile/host/ranges.hpp"
 
 namespace ck_tile {
@@ -212,23 +213,6 @@ CK_TILE_HOST HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old
 
     return HostTensorDescriptor(new_lengths, new_strides);
 }
-
-struct joinable_thread : std::thread
-{
-    template <typename... Xs>
-    joinable_thread(Xs&&... xs) : std::thread(std::forward<Xs>(xs)...)
-    {
-    }
-
-    joinable_thread(joinable_thread&&) = default;
-    joinable_thread& operator=(joinable_thread&&) = default;
-
-    ~joinable_thread()
-    {
-        if(this->joinable())
-            this->join();
-    }
-};
 
 template <typename F, typename... Xs>
 struct ParallelTensorFunctor
@@ -588,6 +572,107 @@ struct HostTensor
         using Element = std::remove_reference_t<U>;
         return ck_tile::span<Element>{reinterpret_cast<Element*>(data()),
                                       size() * FromSize / ToSize};
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const HostTensor<T>& t)
+    {
+        os << t.mDesc;
+        os << "[";
+        for(typename Data::size_type idx = 0; idx < t.mData.size(); ++idx)
+        {
+            if(0 < idx)
+            {
+                os << ", ";
+            }
+            if constexpr(std::is_same_v<T, bf16_t> || std::is_same_v<T, fp16_t>)
+            {
+                os << type_convert<float>(t.mData[idx]) << " #### ";
+            }
+            else
+            {
+                os << t.mData[idx];
+            }
+        }
+        os << "]";
+        return os;
+    }
+
+    // read data from a file, as dtype
+    // the file could dumped from torch as (targeting tensor is t here)
+    // numpy.savetxt("f.txt", t.view(-1).numpy())
+    // numpy.savetxt("f.txt", t.cpu().view(-1).numpy()) # from cuda to cpu to save
+    // numpy.savetxt("f.txt", t.cpu().view(-1).numpy(), fmt="%d")   # save as int
+    // will output f.txt, each line is a value
+    // dtype=float or int, internally will cast to real type
+    void loadtxt(std::string file_name, std::string dtype = "float")
+    {
+        std::ifstream file(file_name);
+
+        if(file.is_open())
+        {
+            std::string line;
+
+            index_t cnt = 0;
+            while(std::getline(file, line))
+            {
+                if(cnt >= static_cast<index_t>(mData.size()))
+                {
+                    throw std::runtime_error(std::string("data read from file:") + file_name +
+                                             " is too big");
+                }
+
+                if(dtype == "float")
+                {
+                    mData[cnt] = type_convert<T>(std::stof(line));
+                }
+                else if(dtype == "int" || dtype == "int32")
+                {
+                    mData[cnt] = type_convert<T>(std::stoi(line));
+                }
+                cnt++;
+            }
+            file.close();
+            if(cnt < static_cast<index_t>(mData.size()))
+            {
+                std::cerr << "Warning! reading from file:" << file_name
+                          << ", does not match the size of this tensor" << std::endl;
+            }
+        }
+        else
+        {
+            // Print an error message to the standard error
+            // stream if the file cannot be opened.
+            throw std::runtime_error(std::string("unable to open file:") + file_name);
+        }
+    }
+
+    // can save to a txt file and read from torch as:
+    // torch.from_numpy(np.loadtxt('f.txt', dtype=np.int32/np.float32...)).view([...]).contiguous()
+    void savetxt(std::string file_name, std::string dtype = "float")
+    {
+        std::ofstream file(file_name);
+
+        if(file.is_open())
+        {
+            for(auto& itm : mData)
+            {
+                if(dtype == "float")
+                    file << type_convert<float>(itm) << std::endl;
+                else if(dtype == "int")
+                    file << type_convert<int>(itm) << std::endl;
+                else
+                    // TODO: we didn't implement operator<< for all custom
+                    // data types, here fall back to float in case compile error
+                    file << type_convert<float>(itm) << std::endl;
+            }
+            file.close();
+        }
+        else
+        {
+            // Print an error message to the standard error
+            // stream if the file cannot be opened.
+            throw std::runtime_error(std::string("unable to open file:") + file_name);
+        }
     }
 
     Descriptor mDesc;

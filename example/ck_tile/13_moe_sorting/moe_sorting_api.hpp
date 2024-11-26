@@ -5,7 +5,7 @@
 #include <string>
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "ck_tile/ops/moe_sorting.hpp"
+#include "ck_tile/ops/fused_moe.hpp"
 
 struct moe_sorting_trait
 {
