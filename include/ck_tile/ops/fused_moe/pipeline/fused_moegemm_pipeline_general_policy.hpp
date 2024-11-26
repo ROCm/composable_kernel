@@ -13,6 +13,8 @@ namespace ck_tile {
 
 struct FusedMoeGemmPipelineGeneralPolicy
 {
+    static constexpr int kKIter = 2;
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetAsyncCopyDwords()
     {
         // TODO: always 1 dword
@@ -88,31 +90,6 @@ struct FusedMoeGemmPipelineGeneralPolicy
         return 16 / sizeof(typename Problem::YDataType);
     }
 
-#if 0
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetWaveFlattenShape()
-    {
-        using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
-
-        constexpr index_t Kv = GetAlignment_G<{Problem}>();
-        constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
-        constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
-        return sequence<Kw, Nw, Kv>{};
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockTileNrKr()
-    {
-        using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
-
-        constexpr index_t Kv = GetAlignment_G<{Problem}>();
-        constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
-        constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
-        return sequence<Problem::BlockShape::Block_K0 / Nw,
-                        Problem::BlockShape::Block_K0 / (Kw * Kv)>{};
-    }
-#endif
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize_A()
     {
@@ -184,54 +161,6 @@ struct FusedMoeGemmPipelineGeneralPolicy
         }
     }
 
-    // optimized version for async, not same as simple MXK dist(pay attention!!)
-    template <index_t MPerBlock, index_t KPerBlock, index_t NumWarps, index_t Alignment>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_SimpleMxK_Async()
-    {
-        constexpr index_t K_vec = Alignment;
-        constexpr index_t K_rem = KPerBlock / K_vec;
-
-        if constexpr(get_warp_size() <= K_rem)
-        {
-            static_assert(K_rem % get_warp_size() == 0);
-            constexpr index_t K_lan = get_warp_size(); // lane within same wave is along gemm-k
-            constexpr index_t K_wav = K_rem / get_warp_size();
-            static_assert(K_wav <= NumWarps, "do not support thread has repeat along K yet");
-            constexpr index_t M_wav = NumWarps / K_wav;
-            static_assert(MPerBlock % M_wav == 0, "this tile size is too small please check");
-            constexpr index_t M_rep = MPerBlock / M_wav;
-            // NOTE: no swap, but hard to avoid LDS bank conflict
-            return make_static_tile_distribution(
-                tile_distribution_encoding<
-                    sequence<1>,
-                    tuple<sequence<M_rep, M_wav>, sequence<K_wav, K_lan, K_vec>>,
-                    tuple<sequence<1, 2>, sequence<2>>,
-                    tuple<sequence<1, 0>, sequence<1>>,
-                    sequence<1, 2>,
-                    sequence<0, 2>>{});
-        }
-        else
-        {
-            constexpr index_t K_lan = K_rem;
-            constexpr index_t M_lan = get_warp_size() / K_lan;
-            constexpr index_t M_wav = NumWarps;
-            static_assert(MPerBlock % (M_lan * M_wav) == 0,
-                          "this tile size is too small please check");
-            constexpr index_t M_rep = MPerBlock / (M_lan * M_wav);
-            // NOTE: swapped for LDS load bank conflict free
-            return make_static_tile_distribution(
-                tile_distribution_encoding<
-                    sequence<1>,
-                    // Note M_wave(num waves) is the fastest dim, different from sipmle 2d
-                    // distribution
-                    tuple<sequence<M_rep, M_lan, M_wav>, sequence<K_lan, K_vec>>,
-                    tuple<sequence<1>, sequence<1, 2>>,
-                    tuple<sequence<2>, sequence<1, 0>>,
-                    sequence<1, 2>,
-                    sequence<0, 1>>{});
-        }
-    }
-
     template <index_t WarpPerBlock_N_,
               index_t WarpPerBlock_K_,
               index_t Repeat_N_,
@@ -258,29 +187,22 @@ struct FusedMoeGemmPipelineGeneralPolicy
         constexpr index_t Block_K_   = Problem::BlockShape::Block_K0;
         constexpr index_t NumWarps_  = Problem::BlockShape::NumWarps;
         constexpr index_t Alignment_ = GetAlignment_A<Problem>();
-        return MakeGlobalTileDistribution_SimpleMxK_Async<Block_M_,
-                                                          Block_K_,
-                                                          NumWarps_,
-                                                          Alignment_>();
+        return MakeGlobalTileDistribution_SimpleMxK<Block_M_, Block_K_, NumWarps_, Alignment_>();
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_G()
     {
-        constexpr auto PermuteEnum = Problem::Traits::PermuteEnum;
-        // constexpr index_t hidden_radio_0 = Problem::Traits::IsGateOnly ? 1 : 2;
         using S_ = typename Problem::BlockShape;
-        if constexpr(PermuteEnum == FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten)
-        {
-            // number<S_::WarpPerBlock_N0>{}.rrr();
-            // number<S_::Repeat_N0>{}.eee();
-            return MakeGlobalTileDistribution_Nr_Kr_W<S_::WarpPerBlock_N0,
-                                                      S_::WarpPerBlock_K0,
-                                                      S_::Repeat_N0, /// hidden_radio_0,
-                                                      S_::Repeat_K0,
-                                                      get_warp_size(),
-                                                      GetAlignment_G<Problem>()>();
-        }
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<1>,
+                tuple<sequence<S_::Repeat_N0, S_::WarpPerBlock_N0, S_::Warp_N0>,
+                      sequence<kKIter, get_warp_size() / S_::Warp_N0, S_::Warp_K0>>,
+                tuple<sequence<1>, sequence<1, 2>>,
+                tuple<sequence<1>, sequence<2, 1>>,
+                sequence<1, 2, 2>,
+                sequence<0, 0, 2>>{});
     }
 
     template <typename Problem>
@@ -543,48 +465,6 @@ struct FusedMoeGemmPipelineGeneralPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBridgeLdsStoreForUKDesc()
-    {
-        constexpr index_t WarpPerBlock_N = Problem::BlockShape::WarpPerBlock_N0;
-        constexpr index_t Repeat_N       = Problem::BlockShape::Repeat_N0;
-        constexpr index_t Repeat_M       = Problem::BlockShape::Repeat_M0;
-
-        constexpr index_t kAMLane     = 16;
-        constexpr index_t kABKLane    = 4;
-        constexpr index_t kABKPerLane = 4;
-
-        constexpr index_t KPack = kABKPerLane;
-
-        constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<Repeat_M>{},                                               // m
-                       number<Repeat_N>{},                                               // n
-                       number<WarpPerBlock_N>{},                                         // n
-                       number<kABKLane>{},                                               // n
-                       number<kAMLane>{},                                                // m
-                       number<KPack>{}),                                                 // n
-            make_tuple(number<Repeat_N * WarpPerBlock_N * kABKLane * kAMLane * KPack>{}, //  m
-                       number<WarpPerBlock_N * kABKLane * kAMLane * KPack>{},            //  n
-                       number<kABKLane * kAMLane * KPack>{},                             //  n
-                       number<kAMLane * KPack>{},                                        //  n
-                       number<KPack>{},                                                  //  m
-                       number<1>{}),                                                     //  n
-            number<KPack>{}, // lds store vector(actually no explicit store)
-            number<1>{});
-
-        constexpr auto desc = transform_tensor_descriptor(
-            lds_block_desc_0,
-            make_tuple(make_merge_transform(make_tuple(number<Repeat_M>{}, number<kAMLane>{})),
-                       make_merge_transform(make_tuple(number<Repeat_N>{},
-                                                       number<WarpPerBlock_N>{},
-                                                       number<kABKLane>{},
-                                                       number<KPack>{}))),
-            make_tuple(sequence<0, 4>{}, sequence<1, 2, 3, 5>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return desc;
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemm0()
     {
         using S_ = typename Problem::BlockShape;
@@ -595,6 +475,14 @@ struct FusedMoeGemmPipelineGeneralPolicy
         if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::bf16_t> &&
                      std::is_same_v<typename Problem::GDataType, ck_tile::bf16_t> &&
                      S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 16)
+        {
+            return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+                WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<wg_ctrl>,
+                1>>{};
+        }
+        else if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::bf16_t> &&
+                          std::is_same_v<typename Problem::GDataType, ck_tile::bf16_t> &&
+                          S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 16)
         {
             return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
                 WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<wg_ctrl>,
@@ -611,109 +499,6 @@ struct FusedMoeGemmPipelineGeneralPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSequencer_0()
-    {
-        // this function return seq<...> used to identify gld/sld/valu... inside mfma sequence
-        // the purpose is to hide thoes instructions under mfma
-        // every value inside seq<...> is a mask, indicating a specific operation
-        using S_                = typename Problem::BlockShape;
-        constexpr index_t SLD_A = static_cast<index_t>(FusedMoeGemmPipelineSequencerEnum::SLD_A);
-        constexpr index_t GLD_A = static_cast<index_t>(FusedMoeGemmPipelineSequencerEnum::GLD_A);
-        constexpr index_t GLD_B = static_cast<index_t>(FusedMoeGemmPipelineSequencerEnum::GLD_B);
-        if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
-                     std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
-                     S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 16 &&
-                     S_::Block_M0 == 32 && S_::Block_N0 == 512 && S_::Block_K0 == 128 &&
-                     S_::Block_N1 == 128)
-        {
-            // Total 64 instructions, 32 buffer-load-dwordx4 gld_b, 8x buffer-load-dwordx1-async
-            // gld_a 8x ds_read_b128 sld_a total 64 slot :)
-            // clang-format off
-            constexpr auto seq_all =
-                    //       0       1       2        3       4      5        6       7
-                   sequence<GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,    // 0
-                            GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,    // 1
-                            GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A,    // 2
-                            GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A,    // 3
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 4
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 5
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 6
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0>{}; // 7
-            return seq_all;
-            // clang-format on
-        }
-        else if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
-                          std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
-                          S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 16 &&
-                          S_::Block_M0 == 32 && S_::Block_N0 == 256 && S_::Block_K0 == 128 &&
-                          S_::Block_N1 == 128)
-        {
-            // Total 32 instructions, 16 buffer-load-dwordx4 gld_b, 8x buffer-load-dwordx1-async
-            // gld_a 8x ds_read_b128 sld_a total 64 slot :)
-            // clang-format off
-            constexpr auto seq_all =
-                    //       0       1       2        3       4      5        6       7
-                   sequence<GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,    // 0
-                            GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,  GLD_B,  GLD_A,    // 1
-                            GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A,    // 2
-                            GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A,  GLD_B,  SLD_A>{};    // 3
-            return seq_all;
-            // clang-format on
-        }
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSequencer_1()
-    {
-        // this function return seq<...> used to identify gld/sld/valu... inside mfma sequence
-        // the purpose is to hide thoes instructions under mfma
-        // every value inside seq<...> is a mask, indicating a specific operation
-        using S_                = typename Problem::BlockShape;
-        constexpr index_t GLD_B = static_cast<index_t>(FusedMoeGemmPipelineSequencerEnum::GLD_B);
-        constexpr index_t GST_O = static_cast<index_t>(FusedMoeGemmPipelineSequencerEnum::GST_O);
-        if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
-                     std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
-                     S_::Warp_M1 == 32 && S_::Warp_N1 == 32 && S_::Warp_K1 == 16 &&
-                     S_::Block_M0 == 32 && S_::Block_N0 == 512 && S_::Block_K0 == 128 &&
-                     S_::Block_N1 == 128)
-        {
-            // Total 64 instructions, 32 buffer-load-dwordx4 gld_b, 8x buffer-load-dwordx1-async
-            // gld_a 8x ds_read_b128 sld_a total 64 slot :)
-            // clang-format off
-            constexpr auto seq_all =
-                    //       0       1       2        3       4      5        6       7
-                   sequence<GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,    // 0
-                            GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,    // 1
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 2
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 3
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 4
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 5
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 6
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0>{}; // 7
-            return seq_all;
-            // clang-format on
-        }
-        else if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
-                          std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
-                          S_::Warp_M1 == 32 && S_::Warp_N1 == 32 && S_::Warp_K1 == 16 &&
-                          S_::Block_M0 == 32 && S_::Block_N0 == 256 && S_::Block_K0 == 128 &&
-                          S_::Block_N1 == 128)
-        {
-            // Total 64 instructions, 32 buffer-load-dwordx4 gld_b, 8x buffer-load-dwordx1-async
-            // gld_a 8x ds_read_b128 sld_a total 64 slot :)
-            // clang-format off
-            constexpr auto seq_all =
-                    //       0       1       2        3       4      5        6       7
-                   sequence<GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,    // 0
-                            GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,  GLD_B,  GST_O,    // 1
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0,    // 2
-                            GLD_B,      0,  GLD_B,      0,  GLD_B,      0,  GLD_B,      0>{};    // 3
-            return seq_all;
-            // clang-format on
-        }
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemm1()
     {
         using S_               = typename Problem::BlockShape;
@@ -721,7 +506,15 @@ struct FusedMoeGemmPipelineGeneralPolicy
         // TODO: ugly
         if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
                      std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
-                     S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 16)
+                     S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 8)
+        {
+            return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+                WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<wg_ctrl>,
+                1>>{};
+        }
+        else if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
+                          std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
+                          S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 16)
         {
             return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
                 WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<wg_ctrl>,
@@ -781,63 +574,6 @@ struct FusedMoeGemmPipelineGeneralPolicy
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
         auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
         return c_block_tensor;
-    }
-
-    // this is used as A matrix for 2nd gemm
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeYTileDistribution()
-    {
-        using S_       = remove_cvref_t<typename Problem::BlockShape>;
-        using WarpGemm = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
-
-        // TODO: all waves a along different N, but same M
-        constexpr auto y_outer_dstr_enc =
-            tile_distribution_encoding<sequence<S_::WarpPerBlock_M1>,
-                                       tuple<sequence<S_::Repeat_M1>, sequence<S_::Repeat_K1>>,
-                                       tuple<sequence<0>>,
-                                       tuple<sequence<0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-
-        constexpr auto y_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            y_outer_dstr_enc, typename WarpGemm::AWarpDstrEncoding{});
-        constexpr auto y_block_dstr = make_static_tile_distribution(y_block_dstr_encode);
-        return y_block_dstr;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeYBlockTile()
-    {
-        constexpr auto y_block_dstr = MakeYTileDistribution<Problem>();
-        auto y_block_tensor =
-            make_static_distributed_tensor<typename Problem::YDataType>(y_block_dstr);
-        return y_block_tensor;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetUK_0()
-    {
-        using S_ = typename Problem::BlockShape;
-        if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::bf16_t> &&
-                     std::is_same_v<typename Problem::GDataType, ck_tile::bf16_t> &&
-                     S_::Block_M0 == 32 && S_::Block_N0 == 512 && S_::Block_K0 == 128 &&
-                     S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 32)
-        {
-            return FlatmmUK_GFX9_32x512x128_1x4x1_16x16x16_BF16{};
-        }
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetUK_1()
-    {
-        using S_ = typename Problem::BlockShape;
-        if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
-                     std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
-                     S_::Block_M1 == 32 && S_::Block_N1 == 128 && S_::Block_K1 == 512 &&
-                     S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 32)
-        {
-            return FlatmmSnUK_GFX9_32x128x512_1x4x1_16x16x16_BF16{};
-        }
     }
 };
 } // namespace ck_tile

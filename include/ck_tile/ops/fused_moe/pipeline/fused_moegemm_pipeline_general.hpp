@@ -119,9 +119,18 @@ struct FusedMoeGemmPipeline_General
             a_window_.get_window_origin(),
             Policy::template MakeGlobalTileDistribution_A<Problem>());
 
-        auto a_dram_block = load_tile(a_global_to_dram_window);
+        auto g_global_to_dram_window = make_tile_window(
+            g_window_.get_bottom_tensor_view(),
+            make_tuple(number<BlockShape::Block_N0>{}, number<BlockShape::Block_K0>{}),
+            g_window_.get_window_origin(),
+            Policy::template MakeGlobalTileDistribution_G<Problem>());
 
+        auto a_dram_block = load_tile(a_global_to_dram_window);
         store_tile(a_lds_win, a_dram_block);
+
+        auto g_dram_block = load_tile(g_global_to_dram_window);
+        ignore            = g_dram_block;
+
         store_tile(o_window_, a_dram_block);
 
 #if 0
