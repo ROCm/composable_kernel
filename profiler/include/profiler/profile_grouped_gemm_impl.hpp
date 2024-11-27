@@ -302,13 +302,6 @@ bool profile_grouped_gemm_impl(int do_verification,
                                                                   rtol,
                                                                   atol);
 
-                        instance_pass =
-                            instance_pass && ck::utils::check_err(c_m_n_device_results[i],
-                                                                  c_m_n_host_results[i],
-                                                                  "Error: Incorrect results!",
-                                                                  rtol,
-                                                                  atol);
-
                         if(do_log)
                         {
                             LogRangeAsType<float>(std::cout << "a : ", a_m_k[i].mData, ",")
