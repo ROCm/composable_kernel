@@ -126,7 +126,7 @@ struct FusedMoeGemmPipeline_General
             Policy::template MakeGlobalTileDistribution_G<Problem>());
 
         // Block GEMM
-        constexpr auto gemm_0 = Policy::template GetBlockGemm0<Problem>();
+        constexpr auto gemm_0   = Policy::template GetBlockGemm0<Problem>();
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
         auto s_acc              = SaccBlockTileType{};
 
@@ -138,7 +138,6 @@ struct FusedMoeGemmPipeline_General
         ignore            = s_acc;
 
         store_tile(o_window_, a_dram_block);
-
 #if 0
         //check a matrix gather right or not
         constexpr auto a_spans = decltype(a_dram_block)::get_distributed_spans();
