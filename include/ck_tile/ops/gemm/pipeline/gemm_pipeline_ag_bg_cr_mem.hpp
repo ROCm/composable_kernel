@@ -247,8 +247,8 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 b_lds_block, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
 
             // Block GEMM
-            constexpr auto block_gemm = BlockGemm();
-            auto c_block_tile         = block_gemm.MakeCBlockTile();
+            auto block_gemm   = BlockGemm();
+            auto c_block_tile = block_gemm.MakeCBlockTile();
 
             using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
             using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
@@ -290,7 +290,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 {
                     static_for<0, PrefetchStages, 1>{}([&](auto prefetch_idx) {
                         block_sync_lds();
-                        // block_gemm.LocalPrefetch();
+                        block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
                         block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 
                         block_sync_lds();
@@ -318,7 +318,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 static_for<1, tail_num, 1>{}([&](auto prefetch_idx) {
                     block_sync_lds();
 
-                    // block_gemm.LocalPrefetch();
+                    block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 
                     block_sync_lds();
@@ -331,14 +331,14 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 });
 
                 block_sync_lds();
-                // block_gemm.LocalPrefetch();
+                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
             };
 
             if constexpr(TailNum == TailNumber::One)
             {
                 block_sync_lds();
-                // block_gemm.LocalPrefetch();
+                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
             }
             else if constexpr(TailNum == TailNumber::Two)
