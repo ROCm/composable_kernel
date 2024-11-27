@@ -39,10 +39,10 @@ def getBaseDockerImageName(){
     }
     else{
     if (params.ROCMVERSION != "6.3"){
-        img = "${env.CK_DOCKERHUB}:ck_ub22.04_rocm${params.ROCMVERSION}"
+        img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
         }
     else{
-        img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub22.04_rocm${params.ROCMVERSION}"
+        img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}"
         }
     }
     return img
