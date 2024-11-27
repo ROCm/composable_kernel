@@ -168,9 +168,23 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     auto argument = gemm.MakeArgument(
         p_a, p_b, p_Ds, p_c, gemm_descs, a_element_op, b_element_op, c_element_op);
 
-    DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+    std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
+    std::size_t kargs_size     = gemm.GetDeviceKernelArgSize(&argument);
 
-    gemm.SetWorkSpacePointer(&argument, gemm_desc_workspace.GetDeviceBuffer());
+    DeviceMem gemm_workspace, gemm_kargs;
+
+    // The following is necessary since TwoStage kernel is using additional memory both
+    // for Workspace and kernel arguments.
+    if(kargs_size > 0)
+    {
+        gemm_kargs.Realloc(kargs_size);
+        gemm.SetDeviceKernelArgs(&argument, gemm_kargs.GetDeviceBuffer());
+    }
+    if(workspace_size > 0 && workspace_size != kargs_size)
+    {
+        gemm_workspace.Realloc(workspace_size);
+        gemm.SetWorkSpacePointer(&argument, gemm_workspace.GetDeviceBuffer());
+    }
 
     if(!gemm.IsSupportedArgument(argument))
     {
