@@ -107,7 +107,7 @@ struct FusedMoeGemmPipeline_General
 
         CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
         auto a_lds_view                    = make_tensor_view<address_space_enum::lds>(
-            smem_0, Policy::template MakeLdsStoreDesc_A<Problem>());
+            smem_0, Policy::template MakeLdsBlockDesc_A<Problem>());
         auto a_lds_win = make_tile_window(
             a_lds_view,
             make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}),
@@ -130,12 +130,18 @@ struct FusedMoeGemmPipeline_General
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
         auto s_acc              = SaccBlockTileType{};
 
+        // save tokens to lds
         auto a_dram_block = load_tile(a_global_to_dram_window);
         store_tile(a_lds_win, a_dram_block);
 
+        // load g to register
         auto g_dram_block = load_tile(g_global_to_dram_window);
-        ignore            = g_dram_block;
-        ignore            = s_acc;
+
+        clear_tile(s_acc); // initialize C
+
+        gemm_0(s_acc, a_lds_win, g_dram_block);
+
+        ignore = g_dram_block;
 
         store_tile(o_window_, a_dram_block);
 #if 0
