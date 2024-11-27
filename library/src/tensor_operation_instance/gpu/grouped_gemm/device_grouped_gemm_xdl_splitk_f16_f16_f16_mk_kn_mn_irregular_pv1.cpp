@@ -9,7 +9,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(
+void add_device_grouped_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_irregular_pv1_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
                                                   Row,
                                                   Empty_Tuple,
@@ -23,7 +23,7 @@ void add_device_grouped_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(
                                                   PassThrough>>>& instances)
 {
     add_device_operation_instances(
-        instances, device_grouped_gemm_xdl_splitk_2Bt_rrr_instances<F16, GemmDefault>{});
+        instances, device_grouped_gemm_xdl_splitk_2Bt_rrr_instances<F16, GemmMNKPadding>{});
 }
 
 } // namespace instance

@@ -1,6 +1,6 @@
 #pragma once
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -717,7 +717,24 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
 
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
-        return dynamic_cast<const Argument*>(p_arg)->group_count_ * sizeof(GemmBiasTransKernelArg);
+        auto p_arg_ = dynamic_cast<const Argument*>(p_arg);
+        if(p_arg_)
+        {
+            return p_arg_->group_count_ * sizeof(GemmBiasTransKernelArg);
+        }
+        else
+            throw std::runtime_error("The argument pointer is not an object of "
+                                     "DeviceGroupedGemmMultipleDXdlCShuffle::Argument structure!");
+    }
+
+    size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override
+    {
+        return GetWorkSpaceSize(p_arg);
+    }
+
+    void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const override
+    {
+        return this->SetWorkSpacePointer(p_arg, p_dev_kernel_args);
     }
 };
 
