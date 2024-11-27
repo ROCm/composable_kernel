@@ -18,10 +18,10 @@
 template <typename ALayout, typename BLayout, typename CLayout>
 float gemm_calc(const batched_gemm_kargs& args, const ck_tile::stream_config& s)
 {
-    // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadA        = true;
-    constexpr bool kPadB        = true;
-    constexpr bool kPadC        = true;
+    // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
+    constexpr bool kPadM        = false;
+    constexpr bool kPadN        = false;
+    constexpr bool kPadK        = false;
     constexpr bool kTilePermute = false;
     // The rank and permutation will also be generate out by the CodeGen part.
     constexpr ck_tile::index_t kOutputRank = 2;
@@ -57,8 +57,8 @@ float gemm_calc(const batched_gemm_kargs& args, const ck_tile::stream_config& s)
         CShuffleEpilogue,
         ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
                                                                    CDataType,
-                                                                   kPadA,
-                                                                   kPadB,
+                                                                   kPadM,
+                                                                   kPadN,
                                                                    kTilePermute,
                                                                    kOutputRank,
                                                                    1,
@@ -66,10 +66,10 @@ float gemm_calc(const batched_gemm_kargs& args, const ck_tile::stream_config& s)
                                                                    TilePartitioner::kM,
                                                                    TilePartitioner::kN>>,
         ck_tile::Default2DEpilogue<
-            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>>;
+            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
 
     using CodegenGemmTraits =
-        ck_tile::TileGemmTraits<kPadA, kPadB, kPadC, ALayout, BLayout, CLayout>;
+        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
 
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;

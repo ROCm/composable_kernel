@@ -237,14 +237,15 @@ int run_batched_gemm_example(int argc, char* argv[])
     {
         return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
     }
-    else if(a_layout == "C" && b_layout == "C")
-    {
-        return run_batched_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "R")
-    {
-        return run_batched_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
-    }
+    // TODO: Fixme: with latest changes to GemmPipelineAGmemBGmemCRegV1DefaultPolicy below do not
+    // work else if(a_layout == "C" && b_layout == "C")
+    // {
+    //     return run_batched_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
+    // }
+    // else if(a_layout == "C" && b_layout == "R")
+    // {
+    //     return run_batched_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
+    // }
     else
     {
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
