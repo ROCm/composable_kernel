@@ -15,17 +15,6 @@ namespace ck_tile {
 template <typename Problem>
 struct BaseGemmPipelineAgBgCrCompV3
 {
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
-
-    static constexpr index_t BlockSize = Problem::kBlockSize;
-    static constexpr index_t MPerBlock = BlockGemmShape::kM;
-    static constexpr index_t NPerBlock = BlockGemmShape::kN;
-    static constexpr index_t KPerBlock = BlockGemmShape::kK;
-
-    // TODO: Is this 32K value gfx9 arch specific?
-
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
@@ -74,9 +63,9 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr index_t VectorSizeB = Problem::VectorSizeB;
     static constexpr index_t VectorSizeC = Problem::VectorSizeC;
 
-    static constexpr bool kPadA = Problem::kPadA;
-    static constexpr bool kPadB = Problem::kPadB;
-    static constexpr bool kPadC = Problem::kPadC;
+    static constexpr bool kPadM = Problem::kPadM;
+    static constexpr bool kPadN = Problem::kPadN;
+    static constexpr bool kPadK = Problem::kPadK;
 
     // Where is the right place for HasHotLoop and TailNum ???
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
@@ -331,8 +320,8 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 b_lds_block, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
 
             // Block GEMM
-            constexpr auto block_gemm = BlockGemm();
-            auto c_block_tile         = block_gemm.MakeCBlockTile();
+            auto block_gemm   = BlockGemm();
+            auto c_block_tile = block_gemm.MakeCBlockTile();
 
             using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
             using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
@@ -382,11 +371,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                     GlobalPrefetch(a_block_tile, a_copy_dram_window);
                     GlobalPrefetch(b_block_tile, b_copy_dram_window);
 
-                    block_gemm.template operator()<decltype(c_block_tile),
-                                                   decltype(a_lds_gemm_window),
-                                                   decltype(b_lds_gemm_window),
-                                                   false>(
-                        c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+                    block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 
                     block_sync_lds();
                     block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
@@ -399,11 +384,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // tail
             if constexpr(TailNum == TailNumber::Full)
             {
-                block_gemm.template operator()<decltype(c_block_tile),
-                                               decltype(a_lds_gemm_window),
-                                               decltype(b_lds_gemm_window),
-                                               false>(
-                    c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
             }
             // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
             // latency

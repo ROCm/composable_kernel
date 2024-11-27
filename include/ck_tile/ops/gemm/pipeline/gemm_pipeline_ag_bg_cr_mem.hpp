@@ -124,17 +124,6 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
     using Base::PrefetchStages;
 
-    CK_TILE_HOST_DEVICE constexpr index_t GetStaticLdsSize()
-    {
-        return integer_divide_ceil(
-                   sizeof(ADataType) *
-                       Policy::template MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
-                   16) *
-                   16 +
-               sizeof(BDataType) *
-                   Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
-    }
-
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
