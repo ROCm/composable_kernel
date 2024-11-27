@@ -11,6 +11,9 @@ namespace ck_tile {
 // Default policy class should not be templated, put template on member functions instead
 struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 {
+    using BlockGemmPolicy = BlockGemmARegBRegCRegV2DefaultPolicy;
+    template <typename Problem>
+    using BlockGemm = BlockGemmARegBRegCRegV2<Problem, BlockGemmPolicy>;
 
 #if 0
     // 2d
@@ -472,9 +475,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1DefaultPolicy;
-
-        return BlockGemmASmemBSmemCRegV1<Problem, BlockGemmPolicy>{};
+        return BlockGemm<Problem>{};
     }
 };
 
