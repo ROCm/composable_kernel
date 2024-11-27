@@ -205,8 +205,8 @@ struct BlockGemmARegBRegCRegV2
     }
     
     // Prefetch lds
-    template <typename BlockWindowTmp, typename BlockTensor>
-    CK_TILE_DEVICE static auto PrefetchLds(const BlockWindowTmp& block_window, BlockTensor& block_tensor)
+    template <typename BlockWindow, typename BlockTensor>
+    CK_TILE_DEVICE static auto PrefetchLds(const BlockWindow& block_window, BlockTensor& block_tensor)
     {
         auto tileDist = BlockTensor::get_tile_distribution();//.get_static_tile_distribution_encoding()
         return load_tile(block_tensor, make_tile_window(block_window, tileDist));
