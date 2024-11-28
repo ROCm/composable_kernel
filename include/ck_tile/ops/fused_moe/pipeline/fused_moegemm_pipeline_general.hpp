@@ -98,8 +98,6 @@ struct FusedMoeGemmPipeline_General
                                    index_t hidden_size,
                                    index_t intermediate_size)
     {
-        ignore = d_window_;
-
         CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
         auto a_lds_view                    = make_tensor_view<address_space_enum::lds>(
             smem_0, Policy::template MakeLdsBlockDesc_A<Problem>());
@@ -194,12 +192,21 @@ struct FusedMoeGemmPipeline_General
         while(iCounter1 > 0)
         {
             block_sync_lds();
+            gemm_1(o_acc, y, d);
+            block_sync_lds();
+            move_tile_window(d_global_to_dram_window, {kN1, 0});
+            d = load_tile(d_global_to_dram_window);
 
             iCounter1--;
         }
-        ignore = y;
-        ignore = d;
-        store_tile(o_window_, a_dram_block);
+        // tail
+        {
+            block_sync_lds();
+            gemm_1(o_acc, y, d);
+        }
+        auto o = cast_tile<ODataType>(o_acc);
+        store_tile(o_window_, o);
+        // store_tile(o_window_, a_dram_block);
 #if 0
         //check a matrix gather right or not
         constexpr auto a_spans = decltype(a_dram_block)::get_distributed_spans();

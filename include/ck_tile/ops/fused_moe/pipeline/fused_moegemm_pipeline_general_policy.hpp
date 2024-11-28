@@ -12,6 +12,8 @@
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_breg_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_breg_creg_v1.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1.hpp"
 
 namespace ck_tile {
 
@@ -210,18 +212,40 @@ struct FusedMoeGemmPipelineGeneralPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm1()
+    {
+        using S_          = typename Problem::BlockShape;
+        using GemmProblem = BlockGemmProblem<typename Problem::YDataType,
+                                             typename Problem::DDataType,
+                                             typename Problem::AccDataType,
+                                             S_::BlockSize,
+                                             TileGemmShape<typename S_::BlockTile_1,
+                                                           typename S_::WarpPerBlock_1,
+                                                           typename S_::WarpTile_1>>;
+
+        constexpr auto warp_gemm = GetWarpGemm1<Problem>();
+        using BlockGemmPolicy    = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
+                                                                    typename Problem::GDataType,
+                                                                    typename Problem::AccDataType,
+                                                                    typename S_::WarpPerBlock_1,
+                                                                    decltype(warp_gemm)>;
+
+        return BlockGemmARegBRegCRegV1<GemmProblem, BlockGemmPolicy>{};
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_D()
     {
         using S_       = remove_cvref_t<typename Problem::BlockShape>;
         using WarpGemm = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
 
-        constexpr auto d_outer_dstr_enc =
-            tile_distribution_encoding<sequence<S_::WarpPerBlock_N1>,
-                                       tuple<sequence<S_::Repeat_N1>, sequence<S_::Repeat_K1>>,
-                                       tuple<sequence<0>>,
-                                       tuple<sequence<0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
+        constexpr auto d_outer_dstr_enc = tile_distribution_encoding<
+            sequence<S_::WarpPerBlock_M1>,
+            tuple<sequence<S_::Repeat_N1, S_::WarpPerBlock_N1>, sequence<S_::Repeat_K1>>,
+            tuple<sequence<0, 1>>,
+            tuple<sequence<0, 1>>,
+            sequence<1, 2>,
+            sequence<0, 0>>{};
 
         constexpr auto d_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             d_outer_dstr_enc, typename WarpGemm::BWarpDstrEncoding{});
@@ -368,13 +392,13 @@ struct FusedMoeGemmPipelineGeneralPolicy
         using WarpGemm = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
 
         // TODO: all waves a along different N, but same M
-        constexpr auto y_outer_dstr_enc =
-            tile_distribution_encoding<sequence<S_::WarpPerBlock_M1>,
-                                       tuple<sequence<S_::Repeat_M1>, sequence<S_::Repeat_K1>>,
-                                       tuple<sequence<0>>,
-                                       tuple<sequence<0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
+        constexpr auto y_outer_dstr_enc = tile_distribution_encoding<
+            sequence<S_::WarpPerBlock_N1>,
+            tuple<sequence<S_::Repeat_M1, S_::WarpPerBlock_M1>, sequence<S_::Repeat_K1>>,
+            tuple<sequence<1, 0>>,
+            tuple<sequence<1, 0>>,
+            sequence<1, 2>,
+            sequence<0, 0>>{};
 
         constexpr auto y_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             y_outer_dstr_enc, typename WarpGemm::AWarpDstrEncoding{});
