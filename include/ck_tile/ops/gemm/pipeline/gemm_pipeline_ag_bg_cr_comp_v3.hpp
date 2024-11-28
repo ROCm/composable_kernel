@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
 
 namespace ck_tile {
 
@@ -39,7 +40,8 @@ struct BaseGemmPipelineAgBgCrCompV3
 template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCRegV1DefaultPolicy>
 struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
-    using Base = BaseGemmPipelineAgBgCrCompV3<Problem>;
+    using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
+    using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
@@ -80,29 +82,14 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     }
 
     template <GemmPipelineScheduler Scheduler>
-    struct PipelineImpl
+    struct PipelineImpl : public PipelineImplBase
     {
     };
 
     template <>
-    struct PipelineImpl<GemmPipelineScheduler::Intrawave>
+    struct PipelineImpl<GemmPipelineScheduler::Intrawave> : public PipelineImplBase
     {
-        template <typename DstBlockTile, typename SrcTileWindow>
-        CK_TILE_DEVICE void GlobalPrefetch(DstBlockTile& dst_block_tile,
-                                           SrcTileWindow& dram_tile_window) const
-        {
-            load_tile(dst_block_tile, dram_tile_window);
-            move_tile_window(dram_tile_window, {0, KPerBlock});
-        }
-
-        template <typename DstTileWindow, typename SrcBlockTile, typename ElementFunction>
-        CK_TILE_DEVICE void LocalPrefill(DstTileWindow& lds_tile_window,
-                                         const SrcBlockTile& src_block_tile,
-                                         const ElementFunction& element_func) const
-        {
-            const auto block_tile_tmp = tile_elementwise_in(element_func, src_block_tile);
-            store_tile(lds_tile_window, block_tile_tmp);
-        }
+        using Base = PipelineImplBase;
 
         CK_TILE_DEVICE static constexpr auto HotLoopScheduler()
         {
@@ -268,56 +255,20 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // ------------------------------------------------------------------------------------
             // Definitions of all needed tiles
 
-            // A tile in LDS
-            ADataType* p_a_lds              = static_cast<ADataType*>(p_smem);
-            constexpr auto a_lds_block_desc = Policy::template MakeALdsBlockDescriptor<Problem>();
-            auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
-
-            // TODO: LDS alignment should come from Policy!
-            constexpr index_t a_lds_block_space_size_aligned =
-                integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(),
-                                    16) *
-                16;
-
-            // B tile in LDS
-            BDataType* p_b_lds = static_cast<BDataType*>(
-                static_cast<void*>(static_cast<char*>(p_smem) + a_lds_block_space_size_aligned));
-            constexpr auto b_lds_block_desc = Policy::template MakeBLdsBlockDescriptor<Problem>();
-            auto b_lds_block = make_tensor_view<address_space_enum::lds>(p_b_lds, b_lds_block_desc);
+            // A/B tiles in LDS
+            auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
 
             // A DRAM tile window for load
-            auto a_copy_dram_window =
-                make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                 a_dram_block_window_tmp.get_window_origin(),
-                                 Policy::template MakeADramTileDistribution<Problem>());
-
             // A LDS tile window for store
-            auto a_copy_lds_window =
-                make_tile_window(a_lds_block,
-                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                 {0, 0},
-                                 a_copy_dram_window.get_tile_distribution());
-            // B DRAM tile window for load
-            auto b_copy_dram_window =
-                make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                 b_dram_block_window_tmp.get_window_origin(),
-                                 Policy::template MakeBDramTileDistribution<Problem>());
-
-            // B LDS tile window for store
-            auto b_copy_lds_window =
-                make_tile_window(b_lds_block,
-                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                 {0, 0},
-                                 b_copy_dram_window.get_tile_distribution());
-
             // A LDS tile for block GEMM
-            auto a_lds_gemm_window = make_tile_window(
-                a_lds_block, make_tuple(number<MPerBlock>{}, number<KPerBlock>{}), {0, 0});
+            auto&& [a_copy_dram_window, a_copy_lds_window, a_lds_gemm_window] =
+                Base::GetAWindows(a_dram_block_window_tmp, a_lds_block);
+
+            // B DRAM tile window for load
+            // B LDS tile window for store
             // B LDS tile for block GEMM
-            auto b_lds_gemm_window = make_tile_window(
-                b_lds_block, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
+            auto&& [b_copy_dram_window, b_copy_lds_window, b_lds_gemm_window] =
+                Base::GetBWindows(b_dram_block_window_tmp, b_lds_block);
 
             // Block GEMM
             auto block_gemm   = BlockGemm();
@@ -339,18 +290,18 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             // prefetch
             // global read 0
-            GlobalPrefetch(a_block_tile, a_copy_dram_window);
-            GlobalPrefetch(b_block_tile, b_copy_dram_window);
+            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window);
+            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window);
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
             // LDS write 0
-            LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
-            LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+            Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+            Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
 
-            GlobalPrefetch(a_block_tile, a_copy_dram_window);
-            GlobalPrefetch(b_block_tile, b_copy_dram_window);
+            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window);
+            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window);
 
             block_sync_lds();
             block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
@@ -365,11 +316,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 {
                     block_sync_lds();
 
-                    LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
-                    LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                    Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+                    Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
 
-                    GlobalPrefetch(a_block_tile, a_copy_dram_window);
-                    GlobalPrefetch(b_block_tile, b_copy_dram_window);
+                    Base::GlobalPrefetch(a_block_tile, a_copy_dram_window);
+                    Base::GlobalPrefetch(b_block_tile, b_copy_dram_window);
 
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 
