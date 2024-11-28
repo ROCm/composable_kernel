@@ -731,10 +731,11 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt) -> Lis
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
-            tiles = d[hdim_str]
+            # include prefill tile size if in group mode
+            tiles = d[hdim_str][0 : 2 if mode == 'group' else 1]
             hdim = int(hdim_str)
             for tile, pipeline in itertools.product(tiles, get_pipelines(dtype, hdim)):
-                if mode == "group":
+                if mode == 'group':
                     if pipeline.F_spad != 't':
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
