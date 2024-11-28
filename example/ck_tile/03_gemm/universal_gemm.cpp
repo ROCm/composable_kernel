@@ -98,7 +98,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                                                   AccDataType,
                                                   GemmShape,
                                                   Traits,
-                                                  ck_tile::GemmPipelineScheduler::Intrawave,
+                                                  ck_tile::GemmPipelineScheduler::Interwave,
                                                   has_hot_loop_v,
                                                   tail_number_v>>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
