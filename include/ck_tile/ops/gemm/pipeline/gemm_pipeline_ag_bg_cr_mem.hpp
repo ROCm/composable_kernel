@@ -162,10 +162,9 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 "A/B Dram block window should have the same data type as appropriate "
                 "([A|B]DataType) defined in Problem definition!");
 
-            static_assert(MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                              NPerBlock ==
-                                  BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                              KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+            static_assert(MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}],
                           "A/B block window appropriate sizes must be equal to MPerBlock/NPerblock"
                           " or KPerBlock!");
 
@@ -350,10 +349,9 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 "A/B Dram block window should have the same data type as appropriate "
                 "([A|B]DataType) defined in Problem definition!");
 
-            static_assert(MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                              NPerBlock ==
-                                  BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                              KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+            static_assert(MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}],
                           "A/B block window appropriate sizes must be equal to MPerBlock/NPerblock"
                           " or KPerBlock!");
 

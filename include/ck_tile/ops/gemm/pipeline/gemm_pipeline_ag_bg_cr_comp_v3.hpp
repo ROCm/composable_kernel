@@ -55,6 +55,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
     using I0        = number<0>;
     using I1        = number<1>;
+    using I2        = number<2>;
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
@@ -93,13 +94,13 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
         CK_TILE_DEVICE static constexpr auto HotLoopScheduler()
         {
-            constexpr index_t MPerXDL = BlockGemmShape::WarpTile::at(number<0>{});
-            constexpr index_t NPerXDL = BlockGemmShape::WarpTile::at(number<1>{});
-            constexpr index_t KPerXDL = BlockGemmShape::WarpTile::at(number<2>{});
+            constexpr index_t MPerXDL = BlockGemmShape::WarpTile::at(I0{});
+            constexpr index_t NPerXDL = BlockGemmShape::WarpTile::at(I1{});
+            constexpr index_t KPerXDL = BlockGemmShape::WarpTile::at(I2{});
 
             constexpr index_t WaveSize = 64;
-            constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(number<0>{});
-            constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(number<1>{});
+            constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
+            constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
 
             constexpr index_t A_LDS_Read_Width = KPerXDL;
             constexpr index_t B_LDS_Read_Width = KPerXDL;
@@ -245,10 +246,9 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 "A/B Dram block window should have the same data type as appropriate "
                 "([A|B]DataType) defined in Problem definition!");
 
-            static_assert(MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                              NPerBlock ==
-                                  BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                              KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+            static_assert(MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}],
                           "A/B block window appropriate sizes must be equal to MPerBlock/NPerblock"
                           " or KPerBlock!");
 
