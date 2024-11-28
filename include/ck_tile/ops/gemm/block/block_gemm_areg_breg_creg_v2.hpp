@@ -169,6 +169,23 @@ struct BlockGemmARegBRegCRegV2
         return c_block_tensor;
     }
 
+    CK_TILE_DEVICE static constexpr auto MakeCBlockSubTile()
+    {
+        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<MWarp>, sequence<NIterPerWarp, NWarp>>,
+            tuple<sequence<1, 2>>,
+            tuple<sequence<1, 1>>,
+            sequence<2>,
+            sequence<0>>{};
+
+        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
+        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
+        auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
+        return c_block_tensor;
+    }
+    
     CK_TILE_DEVICE static constexpr auto MakeABlockDistribution()
     {
         // M->N Warp

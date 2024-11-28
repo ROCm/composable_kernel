@@ -11,13 +11,15 @@ namespace ck_tile {
 //  A Tile Window: global memory
 //  B Tile Window: global memory
 //  C Distributed tensor: register
-template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCRegV1DefaultPolicy>
+template <typename Problem, typename Policy_ = GemmPipelineAGmemBGmemCRegV1DefaultPolicy>
 struct GemmPipelineAGmemBGmemCRegV1
 {
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using Policy = Policy_;
+    using Problem = Problem;
 
     using ALayout = remove_cvref_t<typename Problem::ALayout>;
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
@@ -133,6 +135,16 @@ struct GemmPipelineAGmemBGmemCRegV1
         __builtin_amdgcn_sched_barrier(0);
     }
 
+    CK_TILE_DEVICE static constexpr auto MakeCBlockSubTile() {
+        return Policy::template BlockGemm<Problem>::MakeCBlockSubTile();
+    }
+
+    CK_TILE_DEVICE static constexpr auto NumCSubTile() {
+        constexpr index_t MPerXDL = BlockGemmShape::WarpTile::at(number<0>{});//32
+        constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(number<0>{});//2
+        return integer_divide_ceil(kMPerBlock, WaveNumM * MPerXDL);
+    }
+
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,
               typename AElementFunction,
@@ -180,26 +192,6 @@ struct GemmPipelineAGmemBGmemCRegV1
         // global read 0
         GlobalPrefetch(a_global_load_tile, a_copy_dram_window);
         GlobalPrefetch(b_global_load_tile, b_copy_dram_window);
-
-        // if (threadIdx.x == 0) {
-        //     constexpr auto span_2d = decltype(a_global_load_tile)::get_distributed_spans();
-        //     sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-        //         sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
-        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-        //             printf("%f,", type_convert<float>(a_global_load_tile(i_j_idx)));
-        //         });
-        //         printf("\n");
-        //     });
-        //     printf("bbbbb\n");
-        //     constexpr auto span_2d2 = decltype(b_global_load_tile)::get_distributed_spans();
-        //     sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-        //         sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
-        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-        //             printf("%f,", type_convert<float>(b_global_load_tile(i_j_idx)));
-        //         });
-        //         printf("\n");
-        //     });
-        // }
         ////////////// LDS desc, window & register /////////////////
         // AB LDS desc
         constexpr auto a_lds_block_desc = Policy::template MakeALdsBlockDescriptor<Problem>();
@@ -363,18 +355,16 @@ struct GemmPipelineAGmemBGmemCRegV1
             // 2
             {
                 block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                // if (threadIdx.x == 64) {
-                //     constexpr auto span_2d = decltype(a_block_tile0)::get_distributed_spans();
-                //     sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-                //         sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
-                //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                //             printf("%f, %f; %f, %f.  ", type_convert<float>(a_block_tile0(i_j_idx)), type_convert<float>(b_block_tile0(i_j_idx)), type_convert<float>(a_block_tile1(i_j_idx)), type_convert<float>(b_block_tile1(i_j_idx)));
-                //         });
-                //         printf("\n");
-                //     });
-                // }
             }
         }
+        
+        /// cccccccccc
+        // constexpr auto c_lds_block_desc = Policy::template MakeCLdsBlockDescriptor<Problem>();
+        // auto c_lds_block = make_tensor_view<address_space_enum::lds>(reinterpret_cast<CDataType*>(p_smem), c_lds_block_desc);
+        // auto c_lds_window0 = make_tile_window(c_lds_block, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {0, 0});
+        // store_tile(c_lds_window0, c_block_tile);
+        // block_sync_lds();
+
         return c_block_tile;
     }
 
