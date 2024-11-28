@@ -18,7 +18,6 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_gemm_multiple_d_splitk.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_xdl_splitk_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
@@ -78,17 +77,17 @@ template <typename ALayout,
           // TODO: change gridwise_gemm_v2r4r2 to support AK1 & BK1
           enable_if_t<AK1 == BK1, bool> = false>
 struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
-    : public DeviceGroupedGemmMultipleDSplitK<ALayout,
-                                              BLayout,
-                                              DsLayout,
-                                              ELayout,
-                                              ADataType,
-                                              BDataType,
-                                              DsDataType,
-                                              EDataType,
-                                              AElementwiseOperation,
-                                              BElementwiseOperation,
-                                              CDEElementwiseOperation>
+    : public DeviceGroupedGemmSplitK<ALayout,
+                                     BLayout,
+                                     DsLayout,
+                                     ELayout,
+                                     ADataType,
+                                     BDataType,
+                                     DsDataType,
+                                     EDataType,
+                                     AElementwiseOperation,
+                                     BElementwiseOperation,
+                                     CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage;
 
@@ -530,7 +529,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         index_t skipped_group_count_;
         index_t grid_size_;
         // Pointer to device memory with GEMM kernel arguments.
-        const void* p_dev_gemm_args_;
+        void* p_dev_gemm_kargs_;
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -566,7 +565,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         /// @return     The average kernel execution time (if time measurement is enabled.)
         ///
         float Run(const Argument& arg,
-                  const void* dev_gemm_args,
+                  void* dev_gemm_args,
                   void* dev_gemm_workspace,
                   const StreamConfig& stream_config = StreamConfig{})
         {
@@ -621,7 +620,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         ///
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            if(arg.p_dev_gemm_args_ == nullptr)
+            if(arg.p_dev_gemm_kargs_ == nullptr)
             {
                 std::ostringstream err;
                 err << "The gemm arguments device buffer is not allocated!"
@@ -637,7 +636,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 throw std::runtime_error(err.str());
             }
 
-            return Run(arg, arg.p_dev_gemm_args_, arg.p_workspace_, stream_config);
+            return Run(arg, arg.p_dev_gemm_kargs_, arg.p_workspace_, stream_config);
         }
 
         float Run(const BaseArgument* p_arg,
@@ -723,7 +722,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
         template <bool HasMainKBlockLoop>
         float DispatchKernel(const Argument& arg,
-                             const void* dev_gemm_args,
+                             void* dev_gemm_kargs,
                              void* dev_gemm_workspace,
                              const StreamConfig& stream_config) const
         {
@@ -746,7 +745,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             return LaunchKernel(gemm_kernel,
                                 elementwise_kernel,
                                 arg,
-                                dev_gemm_args,
+                                dev_gemm_kargs,
                                 dev_gemm_workspace,
                                 stream_config);
         }
@@ -755,11 +754,18 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         float LaunchKernel(const KernelFunction& gemm_kernel,
                            const KernelFunction2& elementwise_kernel,
                            const Argument& arg,
-                           const void* dev_gemm_args,
+                           void* dev_gemm_kargs,
                            [[maybe_unused]] void* dev_gemm_workspace,
                            const StreamConfig& stream_config) const
         {
             float time{0.f};
+
+            hip_check_error(
+                hipMemcpyWithStream(dev_gemm_kargs,
+                                    arg.gemm_kernel_args_.data(),
+                                    arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
+                                    hipMemcpyHostToDevice,
+                                    stream_config.stream_id_));
 
             auto preprocess = [&]() {
                 hip_check_error(hipMemsetAsync(
@@ -774,7 +780,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 dim3(arg.grid_size_),
                 dim3(BlockSize),
                 0,
-                cast_pointer_to_constant_address_space(dev_gemm_args),
+                cast_pointer_to_constant_address_space(dev_gemm_kargs),
                 arg.gemm_kernel_args_.size(),
                 arg.a_element_op_,
                 arg.b_element_op_,
@@ -930,18 +936,30 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         return str.str();
     }
 
-    void SetDeviceKernelArgs(Argument& arg, void* p_dev_kernel_args) const
-    {
-        arg.p_dev_gemm_args_ = p_dev_kernel_args;
-        hip_check_error(hipMemcpy(p_dev_kernel_args,
-                                  arg.gemm_kernel_args_.data(),
-                                  GetDeviceKernelArgSize(&arg),
-                                  hipMemcpyHostToDevice));
-    }
-
     void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const override
     {
-        return SetDeviceKernelArgs(*dynamic_cast<Argument*>(p_arg), p_dev_kernel_args);
+        auto arg_ptr = dynamic_cast<Argument*>(p_arg);
+        if(arg_ptr)
+        {
+            arg_ptr->p_dev_gemm_kargs_ = p_dev_kernel_args;
+        }
+        else
+            throw std::runtime_error(
+                "The argument pointer is not an object of "
+                "DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage::Argument structure!");
+    }
+
+    size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override
+    {
+        auto arg = dynamic_cast<const Argument*>(p_arg);
+        if(arg)
+        {
+            return arg->gemm_kernel_args_.size() * sizeof(GemmTransKernelArg);
+        }
+        else
+            throw std::runtime_error(
+                "The argument pointer is not an object of "
+                "DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage::Argument structure!");
     }
 
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
@@ -974,17 +992,22 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 "DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage::Argument structure!");
     }
 
-    static void SetKBatchSize(Argument& arg, index_t kbatch) { arg.UpdateKBatch(kbatch); }
+    [[deprecated]] static void SetKBatchSize(Argument& arg, index_t kbatch)
+    {
+        arg.UpdateKBatch(kbatch);
+    }
 
     void SetKBatchSize(BaseArgument* p_arg, index_t kbatch) const override
     {
-        return SetKBatchSize(*dynamic_cast<Argument*>(p_arg), kbatch);
-    }
-
-    size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override
-    {
-        return dynamic_cast<const Argument*>(p_arg)->gemm_kernel_args_.size() *
-               sizeof(GemmTransKernelArg);
+        auto p_arg_ = dynamic_cast<Argument*>(p_arg);
+        if(p_arg_)
+        {
+            p_arg_->UpdateKBatch(kbatch);
+        }
+        else
+            throw std::runtime_error(
+                "The argument pointer is not an object of "
+                "DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage::Argument structure!");
     }
 };
 

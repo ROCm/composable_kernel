@@ -30,7 +30,6 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
-
 #else
     // Compute friendly for Intrawave scheduler
     constexpr ck_tile::index_t M_Tile = 256;
@@ -84,7 +83,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                                                   AccDataType,
                                                   GemmShape,
                                                   Traits,
-                                                  ck_tile::GemmPipelineScheduler::Intrawave,
+                                                  ck_tile::GemmPipelineScheduler::Interwave,
                                                   has_hot_loop_v,
                                                   tail_number_v>>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
