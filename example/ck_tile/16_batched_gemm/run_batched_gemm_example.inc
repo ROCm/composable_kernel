@@ -35,7 +35,7 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.batch_stride_C = batch_stride_C;
     args.batch_count    = batch_count;
 
-    float ave_time = gemm_calc<ALayout, BLayout, CLayout>(
+    float ave_time = batched_gemm<ALayout, BLayout, CLayout>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::string op_name{"Batched Gemm"};

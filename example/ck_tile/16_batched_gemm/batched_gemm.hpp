@@ -60,4 +60,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-float gemm_calc(batched_gemm_kargs args, const ck_tile::stream_config& s);
+float batched_gemm(batched_gemm_kargs args, const ck_tile::stream_config& s);

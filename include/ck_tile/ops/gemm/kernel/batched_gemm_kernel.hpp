@@ -151,12 +151,22 @@ struct BatchedGemmKernel
             }
         }();
 
-        auto a_pad_view = pad_tensor_view(
-            a_tensor_view,
-            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
-            // somehow clang-format is splitting below line into multiple.
-            // clang-format off
-            sequence<false, GemmPipeline::kPadM>{});
+        auto a_pad_view = [&]() {
+            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+            {
+                return pad_tensor_view(
+                    a_tensor_view,
+                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
+                    sequence<false, GemmPipeline::kPadK>{});
+            }
+            else
+            {
+                return pad_tensor_view(
+                    a_tensor_view,
+                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
+                    sequence<GemmPipeline::kPadM, false>{});
+            }
+        }();
         // clang-format on
 
         auto a_block_window = make_tile_window(
@@ -164,11 +174,22 @@ struct BatchedGemmKernel
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
             {i_m, 0});
 
-        auto b_pad_view = pad_tensor_view(
-            b_tensor_view,
-            make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
-            // clang-format off
-            sequence<false, GemmPipeline::kPadN>{});
+        auto b_pad_view = [&]() {
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+            {
+                return pad_tensor_view(
+                    b_tensor_view,
+                    make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
+                    sequence<false, GemmPipeline::kPadK>{});
+            }
+            else
+            {
+                return pad_tensor_view(
+                    b_tensor_view,
+                    make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
+                    sequence<GemmPipeline::kPadN, false>{});
+            }
+        }();
         // clang-format on
 
         auto b_block_window = make_tile_window(
@@ -209,12 +230,22 @@ struct BatchedGemmKernel
             }
         }();
 
-        auto c_pad_view = pad_tensor_view(
-            c_tensor_view,
-            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
-            // clang-format off
-            sequence<false, GemmPipeline::kPadK>{});
-        // clang-format on
+        auto c_pad_view = [&]() {
+            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+            {
+                return pad_tensor_view(
+                    c_tensor_view,
+                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
+                    sequence<false, GemmPipeline::kPadN>{});
+            }
+            else
+            {
+                return pad_tensor_view(
+                    c_tensor_view,
+                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
+                    sequence<GemmPipeline::kPadM, false>{});
+            }
+        }();
         auto c_block_window = make_tile_window(
             c_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),

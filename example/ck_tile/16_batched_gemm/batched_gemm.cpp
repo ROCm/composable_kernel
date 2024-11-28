@@ -16,7 +16,7 @@
 #include "batched_gemm.hpp"
 
 template <typename ALayout, typename BLayout, typename CLayout>
-float gemm_calc(const batched_gemm_kargs& args, const ck_tile::stream_config& s)
+float batched_gemm(const batched_gemm_kargs& args, const ck_tile::stream_config& s)
 {
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadM        = false;
