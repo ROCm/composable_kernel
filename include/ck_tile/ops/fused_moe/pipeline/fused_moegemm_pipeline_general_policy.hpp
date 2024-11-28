@@ -158,25 +158,6 @@ struct FusedMoeGemmPipelineGeneralPolicy
         }
     }
 
-    template <index_t WarpPerBlock_N_,
-              index_t WarpPerBlock_K_,
-              index_t Repeat_N_,
-              index_t Repeat_K_,
-              index_t WarpSize_,
-              index_t Alignment_>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_Nr_Kr_W()
-    {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<Repeat_N_, WarpPerBlock_N_>,
-                                             sequence<Repeat_K_, WarpPerBlock_K_>,
-                                             sequence<WarpSize_, Alignment_>>,
-                                       tuple<sequence<1, 2>, sequence<3>>,
-                                       tuple<sequence<1, 1>, sequence<0>>,
-                                       sequence<1, 2, 3>,
-                                       sequence<0, 0, 1>>{});
-    }
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_A()
     {
@@ -231,17 +212,21 @@ struct FusedMoeGemmPipelineGeneralPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_D()
     {
-        constexpr auto PermuteEnum = Problem::Traits::PermuteEnum;
-        using S_                   = typename Problem::BlockShape;
-        if constexpr(PermuteEnum == FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten)
-        {
-            return MakeGlobalTileDistribution_Nr_Kr_W<S_::WarpPerBlock_N1,
-                                                      S_::WarpPerBlock_K1,
-                                                      S_::Repeat_N1,
-                                                      S_::Repeat_K1,
-                                                      get_warp_size(),
-                                                      GetAlignment_D<Problem>()>();
-        }
+        using S_       = remove_cvref_t<typename Problem::BlockShape>;
+        using WarpGemm = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
+
+        constexpr auto d_outer_dstr_enc =
+            tile_distribution_encoding<sequence<S_::WarpPerBlock_N1>,
+                                       tuple<sequence<S_::Repeat_N1>, sequence<S_::Repeat_K1>>,
+                                       tuple<sequence<0>>,
+                                       tuple<sequence<0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+
+        constexpr auto d_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            d_outer_dstr_enc, typename WarpGemm::BWarpDstrEncoding{});
+        constexpr auto d_block_dstr = make_static_tile_distribution(d_block_dstr_encode);
+        return d_block_dstr;
     }
 
     template <typename Problem>
@@ -375,50 +360,26 @@ struct FusedMoeGemmPipelineGeneralPolicy
         }
     }
 
+    // this is used as A matrix for 2nd gemm
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeCBlockTile_Gemm0()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeYTileDistribution()
     {
-        using S_        = remove_cvref_t<typename Problem::BlockShape>;
-        using WarpGemm  = remove_cvref_t<decltype(GetWarpGemm0<Problem>())>;
-        using CDataType = typename WarpGemm::CDataType;
+        using S_       = remove_cvref_t<typename Problem::BlockShape>;
+        using WarpGemm = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
 
-        constexpr auto c_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<S_::Repeat_M0, S_::WarpPerBlock_M0>,
-                                             sequence<S_::Repeat_N0, S_::WarpPerBlock_N0>>,
-                                       tuple<sequence<1, 2>>,
-                                       tuple<sequence<1, 1>>,
+        // TODO: all waves a along different N, but same M
+        constexpr auto y_outer_dstr_enc =
+            tile_distribution_encoding<sequence<S_::WarpPerBlock_M1>,
+                                       tuple<sequence<S_::Repeat_M1>, sequence<S_::Repeat_K1>>,
+                                       tuple<sequence<0>>,
+                                       tuple<sequence<0>>,
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
 
-        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
-        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-        auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
-        return c_block_tensor;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeCBlockTile_Gemm1()
-    {
-        using S_        = remove_cvref_t<typename Problem::BlockShape>;
-        using WarpGemm  = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
-        using CDataType = typename WarpGemm::CDataType;
-
-        constexpr auto c_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<S_::Repeat_M1, S_::WarpPerBlock_M1>,
-                                             sequence<S_::Repeat_N1, S_::WarpPerBlock_N1>>,
-                                       tuple<sequence<1, 2>>,
-                                       tuple<sequence<1, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-
-        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
-        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-        auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
-        return c_block_tensor;
+        constexpr auto y_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            y_outer_dstr_enc, typename WarpGemm::AWarpDstrEncoding{});
+        constexpr auto y_block_dstr = make_static_tile_distribution(y_block_dstr_encode);
+        return y_block_dstr;
     }
 };
 } // namespace ck_tile

@@ -319,13 +319,11 @@ struct FusedMoeGemmGlKernel
 
         const auto d_window = [&]() {
             const DDataType* d_ptr = reinterpret_cast<const DDataType*>(kargs.d_ptr) +
-                                     static_cast<long_index_t>(expert_id) * expert_stride_1 +
-                                     idx_n0;
+                                     static_cast<long_index_t>(expert_id) * expert_stride_1;
             // note interm_idx_nr is along the gemm-k dim of 2nd gemm
-
             const auto d_view_ = make_naive_tensor_view<address_space_enum::global>(
                 d_ptr,
-                make_tuple(kargs.hidden_size, BlockShape::Block_K1),
+                make_tuple(kargs.hidden_size, kargs.intermediate_size),
                 make_tuple(kargs.intermediate_size, 1),
                 number<Pipeline::kAlignmentD>{},
                 number<1>{});
@@ -333,7 +331,7 @@ struct FusedMoeGemmGlKernel
             const auto d_window_ = make_tile_window(
                 d_view_,
                 make_tuple(number<BlockShape::Block_N1>{}, number<BlockShape::Block_K1>{}),
-                {0, 0});
+                {0, idx_n0});
             return d_window_;
         }();
 

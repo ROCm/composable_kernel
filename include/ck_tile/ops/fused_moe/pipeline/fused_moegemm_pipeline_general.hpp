@@ -99,8 +99,6 @@ struct FusedMoeGemmPipeline_General
                                    index_t intermediate_size)
     {
         ignore = d_window_;
-        ignore = o_window_;
-        ignore = hidden_size;
 
         CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
         auto a_lds_view                    = make_tensor_view<address_space_enum::lds>(
@@ -137,8 +135,8 @@ struct FusedMoeGemmPipeline_General
         clear_tile(s_acc); // initialize C
         constexpr index_t kK0  = BlockShape::Block_K0;
         const index_t k0_loops = ck_tile::integer_divide_ceil(intermediate_size, kK0);
-        index_t iCounter       = k0_loops - 1;
-        while(iCounter > 0)
+        index_t iCounter0      = k0_loops - 1;
+        while(iCounter0 > 0)
         {
             block_sync_lds();
 
@@ -152,7 +150,7 @@ struct FusedMoeGemmPipeline_General
             g_dram_block = load_tile(g_global_to_dram_window);
 
             store_tile(a_lds_win, a_dram_block);
-            iCounter--;
+            iCounter0--;
         }
         // tail
         {
@@ -162,16 +160,45 @@ struct FusedMoeGemmPipeline_General
         // move sacc to LDS
         auto bridge_lds_view = make_tensor_view<address_space_enum::lds>(
             smem_0, Policy::template MakeBridgeLdsBlockDesc<Problem>());
-        auto bridge_lds_win =
+        auto bridge_slds_win =
             make_tile_window(bridge_lds_view,
                              Policy::template MakeBridgeLdsBlockDesc<Problem>().get_lengths(),
                              {0, 0});
 
         auto y_pre = cast_tile<YDataType>(s_acc);
-        store_tile(bridge_lds_win, y_pre);
-        // gemm1 down
+        store_tile(bridge_slds_win, y_pre);
+        block_sync_lds();
 
-        ignore = bridge_lds_win;
+        // gemm down
+        constexpr auto gemm_1   = Policy::template GetBlockGemm1<Problem>();
+        using SaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
+        auto o_acc              = SaccBlockTileType{};
+        // y data
+        auto bridge_llds_win =
+            make_tile_window(bridge_lds_view,
+                             Policy::template MakeBridgeLdsBlockDesc<Problem>().get_lengths(),
+                             {0, 0},
+                             Policy::template MakeYTileDistribution<Problem>());
+        auto y = load_tile(bridge_llds_win);
+        // d data
+        auto d_global_to_dram_window = make_tile_window(
+            d_window_.get_bottom_tensor_view(),
+            make_tuple(number<BlockShape::Block_N0>{}, number<BlockShape::Block_K0>{}),
+            d_window_.get_window_origin(),
+            Policy::template MakeGlobalTileDistribution_D<Problem>());
+        auto d = load_tile(d_global_to_dram_window);
+
+        constexpr index_t kN1  = BlockShape::Block_N1;
+        const index_t n1_loops = ck_tile::integer_divide_ceil(hidden_size, kN1);
+        index_t iCounter1      = n1_loops - 1;
+        while(iCounter1 > 0)
+        {
+            block_sync_lds();
+
+            iCounter1--;
+        }
+        ignore = y;
+        ignore = d;
         store_tile(o_window_, a_dram_block);
 #if 0
         //check a matrix gather right or not
