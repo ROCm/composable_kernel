@@ -184,7 +184,6 @@ struct BlockGemmARegBRegCRegV2
             a_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});
         constexpr auto a_block_dstr = make_static_tile_distribution(a_block_dstr_encode);
         return a_block_dstr;
-        // return make_static_distributed_tensor<ADataType>(a_block_dstr);
     }
     
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistribution()
@@ -208,10 +207,13 @@ struct BlockGemmARegBRegCRegV2
     template <typename BlockWindow, typename BlockTensor>
     CK_TILE_DEVICE static auto PrefetchLds(const BlockWindow& block_window, BlockTensor& block_tensor)
     {
-        auto tileDist = BlockTensor::get_tile_distribution();//.get_static_tile_distribution_encoding()
+        auto tileDist = BlockTensor::get_tile_distribution();
         return load_tile(block_tensor, make_tile_window(block_window, tileDist));
+        
+        // load_tile_raw(block_tensor, make_tile_window_linear_raw(block_window, tileDist));
+        // return;
     }
-
+    
     // C = A * B
     template <typename ABlockTensor, typename BBlockTensor>
     CK_TILE_DEVICE auto operator()(const ABlockTensor& a_block_tensor,

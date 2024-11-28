@@ -66,6 +66,7 @@ else()
             -Wunreachable-code
             -Wunused
             -Wno-reserved-identifier
+            -v --save-temps -Wno-gnu-line-marker 
 	    # -Werror
             -Wno-option-ignored
             -Wsign-compare

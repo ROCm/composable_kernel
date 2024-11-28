@@ -374,29 +374,29 @@ struct BlockwiseGemmXdlops_pipeline_v4
     {
         // schedule
         constexpr auto num_ds_read_inst =
-            HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num;
+            HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num; //16
         constexpr auto num_ds_write_inst =
-            HotLoopInstList::A_LDS_Write_Inst_Num + HotLoopInstList::B_LDS_Write_Inst_Num;
+            HotLoopInstList::A_LDS_Write_Inst_Num + HotLoopInstList::B_LDS_Write_Inst_Num; //8
         ;
         constexpr auto num_buffer_load_inst =
-            HotLoopInstList::A_Buffer_Load_Inst_Num + HotLoopInstList::B_Buffer_Load_Inst_Num;
+            HotLoopInstList::A_Buffer_Load_Inst_Num + HotLoopInstList::B_Buffer_Load_Inst_Num; //8
         ;
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num; //64
 
-        constexpr auto num_issue = num_buffer_load_inst;
+        constexpr auto num_issue = num_buffer_load_inst; // 8
 
         static_for<0, num_issue, 1>{}([&](auto i) {
             ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA : 1
             __builtin_amdgcn_sched_group_barrier(
-                0x100, num_ds_read_inst / num_buffer_load_inst, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);      // MFMA
+                0x100, num_ds_read_inst / num_buffer_load_inst, 0); // DS read : 2
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);      // MFMA: 1
             __builtin_amdgcn_sched_group_barrier(
-                0x200, num_ds_write_inst / num_buffer_load_inst, 0); // DS write
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);       // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);       // VMEM read
+                0x200, num_ds_write_inst / num_buffer_load_inst, 0); // DS write : 1
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);       // MFMA : 1
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);       // VMEM read :1
             __builtin_amdgcn_sched_group_barrier(
-                0x008, num_mfma_inst / num_buffer_load_inst - 3, 0); // MFMA
+                0x008, num_mfma_inst / num_buffer_load_inst - 3, 0); // MFMA : 5
         });
     }
 
