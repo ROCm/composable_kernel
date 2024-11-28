@@ -210,7 +210,7 @@ struct BlockGemmARegBRegCRegV2
         auto tileDist = BlockTensor::get_tile_distribution();
         return load_tile(block_tensor, make_tile_window(block_window, tileDist));
         
-        // load_tile_raw(block_tensor, make_tile_window_linear_raw(block_window, tileDist));
+        // load_tile(block_tensor, make_tile_window_linear(block_window, tileDist));
         // return;
     }
     

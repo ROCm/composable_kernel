@@ -453,6 +453,58 @@ struct tile_window_linear
 
     CK_TILE_DEVICE constexpr auto get_num_of_access() const { return traits::NumAccess; }
 
+    template <typename DistributedTensor, index_t i_access = -1, bool oob_conditional_check = true>
+    CK_TILE_DEVICE auto load(DistributedTensor dst_tensor, number<i_access> = {}, bool_constant<oob_conditional_check> = {}) const
+    {
+        using vector_t = typename traits::vector_t;
+        using SFC_Ys   = typename traits::SFC_Ys;
+
+        constexpr auto tile_dstr = TileDstr{};
+
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess = number<i_access_>{};
+
+            constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
+            auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
+            auto bottom_tensor_flag         = cached_flags_[IAccess];
+
+            constexpr auto linear_offset = get_bottom_linear_offset(IAccess);
+
+            // read from bottom tensor
+            const vector_t vec_value =
+                get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
+                    bottom_tensor_thread_coord,
+                    linear_offset,
+                    bottom_tensor_flag,
+                    bool_constant<oob_conditional_check>{});
+#if 1
+            // data index [y0, y1, ...]
+            constexpr auto idx_diff_ys = SFC_Ys::get_index(IAccess);
+            // write into distributed tensor
+            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+                constexpr auto idx_ys = generate_tuple(
+                    [&](auto jj) {
+                        return jj == traits::VectorDimY ? (idx_diff_ys[jj] + j) : idx_diff_ys[jj];
+                    },
+                    number<NDimY>{});
+
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+
+                dst_tensor.get_thread_buffer().template at<d>() =
+                    vec_value.template get_as<DataType>()[j];
+            });
+#else
+            constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
+            static_assert(d % traits::ScalarPerVector == 0);
+
+            dst_tensor.get_thread_buffer().template get_as<vector_t>()(
+                number<d / traits::ScalarPerVector>{}) = bit_cast<vector_t>(vec_value);
+#endif
+        };
+
+        WINDOW_DISPATCH_ISSUE();
+    }
+
     template <index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE auto load(number<i_access> = {}, bool_constant<oob_conditional_check> = {}) const
     {

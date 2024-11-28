@@ -256,8 +256,40 @@ struct GemmPipelineAGmemBGmemCRegV1
         using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr{}));
         ALdsTile a_block_tile0;
         BLdsTile b_block_tile0;
-        load_tile(a_block_tile0, make_tile_window(a_lds_window0, ALdsTileDistr{}));
-        load_tile(b_block_tile0, make_tile_window(b_lds_window0, BLdsTileDistr{}));
+        Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
+        Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
+
+        // if (threadIdx.x == 64) {
+        //     constexpr auto span_2d = decltype(a_block_tile0)::get_distributed_spans();
+        //     sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+        //         sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
+        //             printf("%f, %f;  ", type_convert<float>(a_block_tile0(i_j_idx)), type_convert<float>(b_block_tile0(i_j_idx)));
+        //         });
+        //         printf("\n");
+        //     });
+        // }
+        // if (threadIdx.x == 0) {
+        //     printf("aalds\n");
+        //     constexpr auto span_2d = decltype(a_block_tile0)::get_distributed_spans();
+        //     sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+        //         sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
+        //             printf("%f,", type_convert<float>(a_block_tile0(i_j_idx)));
+        //         });
+        //         printf("\n");
+        //     });
+        //     printf("bbbbblds\n");
+        //     constexpr auto span_2d2 = decltype(b_block_tile0)::get_distributed_spans();
+        //     sweep_tile_span(span_2d2[number<0>{}], [&](auto idx0) {
+        //         sweep_tile_span(span_2d2[number<1>{}], [&](auto idx1) {
+        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
+        //             printf("%f,", type_convert<float>(b_block_tile0(i_j_idx)));
+        //         });
+        //         printf("\n");
+        //     });
+        // }
+        // LDS write 1
         LocalPrefill(a_lds_window1, a_global_load_tile, a_element_func);
         LocalPrefill(b_lds_window1, b_global_load_tile, b_element_func);
         
@@ -274,8 +306,8 @@ struct GemmPipelineAGmemBGmemCRegV1
             // ping
             {
                 block_sync_lds();
-                load_tile(a_block_tile1, make_tile_window(a_lds_window1, ALdsTileDistr{}));
-                load_tile(b_block_tile1, make_tile_window(b_lds_window1, BLdsTileDistr{}));
+                Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
+                Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window1, b_block_tile1);
                 LocalPrefill(a_lds_window0, a_global_load_tile, a_element_func);
                 LocalPrefill(b_lds_window0, b_global_load_tile, b_element_func);
                 GlobalPrefetch(a_global_load_tile, a_copy_dram_window);
@@ -286,8 +318,8 @@ struct GemmPipelineAGmemBGmemCRegV1
             // pong
             {
                 block_sync_lds();
-                load_tile(a_block_tile0, make_tile_window(a_lds_window0, ALdsTileDistr{}));
-                load_tile(b_block_tile0, make_tile_window(b_lds_window0, BLdsTileDistr{}));
+                Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
+                Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
                 LocalPrefill(a_lds_window1, a_global_load_tile, a_element_func);
                 LocalPrefill(b_lds_window1, b_global_load_tile, b_element_func);
                 GlobalPrefetch(a_global_load_tile, a_copy_dram_window);
@@ -303,8 +335,8 @@ struct GemmPipelineAGmemBGmemCRegV1
             // 3
             {
                 block_sync_lds();
-                load_tile(a_block_tile1, make_tile_window(a_lds_window1, ALdsTileDistr{}));
-                load_tile(b_block_tile1, make_tile_window(b_lds_window1, BLdsTileDistr{}));
+                Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
+                Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window1, b_block_tile1);
                 LocalPrefill(a_lds_window0, a_global_load_tile, a_element_func);
                 LocalPrefill(b_lds_window0, b_global_load_tile, b_element_func);
                 block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
@@ -312,8 +344,8 @@ struct GemmPipelineAGmemBGmemCRegV1
             // 2
             {
                 block_sync_lds();
-                load_tile(a_block_tile0, make_tile_window(a_lds_window0, ALdsTileDistr{}));
-                load_tile(b_block_tile0, make_tile_window(b_lds_window0, BLdsTileDistr{}));
+                Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
+                Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
                 block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
             }
             //1
@@ -324,8 +356,8 @@ struct GemmPipelineAGmemBGmemCRegV1
         } else {
             {
                 block_sync_lds();
-                load_tile(a_block_tile1, make_tile_window(a_lds_window1, ALdsTileDistr{}));
-                load_tile(b_block_tile1, make_tile_window(b_lds_window1, BLdsTileDistr{}));
+                Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
+                Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window1, b_block_tile1);
                 block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
             }
             // 2
