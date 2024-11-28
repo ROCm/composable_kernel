@@ -102,11 +102,8 @@ struct FusedMoeGemmPipelineGeneralPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize_Bridge()
     {
-        constexpr auto bridge_sld_desc = MakeBridgeLdsLoadDesc<Problem>();
-        constexpr auto bridge_sst_desc = MakeBridgeLdsStoreDesc<Problem>();
-        static_assert(bridge_sld_desc.get_element_space_size() ==
-                      bridge_sst_desc.get_element_space_size());
-        return bridge_sld_desc.get_element_space_size();
+        constexpr auto bridge_lds_desc = MakeBridgeLdsBlockDesc<Problem>();
+        return bridge_lds_desc.get_element_space_size();
     }
 
     template <typename Problem>
@@ -296,30 +293,13 @@ struct FusedMoeGemmPipelineGeneralPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBridgeLdsLoadDesc()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBridgeLdsBlockDesc()
     {
         constexpr index_t Block_M = Problem::BlockShape::Block_M0;
         constexpr index_t Block_N = Problem::BlockShape::Block_N0;
 
-        constexpr index_t KVector = GetSmemKPack_Y<Problem>(); // async copy 1 dword
-        constexpr index_t KPad    = 0;                         // pad between warps
-
-        constexpr auto desc =
-            make_naive_tensor_descriptor(make_tuple(number<Block_M>{}, number<Block_N>{}),
-                                         make_tuple(number<Block_N + KPad>{}, number<1>{}),
-                                         number<KVector>{},
-                                         number<1>{});
-        return desc;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBridgeLdsStoreDesc()
-    {
-        constexpr index_t Block_M = Problem::BlockShape::Block_M0;
-        constexpr index_t Block_N = Problem::BlockShape::Block_N0;
-
-        constexpr index_t KVector = GetSmemKPack_Y<Problem>(); // async copy 1 dword
-        constexpr index_t KPad    = 0; // KVector;                   // pad between warps
+        constexpr index_t KVector = GetSmemKPack_Y<Problem>();
+        constexpr index_t KPad    = 0;
 
         constexpr auto desc =
             make_naive_tensor_descriptor(make_tuple(number<Block_M>{}, number<Block_N>{}),
