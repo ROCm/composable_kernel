@@ -17,5 +17,6 @@ args:
           -m    m dimension (default:3328)
           -n    m dimension (default:4096)
           -v    cpu validation or not (default:1)
+         -sx    smooth x or not (default:1)
        -prec    precision (default:fp16)
 ```
