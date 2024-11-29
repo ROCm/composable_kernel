@@ -89,6 +89,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     xscale_buf.ToDevice(xscale_host.data());
 
     constexpr bool kTwoPass = true;
+    constexpr bool kSmoothX = true;
 
     using BlockWarps = ck_tile::sequence<2, 2>;
     using BlockTile  = ck_tile::sequence<2, 128>;
@@ -103,7 +104,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                         QYDataType,
                                                         Shape,
                                                         true,
-                                                        kTwoPass>;
+                                                        kTwoPass,
+                                                        kSmoothX>;
 
     using OnePassPipeline = ck_tile::SmoothquantPipelineOnePass<Problem>;
     using TwoPassPipeline = ck_tile::SmoothquantPipelineTwoPass<Problem>;
@@ -141,8 +143,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
                 for(int m_ = 0; m_ < m; ++m_)
                 {
-                    auto v_x       = ck_tile::type_convert<ComputeDataType>(x_host(m_, n_));
-                    y_host(m_, n_) = v_x * v_xscale;
+                    auto v_x = ck_tile::type_convert<ComputeDataType>(x_host(m_, n_));
+                    if constexpr(kSmoothX)
+                        y_host(m_, n_) = v_x * v_xscale;
+                    else
+                        y_host(m_, n_) = v_x;
                 }
             };
 

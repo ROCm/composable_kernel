@@ -23,9 +23,10 @@ struct SmoothquantPipelineOnePass
     using YScaleDataType  = ck_tile::remove_cvref_t<typename Problem::YScaleDataType>;
 
     static constexpr bool kNeedCrossWarpSync = Problem::kNeedCrossWarpSync;
-    static constexpr bool kPadM              = false; // TODO - BlockSmoothquantProblem::kPadM
+    static constexpr bool kPadM              = false; // No need to pad M
     static constexpr bool kPadN              = Problem::kPadN;
-    static constexpr bool UseMax3            = true; // TODO - Move to trait
+    static constexpr bool kSmoothX           = Problem::kSmoothX;
+    static constexpr bool UseMax3            = true; // TODO - Move to Problem
 
     static constexpr const char* name = []() {
         if constexpr(kNeedCrossWarpSync)
@@ -67,14 +68,22 @@ struct SmoothquantPipelineOnePass
         auto block_reduce2d_cross_warp_sync =
             Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
 
-        const auto x      = load_tile(x_window);
-        const auto xscale = load_tile(xscale_window);
-        auto y            = tile_elementwise_in(
-            [&](const auto& a, const auto& b) {
-                return type_convert<ComputeDataType>(a) * type_convert<ComputeDataType>(b);
-            },
-            x,
-            xscale);
+        const auto x = load_tile(x_window);
+
+        auto y = [&]() {
+            if constexpr(kSmoothX)
+            {
+                const auto xscale = load_tile(xscale_window);
+                return tile_elementwise_in(
+                    [&](const auto& a, const auto& b) {
+                        return type_convert<ComputeDataType>(a) * type_convert<ComputeDataType>(b);
+                    },
+                    x,
+                    xscale);
+            }
+            else
+                return cast_tile<ComputeDataType>(x);
+        }();
 
         // compute absmax, cross-lane->cross-warp
         auto absmax = [&]() {

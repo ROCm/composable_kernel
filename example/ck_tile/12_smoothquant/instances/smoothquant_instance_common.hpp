@@ -41,7 +41,8 @@ float smoothquant_(const S& s, A a)
         typename SmoothquantTypeConfig<DataType>::QYDataType,
         typename Traits_::Shape,
         Traits_::kPadN,
-        Traits_::kTwoPass>;
+        Traits_::kTwoPass,
+        true>;
 
     using OnePassPipeline = ck_tile::SmoothquantPipelineOnePass<PipelineProblem>;
     using TwoPassPipeline = ck_tile::SmoothquantPipelineTwoPass<PipelineProblem>;

@@ -15,7 +15,8 @@ template <typename XDataType_,
           typename QYDataType_,
           typename BlockShape_,
           bool kPadN_,
-          bool kTwoPass_>
+          bool kTwoPass_,
+          bool kSmoothX_>
 struct SmoothquantPipelineProblem
 {
     using XDataType       = remove_cvref_t<XDataType_>;
@@ -30,6 +31,7 @@ struct SmoothquantPipelineProblem
 
     static constexpr bool kPadN    = kPadN_;
     static constexpr bool kTwoPass = kTwoPass_;
+    static constexpr bool kSmoothX = kSmoothX_;
 };
 
 } // namespace ck_tile

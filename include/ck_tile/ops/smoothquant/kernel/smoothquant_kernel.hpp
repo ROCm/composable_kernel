@@ -40,6 +40,7 @@ struct Smoothquant
     static constexpr bool kPadM      = false; // always no need to pad along M
     static constexpr bool kPadN      = Problem::kPadN;
     static constexpr bool kTwoPass   = Problem::kTwoPass;
+    static constexpr bool kSmoothX   = Problem::kSmoothX;
 
     static constexpr index_t ThreadPerWarp_N = Problem::BlockShape::ThreadPerWarp_N;
     static constexpr index_t Vector_N        = Problem::BlockShape::Vector_N;
@@ -95,6 +96,7 @@ struct Smoothquant
             std::string n;
             if (kPadN) n += "_pn";
             if (kTwoPass) n += "_2p";
+            if (kSmoothX) n += "_sx";
             return n; }();
 
         #define _SS_  std::string
@@ -127,17 +129,22 @@ struct Smoothquant
         }();
 
         const auto xscale_window = [&]() {
-            const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<const XScaleDataType*>(kargs.p_xscale),
-                make_tuple(kargs.n),
-                make_tuple(1),
-                number<Vector_N>{},
-                number<1>{});
+            if constexpr(kSmoothX)
+            {
+                const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
+                    static_cast<const XScaleDataType*>(kargs.p_xscale),
+                    make_tuple(kargs.n),
+                    make_tuple(1),
+                    number<Vector_N>{},
+                    number<1>{});
 
-            const auto tmp2_ =
-                pad_tensor_view(tmp_, make_tuple(number<Block_N>{}), sequence<kPadN>{});
+                const auto tmp2_ =
+                    pad_tensor_view(tmp_, make_tuple(number<Block_N>{}), sequence<kPadN>{});
 
-            return make_tile_window(tmp2_, make_tuple(number<Block_N>{}), {0});
+                return make_tile_window(tmp2_, make_tuple(number<Block_N>{}), {0});
+            }
+            else
+                return make_null_tile_window(make_tuple(number<Block_N>{}));
         }();
 
         auto yscale_window = [&]() {

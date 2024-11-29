@@ -23,8 +23,9 @@ struct SmoothquantPipelineTwoPass
     using YScaleDataType  = ck_tile::remove_cvref_t<typename Problem::YScaleDataType>;
 
     static constexpr bool kNeedCrossWarpSync = Problem::kNeedCrossWarpSync;
-    static constexpr bool kPadM              = false; // TODO - BlockSmoothquantProblem::kPadM
+    static constexpr bool kPadM              = false; // No need to pad M
     static constexpr bool kPadN              = Problem::kPadN;
+    static constexpr bool kSmoothX           = Problem::kSmoothX;
     static constexpr bool UseMax3            = true; // TODO - Move to trait
 
     static constexpr const char* name = []() {
@@ -76,14 +77,23 @@ struct SmoothquantPipelineTwoPass
 
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
-            const auto x      = load_tile(x_window);
-            const auto xscale = load_tile(xscale_window);
-            const auto y      = tile_elementwise_in(
-                [&](const auto& a, const auto& b) {
-                    return type_convert<ComputeDataType>(a) * type_convert<ComputeDataType>(b);
-                },
-                x,
-                xscale);
+            const auto x = load_tile(x_window);
+
+            auto y = [&]() {
+                if constexpr(kSmoothX)
+                {
+                    const auto xscale = load_tile(xscale_window);
+                    return tile_elementwise_in(
+                        [&](const auto& a, const auto& b) {
+                            return type_convert<ComputeDataType>(a) *
+                                   type_convert<ComputeDataType>(b);
+                        },
+                        x,
+                        xscale);
+                }
+                else
+                    return cast_tile<ComputeDataType>(x);
+            }();
 
             constexpr auto x_size_per_row =
                 x.get_tile_distribution().get_ys_to_d_descriptor().get_lengths().at(number<1>{});
@@ -93,8 +103,10 @@ struct SmoothquantPipelineTwoPass
             else
                 block_reduce2d(y, absmax, reduce_absmax_func);
 
+            if constexpr(kSmoothX)
+                move_tile_window(xscale_window, {Block_N});
+
             move_tile_window(x_window, {0, Block_N});
-            move_tile_window(xscale_window, {Block_N});
         }
 
         // compute absmax, cross-lane->cross-warp
@@ -113,21 +125,32 @@ struct SmoothquantPipelineTwoPass
         ck_tile::index_t stride_to_right_most_window =
             row_size % Block_N == 0 ? row_size - Block_N : row_size - row_size % Block_N;
 
+        if constexpr(kSmoothX)
+            move_tile_window(xscale_window, {-Block_N});
+
         move_tile_window(x_window, {0, -Block_N});
-        move_tile_window(xscale_window, {-Block_N});
         move_tile_window(qy_window, {0, stride_to_right_most_window});
 
         // recompute y and quantize y to qy
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
-            const auto x      = load_tile(x_window);
-            const auto xscale = load_tile(xscale_window);
-            const auto y      = tile_elementwise_in(
-                [&](const auto& a, const auto& b) {
-                    return type_convert<ComputeDataType>(a) * type_convert<ComputeDataType>(b);
-                },
-                x,
-                xscale);
+            const auto x = load_tile(x_window);
+
+            auto y = [&]() {
+                if constexpr(kSmoothX)
+                {
+                    const auto xscale = load_tile(xscale_window);
+                    return tile_elementwise_in(
+                        [&](const auto& a, const auto& b) {
+                            return type_convert<ComputeDataType>(a) *
+                                   type_convert<ComputeDataType>(b);
+                        },
+                        x,
+                        xscale);
+                }
+                else
+                    return cast_tile<ComputeDataType>(x);
+            }();
 
             auto qy = make_static_distributed_tensor<QYDataType>(y.get_tile_distribution());
             sweep_tile(qy, [&](auto idx) {
@@ -137,8 +160,10 @@ struct SmoothquantPipelineTwoPass
             });
             store_tile(qy_window, qy);
 
+            if constexpr(kSmoothX)
+                move_tile_window(xscale_window, {0, -Block_N});
+
             move_tile_window(x_window, {0, -Block_N});
-            move_tile_window(xscale_window, {0, -Block_N});
             move_tile_window(qy_window, {0, -Block_N});
         }
     }
