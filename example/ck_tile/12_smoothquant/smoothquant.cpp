@@ -34,6 +34,7 @@ auto create_args(int argc, char* argv[])
     arg_parser.insert("m", "3328", "m dimension")
         .insert("n", "4096", "n dimension")
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
+        .insert("sx", "1", "0 is pure quantization, 1 is to apply smoothquant")
         .insert("v", "1", "cpu validation or not")
         .insert("kname", "1", "print kernel name or not")
         .insert("prec", "fp16", "precision")
@@ -53,6 +54,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(stride < 0)
         stride = n;
     std::string data_type = arg_parser.get_str("prec");
+    bool smooth_x         = arg_parser.get_bool("sx");
     int kname             = arg_parser.get_int("kname");
     int do_validation     = arg_parser.get_int("v");
     int warmup            = arg_parser.get_int("warmup");
@@ -92,7 +94,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "[" << data_type << "]"
               << " m:" << m << ", n:" << n << ", stride:" << stride << std::flush;
 
-    smoothquant_traits traits{data_type};
+    smoothquant_traits traits{data_type, smooth_x};
 
     smoothquant_args args{x_buf.GetDeviceBuffer(),
                           xscale_buf.GetDeviceBuffer(),
@@ -124,8 +126,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
                 for(int m_ = 0; m_ < m; ++m_)
                 {
-                    auto v_x       = ck_tile::type_convert<ComputeDataType>(x_host(m_, n_));
-                    y_host(m_, n_) = v_x * v_xscale;
+                    auto v_x = ck_tile::type_convert<ComputeDataType>(x_host(m_, n_));
+                    if(smooth_x)
+                        y_host(m_, n_) = v_x * v_xscale;
+                    else
+                        y_host(m_, n_) = v_x;
                 }
             };
 

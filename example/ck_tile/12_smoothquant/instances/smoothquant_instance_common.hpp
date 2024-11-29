@@ -18,7 +18,8 @@ template <typename DataType_,
           ck_tile::index_t ThreadPerBlock_N_, // num threads along N
           ck_tile::index_t Vector_N_,         // vector size along N
           bool kPadN_,
-          bool kTwoPass_>
+          bool kTwoPass_,
+          bool kSmoothX_>
 using trait_ = smoothquant_traits_<DataType_,
                                    Repeat_M_,
                                    Repeat_N_,
@@ -26,7 +27,8 @@ using trait_ = smoothquant_traits_<DataType_,
                                    ThreadPerBlock_N_,
                                    Vector_N_,
                                    kPadN_,
-                                   kTwoPass_>;
+                                   kTwoPass_,
+                                   kSmoothX_>;
 
 template <typename Traits_>
 float smoothquant_(const S& s, A a)
@@ -42,7 +44,7 @@ float smoothquant_(const S& s, A a)
         typename Traits_::Shape,
         Traits_::kPadN,
         Traits_::kTwoPass,
-        true>;
+        Traits_::kSmoothX>;
 
     using OnePassPipeline = ck_tile::SmoothquantPipelineOnePass<PipelineProblem>;
     using TwoPassPipeline = ck_tile::SmoothquantPipelineTwoPass<PipelineProblem>;

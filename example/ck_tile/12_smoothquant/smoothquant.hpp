@@ -44,7 +44,8 @@ template <typename DataType_,
           ck_tile::index_t ThreadPerBlock_N_, // num threads along N
           ck_tile::index_t Vector_N_,         // vector size along N
           bool kPadN_,
-          bool kTwoPass_>
+          bool kTwoPass_,
+          bool kSmoothX_>
 struct smoothquant_traits_
 {
     using DataType = ck_tile::remove_cvref_t<DataType_>;
@@ -100,6 +101,7 @@ struct smoothquant_traits_
 
     static constexpr bool kPadN    = kPadN_;
     static constexpr bool kTwoPass = kTwoPass_;
+    static constexpr bool kSmoothX = kSmoothX_;
 };
 
 template <typename Traits_>
@@ -109,6 +111,7 @@ float smoothquant_(const ck_tile::stream_config& s, smoothquant_args a);
 struct smoothquant_traits
 {
     std::string data_type;
+    bool smooth_x;
 };
 
 float smoothquant(smoothquant_traits, smoothquant_args, const ck_tile::stream_config&);

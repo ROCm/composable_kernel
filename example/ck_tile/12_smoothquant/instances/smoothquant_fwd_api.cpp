@@ -11,7 +11,8 @@ template <typename DataType_,
           ck_tile::index_t ThreadPerBlock_N_, // num threads along N
           ck_tile::index_t Vector_N_,         // vector size along N
           bool kPadN_,
-          bool kTwoPass_>
+          bool kTwoPass_,
+          bool kSmoothX_>
 using trait_ = smoothquant_traits_<DataType_,
                                    Repeat_M_,
                                    Repeat_N_,
@@ -19,9 +20,10 @@ using trait_ = smoothquant_traits_<DataType_,
                                    ThreadPerBlock_N_,
                                    Vector_N_,
                                    kPadN_,
-                                   kTwoPass_>;
+                                   kTwoPass_,
+                                   kSmoothX_>;
 
-template <typename data_type>
+template <typename data_type, bool smooth_x>
 float smoothquant_dispatch(smoothquant_traits /*t*/,
                            smoothquant_args a,
                            const ck_tile::stream_config& s)
@@ -30,99 +32,99 @@ float smoothquant_dispatch(smoothquant_traits /*t*/,
     // clang-format off
     //                                         rm  rn  tm  tn  vn   pd    2p
     if(a.n <= 64) {
-            r = smoothquant_<trait_<data_type, 1,  1,  4,  64, 1,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type, 1,  1,  4,  64, 1,  true, false, smooth_x>>(s, a);
     }
     else if(a.n <= 128) {
         if (a.n % 2 == 0)
-            r = smoothquant_<trait_<data_type, 1,  1,  4,  64, 2,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type, 1,  1,  4,  64, 2,  true, false, smooth_x>>(s, a);
         else
-            r = smoothquant_<trait_<data_type, 1,  2,  4,  64, 1,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type, 1,  2,  4,  64, 1,  true, false, smooth_x>>(s, a);
     }
     else if(a.n <= 256) {
         if (a.n % 4 == 0)
-            r = smoothquant_<trait_<data_type,  1, 1,  4,  64, 4,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 1,  4,  64, 4,  true, false, smooth_x>>(s, a);
         else if (a.n % 2 == 0)
-            r = smoothquant_<trait_<data_type,  1, 2,  4,  64, 2,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 2,  4,  64, 2,  true, false, smooth_x>>(s, a);
         else
-            r = smoothquant_<trait_<data_type,  1, 4,  4,  64, 1,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 4,  4,  64, 1,  true, false, smooth_x>>(s, a);
     }
     else if(a.n <= 512) {
         if (a.n % 8 == 0)
-            r = smoothquant_<trait_<data_type,  1, 1,  4,  64, 8,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 1,  4,  64, 8,  true, false, smooth_x>>(s, a);
         else if (a.n % 4 == 0)
-            r = smoothquant_<trait_<data_type,  1, 2,  4,  64, 4,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 2,  4,  64, 4,  true, false, smooth_x>>(s, a);
         else if (a.n % 2 == 0)
-            r = smoothquant_<trait_<data_type,  1, 4,  4,  64, 2,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 4,  4,  64, 2,  true, false, smooth_x>>(s, a);
         else
-            r = smoothquant_<trait_<data_type,  1, 8,  4,  64, 1,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 8,  4,  64, 1,  true, false, smooth_x>>(s, a);
     }
     else if(a.n <= 768) {
         if (a.n % 4 == 0)
-            r = smoothquant_<trait_<data_type,  1, 3,  4,  64, 4,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 3,  4,  64, 4,  true, false, smooth_x>>(s, a);
         else if (a.n % 2 == 0)
-            r = smoothquant_<trait_<data_type,  1, 6,  4,  64, 2,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 6,  4,  64, 2,  true, false, smooth_x>>(s, a);
         else
-            r = smoothquant_<trait_<data_type,  1,12,  4,  64, 1,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1,12,  4,  64, 1,  true, false, smooth_x>>(s, a);
     }
     else if(a.n <= 1024) {
         if (a.n % 8 == 0)
-            r = smoothquant_<trait_<data_type,  1, 1, 2,  128, 8,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 1, 2,  128, 8,  true, false, smooth_x>>(s, a);
         else if (a.n % 4 == 0)
-            r = smoothquant_<trait_<data_type,  1, 2, 2,  128, 4,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 2, 2,  128, 4,  true, false, smooth_x>>(s, a);
         else if (a.n % 2 == 0)
-            r = smoothquant_<trait_<data_type,  1, 4, 2,  128, 2,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 4, 2,  128, 2,  true, false, smooth_x>>(s, a);
         else
-            r = smoothquant_<trait_<data_type,  1, 4, 1,  256, 1,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 4, 1,  256, 1,  true, false, smooth_x>>(s, a);
     }
     else if(a.n <= 1536) {
         if (a.n % 8 == 0)
-            r = smoothquant_<trait_<data_type,  1, 3, 4,   64, 8,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 3, 4,   64, 8,  true, false, smooth_x>>(s, a);
         else if (a.n % 4 == 0)
-            r = smoothquant_<trait_<data_type,  1, 3, 2,  128, 4,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 3, 2,  128, 4,  true, false, smooth_x>>(s, a);
         else if (a.n % 2 == 0)
-            r = smoothquant_<trait_<data_type,  1, 3, 1,  256, 2,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 3, 1,  256, 2,  true, false, smooth_x>>(s, a);
         else
-            r = smoothquant_<trait_<data_type,  1, 6, 1,  256, 1,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 6, 1,  256, 1,  true, false, smooth_x>>(s, a);
     }
     else if(a.n <= 2048) {
         if (a.n % 8 == 0)
-            r = smoothquant_<trait_<data_type,  1, 1, 1,  256, 8,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 1, 1,  256, 8,  true, false, smooth_x>>(s, a);
         else if (a.n % 4 == 0)
-            r = smoothquant_<trait_<data_type,  1, 2, 1,  256, 4,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 2, 1,  256, 4,  true, false, smooth_x>>(s, a);
         else if (a.n % 2 == 0)
-            r = smoothquant_<trait_<data_type,  1, 4, 1,  256, 2,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 4, 1,  256, 2,  true, false, smooth_x>>(s, a);
         else
-            r = smoothquant_<trait_<data_type,  1, 8, 1,  256, 1,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 8, 1,  256, 1,  true, false, smooth_x>>(s, a);
     }
     else if(a.n <= 3072) {
         if (a.n % 8 == 0)
-            r = smoothquant_<trait_<data_type,  1, 3, 1,  128, 8,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 3, 1,  128, 8,  true, false, smooth_x>>(s, a);
         else if (a.n % 4 == 0)
-            r = smoothquant_<trait_<data_type,  1, 3, 1,  256, 4,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 3, 1,  256, 4,  true, false, smooth_x>>(s, a);
         else if (a.n % 2 == 0)
-            r = smoothquant_<trait_<data_type,  1, 6, 1,  256, 2,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 6, 1,  256, 2,  true, false, smooth_x>>(s, a);
         else
-            r = smoothquant_<trait_<data_type,  1, 3, 1, 1024, 1,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 3, 1, 1024, 1,  true, false, smooth_x>>(s, a);
     }
     else if(a.n <= 4096) {
         if (a.n % 8 == 0)
-            r = smoothquant_<trait_<data_type,  1, 2, 1,  256, 8,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 2, 1,  256, 8,  true, false, smooth_x>>(s, a);
         else if (a.n % 4 == 0)
-            r = smoothquant_<trait_<data_type,  1, 4, 1,  256, 4,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 4, 1,  256, 4,  true, false, smooth_x>>(s, a);
         else if (a.n % 2 == 0)
-            r = smoothquant_<trait_<data_type,  1, 2, 1, 1024, 2,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 2, 1, 1024, 2,  true, false, smooth_x>>(s, a);
         else
-            r = smoothquant_<trait_<data_type,  1, 4, 1, 1024, 1,  true, false>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 4, 1, 1024, 1,  true, false, smooth_x>>(s, a);
     }
     else if(a.n > 4096) {
         if (a.n % 8 == 0)
-            r = smoothquant_<trait_<data_type,  1, 2, 1,  256, 8,  true, true>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 2, 1,  256, 8,  true, true, smooth_x>>(s, a);
         else if (a.n % 4 == 0)
-            r = smoothquant_<trait_<data_type,  1, 4, 1,  256, 4,  true, true>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 4, 1,  256, 4,  true, true, smooth_x>>(s, a);
         else if (a.n % 2 == 0)
-            r = smoothquant_<trait_<data_type,  1, 2, 1, 1024, 2,  true, true>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 2, 1, 1024, 2,  true, true, smooth_x>>(s, a);
         else
-            r = smoothquant_<trait_<data_type,  1, 4, 1, 1024, 1,  true, true>>(s, a);
+            r = smoothquant_<trait_<data_type,  1, 4, 1, 1024, 1,  true, true, smooth_x>>(s, a);
     }
     return r;
     // clang-format on
@@ -132,11 +134,17 @@ float smoothquant(smoothquant_traits t, smoothquant_args a, const ck_tile::strea
 {
     if(t.data_type.compare("fp16") == 0)
     {
-        return smoothquant_dispatch<ck_tile::fp16_t>(t, a, s);
+        if (t.smooth_x)
+            return smoothquant_dispatch<ck_tile::fp16_t, true>(t, a, s);
+        else
+            return smoothquant_dispatch<ck_tile::fp16_t, false>(t, a, s);
     }
     else if(t.data_type.compare("bf16") == 0)
     {
-        return smoothquant_dispatch<ck_tile::bf16_t>(t, a, s);
+        if (t.smooth_x)
+            return smoothquant_dispatch<ck_tile::bf16_t, true>(t, a, s);
+        else
+            return smoothquant_dispatch<ck_tile::bf16_t, false>(t, a, s);
     }
     else
         throw std::runtime_error("Without supported instances!");
