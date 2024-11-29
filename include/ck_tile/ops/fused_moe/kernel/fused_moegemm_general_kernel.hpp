@@ -301,11 +301,10 @@ struct FusedMoeGemmGlKernel
         // TODO: gtile using NSub to have less register pressure
         const auto g_window = [&]() {
             const GDataType* g_ptr = reinterpret_cast<const GDataType*>(kargs.g_ptr) +
-                                     static_cast<long_index_t>(expert_id) * expert_stride_0 +
-                                     idx_n0 * kargs.hidden_size;
+                                     static_cast<long_index_t>(expert_id) * expert_stride_0;
             const auto g_view_ = make_naive_tensor_view<address_space_enum::global>(
                 g_ptr,
-                make_tuple(BlockShape::Block_N0, kargs.hidden_size),
+                make_tuple(kargs.intermediate_size, kargs.hidden_size),
                 make_tuple(kargs.hidden_size, 1),
                 number<Pipeline::kAlignmentG>{},
                 number<1>{});
@@ -313,7 +312,7 @@ struct FusedMoeGemmGlKernel
             const auto g_window_ = make_tile_window(
                 g_view_,
                 make_tuple(number<BlockShape::Block_N0>{}, number<BlockShape::Block_K0>{}),
-                {0, 0});
+                {idx_n0, 0});
             return g_window_;
         }();
 

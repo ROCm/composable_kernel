@@ -73,6 +73,23 @@ void output_matrix_2d(ck_tile::HostTensor<IndexType>& data, int m, int n)
         std::cout << std::endl;
     }
 }
+template <typename IndexType>
+void output_matrix_3d(ck_tile::HostTensor<IndexType>& data, int M, int N, int J)
+{
+    std::cout << std::endl;
+    for(int m = 0; m < M; m++)
+    {
+        for(int n = 0; n < N; n++)
+        {
+            std::cout << "experts: " << m << " Line: " << n  << "\t";
+            for(int j = 0; j < J; j++)
+            {
+                std::cout << ck_tile::type_convert<float>(data(m, n, j)) << "\t";
+            }
+            std::cout << std::endl;
+        }
+    }
+}
 
 template <typename IndexType>
 void topid_unique_gen(
@@ -265,7 +282,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // output_matrix_2d(a_host, tokens, hidden_size);
     // std::cout << sorted_token_ids_host << std::endl;
     // std::cout << num_sorted_tiles_host << std::endl;
-    // std::cout << sorted_expert_ids_host << std::endl;
+    output_matrix_3d(g_host, experts, shared_intermediate_size_0, hidden_size);
+    std::cout << sorted_expert_ids_host << std::endl;
     // std::cout << topk_weight_host << std::endl;
 
     // std::cout << sorted_weight_host << std::endl;

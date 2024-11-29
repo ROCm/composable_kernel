@@ -98,6 +98,9 @@ struct FusedMoeGemmPipeline_General
                                    index_t hidden_size,
                                    index_t intermediate_size)
     {
+        ignore = d_window_;
+        ignore = hidden_size;
+        ignore = intermediate_size;
         CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
         auto a_lds_view                    = make_tensor_view<address_space_enum::lds>(
             smem_0, Policy::template MakeLdsBlockDesc_A<Problem>());
@@ -126,9 +129,59 @@ struct FusedMoeGemmPipeline_General
         // save tokens to lds
         auto a_dram_block = load_tile(a_global_to_dram_window);
         store_tile(a_lds_win, a_dram_block);
+#if 0
+        {
+            // check a matrix gather right or not
+            constexpr auto a_spans = decltype(a_dram_block)::get_distributed_spans();
+            int counter            = 0;
+            sweep_tile_span(a_spans[number<0>{}], [&](auto idxm) {
+                sweep_tile_span(a_spans[number<1>{}], [&](auto idxk) {
+                    constexpr auto i_j_idx = make_tuple(idxm, idxk);
+                    if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                    {
+                        counter       = counter + 1;
+                        index_t idm_0 = idxm.impl_.at(0);
+                        index_t idk_0 = idxk.impl_.at(0);
+                        printf("in A idm is %d , idk_ is %d , counter is %d, value is: %f \n",
+                               idm_0,
+                               idk_0,
+                               counter,
+                               ck_tile::type_convert<float>(a_dram_block(i_j_idx)));
+                    }
+                });
+            });
+        }
+#endif
 
         // load g to register
         auto g_dram_block = load_tile(g_global_to_dram_window);
+
+#if 1
+        {
+            constexpr auto a_spans = decltype(g_dram_block)::get_distributed_spans();
+            int counter            = 0;
+            sweep_tile_span(a_spans[number<0>{}], [&](auto idxn) {
+                sweep_tile_span(a_spans[number<1>{}], [&](auto idxk) {
+                    constexpr auto i_j_idx = make_tuple(idxn, idxk);
+                    if(threadIdx.x == 1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                    {
+                        counter       = counter + 1;
+                        index_t idn_0 = idxn.impl_.at(0);
+                        index_t idk_0 = idxk.impl_.at(0);
+                        index_t idk_1 = idxk.impl_.at(1);
+                        printf("in A idn is %d , idk_0 is %d idk_1 is %d, counter is %d, value is: "
+                               "%f \n",
+                               idn_0,
+                               idk_0,
+                               idk_1,
+                               counter,
+                               ck_tile::type_convert<float>(g_dram_block(i_j_idx)));
+                    }
+                });
+            });
+        }
+
+#endif
 
         clear_tile(s_acc); // initialize C
         constexpr index_t kK0  = BlockShape::Block_K0;
@@ -196,6 +249,10 @@ struct FusedMoeGemmPipeline_General
             block_sync_lds();
             move_tile_window(d_global_to_dram_window, {kN1, 0});
             d = load_tile(d_global_to_dram_window);
+            // move out window and save data
+            auto o = cast_tile<ODataType>(o_acc);
+            store_tile(o_window_, o);
+            move_tile_window(o_window_, {kN1, 0});
 
             iCounter1--;
         }
@@ -204,30 +261,7 @@ struct FusedMoeGemmPipeline_General
             block_sync_lds();
             gemm_1(o_acc, y, d);
         }
-        auto o = cast_tile<ODataType>(o_acc);
-        store_tile(o_window_, o);
         // store_tile(o_window_, a_dram_block);
-#if 0
-        //check a matrix gather right or not
-        constexpr auto a_spans = decltype(a_dram_block)::get_distributed_spans();
-        int counter            = 0;
-        sweep_tile_span(a_spans[number<0>{}], [&](auto idxm) {
-            sweep_tile_span(a_spans[number<1>{}], [&](auto idxk) {
-                constexpr auto i_j_idx = make_tuple(idxm, idxk);
-                if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
-                {
-                    counter       = counter + 1;
-                    index_t idm_0 = idxm.impl_.at(0);
-                    index_t idn_0 = idxk.impl_.at(0);
-                    printf("in A idm is %d , idn_ is %d , counter is %d, value is: %f \n",
-                           idm_0,
-                           idn_0,
-                           counter,
-                           ck_tile::type_convert<float>(a_dram_block(i_j_idx)));
-                }
-            });
-        });
-#endif
     }
 };
 
