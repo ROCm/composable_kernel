@@ -77,10 +77,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
 # Remove unnecessary rocm components that take a lot of space
     apt-get remove -y rocblas rocfft rocsparse composablekernel-dev
 
-# hipTensor requires rocm-llvm-dev for rocm versions > 6.0.1
-RUN if [ "$ROCMVERSION" = "6.1" ]; then \
-        sh -c "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated rocm-llvm-dev"; \
-    fi
 # Update the cmake to version 3.27.5
 RUN pip install --upgrade cmake==3.27.5 && \
 #Install latest ccache

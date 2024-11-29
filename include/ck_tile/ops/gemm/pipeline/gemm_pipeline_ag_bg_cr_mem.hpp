@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
 
 namespace ck_tile {
 
@@ -90,7 +91,8 @@ struct BaseGemmPipelineAgBgCrMem
 template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCRegV1DefaultPolicy>
 struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 {
-    using Base = BaseGemmPipelineAgBgCrMem<Problem>;
+    using Base             = BaseGemmPipelineAgBgCrMem<Problem>;
+    using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
@@ -103,8 +105,9 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
     using I0        = number<0>;
+    using I1        = number<1>;
+    using I2        = number<2>;
 
-    static constexpr index_t BlockSize = Problem::kBlockSize;
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
@@ -124,46 +127,20 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
     using Base::PrefetchStages;
 
-    CK_TILE_HOST_DEVICE constexpr index_t GetStaticLdsSize()
-    {
-        return integer_divide_ceil(
-                   sizeof(ADataType) *
-                       Policy::template MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
-                   16) *
-                   16 +
-               sizeof(BDataType) *
-                   Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
-    }
-
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
     }
 
     template <GemmPipelineScheduler Scheduler>
-    struct PipelineImpl
+    struct PipelineImpl : public PipelineImplBase
     {
     };
 
     template <>
-    struct PipelineImpl<GemmPipelineScheduler::Intrawave>
+    struct PipelineImpl<GemmPipelineScheduler::Intrawave> : public PipelineImplBase
     {
-        template <typename DstBlockTile, typename SrcTileWindow>
-        CK_TILE_DEVICE void GlobalPrefetch(DstBlockTile& dst_block_tile,
-                                           SrcTileWindow& dram_tile_window) const
-        {
-            load_tile(dst_block_tile, dram_tile_window);
-            move_tile_window(dram_tile_window, {0, KPerBlock});
-        }
-
-        template <typename DstTileWindow, typename SrcBlockTile, typename ElementFunction>
-        CK_TILE_DEVICE void LocalPrefill(DstTileWindow& lds_tile_window,
-                                         const SrcBlockTile& src_block_tile,
-                                         const ElementFunction& element_func) const
-        {
-            const auto block_tile_tmp = tile_elementwise_in(element_func, src_block_tile);
-            store_tile(lds_tile_window, block_tile_tmp);
-        }
+        using Base = PipelineImplBase;
 
         template <bool HasHotLoop,
                   TailNumber TailNum,
@@ -185,66 +162,38 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 "A/B Dram block window should have the same data type as appropriate "
                 "([A|B]DataType) defined in Problem definition!");
 
-            static_assert(MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                              NPerBlock ==
-                                  BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                              KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+            static_assert(MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}],
                           "A/B block window appropriate sizes must be equal to MPerBlock/NPerblock"
                           " or KPerBlock!");
 
             // ------------------------------------------------------------------------------------
             // Definitions of all needed tiles
 
-            // A tile in LDS
-            ADataType* p_a_lds              = static_cast<ADataType*>(p_smem);
-            constexpr auto a_lds_block_desc = Policy::template MakeALdsBlockDescriptor<Problem>();
-            auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
-
-            // TODO: LDS alignment should come from Policy!
-            constexpr index_t a_lds_block_space_size_aligned =
-                integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(),
-                                    16) *
-                16;
-
-            // B tile in LDS
-            BDataType* p_b_lds = static_cast<BDataType*>(
-                static_cast<void*>(static_cast<char*>(p_smem) + a_lds_block_space_size_aligned));
-            constexpr auto b_lds_block_desc = Policy::template MakeBLdsBlockDescriptor<Problem>();
-            auto b_lds_block = make_tensor_view<address_space_enum::lds>(p_b_lds, b_lds_block_desc);
+            // A/B tiles in LDS
+            // With c++20 could simplify to below line.
+            // Currently get error: captured structured bindings are a C++20 extension
+            // auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
+            auto ab_lds_blocks = Base::GetABLdsTensorViews(p_smem);
+            auto& a_lds_block  = ab_lds_blocks.at(I0{});
+            auto& b_lds_block  = ab_lds_blocks.at(I1{});
 
             // A DRAM tile window for load
-            auto a_copy_dram_window =
-                make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                 a_dram_block_window_tmp.get_window_origin(),
-                                 Policy::template MakeADramTileDistribution<Problem>());
-
             // A LDS tile window for store
-            auto a_copy_lds_window =
-                make_tile_window(a_lds_block,
-                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                 {0, 0},
-                                 a_copy_dram_window.get_tile_distribution());
-            // B DRAM tile window for load
-            auto b_copy_dram_window =
-                make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                 b_dram_block_window_tmp.get_window_origin(),
-                                 Policy::template MakeBDramTileDistribution<Problem>());
-
-            // B LDS tile window for store
-            auto b_copy_lds_window =
-                make_tile_window(b_lds_block,
-                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                 {0, 0},
-                                 b_copy_dram_window.get_tile_distribution());
-
             // A LDS tile for block GEMM
-            auto a_lds_gemm_window = make_tile_window(
-                a_lds_block, make_tuple(number<MPerBlock>{}, number<KPerBlock>{}), {0, 0});
+            auto a_windows           = Base::GetAWindows(a_dram_block_window_tmp, a_lds_block);
+            auto& a_copy_dram_window = a_windows.at(I0{});
+            auto& a_copy_lds_window  = a_windows.at(I1{});
+            auto& a_lds_gemm_window  = a_windows.at(I2{});
+
+            // B DRAM tile window for load
+            // B LDS tile window for store
             // B LDS tile for block GEMM
-            auto b_lds_gemm_window = make_tile_window(
-                b_lds_block, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
+            auto b_windows           = Base::GetBWindows(b_dram_block_window_tmp, b_lds_block);
+            auto& b_copy_dram_window = b_windows.at(I0{});
+            auto& b_copy_lds_window  = b_windows.at(I1{});
+            auto& b_lds_gemm_window  = b_windows.at(I2{});
 
             // Block GEMM
             auto block_gemm   = BlockGemm();
@@ -266,20 +215,20 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
             // prefetch
             // global read 0
-            GlobalPrefetch(a_block_tiles.get(I0{}), a_copy_dram_window);
-            GlobalPrefetch(b_block_tiles.get(I0{}), b_copy_dram_window);
+            Base::GlobalPrefetch(a_block_tiles.get(I0{}), a_copy_dram_window);
+            Base::GlobalPrefetch(b_block_tiles.get(I0{}), b_copy_dram_window);
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
             // LDS write 0
-            LocalPrefill(a_copy_lds_window, a_block_tiles.get(I0{}), a_element_func);
-            LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
+            Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I0{}), a_element_func);
+            Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
 
             // Global prefetch [1, PrefetchStages]
             static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {
-                GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}), a_copy_dram_window);
-                GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}), b_copy_dram_window);
+                Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}), a_copy_dram_window);
+                Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}), b_copy_dram_window);
             });
 
             // main body
@@ -295,19 +244,19 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
                         block_sync_lds();
 
-                        LocalPrefill(
+                        Base::LocalPrefill(
                             a_copy_lds_window,
                             a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}),
                             a_element_func);
-                        LocalPrefill(
+                        Base::LocalPrefill(
                             b_copy_lds_window,
                             b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}),
                             b_element_func);
 
-                        GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
-                                       a_copy_dram_window);
-                        GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
-                                       b_copy_dram_window);
+                        Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
+                                             a_copy_dram_window);
+                        Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
+                                             b_copy_dram_window);
                     });
 
                     i += PrefetchStages;
@@ -323,12 +272,12 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
                     block_sync_lds();
 
-                    LocalPrefill(a_copy_lds_window,
-                                 a_block_tiles.get(number<prefetch_idx>{}),
-                                 a_element_func);
-                    LocalPrefill(b_copy_lds_window,
-                                 b_block_tiles.get(number<prefetch_idx>{}),
-                                 b_element_func);
+                    Base::LocalPrefill(a_copy_lds_window,
+                                       a_block_tiles.get(number<prefetch_idx>{}),
+                                       a_element_func);
+                    Base::LocalPrefill(b_copy_lds_window,
+                                       b_block_tiles.get(number<prefetch_idx>{}),
+                                       b_element_func);
                 });
 
                 block_sync_lds();
@@ -376,24 +325,9 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     };
 
     template <>
-    struct PipelineImpl<GemmPipelineScheduler::Interwave>
+    struct PipelineImpl<GemmPipelineScheduler::Interwave> : public PipelineImplBase
     {
-        template <typename DstBlockTile, typename SrcTileWindow>
-        CK_TILE_DEVICE void GlobalPrefetch(DstBlockTile& dst_block_tile,
-                                           SrcTileWindow& dram_tile_window) const
-        {
-            load_tile(dst_block_tile, dram_tile_window);
-            move_tile_window(dram_tile_window, {0, KPerBlock});
-        }
-
-        template <typename DstTileWindow, typename SrcBlockTile, typename ElementFunction>
-        CK_TILE_DEVICE void LocalPrefill(DstTileWindow& lds_tile_window,
-                                         const SrcBlockTile& src_block_tile,
-                                         const ElementFunction& element_func) const
-        {
-            const auto block_tile_tmp = tile_elementwise_in(element_func, src_block_tile);
-            store_tile(lds_tile_window, block_tile_tmp);
-        }
+        using Base = PipelineImplBase;
 
         template <bool HasHotLoop,
                   TailNumber TailNum,
@@ -415,66 +349,38 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 "A/B Dram block window should have the same data type as appropriate "
                 "([A|B]DataType) defined in Problem definition!");
 
-            static_assert(MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                              NPerBlock ==
-                                  BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                              KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+            static_assert(MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}],
                           "A/B block window appropriate sizes must be equal to MPerBlock/NPerblock"
                           " or KPerBlock!");
 
             // ------------------------------------------------------------------------------------
             // Definitions of all needed tiles
 
-            // A tile in LDS
-            ADataType* p_a_lds              = static_cast<ADataType*>(p_smem);
-            constexpr auto a_lds_block_desc = Policy::template MakeALdsBlockDescriptor<Problem>();
-            auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
-
-            // TODO: LDS alignment should come from Policy!
-            constexpr index_t a_lds_block_space_size_aligned =
-                integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(),
-                                    16) *
-                16;
-
-            // B tile in LDS
-            BDataType* p_b_lds = static_cast<BDataType*>(
-                static_cast<void*>(static_cast<char*>(p_smem) + a_lds_block_space_size_aligned));
-            constexpr auto b_lds_block_desc = Policy::template MakeBLdsBlockDescriptor<Problem>();
-            auto b_lds_block = make_tensor_view<address_space_enum::lds>(p_b_lds, b_lds_block_desc);
+            // A/B tiles in LDS
+            // With c++20 could simplify to below line.
+            // Currently get error: captured structured bindings are a C++20 extension
+            // auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
+            auto ab_lds_blocks = Base::GetABLdsTensorViews(p_smem);
+            auto& a_lds_block  = ab_lds_blocks.at(I0{});
+            auto& b_lds_block  = ab_lds_blocks.at(I1{});
 
             // A DRAM tile window for load
-            auto a_copy_dram_window =
-                make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                 a_dram_block_window_tmp.get_window_origin(),
-                                 Policy::template MakeADramTileDistribution<Problem>());
-
             // A LDS tile window for store
-            auto a_copy_lds_window =
-                make_tile_window(a_lds_block,
-                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                 {0, 0},
-                                 a_copy_dram_window.get_tile_distribution());
-            // B DRAM tile window for load
-            auto b_copy_dram_window =
-                make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                 b_dram_block_window_tmp.get_window_origin(),
-                                 Policy::template MakeBDramTileDistribution<Problem>());
-
-            // B LDS tile window for store
-            auto b_copy_lds_window =
-                make_tile_window(b_lds_block,
-                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                 {0, 0},
-                                 b_copy_dram_window.get_tile_distribution());
-
             // A LDS tile for block GEMM
-            auto a_lds_gemm_window = make_tile_window(
-                a_lds_block, make_tuple(number<MPerBlock>{}, number<KPerBlock>{}), {0, 0});
+            auto a_windows           = Base::GetAWindows(a_dram_block_window_tmp, a_lds_block);
+            auto& a_copy_dram_window = a_windows.at(I0{});
+            auto& a_copy_lds_window  = a_windows.at(I1{});
+            auto& a_lds_gemm_window  = a_windows.at(I2{});
+
+            // B DRAM tile window for load
+            // B LDS tile window for store
             // B LDS tile for block GEMM
-            auto b_lds_gemm_window = make_tile_window(
-                b_lds_block, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
+            auto b_windows           = Base::GetBWindows(b_dram_block_window_tmp, b_lds_block);
+            auto& b_copy_dram_window = b_windows.at(I0{});
+            auto& b_copy_lds_window  = b_windows.at(I1{});
+            auto& b_lds_gemm_window  = b_windows.at(I2{});
 
             // Block GEMM
             auto block_gemm   = BlockGemm();
@@ -496,20 +402,20 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
             // prefetch
             // global read 0
-            GlobalPrefetch(a_block_tiles.get(I0{}), a_copy_dram_window);
-            GlobalPrefetch(b_block_tiles.get(I0{}), b_copy_dram_window);
+            Base::GlobalPrefetch(a_block_tiles.get(I0{}), a_copy_dram_window);
+            Base::GlobalPrefetch(b_block_tiles.get(I0{}), b_copy_dram_window);
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
             // LDS write 0
-            LocalPrefill(a_copy_lds_window, a_block_tiles.get(I0{}), a_element_func);
-            LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
+            Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I0{}), a_element_func);
+            Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
 
             // Global prefetch [1, PrefetchStages]
             static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {
-                GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}), a_copy_dram_window);
-                GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}), b_copy_dram_window);
+                Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}), a_copy_dram_window);
+                Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}), b_copy_dram_window);
             });
 
             // main body
@@ -523,19 +429,19 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                         block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
                         // no second block_sync_lds because it's interwave
 
-                        LocalPrefill(
+                        Base::LocalPrefill(
                             a_copy_lds_window,
                             a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}),
                             a_element_func);
-                        LocalPrefill(
+                        Base::LocalPrefill(
                             b_copy_lds_window,
                             b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}),
                             b_element_func);
 
-                        GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
-                                       a_copy_dram_window);
-                        GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
-                                       b_copy_dram_window);
+                        Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
+                                             a_copy_dram_window);
+                        Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
+                                             b_copy_dram_window);
                     });
 
                     i += PrefetchStages;
@@ -548,12 +454,12 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
                     // no second block_sync_lds because it's interwave
 
-                    LocalPrefill(a_copy_lds_window,
-                                 a_block_tiles.get(number<prefetch_idx>{}),
-                                 a_element_func);
-                    LocalPrefill(b_copy_lds_window,
-                                 b_block_tiles.get(number<prefetch_idx>{}),
-                                 b_element_func);
+                    Base::LocalPrefill(a_copy_lds_window,
+                                       a_block_tiles.get(number<prefetch_idx>{}),
+                                       a_element_func);
+                    Base::LocalPrefill(b_copy_lds_window,
+                                       b_block_tiles.get(number<prefetch_idx>{}),
+                                       b_element_func);
                 });
 
                 block_sync_lds();
