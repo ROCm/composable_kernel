@@ -201,4 +201,15 @@ CK_TILE_HOST_DEVICE constexpr auto get_y_unpacks_from_x_unpacks(YLengths, number
     return unpacks;
 }
 
+template <typename StaticTensor>
+CK_TILE_DEVICE void dump_static_tensor(StaticTensor& t){
+    constexpr auto span_2d = decltype(t)::get_distributed_spans();
+    sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+        sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+            printf("%f,", type_convert<float>(t(i_j_idx)));
+        });
+        printf("\n");
+    });
+}
 } // namespace ck_tile

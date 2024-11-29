@@ -175,7 +175,7 @@ struct BlockGemmARegBRegCRegV2
             sequence<>,
             tuple<sequence<MWarp>, sequence<NIterPerWarp, NWarp>>,
             tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
+            tuple<sequence<0, 1>>,
             sequence<2>,
             sequence<0>>{};
 

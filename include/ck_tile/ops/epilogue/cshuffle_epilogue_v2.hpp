@@ -22,8 +22,8 @@ struct CShuffleEpilogueV2Problem
     using ODataType                   = remove_cvref_t<ODataType_>;
     // static constexpr bool UseRawStore = UseRawStore_;
     static constexpr index_t kBlockSize = kBlockSize_;
-    static constexpr index_t MPerBlock = kM_;
-    static constexpr index_t NPerBlock = kN_;
+    static constexpr index_t kMPerBlock = kM_;
+    static constexpr index_t kNPerBlock = kN_;
     static constexpr bool kPadM       = kPadM_;
     static constexpr bool kPadN       = kPadN_;
 };
@@ -32,14 +32,12 @@ struct CShuffleEpilogueV2Problem
 template <typename Problem>
 CK_TILE_HOST_DEVICE static constexpr auto MakeOLdsBlockDescriptor()
 {
-    static constexpr index_t kMPerBlock = Problem::MPerBlock;
-    static constexpr index_t kNPerBlock = Problem::NPerBlock;
+    static constexpr index_t kMPerBlock = 64;
+    static constexpr index_t kNPerBlock = Problem::kNPerBlock;
 
     return make_naive_tensor_descriptor(
         make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-        make_tuple(number<kNPerBlock>{}, number<1>{}),
-        number<1>{},
-        number<1>{});
+        make_tuple(number<kNPerBlock>{}, number<1>{}));
 }
 
 
@@ -47,8 +45,8 @@ CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 65536; }
 template <typename Problem>
 CK_TILE_HOST_DEVICE static constexpr auto MakeODramTileDistribution()
 {
-    static constexpr index_t kMPerBlock = Problem::MPerBlock;
-    static constexpr index_t kNPerBlock = Problem::NPerBlock;
+    static constexpr index_t kMPerBlock = 64;
+    static constexpr index_t kNPerBlock = Problem::kNPerBlock;
     static constexpr index_t BlockSize  = Problem::kBlockSize;
     static constexpr index_t WaveSize = get_warp_size();
     using ODataType = remove_cvref_t<typename Problem::ODataType>;
@@ -85,36 +83,17 @@ struct CShuffleEpilogueV2
     static constexpr bool kPadM       = Problem::kPadM;
     static constexpr bool kPadN       = Problem::kPadN;
     static constexpr bool UseRawStore = Problem::UseRawStore;
-    static constexpr bool kMPerBlock      = Problem::MPerBlock;
-    static constexpr bool kNPerBlock      = Problem::NPerBlock;
+    static constexpr bool kMPerBlock      = 64;
+    static constexpr bool kNPerBlock      = Problem::kNPerBlock;
 
-    // constexpr auto a_warp_y_lengths =
-    //     to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-    // constexpr auto c_warp_y_lengths =
-    //     to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-
-    // constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
-    // constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
-
-    // static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-    //     static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-    //         dst_warp_tensor.get_thread_buffer() = ds_in.get_y_sliced_thread_data(
-    //             merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
-    //             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
-
-    //         dst_out.set_y_sliced_thread_data(
-    //             merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-    //             merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
-    //             dst_warp_tensor.get_thread_buffer());
-    //     });
-    // });
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return kMPerBlock * kNPerBlock * sizeof(ODataType); }
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 65536;}//kMPerBlock * kNPerBlock * sizeof(ODataType); }
 
     // TODO: this function assume store out vector size is the same as OAccTile last dimension size
     //       how do we fix this ?
     template <typename ODramWindowTmp, typename OAccTile>
     CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, void *p_smem)
     {
+        block_sync_lds();
         auto o_lds_tile = cast_tile<ODataType>(o_acc_tile);
         constexpr auto o_lds_block_desc = MakeOLdsBlockDescriptor<Problem>();
         auto o_lds_block = make_tensor_view<address_space_enum::lds>(static_cast<ODataType*>(p_smem), o_lds_block_desc);
@@ -122,17 +101,6 @@ struct CShuffleEpilogueV2
 
         store_tile(o_lds_window0, o_lds_tile);
         block_sync_lds();
-        // if (threadIdx.x == 0) {
-        //     printf("%f, %f\n",type_convert<float>(static_cast<ODataType*>(p_smem)[32767]), type_convert<float>(static_cast<ODataType*>(p_smem)[32768]));
-        //     constexpr auto span_2d = decltype(o_lds_tile)::get_distributed_spans();
-        //     sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-        //         sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
-        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-        //             printf("%f,", type_convert<float>(o_lds_tile(i_j_idx)));
-        //         });
-        //         printf("\n");
-        //     });
-        // }
         auto o_dram_distri = MakeODramTileDistribution<Problem>();
         auto o_dram_tile = load_tile(make_tile_window(o_lds_window0, o_dram_distri));
         store_tile(o_dram_window_tmp, o_dram_tile);
