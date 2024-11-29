@@ -173,26 +173,26 @@ struct FusedMoeGemmPipelineGeneralPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_G()
     {
-        // using WG = decltype(GetWarpGemm0<Problem>());
-        // using S_ = typename Problem::BlockShape;
-        // static_assert(S_::WarpPerBlock_N0==4);
-        // constexpr auto g_outer_dstr_enc = tile_distribution_encoding<
-        //     sequence<S_::WarpPerBlock_M0>,
-        //     tuple<sequence<S_::Repeat_N0, S_::WarpPerBlock_N0>, sequence<S_::Repeat_K0>>,
-        //     tuple<sequence<0, 1>>,
-        //     tuple<sequence<0, 1>>,
-        //     sequence<1, 2>,
-        //     sequence<0, 0>>{};
-        // constexpr auto g_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-        //     g_outer_dstr_enc, typename WG::BWarpDstrEncoding{});
+        using WG = decltype(GetWarpGemm0<Problem>());
+        using S_ = typename Problem::BlockShape;
+        static_assert(S_::WarpPerBlock_N0==4);
+        constexpr auto g_outer_dstr_enc = tile_distribution_encoding<
+            sequence<S_::WarpPerBlock_M0>,
+            tuple<sequence<S_::Repeat_N0, S_::WarpPerBlock_N0>, sequence<S_::Repeat_K0>>,
+            tuple<sequence<0, 1>>,
+            tuple<sequence<0, 1>>,
+            sequence<1, 2>,
+            sequence<0, 0>>{};
+        constexpr auto g_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            g_outer_dstr_enc, typename WG::BWarpDstrEncoding{});
 
-        constexpr auto g_block_dstr_encode = tile_distribution_encoding<
-            sequence<1>,
-            tuple<sequence<1, 4, 32>, sequence<4, 2, 4>>,
-            tuple<sequence<0, 1>, sequence<2, 1>>,
-            tuple<sequence<0, 1>, sequence<0, 0>>,
-            sequence<1, 2, 2>,
-            sequence<0, 0, 2>>{};
+        // constexpr auto g_block_dstr_encode = tile_distribution_encoding<
+        //     sequence<1>,
+        //     tuple<sequence<1, 4, 32>, sequence<4, 2, 4>>,
+        //     tuple<sequence<0, 1>, sequence<2, 1>>,
+        //     tuple<sequence<0, 1>, sequence<1, 2>>,
+        //     sequence<1, 2, 2>,
+        //     sequence<0, 0, 2>>{};
 
         return make_static_tile_distribution(g_block_dstr_encode);
     }

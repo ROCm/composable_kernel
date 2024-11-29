@@ -156,14 +156,14 @@ struct FusedMoeGemmPipeline_General
         // load g to register
         auto g_dram_block = load_tile(g_global_to_dram_window);
 
-#if 1
+#if 0
         {
             constexpr auto a_spans = decltype(g_dram_block)::get_distributed_spans();
             int counter            = 0;
             sweep_tile_span(a_spans[number<0>{}], [&](auto idxn) {
                 sweep_tile_span(a_spans[number<1>{}], [&](auto idxk) {
                     constexpr auto i_j_idx = make_tuple(idxn, idxk);
-                    if(threadIdx.x == 1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                    if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
                     {
                         counter       = counter + 1;
                         index_t idn_0 = idxn.impl_.at(0);
@@ -208,6 +208,34 @@ struct FusedMoeGemmPipeline_General
             block_sync_lds();
             gemm_0(s_acc, a_lds_win, g_dram_block);
         }
+#if 1
+        {
+            constexpr auto a_spans = decltype(s_acc)::get_distributed_spans();
+            int counter            = 0;
+            //a_spans[0] = 1;
+            sweep_tile_span(a_spans[number<0>{}], [&](auto idxm) {
+                sweep_tile_span(a_spans[number<1>{}], [&](auto idxn) {
+                    constexpr auto i_j_idx = make_tuple(idxn, idxn);
+                    if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                    {
+                        counter       = counter + 1;
+                        index_t idm_0 = idxm.impl_.at(0);
+                        index_t idn_0 = idxn.impl_.at(0);
+                        index_t idn_1 = idxn.impl_.at(1);
+                        printf("in A idn is %d , idn_0 is %d, idn_1 is %d, counter is %d, value is: "
+                               "%f \n",
+                               idm_0,
+                               idn_0,
+                               idn_1,
+                               counter,
+                               ck_tile::type_convert<float>(s_acc(i_j_idx)));
+                    }
+                });
+            });
+        }
+
+#endif
+
         // move sacc to LDS
         auto bridge_lds_view = make_tensor_view<address_space_enum::lds>(
             smem_0, Policy::template MakeBridgeLdsBlockDesc<Problem>());

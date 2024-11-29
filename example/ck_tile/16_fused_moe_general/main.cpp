@@ -280,7 +280,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         block_m);
 
     // output_matrix_2d(a_host, tokens, hidden_size);
-    // std::cout << sorted_token_ids_host << std::endl;
+    std::cout << sorted_token_ids_host << std::endl;
     // std::cout << num_sorted_tiles_host << std::endl;
     output_matrix_3d(g_host, experts, shared_intermediate_size_0, hidden_size);
     std::cout << sorted_expert_ids_host << std::endl;
