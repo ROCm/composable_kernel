@@ -1,6 +1,7 @@
 #include <rtc/kernel.hpp>
 #include <rtc/manage_ptr.hpp>
 #include <rtc/hip.hpp>
+#include <stdexcept>
 #include <cassert>
 
 // extern declare the function since hip/hip_ext.h header is broken
