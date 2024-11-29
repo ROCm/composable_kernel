@@ -1,0 +1,13 @@
+ {   
+    "image": "rocm/composable_kernel:ck_ub22.04_rocm6.2",
+    "runArgs": ["--device=/dev/kfd", "--device=/dev/dri", "--security-opt=seccomp=unconfined", "--ipc=host", "--group-add=video", "--cap-add=SYS_PTRACE"],
+    "customizations": {
+        "vscode": {
+            "extensions": ["ms-vscode.cpptools-extension-pack", "eamodio.gitlens", "ms-python.python", "benjamin-simmonds.pythoncpp-debug"]
+        }
+    },
+    "containerEnv": {"LANG": "C.UTF-8"},
+    "mounts": [
+       "source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached"
+    ]
+ }
