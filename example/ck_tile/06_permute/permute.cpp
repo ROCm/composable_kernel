@@ -264,7 +264,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         if(arg_parser.get_str("perm") == std::string("0,1,3,4,2,5"))
         {
-            // permute_b_nr_kr_kw_nw_kv = 2,   // 0,1,3,4,2,5
+            // b_nr_kr_kw_nw_kv = 2,   // 0,1,3,4,2,5
             matrix_core_swizzle_traits t;
             t.data_type = data_type;
             t.permute   = arg_parser.get_str("perm");

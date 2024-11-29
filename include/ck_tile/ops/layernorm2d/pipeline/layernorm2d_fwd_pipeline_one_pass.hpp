@@ -121,7 +121,7 @@ struct Layernorm2dFwdPipelineOnePass
         auto [mean, var] = block_welford(acc, cur_count, max_count);
         block_welford_sync(mean, var, cur_count);
         block_welford_cross_warp_sync(mean, var, cur_count, smem);
-        block_tile_welford_post_scale_var(var, cur_count);
+        block_tile_welford_post_scale_var(var, cur_count, constant<kFastFDiv>{});
 
         // compute inv-std
         auto inv_std = tile_elementwise_in(

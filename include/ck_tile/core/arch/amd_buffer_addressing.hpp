@@ -621,6 +621,65 @@ CK_TILE_DEVICE void buffer_load_fence(index_t cnt = 0)
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }
 
+CK_TILE_DEVICE void lds_load_fence(index_t cnt = 0)
+{
+    asm volatile("s_waitcnt lgkmcnt(%0)" : : "n"(cnt) : "memory");
+}
+
+template <typename scalar_type, index_t N, bool pre_nop = false>
+struct buffer_atomic_add_if;
+
+template <bool pre_nop>
+struct buffer_atomic_add_if<bf16_t, 2, pre_nop>
+{
+    template <typename T>
+    CK_TILE_DEVICE void operator()(const T& value,
+                                   int32x4_t res /*buffer resource*/,
+                                   index_t v_offset,
+                                   index_t /*s_offset*/,
+                                   index_t i_offset /*max 0xFFF*/,
+                                   index_t flag = 1)
+    {
+        static_assert(sizeof(T) == 4);
+        auto save_exec = __builtin_amdgcn_read_exec();
+        using mbuf_t   = float;
+        asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                     "global_atomic_pk_add_bf16 %0, %1, %2 offset:%3\n"
+                     "s_mov_b64 exec %5"
+                     :
+                     : "v"(v_offset),
+                       "v"(bit_cast<mbuf_t>(value)),
+                       "s"(res.xy),
+                       "n"(i_offset),
+                       "v"(flag),
+                       "s"(save_exec)
+                     : "memory");
+    }
+};
+
+template <typename scalar_type, index_t N, bool pre_nop = false>
+struct buffer_atomic_add;
+
+template <bool pre_nop>
+struct buffer_atomic_add<bf16_t, 2, pre_nop>
+{
+    template <typename T>
+    CK_TILE_DEVICE void operator()(const T& value,
+                                   int32x4_t res /*buffer resource*/,
+                                   index_t v_offset,
+                                   index_t /*s_offset*/,
+                                   index_t i_offset /*max 0xFFF*/,
+                                   index_t /*flag = 1*/)
+    {
+        static_assert(sizeof(T) == 4);
+        using mbuf_t = float;
+        asm volatile("global_atomic_pk_add_bf16 %0, %1, %2 offset:%3"
+                     :
+                     : "v"(v_offset), "v"(bit_cast<mbuf_t>(value)), "s"(res.xy), "n"(i_offset)
+                     : "memory");
+    }
+};
+
 namespace impl {
 // below type indicate the data type used for buffer load inline asm
 // clang-format off
@@ -806,6 +865,11 @@ CK_TILE_DEVICE void buffer_load_fence(index_t cnt = 0, T&... o)
 }
 
 CK_TILE_DEVICE void buffer_store_fence(index_t cnt = 0)
+{
+    asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
+}
+
+CK_TILE_DEVICE auto async_load_fence_raw(index_t cnt = 0)
 {
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }
@@ -2376,6 +2440,45 @@ CK_TILE_DEVICE void amd_buffer_atomic_add(const thread_buffer<T, N>& src_thread_
             src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
     }
 #endif
+}
+
+template <typename T,
+          index_t N,
+          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
+          bool oob_conditional_check          = true,
+          bool pre_nop                        = false>
+CK_TILE_DEVICE void amd_buffer_atomic_add_raw(const thread_buffer<T, N>& src_thread_data,
+                                              T* p_dst_wave,
+                                              const index_t dst_thread_element_offset,
+                                              const index_t dst_linear_element_offset,
+                                              const bool dst_thread_element_valid,
+                                              const index_t dst_element_space_size,
+                                              bool_constant<pre_nop> = {})
+{
+    const int32x4_t dst_wave_buffer_resource =
+        make_wave_buffer_resource(p_dst_wave, dst_element_space_size * sizeof(T));
+
+    index_t dst_thread_addr_offset = dst_thread_element_offset * sizeof(T);
+    index_t dst_linear_addr_offset = dst_linear_element_offset * sizeof(T);
+
+    if constexpr(oob_conditional_check)
+    {
+        buffer_atomic_add_if<T, N, pre_nop>{}(src_thread_data,
+                                              dst_wave_buffer_resource,
+                                              dst_thread_addr_offset,
+                                              0,
+                                              dst_linear_addr_offset,
+                                              dst_thread_element_valid);
+    }
+    else
+    {
+        buffer_atomic_add<T, N, pre_nop>{}(src_thread_data,
+                                           dst_wave_buffer_resource,
+                                           dst_thread_addr_offset,
+                                           0,
+                                           dst_linear_addr_offset,
+                                           1);
+    }
 }
 
 // buffer_atomic_max requires:

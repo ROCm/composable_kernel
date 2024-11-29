@@ -39,7 +39,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadHeadDimV_ /* paddding for hdim_v */,
           BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
-          bool kStoreLSE_,
+          bool kStoreLSE_, /* set to true if either num_splits > 1 or fwd training is running */
           bool kDoFp8StaticQuant_,
           bool kIsPagedKV_,
           bool kHasUnevenSplits_,

@@ -13,3 +13,6 @@ add_subdirectory(10_rmsnorm2d)
 add_subdirectory(11_add_rmsnorm2d_rdquant)
 add_subdirectory(12_smoothquant)
 add_subdirectory(13_moe_sorting)
+add_subdirectory(14_moe_smoothquant)
+add_subdirectory(15_fused_moe)
+
