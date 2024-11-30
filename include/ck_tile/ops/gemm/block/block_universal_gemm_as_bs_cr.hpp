@@ -623,7 +623,7 @@ struct BlockUniversalGemmAsBsCr
     CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
                                       const BSmemBlockWindow& b_block_window)
     {
-        block_gemm_impl_.template LocalPrefetch(a_block_window, b_block_window);
+        block_gemm_impl_.LocalPrefetch(a_block_window, b_block_window);
     }
 
     // C += A * B
@@ -632,7 +632,7 @@ struct BlockUniversalGemmAsBsCr
                                    const ASmemBlockWindow& a_block_window,
                                    const BSmemBlockWindow& b_block_window)
     {
-        block_gemm_impl_.template operator()(c_block_tensor, a_block_window, b_block_window);
+        block_gemm_impl_(c_block_tensor, a_block_window, b_block_window);
     }
 
     // C = A * B
@@ -641,7 +641,7 @@ struct BlockUniversalGemmAsBsCr
                                    const BSmemBlockWindow& b_block_window)
     {
         auto c_block_tensor = MakeCBlockTile();
-        block_gemm_impl_.template operator()(c_block_tensor, a_block_window, b_block_window);
+        block_gemm_impl_(c_block_tensor, a_block_window, b_block_window);
         return c_block_tensor;
     }
 
