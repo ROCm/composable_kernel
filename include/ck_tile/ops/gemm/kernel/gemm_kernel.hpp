@@ -212,61 +212,21 @@ struct GemmKernel
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
             {i_m, i_n});
         
-        using CSubTileDistr = decltype(GemmPipeline::MakeCBlockSubTile());
-        CSubTileDistr c_sub_tile;
-        // printf("!!!!!!!!!!!!!!!!!!!!");
-        // c_sub_tile.get_tile_distribution().print();
-        // if (threadIdx.x==0) {
-        //     printf("!!!!!!!!!!!!!!!!!!!!~~~ %d %d\n", c_block_tile.get_tile_distribution().get_num_of_dimension_y(), c_sub_tile.get_tile_distribution().get_num_of_dimension_y());
-        //     // c_block_tile.get_tile_distribution().print();
+        EpiloguePipeline{}(CBlockWindow_pad, c_block_tile);
+        // using CSubTileDistr = decltype(GemmPipeline::MakeCBlockSubTile());
+        
+        // static_for<0, GemmPipeline::NumCSubTile(), 1>{}([&](auto i_m0) 
+        // {
+        //     CSubTileDistr c_sub_tile;
         //     constexpr auto c_sub_y_index_zeros = uniform_sequence_gen_t<c_sub_tile.get_tile_distribution().get_num_of_dimension_y(), 0>{};
         //     constexpr auto c_sub_y_lengths = to_sequence(c_sub_tile.get_tile_distribution().get_ys_to_d_descriptor().get_lengths());
-        //     c_sub_y_index_zeros.print();
-        //     c_sub_y_lengths.print();
-        // }
-        
-        // auto c_sub_y_index_zeros = uniform_sequence_gen_t<c_sub_tile.get_tile_distribution().get_num_of_dimension_y(), 0>{};
-        // auto c_sub_y_lengths = to_sequence(c_sub_tile.get_tile_distribution().get_ys_to_d_descriptor().get_lengths());
-        // if (threadIdx.x == 0) {
-        //     c_sub_y_index_zeros.print();
-        //         printf("\n");
-        //     c_sub_y_lengths.print();
-        //         printf("\n");
-        //     printf("%d %d\n", GemmPipeline::NumCSubTile(), c_sub_tile.get_tile_distribution().get_num_of_dimension_y());
-        // }
-        // auto tbuf = c_block_tile.get_thread_buffer();
-        // for (index_t i = 0; i < tbuf.size(); i++) {
-        //     if (threadIdx.x<16) {
-        //         tbuf.set_as(i, float(threadIdx.x * 100 + i));
-        //     } else {
-                
-        //         tbuf.set_as(i, float(threadIdx.x));
-        //     }
-        // }
-        // c_block_tile.get_thread_buffer() = tbuf;
-        // if (threadIdx.x ==0) {
-        //     constexpr auto span_2d = decltype(c_block_tile)::get_distributed_spans();
-        //     sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-        //         sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
-        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-        //             printf("%f,", type_convert<float>(c_block_tile(i_j_idx)));
-        //         });
-        //         printf("\n");
-        //     });
-        // }
-        
-        static_for<0, GemmPipeline::NumCSubTile(), 1>{}([&](auto i_m0) 
-        {
-            constexpr auto c_sub_y_index_zeros = uniform_sequence_gen_t<c_sub_tile.get_tile_distribution().get_num_of_dimension_y(), 0>{};
-            constexpr auto c_sub_y_lengths = to_sequence(c_sub_tile.get_tile_distribution().get_ys_to_d_descriptor().get_lengths());
-            c_sub_tile.get_thread_buffer() = c_block_tile.get_y_sliced_thread_data(
-                                                merge_sequences(sequence<i_m0>{}, c_sub_y_index_zeros),
-                                                merge_sequences(sequence<1>{}, c_sub_y_lengths));
+        //     c_sub_tile.get_thread_buffer() = c_block_tile.get_y_sliced_thread_data(
+        //                                         merge_sequences(sequence<i_m0>{}, c_sub_y_index_zeros),
+        //                                         merge_sequences(sequence<1>{}, c_sub_y_lengths));
                                                 
-            EpiloguePipeline{}(CBlockWindow_pad, c_sub_tile, smem_ptr);
-            move_tile_window(CBlockWindow_pad, {TilePartitioner::kM / GemmPipeline::NumCSubTile(), 0});
-            
-        });
+        //     EpiloguePipeline{}(CBlockWindow_pad, c_sub_tile, smem_ptr);
+        //     move_tile_window(CBlockWindow_pad, {TilePartitioner::kM / GemmPipeline::NumCSubTile(), 0});
+        // });
     }
 };
 

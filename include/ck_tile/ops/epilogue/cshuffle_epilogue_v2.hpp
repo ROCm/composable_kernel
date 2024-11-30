@@ -32,8 +32,8 @@ struct CShuffleEpilogueV2Problem
 template <typename Problem>
 CK_TILE_HOST_DEVICE static constexpr auto MakeOLdsBlockDescriptor()
 {
-    static constexpr index_t kMPerBlock = 64;
-    static constexpr index_t kNPerBlock = Problem::kNPerBlock;
+    constexpr index_t kMPerBlock = Problem::kMPerBlock;
+    constexpr index_t kNPerBlock = Problem::kNPerBlock;
 
     return make_naive_tensor_descriptor(
         make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
@@ -45,10 +45,10 @@ CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 65536; }
 template <typename Problem>
 CK_TILE_HOST_DEVICE static constexpr auto MakeODramTileDistribution()
 {
-    static constexpr index_t kMPerBlock = 64;
-    static constexpr index_t kNPerBlock = Problem::kNPerBlock;
-    static constexpr index_t BlockSize  = Problem::kBlockSize;
-    static constexpr index_t WaveSize = get_warp_size();
+    constexpr index_t kMPerBlock = Problem::kMPerBlock;
+    constexpr index_t kNPerBlock = Problem::kNPerBlock;
+    constexpr index_t BlockSize  = Problem::kBlockSize;
+    constexpr index_t WaveSize = get_warp_size();
     using ODataType = remove_cvref_t<typename Problem::ODataType>;
     
     // using OLayout   = remove_cvref_t<typename Problem::OLayout>;
@@ -83,8 +83,9 @@ struct CShuffleEpilogueV2
     static constexpr bool kPadM       = Problem::kPadM;
     static constexpr bool kPadN       = Problem::kPadN;
     static constexpr bool UseRawStore = Problem::UseRawStore;
-    static constexpr bool kMPerBlock      = 64;
-    static constexpr bool kNPerBlock      = Problem::kNPerBlock;
+    static constexpr index_t kMPerBlock = Problem::kMPerBlock;
+    // static constexpr bool kMPerBlock      = 64;
+    static constexpr index_t kNPerBlock      = Problem::kNPerBlock;
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 65536;}//kMPerBlock * kNPerBlock * sizeof(ODataType); }
 
@@ -104,6 +105,7 @@ struct CShuffleEpilogueV2
         auto o_dram_distri = MakeODramTileDistribution<Problem>();
         auto o_dram_tile = load_tile(make_tile_window(o_lds_window0, o_dram_distri));
         store_tile(o_dram_window_tmp, o_dram_tile);
+        block_sync_lds();
     }
 };
 } // namespace ck_tile

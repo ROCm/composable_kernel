@@ -249,36 +249,6 @@ struct GemmPipelineAGmemBGmemCRegV1
         Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
         Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
 
-        // if (threadIdx.x == 64) {
-        //     constexpr auto span_2d = decltype(a_block_tile0)::get_distributed_spans();
-        //     sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-        //         sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
-        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-        //             printf("%f, %f;  ", type_convert<float>(a_block_tile0(i_j_idx)), type_convert<float>(b_block_tile0(i_j_idx)));
-        //         });
-        //         printf("\n");
-        //     });
-        // }
-        // if (threadIdx.x == 0) {
-        //     printf("aalds\n");
-        //     constexpr auto span_2d = decltype(a_block_tile0)::get_distributed_spans();
-        //     sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-        //         sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
-        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-        //             printf("%f,", type_convert<float>(a_block_tile0(i_j_idx)));
-        //         });
-        //         printf("\n");
-        //     });
-        //     printf("bbbbblds\n");
-        //     constexpr auto span_2d2 = decltype(b_block_tile0)::get_distributed_spans();
-        //     sweep_tile_span(span_2d2[number<0>{}], [&](auto idx0) {
-        //         sweep_tile_span(span_2d2[number<1>{}], [&](auto idx1) {
-        //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-        //             printf("%f,", type_convert<float>(b_block_tile0(i_j_idx)));
-        //         });
-        //         printf("\n");
-        //     });
-        // }
         // LDS write 1
         LocalPrefill(a_lds_window1, a_global_load_tile, a_element_func);
         LocalPrefill(b_lds_window1, b_global_load_tile, b_element_func);
@@ -321,29 +291,30 @@ struct GemmPipelineAGmemBGmemCRegV1
         }
 
         //tail 3
-        if (iCounter == 1) {
-            // 3
-            {
-                block_sync_lds();
-                Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
-                Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window1, b_block_tile1);
-                LocalPrefill(a_lds_window0, a_global_load_tile, a_element_func);
-                LocalPrefill(b_lds_window0, b_global_load_tile, b_element_func);
-                block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-            }
-            // 2
-            {
-                block_sync_lds();
-                Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
-                Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
-                block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-            }
-            //1
-            {
-                block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-            }
-        //tail 2
-        } else {
+        // if (iCounter == 1) {
+        //     // 3
+        //     {
+        //         block_sync_lds();
+        //         Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
+        //         Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window1, b_block_tile1);
+        //         LocalPrefill(a_lds_window0, a_global_load_tile, a_element_func);
+        //         LocalPrefill(b_lds_window0, b_global_load_tile, b_element_func);
+        //         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+        //     }
+        //     // 2
+        //     {
+        //         block_sync_lds();
+        //         Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
+        //         Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
+        //         block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
+        //     }
+        //     //1
+        //     {
+        //         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+        //     }
+        // //tail 2
+        // } else 
+        {
             {
                 block_sync_lds();
                 Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
