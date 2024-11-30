@@ -10,33 +10,28 @@ from typing import List
 
 from ..util import library_path
 
-from .op import CKGroupedConvFwdOp
+from .op import CKBatchedGemmOperation
 
 log = logging.getLogger(__name__)
 
 
-def _ck_conv_instances_path():
-    conv_instances_path = os.path.join(  # noqa: F821
+def _ck_library_dir():
+    gemm_instances_path = os.path.join(
         library_path(),
-        "include",
-        "ck",
-        "library",
+        "src",
         "tensor_operation_instance",
         "gpu",
-        "grouped_conv_fwd",
+        "gemm_universal_batched",
     )
-    if not os.path.exists(conv_instances_path):
-        log.error(
-            "CK library conv instances path %s does not exist", conv_instances_path
-        )
+    if not os.path.exists(gemm_instances_path):
+        log.error("CK library path %s does not exist", gemm_instances_path)
         return None
-    return conv_instances_path
+    return gemm_instances_path
 
 
-def parse_instances(str_instances: List[str]) -> List[CKGroupedConvFwdOp]:
+def parse_instances(str_instances: List[str]) -> List[CKBatchedGemmOperation]:
     """
-    Parse the lines containing Grouped Convolution Forward template instances
-    into `CKGroupedConvFwdOp` instances
+    Parse the lines containing Universal Gemm template instances into `CKBatchedGemmOperation` instances
     """
 
     def maybe_int(s):
@@ -46,10 +41,8 @@ def parse_instances(str_instances: List[str]) -> List[CKGroupedConvFwdOp]:
             return s
 
     op_instances = []
-    # TODO: maybe use libclang for parsing C++ code in the future
-    # to avoid this hacky parsing logic below ? :) - copilot
     for line in str_instances:
-        s_template_args = line.split("DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3")[
+        s_template_args = line.split("DeviceBatchedGemmMultiD_Xdl_CShuffle_V3")[
             -1
         ].strip("<>, ")
         template_args = []
@@ -79,11 +72,11 @@ def parse_instances(str_instances: List[str]) -> List[CKGroupedConvFwdOp]:
             if i_next == -1:
                 break
 
-        template_args[0] = -1  # n_dim_spatial
-        template_args[3] = tuple()  # ds_layout
-        template_args[9] = tuple()  # ds_element_dtype
+        # ds layout and dtype are parsed as placeholder; reset value
+        template_args[2] = tuple()  # ds layout
+        template_args[6] = tuple()  # ds dtype
 
-        new_instance = CKGroupedConvFwdOp(
+        new_instance = CKBatchedGemmOperation(
             *template_args,  # type: ignore[arg-type]
         )
 
@@ -92,12 +85,11 @@ def parse_instances(str_instances: List[str]) -> List[CKGroupedConvFwdOp]:
 
 
 @lru_cache(None)
-def gen_conv_ops_library() -> List[CKGroupedConvFwdOp]:
+def gen_ops_library() -> List[CKBatchedGemmOperation]:
     """
-    Parse the Grouped Convolution Forward instances
-    defined in the Composable Kernel library folder.
+    Parse the Universal Gemm instances defined in the composable kernel library folder.
     """
-    ck_library_dir = _ck_conv_instances_path()
+    ck_library_dir = _ck_library_dir()
     if not ck_library_dir:
         return []
 
@@ -105,8 +97,8 @@ def gen_conv_ops_library() -> List[CKGroupedConvFwdOp]:
         [
             "grep",
             "-inR",
-            "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
-            ck_library_dir,
+            "DeviceBatchedGemmMultiD_Xdl_CShuffle_V3",
+            _ck_library_dir(),
         ],
         capture_output=True,
         text=True,
@@ -120,46 +112,38 @@ def gen_conv_ops_library() -> List[CKGroupedConvFwdOp]:
         "BlockGemmPipelineScheduler::Intrawave",
         "BlockGemmPipelineScheduler::Interwave",
     ]
-    conv_specs = [
-        "ConvolutionForwardSpecialization::Default",
-        "ConvolutionForwardSpecialization::Filter1x1Pad0",
-        "ConvolutionForwardSpecialization::Filter1x1Stride1Pad0",
-        "ConvolutionForwardSpecialization::OddC",
+    gemm_specs = [
+        "GemmSpecialization::Default",
+        "GemmSpecialization::MPadding",
+        "GemmSpecialization::NPadding",
+        "GemmSpecialization::KPadding",
+        "GemmSpecialization::MNPadding",
+        "GemmSpecialization::MKPadding",
+        "GemmSpecialization::NKPadding",
+        "GemmSpecialization::MNKPadding",
     ]
 
     # substitute templated args by looping through their domains
     substitute_instances = []
     for instance in op_instances:
         sub_scheduler = instance.block_gemm_pipeline_scheduler == "BlkGemmPipeSched"
-        sub_spec = instance.conv_forward_specialization == "ConvSpec"
+        sub_spec = instance.gemm_specialization == "GemmSpec"
         schedulers_range = (
             schedulers if sub_scheduler else [instance.block_gemm_pipeline_scheduler]
         )
-        spec_range = conv_specs if sub_spec else [instance.conv_forward_specialization]
+        spec_range = gemm_specs if sub_spec else [instance.gemm_specialization]
         for scheduler in schedulers_range:
             for spec in spec_range:
-                for channels_last in [True, False]:
-                    if channels_last:
-                        a_layout = "NHWGC"
-                        e_layout = "NHWGK"
-                    else:
-                        a_layout = "NGCHW"
-                        e_layout = "NGKHW"
-                    substitute_instances.append(
-                        replace(
-                            instance,
-                            block_gemm_pipeline_scheduler=scheduler,
-                            conv_forward_specialization=spec,
-                            gemm_specialization="GemmSpecialization::MNKPadding",
-                            n_dim_spatial=2,
-                            a_layout=a_layout,
-                            b_layout="GKYXC",
-                            e_layout=e_layout,
-                        )
+                substitute_instances.append(
+                    replace(
+                        instance,
+                        block_gemm_pipeline_scheduler=scheduler,
+                        gemm_specialization=spec,
                     )
+                )
 
     return substitute_instances
 
 
 if __name__ == "__main__":
-    print(gen_conv_ops_library())
+    print(gen_ops_library())
