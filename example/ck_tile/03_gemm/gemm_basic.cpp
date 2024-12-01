@@ -33,7 +33,6 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr ck_tile::index_t M_Warp = 2;
     constexpr ck_tile::index_t N_Warp = 2;
     constexpr ck_tile::index_t K_Warp = 1;
-    constexpr ck_tile::index_t Warp_Size = 64;
 
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
@@ -48,6 +47,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
     using TilePartitioner = ck_tile::GemmTilePartitioner<CodegenGemmShape>;
+    // constexpr ck_tile::index_t Warp_Size = 64;
     // using GemmEpilogue =  ck_tile::CShuffleEpilogueV2<ck_tile::CShuffleEpilogueV2Problem<AccDataType,
     //                                                                                     CDataType,
     //                                                                                     M_Warp * N_Warp * K_Warp * Warp_Size,
@@ -58,7 +58,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     using GemmEpilogue = ck_tile::Default2DEpilogue<
             ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
     using CodegenGemmTraits =
-        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, true, 3>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
     using CodegenGemmPolicy = ck_tile::GemmPipelineAGmemBGmemCRegV1DefaultPolicy;

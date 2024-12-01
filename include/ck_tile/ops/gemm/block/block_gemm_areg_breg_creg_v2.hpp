@@ -222,13 +222,11 @@ struct BlockGemmARegBRegCRegV2
     
     // Prefetch lds
     template <typename BlockWindow, typename BlockTensor>
-    CK_TILE_DEVICE static auto PrefetchLds(const BlockWindow& block_window, BlockTensor& block_tensor)
+    CK_TILE_DEVICE static void PrefetchLds(const BlockWindow& block_window, BlockTensor& block_tensor)
     {
         auto tileDist = BlockTensor::get_tile_distribution();
-        return load_tile(block_tensor, make_tile_window(block_window, tileDist));
-        
+        load_tile(block_tensor, make_tile_window(block_window, tileDist));
         // load_tile(block_tensor, make_tile_window_linear(block_window, tileDist));
-        // return;
     }
     
     // C = A * B

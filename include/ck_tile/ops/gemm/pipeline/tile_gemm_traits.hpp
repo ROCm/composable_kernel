@@ -12,7 +12,9 @@ template <bool kPadM_,
           bool kPadK_,
           typename ALayout_,
           typename BLayout_,
-          typename CLayout_>
+          typename CLayout_,
+          bool HasHotLoop_,
+          index_t TailNum_>
 struct TileGemmTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -24,6 +26,8 @@ struct TileGemmTraits
     using ALayout = ALayout_;
     using BLayout = BLayout_;
     using CLayout = CLayout_;
+    static constexpr bool HasHotLoop = HasHotLoop_;
+    static constexpr auto TailNum    = TailNum_;
 };
 
 } // namespace ck_tile

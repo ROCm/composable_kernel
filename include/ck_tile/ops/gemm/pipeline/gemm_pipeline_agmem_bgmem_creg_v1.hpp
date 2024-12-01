@@ -36,6 +36,8 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
+    static constexpr bool kHasHotLoop = Problem::kHasHotLoop;
+    static constexpr auto kTailNum    = Problem::kTailNum;
 
     // CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     // {
@@ -130,6 +132,18 @@ struct GemmPipelineAGmemBGmemCRegV1
             __builtin_amdgcn_sched_group_barrier(
                 0x008, num_mfma_inst / num_issue - 3, 0); // MFMA : 5
         });
+        __builtin_amdgcn_sched_barrier(0);
+        
+        // static_for<0, 8, 1>{}([&](auto i) {
+        //     ignore = i;
+        //     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA : 1
+        //     __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read : 2
+        //     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA: 1
+        //     __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write : 1
+        //     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA : 1
+        //     __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read :1
+        //     __builtin_amdgcn_sched_group_barrier(0x008, 5, 0); // MFMA : 5
+        // });
         __builtin_amdgcn_sched_barrier(0);
     }
 
@@ -261,60 +275,63 @@ struct GemmPipelineAGmemBGmemCRegV1
 
         ALdsTile a_block_tile1;
         BLdsTile b_block_tile1;
-        while(iCounter > 1)
-        {
-            // ping
+        if (kHasHotLoop) {
+            do
+            {
+                // ping
+                {
+                    block_sync_lds();
+                    Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
+                    Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window1, b_block_tile1);
+                    LocalPrefill(a_lds_window0, a_global_load_tile, a_element_func);
+                    LocalPrefill(b_lds_window0, b_global_load_tile, b_element_func);
+                    GlobalPrefetch(a_global_load_tile, a_copy_dram_window);
+                    GlobalPrefetch(b_global_load_tile, b_copy_dram_window);
+                    block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+                    HotLoopScheduler();
+                }
+                // pong
+                {
+                    block_sync_lds();
+                    Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
+                    Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
+                    LocalPrefill(a_lds_window1, a_global_load_tile, a_element_func);
+                    LocalPrefill(b_lds_window1, b_global_load_tile, b_element_func);
+                    GlobalPrefetch(a_global_load_tile, a_copy_dram_window);
+                    GlobalPrefetch(b_global_load_tile, b_copy_dram_window);
+                    block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
+                    HotLoopScheduler();
+                }
+                iCounter -= 2;
+            }while(iCounter > 1);
+        }
+
+        //tail 3
+        if (kTailNum == 3) {
+            // 3
             {
                 block_sync_lds();
                 Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
                 Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window1, b_block_tile1);
                 LocalPrefill(a_lds_window0, a_global_load_tile, a_element_func);
                 LocalPrefill(b_lds_window0, b_global_load_tile, b_element_func);
-                GlobalPrefetch(a_global_load_tile, a_copy_dram_window);
-                GlobalPrefetch(b_global_load_tile, b_copy_dram_window);
                 block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                HotLoopScheduler();
             }
-            // pong
+            // 2
             {
                 block_sync_lds();
                 Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
                 Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
-                LocalPrefill(a_lds_window1, a_global_load_tile, a_element_func);
-                LocalPrefill(b_lds_window1, b_global_load_tile, b_element_func);
-                GlobalPrefetch(a_global_load_tile, a_copy_dram_window);
-                GlobalPrefetch(b_global_load_tile, b_copy_dram_window);
                 block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                HotLoopScheduler();
             }
-            iCounter -= 2;
-        }
-
-        //tail 3
-        // if (iCounter == 1) {
-        //     // 3
-        //     {
-        //         block_sync_lds();
-        //         Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
-        //         Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window1, b_block_tile1);
-        //         LocalPrefill(a_lds_window0, a_global_load_tile, a_element_func);
-        //         LocalPrefill(b_lds_window0, b_global_load_tile, b_element_func);
-        //         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-        //     }
-        //     // 2
-        //     {
-        //         block_sync_lds();
-        //         Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
-        //         Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
-        //         block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-        //     }
-        //     //1
-        //     {
-        //         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-        //     }
-        // //tail 2
-        // } else 
+            //1
+            {
+                block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+            }
+        } 
+        else 
         {
+            // //tail 2
             {
                 block_sync_lds();
                 Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);

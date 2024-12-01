@@ -32,6 +32,8 @@ struct GemmPipelineProblemBase
     static constexpr bool kPadM = GemmTraits::kPadM;
     static constexpr bool kPadN = GemmTraits::kPadN;
     static constexpr bool kPadK = GemmTraits::kPadK;
+    static constexpr bool kHasHotLoop = GemmTraits::HasHotLoop;
+    static constexpr auto kTailNum    = GemmTraits::TailNum;
 
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
     {
