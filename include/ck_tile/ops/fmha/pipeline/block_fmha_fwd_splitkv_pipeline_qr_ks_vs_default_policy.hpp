@@ -44,7 +44,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakePLdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
         constexpr index_t kKPack     = GetSmemKPackP<Problem>();
 
         constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
@@ -65,6 +65,17 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMLdsBlockDescriptor()
+    {
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+
+        constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<kMPerBlock>{}), make_tuple(number<1>{}), number<8>{}, number<1>{});
+
+        return k_lds_block_desc_0;
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeP()
     {
         return MakePLdsBlockDescriptor<Problem>().get_element_space_size() *
@@ -72,9 +83,17 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeM()
+    {
+        return MakeMLdsBlockDescriptor<Problem>().get_element_space_size() *
+               sizeof(typename Problem::SMPLComputeDataType);
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return BasePolicy::template GetSmemSizeKV<Problem>() + GetSmemSizeP<Problem>();
+        return BasePolicy::template GetSmemSizeKV<Problem>() + GetSmemSizeP<Problem>() +
+               GetSmemSizeM<Problem>();
     }
 
     template <typename Problem>
@@ -111,7 +130,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSDefaultPolicy
                     Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
                     Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
                     Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                    true>{};
+                    false>{};
             }
         }();
 
