@@ -181,6 +181,14 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         auto p_lds_window = make_tile_window(
             p_lds, Policy::template MakePLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
+        auto m_lds = make_tensor_view<address_space_enum::lds>(
+            reinterpret_cast<SMPLComputeDataType*>(reinterpret_cast<char*>(smem_ptr) +
+                                                   Policy::template GetSmemSizeKV<Problem>() +
+                                                   Policy::template GetSmemSizeP<Problem>()),
+            Policy::template MakeMLdsBlockDescriptor<Problem>());
+        auto m_lds_window = make_tile_window(
+            m_lds, Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
@@ -212,6 +220,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         auto o_acc = OaccBlockTileType{};
         auto m     = MLBlockTileType{};
         auto l     = MLBlockTileType{};
+
+        using NewMLBlockTileType = decltype(block_tile_reduce<SMPLComputeDataType>(
+            o_acc, sequence<1>{}, f_max, SMPLComputeDataType{0}));
 
         clear_tile(o_acc);
         set_tile(m, -numeric<SMPLComputeDataType>::infinity());
@@ -498,35 +509,56 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
+
+            auto my_temp = MLBlockTileType{};
+
             // l{j}, Oacc{j}
-            constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
-            sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
-                constexpr auto i_idx = make_tuple(idx0);
+            {
+                constexpr auto o_spans = decltype(s_acc)::get_distributed_spans();
+                sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                const auto tmp = [&]() {
-                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
-                    {
-                        return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
-                    }
-                    else
-                    {
-                        auto row_max = scale_s * get_validated_m(m[i_idx]);
-                        return exp2(scale_s * m_old[i_idx] - row_max);
-                    }
-                }();
+                    const auto tmp = [&]() {
+                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                     BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                        {
+                            return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+                        }
+                        else
+                        {
+                            auto row_max = scale_s * get_validated_m(m[i_idx]);
+                            return exp2(scale_s * m_old[i_idx] - row_max);
+                        }
+                    }();
 #else
                 const auto tmp       = exp(m_old[i_idx] - get_validated_m(m[i_idx]));
 #endif
-                l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
-                sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    // FIXME: this use different equation from FA v2 paper,
-                    // but produce correc result.
-                    // Is the equation wrong?
-                    o_acc(i_j_idx) *= tmp;
+                    my_temp(i_idx) = tmp;
+
+                    l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
                 });
-            });
+            }
+            {
+                store_tile(m_lds_window, my_temp);
+                block_sync_lds();
+                auto my_temp_2 = load_tile(make_tile_window(
+                    m_lds,
+                    Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(),
+                    {0, 0},
+                    NewMLBlockTileType{}.get_tile_distribution()));
+
+                constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
+                sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+                    sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        // FIXME: this use different equation from FA v2 paper,
+                        // but produce correc result.
+                        // Is the equation wrong?
+                        o_acc(i_j_idx) *= my_temp_2(i_idx);
+                    });
+                });
+            }
 
             block_sync_lds();
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
@@ -549,23 +581,24 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
-            store_tile(p_lds_window, get_slice_tile(p, sequence<0, 0>{}, sequence<kM0, kK1>{}));
+            store_tile(p_lds_window, p);
+            auto p_lds_window_for_read =
+                make_tile_window(p_lds, make_tuple(number<kM0>{}, number<kK1>{}), {0, 0});
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
             {
                 static_for<0, k1_loops - 1, 1>{}([&,
                                                   &i_page_block_v_ = i_page_block_v,
-                                                  &v_dram_window_  = v_dram_window](auto i_k1) {
+                                                  &v_dram_window_ =
+                                                      v_dram_window]([[maybe_unused]] auto i_k1) {
                     const auto v = load_tile(v_dram_window_); // load next v
                     block_sync_lds();
-                    gemm_1(o_acc, p_lds_window, v_lds_window);
+
+                    gemm_1(o_acc, p_lds_window_for_read, v_lds_window);
                     block_sync_lds();
 
-                    store_tile(p_lds_window,
-                               get_slice_tile(p,
-                                              sequence<0, (i_k1 + 1) * kK1>{},
-                                              sequence<kM0, (i_k1 + 2) * kK1>{}));
+                    move_tile_window(p_lds_window_for_read, {0, kK1});
 
                     if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                     {
@@ -591,7 +624,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             // tail
             {
                 block_sync_lds();
-                gemm_1(o_acc, p_lds_window, v_lds_window);
+                gemm_1(o_acc, p_lds_window_for_read, v_lds_window);
                 block_sync_lds();
             }
         } while(++i_total_loops < num_total_loop);
@@ -623,18 +656,25 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         }
 
         // finally, O
-        constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
+        store_tile(m_lds_window, l);
+        block_sync_lds();
+        auto l_2 = load_tile(
+            make_tile_window(m_lds,
+                             Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0},
+                             NewMLBlockTileType{}.get_tile_distribution()));
 
+        constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
             constexpr auto i_idx = make_tuple(idx0);
             const auto tmp       = [&]() {
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                              FmhaMask::IsMasking)
                 {
-                    return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
+                    return l_2[i_idx] == 0.f ? 0.f : 1 / l_2[i_idx];
                 }
                 else
-                    return 1 / l[i_idx];
+                    return 1 / l_2[i_idx];
             }();
             sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
