@@ -187,7 +187,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                                                    Policy::template GetSmemSizeP<Problem>()),
             Policy::template MakeMLdsBlockDescriptor<Problem>());
         auto m_lds_window = make_tile_window(
-            m_lds, Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+            m_lds, Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(), {0});
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
@@ -544,7 +544,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 auto my_temp_2 = load_tile(make_tile_window(
                     m_lds,
                     Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(),
-                    {0, 0},
+                    {0},
                     NewMLBlockTileType{}.get_tile_distribution()));
 
                 constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
@@ -661,7 +661,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         auto l_2 = load_tile(
             make_tile_window(m_lds,
                              Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(),
-                             {0, 0},
+                             {0},
                              NewMLBlockTileType{}.get_tile_distribution()));
 
         constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
