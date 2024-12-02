@@ -31,6 +31,8 @@
 #include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_combine_pipeline_default_policy.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_pipeline_qr_ks_vs.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_pipeline_qr_ks_vs_default_policy.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_smallq_pipeline_qr_ks_vs.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_smallq_pipeline_qr_ks_vs_default_policy.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_problem.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs.hpp"

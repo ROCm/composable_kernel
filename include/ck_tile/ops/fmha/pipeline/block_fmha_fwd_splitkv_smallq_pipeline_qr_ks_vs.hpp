@@ -5,14 +5,15 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_pipeline_qr_ks_vs_default_policy.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_smallq_pipeline_qr_ks_vs_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
 
 // This pipeline is qkv all located in LDS
-template <typename Problem_, typename Policy_ = BlockFmhaFwdSplitKVPipelineQRKSVSDefaultPolicy>
-struct BlockFmhaFwdSplitKVPipelineQRKSVS
+template <typename Problem_,
+          typename Policy_ = BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy>
+struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
 {
     using Problem             = remove_cvref_t<Problem_>;
     using Policy              = remove_cvref_t<Policy_>;
@@ -25,7 +26,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     using LSEDataType         = remove_cvref_t<typename Problem::LSEDataType>;
     using PDataType           = remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
-    using ODataType           = remove_cvref_t<typename Problem::ODataType>;
     using FmhaMask            = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
@@ -49,7 +49,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV     = Problem::kPadHeadDimV;
     static constexpr auto BiasEnum         = Problem::BiasEnum;
-    static constexpr bool kStoreLSE        = Problem::kStoreLSE;
+    static constexpr bool kStoreLSE        = true; // always store LSE (acc)
     static constexpr bool kIsPagedKV       = Problem::kIsPagedKV;
     static constexpr bool kHasUnevenSplits = Problem::kHasUnevenSplits;
 
@@ -143,7 +143,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
                void* smem_ptr) const
     {
         static_assert(
@@ -175,6 +174,21 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             Policy::template MakeVLdsBlockDescriptor<Problem>());
         auto v_lds_window = make_tile_window(
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+
+        auto p_lds = make_tensor_view<address_space_enum::lds>(
+            reinterpret_cast<PDataType*>(reinterpret_cast<char*>(smem_ptr) +
+                                         Policy::template GetSmemSizeKV<Problem>()),
+            Policy::template MakePLdsBlockDescriptor<Problem>());
+        auto p_lds_window = make_tile_window(
+            p_lds, Policy::template MakePLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+
+        auto m_lds = make_tensor_view<address_space_enum::lds>(
+            reinterpret_cast<SMPLComputeDataType*>(reinterpret_cast<char*>(smem_ptr) +
+                                                   Policy::template GetSmemSizeKV<Problem>() +
+                                                   Policy::template GetSmemSizeP<Problem>()),
+            Policy::template MakeMLdsBlockDescriptor<Problem>());
+        auto m_lds_window = make_tile_window(
+            m_lds, Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(), {0});
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
@@ -208,20 +222,29 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         auto m     = MLBlockTileType{};
         auto l     = MLBlockTileType{};
 
+        // tile window for shuffling tensors (used to rescale o_acc)
+        using NewMLBlockTileType = decltype(block_tile_reduce<SMPLComputeDataType>(
+            o_acc, sequence<1>{}, f_max, SMPLComputeDataType{0}));
+        auto new_m_lds_window =
+            make_tile_window(m_lds,
+                             Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0},
+                             NewMLBlockTileType{}.get_tile_distribution());
+
         clear_tile(o_acc);
         set_tile(m, -numeric<SMPLComputeDataType>::infinity());
         clear_tile(l);
 
-        const auto q_origin = q_dram_window.get_window_origin();
-        const auto [logical_seqlen_k_start, logical_seqlen_k_end] = mask.GetTileRangeAlongX(
+        const auto q_origin                       = q_dram_window.get_window_origin();
+        const auto [seqlen_k_start, seqlen_k_end] = mask.GetTileRangeAlongX(
             q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
 
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK || kHasUnevenSplits)
         {
-            const index_t logical_num_total_loop =
-                integer_divide_ceil(logical_seqlen_k_end - logical_seqlen_k_start, kN0);
-            if(logical_num_total_loop <= 0)
+            const index_t original_num_total_loop =
+                integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+            if(original_num_total_loop <= 0)
             {
                 if constexpr(kStoreLSE)
                 {
@@ -240,41 +263,33 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
         }
 
-        const index_t physical_seqlen_k_start = logical_seqlen_k_start + kv_l2p_offset;
-        const index_t physical_seqlen_k_end   = logical_seqlen_k_end + kv_l2p_offset;
-        // make sure the first tile is completely located in page-block (page-block size should be
-        // divisible by kN0)
-        // relationship between each *_start variables: aligned_physical_seqlen_k_start <=
-        // physical_seqlen_k_start, logical_seqlen_k_start <= physical_seqlen_k_start
-        const index_t aligned_physical_seqlen_k_start =
-            [&, physical_seqlen_k_start_ = physical_seqlen_k_start] {
-                if constexpr(kIsPagedKV)
-                {
-                    return kN0 * integer_divide_floor(physical_seqlen_k_start_, kN0);
-                }
-                else
-                {
-                    return physical_seqlen_k_start_;
-                }
-            }();
+        // make sure the first tile is completely located in page-block
+        const index_t adjusted_seqlen_k_start = [&, seqlen_k_start_ = seqlen_k_start] {
+            if constexpr(kIsPagedKV)
+            {
+                return kN0 * integer_divide_floor(seqlen_k_start_, kN0);
+            }
+            else
+            {
+                return seqlen_k_start_;
+            }
+        }();
         const index_t num_total_loop =
-            integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0);
+            integer_divide_ceil(seqlen_k_end - adjusted_seqlen_k_start, kN0);
 
         auto [i_page_block_k, k_dram_block_window] = k_page_block_navigator.make_tile_window(
-            k_dram_block_window_lengths, {aligned_physical_seqlen_k_start, 0});
+            k_dram_block_window_lengths, {adjusted_seqlen_k_start, 0});
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
                              bias_dram_block_window_tmp.get_window_lengths(),
-                             {bias_origin.at(number<0>{}),
-                              logical_seqlen_k_start - (physical_seqlen_k_start -
-                                                        aligned_physical_seqlen_k_start)}, // M/N
+                             {bias_origin.at(number<0>{}), adjusted_seqlen_k_start}, // M/N
                              Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
             v_dram_block_window_lengths,
-            {0, aligned_physical_seqlen_k_start}, // TODO: hdim split?
+            {0, adjusted_seqlen_k_start}, // TODO: hdim split?
             Policy::template MakeVDramTileDistribution<Problem>());
 
         auto q_tile = tile_elementwise_in(q_element_func, q);
@@ -388,8 +403,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
                         s_acc(i_j_idx) *= scale_s;
-                        // position_encoding accept only logical coordinates, do conversion here
-                        position_encoding.update(s_acc(i_j_idx), row, col - kv_l2p_offset);
+                        position_encoding.update(s_acc(i_j_idx), row, col);
                     });
                 });
             }
@@ -407,31 +421,29 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             {
                 const auto k_origin = k_page_block_navigator.to_global_window_origin(
                     i_page_block_k, k_dram_block_window.get_window_origin());
-                set_tile_if(
-                    s_acc,
-                    -numeric<SMPLComputeDataType>::infinity(),
-                    [&,
-                     physical_seqlen_k_start_ = physical_seqlen_k_start,
-                     physical_seqlen_k_end_   = physical_seqlen_k_end](auto tile_idx) {
-                        const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                        if constexpr(kIsPagedKV)
-                        {
-                            return col < physical_seqlen_k_start_ || physical_seqlen_k_end_ <= col;
-                        }
-                        else
-                        {
-                            return physical_seqlen_k_end_ <= col;
-                        }
-                    });
+                set_tile_if(s_acc,
+                            -numeric<SMPLComputeDataType>::infinity(),
+                            [&, seqlen_k_start_ = seqlen_k_start, seqlen_k_end_ = seqlen_k_end](
+                                auto tile_idx) {
+                                const auto col =
+                                    k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                if constexpr(kIsPagedKV)
+                                {
+                                    return col < seqlen_k_start_ || seqlen_k_end_ <= col;
+                                }
+                                else
+                                {
+                                    return seqlen_k_end_ <= col;
+                                }
+                            });
             }
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 const auto k_origin = k_page_block_navigator.to_global_window_origin(
                     i_page_block_k, k_dram_block_window.get_window_origin());
-                // mask accept only logical coordinates, do conversion here
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
-                                                           k_origin.at(number<0>{}) - kv_l2p_offset,
+                                                           k_origin.at(number<0>{}),
                                                            number<kM0>{},
                                                            number<kN0>{});
                 if(need_perpixel_check)
@@ -440,7 +452,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                             const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return mask.IsOutOfBound(row, col - kv_l2p_offset);
+                            return mask.IsOutOfBound(row, col);
                         });
                 }
             }
@@ -504,35 +516,55 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
+
+            const auto p =
+                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+            store_tile(p_lds_window, p);
+
+            auto l_scale = MLBlockTileType{};
             // l{j}, Oacc{j}
-            constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
-            sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
-                constexpr auto i_idx = make_tuple(idx0);
+            {
+                constexpr auto o_spans = decltype(s_acc)::get_distributed_spans();
+                sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                const auto tmp = [&]() {
-                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
-                    {
-                        return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
-                    }
-                    else
-                    {
-                        auto row_max = scale_s * get_validated_m(m[i_idx]);
-                        return exp2(scale_s * m_old[i_idx] - row_max);
-                    }
-                }();
+                    const auto tmp = [&]() {
+                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                     BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                        {
+                            return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+                        }
+                        else
+                        {
+                            auto row_max = scale_s * get_validated_m(m[i_idx]);
+                            return exp2(scale_s * m_old[i_idx] - row_max);
+                        }
+                    }();
 #else
                 const auto tmp       = exp(m_old[i_idx] - get_validated_m(m[i_idx]));
 #endif
-                l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
-                sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    // FIXME: this use different equation from FA v2 paper,
-                    // but produce correc result.
-                    // Is the equation wrong?
-                    o_acc(i_j_idx) *= tmp;
+                    l_scale(i_idx) = tmp;
+
+                    l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
                 });
-            });
+            }
+            {
+                store_tile(m_lds_window, l_scale);
+                block_sync_lds();
+                auto new_l_scale = load_tile(new_m_lds_window);
+
+                constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
+                sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+                    sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        // FIXME: this use different equation from FA v2 paper,
+                        // but produce correc result.
+                        // Is the equation wrong?
+                        o_acc(i_j_idx) *= new_l_scale(i_idx);
+                    });
+                });
+            }
 
             block_sync_lds();
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
@@ -552,9 +584,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             i_page_block_v =
                 v_page_block_navigator.move_tile_window(i_page_block_v, v_dram_window, {0, kK1});
 
-            const auto p =
-                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
-
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
             {
@@ -563,11 +592,14 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                                                   &v_dram_window_  = v_dram_window](auto i_k1) {
                     const auto v = load_tile(v_dram_window_); // load next v
                     block_sync_lds();
+
                     gemm_1(o_acc,
-                           get_slice_tile(
-                               p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
+                           get_slice_tile(p_lds_window,
+                                          sequence<0, i_k1 * kK1>{},
+                                          sequence<kM0, (i_k1 + 1) * kK1>{}),
                            v_lds_window);
                     block_sync_lds();
+
                     if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                     {
                         auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
@@ -593,7 +625,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             {
                 block_sync_lds();
                 gemm_1(o_acc,
-                       get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
+                       get_slice_tile(p_lds_window,
+                                      sequence<0, (k1_loops - 1) * kK1>{},
+                                      sequence<kM0, k1_loops * kK1>{}),
                        v_lds_window);
                 block_sync_lds();
             }
@@ -626,18 +660,21 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         }
 
         // finally, O
-        constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
+        store_tile(m_lds_window, l);
+        block_sync_lds();
+        auto new_l = load_tile(new_m_lds_window);
 
+        constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
             constexpr auto i_idx = make_tuple(idx0);
             const auto tmp       = [&]() {
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                              FmhaMask::IsMasking)
                 {
-                    return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
+                    return new_l[i_idx] == 0.f ? 0.f : 1 / new_l[i_idx];
                 }
                 else
-                    return 1 / l[i_idx];
+                    return 1 / new_l[i_idx];
             }();
             sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -671,7 +708,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
                void* smem_ptr) const
     {
         return operator()(q_dram_block_window_tmp,
@@ -694,7 +730,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                           mask,
                           position_encoding,
                           scale_s,
-                          kv_l2p_offset,
                           smem_ptr);
     }
 };

@@ -39,6 +39,7 @@ K0_MAX_SUBMAX_MAP = {
 
 FMHA_FWD_SPLITKV_PIPELINE_MAP = {
     "qr" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVS",
+    "qr_smallq" : "ck_tile::BlockFmhaFwdSplitKVSmallQPipelineQRKSVS",
     "qr_async" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVSAsync",
 }
 
@@ -620,11 +621,11 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                 # TODO: use async pipeline when compiler is more stable 
                 if hdim == 256 or hdim in [32, 64, 128]:         ### [32, 64, 96, 128]:
                 # if True:
-                    pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', bias, lse, squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', bias, lse, squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_smallq', 'row', 'f', 't', 'f', 'f', bias, lse, squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_smallq', 'col', 'f', 't', 'f', 'f', bias, lse, squant, pagedkv, mask))
 
-                    pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', bias, lse, squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', bias, lse, squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_smallq', 'row', 't', 't', 't', 't', bias, lse, squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_smallq', 'col', 't', 't', 't', 't', bias, lse, squant, pagedkv, mask))
                 else:
                     pipelines.append(Pipeline('qr_async', 'row', 't', 'f', 't', 't', bias, lse, squant, pagedkv, mask))
                     pipelines.append(Pipeline('qr_async', 'row', 't', 't', 't', 't', bias, lse, squant, pagedkv, mask))
