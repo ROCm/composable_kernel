@@ -236,7 +236,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             b_lds_block1, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0});
 
         // Block GEMM
-        constexpr auto block_gemm = Policy::template GetBlockGemm<Problem>();
+        auto block_gemm = Policy::template GetBlockGemm<Problem>();
 
         // Acc register tile
         auto c_block_tile = Policy::template BlockGemm<Problem>::MakeCBlockTile();

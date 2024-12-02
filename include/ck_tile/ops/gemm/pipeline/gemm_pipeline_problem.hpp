@@ -35,6 +35,8 @@ struct GemmPipelineProblemBase
     static constexpr bool kHasHotLoop = GemmTraits::HasHotLoop;
     static constexpr auto kTailNum    = GemmTraits::TailNum;
 
+    static constexpr auto Scheduler = GemmPipelineScheduler::Default;
+
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
     {
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
