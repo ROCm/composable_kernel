@@ -190,15 +190,15 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             b_tensors[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
             for(int j = 0; j < NumDs; ++j)
             {
-                d_tensors[i][j].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+                d_tensors[i][j].GenerateTensorValue(GeneratorTensor_3<DDataType>{0.0, 1.0});
             }
             break;
         default:
-            a_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<0>{});
-            b_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+            a_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<ADataType, 0>{});
+            b_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
             for(int j = 0; j < NumDs; ++j)
             {
-                d_tensors[i][j].GenerateTensorValue(GeneratorTensor_Sequential<0>{});
+                d_tensors[i][j].GenerateTensorValue(GeneratorTensor_Sequential<DDataType, 0>{});
             }
         }
     }
