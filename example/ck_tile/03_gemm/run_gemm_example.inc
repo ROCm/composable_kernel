@@ -28,10 +28,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_B = stride_B;
     args.stride_C = stride_C;
 
-    auto [ave_time, pipeline_name] = gemm_calc<ALayout, BLayout, CLayout>(
+    float ave_time = gemm_calc<ALayout, BLayout, CLayout>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
-
-    const std::string op_name = "Gemm{" + pipeline_name + "}";
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
@@ -39,10 +37,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run " << op_name << " kernel with M =" << M << " N =" << N << " K =" << K
+    std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " : " << std::fixed << std::setprecision(3) << ave_time << " ms, " << tflops << " TFlops, " 
-              << gb_per_sec << " GB/s, "
+              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
 
     return ave_time;
@@ -115,7 +112,6 @@ int run_gemm_example_with_layouts(int argc,
         f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
 
     // TODO: add different init types
-
     ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
     ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
 
@@ -155,7 +151,7 @@ int run_gemm_example_with_layouts(int argc,
 
         pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_host_ref);
 
-        std::cout << "The CPU veification result is: " << (pass ? "correct" : "FAIL") << std::endl;
+        std::cout << "The CPU veification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
     {
@@ -177,7 +173,7 @@ int run_gemm_example_with_layouts(int argc,
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
         pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_gpu_ref);
 
-        std::cout << "The GPU veification result is: " << (pass ? "correct" : "FAIL") << std::endl;
+        std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
     }
 
     return pass;
@@ -203,14 +199,16 @@ int run_gemm_example(int argc, char* argv[])
     {
         return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
     }
-    else if(a_layout == "C" && b_layout == "C")
-    {
-        return run_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "R")
-    {
-        return run_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
-    }
+    // TODO: Fixme: with latest changes to GemmPipelineAGmemBGmemCRegV1DefaultPolicy below do not
+    // work.
+    // else if(a_layout == "C" && b_layout == "C")
+    // {
+    //     return run_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
+    // }
+    // else if(a_layout == "C" && b_layout == "R")
+    // {
+    //     return run_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
+    // }
     else
     {
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");

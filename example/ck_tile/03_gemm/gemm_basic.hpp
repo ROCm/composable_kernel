@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include <iomanip>
 #include <string>
 
 #include "ck_tile/core.hpp"
@@ -20,16 +19,6 @@ struct GemmBasicTypeConfig<ck_tile::half_t>
     using BDataType   = ck_tile::half_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
-    // ToDo: Add more bias config to support different categories of GEMM.
-};
-
-template <>
-struct GemmBasicTypeConfig<ck_tile::bf16_t>
-{
-    using ADataType   = ck_tile::bf16_t;
-    using BDataType   = ck_tile::bf16_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::bf16_t;
     // ToDo: Add more bias config to support different categories of GEMM.
 };
 
@@ -98,3 +87,6 @@ auto create_args(int argc, char* argv[])
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
+
+// host API
+float gemm_calc(gemm_basic_args args, const ck_tile::stream_config& s);

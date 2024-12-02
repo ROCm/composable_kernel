@@ -20,7 +20,6 @@ export GPU_arch=$4
 echo 'GPU_arch: ' $GPU_arch
 
 # run verification tests
-SCRIPT_DIR="$(dirname "$0")"
-$SCRIPT_DIR/smoke_test.sh
+example/ck_tile/03_gemm/script/smoke_test.sh
 
 # We do not have a performance benchmark for gemm yet. Will add it in the future.

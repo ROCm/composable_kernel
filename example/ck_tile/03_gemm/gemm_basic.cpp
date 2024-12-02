@@ -8,25 +8,20 @@
 #include <ostream>
 #include <string>
 #include <tuple>
-#include <utility>
 
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
 #include "gemm_basic.hpp"
 
-#if !defined(EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY)
-#define EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY 1
-#endif
-
 template <typename ALayout, typename BLayout, typename CLayout>
-std::pair<float, std::string> gemm_calc(const gemm_basic_args& args,
-                                        const ck_tile::stream_config& s)
+float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
-    // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadA        = true;
-    constexpr bool kPadB        = true;
-    constexpr bool kPadC        = true;
+    // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
+    constexpr bool kPadM = false;
+    constexpr bool kPadN = false;
+    constexpr bool kPadK = false;
+
     constexpr bool kTilePermute = false;
     // The rank and permutation will also be generate out by the CodeGen part.
     constexpr ck_tile::index_t kOutputRank = 2;
@@ -62,8 +57,8 @@ std::pair<float, std::string> gemm_calc(const gemm_basic_args& args,
         CShuffleEpilogue,
         ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
                                                                    CDataType,
-                                                                   kPadA,
-                                                                   kPadB,
+                                                                   kPadM,
+                                                                   kPadN,
                                                                    kTilePermute,
                                                                    kOutputRank,
                                                                    1,
@@ -71,25 +66,15 @@ std::pair<float, std::string> gemm_calc(const gemm_basic_args& args,
                                                                    TilePartitioner::kM,
                                                                    TilePartitioner::kN>>,
         ck_tile::Default2DEpilogue<
-            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>>;
+            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
 
     using CodegenGemmTraits =
-        ck_tile::TileGemmTraits<kPadA, kPadB, kPadC, ALayout, BLayout, CLayout>;
+        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
-    /// NOTICE: There are 3 limitations for using UniversalGemmPipelineAgBgCrPolicy<>
-    ///     1. Both of M_Tile and N_Tile should be no less than get_warp_size()
-    ///     2. K_Warp should be 1
-    ///     3. (K_Tile * N_Warp_Tile / K_Warp_Tile) should be no less than 64
-#if EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY
-    using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy<ALayout, BLayout, CLayout>;
-#endif
-    using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem
-#if EXAMPLE_USE_UNIVERSAL_GEMM_PIPELINE_POLICY
-                                                                      ,
-                                                                      CodegenGemmPolicy
-#endif
-                                                                      >;
+    using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;
+    using CodegenGemmPipeline =
+        ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenGemmPolicy>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
@@ -118,7 +103,7 @@ std::pair<float, std::string> gemm_calc(const gemm_basic_args& args,
     float ave_time = ck_tile::launch_kernel(
         s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
-    return std::make_pair(ave_time, "GemmPipelineAGmemBGmemCRegV1");
+    return ave_time;
 }
 
 #include "run_gemm_example.inc"
