@@ -17,8 +17,8 @@ enum class naive_attention_layout_enum
     BHSD,  // [batch, nhead, seqlen, hdim]
     BS3HD, // [batch, nhead, 3, seqlen, hdim], used when qkv are packed
     PHSD,  // [pages, nhead, page_size, hdim]
-    PHSDX, // [pages, nhead, page_size/x, hdim, x], where pages*page_size = original seqlen
-    PHDS,  // [pages, nhead, hdim, page_size], where pages*page_size = original seqlen
+    PHSDX, // [pages, nhead, page_size/x, hdim, x], where <# used pages>*page_size = seqlen
+    PHDS,  // [pages, nhead, hdim, page_size], where <# used pages>*page_size = seqlen
 };
 
 // will used to specialize kernel variation
@@ -114,31 +114,80 @@ struct naive_attention_fwd_kernel
         __device__ T* get_base(int i_b, int i_h)
         {
             if constexpr(Layout == naive_attention_layout_enum::BSHD)
-            {
                 return base_ptr + i_b * s * h * d + i_h * d;
-            }
             else if constexpr(Layout == naive_attention_layout_enum::BHSD)
-            {
                 return base_ptr + i_b * s * h * d + i_h * s * d;
-            }
         }
 
         __device__ int get_offset(int i_s, int i_d)
         {
             if constexpr(Layout == naive_attention_layout_enum::BSHD)
-            {
                 return i_s * h * d + i_d;
-            }
             else if constexpr(Layout == naive_attention_layout_enum::BHSD)
-            {
                 return i_s * d + i_d;
+        }
+
+        // below set of API will directly use pointer inside this struct
+        __device__ void init(int i_b, int i_h) { base_ptr = get_base(i_b, i_h); }
+        __device__ T load(int i_s, int i_d) { return base_ptr[get_offset(i_s, i_d)]; }
+        __device__ void store(T value, int i_s, int i_d) { base_ptr[get_offset(i_s, i_d)] = value; }
+    };
+
+    template <typename T, naive_attention_layout_enum Layout>
+    struct page_addresser
+    {
+        int s, h, d;                             // page_size, nhead, hdim, vector(k matrix)
+        static constexpr int x = 16 / sizeof(T); // pack 4 dword
+        T* base_ptr;
+        int* page_table_ptr; // TODO: page table always int
+        int i_h;             // store current head
+
+        __device__ page_addresser(int s_, int h_, int d_, void* base_ptr_, void* pptr_)
+            : s(s_),
+              h(h_),
+              d(d_),
+              base_ptr(reinterpret_cast<T*>(base_ptr_)),
+              page_table_ptr(reinterpret_cast<int*>(pptr_))
+        {
+        }
+
+        __device__ int64_t get_phy_page_idx(int i_s)
+        {
+            // dynamic compute page idx is simple but slow
+            int page_idx = i_s / s;
+            int phy      = page_table_ptr[page_idx];
+            return static_cast<int64_t>(phy);
+        }
+
+        __device__ int get_phy_page_offset(int i_s)
+        {
+            // dynamic compute page idx is simple but slow
+            return i_s % s;
+        }
+
+        __device__ int64_t get_offset(int i_s, int i_d)
+        {
+            int page_offset  = get_phy_page_offset(i_s);
+            int64_t page_idx = get_phy_page_idx(i_s);
+            int64_t base_    = page_idx * h * s * d;
+            if constexpr(Layout == naive_attention_layout_enum::PHSD)
+                return static_cast<int64_t>(i_h * s * d + page_offset * d + i_d) + base_;
+            else if constexpr(Layout == naive_attention_layout_enum::PHSDX)
+            {
+                int x_r = page_offset % x;
+                int x_s = page_offset / x;
+                return static_cast<int64_t>(i_h * s * d + x_s * d * x + i_d * x + x_r) + base_;
+            }
+            else if constexpr(Layout == naive_attention_layout_enum::PHDS)
+            {
+                return static_cast<int64_t>(i_h * s * d + i_d * s + page_offset) + base_;
             }
         }
 
         // below set of API will directly use pointer inside this struct
-        __device__ void update_base(int i_b, int i_h) { base_ptr = get_base(i_b, i_h); }
+        __device__ void init(int /*i_b*/, int i_h_) { i_h = i_h_; }
         __device__ T load(int i_s, int i_d) { return base_ptr[get_offset(i_s, i_d)]; }
-        __device__ void store(T value, int i_s, int i_d) { base_ptr[get_offset(i_s, i_d)] = value; }
+        __device__ void store(T /*value*/, int /*i_s*/, int /*i_d*/) {}
     };
 
     __device__ __host__ static constexpr int get_block_size() { return 256; }
@@ -204,14 +253,44 @@ struct naive_attention_fwd_kernel
     {
         constexpr int wg_size = get_block_size();
         __shared__ ComputeType smem[wg_size * 2]; //  should enough
-        addresser<QType, QLayout> q_addr{
-            args.batch_q, args.seqlen_q, args.nhead_q, args.hdim, args.q_ptr};
-        addresser<KType, KLayout> k_addr{
-            args.batch_kv, args.seqlen_kv, args.nhead_kv, args.hdim, args.k_ptr};
-        addresser<VType, VLayout> v_addr{
-            args.batch_kv, args.seqlen_kv, args.nhead_kv, args.hdim_v, args.v_ptr};
-        addresser<OType, OLayout> o_addr{
-            args.batch_q, args.seqlen_q, args.nhead_q, args.hdim_v, args.o_ptr};
+        auto q_addr = [&]() {
+            if constexpr(Traits::variation == naive_attention_variation_enum::FLASH_BATCHED)
+            {
+                return addresser<QType, QLayout>{
+                    args.batch_q, args.seqlen_q, args.nhead_q, args.hdim, args.q_ptr};
+            }
+        }();
+        auto k_addr = [&]() {
+            if constexpr(Traits::variation == naive_attention_variation_enum::FLASH_BATCHED)
+            {
+                return addresser<KType, KLayout>{
+                    args.batch_kv, args.seqlen_kv, args.nhead_kv, args.hdim, args.k_ptr};
+            }
+            else if constexpr(Traits::variation == naive_attention_variation_enum::DECODE_PAGED)
+            {
+                return page_addresser<KType, KLayout>{
+                    args.page_size, args.nhead_kv, args.hdim, args.k_ptr, args.page_table_ptr};
+            }
+        }();
+        auto v_addr = [&]() {
+            if constexpr(Traits::variation == naive_attention_variation_enum::FLASH_BATCHED)
+            {
+                return addresser<VType, VLayout>{
+                    args.batch_kv, args.seqlen_kv, args.nhead_kv, args.hdim_v, args.v_ptr};
+            }
+            else if constexpr(Traits::variation == naive_attention_variation_enum::DECODE_PAGED)
+            {
+                return page_addresser<VType, VLayout>{
+                    args.page_size, args.nhead_kv, args.hdim_v, args.v_ptr, args.page_table_ptr};
+            }
+        }();
+        auto o_addr = [&]() {
+            if constexpr(Traits::variation == naive_attention_variation_enum::FLASH_BATCHED)
+            {
+                return addresser<OType, OLayout>{
+                    args.batch_q, args.seqlen_q, args.nhead_q, args.hdim_v, args.o_ptr};
+            }
+        }();
 
         int i_dv    = blockIdx.x * wg_size + threadIdx.x; // index of hdim_v
         int i_sq    = blockIdx.y;                         // index of seqlen_q
@@ -222,10 +301,10 @@ struct naive_attention_fwd_kernel
         int i_bk = i_bq / args.batch_radio_kv;
         int i_hk = i_hq / args.nhead_radio_kv;
 
-        q_addr.update_base(i_bq, i_hq);
-        k_addr.update_base(i_bk, i_hk);
-        v_addr.update_base(i_bk, i_hk);
-        o_addr.update_base(i_bq, i_hq);
+        q_addr.init(i_bq, i_hq);
+        k_addr.init(i_bk, i_hk);
+        v_addr.init(i_bk, i_hk);
+        o_addr.init(i_bq, i_hq);
 
         int seqlen_kv = args.seqlen_kv;
         auto f_max    = [](auto x_, auto y_) { return max(x_, y_); };
