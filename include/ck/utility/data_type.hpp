@@ -1063,7 +1063,7 @@ struct non_native_vector_base<
         StaticallyIndexedArray<data_v, 1> dNx1;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_base(data_t a) : data_{data_v{a}} {}
+    __host__ __device__ constexpr non_native_vector_base(data_t a) : data_{data_v(a)} {}
     __host__ __device__ constexpr non_native_vector_base(T f)
         : non_native_vector_base(bit_cast<data_t>(f))
     {
