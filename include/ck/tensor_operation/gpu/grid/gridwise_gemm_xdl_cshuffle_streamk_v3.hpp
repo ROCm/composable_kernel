@@ -1181,6 +1181,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                        block_idx, iter_start, iter_end, is_sk_block, is_dp_block);
             }
 
+            __syncthreads();
+
             while(true)
             {
                 uint32_t current_iter_length = __builtin_amdgcn_readfirstlane(
@@ -1211,6 +1213,9 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
+                // Emin @added
+                __syncthreads();
+
                 // Emin @debug
                 // Debug: Print grid descriptor sizes
                 if (threadIdx.x == 0 && threadIdx.y == 0) {
@@ -1219,6 +1224,9 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                            b_grid_desc_bk0_n_bk1.GetElementSpaceSize(),
                            c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
                 }
+
+                // Emin @added
+                __syncthreads();
 
                 // Create dynamic buffers for A, B, C matrices in global memory       
                 auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1248,12 +1256,19 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 const index_t k0_block_data_idx_on_grid =
                     __builtin_amdgcn_readfirstlane(iter_offset * AK0Number);
 
+                // Emin @added
+                __syncthreads();
+
                 // Emin @debug
                 // Debug: Print block data indices on grid
                 if (threadIdx.x == 0 && threadIdx.y == 0) {
                     printf("M Block Data Index on Grid: %d, N Block Data Index on Grid: %d, K0 Block Data Index: %d\n",
                            m_block_data_idx_on_grid, n_block_data_idx_on_grid, k0_block_data_idx_on_grid);
                 }
+
+
+                // Emin @added
+                __syncthreads();
 
                 // lds max alignment
                 constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
@@ -1367,11 +1382,17 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
                     KPerBlock);
 
+                // Emin @added
+                __syncthreads();
+
                 // Emin @debug
                 // Debug: Print number of K blocks in main loop
                 if (threadIdx.x == 0 && threadIdx.y == 0) {
                     printf("Number of K Blocks in Main Loop: %d\n", num_k_block_main_loop);
                 }
+
+                // Emin @added
+                __syncthreads();
 
                 blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                     a_grid_desc_ak0_m_ak1,
@@ -1564,12 +1585,18 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         // make sure it's safe to write to LDS
                         block_sync_lds();
 
+                          // Emin @added
+                        __syncthreads();
+
                         // Emin @debug
                         // Debug: Print before writing C to LDS
                         if (threadIdx.x == 0 && threadIdx.y == 0) {
-                            printf("Gridwise_gemm_sk line 1570 --Block %d, Access %d: Writing C from VGPR to LDS.\n", block_idx, static_cast<int>(access_id));
+                            printf("Gridwise_gemm_sk line 1594 --Block %d, Access %d: Writing C from VGPR to LDS.\n", block_idx, static_cast<int>(access_id));
                         }
 
+
+                         // Emin @added
+                        __syncthreads();
 
                         // each thread write its data from VGPR to LDS
                         c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
@@ -1598,9 +1625,16 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         }
                         else if(is_sk_block)
                         {
+                            // Emin @added
+                            __syncthreads();
+
                             if (threadIdx.x == 0 && threadIdx.y == 0) {
                                 printf("Gridwise_gemm_sk line 1602 --is_sk_block !! each block copy data from LDS to global.\n");
                             }
+
+                            // Emin @added
+                            __syncthreads();
+
 
                             // each block copy its data from LDS to global
                             c_shuffle_block_copy_lds_to_global
