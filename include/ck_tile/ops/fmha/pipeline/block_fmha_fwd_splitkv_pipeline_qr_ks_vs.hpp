@@ -221,8 +221,14 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         auto m     = MLBlockTileType{};
         auto l     = MLBlockTileType{};
 
+        // tile window for shuffling tensors (used to rescale o_acc)
         using NewMLBlockTileType = decltype(block_tile_reduce<SMPLComputeDataType>(
             o_acc, sequence<1>{}, f_max, SMPLComputeDataType{0}));
+        auto new_m_lds_window =
+            make_tile_window(m_lds,
+                             Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0},
+                             NewMLBlockTileType{}.get_tile_distribution());
 
         clear_tile(o_acc);
         set_tile(m, -numeric<SMPLComputeDataType>::infinity());
@@ -547,11 +553,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             {
                 store_tile(m_lds_window, l_scale);
                 block_sync_lds();
-                auto new_l_scale = load_tile(make_tile_window(
-                    m_lds,
-                    Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(),
-                    {0},
-                    NewMLBlockTileType{}.get_tile_distribution()));
+                auto new_l_scale = load_tile(new_m_lds_window);
 
                 constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
                 sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
@@ -657,11 +659,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         // finally, O
         store_tile(m_lds_window, l);
         block_sync_lds();
-        auto new_l = load_tile(
-            make_tile_window(m_lds,
-                             Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(),
-                             {0},
-                             NewMLBlockTileType{}.get_tile_distribution()));
+        auto new_l = load_tile(new_m_lds_window);
 
         constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
