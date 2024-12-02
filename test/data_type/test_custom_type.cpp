@@ -915,6 +915,10 @@ TEST(FP8OCP, TestAsType)
         ASSERT_EQ(left_vec.template AsType<f8_t>()(Number<i>{}),
                   ck::type_convert<f8_t>(test_vec.at(i)));
     });
+
+    ck::non_native_vector_base<ck::f8_ocp_t, 2> nnvb_f8x2(ck::type_convert<f8_t>(-10.0f));
+    ASSERT_EQ(nnvb_f8x2.template AsType<f8_t>()(Number<0>{}), ck::type_convert<f8_t>(-10.0f));
+    ASSERT_EQ(nnvb_f8x2.template AsType<f8_t>()(Number<1>{}), ck::type_convert<f8_t>(-10.0f));
 }
 
 TEST(FP8OCP, TestAsTypeReshape)
@@ -988,6 +992,10 @@ TEST(BF8OCP, TestAsType)
         ASSERT_EQ(left_vec.template AsType<bf8_t>()(Number<i>{}),
                   ck::type_convert<bf8_t>(test_vec.at(i)));
     });
+
+    ck::non_native_vector_base<bf8_t, 2> nnvb_bf8x2(ck::type_convert<bf8_t>(-10.0f));
+    ASSERT_EQ(nnvb_bf8x2.template AsType<bf8_t>()(Number<0>{}), ck::type_convert<bf8_t>(-10.0f));
+    ASSERT_EQ(nnvb_bf8x2.template AsType<bf8_t>()(Number<1>{}), ck::type_convert<bf8_t>(-10.0f));
 }
 
 TEST(BF8OCP, TestAsTypeReshape)
