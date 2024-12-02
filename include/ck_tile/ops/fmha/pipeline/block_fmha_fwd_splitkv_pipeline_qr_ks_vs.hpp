@@ -510,8 +510,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
 
-            auto my_temp = MLBlockTileType{};
-
+            auto l_scale = MLBlockTileType{};
             // l{j}, Oacc{j}
             {
                 constexpr auto o_spans = decltype(s_acc)::get_distributed_spans();
@@ -533,15 +532,15 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 #else
                 const auto tmp       = exp(m_old[i_idx] - get_validated_m(m[i_idx]));
 #endif
-                    my_temp(i_idx) = tmp;
+                    l_scale(i_idx) = tmp;
 
                     l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
                 });
             }
             {
-                store_tile(m_lds_window, my_temp);
+                store_tile(m_lds_window, l_scale);
                 block_sync_lds();
-                auto my_temp_2 = load_tile(make_tile_window(
+                auto new_l_scale = load_tile(make_tile_window(
                     m_lds,
                     Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(),
                     {0},
@@ -555,7 +554,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                         // FIXME: this use different equation from FA v2 paper,
                         // but produce correc result.
                         // Is the equation wrong?
-                        o_acc(i_j_idx) *= my_temp_2(i_idx);
+                        o_acc(i_j_idx) *= new_l_scale(i_idx);
                     });
                 });
             }
@@ -658,7 +657,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         // finally, O
         store_tile(m_lds_window, l);
         block_sync_lds();
-        auto l_2 = load_tile(
+        auto new_l = load_tile(
             make_tile_window(m_lds,
                              Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(),
                              {0},
@@ -671,10 +670,10 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                              FmhaMask::IsMasking)
                 {
-                    return l_2[i_idx] == 0.f ? 0.f : 1 / l_2[i_idx];
+                    return new_l[i_idx] == 0.f ? 0.f : 1 / new_l[i_idx];
                 }
                 else
-                    return 1 / l_2[i_idx];
+                    return 1 / new_l[i_idx];
             }();
             sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
