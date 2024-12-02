@@ -940,10 +940,10 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                              const void* p_host_kernel_args) const
     {
         arg.p_dev_gemm_args_ = p_dev_kernel_args;
-        hip_check_error(hipMemcpy(p_dev_kernel_args,
-                                  p_host_kernel_args,
-                                  GetDeviceKernelArgSize(&arg),
-                                  hipMemcpyHostToDevice));
+        hip_check_error(hipMemcpyAsync(p_dev_kernel_args,
+                                       p_host_kernel_args,
+                                       GetDeviceKernelArgSize(&arg),
+                                       hipMemcpyHostToDevice));
     }
 
     virtual void SetDeviceKernelArgs(BaseArgument* p_arg,
