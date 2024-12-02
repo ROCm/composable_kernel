@@ -761,11 +761,11 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             float time{0.f};
 
             hip_check_error(
-                hipMemcpyWithStream(dev_gemm_kargs,
-                                    arg.gemm_kernel_args_.data(),
-                                    arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
-                                    hipMemcpyHostToDevice,
-                                    stream_config.stream_id_));
+                hipMemcpyAsync(dev_gemm_kargs,
+                               arg.gemm_kernel_args_.data(),
+                               arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
+                               hipMemcpyHostToDevice,
+                               stream_config.stream_id_));
 
             auto preprocess = [&]() {
                 hip_check_error(hipMemsetAsync(
