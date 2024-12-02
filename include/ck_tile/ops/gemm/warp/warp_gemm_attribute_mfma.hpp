@@ -170,7 +170,7 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
-        tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+        tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,  // <32>, <2, 4>
         tuple<sequence<2, 1>>,
         tuple<sequence<0, 0>>,
         sequence<2>,

@@ -70,21 +70,6 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
         return a_lds_block_desc;
     }
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockLinearDescriptor()
-    {
-        using namespace ck_tile;
-
-        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
-
-        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / 8>{}, number<kMPerBlock>{}, number<8>{}),
-            make_tuple(number<(kMPerBlock) * 8>{}, number<8>{}, number<1>{}),
-            number<8>{},
-            number<1>{});
-        return a_lds_block_desc_0;
-    }
 
     // 3d + padding
     template <typename Problem>

@@ -189,9 +189,16 @@ struct BlockGemmARegBRegCRegV2
     CK_TILE_DEVICE static constexpr auto MakeABlockDistribution()
     {
         // M->N Warp
+        // using AWarpDstrEncoding = tile_distribution_encoding<
+        //     sequence<>,
+        //     tuple<sequence<Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>, //<32>, <2, 8>
+        //     tuple<sequence<2, 1>>,
+        //     tuple<sequence<0, 0>>,
+        //     sequence<2>,
+        //     sequence<1>>;
         constexpr auto a_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<NWarp>,
-                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>, // <4, 2>, <2>
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
                                        sequence<1, 2>,
