@@ -1136,6 +1136,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         naive_t.k_layout = i_perm == 1 ? "bhsd" : "bshd";
         naive_t.v_layout = i_perm == 1 ? "bhsd" : "bshd";
         naive_t.o_layout = o_perm == 1 ? "bhsd" : "bshd";
+        naive_t.variation = 0;  // TODO?
 
         ck_tile::DeviceMem o_naive_buf(o_host.get_element_space_size_in_bytes());
 
@@ -1146,7 +1147,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         naive_a.o_ptr           = o_naive_buf.GetDeviceBuffer();
         naive_a.scale_s         = scale_s;
         naive_a.context_len_ptr = nullptr; // used when seqlen kv come from a pointer
-        naive_a.block_table_ptr =
+        naive_a.page_table_ptr =
             nullptr; // [batch, num_blocks] seqlen_kv is in different block(paged attn)
         naive_a.hdim           = hdim_q;
         naive_a.hdim_v         = hdim_v; // could be cross-attn, where V and Q/K hdim are different
@@ -1158,7 +1159,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         naive_a.nhead_q   = nhead;
         naive_a.nhead_kv  = nhead_k;
         naive_a.nhead_radio_kv = naive_a.nhead_q / naive_a.nhead_kv; // nhead_q / nhead_kv
-        naive_a.block_size     = 0; // if paged, the seqlen-kv per each block
+        naive_a.page_size      = 0; // if paged, the seqlen-kv for each block
 
         ck_tile::stream_config naive_s{};
 

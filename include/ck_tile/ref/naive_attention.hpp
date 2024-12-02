@@ -16,8 +16,17 @@ enum class naive_attention_layout_enum
     BSHD,  // [batch, seqlen, nhead, hdim]
     BHSD,  // [batch, nhead, seqlen, hdim]
     BS3HD, // [batch, nhead, 3, seqlen, hdim], used when qkv are packed
-    CHSDX, // [blocks, nhead, block_size/x, hdim, x], where blocks*block_size = original seqlen
-    CHDS,  // [blocks, nhead, hdim, block_size], where blocks*block_size = original seqlen
+    PHSD,  // [pages, nhead, page_size, hdim]
+    PHSDX, // [pages, nhead, page_size/x, hdim, x], where pages*page_size = original seqlen
+    PHDS,  // [pages, nhead, hdim, page_size], where pages*page_size = original seqlen
+};
+
+// will used to specialize kernel variation
+enum class naive_attention_variation_enum
+{
+    FLASH_BATCHED = 0, // standard flash attention, or xformer/sdpa, used for training
+    FLASH_GROUPED,
+    DECODE_PAGED, // decode attn, where kv token from another buffer called kvcache
 };
 
 // TODO: for simplicity, this will be used as host/device arg
@@ -27,8 +36,9 @@ struct naive_attention_fwd_args
     void* k_ptr;
     void* v_ptr;
     void* o_ptr;
-    void* context_len_ptr; // used when seqlen kv come from a pointer
-    void* block_table_ptr; // [batch, num_blocks] seqlen_kv is in different block(paged attn)
+    void* context_len_ptr; // used when seqlen kv come from a pointer(each element is a number, not
+                           // cumsum)
+    void* page_table_ptr;  // [batch, num_blocks] seqlen_kv is in different block(paged attn)
     float scale_s;
     int hdim;
     int hdim_v; // could be cross-attn, where V and Q/K hdim are different
@@ -40,9 +50,10 @@ struct naive_attention_fwd_args
     int nhead_q;
     int nhead_kv;
     int nhead_radio_kv; // nhead_q / nhead_kv
-    int block_size;     // if paged, the seqlen-kv per each block
+    int page_size;      // if paged, the seqlen-kv per each block
 };
 
+// this is trait for host API
 struct naive_attention_fwd_traits
 {
     std::string q_type;
@@ -53,6 +64,14 @@ struct naive_attention_fwd_traits
     std::string k_layout;
     std::string v_layout;
     std::string o_layout;
+    int variation; // sync with naive_attention_variation_enum
+};
+
+// this is trait for kernel template
+template <naive_attention_variation_enum variation_>
+struct naive_attention_fwd_kernel_traits
+{
+    static constexpr naive_attention_variation_enum variation = variation_;
 };
 
 // for simplicity, please do not use const-reference type for the template type
@@ -64,7 +83,8 @@ template <typename QType,
           naive_attention_layout_enum QLayout,
           naive_attention_layout_enum KLayout,
           naive_attention_layout_enum VLayout,
-          naive_attention_layout_enum OLayout>
+          naive_attention_layout_enum OLayout,
+          typename Traits>
 struct naive_attention_fwd_kernel
 {
     template <typename Acc>
@@ -114,6 +134,11 @@ struct naive_attention_fwd_kernel
                 return i_s * d + i_d;
             }
         }
+
+        // below set of API will directly use pointer inside this struct
+        __device__ void update_base(int i_b, int i_h) { base_ptr = get_base(i_b, i_h); }
+        __device__ T load(int i_s, int i_d) { return base_ptr[get_offset(i_s, i_d)]; }
+        __device__ void store(T value, int i_s, int i_d) { base_ptr[get_offset(i_s, i_d)] = value; }
     };
 
     __device__ __host__ static constexpr int get_block_size() { return 256; }
@@ -123,6 +148,7 @@ struct naive_attention_fwd_kernel
     // 1) in prefill case, seqlen_q >= 1, seqlen_kv >= 1, batch_q=batch_kv
     // 2) in decode case, seqlen_q = 1, batch_q is input num-tokens, batch_kv is 1
     // 3) in paged-attn case, we still use 1 WG compute all the seqlen-kv for simplicity
+    // TODO: could support split-kv to validate intermediate logsum
     __host__ static dim3 get_grid_size(naive_attention_fwd_args args)
     {
         constexpr int wg_size = get_block_size();
@@ -156,7 +182,6 @@ struct naive_attention_fwd_kernel
         constexpr int waves     = 4;
         constexpr int wave_size = 64;
         int lane_id             = threadIdx.x % wave_size;
-        // int wave_id = threadIdx.x / wave_size;
 
         __syncthreads();
         smem[threadIdx.x] = local;
@@ -197,10 +222,10 @@ struct naive_attention_fwd_kernel
         int i_bk = i_bq / args.batch_radio_kv;
         int i_hk = i_hq / args.nhead_radio_kv;
 
-        QType* q_base_ptr = q_addr.get_base(i_bq, i_hq);
-        KType* k_base_ptr = k_addr.get_base(i_bk, i_hk);
-        VType* v_base_ptr = v_addr.get_base(i_bk, i_hk);
-        OType* o_base_ptr = o_addr.get_base(i_bq, i_hq);
+        q_addr.update_base(i_bq, i_hq);
+        k_addr.update_base(i_bk, i_hk);
+        v_addr.update_base(i_bk, i_hk);
+        o_addr.update_base(i_bq, i_hq);
 
         int seqlen_kv = args.seqlen_kv;
         auto f_max    = [](auto x_, auto y_) { return max(x_, y_); };
@@ -212,7 +237,6 @@ struct naive_attention_fwd_kernel
 
         int sk_loops = (seqlen_kv + wg_size - 1) / wg_size;
 
-        // for(int i_sk = static_cast<int>(threadIdx.x); i_sk < seqlen_kv; i_sk += wg_size)
         for(int i_loop1 = 0; i_loop1 < sk_loops; i_loop1++)
         {
             int i_sk = i_loop1 * wg_size + threadIdx.x;
@@ -222,8 +246,8 @@ struct naive_attention_fwd_kernel
             {
                 for(auto i_dq = 0; i_dq < args.hdim; i_dq++)
                 {
-                    auto q = q_base_ptr[q_addr.get_offset(i_sq, i_dq)];
-                    auto k = k_base_ptr[k_addr.get_offset(i_sk, i_dq)];
+                    auto q = q_addr.load(i_sq, i_dq); // q will have duplicate load
+                    auto k = k_addr.load(i_sk, i_dq);
 
                     s_acc += type_convert<ComputeType>(q) * type_convert<ComputeType>(k);
                 }
@@ -274,12 +298,7 @@ struct naive_attention_fwd_kernel
                     for(int i_j = 0; i_j < gemm2_vec_elem; i_j++)
                     {
                         int sv_offset = i_loop2 * gemm2_vec_elem + i_j;
-                        auto v        = v_base_ptr[v_addr.get_offset(sk_start + sv_offset, i_dv)];
-                        // if(blockIdx.y == 0 || blockIdx.y == 1) {
-                        //     printf("@@ tid:%d, acc:%f, max:%f, p:%f, v:%f, l:%f, o_acc:%f,
-                        //     hdim_v:%d\n", static_cast<int>(threadIdx.x), s_acc, row_max,
-                        //     p_vec[i_j], type_convert<ComputeType>(v), l, o_acc, args.hdim_v);
-                        // }
+                        auto v        = v_addr.load(sk_start + sv_offset, i_dv);
                         o_acc += p_vec[i_j] * type_convert<ComputeType>(v);
                     }
                 }
@@ -294,12 +313,15 @@ struct naive_attention_fwd_kernel
 
         // store O
         if(i_dv < args.hdim_v)
-            o_base_ptr[o_addr.get_offset(i_sq, i_dv)] = type_convert<OType>(o_acc);
+            o_addr.store(type_convert<OType>(o_acc), i_sq, i_dv);
     }
 };
 
 #define CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_INTERNAL_()                                                        \
     {                                                                                                       \
+        using ktraits_ =                                                                                    \
+            naive_attention_fwd_kernel_traits<static_cast<naive_attention_variation_enum>(                  \
+                variation_)>;                                                                               \
         using k_   = naive_attention_fwd_kernel<q_type_,                                                    \
                                               k_type_,                                                    \
                                               v_type_,                                                    \
@@ -308,30 +330,33 @@ struct naive_attention_fwd_kernel
                                               q_layout_,                                                  \
                                               k_layout_,                                                  \
                                               v_layout_,                                                  \
-                                              o_layout_>;                                                 \
+                                              o_layout_,                                                  \
+                                              ktraits_>;                                                  \
         dim3 grids = k_::get_grid_size(a);                                                                  \
         r          = ck_tile::launch_kernel(s,                                                              \
                                    ck_tile::make_kernel(k_{}, grids, k_::get_block_size(), 0, a)); \
     }
 
-#define CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_LAOYUT_()                                  \
-    if(t.q_layout == "bshd" && t.k_layout == "bshd" && t.v_layout == "bshd" &&      \
-       t.o_layout == "bshd")                                                        \
-    {                                                                               \
-        constexpr auto q_layout_ = naive_attention_layout_enum::BSHD;               \
-        constexpr auto k_layout_ = naive_attention_layout_enum::BSHD;               \
-        constexpr auto v_layout_ = naive_attention_layout_enum::BSHD;               \
-        constexpr auto o_layout_ = naive_attention_layout_enum::BSHD;               \
-        CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_INTERNAL_();                               \
-    }                                                                               \
-    else if(t.q_layout == "bhsd" && t.k_layout == "bhsd" && t.v_layout == "bhsd" && \
-            t.o_layout == "bhsd")                                                   \
-    {                                                                               \
-        constexpr auto q_layout_ = naive_attention_layout_enum::BHSD;               \
-        constexpr auto k_layout_ = naive_attention_layout_enum::BHSD;               \
-        constexpr auto v_layout_ = naive_attention_layout_enum::BHSD;               \
-        constexpr auto o_layout_ = naive_attention_layout_enum::BHSD;               \
-        CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_INTERNAL_();                               \
+#define CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_LAOYUT_()                                                 \
+    if(t.variation == 0 && t.q_layout == "bshd" && t.k_layout == "bshd" && t.v_layout == "bshd" && \
+       t.o_layout == "bshd")                                                                       \
+    {                                                                                              \
+        constexpr auto q_layout_ = naive_attention_layout_enum::BSHD;                              \
+        constexpr auto k_layout_ = naive_attention_layout_enum::BSHD;                              \
+        constexpr auto v_layout_ = naive_attention_layout_enum::BSHD;                              \
+        constexpr auto o_layout_ = naive_attention_layout_enum::BSHD;                              \
+        constexpr int variation_ = 0;                                                              \
+        CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_INTERNAL_();                                              \
+    }                                                                                              \
+    else if(t.variation == 0 && t.q_layout == "bhsd" && t.k_layout == "bhsd" &&                    \
+            t.v_layout == "bhsd" && t.o_layout == "bhsd")                                          \
+    {                                                                                              \
+        constexpr auto q_layout_ = naive_attention_layout_enum::BHSD;                              \
+        constexpr auto k_layout_ = naive_attention_layout_enum::BHSD;                              \
+        constexpr auto v_layout_ = naive_attention_layout_enum::BHSD;                              \
+        constexpr auto o_layout_ = naive_attention_layout_enum::BHSD;                              \
+        constexpr int variation_ = 0;                                                              \
+        CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_INTERNAL_();                                              \
     }
 
 //
