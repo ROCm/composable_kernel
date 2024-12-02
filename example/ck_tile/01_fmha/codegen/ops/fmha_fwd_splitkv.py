@@ -259,9 +259,15 @@ FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F
                         return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
                     }}
                 }} else {{
-                    using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn1}/2, false, {F_squant}, {F_spad}, {F_dvpad}>;
+                    if constexpr (std::is_same_v<{F_dtype}, ck_tile::fp8_t>) {{
+                        using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}/2, {F_bn1}/2, false, {F_squant}, {F_spad}, {F_dvpad}>;
 
-                    return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
+                        return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
+                    }} else {{
+                        using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn1}/2, false, {F_squant}, {F_spad}, {F_dvpad}>;
+
+                        return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
+                    }}
                 }}
             }}
 """
@@ -600,7 +606,7 @@ def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[d
         return {
             '32'  : FmhaFwdSplitKVCombineTileSize(16, 16,   -1),
             '64'  : FmhaFwdSplitKVCombineTileSize(16, 32,   -1),
-        ### '96'  : FmhaFwdSplitKVCombineTileSize(32, 64,   -1),
+        ### '96'  : FmhaFwdSplitKVCombineTileSize(16, 64,   -1),
             '128' : FmhaFwdSplitKVCombineTileSize(16, 64,   -1),
             '256' : FmhaFwdSplitKVCombineTileSize(16, 128,  -1),
     }
