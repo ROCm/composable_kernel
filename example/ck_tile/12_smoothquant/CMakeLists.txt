@@ -18,7 +18,7 @@ function (add_smoothquant_example TARGET_NAME MAIN_SRC)
     target_compile_options(${TARGET_NAME} PRIVATE ${COMPILE_OPTIONS})
 endfunction(add_smoothquant_example TARGET_NAME MAIN_SRC)
 
-file(GLOB INSTANCE_SRCS instances/*.cpp)
 
-add_smoothquant_example(tile_smoothquant smoothquant.cpp ${INSTANCE_SRCS})
 add_smoothquant_example(tile_example_smoothquant example_smoothquant.cpp)
+file(GLOB INSTANCE_SRCS instances/*.cpp)
+add_smoothquant_example(tile_smoothquant smoothquant.cpp ${INSTANCE_SRCS})

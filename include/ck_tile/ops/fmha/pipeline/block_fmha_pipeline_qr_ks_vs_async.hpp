@@ -331,7 +331,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                              Policy::template MakeVDramTileDistribution<Problem>());
 
         // prefetch K tile
-        async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, k_oob_ck, k_pre_np);
+        async_load_tile_raw(
+            k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, number<-1>{}, k_oob_ck, k_pre_np);
         move_tile_window(k_dram_window, {0, kK0});
         __builtin_amdgcn_sched_barrier(0);
 
@@ -355,6 +356,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
                     async_load_tile_raw(k_lds_store(number<LdsSeq.at(number<i_k0 + 1>{})>{}),
                                         k_dram_window,
+                                        number<-1>{},
                                         k_oob_ck,
                                         k_pre_np);
                     if constexpr(i_k0 < k0_loops - 1)
@@ -386,7 +388,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             __builtin_amdgcn_s_barrier();
 
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
-            auto v_buf           = load_tile(v_dram_window, bool_constant<false>{});
+            auto v_buf           = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
             __builtin_amdgcn_sched_barrier(0);
             { // tail
                 gemm_0(s_acc,
@@ -514,7 +516,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                 move_tile_window(
                     v_dram_window,
                     {0, kK1}); // will have scratch if move this right after load_tile(v_dram)...
-                v_buf = load_tile(v_dram_window, bool_constant<false>{}); // load next v_buf
+                v_buf = load_tile(
+                    v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
             }
             __builtin_amdgcn_sched_barrier(0);
 
@@ -618,7 +621,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
                     if constexpr(i_k1 != 0 && i_k1 < k1_loops - 1)
                     {
-                        v_buf = load_tile(v_dram_window, bool_constant<false>{}); // load next v_buf
+                        v_buf = load_tile(
+                            v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
                     }
                     block_sync_lds();
                     gemm_1(o_acc,
@@ -665,8 +669,11 @@ struct BlockFmhaPipelineQRKSVSAsync
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
                     __builtin_amdgcn_s_barrier();
-                async_load_tile_raw(
-                    k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, k_oob_ck, k_pre_np);
+                async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})),
+                                    k_dram_window,
+                                    number<-1>{},
+                                    k_oob_ck,
+                                    k_pre_np);
                 move_tile_window(k_dram_window, {0, kK0});
             }
             // tail

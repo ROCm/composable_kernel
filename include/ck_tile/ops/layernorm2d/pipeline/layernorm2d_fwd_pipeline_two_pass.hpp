@@ -35,6 +35,7 @@ struct Layernorm2dFwdPipelineTwoPass
     static constexpr bool kNeedCrossWarpSync = Problem::kNeedCrossWarpSync;
     static constexpr bool kPadM              = false; // TODO - BlockLayernorm2dFwdProblem::kPadM
     static constexpr bool kPadN              = Problem::Traits::kPadN;
+    static constexpr bool kFastFDiv          = Problem::Traits::kFastFDiv;
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
@@ -137,15 +138,22 @@ struct Layernorm2dFwdPipelineTwoPass
 
         block_welford_sync(mean, var, cur_count);
         block_welford_cross_warp_sync(mean, var, cur_count, smem);
-        block_tile_welford_post_scale_var(var, cur_count);
+        block_tile_welford_post_scale_var(var, cur_count, constant<kFastFDiv>{});
 
         // compute inv-std
         auto inv_std = tile_elementwise_in(
             [&](const auto& v_) {
-                return type_convert<ComputeDataType>(1.0f) / (sqrt(v_ + epsilon));
+                if(kFastFDiv && std::is_same_v<ComputeDataType, float>)
+                {
+                    return type_convert<ComputeDataType>(1.0f) *
+                           __builtin_amdgcn_rcpf(sqrt(v_ + epsilon));
+                }
+                else
+                {
+                    return type_convert<ComputeDataType>(1.0f) / sqrt(v_ + epsilon);
+                }
             },
             var);
-
         if constexpr(kSaveMean)
             store_tile(mean_window, cast_tile<MeanDataType>(mean));
         if constexpr(kSaveInvStd)
