@@ -52,7 +52,8 @@ using namespace ck::tensor_layout::convolution;
 
 using KernelTypes2d = ::testing::Types<std::tuple<float, NHWGC, GKYXC, NHWGK>,
                                        std::tuple<ck::half_t, NHWGC, GKYXC, NHWGK>,
-                                       std::tuple<ck::bhalf_t, NHWGC, GKYXC, NHWGK>>;
+                                       std::tuple<ck::bhalf_t, NHWGC, GKYXC, NHWGK>,
+                                       std::tuple<int8_t, NHWGC, GKYXC, NHWGK>>;
 
 using KernelTypes3d = ::testing::Types<std::tuple<float, NDHWGC, GKZYXC, NDHWGK>,
                                        std::tuple<ck::half_t, NDHWGC, GKZYXC, NDHWGK>,

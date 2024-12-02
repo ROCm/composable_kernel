@@ -7,7 +7,6 @@
 #endif
 
 #include "ck/utility/common_header.hpp"
-#include "ck/tensor_description/tensor_adaptor.hpp"
 
 namespace ck {
 
