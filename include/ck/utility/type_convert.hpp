@@ -454,6 +454,20 @@ inline __host__ __device__ float2_t type_convert<float2_t, f8x2_fnuz_t>(f8x2_fnu
 }
 
 template <>
+inline __host__ __device__ float2_t type_convert<float2_t, f8x2_ocp_t>(f8x2_ocp_t x)
+{
+#if CK_OCP_FP8_CVT_FAST_PATH
+    return fp8_impl::cast_to_f32x2_from_f8x2<f8_ocp_t::default_interpret>(
+        x.AsType<fp8_impl::fp8x2_storage_t>()[Number<0>{}]);
+#else
+    return float2_t{fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(
+                        x.AsType<fp8_storage_t>()[Number<0>{}]),
+                    fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(
+                        x.AsType<fp8_storage_t>()[Number<1>{}])};
+#endif
+}
+
+template <>
 inline __host__ __device__ half2_t type_convert<half2_t, float2_t>(float2_t x)
 {
 

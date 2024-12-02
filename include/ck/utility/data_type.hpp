@@ -1058,17 +1058,124 @@ struct vector_type<T, 256, typename std::enable_if_t<is_native_type<T>()>>
     }
 };
 
-template <typename T, index_t N>
-struct non_native_vector_base
+template <typename T, index_t N, typename Enable = void>
+struct non_native_vector_base;
+
+template <typename T>
+struct nnvb_data_t_selector
 {
-    using type = non_native_vector_base<T, N>;
+    using type = unsigned _BitInt(8 * sizeof(T));
+};
 
-    __host__ __device__ non_native_vector_base()            = default;
-    __host__ __device__ non_native_vector_base(const type&) = default;
-    __host__ __device__ non_native_vector_base(type&&)      = default;
-    __host__ __device__ ~non_native_vector_base()           = default;
+template <>
+struct nnvb_data_t_selector<f8_ocp_t>
+{
+    using type = f8_ocp_t::data_type;
+};
+template <>
+struct nnvb_data_t_selector<bf8_ocp_t>
+{
+    using type = bf8_ocp_t::data_type;
+};
 
-    T d[N];
+template <typename T, index_t N>
+struct non_native_vector_base<
+    T,
+    N,
+    std::enable_if_t<sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8>>
+{
+    using data_t = typename nnvb_data_t_selector<T>::type; // select data_t based on the size of T
+    static_assert(sizeof(T) == sizeof(data_t), "non_native_vector_base storage size mismatch");
+    using data_v = data_t __attribute__((ext_vector_type(N)));
+    using type   = non_native_vector_base<T, N>;
+
+    union alignas(next_pow2(N * sizeof(T)))
+    {
+        data_v dN; // storage vector;
+        StaticallyIndexedArray<data_t, N> dxN;
+        StaticallyIndexedArray<T, N> dTxN;
+        StaticallyIndexedArray<data_v, 1> dNx1;
+    } data_;
+
+    __host__ __device__ constexpr non_native_vector_base(data_t a) : data_{data_v{a}} {}
+    __host__ __device__ constexpr non_native_vector_base(T f)
+        : non_native_vector_base(bit_cast<data_t>(f))
+    {
+    }
+    __host__ __device__ constexpr non_native_vector_base() : non_native_vector_base(T{}){};
+    __host__ __device__ constexpr non_native_vector_base(data_v v) : data_{v} {}
+
+    __host__ __device__ constexpr operator data_v() const { return data_.dN; }
+    __host__ __device__ constexpr operator data_t() const
+    {
+        if constexpr(N == 1)
+        {
+            return data_.dxN[Number<0>{}];
+        }
+        else
+        {
+            return data_.dxN; // XXX this should cause an error
+        }
+    }
+    __host__ __device__ constexpr operator T() const
+    {
+        if constexpr(N == 1)
+        {
+            return data_.dTxN[Number<0>{}];
+        }
+        else
+        {
+            return data_.dTxN; // XXX this should cause an error
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same_v<X, data_t> || is_same_v<X, T> || is_same_v<X, data_v>,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same_v<X, data_t>)
+        {
+            return data_.dxN;
+        }
+        else if constexpr(is_same_v<X, T>)
+        {
+            return data_.dTxN;
+        }
+        else if constexpr(is_same_v<X, data_v>)
+        {
+            return data_.dNx1;
+        }
+        else
+        {
+            return err;
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same_v<X, data_t> || is_same_v<X, T> || is_same_v<X, data_v>,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same_v<X, data_t>)
+        {
+            return data_.dxN;
+        }
+        else if constexpr(is_same_v<X, T>)
+        {
+            return data_.dTxN;
+        }
+        else if constexpr(is_same_v<X, data_v>)
+        {
+            return data_.dNx1;
+        }
+        else
+        {
+            return err;
+        }
+    }
 };
 
 template <typename T, index_t N>
@@ -1107,7 +1214,7 @@ struct vector_type<T, 1, typename std::enable_if_t<!is_native_type<T>()>>
 
     __host__ __device__ constexpr vector_type() : data_{d1_t{}} {}
 
-    __host__ __device__ constexpr vector_type(type v) : data_{{v}} {}
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
