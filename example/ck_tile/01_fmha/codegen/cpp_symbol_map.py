@@ -112,6 +112,7 @@ PIPELINE_MAP = {
 PIPELINE_ENUM_MAP = {
     "qr" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
     "qr_async" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
+    "qr_smallq" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
 }
 
 BOOL_MAP = {
