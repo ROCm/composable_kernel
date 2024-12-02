@@ -254,7 +254,7 @@ FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F
                     if constexpr (std::is_same_v<{F_dtype}, ck_tile::fp8_t>) {{
                         return -1;
                     }} else {{
-                        using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}/2, {F_bn1}/2, true, {F_squant}, {F_spad}, {F_dvpad}>;
+                        using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn1}/2, true, {F_squant}, {F_spad}, {F_dvpad}>;
 
                         return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
                     }}
