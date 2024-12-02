@@ -510,6 +510,13 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
 
+            const auto p =
+                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+
+            store_tile(p_lds_window, p);
+            auto p_lds_window_for_read =
+                make_tile_window(p_lds, make_tuple(number<kM0>{}, number<kK1>{}), {0, 0});
+
             auto l_scale = MLBlockTileType{};
             // l{j}, Oacc{j}
             {
@@ -576,13 +583,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
             i_page_block_v =
                 v_page_block_navigator.move_tile_window(i_page_block_v, v_dram_window, {0, kK1});
-
-            const auto p =
-                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
-
-            store_tile(p_lds_window, p);
-            auto p_lds_window_for_read =
-                make_tile_window(p_lds, make_tuple(number<kM0>{}, number<kK1>{}), {0, 0});
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
