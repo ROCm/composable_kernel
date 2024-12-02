@@ -134,14 +134,14 @@ float smoothquant(smoothquant_traits t, smoothquant_args a, const ck_tile::strea
 {
     if(t.data_type.compare("fp16") == 0)
     {
-        if (t.smooth_x)
+        if(t.smooth_x)
             return smoothquant_dispatch<ck_tile::fp16_t, true>(t, a, s);
         else
             return smoothquant_dispatch<ck_tile::fp16_t, false>(t, a, s);
     }
     else if(t.data_type.compare("bf16") == 0)
     {
-        if (t.smooth_x)
+        if(t.smooth_x)
             return smoothquant_dispatch<ck_tile::bf16_t, true>(t, a, s);
         else
             return smoothquant_dispatch<ck_tile::bf16_t, false>(t, a, s);
