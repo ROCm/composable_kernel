@@ -32,7 +32,7 @@ struct f4x2_pk_t
     f4x2_pk_t(type init) : data{init} {}
 
     template <index_t I>
-    __host__ __device__ inline type unpack()
+    __host__ __device__ inline type unpack() const
     {
         if constexpr(I == 0)
             return data & 0b00001111;

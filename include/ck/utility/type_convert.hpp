@@ -1100,8 +1100,10 @@ inline __host__ __device__ float2_t type_convert<float2_t, f4x2_t>(f4x2_t x)
     float scale         = 1.0f;
     return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, scale, 0);
 #else
-    float2_t ret{utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x.unpack<1>()),
-                 utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x.unpack<0>())};
+    float2_t ret{utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
+                                       x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>()),
+                 utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
+                                       x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>())};
     return ret;
 #endif
 }
@@ -1235,73 +1237,105 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
         f4x32_t f4x32_array;
     } f4_values{bit_cast<__uint128_t>(x)};
     // TODO: pack in a loop
-    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[0].unpack<0>());
-    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[0].unpack<1>());
-    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[1].unpack<0>());
-    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[1].unpack<1>());
-    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[2].unpack<0>());
-    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[2].unpack<1>());
-    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[3].unpack<0>());
-    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[3].unpack<1>());
+    float_values.float_array[0] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[1] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[2] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[3] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[4] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[5] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[6] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[7] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
 
-    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[4].unpack<0>());
-    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[4].unpack<1>());
-    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[5].unpack<0>());
-    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[5].unpack<1>());
-    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[6].unpack<0>());
-    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[6].unpack<1>());
-    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[7].unpack<0>());
-    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[7].unpack<1>());
+    float_values.float_array[0] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[1] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[2] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[3] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[4] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[5] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[6] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[7] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
 
-    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[8].unpack<0>());
-    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[8].unpack<1>());
-    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[9].unpack<0>());
-    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[9].unpack<1>());
-    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[10].unpack<0>());
-    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[10].unpack<1>());
-    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[11].unpack<0>());
-    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[11].unpack<1>());
+    float_values.float_array[0] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[1] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[2] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[3] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[4] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[5] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[6] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[7] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
 
-    float_values.float_array[0] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[12].unpack<0>());
-    float_values.float_array[1] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[12].unpack<1>());
-    float_values.float_array[2] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[13].unpack<0>());
-    float_values.float_array[3] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[13].unpack<1>());
-    float_values.float_array[4] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[14].unpack<0>());
-    float_values.float_array[5] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[14].unpack<1>());
-    float_values.float_array[6] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[15].unpack<0>());
-    float_values.float_array[7] = utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                                        f4_values.f4x2_array[15].unpack<1>());
+    float_values.float_array[0] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[1] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[2] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[3] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[4] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[5] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[6] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[7] = utils::to_float<f4_t>(
+        NumericLimits<e8m0_bexp_t>::Binary_1(),
+        f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
 
     return float_values.float32_array;
 #endif
@@ -1355,8 +1389,9 @@ inline __host__ __device__ float2_t scaled_type_convert<float2_t, f4x2_t>(e8m0_b
     value.f4x2_array[0] = x;
     return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, type_convert<float>(scale), 0);
 #else
-    float2_t ret{utils::to_float<f4_t>(scale, x.unpack<1>()),
-                 utils::to_float<f4_t>(scale, x.unpack<0>())};
+    float2_t ret{
+        utils::to_float<f4_t>(scale, x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>()),
+        utils::to_float<f4_t>(scale, x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>())};
     return ret;
 #endif
 }
@@ -1490,53 +1525,73 @@ inline __host__ __device__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m
         f4x32_t f4x32_array;
     } f4_values{bit_cast<__uint128_t>(x)};
     // TODO: pack in a loop
-    float_values.float_array[0] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[0].unpack<0>());
-    float_values.float_array[1] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[0].unpack<1>());
-    float_values.float_array[2] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[1].unpack<0>());
-    float_values.float_array[3] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[1].unpack<1>());
-    float_values.float_array[4] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[2].unpack<0>());
-    float_values.float_array[5] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[2].unpack<1>());
-    float_values.float_array[6] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[3].unpack<0>());
-    float_values.float_array[7] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[3].unpack<1>());
+    float_values.float_array[0] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[1] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[2] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[3] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[4] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[5] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[6] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[7] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
 
-    float_values.float_array[0] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[4].unpack<0>());
-    float_values.float_array[1] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[4].unpack<1>());
-    float_values.float_array[2] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[5].unpack<0>());
-    float_values.float_array[3] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[5].unpack<1>());
-    float_values.float_array[4] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[6].unpack<0>());
-    float_values.float_array[5] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[6].unpack<1>());
-    float_values.float_array[6] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[7].unpack<0>());
-    float_values.float_array[7] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[7].unpack<1>());
+    float_values.float_array[0] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[1] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[2] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[3] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[4] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[5] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[6] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[7] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
 
-    float_values.float_array[0] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[8].unpack<0>());
-    float_values.float_array[1] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[8].unpack<1>());
-    float_values.float_array[2] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[9].unpack<0>());
-    float_values.float_array[3] = utils::to_float<f4_t>(scale, f4_values.f4x2_array[9].unpack<1>());
-    float_values.float_array[4] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[10].unpack<0>());
-    float_values.float_array[5] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[10].unpack<1>());
-    float_values.float_array[6] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[11].unpack<0>());
-    float_values.float_array[7] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[11].unpack<1>());
+    float_values.float_array[0] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[1] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[2] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[3] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[4] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[5] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[6] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[7] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
 
-    float_values.float_array[0] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[12].unpack<0>());
-    float_values.float_array[1] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[12].unpack<1>());
-    float_values.float_array[2] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[13].unpack<0>());
-    float_values.float_array[3] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[13].unpack<1>());
-    float_values.float_array[4] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[14].unpack<0>());
-    float_values.float_array[5] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[14].unpack<1>());
-    float_values.float_array[6] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[15].unpack<0>());
-    float_values.float_array[7] =
-        utils::to_float<f4_t>(scale, f4_values.f4x2_array[15].unpack<1>());
+    float_values.float_array[0] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[1] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[2] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[3] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[4] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[5] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+    float_values.float_array[6] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+    float_values.float_array[7] = utils::to_float<f4_t>(
+        scale, f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
 
     return float_values.float32_array;
 #endif
