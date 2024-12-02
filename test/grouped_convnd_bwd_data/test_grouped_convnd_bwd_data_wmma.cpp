@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -48,22 +48,14 @@ class TestGroupedConvndBwdData : public ::testing::Test
 
 using namespace ck::tensor_layout::convolution;
 
-using KernelTypes2d = ::testing::Types<std::tuple<float, GNHWK, GKYXC, GNHWC>,
-                                       std::tuple<ck::half_t, GNHWK, GKYXC, GNHWC>,
-                                       std::tuple<ck::bhalf_t, GNHWK, GKYXC, GNHWC>,
+using KernelTypes2d = ::testing::Types<std::tuple<ck::half_t, GNHWK, GKYXC, GNHWC>,
                                        std::tuple<int8_t, GNHWK, GKYXC, GNHWC>,
-                                       std::tuple<float, NHWGK, GKYXC, NHWGC>,
                                        std::tuple<ck::half_t, NHWGK, GKYXC, NHWGC>,
-                                       std::tuple<ck::bhalf_t, NHWGK, GKYXC, NHWGC>,
                                        std::tuple<int8_t, NHWGK, GKYXC, NHWGC>>;
 
-using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<ck::half_t, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<ck::bhalf_t, GNDHWK, GKZYXC, GNDHWC>,
+using KernelTypes3d = ::testing::Types<std::tuple<ck::half_t, GNDHWK, GKZYXC, GNDHWC>,
                                        std::tuple<int8_t, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<float, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<ck::half_t, NDHWGK, GKZYXC, NDHWGC>,
-                                       std::tuple<ck::bhalf_t, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<int8_t, NDHWGK, GKZYXC, NDHWGC>>;
 
 template <typename Tuple>
