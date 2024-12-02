@@ -14,10 +14,17 @@
 #include "ck_tile/host.hpp"
 #include "gemm_basic.hpp"
 
+#define CK_TILE_PIPELINE_COMPUTE 1
+#define CK_TILE_PIPELINE_MEMORY 2
+
+#ifndef CK_TILE_PIPELINE_DEFAULT
+#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE
+#endif
+
 template <typename ALayout, typename BLayout, typename CLayout>
 float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
-#if 1
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
     // Memory friendly for Interwave scheduler
     constexpr ck_tile::index_t M_Tile = 128;
     constexpr ck_tile::index_t N_Tile = 32;
@@ -30,7 +37,8 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
-#else
+
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
     // Compute friendly for Intrawave scheduler
     constexpr ck_tile::index_t M_Tile = 256;
     constexpr ck_tile::index_t N_Tile = 256;
@@ -63,8 +71,11 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
 
     using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
     using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+    using BaseGemmPipeline                 = ck_tile::BaseGemmPipelineAgBgCrCompV3<
+#endif
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
 
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K);
@@ -77,13 +88,21 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
 
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
         using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+        using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<
+#endif
             ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                   BDataType,
                                                   AccDataType,
                                                   GemmShape,
                                                   Traits,
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
                                                   ck_tile::GemmPipelineScheduler::Interwave,
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+                                                  ck_tile::GemmPipelineScheduler::Intrawave,
+#endif
                                                   has_hot_loop_v,
                                                   tail_number_v>>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;

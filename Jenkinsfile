@@ -32,40 +32,41 @@ def runShell(String command){
     return (output != "")
 }
 
-def getDockerImageName(){
+def getBaseDockerImageName(){
     def img
     if (params.USE_CUSTOM_DOCKER != ""){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
     if (params.ROCMVERSION != "6.3"){
-       if (params.COMPILER_VERSION == "") {
-           img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
-       }
-       else{
-          if (params.COMPILER_COMMIT == ""){
-             img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
-          }
-          else{
-             def commit = "${params.COMPILER_COMMIT}"[0..6]
-             img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
-          }
-       }
+        img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
+        }
+    else{
+        img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}"
+        }
+    }
+    return img
+}
+
+def getDockerImageName(){
+    def img
+    def base_name = getBaseDockerImageName()
+    if (params.USE_CUSTOM_DOCKER != ""){
+        img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
        if (params.COMPILER_VERSION == "") {
-           img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}"
+           img = "${base_name}"
        }
        else{
           if (params.COMPILER_COMMIT == ""){
-             img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+             img = "${base_name}_${params.COMPILER_VERSION}"
           }
           else{
              def commit = "${params.COMPILER_COMMIT}"[0..6]
-             img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+             img = "${base_name}_${params.COMPILER_VERSION}_${commit}"
           }
        }
-    }
     }
     return img
 }
@@ -131,17 +132,21 @@ def buildDocker(install_prefix){
     env.DOCKER_BUILDKIT=1
     checkout scm
     def image_name = getDockerImageName()
+    def base_image_name = getBaseDockerImageName()
     echo "Building Docker for ${image_name}"
-    def dockerArgs = "--squash --build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' --build-arg DISABLE_CACHE='git rev-parse ${params.COMPILER_VERSION}' "
+    def dockerArgs = "--build-arg PREFIX=${install_prefix} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
     if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
-        dockerArgs = dockerArgs + " --no-cache "
+        dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f Dockerfile.compiler . "
+    }
+    else{
+        dockerArgs = dockerArgs + " -f Dockerfile . "
     }
     echo "Build Args: ${dockerArgs}"
     try{
         if(params.BUILD_DOCKER){
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
-            retimage = docker.build("${image_name}", dockerArgs + ' .')
+            retimage = docker.build("${image_name}", dockerArgs)
             withDockerRegistry([ credentialsId: "docker_test_cred", url: "" ]) {
                 retimage.push()
             }
