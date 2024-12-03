@@ -115,6 +115,7 @@ struct FusedMoeGemmPipeline_General
             a_window_.get_window_origin(),
             Policy::template MakeGlobalTileDistribution_A<Problem>());
 
+        // load g to register
         auto g_global_to_dram_window = make_tile_window(
             g_window_.get_bottom_tensor_view(),
             make_tuple(number<BlockShape::Block_N0>{}, number<BlockShape::Block_K0>{}),
@@ -153,27 +154,26 @@ struct FusedMoeGemmPipeline_General
         }
 #endif
 
-        // load g to register
         auto g_dram_block = load_tile(g_global_to_dram_window);
 
 #if 0
         {
-            constexpr auto a_spans = decltype(g_dram_block)::get_distributed_spans();
+            constexpr auto g_spans = decltype(g_dram_block)::get_distributed_spans();
             int counter            = 0;
-            sweep_tile_span(a_spans[number<0>{}], [&](auto idxn) {
-                sweep_tile_span(a_spans[number<1>{}], [&](auto idxk) {
+            sweep_tile_span(g_spans[number<0>{}], [&](auto idxn) {
+                sweep_tile_span(g_spans[number<1>{}], [&](auto idxk) {
                     constexpr auto i_j_idx = make_tuple(idxn, idxk);
+                    const auto tile_idx = get_x_indices_from_distributed_indices(
+                            g_dram_block.get_tile_distribution(), i_j_idx);
                     if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
                     {
                         counter       = counter + 1;
-                        index_t idn_0 = idxn.impl_.at(0);
-                        index_t idk_0 = idxk.impl_.at(0);
-                        index_t idk_1 = idxk.impl_.at(1);
-                        printf("in A idn is %d , idk_0 is %d idk_1 is %d, counter is %d, value is: "
-                               "%f \n",
-                               idn_0,
-                               idk_0,
-                               idk_1,
+                        const auto row = tile_idx.at(number<0>{});
+                        const auto col = tile_idx.at(number<1>{});
+                        printf("in G row is %d , col is %d, counter is %d, value is: %f"
+                               " \n",
+                               row,
+                               col,
                                counter,
                                ck_tile::type_convert<float>(g_dram_block(i_j_idx)));
                     }
@@ -185,7 +185,7 @@ struct FusedMoeGemmPipeline_General
 
         clear_tile(s_acc); // initialize C
         constexpr index_t kK0  = BlockShape::Block_K0;
-        const index_t k0_loops = ck_tile::integer_divide_ceil(intermediate_size, kK0);
+        const index_t k0_loops = ck_tile::integer_divide_ceil(hidden_size, kK0);
         index_t iCounter0      = k0_loops - 1;
         while(iCounter0 > 0)
         {
@@ -208,25 +208,25 @@ struct FusedMoeGemmPipeline_General
             block_sync_lds();
             gemm_0(s_acc, a_lds_win, g_dram_block);
         }
-#if 1
+#if 0
         {
             constexpr auto a_spans = decltype(s_acc)::get_distributed_spans();
             int counter            = 0;
             //a_spans[0] = 1;
             sweep_tile_span(a_spans[number<0>{}], [&](auto idxm) {
                 sweep_tile_span(a_spans[number<1>{}], [&](auto idxn) {
-                    constexpr auto i_j_idx = make_tuple(idxn, idxn);
-                    if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                    constexpr auto i_j_idx = make_tuple(idxm, idxn);
+                    const auto tile_idx = get_x_indices_from_distributed_indices(
+                            g_dram_block.get_tile_distribution(), i_j_idx);
+                    if(threadIdx.x == 1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
                     {
                         counter       = counter + 1;
-                        index_t idm_0 = idxm.impl_.at(0);
-                        index_t idn_0 = idxn.impl_.at(0);
-                        index_t idn_1 = idxn.impl_.at(1);
-                        printf("in A idn is %d , idn_0 is %d, idn_1 is %d, counter is %d, value is: "
+                        const auto row = tile_idx.at(number<0>{});
+                        const auto col = tile_idx.at(number<1>{});
+                        printf("in c row is %d , col is %d,  counter is %d, value is: "
                                "%f \n",
-                               idm_0,
-                               idn_0,
-                               idn_1,
+                               row,
+                               col,
                                counter,
                                ck_tile::type_convert<float>(s_acc(i_j_idx)));
                     }

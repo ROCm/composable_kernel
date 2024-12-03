@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/elementwise.hpp"
+#include "ck_tile/core/tensor/tensor_view.hpp"
 #include <string>
 #include <type_traits>
 
@@ -298,7 +299,6 @@ struct FusedMoeGemmGlKernel
             return a_window_;
         }();
 
-        // TODO: gtile using NSub to have less register pressure
         const auto g_window = [&]() {
             const GDataType* g_ptr = reinterpret_cast<const GDataType*>(kargs.g_ptr) +
                                      static_cast<long_index_t>(expert_id) * expert_stride_0;
@@ -313,6 +313,17 @@ struct FusedMoeGemmGlKernel
                 g_view_,
                 make_tuple(number<BlockShape::Block_N0>{}, number<BlockShape::Block_K0>{}),
                 {idx_n0, 0});
+
+            // if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+            // {
+            //     for(int i = 0; i < 16; i++)
+            //     {
+            //         printf("in G index is %d ,  value is: %f\n",
+            //                i,
+            //                ck_tile::type_convert<float>(g_ptr[i]));
+            //     }
+            // }
+
             return g_window_;
         }();
 

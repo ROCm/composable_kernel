@@ -241,6 +241,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
     ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f}(g_host);
+    // ck_tile::FillConstant<ADataType>{1}(a_host);
+    // ck_tile::FillConstant<GDataType>{1}(g_host);
+    //ck_tile::FillStepRange<GDataType>{0.0f, 32.0f*128,1.0f}(g_host); 
     ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f}(d_host);
     ck_tile::FillUniformDistribution<AScaleDataType>{-.5f, .5f}(sa_host);
     ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f}(sg_host);
@@ -282,7 +285,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // output_matrix_2d(a_host, tokens, hidden_size);
     std::cout << sorted_token_ids_host << std::endl;
     // std::cout << num_sorted_tiles_host << std::endl;
-    output_matrix_3d(g_host, experts, shared_intermediate_size_0, hidden_size);
+    // output_matrix_3d(g_host, experts, shared_intermediate_size_0, hidden_size);
     std::cout << sorted_expert_ids_host << std::endl;
     // std::cout << topk_weight_host << std::endl;
 
@@ -290,8 +293,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // done, preparing GPU buffer
     ck_tile::DeviceMem a_buf(a_host);
-    ck_tile::DeviceMem g_perm_buf(g_perm_host);
-    ck_tile::DeviceMem d_perm_buf(d_perm_host);
+    ck_tile::DeviceMem g_perm_buf(g_host);
+    ck_tile::DeviceMem d_perm_buf(d_host);
     ck_tile::DeviceMem sa_buf(sa_host);
     ck_tile::DeviceMem sg_buf(sg_host);
     ck_tile::DeviceMem sd_buf(sd_host);

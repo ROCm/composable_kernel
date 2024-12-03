@@ -278,6 +278,7 @@ struct FillConstant
 {
     T value_{0};
 
+    FillConstant(float value):value_(ck_tile::type_convert<T>(value)){}
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {

@@ -186,14 +186,6 @@ struct FusedMoeGemmPipelineGeneralPolicy
         constexpr auto g_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             g_outer_dstr_enc, typename WG::BWarpDstrEncoding{});
 
-        // constexpr auto g_block_dstr_encode = tile_distribution_encoding<
-        //     sequence<1>,
-        //     tuple<sequence<1, 4, 32>, sequence<4, 2, 4>>,
-        //     tuple<sequence<0, 1>, sequence<2, 1>>,
-        //     tuple<sequence<0, 1>, sequence<1, 2>>,
-        //     sequence<1, 2, 2>,
-        //     sequence<0, 0, 2>>{};
-
         return make_static_tile_distribution(g_block_dstr_encode);
     }
 
