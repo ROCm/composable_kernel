@@ -45,12 +45,12 @@ struct naive_attention_fwd_args
     int hdim_v; // could be cross-attn, where V and Q/K hdim are different
     int batch_q;
     int batch_kv;
-    int batch_radio_kv; // batch_q / batch_kv
+    int batch_ratio_kv; // batch_q / batch_kv
     int seqlen_q;       // in decode case, this should be 1
     int seqlen_kv;      // if context_len_ptr is not nullptr, ignore this field
     int nhead_q;
     int nhead_kv;
-    int nhead_radio_kv; // nhead_q / nhead_kv
+    int nhead_ratio_kv; // nhead_q / nhead_kv
     int page_size;      // if paged, the seqlen-kv per each block
 };
 
@@ -90,6 +90,10 @@ struct naive_attention_fwd_kernel
 {
     static constexpr bool is_kvcache_i8 =
         std::is_same_v<KType, int8_t> && std::is_same_v<VType, int8_t> && sizeof(QType) != 1;
+
+    // kvcache-i8 will have per head scale, we apply this scale to Q/P matrix instead of original
+    // K/V matrix. This can speed up conversion since Q/P usually is fp16/bf16/fp32
+    static constexpr bool is_kvcache_i8_forward_quant = is_kvcache_i8;
 
     // TODO: hardcode
     using KVScaleType = float;
@@ -343,8 +347,8 @@ struct naive_attention_fwd_kernel
         int i_bq    = i_batch / args.nhead_q;             // index of batch_q
         int i_hq    = i_batch % args.nhead_q;             // index of nhead_q
 
-        int i_bk = i_bq / args.batch_radio_kv;
-        int i_hk = i_hq / args.nhead_radio_kv;
+        int i_bk = i_bq / args.batch_ratio_kv;
+        int i_hk = i_hq / args.nhead_ratio_kv;
 
         q_addr.init(i_bq, i_hq);
         k_addr.init(i_bk, i_hk);
@@ -365,10 +369,10 @@ struct naive_attention_fwd_kernel
         AccType o_acc = {0};
 
         int sk_loops   = (seqlen_kv + wg_size - 1) / wg_size;
-        float qr_scale = .0f;
+        float qf_scale = .0f;
         kvscale_addresser<KVScaleType> kvscale_addr{args.nhead_kv, args.hdim, args.kvscale_ptr};
 
-        if constexpr(is_kvcache_i8)
+        if constexpr(is_kvcache_i8_forward_quant)
         {
             // AccType is i32 now, seqlen_q = 1, hdim up to 256
             float q   = 0;
@@ -379,18 +383,18 @@ struct naive_attention_fwd_kernel
                 k_s = type_convert<float>(kvscale_addr.load(i_hk, threadIdx.x, 0));
             }
             // 1) we apply the k scale to q
-            float q_reflect = q * k_s;
+            float q_forwarded = q * k_s;
 
             // 2) apply smooth-quant
             // find absmax
-            float qr_max = wave_reduce(q_reflect, f_absmax_f32);
-            qr_max       = cross_wave_reduce(qr_max, f_absmax_f32, reinterpret_cast<float*>(smem));
+            float qf_max = wave_reduce(q_forwarded, f_absmax_f32);
+            qf_max       = cross_wave_reduce(qf_max, f_absmax_f32, reinterpret_cast<float*>(smem));
 
             // per-token scale
-            qr_scale = qr_max / 127.0;
+            qf_scale = qf_max / 127.0;
 
             // devide by scale
-            q = q / qr_scale;
+            q = q / qf_scale;
 
             // fp32->i8
             int8_t quantized_q = static_cast<int8_t>(q);
@@ -400,7 +404,7 @@ struct naive_attention_fwd_kernel
 
             // after above process, we have 2 data
             // 1) int8 q data stored in smem(no need to reload)
-            // 2) per-token scale qr_scale, to be mul after 1st gemm
+            // 2) per-token scale qf_scale, to be mul after 1st gemm
         }
 
         for(int i_loop1 = 0; i_loop1 < sk_loops; i_loop1++)
@@ -413,7 +417,7 @@ struct naive_attention_fwd_kernel
                 AccType s_acc{0}; // clear for every loop
                 for(auto i_dq = 0; i_dq < args.hdim; i_dq++)
                 {
-                    if constexpr(is_kvcache_i8)
+                    if constexpr(is_kvcache_i8_forward_quant)
                     {
                         int8_t q = reinterpret_cast<int8_t*>(smem)[i_dq];
                         auto k   = k_addr.load(i_sk, i_dq);
@@ -432,14 +436,14 @@ struct naive_attention_fwd_kernel
                 s_softmax = type_convert<SoftmaxType>(s_acc);
                 s_softmax *=
                     type_convert<SoftmaxType>(args.scale_s * ck_tile::log2e_v<SoftmaxType>);
-                if constexpr(is_kvcache_i8)
+                if constexpr(is_kvcache_i8_forward_quant)
                 {
-                    s_softmax *= qr_scale; // post scale the per-token factor
+                    s_softmax *= qf_scale; // post scale the per-token factor
                 }
             }
 
             // s->p
-            float pr_scale = 0.; // used for i8 quant
+            float pf_scale = 0.; // used for i8 quant
             {
                 // softmax, find max
                 SoftmaxType old_max = row_max;
@@ -461,7 +465,7 @@ struct naive_attention_fwd_kernel
 
                 // prepare the p_compute into smem, to let every thread read same p_compute and do
                 // 2nd gemm
-                if constexpr(is_kvcache_i8)
+                if constexpr(is_kvcache_i8_forward_quant)
                 {
                     float v_s = 0;
                     if(static_cast<int>(threadIdx.x) < args.hdim_v)
@@ -470,19 +474,19 @@ struct naive_attention_fwd_kernel
                     }
 
                     // 1) we apply the v scale to p
-                    float p_reflect = p_compute * v_s;
+                    float p_forwarded = p_compute * v_s;
 
                     // 2) apply smooth-quant
                     // find absmax
-                    float pr_max = wave_reduce(p_reflect, f_absmax_f32);
-                    pr_max =
-                        cross_wave_reduce(pr_max, f_absmax_f32, reinterpret_cast<float*>(smem));
+                    float pf_max = wave_reduce(p_forwarded, f_absmax_f32);
+                    pf_max =
+                        cross_wave_reduce(pf_max, f_absmax_f32, reinterpret_cast<float*>(smem));
 
                     // per-token scale
-                    pr_scale = pr_max / 127.0;
+                    pf_scale = pf_max / 127.0;
 
                     // devide by scale
-                    p_compute = p_compute / pr_scale;
+                    p_compute = p_compute / pf_scale;
 
                     // fp32->i8
                     int8_t quantized_p = static_cast<int8_t>(p_compute);
@@ -491,7 +495,7 @@ struct naive_attention_fwd_kernel
                     __syncthreads();
                     // after above process, we have 2 data
                     // 1) int8 p data stored in smem(no need to reload)
-                    // 2) per-token scale pr_scale, to be mul after 2nd gemm
+                    // 2) per-token scale pf_scale, to be mul after 2nd gemm
                 }
                 else
                 {
@@ -518,11 +522,11 @@ struct naive_attention_fwd_kernel
                         o_acc_local += type_convert<AccType>(p_vec[i_j]) * type_convert<AccType>(v);
                     }
                 }
-                if constexpr(is_kvcache_i8)
+                if constexpr(is_kvcache_i8_forward_quant)
                 {
                     // apply pr scale to local acc
                     o_acc_local =
-                        type_convert<AccType>(type_convert<float>(o_acc_local) * pr_scale);
+                        type_convert<AccType>(type_convert<float>(o_acc_local) * pf_scale);
                 }
                 o_acc += o_acc_local;
             }

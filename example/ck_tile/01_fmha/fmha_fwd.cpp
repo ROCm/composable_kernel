@@ -1153,12 +1153,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         naive_a.hdim_v         = hdim_v; // could be cross-attn, where V and Q/K hdim are different
         naive_a.batch_q        = batch;
         naive_a.batch_kv       = batch;
-        naive_a.batch_radio_kv = 1; // batch_q / batch_kv
+        naive_a.batch_ratio_kv = 1; // batch_q / batch_kv
         naive_a.seqlen_q       = seqlen_qs[0];
         naive_a.seqlen_kv = seqlen_ks[0]; // if context_len_ptr is not nullptr, ignore this field
         naive_a.nhead_q   = nhead;
         naive_a.nhead_kv  = nhead_k;
-        naive_a.nhead_radio_kv = naive_a.nhead_q / naive_a.nhead_kv; // nhead_q / nhead_kv
+        naive_a.nhead_ratio_kv = naive_a.nhead_q / naive_a.nhead_kv; // nhead_q / nhead_kv
         naive_a.page_size      = 0; // if paged, the seqlen-kv for each block
 
         ck_tile::stream_config naive_s{};
