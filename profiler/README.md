@@ -1,3 +1,5 @@
+[Back to the main page](../README.md)
+# Composable Kernel profiler
 ## Profile GEMM kernels
 ```bash
 #arg1: tensor operation (gemm=GEMM)
@@ -180,3 +182,13 @@ Note: Column to image kernel adds to the output memory, this will cause output b
 ################            op datatype  verify  init  log  time  dim0 dim1 dim2 in_stride0 in_stride1 in_stride2 out_stride0 out_stride1 out_stride2
 ./bin/ckProfiler permute_scale        0       1     1    0     1    64   64   64       4096         64          1           1          64        4096
 ```
+
+## Convert MIOpen driver command to CKProfiler
+
+```bash
+python3 ../script/convert_miopen_driver_to_profiler.py
+/opt/rocm/bin/MIOpenDriver conv -n 32 -c 64 -H 28 -W 28 -k 64 -y 3 -x 3
+-p 1 -q 1 -u 2 -v 2 -l 1 -j 1 -m conv -g 32 -F 1 -t 1 
+```
+
+Only convolution driver is supported.
