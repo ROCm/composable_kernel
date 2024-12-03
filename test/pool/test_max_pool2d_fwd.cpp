@@ -143,7 +143,7 @@ TYPED_TEST_SUITE(MaxPool2D_BF16, MaxPool2D_BF16_Types);
 TYPED_TEST_SUITE(MaxPool2D_I8, MaxPool2D_I8_Types);
 TYPED_TEST_SUITE(MaxPool2D_F8, MaxPool2D_F8_Types);
 
-TYPED_TEST(MaxPool2D_F32, MaxPool2D_I8_Test) { this->Run(); }
+TYPED_TEST(MaxPool2D_F32, MaxPool2D_F32_Test) { this->Run(); }
 TYPED_TEST(MaxPool2D_F16, MaxPool2D_F16_Test) { this->Run(); }
 TYPED_TEST(MaxPool2D_BF16, MaxPool2D_BF16_Test) { this->Run(); }
 TYPED_TEST(MaxPool2D_I8, MaxPool2D_I8_Test) { this->Run(); }
