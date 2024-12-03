@@ -39,14 +39,15 @@ struct naive_attention_fwd_args
     void* context_len_ptr; // used when seqlen kv come from a pointer(each element is a number, not
                            // cumsum)
     void* page_table_ptr;  // [batch, num_blocks] seqlen_kv is in different block(paged attn)
+    void* kvscale_ptr;     // [nhead, 2(kv), hdim] used for kvcache dequant
     float scale_s;
     int hdim;
     int hdim_v; // could be cross-attn, where V and Q/K hdim are different
     int batch_q;
     int batch_kv;
     int batch_radio_kv; // batch_q / batch_kv
-    int seqlen_q;
-    int seqlen_kv; // if context_len_ptr is not nullptr, ignore this field
+    int seqlen_q;       // in decode case, this should be 1
+    int seqlen_kv;      // if context_len_ptr is not nullptr, ignore this field
     int nhead_q;
     int nhead_kv;
     int nhead_radio_kv; // nhead_q / nhead_kv
@@ -79,7 +80,7 @@ template <typename QType,
           typename KType,
           typename VType,
           typename OType,
-          typename ComputeType,
+          typename AccType,
           naive_attention_layout_enum QLayout,
           naive_attention_layout_enum KLayout,
           naive_attention_layout_enum VLayout,
@@ -87,6 +88,15 @@ template <typename QType,
           typename Traits>
 struct naive_attention_fwd_kernel
 {
+    static constexpr bool is_kvcache_i8 =
+        std::is_same_v<KType, int8_t> && std::is_same_v<VType, int8_t> && sizeof(QType) != 1;
+
+    // TODO: hardcode
+    using KVScaleType = float;
+    using SoftmaxType = float;
+    using PType       = VType; // src A of gemm2, same type as V
+
+#if 0
     template <typename Acc>
     struct gemm2_vector_type;
     template <>
@@ -95,8 +105,12 @@ struct naive_attention_fwd_kernel
         using type                = fp32x4_t;
         static constexpr int elem = 4;
     };
-    using gemm2_vec_type                = typename gemm2_vector_type<ComputeType>::type;
-    static constexpr int gemm2_vec_elem = gemm2_vector_type<ComputeType>::elem;
+    using gemm2_vec_type                = typename gemm2_vector_type<AccType>::type;
+    static constexpr int gemm2_vec_elem = gemm2_vector_type<AccType>::elem;
+#endif
+
+    using p_vec_type                = ext_vector_t<PType, 16 / sizeof(PType)>;
+    static constexpr int p_vec_elem = vector_traits<p_vec_type>::vector_size;
 
     __host__ __device__ naive_attention_fwd_kernel() {}
 
@@ -190,6 +204,26 @@ struct naive_attention_fwd_kernel
         __device__ void store(T /*value*/, int /*i_s*/, int /*i_d*/) {}
     };
 
+    template <typename T>
+    struct kvscale_addresser
+    {
+        int h, d; // nhead, hdim
+        T* base_ptr;
+        __device__ kvscale_addresser(int h_, int d_, void* p_)
+            : h(h_), d(d_), base_ptr(reinterpret_cast<T*>(p_))
+        {
+        }
+        __device__ int get_offset(int i_h, int i_d, int i_kv /*0 or 1*/)
+        {
+            // [h, 2, d]
+            return i_h * 2 * d + i_kv * d + i_d;
+        }
+        __device__ T load(int i_h, int i_d, int i_kv)
+        {
+            return base_ptr[get_offset(i_h, i_d, i_kv)];
+        }
+    };
+
     __device__ __host__ static constexpr int get_block_size() { return 256; }
 
     // for simpliciy, 1 WG always compute 1 token along q, compute all token along kv
@@ -225,6 +259,7 @@ struct naive_attention_fwd_kernel
     }
 
     // Note: this function must be called after wave_reduce
+    // Note: better not use this under if...else... with thread divergence (syncthreads)
     template <typename T, typename F>
     __device__ constexpr T cross_wave_reduce(T local, F reduce_f, T* smem)
     {
@@ -252,9 +287,14 @@ struct naive_attention_fwd_kernel
     __device__ void operator()(naive_attention_fwd_args args)
     {
         constexpr int wg_size = get_block_size();
-        __shared__ ComputeType smem[wg_size * 2]; //  should enough
+        __shared__ char smem[wg_size * 4 * sizeof(float)]; //  should enough
         auto q_addr = [&]() {
             if constexpr(Traits::variation == naive_attention_variation_enum::FLASH_BATCHED)
+            {
+                return addresser<QType, QLayout>{
+                    args.batch_q, args.seqlen_q, args.nhead_q, args.hdim, args.q_ptr};
+            }
+            else if constexpr(Traits::variation == naive_attention_variation_enum::DECODE_PAGED)
             {
                 return addresser<QType, QLayout>{
                     args.batch_q, args.seqlen_q, args.nhead_q, args.hdim, args.q_ptr};
@@ -290,6 +330,11 @@ struct naive_attention_fwd_kernel
                 return addresser<OType, OLayout>{
                     args.batch_q, args.seqlen_q, args.nhead_q, args.hdim_v, args.o_ptr};
             }
+            else if constexpr(Traits::variation == naive_attention_variation_enum::DECODE_PAGED)
+            {
+                return addresser<OType, OLayout>{
+                    args.batch_q, args.seqlen_q, args.nhead_q, args.hdim_v, args.o_ptr};
+            }
         }();
 
         int i_dv    = blockIdx.x * wg_size + threadIdx.x; // index of hdim_v
@@ -306,88 +351,187 @@ struct naive_attention_fwd_kernel
         v_addr.init(i_bk, i_hk);
         o_addr.init(i_bq, i_hq);
 
-        int seqlen_kv = args.seqlen_kv;
-        auto f_max    = [](auto x_, auto y_) { return max(x_, y_); };
-        auto f_sum    = [](auto x_, auto y_) { return x_ + y_; };
+        int seqlen_kv     = args.seqlen_kv;
+        auto f_max        = [](auto x_, auto y_) { return max(x_, y_); };
+        auto f_sum        = [](auto x_, auto y_) { return x_ + y_; };
+        auto f_absmax_f32 = [](float v_0_, float v_1_) {
+            float rtn;
+            asm volatile("v_max_f32 %0, abs(%1), abs(%2)" : "=v"(rtn) : "v"(v_0_), "v"(v_1_));
+            return rtn;
+        };
 
-        ComputeType row_max = -numeric<ComputeType>::infinity();
-        ComputeType o_acc   = {0};
-        ComputeType l{0};
+        SoftmaxType row_max = -numeric<SoftmaxType>::infinity();
+        SoftmaxType l{0};
+        AccType o_acc = {0};
 
-        int sk_loops = (seqlen_kv + wg_size - 1) / wg_size;
+        int sk_loops   = (seqlen_kv + wg_size - 1) / wg_size;
+        float qr_scale = .0f;
+        kvscale_addresser<KVScaleType> kvscale_addr{args.nhead_kv, args.hdim, args.kvscale_ptr};
+
+        if constexpr(is_kvcache_i8)
+        {
+            // AccType is i32 now, seqlen_q = 1, hdim up to 256
+            float q   = 0;
+            float k_s = 0;
+            if(static_cast<int>(threadIdx.x) < args.hdim)
+            {
+                q   = type_convert<float>(q_addr.load(0, threadIdx.x));
+                k_s = type_convert<float>(kvscale_addr.load(i_hk, threadIdx.x, 0));
+            }
+            // 1) we apply the k scale to q
+            float q_reflect = q * k_s;
+
+            // 2) apply smooth-quant
+            // find absmax
+            float qr_max = wave_reduce(q_reflect, f_absmax_f32);
+            qr_max       = cross_wave_reduce(qr_max, f_absmax_f32, reinterpret_cast<float*>(smem));
+
+            // per-token scale
+            qr_scale = qr_max / 127.0;
+
+            // devide by scale
+            q = q / qr_scale;
+
+            // fp32->i8
+            int8_t quantized_q = static_cast<int8_t>(q);
+            __syncthreads();
+            reinterpret_cast<int8_t*>(smem)[threadIdx.x] = quantized_q;
+            __syncthreads();
+
+            // after above process, we have 2 data
+            // 1) int8 q data stored in smem(no need to reload)
+            // 2) per-token scale qr_scale, to be mul after 1st gemm
+        }
 
         for(int i_loop1 = 0; i_loop1 < sk_loops; i_loop1++)
         {
             int i_sk = i_loop1 * wg_size + threadIdx.x;
             // gemm-1
-            ComputeType s_acc{0}; // clear for every loop
+            SoftmaxType s_softmax = -numeric<AccType>::infinity();
             if(i_sk < seqlen_kv)
             {
+                AccType s_acc{0}; // clear for every loop
                 for(auto i_dq = 0; i_dq < args.hdim; i_dq++)
                 {
-                    auto q = q_addr.load(i_sq, i_dq); // q will have duplicate load
-                    auto k = k_addr.load(i_sk, i_dq);
+                    if constexpr(is_kvcache_i8)
+                    {
+                        int8_t q = reinterpret_cast<int8_t*>(smem)[i_dq];
+                        auto k   = k_addr.load(i_sk, i_dq);
 
-                    s_acc += type_convert<ComputeType>(q) * type_convert<ComputeType>(k);
+                        s_acc += type_convert<AccType>(q) * type_convert<AccType>(k);
+                    }
+                    else
+                    {
+                        auto q = q_addr.load(i_sq, i_dq); // q will have duplicate load
+                        auto k = k_addr.load(i_sk, i_dq);
+
+                        s_acc += type_convert<AccType>(q) * type_convert<AccType>(k);
+                    }
                 }
                 // scale
-                s_acc *= type_convert<ComputeType>(args.scale_s * ck_tile::log2e_v<ComputeType>);
-            }
-            else
-            {
-                s_acc = -numeric<ComputeType>::infinity(); // out of bound need set to -INF
+                s_softmax = type_convert<SoftmaxType>(s_acc);
+                s_softmax *=
+                    type_convert<SoftmaxType>(args.scale_s * ck_tile::log2e_v<SoftmaxType>);
+                if constexpr(is_kvcache_i8)
+                {
+                    s_softmax *= qr_scale; // post scale the per-token factor
+                }
             }
 
             // s->p
+            float pr_scale = 0.; // used for i8 quant
             {
                 // softmax, find max
-                ComputeType old_max = row_max;
-                ComputeType cur_max = wave_reduce(s_acc, f_max);
+                SoftmaxType old_max = row_max;
+                SoftmaxType cur_max = wave_reduce(s_softmax, f_max);
 
-                cur_max = cross_wave_reduce(cur_max, f_max, smem);
+                cur_max = cross_wave_reduce(cur_max, f_max, reinterpret_cast<SoftmaxType*>(smem));
                 row_max = max(old_max, cur_max); // update row_max
                 // softmax, exp(i_elem - max)
-                ComputeType p = __builtin_amdgcn_exp2f(s_acc - row_max);
+                SoftmaxType p_compute = __builtin_amdgcn_exp2f(s_softmax - row_max);
 
                 // compute exp_sum
-                ComputeType row_sum = wave_reduce(p, f_sum);
-                row_sum             = cross_wave_reduce(row_sum, f_sum, smem);
+                SoftmaxType row_sum = wave_reduce(p_compute, f_sum);
+                row_sum = cross_wave_reduce(row_sum, f_sum, reinterpret_cast<SoftmaxType*>(smem));
 
                 // l, pre-scall o_acc
-                ComputeType tmp = __builtin_amdgcn_exp2f(old_max - row_max);
+                SoftmaxType tmp = __builtin_amdgcn_exp2f(old_max - row_max);
                 l               = tmp * l + row_sum;
-                o_acc *= tmp;
+                o_acc           = type_convert<AccType>(type_convert<SoftmaxType>(o_acc) * tmp);
 
-                // prepare the p into smem, to let every thread read same p and do 2nd gemm
-                __syncthreads();
-                smem[threadIdx.x] = p;
-                __syncthreads();
+                // prepare the p_compute into smem, to let every thread read same p_compute and do
+                // 2nd gemm
+                if constexpr(is_kvcache_i8)
+                {
+                    float v_s = 0;
+                    if(static_cast<int>(threadIdx.x) < args.hdim_v)
+                    {
+                        v_s = type_convert<float>(kvscale_addr.load(i_hk, threadIdx.x, 1));
+                    }
+
+                    // 1) we apply the v scale to p
+                    float p_reflect = p_compute * v_s;
+
+                    // 2) apply smooth-quant
+                    // find absmax
+                    float pr_max = wave_reduce(p_reflect, f_absmax_f32);
+                    pr_max =
+                        cross_wave_reduce(pr_max, f_absmax_f32, reinterpret_cast<float*>(smem));
+
+                    // per-token scale
+                    pr_scale = pr_max / 127.0;
+
+                    // devide by scale
+                    p_compute = p_compute / pr_scale;
+
+                    // fp32->i8
+                    int8_t quantized_p = static_cast<int8_t>(p_compute);
+                    __syncthreads();
+                    reinterpret_cast<int8_t*>(smem)[threadIdx.x] = quantized_p;
+                    __syncthreads();
+                    // after above process, we have 2 data
+                    // 1) int8 p data stored in smem(no need to reload)
+                    // 2) per-token scale pr_scale, to be mul after 2nd gemm
+                }
+                else
+                {
+                    __syncthreads();
+                    reinterpret_cast<PType*>(smem)[threadIdx.x] = type_convert<PType>(p_compute);
+                    __syncthreads();
+                }
             }
 
             // gemm-2, simple loop over vector by vector
-            constexpr int gemm_2_loop = wg_size / gemm2_vec_elem;
+            constexpr int gemm_2_loop = wg_size / p_vec_elem;
             if(i_dv < args.hdim_v)
             {
+                AccType o_acc_local = {0};
                 int sk_start = i_loop1 * wg_size; // we start from the first seqlen_kv element
                 for(int i_loop2 = 0; i_loop2 < gemm_2_loop; i_loop2++)
                 {
-                    gemm2_vec_type p_vec = reinterpret_cast<gemm2_vec_type*>(smem)[i_loop2];
-
+                    p_vec_type p_vec = reinterpret_cast<p_vec_type*>(smem)[i_loop2];
 #pragma unroll
-                    for(int i_j = 0; i_j < gemm2_vec_elem; i_j++)
+                    for(int i_j = 0; i_j < p_vec_elem; i_j++)
                     {
-                        int sv_offset = i_loop2 * gemm2_vec_elem + i_j;
+                        int sv_offset = i_loop2 * p_vec_elem + i_j;
                         auto v        = v_addr.load(sk_start + sv_offset, i_dv);
-                        o_acc += p_vec[i_j] * type_convert<ComputeType>(v);
+                        o_acc_local += type_convert<AccType>(p_vec[i_j]) * type_convert<AccType>(v);
                     }
                 }
+                if constexpr(is_kvcache_i8)
+                {
+                    // apply pr scale to local acc
+                    o_acc_local =
+                        type_convert<AccType>(type_convert<float>(o_acc_local) * pr_scale);
+                }
+                o_acc += o_acc_local;
             }
         }
 
         // post scale o_acc
         {
-            ComputeType tmp = l == 0.f ? 0.f : 1.f / l; // in case masking
-            o_acc *= tmp;
+            SoftmaxType tmp = l == 0.f ? 0.f : 1.f / l; // in case masking
+            o_acc *= type_convert<AccType>(tmp);
         }
 
         // store O
@@ -405,7 +549,7 @@ struct naive_attention_fwd_kernel
                                               k_type_,                                                    \
                                               v_type_,                                                    \
                                               o_type_,                                                    \
-                                              compute_type_,                                              \
+                                              acc_type_,                                                  \
                                               q_layout_,                                                  \
                                               k_layout_,                                                  \
                                               v_layout_,                                                  \
@@ -436,6 +580,16 @@ struct naive_attention_fwd_kernel
         constexpr auto o_layout_ = naive_attention_layout_enum::BHSD;                              \
         constexpr int variation_ = 0;                                                              \
         CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_INTERNAL_();                                              \
+    }                                                                                              \
+    else if(t.variation == 2 && t.q_layout == "bhsd" && t.k_layout == "phsdx" &&                   \
+            t.v_layout == "phds" && t.o_layout == "bhsd")                                          \
+    {                                                                                              \
+        constexpr auto q_layout_ = naive_attention_layout_enum::BHSD;                              \
+        constexpr auto k_layout_ = naive_attention_layout_enum::PHSDX;                             \
+        constexpr auto v_layout_ = naive_attention_layout_enum::PHDS;                              \
+        constexpr auto o_layout_ = naive_attention_layout_enum::BHSD;                              \
+        constexpr int variation_ = 2;                                                              \
+        CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_INTERNAL_();                                              \
     }
 
 //
@@ -447,20 +601,38 @@ CK_TILE_HOST float naive_attention_fwd(naive_attention_fwd_traits t,
     // TODO: do not explicitly create too much instance!
     if(t.q_type == "fp16" && t.k_type == "fp16" && t.v_type == "fp16" && t.o_type == "fp16")
     {
-        using q_type_       = fp16_t;
-        using k_type_       = fp16_t;
-        using v_type_       = fp16_t;
-        using o_type_       = fp16_t;
-        using compute_type_ = float;
+        using q_type_   = fp16_t;
+        using k_type_   = fp16_t;
+        using v_type_   = fp16_t;
+        using o_type_   = fp16_t;
+        using acc_type_ = float;
         CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_LAOYUT_();
     }
     else if(t.q_type == "bf16" && t.k_type == "bf16" && t.v_type == "bf16" && t.o_type == "bf16")
     {
-        using q_type_       = bf16_t;
-        using k_type_       = bf16_t;
-        using v_type_       = bf16_t;
-        using o_type_       = bf16_t;
-        using compute_type_ = float;
+        using q_type_   = bf16_t;
+        using k_type_   = bf16_t;
+        using v_type_   = bf16_t;
+        using o_type_   = bf16_t;
+        using acc_type_ = float;
+        CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_LAOYUT_();
+    }
+    else if(t.q_type == "bf16" && t.k_type == "int8" && t.v_type == "int8" && t.o_type == "bf16")
+    {
+        using q_type_   = bf16_t;
+        using k_type_   = int8_t;
+        using v_type_   = int8_t;
+        using o_type_   = bf16_t;
+        using acc_type_ = int32_t; // NOTE!
+        CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_LAOYUT_();
+    }
+    else if(t.q_type == "fp16" && t.k_type == "int8" && t.v_type == "int8" && t.o_type == "fp16")
+    {
+        using q_type_   = fp16_t;
+        using k_type_   = int8_t;
+        using v_type_   = int8_t;
+        using o_type_   = fp16_t;
+        using acc_type_ = int32_t; // NOTE!
         CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_LAOYUT_();
     }
     return r;
