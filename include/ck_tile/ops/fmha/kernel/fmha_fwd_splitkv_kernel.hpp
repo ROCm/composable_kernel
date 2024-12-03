@@ -647,7 +647,7 @@ struct FmhaFwdSplitKVKernel
             return pad_tensor_view(
                 k_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
-                sequence<false, false>{});
+                sequence<false, kPadHeadDimQ>{});
         };
         const auto k_dram = [&]() {
             if constexpr(kIsPagedKV)
