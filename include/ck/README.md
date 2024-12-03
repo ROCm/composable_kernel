@@ -1,0 +1,18 @@
+# CK supported operations
+## Supported device operations
+* [Average pooling]()
+* [Batched contraction]()
+* [Batched gemm]()
+* [Batchnorm]()
+* [CGEMM]()
+* [Contraction]()
+* [Convolution]()
+* [Image to Column and Column to Image]()
+* [Elementwise]()
+* [GEMM]()
+* [Max pooling]()
+* [Reduce]()
+* [Normalization]()
+* [Permute]()
+* [Put]()
+* [Softmax]()

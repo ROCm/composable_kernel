@@ -26,15 +26,14 @@ The current CK library is structured into four layers:
 
 ## General information
 
-To build our documentation locally, use the following code:
-
-``` bash
-cd docs
-pip3 install -r sphinx/requirements.txt
-python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
-```
-
-You can find a list of our developers and contributors on our [Contributors](/CONTRIBUTORS.md) page.
+* [CK supported operations](include/ck/README.md)
+* [CK Tile supported operations](include/ck_tile/README.md)
+* [CK wrapper](client_example/25_wrapper/README.md)
+* [CK profiler](profiler/README.md)
+* [Examples (Custom use of CK supported operations)](example/README.md)
+* [Client examples (Use of CK supported operations with instance factory)](client_example/README.md)
+* [Terminology](/TERMINOLOGY.md)
+* [Contributors](/CONTRIBUTORS.md)
 
 ```note
 If you use CK, cite us as follows:
@@ -136,6 +135,14 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     ```
 
     You can find instructions for running ckProfiler in [profiler](/profiler).
+
+* Build our documentation locally:
+
+    ``` bash
+    cd docs
+    pip3 install -r sphinx/requirements.txt
+    python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+    ```
 
 Note the `-j` option for building with multiple threads in parallel, which speeds up the build significantly.
 However, `-j` launches unlimited number of threads, which can cause the build to run out of memory and

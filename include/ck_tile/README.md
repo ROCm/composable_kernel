@@ -1,4 +1,4 @@
-# ck_tile
+# CK Tile
 ## concept
 `ck_tile` provides a programming model with templated abstractions to enable users to implement performance-critical kernels for machine learning workloads. introduces following basic concepts to help users building your own operator
  - tensor coordinate transformation, this is the core concept of layout/index transform abstraction in both compiler time and run time.
