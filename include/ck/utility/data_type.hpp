@@ -11,6 +11,40 @@ namespace ck {
 using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
+using f4_t    = unsigned _BitInt(4);
+
+struct e8m0_bexp_t
+{
+    // E8M0 scale is biased
+    using type = uint8_t;
+    type data;
+    constexpr e8m0_bexp_t() : data{type{}} {}
+    constexpr e8m0_bexp_t(type init) : data{init} {}
+
+    bool operator==(const e8m0_bexp_t& other) const { return (data == other.data); }
+};
+
+struct f4x2_pk_t
+{
+    using type = uint8_t;
+    type data;
+    f4x2_pk_t() : data{type{}} {}
+    f4x2_pk_t(type init) : data{init} {}
+
+    template <index_t I>
+    __host__ __device__ inline type unpack() const
+    {
+        if constexpr(I == 0)
+            return data & 0b00001111;
+        else
+            return (data >> 4);
+    }
+
+    __host__ __device__ inline type pack(const type x0, const type x1)
+    {
+        return (x1 << 4) | (x0 & 0b00001111);
+    }
+};
 
 inline constexpr auto next_pow2(uint32_t x)
 {
@@ -26,7 +60,7 @@ inline constexpr bool is_native_type()
     return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
            is_same<T, bhalf_t>::value || is_same<T, int32_t>::value || is_same<T, int8_t>::value ||
            is_same<T, uint8_t>::value || is_same<T, f8_fnuz_t>::value ||
-           is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value;
+           is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value || is_same<T, f4_t>::value;
 }
 
 // vector_type
@@ -1871,6 +1905,14 @@ using uint8x16_t = typename vector_type<uint8_t, 16>::type;
 using uint8x32_t = typename vector_type<uint8_t, 32>::type;
 using uint8x64_t = typename vector_type<uint8_t, 64>::type;
 
+// f4
+using f4x2_t  = typename vector_type<f4x2_pk_t, 1>::type;
+using f4x4_t  = typename vector_type<f4x2_pk_t, 2>::type;
+using f4x8_t  = typename vector_type<f4x2_pk_t, 4>::type;
+using f4x16_t = typename vector_type<f4x2_pk_t, 8>::type;
+using f4x32_t = typename vector_type<f4x2_pk_t, 16>::type;
+using f4x64_t = typename vector_type<f4x2_pk_t, 32>::type;
+
 template <typename T>
 struct NumericLimits
 {
@@ -2009,6 +2051,59 @@ struct NumericLimits<bf8_ocp_t>
     }
 };
 
+template <>
+struct NumericLimits<f4_t>
+{
+    static constexpr uint8_t binary_min_normal    = 0x2; // 0b0010
+    static constexpr uint8_t binary_max_normal    = 0x7; // 0b0111
+    static constexpr uint8_t binary_lowest_normal = 0xF; // 0b1111
+    static constexpr uint8_t binary_min_subnorm   = 0x1; // 0b0001
+    static constexpr uint8_t binary_max_subnorm   = 0x1; // 0b0001
+
+    static constexpr float data_max_normal_number    = 6;
+    static constexpr float data_min_subnormal_number = 0.5;
+
+    __host__ __device__ static constexpr f4_t Min() { return f4_t(binary_min_normal); }
+    __host__ __device__ static constexpr f4_t Max() { return f4_t(binary_max_normal); }
+    __host__ __device__ static constexpr f4_t Lowest() { return f4_t(binary_lowest_normal); }
+    __host__ __device__ static constexpr f4_t MinSubnorm() { return f4_t(binary_min_subnorm); }
+    __host__ __device__ static constexpr f4_t MaxSubnorm() { return f4_t(binary_max_subnorm); }
+
+    __host__ __device__ static constexpr float DataMaxNorm() { return data_max_normal_number; }
+    __host__ __device__ static constexpr float DataMinSubnorm()
+    {
+        return data_min_subnormal_number;
+    }
+};
+
+template <>
+struct NumericLimits<e8m0_bexp_t>
+{
+    static constexpr e8m0_bexp_t binary_min  = 0x00; // 0b00000000
+    static constexpr e8m0_bexp_t binary_max  = 0xFE; // 0b11111110
+    static constexpr e8m0_bexp_t binary_qnan = 0xFF; // 0b11111111
+    static constexpr e8m0_bexp_t binary_1    = 0x7F; // 0b01111111
+    static constexpr e8m0_bexp_t binary_2    = 0x80; // 0b10000000
+    static constexpr e8m0_bexp_t binary_3    = 0x82; // 0b10000010
+    static constexpr e8m0_bexp_t binary_135  = 0x87; // 0b10000111
+    static constexpr e8m0_bexp_t binary_142  = 0x8E; // 0b10001110
+
+    __host__ __device__ static constexpr e8m0_bexp_t Min() { return e8m0_bexp_t(binary_min); }
+    __host__ __device__ static constexpr e8m0_bexp_t Max() { return e8m0_bexp_t(binary_max); }
+    __host__ __device__ static constexpr e8m0_bexp_t QuietNaN() { return e8m0_bexp_t(binary_qnan); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_1() { return e8m0_bexp_t(binary_1); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_2() { return e8m0_bexp_t(binary_2); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_3() { return e8m0_bexp_t(binary_3); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_135()
+    {
+        return e8m0_bexp_t(binary_135);
+    }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_142()
+    {
+        return e8m0_bexp_t(binary_142);
+    }
+};
+
 template <typename T>
 struct NumericUtils
 {
@@ -2028,6 +2123,7 @@ struct NumericUtils<float>
     static constexpr uint32_t NegInf    = 0xFF800000;
     static constexpr uint32_t NaN       = 0x7F800001;
     static constexpr uint32_t Neg0      = 0x80000000;
+    static constexpr bool has_inf       = true;
     using bitwise_type                  = uint32_t;
 };
 
@@ -2045,7 +2141,17 @@ struct NumericUtils<half_t>
     static constexpr uint32_t NegInf    = 0xFC00;
     static constexpr uint32_t NaN       = 0x7C01;
     static constexpr uint32_t Neg0      = 0x8000;
+    static constexpr bool has_inf       = true;
     using bitwise_type                  = uint16_t;
+};
+
+template <>
+struct NumericUtils<bhalf_t>
+{
+    static constexpr int exp  = 8;
+    static constexpr int mant = 7;
+    static constexpr int bias = 128; // negative zero nan mode
+    // static constexpr int bias = 127; // ieee mode
 };
 
 template <>
@@ -2055,6 +2161,7 @@ struct NumericUtils<f8_fnuz_t>
     static constexpr int mant = 3;
     static constexpr int bias = 8; // negative zero nan mode
     // static constexpr int bias = 7; // ieee mode
+    static constexpr bool has_inf = false;
 };
 
 template <>
@@ -2064,6 +2171,7 @@ struct NumericUtils<bf8_fnuz_t>
     static constexpr int mant = 2;
     static constexpr int bias = 16; // negative zero nan mode
     // static constexpr int bias = 15; // ieee mode
+    static constexpr bool has_inf = false;
 };
 template <>
 struct NumericUtils<f8_ocp_t>
@@ -2082,11 +2190,47 @@ struct NumericUtils<bf8_ocp_t>
 };
 
 template <>
-struct NumericUtils<bhalf_t>
+struct NumericUtils<f4_t>
+{
+    static constexpr int exp           = 2;
+    static constexpr int mant          = 1;
+    static constexpr int bias          = 1;
+    static constexpr uint32_t sr_shift = 10;
+
+    static constexpr int unbiased_exp_min = 0;
+    static constexpr int unbiased_exp_max = 2;
+    static constexpr int biased_exp_min   = 1;
+    static constexpr int biased_exp_max   = 3;
+
+    static constexpr uint8_t positive_zero_mask = 0b0000;
+    static constexpr uint8_t negative_zero_mask = 0b1000;
+
+    static constexpr uint8_t one_mask      = 0b0010;
+    static constexpr uint8_t set_sign_mask = 0b0111;
+
+    static constexpr uint8_t data_max_positive_normal_mask = 0b0111;
+    static constexpr uint8_t data_max_negative_normal_mask = 0b1111;
+
+    static constexpr uint8_t data_max_positive_subnormal_mask = 0b0001;
+    static constexpr uint8_t data_max_negative_subnormal_mask = 0b1001;
+
+    static constexpr bool has_inf = false;
+
+    using bitwise_type = uint8_t;
+};
+
+template <>
+struct NumericUtils<e8m0_bexp_t>
 {
     static constexpr int exp  = 8;
-    static constexpr int mant = 7;
-    static constexpr int bias = 128; // negative zero nan mode
-    // static constexpr int bias = 127; // ieee mode
+    static constexpr int mant = 0;
+    static constexpr int bias = 127;
+
+    static constexpr int unbiased_exp_min = -127;
+    static constexpr int unbiased_exp_max = 127;
+    static constexpr int biased_exp_min   = 0;
+    static constexpr int biased_exp_max   = 254;
+
+    using bitwise_type = uint8_t;
 };
 } // namespace ck
