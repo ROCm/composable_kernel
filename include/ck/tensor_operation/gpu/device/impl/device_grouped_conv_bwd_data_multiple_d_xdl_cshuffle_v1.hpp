@@ -499,8 +499,23 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         // populate Ds desc
                         static_for<0, NumDTensor, 1>{}([&](auto i) {
                             using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-                            static_assert(is_same_v<DLayout, ELayout>);
-                            ConvToGemmBwdDataTransformer conv_to_gemm_transformer_d{
+                            using ConvToGemmBwdDataTransformerD =
+                                TransformConvBwdDataToGemm_v1<NDimSpatial,
+                                                              ConvBackwardDataSpecialization,
+                                                              AK1,
+                                                              BK1,
+                                                              MPerBlock,
+                                                              NPerBlock,
+                                                              KPerBlock,
+                                                              DoPadGemmM,
+                                                              DoPadGemmN,
+                                                              ALayout,
+                                                              BLayout,
+                                                              ELayout,
+                                                              true, /*SplitConvN*/
+                                                              ABDataType,
+                                                              DLayout>;
+                            ConvToGemmBwdDataTransformerD conv_to_gemm_transformer_d{
                                 a_g_n_k_wos_lengths,
                                 a_g_n_k_wos_strides,
                                 b_g_k_c_xs_lengths,
