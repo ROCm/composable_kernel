@@ -11,6 +11,7 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
+#include "ck/utility/host_memory_allocator.hpp"
 #include "ck/utility/common_header.hpp"
 #include <ck/utility/loop_scheduler.hpp>
 #include "ck/utility/tuple.hpp"
@@ -537,7 +538,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
         std::vector<std::array<const void*, NumDTensor>>& p_Ds_;
         std::vector<std::array<index_t, NumDTensor>> stride_Ds_;
-        std::vector<GemmTransKernelArg> gemm_kernel_args_;
+        std::vector<GemmTransKernelArg, ck::memory::PinnedHostMemoryAllocator<GemmTransKernelArg>> gemm_kernel_args_;
         std::vector<index_t> group_grid_size_;
 
         std::vector<CGridDesc_M_N> elementwise_c_grid_descs_m_n_;

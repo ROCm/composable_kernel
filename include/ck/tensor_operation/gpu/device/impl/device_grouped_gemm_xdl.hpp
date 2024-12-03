@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/host_memory_allocator.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -496,9 +497,9 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         BElementwiseOperation b_element_op_;
         CDEElementwiseOperation c_element_op_;
 
-        std::vector<GemmBiasTransKernelArg> gemm_desc_kernel_arg_;
-        std::vector<Tuple<index_t, index_t>> a_mtx_mraw_kraw_;
-        std::vector<Tuple<index_t, index_t>> b_mtx_nraw_kraw_;
+        std::vector<GemmBiasTransKernelArg, ck::memory::PinnedHostMemoryAllocator<GemmBiasTransKernelArg>> gemm_desc_kernel_arg_;
+        std::vector<Tuple<index_t, index_t>, ck::memory::PinnedHostMemoryAllocator<Tuple<index_t, index_t>>> a_mtx_mraw_kraw_;
+        std::vector<Tuple<index_t, index_t>, ck::memory::PinnedHostMemoryAllocator<Tuple<index_t, index_t>>> b_mtx_nraw_kraw_;
 
         index_t grid_size_;
     };

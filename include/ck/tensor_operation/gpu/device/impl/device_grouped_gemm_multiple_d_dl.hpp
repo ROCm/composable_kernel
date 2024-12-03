@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/host_memory_allocator.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -408,13 +409,14 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
     };
 
     // Argument
+
     struct Argument : public BaseArgument
     {
-        Argument(std::vector<const void*>& p_As,
-                 std::vector<const void*>& p_Bs,
-                 std::vector<std::array<const void*, NumDTensor>>& p_Ds,
-                 std::vector<void*>& p_Es,
-                 std::vector<GemmDesc>& gemm_descs,
+        Argument(std::vector<const void*, Allocator>& p_As,
+                 std::vector<const void*, Allocator>& p_Bs,
+                 std::vector<std::array<const void*, NumDTensor>, Allocator>& p_Ds,
+                 std::vector<void*, Allocator>& p_Es,
+                 std::vector<GemmDesc, Allocator>& gemm_descs,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CDEElementwiseOperation cde_element_op)
@@ -533,9 +535,9 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
         BElementwiseOperation b_element_op_;
         CDEElementwiseOperation cde_element_op_;
 
-        std::vector<GemmKernelArg> gemm_desc_kernel_arg_;
-        std::vector<Tuple<index_t, index_t>> a_mtx_mraw_kraw_;
-        std::vector<Tuple<index_t, index_t>> b_mtx_nraw_kraw_;
+        std::vector<GemmKernelArg, ck::memory::PinnedHostMemoryAllocator<GemmKernelArg>> gemm_desc_kernel_arg_;
+        std::vector<Tuple<index_t, index_t>, ck::memory::PinnedHostMemoryAllocator<Tuple<index_t, index_t>>> a_mtx_mraw_kraw_;
+        std::vector<Tuple<index_t, index_t>, ck::memory::PinnedHostMemoryAllocator<Tuple<index_t, index_t>>> b_mtx_nraw_kraw_;
 
         index_t grid_size_;
     };

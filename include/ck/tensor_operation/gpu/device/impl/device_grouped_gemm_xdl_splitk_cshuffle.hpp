@@ -12,6 +12,7 @@
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/tuple.hpp"
+#include "ck/utility/host_memory_allocator.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -365,7 +366,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         index_t group_count_;
         index_t skipped_group_count_;
 
-        std::vector<GemmTransKernelArg> gemm_kernel_args_;
+        std::vector<GemmTransKernelArg, ck::memory::PinnedHostMemoryAllocator<GemmTransKernelArg>> gemm_kernel_args_;
         index_t grid_size_;
     };
 
