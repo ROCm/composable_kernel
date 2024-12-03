@@ -230,3 +230,6 @@
 #ifndef CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
 #define CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID 1
 #endif
+
+template<typename T>
+CK_TILE_HOST_DEVICE void printx(T a = {}) {a.print();}

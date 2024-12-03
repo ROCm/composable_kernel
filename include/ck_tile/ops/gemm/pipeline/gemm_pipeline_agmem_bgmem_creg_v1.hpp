@@ -260,12 +260,13 @@ struct GemmPipelineAGmemBGmemCRegV1
         using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
         ALdsTile a_block_tile0;
         BLdsTile b_block_tile0;
-        auto a_lds_ld_window0 = make_tile_window_linear(a_lds_block0, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0}, ALdsTileDistr);
-        auto a_lds_ld_window1 = make_tile_window_linear(a_lds_block1, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0}, ALdsTileDistr);
+        auto a_lds_ld_window0 = make_tile_window_linear(a_lds_window0, ALdsTileDistr);
+        auto a_lds_ld_window1 = make_tile_window_linear(a_lds_window1, ALdsTileDistr);
+        auto b_lds_ld_window0 = make_tile_window_linear(b_lds_window0, BLdsTileDistr);
+        auto b_lds_ld_window1 = make_tile_window_linear(b_lds_window1, BLdsTileDistr);
     
-        // Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
         load_tile(a_block_tile0, a_lds_ld_window0);
-        Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
+        load_tile(b_block_tile0, b_lds_ld_window0);
 
         // LDS write 1
         LocalPrefill(a_lds_window1, a_global_load_tile, a_element_func);
@@ -285,9 +286,8 @@ struct GemmPipelineAGmemBGmemCRegV1
                 // ping
                 {
                     block_sync_lds();
-                    // Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
                     load_tile(a_block_tile1, a_lds_ld_window1);
-                    Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window1, b_block_tile1);
+                    load_tile(b_block_tile1, b_lds_ld_window1);
                     LocalPrefill(a_lds_window0, a_global_load_tile, a_element_func);
                     LocalPrefill(b_lds_window0, b_global_load_tile, b_element_func);
                     GlobalPrefetch(a_global_load_tile, a_copy_dram_window);
@@ -300,7 +300,7 @@ struct GemmPipelineAGmemBGmemCRegV1
                     block_sync_lds();
                     // Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
                     load_tile(a_block_tile0, a_lds_ld_window0);
-                    Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
+                    load_tile(b_block_tile0, b_lds_ld_window0);
                     LocalPrefill(a_lds_window1, a_global_load_tile, a_element_func);
                     LocalPrefill(b_lds_window1, b_global_load_tile, b_element_func);
                     GlobalPrefetch(a_global_load_tile, a_copy_dram_window);
@@ -319,7 +319,7 @@ struct GemmPipelineAGmemBGmemCRegV1
                 block_sync_lds();
                 // Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
                 load_tile(a_block_tile1, a_lds_ld_window1);
-                Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window1, b_block_tile1);
+                load_tile(b_block_tile1, b_lds_ld_window1);
                 LocalPrefill(a_lds_window0, a_global_load_tile, a_element_func);
                 LocalPrefill(b_lds_window0, b_global_load_tile, b_element_func);
                 block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
@@ -329,7 +329,7 @@ struct GemmPipelineAGmemBGmemCRegV1
                 block_sync_lds();
                 // Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window0, a_block_tile0);
                 load_tile(a_block_tile0, a_lds_ld_window0);
-                Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window0, b_block_tile0);
+                load_tile(b_block_tile0, b_lds_ld_window0);
                 block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
             }
             //1
@@ -344,7 +344,7 @@ struct GemmPipelineAGmemBGmemCRegV1
                 block_sync_lds();
                 // Policy::template BlockGemm<Problem>::PrefetchLds(a_lds_window1, a_block_tile1);
                 load_tile(a_block_tile1, a_lds_ld_window1);
-                Policy::template BlockGemm<Problem>::PrefetchLds(b_lds_window1, b_block_tile1);
+                load_tile(b_block_tile1, b_lds_ld_window1);
                 block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
             }
             // 2

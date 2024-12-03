@@ -54,22 +54,6 @@ template <typename DistributedTensor_,
           typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
-          typename LinearBottomDims_,
-          bool oob_conditional_check = true>
-CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
-                              const tile_window_linear<BottomTensorView_,
-                                                       WindowLengths_,
-                                                       TileDistribution_,
-                                                       LinearBottomDims_>& tile_window,
-                              bool_constant<oob_conditional_check> = {})
-{
-    return tile_window.load(dst_tile, number<-1>{}, bool_constant<oob_conditional_check>{});
-}
-
-template <typename DistributedTensor_,
-          typename BottomTensorView_,
-          typename WindowLengths_,
-          typename TileDistribution_,
           index_t NumCoord,
           index_t i_access           = -1,
           bool oob_conditional_check = true>

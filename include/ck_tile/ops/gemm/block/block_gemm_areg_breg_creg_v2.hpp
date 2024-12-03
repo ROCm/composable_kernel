@@ -232,8 +232,8 @@ struct BlockGemmARegBRegCRegV2
     CK_TILE_DEVICE static void PrefetchLds(const BlockWindow& block_window, BlockTensor& block_tensor)
     {
         auto tileDist = BlockTensor::get_tile_distribution();
-        load_tile(block_tensor, make_tile_window(block_window, tileDist));
-        // load_tile(block_tensor, make_tile_window_linear(block_window, tileDist));
+        // load_tile(block_tensor, make_tile_window(block_window, tileDist));
+        load_tile(block_tensor, make_tile_window_linear(block_window, tileDist));
     }
     
     // C = A * B

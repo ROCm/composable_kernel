@@ -89,6 +89,45 @@ CK_TILE_HOST_DEVICE constexpr auto make_tensor_adaptor_coordinate(const Adaptor&
                                      remove_cvref_t<decltype(top_dim_ids)>>{idx_hidden};
 }
 
+// template <typename Adaptor, typename TopIndex>
+// CK_TILE_HOST_DEVICE constexpr auto make_tensor_adaptor_coordinate_debug(const Adaptor& adaptor,
+//                                                                   const TopIndex& idx_top)
+// {
+//     static_assert(Adaptor::get_num_of_top_dimension() == TopIndex::size(),
+//                   "wrong! # of dimension inconsistent");
+
+//     constexpr index_t ntransform  = Adaptor::get_num_of_transform();
+//     constexpr index_t ndim_hidden = Adaptor::get_num_of_hidden_dimension();
+//     constexpr auto bottom_dim_ids = Adaptor::get_bottom_dimension_hidden_ids();
+//     constexpr auto top_dim_ids    = Adaptor::get_top_dimension_hidden_ids();
+
+//     multi_index<ndim_hidden> idx_hidden;
+//     // idx_hidden.print();
+//     // initialize visible index
+//     set_container_subset(idx_hidden, top_dim_ids, idx_top);
+
+//     // calculate hidden index
+//     static_for<ntransform, 0, -1>{}([&adaptor, &idx_hidden](auto itran_p1) {
+//         auto itran              = itran_p1 - number<1>{};
+//         const auto& tran        = adaptor.get_transforms().at(itran);
+//         tran.print();
+//         constexpr auto dims_low = Adaptor::get_lower_dimension_hidden_idss().at(itran);
+//         constexpr auto dims_up  = Adaptor::get_upper_dimension_hidden_idss().at(itran);
+
+//         const auto idx_up = get_container_subset(idx_hidden, dims_up);
+
+//         multi_index<dims_low.size()> idx_low;
+
+//         tran.calculate_lower_index(idx_low, idx_up);
+
+//         set_container_subset(idx_hidden, dims_low, idx_low);
+//         idx_hidden.print();
+//     });
+
+//     return tensor_adaptor_coordinate<ndim_hidden,
+//                                      remove_cvref_t<decltype(bottom_dim_ids)>,
+//                                      remove_cvref_t<decltype(top_dim_ids)>>{idx_hidden};
+// }
 template <bool JudgeDoTransforms = true,
           typename Adaptor,
           typename AdaptorCoord,

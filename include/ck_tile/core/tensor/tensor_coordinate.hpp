@@ -66,6 +66,16 @@ CK_TILE_HOST_DEVICE constexpr auto make_tensor_coordinate(const TensorDesc& tens
                              remove_cvref_t<decltype(TensorDesc::get_top_dimension_hidden_ids())>>{
         adaptor_coord};
 }
+// template <typename TensorDesc, typename TopIndex>
+// CK_TILE_HOST_DEVICE constexpr auto make_tensor_coordinate_debug(const TensorDesc& tensor_desc,
+//                                                           const TopIndex& idx_top)
+// {
+//     const auto adaptor_coord = make_tensor_adaptor_coordinate_debug(tensor_desc, idx_top);
+
+//     return tensor_coordinate<TensorDesc::get_num_of_hidden_dimension(),
+//                              remove_cvref_t<decltype(TensorDesc::get_top_dimension_hidden_ids())>>{
+//         adaptor_coord};
+// }
 
 template <bool JudgeDoTransforms = true, typename TensorDesc, typename TensorCoord, typename Index>
 CK_TILE_HOST_DEVICE constexpr void

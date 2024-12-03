@@ -52,7 +52,13 @@ struct array
             data[i] = vlast;
         }
     }
-
+    
+    CK_TILE_HOST_DEVICE void print() const { 
+        printf("array{size: %d, data: ", size());
+        for (index_t i = 0; i < size(); i++) {
+            printf("%d,", int(get(i)));
+        }
+    }
     template <typename Y,
               typename = std::enable_if_t<std::is_convertible_v<Y, value_type> ||
                                           std::is_constructible_v<Y, value_type>>>

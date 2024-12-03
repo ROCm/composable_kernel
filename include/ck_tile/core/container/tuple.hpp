@@ -195,6 +195,11 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
     using base = impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>;
     CK_TILE_HOST_DEVICE constexpr tuple() = default;
 
+    CK_TILE_HOST_DEVICE void print() const {
+        // printf("tuple{size: %d, data: [", size());
+        // ((printf("%d ", Is)), ...);
+        // printf("]}");
+    }
 #if CK_TILE_TUPLE_CTOR_WITH_INITIALIZER_LIST
     template <typename U>
     CK_TILE_HOST_DEVICE constexpr tuple(std::initializer_list<U> us) : base(us)

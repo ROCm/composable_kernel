@@ -440,6 +440,13 @@ struct tile_window_linear
             // we directly use BottomTensorView transform to compute the offset, in case padding
             auto bottom_tensor_coord =
                 make_tensor_coordinate(BottomTensorView{}.get_tensor_descriptor(), linear_coord);
+            // if(threadIdx.x == 0) {
+            //     bottom_tensor_coord =
+            //         make_tensor_coordinate(BottomTensorView{}.get_tensor_descriptor(), linear_coord);
+            //     printf("off00 %d %d\n",i_access, bottom_tensor_coord.get_offset() );
+            //     bottom_tensor_coord.get_hidden_index().print();
+            //     bottom_tensor_coord.get_index().print();
+            // }
             return bottom_tensor_coord.get_offset();
         }
         else
@@ -468,13 +475,15 @@ struct tile_window_linear
 
     CK_TILE_DEVICE constexpr auto get_num_of_access() const { return traits::NumAccess; }
 
-    template <typename DistributedTensor, index_t i_access = -1, bool oob_conditional_check = true>
-    CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor, number<i_access> = {}, bool_constant<oob_conditional_check> = {}) const
+    template <index_t i_access = -1, bool oob_conditional_check = true>
+    CK_TILE_DEVICE auto load(number<i_access> = {}, bool_constant<oob_conditional_check> = {}) const
     {
         using vector_t = typename traits::vector_t;
         using SFC_Ys   = typename traits::SFC_Ys;
 
         constexpr auto tile_dstr = TileDstr{};
+
+        auto dst_tensor = make_static_distributed_tensor<DataType>(tile_dstr);
 
         auto issue = [&](auto i_access_) {
             constexpr auto IAccess = number<i_access_>{};
@@ -518,13 +527,7 @@ struct tile_window_linear
         };
 
         WINDOW_DISPATCH_ISSUE();
-    }
 
-    template <index_t i_access = -1, bool oob_conditional_check = true>
-    CK_TILE_DEVICE auto load(number<i_access> = {}, bool_constant<oob_conditional_check> = {}) const
-    {
-        auto dst_tensor = make_static_distributed_tensor<DataType>(TileDstr{});
-        load(dst_tensor, number<i_access>{}, bool_constant<oob_conditional_check>{});
         return dst_tensor;
     }
 
@@ -547,8 +550,7 @@ struct tile_window_linear
             auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
             auto bottom_tensor_flag         = cached_flags_[IAccess];
 
-            constexpr auto linear_offset = get_bottom_linear_offset(IAccess);
-
+            auto linear_offset = get_bottom_linear_offset(IAccess);
             // read from bottom tensor
             const vector_t vec_value =
                 get_bottom_tensor_view().template get_vectorized_elements<vector_t>(

@@ -59,14 +59,14 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         // TODO: this 8 is AK1! should be a policy parameter!
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / 8>{}, number<kMPerBlock>{}, number<8>{}),
-            make_tuple(number<(kMPerBlock) * 8>{}, number<8>{}, number<1>{}),
+            make_tuple(number<kMPerBlock * 8>{}, number<8>{}, number<1>{}),
             number<8>{},
             number<1>{});
 
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_0,
-            make_tuple(make_pass_through_transform(kMPerBlock),
-                       make_merge_transform(make_tuple(kKPerBlock / 8, 8))),
+            make_tuple(make_pass_through_transform(number<kMPerBlock>{}),
+                       make_merge_transform(make_tuple(number<kKPerBlock / 8>{}, number<8>{}))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -88,8 +88,10 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
         constexpr auto b_lds_block_desc = transform_tensor_descriptor(
             b_lds_block_desc_0,
-            make_tuple(make_pass_through_transform(kNPerBlock),
-                       make_merge_transform(make_tuple(kKPerBlock / 8, 8))),
+            // make_tuple(make_pass_through_transform(kNPerBlock),
+            //            make_merge_transform(make_tuple(kKPerBlock / 8, 8))),
+            make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
+                       make_merge_transform(make_tuple(number<kKPerBlock / 8>{}, number<8>{}))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 

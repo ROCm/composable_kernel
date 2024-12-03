@@ -146,7 +146,7 @@ struct pass_through : public base_transform<1, 1>
 
         //
         printf("up_lengths_:");
-        print(up_lengths_);
+        printx(up_lengths_);
 
         //
         printf("}");
@@ -236,17 +236,17 @@ struct pad : public base_transform<1, 1>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        printx(up_lengths_);
         printf(", ");
 
         //
         printf("left_pad_length_: ");
-        print(left_pad_length_);
+        printx(left_pad_length_);
         printf(", ");
 
         //
         printf("right_pad_length_: ");
-        print(right_pad_length_);
+        printx(right_pad_length_);
 
         printf("}");
     }
@@ -337,12 +337,12 @@ struct left_pad
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        printx(up_lengths_);
         printf(", ");
 
         //
         printf("left_pad_length_: ");
-        print(left_pad_length_);
+        printx(left_pad_length_);
 
         printf("}");
     }
@@ -437,12 +437,12 @@ struct right_pad : public base_transform<1, 1>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        printx(up_lengths_);
         printf(", ");
 
         //
         printf("right_pad_length_: ");
-        print(right_pad_length_);
+        printx(right_pad_length_);
 
         printf("}");
     }
@@ -539,12 +539,12 @@ struct embed : public base_transform<1, UpLengths::size()>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        printx(up_lengths_);
         printf(", ");
 
         //
         printf("coefficients_: ");
-        print(coefficients_);
+        printx(coefficients_);
 
         printf("}");
     }
@@ -706,12 +706,12 @@ struct merge_v2_magic_division : public base_transform<LowLengths::size(), 1>
 
         //
         printf("low_lengths_ ");
-        print(low_lengths_);
+        printx(low_lengths_);
         printf(", ");
 
         //
         printf("up_lengths_ ");
-        print(up_lengths_);
+        printx(up_lengths_);
 
         printf("}");
     }
@@ -837,17 +837,17 @@ struct merge_v3_division_mod : public base_transform<LowLengths::size(), 1>
 
         //
         printf("low_lengths_ ");
-        print(low_lengths_);
+        printx(low_lengths_);
         printf(", ");
 
         //
         printf("low_lengths_scan_ ");
-        print(low_lengths_scan_);
+        printx(low_lengths_scan_);
         printf(", ");
 
         //
         printf("up_lengths_ ");
-        print(up_lengths_);
+        printx(up_lengths_);
 
         printf("}");
     }
@@ -965,12 +965,12 @@ struct unmerge : public base_transform<1, UpLengths::size()>
 
         //
         printf("up_lengths_");
-        print(up_lengths_);
+        printx(up_lengths_);
         printf(", ");
 
         //
         printf("up_lengths_scan_");
-        print(up_lengths_scan_);
+        printx(up_lengths_scan_);
 
         printf("}");
     }
@@ -1030,7 +1030,7 @@ struct freeze : public base_transform<1, 0>
 
         //
         printf("low_idx_: ");
-        print(low_idx_);
+        printx(low_idx_);
 
         printf("}");
     }
@@ -1098,7 +1098,7 @@ struct insert : public base_transform<0, 1>
         printf("insert{");
 
         //
-        print(up_lengths_);
+        printx(up_lengths_);
 
         printf("}");
     }
@@ -1158,7 +1158,7 @@ struct replicate : public base_transform<0, UpLengths::size()>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        printx(up_lengths_);
 
         printf("}");
     }
@@ -1245,17 +1245,17 @@ struct slice : public base_transform<1, 1>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        printx(up_lengths_);
         printf(", ");
 
         //
         printf("slice_begin_: ");
-        print(slice_begin_);
+        printx(slice_begin_);
         printf(", ");
 
         //
         printf("slice_end_: ");
-        print(slice_end_);
+        printx(slice_end_);
 
         printf("}");
     } // namespace ck
@@ -1335,7 +1335,7 @@ struct modulo : public base_transform<1, 1>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        printx(up_lengths_);
 
         printf("}");
     }
@@ -1431,7 +1431,7 @@ struct xor_t : public base_transform<2, 2>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        printx(up_lengths_);
         printf(", ");
 
         printf("}");
@@ -1516,12 +1516,12 @@ struct offset : public base_transform<1, 1>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        printx(up_lengths_);
         printf(", ");
 
         //
         printf("offset_length_: ");
-        print(offset_length_);
+        printx(offset_length_);
 
         printf("}");
     }
@@ -1602,7 +1602,7 @@ struct indexing : public base_transform<1, 1>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        printx(up_lengths_);
         printf(", ");
 
         printf("}");
