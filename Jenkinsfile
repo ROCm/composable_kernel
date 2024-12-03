@@ -595,18 +595,18 @@ def Build_CK(Map conf=[:]){
                     sh 'rocminfo | tee rocminfo.log'
                     if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') || runShell('grep -n "gfx1201" rocminfo.log') || runShell('grep -n "gfx942" rocminfo.log') ){
                         do_perf_tests = 1
-                        echo "Stash profiler and run performance tests"
+                        echo "Run performance tests"
                     }
                     cmake_build(conf)
                     dir("build"){
                         //run tests and examples
                         //sh 'make -j check'
-                        if (params.RUN_PERFORMANCE_TESTS && do_perf_tests == 0 ){
+                        //if (params.RUN_PERFORMANCE_TESTS && do_perf_tests == 0 ){
                             //we only need the ckProfiler to run the performance tests, so we pack and stash it
                             //do not stash profiler on nodes where we don't need to run performance tests
-                            sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
-                            stash name: "ckProfiler.tar.gz"
-                        }
+                            //sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
+                            //stash name: "ckProfiler.tar.gz"
+                        //}
                         if (params.RUN_FULL_QA && do_perf_tests == 0 ){
                             // build deb packages for all gfx9 targets and prepare to export
                             sh 'make -j package'
@@ -614,6 +614,53 @@ def Build_CK(Map conf=[:]){
                             archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
                             sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
                             stash name: "ckprofiler_0.2.0_amd64.deb"
+                        }
+                    }
+                    // run performance tests
+					dir("script"){
+                        if (params.RUN_PERFORMANCE_TESTS && do_perf_tests == 0 ){
+                        if (params.RUN_FULL_QA){
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            archiveArtifacts "perf_gemm.log"
+                            archiveArtifacts "perf_resnet50_N256.log"
+                            archiveArtifacts "perf_resnet50_N4.log"
+                            archiveArtifacts "perf_batched_gemm.log"
+                            archiveArtifacts "perf_grouped_gemm.log"
+                            archiveArtifacts "perf_grouped_conv_fwd.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_data.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_weight.log"
+                            archiveArtifacts "perf_gemm_bilinear.log"
+                            archiveArtifacts "perf_reduction.log"
+                            archiveArtifacts "perf_splitK_gemm.log"
+                            archiveArtifacts "perf_onnx_gemm.log"
+                            archiveArtifacts "perf_mixed_gemm.log"
+                           // stash perf files to master
+                            stash name: "perf_gemm.log"
+                            stash name: "perf_resnet50_N256.log"
+                            stash name: "perf_resnet50_N4.log"
+                            stash name: "perf_batched_gemm.log"
+                            stash name: "perf_grouped_gemm.log"
+                            stash name: "perf_grouped_conv_fwd.log"
+                            stash name: "perf_grouped_conv_bwd_data.log"
+                            stash name: "perf_grouped_conv_bwd_weight.log"
+                            stash name: "perf_gemm_bilinear.log"
+                            stash name: "perf_reduction.log"
+                            stash name: "perf_splitK_gemm.log"
+                            stash name: "perf_onnx_gemm.log"
+                            stash name: "perf_mixed_gemm.log"
+                            //we will process results on the master node
+                        }
+                        else{
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            archiveArtifacts "perf_gemm.log"
+                            archiveArtifacts "perf_resnet50_N256.log"
+                            archiveArtifacts "perf_resnet50_N4.log"
+                            // stash perf files to master
+                            stash name: "perf_gemm.log"
+                            stash name: "perf_resnet50_N256.log"
+                            stash name: "perf_resnet50_N4.log"
+                            //we will process the results on the master node
+                        }
                         }
                     }
                     if (params.hipTensor_test && do_perf_tests == 0 ){
@@ -1241,28 +1288,28 @@ pipeline {
             }
         }
 
-        stage("Performance Tests")
-        {
-            parallel
-            {
-                stage("Run ckProfiler: gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_PERFORMANCE_TESTS.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
-                    }
-                    options { retry(1) }
-                    agent{ label rocmnode("gfx90a")}
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                    }
-                    steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
-                        cleanWs()
-                    }
-                }
-            }
-        }
+        //stage("Performance Tests")
+        //{
+        //    parallel
+        //    {
+        //        stage("Run ckProfiler: gfx90a")
+        //        {
+        //            when {
+        //                beforeAgent true
+        //                expression { params.RUN_PERFORMANCE_TESTS.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+        //            }
+        //            options { retry(1) }
+        //            agent{ label rocmnode("gfx90a")}
+        //            environment{
+        //                setup_args = "NO_CK_BUILD"
+        //            }
+        //            steps{
+        //                runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+        //                cleanWs()
+        //            }
+        //        }
+        //    }
+        //}
         stage("Process Performance Test Results")
         {
             parallel
