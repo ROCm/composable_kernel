@@ -29,6 +29,7 @@ The current CK library is structured into four layers:
 * [CK supported operations](include/ck/README.md)
 * [CK Tile supported operations](include/ck_tile/README.md)
 * [CK wrapper](client_example/25_wrapper/README.md)
+* [CK codegen](codegen/README.md)
 * [CK profiler](profiler/README.md)
 * [Examples (Custom use of CK supported operations)](example/README.md)
 * [Client examples (Use of CK supported operations with instance factory)](client_example/README.md)
