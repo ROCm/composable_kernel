@@ -79,6 +79,26 @@ store_tile(tile_window_with_static_distribution<BottomTensorView_,
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
+          typename LinearBottomDims_,
+          typename DataType_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true>
+CK_TILE_DEVICE void 
+store_tile(const tile_window_linear<BottomTensorView_,
+                                    WindowLengths_,
+                                    TileDistribution_,
+                                    LinearBottomDims_>& tile_window,
+           const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor,
+           number<i_access>                     = {},
+           bool_constant<oob_conditional_check> = {})
+{
+    tile_window.store(dstr_tensor, number<i_access>{}, bool_constant<oob_conditional_check>{});
+}
+
+
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
           index_t NumCoord,
           typename DataType_>
 CK_TILE_DEVICE void
