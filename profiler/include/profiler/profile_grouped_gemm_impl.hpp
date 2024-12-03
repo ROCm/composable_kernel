@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -17,7 +17,6 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/utility/fill.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
@@ -42,11 +41,14 @@ bool profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& StrideAs,
                                const std::vector<int>& StrideBs,
                                const std::vector<int>& StrideCs,
-                               int kbatch   = 1,
-                               int n_warmup = 1,
-                               int n_iter   = 10)
+                               const std::vector<int>& kbatches = {},
+                               int n_warmup                     = 1,
+                               int n_iter                       = 10)
 {
     bool pass = true;
+    // TODO: Fixme - we do not pass compute data type here but need it
+    // to compute error thresholds.
+    using ComputeDataType = ADataType;
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -75,6 +77,7 @@ bool profile_grouped_gemm_impl(int do_verification,
     std::vector<Tensor<CDataType>> c_m_n_host_results;
     std::vector<Tensor<CDataType>> c_m_n_device_results;
 
+    ComputeDataType max_abs_in_val = 0.f;
     for(std::size_t i = 0; i < group_count; i++)
     {
         a_m_k.push_back(
@@ -93,17 +96,18 @@ bool profile_grouped_gemm_impl(int do_verification,
                       << i << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
                       << "]:" << c_m_n_device_results[i].mDesc << std::endl;
         }
-        std::size_t num_thread = 1;
         switch(init_method)
         {
         case 0: break;
         case 1:
-            a_m_k[i].GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}, num_thread);
-            b_k_n[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
+            ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k[i]);
+            ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n[i]);
+            max_abs_in_val = 2.f;
             break;
         default:
-            a_m_k[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}, num_thread);
-            b_k_n[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
+            ck::utils::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k[i]);
+            ck::utils::FillUniformDistribution<BDataType>{-0.5f, 0.5f}(b_k_n[i]);
+            max_abs_in_val = 0.5f;
         }
     }
 
@@ -164,7 +168,20 @@ bool profile_grouped_gemm_impl(int do_verification,
                                                                      BElementOp,
                                                                      CElementOp>;
 
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+    // If kbatch would be bigger than 1, then we will use SplitK version.
+    using DeviceOpSplitK = ck::tensor_operation::device::DeviceGroupedGemmSplitK<ALayout,
+                                                                                 BLayout,
+                                                                                 ck::Tuple<>,
+                                                                                 CLayout,
+                                                                                 ADataType,
+                                                                                 BDataType,
+                                                                                 ck::Tuple<>,
+                                                                                 CDataType,
+                                                                                 AElementOp,
+                                                                                 BElementOp,
+                                                                                 CElementOp>;
+
+    auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
     if(op_ptrs.size() <= 0)
@@ -205,7 +222,6 @@ bool profile_grouped_gemm_impl(int do_verification,
             ref_invoker.Run(ref_argument);
         }
     }
-
     // profile device GEMM instances
     for(auto& gemm_ptr : op_ptrs)
     {
@@ -221,43 +237,44 @@ bool profile_grouped_gemm_impl(int do_verification,
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
-        DeviceMem gemm_desc_workspace(gemm_ptr->GetWorkSpaceSize(argument_ptr.get()));
+        std::size_t workspace_size = gemm_ptr->GetWorkSpaceSize(argument_ptr.get());
+        std::size_t kargs_size     = gemm_ptr->GetDeviceKernelArgSize(argument_ptr.get());
 
-        gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
-        std::string gemm_name = gemm_ptr->GetTypeString();
+        DeviceMem gemm_workspace, gemm_kargs;
 
-        using DeviceOpSplitK = ck::tensor_operation::device::DeviceGroupedGemmSplitK<ALayout,
-                                                                                     BLayout,
-                                                                                     ck::Tuple<>,
-                                                                                     CLayout,
-                                                                                     ADataType,
-                                                                                     BDataType,
-                                                                                     ck::Tuple<>,
-                                                                                     CDataType,
-                                                                                     AElementOp,
-                                                                                     BElementOp,
-                                                                                     CElementOp>;
-
-        // skip non-splitk grouped_gemm
-        if(dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get()) == nullptr)
+        // The following is necessary since TwoStage kernel is using additional memory both
+        // for Workspace and kernel arguments.
+        if(kargs_size > 0)
         {
-            continue;
+            gemm_kargs.Realloc(kargs_size);
+            gemm_ptr->SetDeviceKernelArgs(argument_ptr.get(), gemm_kargs.GetDeviceBuffer());
         }
+        if(workspace_size > 0 && workspace_size != kargs_size)
+        {
+            gemm_workspace.Realloc(workspace_size);
+            gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_workspace.GetDeviceBuffer());
+        }
+
+        std::string gemm_name = gemm_ptr->GetTypeString();
 
         std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 20, 24, 32, 48, 64};
 
-        if(kbatch > 0)
+        // If the user will provide not empty kbatches list, then we test predefined set of kbatch
+        // values.
+        if(!kbatches.empty())
         {
-            kbatch_list = {kbatch};
+            kbatch_list = kbatches;
         }
 
         for(std::size_t j = 0; j < kbatch_list.size(); j++)
         {
-
             auto kbatch_curr = kbatch_list[j];
 
-            dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())
-                ->SetKBatchSize(argument_ptr.get(), kbatch_curr);
+            if(kbatch_curr > 1 && dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get()) != nullptr)
+            {
+                dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())
+                    ->SetKBatchSize(argument_ptr.get(), kbatch_curr);
+            }
 
             if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
             {
@@ -272,23 +289,18 @@ bool profile_grouped_gemm_impl(int do_verification,
                     bool instance_pass = true;
                     for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     {
-
                         c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());
+                        auto atol = ck::utils::get_absolute_threshold<ComputeDataType, CDataType>(
+                            max_abs_in_val, gemm_descs[i].K_);
+                        auto rtol = ck::utils::get_relative_threshold<ComputeDataType, CDataType>(
+                            gemm_descs[i].K_);
 
-                        if(std::is_same_v<CDataType, ck::half_t> && kbatch_curr > 1)
-                        {
-                            instance_pass =
-                                instance_pass && ck::utils::check_err(c_m_n_device_results[i],
-                                                                      c_m_n_host_results[i],
-                                                                      "Error: Incorrect results!",
-                                                                      0.06);
-                        }
-                        else
-                        {
-                            instance_pass =
-                                instance_pass && ck::utils::check_err(c_m_n_device_results[i],
-                                                                      c_m_n_host_results[i]);
-                        }
+                        instance_pass =
+                            instance_pass && ck::utils::check_err(c_m_n_device_results[i],
+                                                                  c_m_n_host_results[i],
+                                                                  "Error: Incorrect results!",
+                                                                  rtol,
+                                                                  atol);
 
                         if(do_log)
                         {
@@ -311,11 +323,12 @@ bool profile_grouped_gemm_impl(int do_verification,
                     pass = pass && instance_pass;
                 }
 
-                float ave_time = invoker_ptr->Run(
-                    argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
-
                 if(time_kernel)
                 {
+                    float ave_time =
+                        invoker_ptr->Run(argument_ptr.get(),
+                                         StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
+
                     std::size_t flop = 0, num_btype = 0;
                     for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     {

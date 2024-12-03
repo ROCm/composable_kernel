@@ -15,4 +15,4 @@ add_subdirectory(12_smoothquant)
 add_subdirectory(13_moe_sorting)
 add_subdirectory(14_moe_smoothquant)
 add_subdirectory(15_fused_moe)
-
+add_subdirectory(16_batched_gemm)
