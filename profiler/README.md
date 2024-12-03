@@ -1,3 +1,5 @@
+[Back to the main page](../README.md)
+# Composable Kernel profiler
 ## Profile GEMM kernels
 ```bash
 #arg1: tensor operation (gemm=GEMM)

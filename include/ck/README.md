@@ -1,4 +1,5 @@
-# CK supported operations
+[Back to the main page](../../README.md)
+# Composable Kernel supported operations
 ## Supported device operations
 * [Average pooling]()
 * [Batched contraction]()

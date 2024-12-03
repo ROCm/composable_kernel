@@ -36,14 +36,6 @@ The current CK library is structured into four layers:
 * [Terminology](/TERMINOLOGY.md)
 * [Contributors](/CONTRIBUTORS.md)
 
-```note
-If you use CK, cite us as follows:
-
-* [Realizing Tensor Operators Using Coordinate Transformations and Tile Based Programming](???):
-  This paper will be available on arXiv soon.
-* [CITATION.cff](/CITATION.cff)
-```
-
 CK is released under the **[MIT license](/LICENSE)**.
 
 ## Building CK
