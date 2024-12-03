@@ -1,13 +1,14 @@
 #!/bin/bash 
 #
 # in order to run this script you'd first need to build the ckProfiler executable in ../build/bin/
-# run the script as "./run_gemm_performance_tests.sh <verification> <tag for your test environment> <branch name> < node name>
+# run the script as "./run_gemm_performance_tests.sh <verification> <tag for your test environment> <branch name> <node name> <arch>
 # input arguments: 
 # verification = 0 : do not verify result correctness on CPU
 #              = 1 : verify correctness on CPU (may take a long time)
 # environment tag  : a string describing the specifics of your test environment
 # branch name      : name of the branch in git repo (git status | grep -e 'On branch')
 # node name        : $hostname
+# arch             : GPU architecture, e.g. "gfx9" or "gfx1100"
 
 #get the command line arguments:
 export verify=$1
@@ -18,6 +19,8 @@ export branch=$3
 echo 'Branch name: ' $branch
 export host_name=$4
 echo 'Host name: ' $host_name
+export arch=$5
+echo 'GPU architecture: ' $arch
 
 function print_log_header(){
 	rm -f $1;
@@ -32,7 +35,7 @@ function print_log_header(){
 }
 
 #run gemm tests
-export gemm_log="perf_gemm.log"
+export gemm_log="perf_gemm_$arch.log"
 print_log_header $gemm_log $env_type $branch $host_name
 ./profile_gemm.sh gemm 0 0 $verify 1 0 1 | tee -a $gemm_log
 ./profile_gemm.sh gemm 1 0 $verify 1 0 1 | tee -a $gemm_log

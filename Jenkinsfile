@@ -549,12 +549,19 @@ def Build_CK(Map conf=[:]){
                             stash name: "perf_grouped_conv_bwd_data_fp16.log"
                             stash name: "perf_grouped_conv_bwd_weight_fp16.log"
                         }
-                        else if ( arch_type == 4 || arch_type == 5 ){
-                            // run basic tests on gfx11/gfx12
+                        else if ( arch_type == 4){
+                            // run basic tests on gfx11
                             echo "Run gemm performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm.log"
-                            stash name: "perf_gemm.log"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx11"
+                            archiveArtifacts "perf_gemm_gfx11.log"
+                            stash name: "perf_gemm_gfx11.log"
+                        }
+                        else if ( arch_type == 5 ){
+                            // run basic tests on gfx12
+                            echo "Run gemm performance tests"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx12"
+                            archiveArtifacts "perf_gemm_gfx12.log"
+                            stash name: "perf_gemm_gfx12.log"
                         }                        
                         }
                     }
@@ -657,6 +664,13 @@ def process_results(Map conf=[:]){
                         unstash "perf_splitK_gemm.log"
                         unstash "perf_onnx_gemm.log"
                         unstash "perf_mixed_gemm.log"
+                        try{
+                            unstash "perf_gemm_gfx11.log"
+                            unstash "perf_gemm_gfx12.log"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
+                        }
                         sh "./process_qa_data.sh"
                     }
                     else{
@@ -664,6 +678,13 @@ def process_results(Map conf=[:]){
                         unstash "perf_gemm.log"
                         unstash "perf_resnet50_N256.log"
                         unstash "perf_resnet50_N4.log"
+                        try{
+                            unstash "perf_gemm_gfx11.log"
+                            unstash "perf_gemm_gfx12.log"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
+                        }
                         sh "./process_perf_data.sh"
                     }
                 }
