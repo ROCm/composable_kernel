@@ -320,14 +320,13 @@ class FmhaFwdSplitKVApiTrait:
 
     @property
     def dcheck(self) -> str:
+        vec = int((32 * 4) / DTYPE_BITS[self.dtype])
         if self.pipeline_tag == 'qr_async':
-            vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dpad == 't': return f'a.hdim_q % {vec} == 0'
             else :               assert False
         elif self.pipeline_tag in ['qr']:
-            bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
-            if self.dpad == 't': return f'true /*a.hdim_q % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :               return f'a.hdim_q % {bk0submax} == 0'
+            if self.dpad == 't': return f'true /*a.hdim_q % {vec} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
+            else :               return f'a.hdim_q % {vec} == 0'
         else:   assert False
 
     @property
@@ -630,6 +629,9 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                 # if True:
                     pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
                     pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
+
+                    pipelines.append(Pipeline('qr', 'row', 't', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'col', 't', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
 
                     pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
                     pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))

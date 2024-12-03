@@ -191,14 +191,13 @@ class FmhaFwdApiTrait:
 
     @property
     def dcheck(self) -> str:
+        vec = int((32 * 4) / DTYPE_BITS[self.dtype])
         if self.pipeline_tag == 'qr_async':
-            vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dpad == 't': return f'a.hdim_q % {vec} == 0'
             else :               assert False
         elif self.pipeline_tag in ['qr']:
-            bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
-            if self.dpad == 't': return f'true /*a.hdim_q % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :               return f'a.hdim_q % {bk0submax} == 0'
+            if self.dpad == 't': return f'true /*a.hdim_q % {vec} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
+            else :               return f'a.hdim_q % {vec} == 0'
         else:   assert False
 
     @property
@@ -440,6 +439,9 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                 # if True:
                     pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', bias, lse, dropout, squant, mask))
                     pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, lse, dropout, squant, mask))
+
+                    pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 'f', 'f', bias, lse, dropout, squant, mask))
+                    pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 'f', 'f', bias, lse, dropout, squant, mask))
 
                     pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', bias, lse, dropout, squant, mask))
                     pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', bias, lse, dropout, squant, mask))

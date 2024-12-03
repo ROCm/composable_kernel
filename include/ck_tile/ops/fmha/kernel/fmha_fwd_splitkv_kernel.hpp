@@ -623,14 +623,14 @@ struct FmhaFwdSplitKVKernel
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kSubQKHeaddim>{}),
-                    sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                    sequence<false, true>{});
             }
             else
             {
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0>{}),
-                    sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                    sequence<false, true>{});
             }
         }();
 
@@ -645,7 +645,7 @@ struct FmhaFwdSplitKVKernel
             return pad_tensor_view(
                 k_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
-                sequence<kPadSeqLenK, kPadHeadDimQ>{});
+                sequence<false, kPadHeadDimQ>{});
         };
         const auto k_dram = [&]() {
             if constexpr(kIsPagedKV)
