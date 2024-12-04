@@ -17,12 +17,16 @@
 #include "grouped_gemm.hpp"
 #include "utils.hpp"
 
+template <typename TType>
+constexpr std::size_t GetWorkspaceSize(const std::vector<TType>& gemm_descs)
+{
+    return ck_tile::GetWorkSpaceSize<TType>(gemm_descs);
+}
+
 template <typename ALayout, typename BLayout, typename CLayout>
-float gemm_calc(std::vector<const void*>& a_m_k_dev_buf,
-                std::vector<const void*>& b_k_n_dev_buf,
-                std::vector<void*>& c_m_n_dev_buf,
-                const std::vector<ck_tile::GroupedGemmDesc>& gemm_descs,
-                const ck_tile::stream_config& s)
+float grouped_gemm_calc(const std::vector<grouped_gemm_kargs>& gemm_descs,
+                        const ck_tile::stream_config& s,
+                        void* p_workspace_)
 {
     constexpr bool kPadM        = false;
     constexpr bool kPadN        = false;
@@ -83,33 +87,17 @@ float gemm_calc(std::vector<const void*>& a_m_k_dev_buf,
 
     using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
 
-    auto arguments = Kernel::MakeKargs(a_m_k_dev_buf, b_k_n_dev_buf, c_m_n_dev_buf, gemm_descs);
+    auto arguments = Kernel::MakeKargs(gemm_descs);
 
-    std::size_t workspace_size = Kernel::GetWorkSpaceSize(&arguments);
-    std::size_t kargs_size     = Kernel::GetDeviceKernelArgSize(&arguments);
-
-    ck_tile::DeviceMem gemm_workspace, gemm_kargs;
-
-    if(kargs_size > 0)
-    {
-        gemm_kargs.Realloc(kargs_size);
-        Kernel::SetDeviceKernelArgs(&arguments, gemm_kargs.GetDeviceBuffer());
-    }
-    if(workspace_size > 0 && workspace_size != kargs_size)
-    {
-        gemm_workspace.Realloc(workspace_size);
-        Kernel::SetWorkSpacePointer(&arguments, gemm_workspace.GetDeviceBuffer());
-    }
-
-    const dim3 grids      = Kernel::GridSize(arguments);
+    const dim3 grids      = Kernel::GridSize(gemm_descs);
     constexpr dim3 blocks = Kernel::BlockSize();
 
-    ck_tile::hip_check_error(hipMemcpyWithStream(arguments.p_workspace_,
-                                                 arguments.gemm_kernel_args_.data(),
-                                                 arguments.gemm_kernel_args_.size() *
-                                                     sizeof(typename Kernel::GemmTransKernelArg),
-                                                 hipMemcpyHostToDevice,
-                                                 s.stream_id_));
+    ck_tile::hip_check_error(
+        hipMemcpyWithStream(p_workspace_,
+                            arguments.data(),
+                            arguments.size() * sizeof(ck_tile::GemmTransKernelArg),
+                            hipMemcpyHostToDevice,
+                            s.stream_id_));
 
     if(s.log_level_ > 0)
     {
@@ -119,9 +107,15 @@ float gemm_calc(std::vector<const void*>& a_m_k_dev_buf,
                   << std::endl;
     }
 
-    float ave_time = ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, arguments));
-
+    float ave_time =
+        ck_tile::launch_kernel(s,
+                               ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                                   Kernel{},
+                                   grids,
+                                   blocks,
+                                   0,
+                                   ck_tile::cast_pointer_to_constant_address_space(p_workspace_),
+                                   gemm_descs.size()));
     return ave_time;
 }
 

@@ -49,7 +49,7 @@ struct GemmTile1DPartitioner
     {
         index_t GridDimX = (M + MPerBlock - 1) / MPerBlock;
         index_t GridDimY = (N + NPerBlock - 1) / NPerBlock;
-        return dim3(GridDimX * GridDimY, 1, 1);
+        return dim3(GridDimX, GridDimY, 1);
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K)
