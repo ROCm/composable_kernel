@@ -11,9 +11,9 @@ float invoke_gemm(int n_warmup,
 {
 
     ck_tile::DeviceMem gemm_workspace;
-    gemm_workspace.Realloc(GetWorkspaceSize<grouped_gemm_kargs>(args));
+    gemm_workspace.Realloc(GetWorkspaceSize(args));
 
-    float ave_time = grouped_gemm_calc<ALayout, BLayout, CLayout>(
+    float ave_time = grouped_gemm<ALayout, BLayout, CLayout>(
         args,
         ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
         gemm_workspace.GetDeviceBuffer());
@@ -133,7 +133,6 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const void* p_a = a_m_k_dev_buf[i]->GetDeviceBuffer();
         const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
         void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
-        ;
 
         gemm_descs.push_back({p_a, p_b, p_c, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
     }

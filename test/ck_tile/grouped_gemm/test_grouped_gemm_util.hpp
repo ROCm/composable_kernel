@@ -24,105 +24,112 @@ class TestCkTileGroupedGemm : public ::testing::Test
     using AccDataType = std::tuple_element_t<5, Tuple>;
     using CDataType   = std::tuple_element_t<6, Tuple>;
 
-    struct batched_gemm_kargs : public ck_tile::BatchedGemmHostArgs
+    struct GroupedGemKernelParam
     {
+        static const bool kPadM        = false;
+        static const bool kPadN        = false;
+        static const bool kPadK        = false;
+        static const bool kTilePermute = false;
+
+        static const ck_tile::index_t kOutputRank = 2;
+
+        static const int kBlockPerCu         = 1;
+        static const ck_tile::index_t M_Tile = 128;
+        static const ck_tile::index_t N_Tile = 128;
+        static const ck_tile::index_t K_Tile = 32;
+
+        static const ck_tile::index_t M_Warp = 2;
+        static const ck_tile::index_t N_Warp = 2;
+        static const ck_tile::index_t K_Warp = 1;
+
+        static const ck_tile::index_t M_Warp_Tile = 32;
+        static const ck_tile::index_t N_Warp_Tile = 32;
+        static const ck_tile::index_t K_Warp_Tile = 8;
     };
 
+    using CodegenGemmShape =
+        ck_tile::TileGemmShape<ck_tile::sequence<GroupedGemKernelParam::M_Tile,
+                                                 GroupedGemKernelParam::N_Tile,
+                                                 GroupedGemKernelParam::K_Tile>,
+                               ck_tile::sequence<GroupedGemKernelParam::M_Warp,
+                                                 GroupedGemKernelParam::N_Warp,
+                                                 GroupedGemKernelParam::K_Warp>,
+                               ck_tile::sequence<GroupedGemKernelParam::M_Warp_Tile,
+                                                 GroupedGemKernelParam::N_Warp_Tile,
+                                                 GroupedGemKernelParam::K_Warp_Tile>>;
+
+    using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
+
+    template <typename CLayout>
+    using GemmEpilogue =
+        std::conditional_t<std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>,
+                           ck_tile::CShuffleEpilogue<
+                               ck_tile::CShuffleEpilogueProblem<AccDataType,
+                                                                CDataType,
+                                                                GroupedGemKernelParam::kPadM,
+                                                                GroupedGemKernelParam::kPadN,
+                                                                GroupedGemKernelParam::kTilePermute,
+                                                                GroupedGemKernelParam::kOutputRank,
+                                                                1,
+                                                                0,
+                                                                TilePartitioner::MPerBlock,
+                                                                TilePartitioner::NPerBlock>>,
+                           ck_tile::Default2DEpilogue<
+                               ck_tile::Default2DEpilogueProblem<AccDataType,
+                                                                 CDataType,
+                                                                 GroupedGemKernelParam::kPadM,
+                                                                 GroupedGemKernelParam::kPadN>>>;
+
     template <typename ALayout, typename BLayout, typename CLayout>
-    void invoke_grouped_gemm(std::vector<const void*>& a_m_k_dev_buf,
-                             std::vector<const void*>& b_k_n_dev_buf,
-                             std::vector<void*>& c_m_n_dev_buf,
-                             const std::vector<ck_tile::GroupedGemmDesc>& gemm_descs,
-                             const ck_tile::stream_config& s)
+    using CodegenGemmTraits = ck_tile::TileGemmTraits<GroupedGemKernelParam::kPadM,
+                                                      GroupedGemKernelParam::kPadN,
+                                                      GroupedGemKernelParam::kPadK,
+                                                      ALayout,
+                                                      BLayout,
+                                                      CLayout>;
+
+    template <typename ALayout, typename BLayout, typename CLayout>
+    using CodegenPipelineProblem =
+        ck_tile::GemmPipelineProblem<ADataType,
+                                     BDataType,
+                                     AccDataType,
+                                     CodegenGemmShape,
+                                     CodegenGemmTraits<ALayout, BLayout, CLayout>>;
+
+    using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;
+
+    template <typename ALayout, typename BLayout, typename CLayout>
+    using CodegenGemmPipeline =
+        ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem<ALayout, BLayout, CLayout>,
+                                              CodegenGemmPolicy>;
+
+    template <typename ALayout, typename BLayout, typename CLayout>
+    using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner,
+                                              CodegenGemmPipeline<ALayout, BLayout, CLayout>,
+                                              GemmEpilogue<CLayout>>;
+
+    using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
+    std::size_t GetWorkspaceSize(const std::vector<grouped_gemm_kargs>& gemm_descs)
     {
-        constexpr bool kPadM        = false;
-        constexpr bool kPadN        = false;
-        constexpr bool kPadK        = false;
-        constexpr bool kTilePermute = false;
+        return Kernel<std::nullptr_t, std::nullptr_t, std::nullptr_t>::GetWorkSpaceSize(gemm_descs);
+    }
 
-        constexpr ck_tile::index_t kOutputRank = 2;
+    template <typename ALayout, typename BLayout, typename CLayout>
+    void invoke_grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
+                             const ck_tile::stream_config& s,
+                             void* p_workspace_)
+    {
+        using GroupedGemmKernel = Kernel<ALayout, BLayout, CLayout>;
 
-        constexpr int kBlockPerCu = 1;
+        auto arguments = GroupedGemmKernel::MakeKargs(gemm_descs);
 
-        // This part comes from the Codegen
-        constexpr ck_tile::index_t M_Tile = 128;
-        constexpr ck_tile::index_t N_Tile = 128;
-        constexpr ck_tile::index_t K_Tile = 32;
-
-        constexpr ck_tile::index_t M_Warp = 2;
-        constexpr ck_tile::index_t N_Warp = 2;
-        constexpr ck_tile::index_t K_Warp = 1;
-
-        constexpr ck_tile::index_t M_Warp_Tile = 32;
-        constexpr ck_tile::index_t N_Warp_Tile = 32;
-        constexpr ck_tile::index_t K_Warp_Tile = 8;
-
-        constexpr bool CShuffleEpilogue =
-            std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>;
-
-        using CodegenGemmShape =
-            ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
-                                   ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
-                                   ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
-
-        using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
-
-        using GemmEpilogue = std::conditional_t<
-            CShuffleEpilogue,
-            ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
-                                                                       CDataType,
-                                                                       kPadM,
-                                                                       kPadN,
-                                                                       kTilePermute,
-                                                                       kOutputRank,
-                                                                       1,
-                                                                       0,
-                                                                       TilePartitioner::MPerBlock,
-                                                                       TilePartitioner::NPerBlock>>,
-            ck_tile::Default2DEpilogue<
-                ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
-
-        using CodegenGemmTraits =
-            ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-
-        using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
-                                                                    BDataType,
-                                                                    AccDataType,
-                                                                    CodegenGemmShape,
-                                                                    CodegenGemmTraits>;
-
-        using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;
-        using CodegenGemmPipeline =
-            ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenGemmPolicy>;
-
-        using Kernel =
-            ck_tile::GroupedGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
-
-        auto arguments = Kernel::MakeKargs(a_m_k_dev_buf, b_k_n_dev_buf, c_m_n_dev_buf, gemm_descs);
-
-        std::size_t workspace_size = Kernel::GetWorkSpaceSize(&arguments);
-        std::size_t kargs_size     = Kernel::GetDeviceKernelArgSize(&arguments);
-
-        ck_tile::DeviceMem gemm_workspace, gemm_kargs;
-
-        if(kargs_size > 0)
-        {
-            gemm_kargs.Realloc(kargs_size);
-            Kernel::SetDeviceKernelArgs(&arguments, gemm_kargs.GetDeviceBuffer());
-        }
-        if(workspace_size > 0 && workspace_size != kargs_size)
-        {
-            gemm_workspace.Realloc(workspace_size);
-            Kernel::SetWorkSpacePointer(&arguments, gemm_workspace.GetDeviceBuffer());
-        }
-
-        const dim3 grids      = Kernel::GridSize(arguments);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        const dim3 grids      = GroupedGemmKernel::GridSize(gemm_descs);
+        constexpr dim3 blocks = GroupedGemmKernel::BlockSize();
 
         ck_tile::hip_check_error(hipMemcpyWithStream(
-            arguments.p_workspace_,
-            arguments.gemm_kernel_args_.data(),
-            arguments.gemm_kernel_args_.size() * sizeof(typename Kernel::GemmTransKernelArg),
+            p_workspace_,
+            arguments.data(),
+            arguments.size() * sizeof(typename GroupedGemmKernel::GemmTransKernelArg),
             hipMemcpyHostToDevice,
             s.stream_id_));
 
@@ -133,9 +140,14 @@ class TestCkTileGroupedGemm : public ::testing::Test
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                       << std::endl;
         }
-
-        ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, arguments));
+        ck_tile::launch_kernel(s,
+                               ck_tile::make_kernel<blocks.x, GroupedGemKernelParam::kBlockPerCu>(
+                                   GroupedGemmKernel{},
+                                   grids,
+                                   blocks,
+                                   0,
+                                   ck_tile::cast_pointer_to_constant_address_space(p_workspace_),
+                                   gemm_descs.size()));
     }
 
     public:
@@ -188,7 +200,15 @@ class TestCkTileGroupedGemm : public ::testing::Test
         b_k_n_tensors.reserve(group_count);
         c_m_n_tensors.reserve(group_count);
 
-        std::vector<ck_tile::GroupedGemmDesc> gemm_descs;
+        std::vector<std::unique_ptr<ck_tile::DeviceMem>> a_m_k_dev_buf;
+        std::vector<std::unique_ptr<ck_tile::DeviceMem>> b_k_n_dev_buf;
+        std::vector<std::unique_ptr<ck_tile::DeviceMem>> c_m_n_dev_buf;
+
+        a_m_k_dev_buf.reserve(group_count);
+        b_k_n_dev_buf.reserve(group_count);
+        c_m_n_dev_buf.reserve(group_count);
+
+        std::vector<grouped_gemm_kargs> gemm_descs;
         gemm_descs.reserve(group_count);
 
         for(int i = 0; i < group_count; ++i)
@@ -216,22 +236,6 @@ class TestCkTileGroupedGemm : public ::testing::Test
             ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k_tensors[i]);
             ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n_tensors[i]);
 
-            gemm_descs.push_back({M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
-        }
-
-        std::vector<std::unique_ptr<ck_tile::DeviceMem>> a_m_k_dev_buf;
-        std::vector<std::unique_ptr<ck_tile::DeviceMem>> b_k_n_dev_buf;
-        std::vector<std::unique_ptr<ck_tile::DeviceMem>> c_m_n_dev_buf;
-
-        a_m_k_dev_buf.reserve(group_count);
-        b_k_n_dev_buf.reserve(group_count);
-        c_m_n_dev_buf.reserve(group_count);
-
-        std::vector<const void*> p_a, p_b;
-        std::vector<void*> p_c;
-
-        for(int i = 0; i < group_count; ++i)
-        {
             a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
                 a_m_k_tensors[i].get_element_space_size_in_bytes()));
             b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
@@ -244,19 +248,26 @@ class TestCkTileGroupedGemm : public ::testing::Test
             c_m_n_dev_buf[i]->SetZero();
             c_m_n_tensors[i].SetZero();
 
-            p_a.push_back(a_m_k_dev_buf[i]->GetDeviceBuffer());
-            p_b.push_back(b_k_n_dev_buf[i]->GetDeviceBuffer());
-            p_c.push_back(c_m_n_dev_buf[i]->GetDeviceBuffer());
+            const void* p_a = a_m_k_dev_buf[i]->GetDeviceBuffer();
+            const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
+            void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
+
+            gemm_descs.push_back(
+                {p_a, p_b, p_c, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
         }
 
+        ck_tile::DeviceMem gemm_workspace;
+        gemm_workspace.Realloc(GetWorkspaceSize(gemm_descs));
+
         invoke_grouped_gemm<ALayout, BLayout, CLayout>(
-            p_a, p_b, p_c, gemm_descs, ck_tile::stream_config{nullptr, false});
+            gemm_descs, ck_tile::stream_config{nullptr, false}, gemm_workspace.GetDeviceBuffer());
 
         for(int i = 0; i < group_count; i++)
         {
             c_m_n_dev_buf[i]->FromDevice(c_m_n_tensors[i].data());
         }
-        bool pass = true;
+
+        bool pass{true};
         for(int i = 0; i < group_count; ++i)
         {
             ck_tile::HostTensor<CDataType> c_m_n_host_ref(

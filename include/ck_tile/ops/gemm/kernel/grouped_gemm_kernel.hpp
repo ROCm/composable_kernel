@@ -29,29 +29,6 @@ struct GroupedGemmHostArgs
     index_t stride_C;
 };
 
-struct GemmTransKernelArg
-{
-    GroupedGemmHostArgs group_karg;
-    ck_tile::index_t block_start;
-    ck_tile::index_t block_end;
-    ck_tile::index_t block_n0_size;
-
-    GemmTransKernelArg() = default;
-    GemmTransKernelArg(GroupedGemmHostArgs&& karg,
-                       index_t bl_start,
-                       index_t bl_end,
-                       index_t n0_size)
-        : group_karg{karg}, block_start{bl_start}, block_end{bl_end}, block_n0_size{n0_size}
-    {
-    }
-};
-
-template <typename TType>
-size_t GetWorkSpaceSize(const std::vector<TType>& gemm_descs)
-{
-    return gemm_descs.size() * sizeof(GemmTransKernelArg);
-}
-
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GroupedGemmKernel
 {
@@ -67,9 +44,33 @@ struct GroupedGemmKernel
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
+    struct GemmTransKernelArg
+    {
+        GroupedGemmHostArgs group_karg;
+        ck_tile::index_t block_start;
+        ck_tile::index_t block_end;
+        ck_tile::index_t block_n0_size;
+
+        GemmTransKernelArg() = default;
+        GemmTransKernelArg(GroupedGemmHostArgs&& karg,
+                           index_t bl_start,
+                           index_t bl_end,
+                           index_t n0_size)
+            : group_karg{karg}, block_start{bl_start}, block_end{bl_end}, block_n0_size{n0_size}
+        {
+        }
+    };
+
+    __host__ static size_t GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs>& gemm_descs)
+    {
+        return gemm_descs.size() * sizeof(GemmTransKernelArg);
+    }
+
     __host__ static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
-    __host__ static constexpr auto GridSize(const std::vector<GroupedGemmHostArgs>& gemm_descs)
+    using Hargs = GroupedGemmHostArgs;
+
+    __host__ static constexpr auto GridSize(const std::vector<Hargs>& gemm_descs)
     {
         index_t grid_size = 0;
         for(const auto& it_desc : gemm_descs)
@@ -80,7 +81,7 @@ struct GroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto MakeKargs(const std::vector<ck_tile::GroupedGemmHostArgs>& gemm_descs)
+    CK_TILE_HOST static auto MakeKargs(const std::vector<Hargs>& gemm_descs)
     {
         std::vector<GemmTransKernelArg> gemm_kernel_args_;
         index_t group_count = ck_tile::type_convert<ck_tile::index_t>(gemm_descs.size());
@@ -132,7 +133,7 @@ struct GroupedGemmKernel
     }
 
     CK_TILE_DEVICE void
-    Run(const GroupedGemmHostArgs& kargs, const index_t block_start, const index_t NBlock) const
+    Run(const Hargs& kargs, const index_t block_start, const index_t NBlock) const
     {
         const auto [i_m, i_n] = TilePartitioner{}(block_start, NBlock);
         // options

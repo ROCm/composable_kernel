@@ -46,6 +46,8 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
+std::size_t GetWorkspaceSize(const std::vector<grouped_gemm_kargs>& gemm_descs);
+
 float grouped_gemm_calc(const std::vector<grouped_gemm_kargs>& gemm_descs,
                         const ck_tile::stream_config& s,
                         void* p_workspace_);
