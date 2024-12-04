@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ck/ck.hpp"
+#include "ck/utility/enable_if.hpp"
 #include "ck/utility/random_gen.hpp"
 #include "ck/utility/type.hpp"
 
