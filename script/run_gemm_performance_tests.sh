@@ -34,22 +34,8 @@ function print_log_header(){
 	/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> $1;
 }
 
-#run gemm tests
-export gemm_log="perf_gemm_$arch.log"
-print_log_header $gemm_log $env_type $branch $host_name
-./profile_gemm.sh gemm 0 0 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 0 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 0 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 0 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 0 1 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 1 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 1 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 1 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 0 2 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 2 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 2 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 2 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 0 3 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 3 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 3 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 3 $verify 1 0 1 | tee -a $gemm_log
+#run ONNX gemm tests
+export onnx_log="perf_onnx_gemm_$arch.log"
+print_log_header $onnx_log $env_type $branch $host_name
+./profile_onnx_gemm.sh gemm 0 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
+./profile_onnx_gemm.sh gemm 1 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
