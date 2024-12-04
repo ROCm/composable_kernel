@@ -49,14 +49,10 @@ struct GroupedGemmKernel
         GroupedGemmHostArgs group_karg;
         ck_tile::index_t block_start;
         ck_tile::index_t block_end;
-        ck_tile::index_t block_n0_size;
 
         GemmTransKernelArg() = default;
-        GemmTransKernelArg(GroupedGemmHostArgs&& karg,
-                           index_t bl_start,
-                           index_t bl_end,
-                           index_t n0_size)
-            : group_karg{karg}, block_start{bl_start}, block_end{bl_end}, block_n0_size{n0_size}
+        GemmTransKernelArg(GroupedGemmHostArgs&& karg, index_t bl_start, index_t bl_end)
+            : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
         {
         }
     };
@@ -104,7 +100,7 @@ struct GroupedGemmKernel
             const index_t stride_c = gemm_descs[i].stride_C;
 
             const auto dim3             = TilePartitioner::GridSize(M, N);
-            const index_t grid_size_grp = dim3.x * dim3.y * 1;
+            const index_t grid_size_grp = dim3.x * 1 * 1;
 
             const index_t block_start = grid_size;
             const index_t block_end   = grid_size + grid_size_grp;
@@ -121,7 +117,7 @@ struct GroupedGemmKernel
                                             stride_b,
                                             stride_c};
 
-            gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end, dim3.y);
+            gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }
 
         return gemm_kernel_args_;
@@ -132,10 +128,9 @@ struct GroupedGemmKernel
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    CK_TILE_DEVICE void
-    Run(const Hargs& kargs, const index_t block_start, const index_t NBlock) const
+    CK_TILE_DEVICE void Run(const Hargs& kargs, const index_t block_start) const
     {
-        const auto [i_m, i_n] = TilePartitioner{}(block_start, NBlock);
+        const auto [i_m, i_n] = TilePartitioner{}(block_start, kargs.N);
         // options
         const ADataType* a_start = static_cast<const ADataType*>(kargs.a_ptr);
         const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr);
@@ -308,9 +303,7 @@ struct GroupedGemmKernel
             group_id = index_t((left + right) / 2);
         }
 
-        Run(gemm_desc_ptr[group_id].group_karg,
-            gemm_desc_ptr[group_id].block_start,
-            gemm_desc_ptr[group_id].block_n0_size);
+        Run(gemm_desc_ptr[group_id].group_karg, gemm_desc_ptr[group_id].block_start);
     }
 };
 

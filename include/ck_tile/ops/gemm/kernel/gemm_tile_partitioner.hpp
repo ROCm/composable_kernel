@@ -49,7 +49,12 @@ struct GemmTile1DPartitioner
     {
         index_t GridDimX = (M + MPerBlock - 1) / MPerBlock;
         index_t GridDimY = (N + NPerBlock - 1) / NPerBlock;
-        return dim3(GridDimX, GridDimY, 1);
+        return dim3(GridDimX * GridDimY, 1);
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetNBlock(index_t N)
+    {
+        return integer_divide_ceil(N, NPerBlock);
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K)
@@ -59,10 +64,10 @@ struct GemmTile1DPartitioner
 
     CK_TILE_DEVICE auto operator()(index_t blockOffset, index_t NBlockSize)
     {
-        index_t iM =
-            __builtin_amdgcn_readfirstlane((blockIdx.x - blockOffset) / NBlockSize * MPerBlock);
-        index_t iN =
-            __builtin_amdgcn_readfirstlane((blockIdx.x - blockOffset) % NBlockSize * NPerBlock);
+        index_t iM = __builtin_amdgcn_readfirstlane((blockIdx.x - blockOffset) /
+                                                    GetNBlock(NBlockSize) * MPerBlock);
+        index_t iN = __builtin_amdgcn_readfirstlane((blockIdx.x - blockOffset) %
+                                                    GetNBlock(NBlockSize) * NPerBlock);
         return make_tuple(iM, iN);
     }
 };
