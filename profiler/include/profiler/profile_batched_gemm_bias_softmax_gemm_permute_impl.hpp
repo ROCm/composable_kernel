@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -150,7 +150,7 @@ bool profile_batched_gemm_bias_softmax_gemm_permute_impl(bool do_verification,
         break;
     default:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Sequential<B0DataType, 1>{});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
         d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
     }
