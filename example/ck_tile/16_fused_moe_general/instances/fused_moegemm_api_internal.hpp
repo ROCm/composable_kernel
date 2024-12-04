@@ -19,8 +19,8 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
                                                typename Ts_::WarpPerBlock_0,
                                                typename Ts_::WarpTile_0,
                                                typename Ts_::BlockTile_1,
-                                               typename Ts_::WarpPerBlock_0,
-                                               typename Ts_::WarpTile_0>;
+                                               typename Ts_::WarpPerBlock_1,
+                                               typename Ts_::WarpTile_1>;
     using f_problem =
         ck_tile::FusedMoeGemmPipelineProblem<typename Ts_::ADataType,
                                              typename Ts_::GDataType,

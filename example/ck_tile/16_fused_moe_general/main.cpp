@@ -252,8 +252,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::FillUniformDistribution<TopkWeightDataType>{0.0f, 1.0f}(topk_weight_host);
 
     // permute weight
-    ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w, 1);
-    ck_tile::HostTensor<DDataType> d_perm_host = shuffle_moe_weight(d_host, prec_w, 1);
+    // ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w, 1);
+    // ck_tile::HostTensor<DDataType> d_perm_host = shuffle_moe_weight(d_host, prec_w, 1);
 
     // do moe sorting
     if(balance)
@@ -287,7 +287,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // std::cout << num_sorted_tiles_host << std::endl;
     // output_matrix_3d(g_host, experts, shared_intermediate_size_0, hidden_size);
     std::cout << sorted_expert_ids_host << std::endl;
-    // std::cout << topk_weight_host << std::endl;
+    std::cout << topk_weight_host << std::endl;
 
     // std::cout << sorted_weight_host << std::endl;
 
@@ -431,7 +431,7 @@ int main(int argc, char* argv[])
     // no dynamic quant case
     if(prec_i == "bf16" && prec_w == "bf16" && prec_o == "bf16" && prec_kw == "fp32")
     {
-        return run<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t, float, float, float, float>(
+        return run<ck_tile::fp16_t, ck_tile::fp16_t, ck_tile::fp16_t, float, float, float, float>(
                    arg_parser)
                    ? 0
                    : -2;

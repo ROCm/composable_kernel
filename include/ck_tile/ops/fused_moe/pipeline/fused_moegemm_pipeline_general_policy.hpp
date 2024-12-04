@@ -13,7 +13,7 @@
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_breg_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_breg_creg_v1.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1_custom_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2.hpp"
 
 namespace ck_tile {
 
@@ -230,7 +230,28 @@ struct FusedMoeGemmPipelineGeneralPolicy
                                                                     typename S_::WarpPerBlock_1,
                                                                     decltype(warp_gemm)>;
 
-        return BlockGemmARegBRegCRegV1<GemmProblem, BlockGemmPolicy>{};
+        return BlockGemmARegBRegCRegV2<GemmProblem, BlockGemmPolicy>{};
+    }
+
+    // this is used as A matrix for 2nd gemm
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeYTileDistribution()
+    {
+        using S_       = remove_cvref_t<typename Problem::BlockShape>;
+        using WarpGemm = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
+
+        constexpr auto y_outer_dstr_enc = tile_distribution_encoding<
+            sequence<1>,
+            tuple<sequence<S_::Repeat_M1, S_::WarpPerBlock_M1>, sequence<S_::WarpPerBlock_K1, S_::Repeat_K1>>,
+            tuple<sequence<1, 2>>,
+            tuple<sequence<1, 0>>,
+            sequence<1, 2>,
+            sequence<0, 1>>{};
+
+        constexpr auto y_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            y_outer_dstr_enc, typename WarpGemm::AWarpDstrEncoding{});
+        constexpr auto y_block_dstr = make_static_tile_distribution(y_block_dstr_encode);
+        return y_block_dstr;
     }
 
     template <typename Problem>
@@ -240,12 +261,12 @@ struct FusedMoeGemmPipelineGeneralPolicy
         using WarpGemm = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
 
         constexpr auto d_outer_dstr_enc = tile_distribution_encoding<
-            sequence<S_::WarpPerBlock_M1>,
-            tuple<sequence<S_::Repeat_N1, S_::WarpPerBlock_N1>, sequence<S_::Repeat_K1>>,
-            tuple<sequence<0, 1>>,
-            tuple<sequence<0, 1>>,
+            sequence<1>,
+            tuple<sequence<S_::Repeat_N1, S_::WarpPerBlock_N1>, sequence<S_::WarpPerBlock_K1, S_::Repeat_K1>>,
+            tuple<sequence<1, 2>>,
+            tuple<sequence<1, 0>>,
             sequence<1, 2>,
-            sequence<0, 0>>{};
+            sequence<0, 1>>{};
 
         constexpr auto d_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             d_outer_dstr_enc, typename WarpGemm::BWarpDstrEncoding{});
@@ -326,7 +347,15 @@ struct FusedMoeGemmPipelineGeneralPolicy
         // TODO: this is ugly
         constexpr auto wg_ctrl = WGAttrCtlEnum::Raw_avv;
         // TODO: ugly
-        if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::bf16_t> &&
+        if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::fp16_t> &&
+                     std::is_same_v<typename Problem::GDataType, ck_tile::fp16_t> &&
+                     S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 8)
+        {
+            return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+                WarpGemmAttributeMfmaImplF16F16F32M32N32K8<wg_ctrl>,
+                1>>{};
+        }
+        else if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::bf16_t> &&
                      std::is_same_v<typename Problem::GDataType, ck_tile::bf16_t> &&
                      S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 8)
         {
@@ -358,7 +387,15 @@ struct FusedMoeGemmPipelineGeneralPolicy
         using S_               = typename Problem::BlockShape;
         constexpr auto wg_ctrl = WGAttrCtlEnum::Raw_avv;
         // TODO: ugly
-        if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
+        if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::fp16_t> &&
+                     std::is_same_v<typename Problem::DDataType, ck_tile::fp16_t> &&
+                     S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 8)
+        {
+            return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+                WarpGemmAttributeMfmaImplF16F16F32M32N32K8<wg_ctrl>,
+                1>>{};
+        }
+        else if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
                      std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
                      S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 8)
         {
@@ -382,28 +419,6 @@ struct FusedMoeGemmPipelineGeneralPolicy
                 WarpGemmAttributeMfmaImpl_i32_32x32x16_i8<wg_ctrl>,
                 2>>{};
         }
-    }
-
-    // this is used as A matrix for 2nd gemm
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeYTileDistribution()
-    {
-        using S_       = remove_cvref_t<typename Problem::BlockShape>;
-        using WarpGemm = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
-
-        // TODO: all waves a along different N, but same M
-        constexpr auto y_outer_dstr_enc = tile_distribution_encoding<
-            sequence<S_::WarpPerBlock_N1>,
-            tuple<sequence<S_::Repeat_M1, S_::WarpPerBlock_M1>, sequence<S_::Repeat_K1>>,
-            tuple<sequence<1, 0>>,
-            tuple<sequence<1, 0>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
-
-        constexpr auto y_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            y_outer_dstr_enc, typename WarpGemm::AWarpDstrEncoding{});
-        constexpr auto y_block_dstr = make_static_tile_distribution(y_block_dstr_encode);
-        return y_block_dstr;
     }
 };
 } // namespace ck_tile
