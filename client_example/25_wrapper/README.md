@@ -1,14 +1,9 @@
+[Back to the main page](../../README.md)
 # Composable Kernel wrapper GEMM tutorial
 
-This tutorial demonstrates how to implement matrix multiplication using Composable Kernel (CK)
-wrapper. We present the base version of GEMM without most of the available optimizations; however,
-it's worth noting that CK has kernels with different optimizations.
+This tutorial demonstrates how to implement matrix multiplication using Composable Kernel (CK) wrapper. We present the base version of GEMM without most of the available optimizations; however, it's worth noting that CK has kernels with different optimizations.
 
-To implement these optimizations, you can use the CK wrapper or directly use available instances in
-CK. You can also refer to the
-[optimized GEMM example](https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_optimized_gemm.cpp),
-that uses CK wrapper based on the
-[`gridwise_gemm_xdlops_v2r3`](https://github.com/ROCm/composable_kernel/blob/develop/include/ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp) implementation.
+To implement these optimizations, you can use the CK wrapper or directly use available instances in CK. You can also refer to the [optimized GEMM example](https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_optimized_gemm.cpp), that uses CK wrapper based on the [`gridwise_gemm_xdlops_v2r3`](https://github.com/ROCm/composable_kernel/blob/develop/include/ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp) implementation.
 
 The kernel definition should look similar to:
 
