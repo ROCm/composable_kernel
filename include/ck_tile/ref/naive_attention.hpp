@@ -36,10 +36,10 @@ struct naive_attention_fwd_args
     void* k_ptr;
     void* v_ptr;
     void* o_ptr;
-    void* context_len_ptr; // used when seqlen kv come from a pointer(each element is a number, not
-                           // cumsum)
-    void* page_table_ptr;  // [batch, num_blocks] seqlen_kv is in different block(paged attn)
-    void* kvscale_ptr;     // [nhead, 2(kv), hdim] used for kvcache dequant
+    void* context_len_ptr; // [batch] used when seqlen kv come from a pointer(each element is a
+                           // number, not cumsum)
+    void* page_table_ptr; // [batch, num_blocks] seqlen_kv is in different block(paged attn)
+    void* kvscale_ptr;    // [nhead, 2(kv), hdim] used for kvcache dequant
     float scale_s;
     int hdim;
     int hdim_v; // could be cross-attn, where V and Q/K hdim are different
@@ -355,7 +355,6 @@ struct naive_attention_fwd_kernel
         v_addr.init(i_bk, i_hk);
         o_addr.init(i_bq, i_hq);
 
-        int seqlen_kv     = args.seqlen_kv;
         auto f_max        = [](auto x_, auto y_) { return max(x_, y_); };
         auto f_sum        = [](auto x_, auto y_) { return x_ + y_; };
         auto f_absmax_f32 = [](float v_0_, float v_1_) {
@@ -363,6 +362,17 @@ struct naive_attention_fwd_kernel
             asm volatile("v_max_f32 %0, abs(%1), abs(%2)" : "=v"(rtn) : "v"(v_0_), "v"(v_1_));
             return rtn;
         };
+
+        int seqlen_kv = [&]() {
+            if constexpr(Traits::variation == naive_attention_variation_enum::FLASH_BATCHED)
+            {
+                return args.seqlen_kv;
+            }
+            else if constexpr(Traits::variation == naive_attention_variation_enum::DECODE_PAGED)
+            {
+                return reinterpret_cast<int*>(args.context_len_ptr)[i_bq];
+            }
+        }();
 
         SoftmaxType row_max = -numeric<SoftmaxType>::infinity();
         SoftmaxType l{0};
