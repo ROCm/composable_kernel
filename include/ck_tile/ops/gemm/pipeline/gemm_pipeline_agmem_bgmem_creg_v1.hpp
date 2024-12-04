@@ -57,17 +57,17 @@ struct GemmPipelineAGmemBGmemCRegV1
     }
     
     template <typename DstBlockTile, typename SrcTileWindow>
-    CK_TILE_DEVICE void GlobalPrefetch(DstBlockTile& dst_block_tile,
-                                        SrcTileWindow& dram_tile_window) const
+    CK_TILE_DEVICE static void GlobalPrefetch(DstBlockTile& dst_block_tile,
+                                        SrcTileWindow& dram_tile_window) 
     {
         load_tile(dst_block_tile, dram_tile_window);
         move_tile_window(dram_tile_window, {0, kKPerBlock});
     }
 
     template <typename DstTileWindow, typename SrcBlockTile, typename ElementFunction>
-    CK_TILE_DEVICE void LocalPrefill(DstTileWindow& lds_tile_window,
+    CK_TILE_DEVICE static void LocalPrefill(DstTileWindow& lds_tile_window,
                                         const SrcBlockTile& src_block_tile,
-                                        const ElementFunction& element_func) const
+                                        const ElementFunction& element_func) 
     {
         const auto block_tile_tmp = tile_elementwise_in(element_func, src_block_tile);
         store_tile(lds_tile_window, block_tile_tmp);
@@ -160,13 +160,13 @@ struct GemmPipelineAGmemBGmemCRegV1
               typename BDramBlockWindowTmp,
               typename AElementFunction,
               typename BElementFunction>
-    CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+    CK_TILE_DEVICE static auto run(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                         const AElementFunction& a_element_func,
                                         const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                         const BElementFunction& b_element_func,
                                         index_t num_loop,
                                         void* __restrict__ p_smem_0,
-                                        void* __restrict__ p_smem_1) const
+                                        void* __restrict__ p_smem_1) 
     {
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
@@ -384,13 +384,13 @@ struct GemmPipelineAGmemBGmemCRegV1
     }
 
     template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
-    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+    CK_TILE_DEVICE static auto run(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    index_t num_loop,
                                    void*__restrict__ p_smem_0,
-                                   void*__restrict__ p_smem_1) const
+                                   void*__restrict__ p_smem_1)
     {
-        return operator()(
+        return run(
             a_dram_block_window_tmp,
             [](const ADataType& a) { return a; },
             b_dram_block_window_tmp,

@@ -168,7 +168,7 @@ struct GemmKernel
 
         // Run GEMM cooperatively by whole wokrgroup.
         auto c_block_tile =
-            GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
+            GemmPipeline::template run(a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
 
         CDataType* c_start = static_cast<CDataType*>(kargs.c_ptr);
         auto c_tensor_view = [&]() {
