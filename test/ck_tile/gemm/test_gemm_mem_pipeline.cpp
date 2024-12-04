@@ -12,10 +12,10 @@ using F16       = ck_tile::half_t;
 using F32       = float;
 using Row       = ck_tile::tensor_layout::gemm::RowMajor;
 using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
-using Intrawave = std::integral_constant<ck_tile::GemmPipelineScheduler,
-                                         ck_tile::GemmPipelineScheduler::Intrawave>;
-using Interwave = std::integral_constant<ck_tile::GemmPipelineScheduler,
-                                         ck_tile::GemmPipelineScheduler::Interwave>;
+using Intrawave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
+                                             ck_tile::GemmPipelineScheduler::Intrawave>;
+using Interwave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
+                                             ck_tile::GemmPipelineScheduler::Interwave>;
 
 // clang-format off
 using KernelTypes = ::testing::Types<
