@@ -429,6 +429,14 @@ int main(int argc, char* argv[])
     prec_kw             = (prec_kw == "auto") ? "fp32" : prec_kw;
 
     // no dynamic quant case
+    // if(prec_i == "bf16" && prec_w == "bf16" && prec_o == "bf16" && prec_kw == "fp32")
+    // {
+    //     return run<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t, float, float, float, float>(
+    //                arg_parser)
+    //                ? 0
+    //                : -2;
+    // }
+    // else 
     if(prec_i == "bf16" && prec_w == "bf16" && prec_o == "bf16" && prec_kw == "fp32")
     {
         return run<ck_tile::fp16_t, ck_tile::fp16_t, ck_tile::fp16_t, float, float, float, float>(

@@ -193,10 +193,6 @@ struct FusedMoeGemmPipeline_General
         }
         // relu
         const auto activation =  ck_tile::element_wise::Gelu{};
-        // constexpr index_t thread_buffer_size = SaccBlockTileType::get_thread_buffer_size();
-        // static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-        //     activation(s_acc.get_thread_buffer()(i),s_acc.get_thread_buffer()[i]);
-        // });
         tile_elementwise_inout(activation, s_acc, s_acc);
 #if 0
         PrintMem(s_acc);
@@ -210,18 +206,7 @@ struct FusedMoeGemmPipeline_General
                              {0, 0});
         // cast data to YDataType
         auto y_pre = cast_tile<YDataType>(s_acc);
-        // constexpr index_t thread_buffer_size = SaccBlockTileType::get_thread_buffer_size();
-        // static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-        //     //y_pre.get_thread_buffer()(i) = type_convert<YDataType>(s_acc.get_thread_buffer()[i]);
-        //     if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
-        //     {
-        //         printf("soure value: %f to value: %f\n",
-        //                s_acc.get_thread_buffer()[i],
-        //                type_convert<float>(y_pre.get_thread_buffer()[i]));
-        //     }
-        // });
-
-#if 1
+#if 0
         PrintMem(y_pre);
 #endif
         // save to lds
