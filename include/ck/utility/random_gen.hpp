@@ -41,10 +41,9 @@ __host__ __device__ uint32_t prand_generator(index_t id, T val, uint32_t seed = 
 }
 
 // return 0 if data is not fp16 or fp32
-template <
-    typename T,
-    uint32_t seed_t,
-    ck::enable_if_t<!(std::is_same<float, T>{} || std::is_same<_Float16, T>{}), bool> = false>
+template <typename T,
+          uint32_t seed_t,
+          ck::enable_if_t<!(std::is_same<float, T>{} || std::is_same<_Float16, T>{}), bool> = false>
 __host__ __device__ uint32_t prand_generator(int id, T val, uint32_t seed = seed_t)
 {
     ck::ignore = id;
