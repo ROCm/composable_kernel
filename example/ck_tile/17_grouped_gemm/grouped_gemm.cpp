@@ -19,7 +19,7 @@
 
 namespace {
 
-struct GroupedGemKernelParam
+struct GroupedGemmKernelParam
 {
     static const bool kPadM        = false;
     static const bool kPadN        = false;
@@ -43,15 +43,15 @@ struct GroupedGemKernelParam
 };
 
 using CodegenGemmShape =
-    ck_tile::TileGemmShape<ck_tile::sequence<GroupedGemKernelParam::M_Tile,
-                                             GroupedGemKernelParam::N_Tile,
-                                             GroupedGemKernelParam::K_Tile>,
-                           ck_tile::sequence<GroupedGemKernelParam::M_Warp,
-                                             GroupedGemKernelParam::N_Warp,
-                                             GroupedGemKernelParam::K_Warp>,
-                           ck_tile::sequence<GroupedGemKernelParam::M_Warp_Tile,
-                                             GroupedGemKernelParam::N_Warp_Tile,
-                                             GroupedGemKernelParam::K_Warp_Tile>>;
+    ck_tile::TileGemmShape<ck_tile::sequence<GroupedGemmKernelParam::M_Tile,
+                                             GroupedGemmKernelParam::N_Tile,
+                                             GroupedGemmKernelParam::K_Tile>,
+                           ck_tile::sequence<GroupedGemmKernelParam::M_Warp,
+                                             GroupedGemmKernelParam::N_Warp,
+                                             GroupedGemmKernelParam::K_Warp>,
+                           ck_tile::sequence<GroupedGemmKernelParam::M_Warp_Tile,
+                                             GroupedGemmKernelParam::N_Warp_Tile,
+                                             GroupedGemmKernelParam::K_Warp_Tile>>;
 
 using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
@@ -60,23 +60,23 @@ using GemmEpilogue = std::conditional_t<
     std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>,
     ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
                                                                CDataType,
-                                                               GroupedGemKernelParam::kPadM,
-                                                               GroupedGemKernelParam::kPadN,
-                                                               GroupedGemKernelParam::kTilePermute,
-                                                               GroupedGemKernelParam::kOutputRank,
+                                                               GroupedGemmKernelParam::kPadM,
+                                                               GroupedGemmKernelParam::kPadN,
+                                                               GroupedGemmKernelParam::kTilePermute,
+                                                               GroupedGemmKernelParam::kOutputRank,
                                                                1,
                                                                0,
                                                                TilePartitioner::MPerBlock,
                                                                TilePartitioner::NPerBlock>>,
     ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<AccDataType,
                                                                  CDataType,
-                                                                 GroupedGemKernelParam::kPadM,
-                                                                 GroupedGemKernelParam::kPadN>>>;
+                                                                 GroupedGemmKernelParam::kPadM,
+                                                                 GroupedGemmKernelParam::kPadN>>>;
 
 template <typename ALayout, typename BLayout, typename CLayout>
-using CodegenGemmTraits = ck_tile::TileGemmTraits<GroupedGemKernelParam::kPadM,
-                                                  GroupedGemKernelParam::kPadN,
-                                                  GroupedGemKernelParam::kPadK,
+using CodegenGemmTraits = ck_tile::TileGemmTraits<GroupedGemmKernelParam::kPadM,
+                                                  GroupedGemmKernelParam::kPadN,
+                                                  GroupedGemmKernelParam::kPadK,
                                                   ALayout,
                                                   BLayout,
                                                   CLayout>;
@@ -136,7 +136,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
     float ave_time =
         ck_tile::launch_kernel(s,
-                               ck_tile::make_kernel<blocks.x, GroupedGemKernelParam::kBlockPerCu>(
+                               ck_tile::make_kernel<blocks.x, GroupedGemmKernelParam::kBlockPerCu>(
                                    GroupedGemmKernel{},
                                    grids,
                                    blocks,
