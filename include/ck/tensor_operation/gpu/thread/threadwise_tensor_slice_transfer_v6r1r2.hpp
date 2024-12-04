@@ -109,6 +109,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                 printf("BlockId %d -  Threadwise_tensor slice v6r1r2 line 108: Src Vector Data at idx %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), static_cast<float>(src_vector_container.template AsType<SrcData>().At(Number<0>{})));
                 // printf("Threadwise_tensor slice v6r1r2 line 108: Src Vector Data at idx %d: %hu \n", static_cast<int>(idx_1d.value), src_vector_container.template AsType<SrcData>().At(Number<0>{}));
             }
+            // Emin@debug
 
             // apply pointwise operation
             static_for<0, ScalarPerVector, 1>{}([&](auto i) {
