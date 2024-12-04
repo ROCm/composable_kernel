@@ -102,8 +102,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
         constexpr index_t smem_size_a = integer_least_multiple(sizeof(typename Problem::ADataType) *
-                                            MakeALdsBlockDescriptor<Problem>().get_element_space_size(), 16)
-                                        * 2;
+                                            MakeALdsBlockDescriptor<Problem>().get_element_space_size(), 16);
         return smem_size_a;
     }
 
@@ -111,8 +110,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
         constexpr index_t smem_size_b = integer_least_multiple(sizeof(typename Problem::BDataType) *
-                                            MakeBLdsBlockDescriptor<Problem>().get_element_space_size(), 16)
-                                        * 2;
+                                            MakeBLdsBlockDescriptor<Problem>().get_element_space_size(), 16);
         return smem_size_b;
     }
 

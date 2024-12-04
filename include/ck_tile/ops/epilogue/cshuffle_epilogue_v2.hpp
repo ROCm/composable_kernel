@@ -41,7 +41,7 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeOLdsBlockDescriptor()
 }
 
 
-CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 65536; }
+CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 32768; }
 template <typename Problem>
 CK_TILE_HOST_DEVICE static constexpr auto MakeODramTileDistribution()
 {
@@ -87,7 +87,7 @@ struct CShuffleEpilogueV2
     // static constexpr bool kMPerBlock      = 64;
     static constexpr index_t kNPerBlock      = Problem::kNPerBlock;
 
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 65536;}//kMPerBlock * kNPerBlock * sizeof(ODataType); }
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return kMPerBlock * kNPerBlock * sizeof(ODataType); }
 
     // TODO: this function assume store out vector size is the same as OAccTile last dimension size
     //       how do we fix this ?
@@ -104,7 +104,7 @@ struct CShuffleEpilogueV2
         block_sync_lds();
         auto o_dram_distri = MakeODramTileDistribution<Problem>();
         auto o_dram_tile = load_tile(make_tile_window(o_lds_window0, o_dram_distri));
-        store_tile(o_dram_window_tmp, o_dram_tile);
+        store_tile(o_dram_window_tmp, o_dram_tile); 
         block_sync_lds();
     }
 };
