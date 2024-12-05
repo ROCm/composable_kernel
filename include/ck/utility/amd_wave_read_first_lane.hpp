@@ -7,7 +7,7 @@
 #include "ck/utility/functional2.hpp"
 #include "ck/utility/math.hpp"
 
-#ifndef CK_CODE_GEN_RTC
+#ifndef __HIPCC_RTC__
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -39,7 +39,7 @@ struct get_carrier<3>
     {
         using value_type = uint32_t;
 
-        ck::byte bytes[3];
+        Array<ck::byte, 3> bytes;
         static_assert(sizeof(bytes) <= sizeof(value_type));
 
         // replacement of host std::copy_n()
@@ -61,12 +61,15 @@ struct get_carrier<3>
         }
 
         // method to trigger template substitution failure
-        __device__ carrier(const carrier& other) noexcept { copy_n(&other.bytes[0], 3, &bytes[0]); }
+        __device__ carrier(const carrier& other) noexcept
+        {
+            copy_n(other.bytes.begin(), bytes.Size(), bytes.begin());
+        }
 
         public:
         __device__ carrier& operator=(value_type value) noexcept
         {
-            copy_n(reinterpret_cast<const ck::byte*>(&value), 3, &bytes[0]);
+            copy_n(reinterpret_cast<const ck::byte*>(&value), bytes.Size(), bytes.begin());
 
             return *this;
         }
@@ -75,7 +78,7 @@ struct get_carrier<3>
         {
             ck::byte result[sizeof(value_type)];
 
-            copy_n(&bytes[0], 3, result);
+            copy_n(bytes.begin(), bytes.Size(), result);
 
             return *reinterpret_cast<const value_type*>(result);
         }
@@ -122,8 +125,7 @@ __device__ inline int64_t amd_wave_read_first_lane(int64_t value)
 }
 
 template <typename Object,
-          typename = ck::enable_if_t<ck::is_class<Object>::value &&
-                                     ck::is_trivially_copyable<Object>::value>>
+          typename = ck::enable_if_t<ck::is_class_v<Object> && ck::is_trivially_copyable_v<Object>>>
 __device__ auto amd_wave_read_first_lane(const Object& obj)
 {
     using Size                = unsigned;
