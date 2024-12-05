@@ -119,6 +119,11 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         const dim3 grids      = Kernel::GridSize(args.M, args.N, args.kbatch);
         constexpr dim3 blocks = Kernel::BlockSize();
 
+        if(!Kernel::IsSupportedArgument(kargs))
+        {
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+        }
+
         if(s.log_level_ > 0)
         {
             std::cout << "Launching kernel with args:"
