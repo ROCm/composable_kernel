@@ -14,7 +14,7 @@ using CShuffleDataType = ck::bhalf_t;
 using ALayout = Row;
 using BLayout = Col;
 using CLayout = Row;
-
+                                                                                                                                    
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 using CElementOp = PassThrough;
@@ -183,6 +183,17 @@ using DeviceGemmV2_Streamk_Instance =
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+
+using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALayout,
+                                                                             BLayout,
+                                                                             CLayout,
+                                                                             ADataType,
+                                                                             BDataType,
+                                                                             CDataType,
+                                                                             AccDataType,
+                                                                             AElementOp,
+                                                                             BElementOp,
+                                                                             CElementOp>;
 
 #include "run_gemm_example_streamk_v2.inc"
 

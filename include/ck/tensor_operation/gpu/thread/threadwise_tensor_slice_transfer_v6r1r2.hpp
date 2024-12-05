@@ -147,7 +147,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                     float v_fp32_value;
                     memcpy(&v_fp32_value, &fp32_bits_v, sizeof(float));
 
-                    printf("Threadwise_tensor slice v6r1r2 line 147 : Element-wise Operation Result at idx %d: %f\n", static_cast<int>(i.value), v_fp32_value);
+                    printf("BlockId %d -  Threadwise_tensor slice v6r1r2 line 150: Element-wise Operation Result at idx %d: %f\n",static_cast<int>(blockIdx.x) , static_cast<int>(i.value), v_fp32_value);
 
                 }
 
@@ -195,7 +195,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
 
 
                     //printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 140 : DstData after type conversion at idx %d, i  %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value) , static_cast<int>(i.value), static_cast<float>(dst_vector_container.template AsType<DstData>().At(Number<i>{})));
-                    printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 140 : DstData after type conversion at idx %d, i  %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value) , static_cast<int>(i.value), dst_vector_container_fp32_value);
+                    printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 198 : DstData after type conversion at idx %d, i  %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value) , static_cast<int>(i.value), dst_vector_container_fp32_value);
                
                 }
 
@@ -205,8 +205,14 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
 #endif
             });
 
+//Emin @note : There is no error till here
+
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
+
+// Emin @note : Bug was discovered 
+// When DstInMemOp is atocidAdd, dst vector can not be loaded to dst_buf
+// It gives 0 for some reason in bf16
 
             // copy data from dst_vector into dst_buf
             dst_buf.template Update<DstInMemOp, dst_vector_t>(
@@ -214,14 +220,30 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
-#if 0
+#if 1
             // Emin @debug
             //  // Debug: Print data before copying from dst_vector into dst_buf
             if (threadIdx.x == 0 && threadIdx.y == 0 && is_dst_valid) {
                 // printf("Dst Vector Data being copied to dst_buf at idx %d: %v4hu", static_cast<int>(idx_1d.value), dst_buf.template AsType<DstData>().At(I0));
                 // printf("BlockId %d -  Dst Vector Data being copied to dst_buf at idx %d: %hu\n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid));
 
-                printf("BlockId %d -  Dst Vector Data being copied to dst_buf at idx %d: %hu\n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid));
+                //printf("BlockId %d -  Dst Vector Data being copied to dst_buf at idx %d: %hu\n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid));
+            
+                // Get the dst value
+                auto dst_value = dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid);
+                // auto dst_buf_data = dst_buf.p_data_ ;
+            
+            
+                    // Convert bf16 to fp32 using memcpy
+                uint16_t dst_bf16_value = dst_value[0] ;
+                uint32_t fp32_bits = static_cast<uint32_t>(dst_bf16_value) << 16;
+                float dst_fp32_value;
+                memcpy(&dst_fp32_value, &fp32_bits, sizeof(float));
+
+                printf("BlockId %d - Dst Vector Data being copied to dst_buf at idx %d: %f\n",
+                    static_cast<int>(blockIdx.x),
+                    static_cast<int>(idx_1d.value),
+                    dst_fp32_value);
             }
 
 #endif
