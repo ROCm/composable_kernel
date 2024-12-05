@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck/utility/amd_ck_fp8.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
 
 namespace ck {
@@ -10,8 +11,6 @@ namespace ck {
 using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
-using f8_t    = _BitInt(8);
-using bf8_t   = unsigned _BitInt(8);
 
 inline constexpr auto next_pow2(uint32_t x)
 {
@@ -19,14 +18,15 @@ inline constexpr auto next_pow2(uint32_t x)
     return x > 1u ? (1u << (32u - __builtin_clz(x - 1u))) : x;
 }
 
-// native types: double, float, _Float16, ushort, int32_t, int8_t, uint8_t, f8_t, bf8_t, bool
+// native types: double, float, _Float16, ushort, int32_t, int8_t, uint8_t, f8_fnuz_t, bf8_fnuz_t,
+// native types: bool
 template <typename T>
 inline constexpr bool is_native_type()
 {
     return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
            is_same<T, bhalf_t>::value || is_same<T, int32_t>::value || is_same<T, int8_t>::value ||
-           is_same<T, uint8_t>::value || is_same<T, f8_t>::value || is_same<T, bf8_t>::value ||
-           is_same<T, bool>::value;
+           is_same<T, uint8_t>::value || is_same<T, f8_fnuz_t>::value ||
+           is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value;
 }
 
 // vector_type
@@ -166,16 +166,30 @@ struct scalar_type<int4_t>
 #endif
 
 template <>
-struct scalar_type<f8_t>
+struct scalar_type<f8_fnuz_t>
 {
-    using type                           = f8_t;
+    using type                           = f8_fnuz_t;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
-struct scalar_type<bf8_t>
+struct scalar_type<bf8_fnuz_t>
 {
-    using type                           = bf8_t;
+    using type                           = bf8_fnuz_t;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<f8_ocp_t>
+{
+    using type                           = f8_ocp_t::data_type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<bf8_ocp_t>
+{
+    using type                           = bf8_ocp_t::data_type;
     static constexpr index_t vector_size = 1;
 };
 
@@ -1010,60 +1024,203 @@ struct vector_type<T, 256, typename std::enable_if_t<is_native_type<T>()>>
     }
 };
 
-template <typename T, index_t N>
-struct non_native_vector_base
+template <typename T, index_t N, typename Enable = void>
+struct non_native_vector_base;
+
+template <typename T>
+struct nnvb_data_t_selector
 {
-    using type = non_native_vector_base<T, N>;
+    using type = unsigned _BitInt(8 * sizeof(T));
+};
 
-    __host__ __device__ non_native_vector_base()            = default;
-    __host__ __device__ non_native_vector_base(const type&) = default;
-    __host__ __device__ non_native_vector_base(type&&)      = default;
-    __host__ __device__ ~non_native_vector_base()           = default;
+template <>
+struct nnvb_data_t_selector<f8_ocp_t>
+{
+    using type = f8_ocp_t::data_type;
+};
+template <>
+struct nnvb_data_t_selector<bf8_ocp_t>
+{
+    using type = bf8_ocp_t::data_type;
+};
 
-    T d[N];
+template <typename T, index_t N>
+struct non_native_vector_base<
+    T,
+    N,
+    std::enable_if_t<sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8>>
+{
+    using data_t = typename nnvb_data_t_selector<T>::type; // select data_t based on the size of T
+    static_assert(sizeof(T) == sizeof(data_t), "non_native_vector_base storage size mismatch");
+    using data_v = data_t __attribute__((ext_vector_type(N)));
+    using type   = non_native_vector_base<T, N>;
+
+    union alignas(next_pow2(N * sizeof(T)))
+    {
+        data_v dN; // storage vector;
+        StaticallyIndexedArray<data_t, N> dxN;
+        StaticallyIndexedArray<T, N> dTxN;
+        StaticallyIndexedArray<data_v, 1> dNx1;
+    } data_;
+
+    __host__ __device__ constexpr non_native_vector_base(data_t a) : data_{data_v(a)} {}
+    __host__ __device__ constexpr non_native_vector_base(T f)
+        : non_native_vector_base(bit_cast<data_t>(f))
+    {
+    }
+    __host__ __device__ constexpr non_native_vector_base() : non_native_vector_base(T{}){};
+    __host__ __device__ constexpr non_native_vector_base(data_v v) : data_{v} {}
+
+    __host__ __device__ constexpr operator data_v() const { return data_.dN; }
+    __host__ __device__ constexpr operator data_t() const
+    {
+        if constexpr(N == 1)
+        {
+            return data_.dxN[Number<0>{}];
+        }
+        else
+        {
+            return data_.dxN; // XXX this should cause an error
+        }
+    }
+    __host__ __device__ constexpr operator T() const
+    {
+        if constexpr(N == 1)
+        {
+            return data_.dTxN[Number<0>{}];
+        }
+        else
+        {
+            return data_.dTxN; // XXX this should cause an error
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same_v<X, data_t> || is_same_v<X, T> || is_same_v<X, data_v>,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same_v<X, data_t>)
+        {
+            return data_.dxN;
+        }
+        else if constexpr(is_same_v<X, T>)
+        {
+            return data_.dTxN;
+        }
+        else if constexpr(is_same_v<X, data_v>)
+        {
+            return data_.dNx1;
+        }
+        else
+        {
+            return err;
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same_v<X, data_t> || is_same_v<X, T> || is_same_v<X, data_v>,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same_v<X, data_t>)
+        {
+            return data_.dxN;
+        }
+        else if constexpr(is_same_v<X, T>)
+        {
+            return data_.dTxN;
+        }
+        else if constexpr(is_same_v<X, data_v>)
+        {
+            return data_.dNx1;
+        }
+        else
+        {
+            return err;
+        }
+    }
+};
+
+template <typename T, index_t N>
+struct scalar_type<non_native_vector_base<T, N>>;
+
+template <index_t N>
+struct scalar_type<non_native_vector_base<f8_ocp_t, N>>
+{
+    using type = typename non_native_vector_base<f8_ocp_t, N>::data_t;
+
+    static constexpr index_t vector_size = N;
+};
+
+template <index_t N>
+struct scalar_type<non_native_vector_base<bf8_ocp_t, N>>
+{
+    using type = typename non_native_vector_base<bf8_ocp_t, N>::data_t;
+
+    static constexpr index_t vector_size = N;
 };
 
 // non-native vector_type implementation
 template <typename T>
 struct vector_type<T, 1, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using d1_t = T;
-    using type = d1_t;
+    using d1_t     = T;
+    using d1_nnv_t = non_native_vector_base<T, 1>;
+    using type     = d1_nnv_t;
 
     union alignas(next_pow2(1 * sizeof(T)))
     {
         d1_t d1_;
         StaticallyIndexedArray<d1_t, 1> d1x1_;
+        d1_nnv_t d1_nnv_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{type{}} {}
+    __host__ __device__ constexpr vector_type() : data_{d1_t{}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        static_assert(is_same<X, d1_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        return data_.d1x1_;
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
+        {
+            return data_.d1x1_;
+        }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        static_assert(is_same<X, d1_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        return data_.d1x1_;
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
+        {
+            return data_.d1x1_;
+        }
+        else
+        {
+            return err;
+        }
     }
 };
 
 template <typename T>
 struct vector_type<T, 2, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using d1_t = T;
-    using d2_t = non_native_vector_base<T, 2>;
+    using d1_t     = T;
+    using d1_nnv_t = non_native_vector_base<T, 1>;
+    using d2_t     = non_native_vector_base<T, 2>;
 
     using type = d2_t;
 
@@ -1081,10 +1238,11 @@ struct vector_type<T, 2, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x2_;
         }
@@ -1101,10 +1259,11 @@ struct vector_type<T, 2, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x2_;
         }
@@ -1122,9 +1281,10 @@ struct vector_type<T, 2, typename std::enable_if_t<!is_native_type<T>()>>
 template <typename T>
 struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using d1_t = T;
-    using d2_t = non_native_vector_base<T, 2>;
-    using d4_t = non_native_vector_base<T, 4>;
+    using d1_t     = T;
+    using d1_nnv_t = non_native_vector_base<T, 1>;
+    using d2_t     = non_native_vector_base<T, 2>;
+    using d4_t     = non_native_vector_base<T, 4>;
 
     using type = d4_t;
 
@@ -1143,10 +1303,11 @@ struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d4_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value || is_same<X, d4_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x4_;
         }
@@ -1167,10 +1328,11 @@ struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d4_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value || is_same<X, d4_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x4_;
         }
@@ -1192,10 +1354,11 @@ struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
 template <typename T>
 struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using d1_t = T;
-    using d2_t = non_native_vector_base<T, 2>;
-    using d4_t = non_native_vector_base<T, 4>;
-    using d8_t = non_native_vector_base<T, 8>;
+    using d1_t     = T;
+    using d1_nnv_t = non_native_vector_base<T, 1>;
+    using d2_t     = non_native_vector_base<T, 2>;
+    using d4_t     = non_native_vector_base<T, 4>;
+    using d8_t     = non_native_vector_base<T, 8>;
 
     using type = d8_t;
 
@@ -1215,11 +1378,12 @@ struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
-                          is_same<X, d4_t>::value || is_same<X, d8_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value || is_same<X, d4_t>::value ||
+                          is_same<X, d8_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x8_;
         }
@@ -1244,11 +1408,12 @@ struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
-                          is_same<X, d4_t>::value || is_same<X, d8_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value || is_same<X, d4_t>::value ||
+                          is_same<X, d8_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x8_;
         }
@@ -1274,11 +1439,12 @@ struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
 template <typename T>
 struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using d1_t  = T;
-    using d2_t  = non_native_vector_base<T, 2>;
-    using d4_t  = non_native_vector_base<T, 4>;
-    using d8_t  = non_native_vector_base<T, 8>;
-    using d16_t = non_native_vector_base<T, 16>;
+    using d1_t     = T;
+    using d1_nnv_t = non_native_vector_base<T, 1>;
+    using d2_t     = non_native_vector_base<T, 2>;
+    using d4_t     = non_native_vector_base<T, 4>;
+    using d8_t     = non_native_vector_base<T, 8>;
+    using d16_t    = non_native_vector_base<T, 16>;
 
     using type = d16_t;
 
@@ -1299,12 +1465,12 @@ struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
-                          is_same<X, d4_t>::value || is_same<X, d8_t>::value ||
-                          is_same<X, d16_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value || is_same<X, d4_t>::value ||
+                          is_same<X, d8_t>::value || is_same<X, d16_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x16_;
         }
@@ -1333,12 +1499,12 @@ struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
-                          is_same<X, d4_t>::value || is_same<X, d8_t>::value ||
-                          is_same<X, d16_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value ||
+                          is_same<X, d2_t>::value || is_same<X, d4_t>::value ||
+                          is_same<X, d8_t>::value || is_same<X, d16_t>::value,
                       "Something went wrong, please check src and dst types.");
 
-        if constexpr(is_same<X, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value || is_same<X, d1_nnv_t>::value)
         {
             return data_.d1x16_;
         }
@@ -1632,20 +1798,70 @@ using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
 // f8
-using f8x2_t  = typename vector_type<f8_t, 2>::type;
-using f8x4_t  = typename vector_type<f8_t, 4>::type;
-using f8x8_t  = typename vector_type<f8_t, 8>::type;
-using f8x16_t = typename vector_type<f8_t, 16>::type;
-using f8x32_t = typename vector_type<f8_t, 32>::type;
-using f8x64_t = typename vector_type<f8_t, 64>::type;
+using f8x2_fnuz_t  = typename vector_type<f8_fnuz_t, 2>::type;
+using f8x4_fnuz_t  = typename vector_type<f8_fnuz_t, 4>::type;
+using f8x8_fnuz_t  = typename vector_type<f8_fnuz_t, 8>::type;
+using f8x16_fnuz_t = typename vector_type<f8_fnuz_t, 16>::type;
+using f8x32_fnuz_t = typename vector_type<f8_fnuz_t, 32>::type;
+using f8x64_fnuz_t = typename vector_type<f8_fnuz_t, 64>::type;
 
 // bf8
-using bf8x2_t  = typename vector_type<bf8_t, 2>::type;
-using bf8x4_t  = typename vector_type<bf8_t, 4>::type;
-using bf8x8_t  = typename vector_type<bf8_t, 8>::type;
-using bf8x16_t = typename vector_type<bf8_t, 16>::type;
-using bf8x32_t = typename vector_type<bf8_t, 32>::type;
-using bf8x64_t = typename vector_type<bf8_t, 64>::type;
+using bf8x2_fnuz_t  = typename vector_type<bf8_fnuz_t, 2>::type;
+using bf8x4_fnuz_t  = typename vector_type<bf8_fnuz_t, 4>::type;
+using bf8x8_fnuz_t  = typename vector_type<bf8_fnuz_t, 8>::type;
+using bf8x16_fnuz_t = typename vector_type<bf8_fnuz_t, 16>::type;
+using bf8x32_fnuz_t = typename vector_type<bf8_fnuz_t, 32>::type;
+using bf8x64_fnuz_t = typename vector_type<bf8_fnuz_t, 64>::type;
+
+// f8
+using f8x2_ocp_t  = typename vector_type<f8_ocp_t, 2>::type;
+using f8x4_ocp_t  = typename vector_type<f8_ocp_t, 4>::type;
+using f8x8_ocp_t  = typename vector_type<f8_ocp_t, 8>::type;
+using f8x16_ocp_t = typename vector_type<f8_ocp_t, 16>::type;
+using f8x32_ocp_t = typename vector_type<f8_ocp_t, 32>::type;
+using f8x64_ocp_t = typename vector_type<f8_ocp_t, 64>::type;
+
+// bf8
+using bf8x2_ocp_t  = typename vector_type<bf8_ocp_t, 2>::type;
+using bf8x4_ocp_t  = typename vector_type<bf8_ocp_t, 4>::type;
+using bf8x8_ocp_t  = typename vector_type<bf8_ocp_t, 8>::type;
+using bf8x16_ocp_t = typename vector_type<bf8_ocp_t, 16>::type;
+using bf8x32_ocp_t = typename vector_type<bf8_ocp_t, 32>::type;
+using bf8x64_ocp_t = typename vector_type<bf8_ocp_t, 64>::type;
+
+#if CK_FP8_TYPE_OCP
+// f8
+using f8x2_t  = f8x2_ocp_t;
+using f8x4_t  = f8x4_ocp_t;
+using f8x8_t  = f8x8_ocp_t;
+using f8x16_t = f8x16_ocp_t;
+using f8x32_t = f8x32_ocp_t;
+using f8x64_t = f8x64_ocp_t;
+
+// bf8
+using bf8x2_t  = bf8x2_ocp_t;
+using bf8x4_t  = bf8x4_ocp_t;
+using bf8x8_t  = bf8x8_ocp_t;
+using bf8x16_t = bf8x16_ocp_t;
+using bf8x32_t = bf8x32_ocp_t;
+using bf8x64_t = bf8x64_ocp_t;
+#elif CK_FP8_TYPE_FNUZ
+// f8
+using f8x2_t  = f8x2_fnuz_t;
+using f8x4_t  = f8x4_fnuz_t;
+using f8x8_t  = f8x8_fnuz_t;
+using f8x16_t = f8x16_fnuz_t;
+using f8x32_t = f8x32_fnuz_t;
+using f8x64_t = f8x64_fnuz_t;
+
+// bf8
+using bf8x2_t  = bf8x2_fnuz_t;
+using bf8x4_t  = bf8x4_fnuz_t;
+using bf8x8_t  = bf8x8_fnuz_t;
+using bf8x16_t = bf8x16_fnuz_t;
+using bf8x32_t = bf8x32_fnuz_t;
+using bf8x64_t = bf8x64_fnuz_t;
+#endif
 
 // u8
 using uint8x2_t  = typename vector_type<uint8_t, 2>::type;
@@ -1702,7 +1918,7 @@ struct NumericLimits<int4_t>
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
 template <>
-struct NumericLimits<f8_t>
+struct NumericLimits<f8_fnuz_t>
 {
     // negative zero nan mode with exp bias = 8
     static constexpr uint8_t binary_min    = 0x08; // 0b00001000
@@ -1715,17 +1931,17 @@ struct NumericLimits<f8_t>
     // static constexpr uint8_t binary_lowest = 0xF7; // 0b11110111
     // static constexpr uint8_t binary_qnan   = 0x79; // any sign, exp=1111, mant!=0
 
-    __host__ __device__ static constexpr f8_t Min() { return f8_t(binary_min); }
+    __host__ __device__ static constexpr f8_fnuz_t Min() { return f8_fnuz_t(binary_min); }
 
-    __host__ __device__ static constexpr f8_t Max() { return f8_t(binary_max); }
+    __host__ __device__ static constexpr f8_fnuz_t Max() { return f8_fnuz_t(binary_max); }
 
-    __host__ __device__ static constexpr f8_t Lowest() { return f8_t(binary_lowest); }
+    __host__ __device__ static constexpr f8_fnuz_t Lowest() { return f8_fnuz_t(binary_lowest); }
 
-    __host__ __device__ static constexpr f8_t QuietNaN() { return f8_t(binary_qnan); }
+    __host__ __device__ static constexpr f8_fnuz_t QuietNaN() { return f8_fnuz_t(binary_qnan); }
 };
 
 template <>
-struct NumericLimits<bf8_t>
+struct NumericLimits<bf8_fnuz_t>
 {
     // negative zero nan mode with exp bias = 16
     static constexpr uint8_t binary_min    = 0x04; // 0b00000100
@@ -1738,13 +1954,59 @@ struct NumericLimits<bf8_t>
     // static constexpr uint8_t binary_lowest = 0xFB; // 0b11111011
     // static constexpr uint8_t binary_qnan   = 0x79; // any sign, exp=1111, mant!=
 
-    __host__ __device__ static constexpr bf8_t Min() { return bf8_t(binary_min); }
+    __host__ __device__ static constexpr bf8_fnuz_t Min() { return bf8_fnuz_t(binary_min); }
 
-    __host__ __device__ static constexpr bf8_t Max() { return bf8_t(binary_max); }
+    __host__ __device__ static constexpr bf8_fnuz_t Max() { return bf8_fnuz_t(binary_max); }
 
-    __host__ __device__ static constexpr bf8_t Lowest() { return bf8_t(binary_lowest); }
+    __host__ __device__ static constexpr bf8_fnuz_t Lowest() { return bf8_fnuz_t(binary_lowest); }
 
-    __host__ __device__ static constexpr bf8_t QuietNaN() { return bf8_t(binary_qnan); }
+    __host__ __device__ static constexpr bf8_fnuz_t QuietNaN() { return bf8_fnuz_t(binary_qnan); }
+};
+
+template <>
+struct NumericLimits<f8_ocp_t>
+{
+    static constexpr uint8_t binary_min    = 0x08; // 0b00001000 = 2^-6
+    static constexpr uint8_t binary_max    = 0x7E; // 0b01111110 = 448
+    static constexpr uint8_t binary_lowest = 0xFE; // 0b11111110 = -448
+    static constexpr uint8_t binary_qnan   = 0x7F; // 0b01111111
+
+    __host__ __device__ static constexpr f8_ocp_t Min() { return bit_cast<f8_ocp_t>(binary_min); }
+
+    __host__ __device__ static constexpr f8_ocp_t Max() { return bit_cast<f8_ocp_t>(binary_max); }
+
+    __host__ __device__ static constexpr f8_ocp_t Lowest()
+    {
+        return bit_cast<f8_ocp_t>(binary_lowest);
+    }
+
+    __host__ __device__ static constexpr f8_ocp_t QuietNaN()
+    {
+        return bit_cast<f8_ocp_t>(binary_qnan);
+    }
+};
+
+template <>
+struct NumericLimits<bf8_ocp_t>
+{
+    static constexpr uint8_t binary_min    = 0x04; // 0b00000100 = 2^-14
+    static constexpr uint8_t binary_max    = 0x7B; // 0b01111011 = 57344
+    static constexpr uint8_t binary_lowest = 0xFB; // 0b11111011 = -57344
+    static constexpr uint8_t binary_qnan   = 0x7D; // 0b01111101
+
+    __host__ __device__ static constexpr bf8_ocp_t Min() { return bit_cast<bf8_ocp_t>(binary_min); }
+
+    __host__ __device__ static constexpr bf8_ocp_t Max() { return bit_cast<bf8_ocp_t>(binary_max); }
+
+    __host__ __device__ static constexpr bf8_ocp_t Lowest()
+    {
+        return bit_cast<bf8_ocp_t>(binary_lowest);
+    }
+
+    __host__ __device__ static constexpr bf8_ocp_t QuietNaN()
+    {
+        return bit_cast<bf8_ocp_t>(binary_qnan);
+    }
 };
 
 template <typename T>
@@ -1787,7 +2049,7 @@ struct NumericUtils<half_t>
 };
 
 template <>
-struct NumericUtils<f8_t>
+struct NumericUtils<f8_fnuz_t>
 {
     static constexpr int exp  = 4;
     static constexpr int mant = 3;
@@ -1796,12 +2058,27 @@ struct NumericUtils<f8_t>
 };
 
 template <>
-struct NumericUtils<bf8_t>
+struct NumericUtils<bf8_fnuz_t>
 {
     static constexpr int exp  = 5;
     static constexpr int mant = 2;
     static constexpr int bias = 16; // negative zero nan mode
     // static constexpr int bias = 15; // ieee mode
+};
+template <>
+struct NumericUtils<f8_ocp_t>
+{
+    static constexpr int exp  = 4;
+    static constexpr int mant = 3;
+    static constexpr int bias = 7;
+};
+
+template <>
+struct NumericUtils<bf8_ocp_t>
+{
+    static constexpr int exp  = 5;
+    static constexpr int mant = 2;
+    static constexpr int bias = 15;
 };
 
 template <>
