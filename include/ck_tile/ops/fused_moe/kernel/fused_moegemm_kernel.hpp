@@ -117,6 +117,7 @@ struct FusedMoeGemmHostArgs
     index_t topk;              // need this?
 
     index_t stride_token; // for input/output, stride for each row, should >= hidden_size
+    index_t max_num_tokens_padded; // size of sorted_token_ids_ptr
 };
 
 // This is scatter/gather b2b group-gemm

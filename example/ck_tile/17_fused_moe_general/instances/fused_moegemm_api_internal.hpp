@@ -19,8 +19,8 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
                                                typename Ts_::WarpPerBlock_0,
                                                typename Ts_::WarpTile_0,
                                                typename Ts_::BlockTile_1,
-                                               typename Ts_::WarpPerBlock_0,
-                                               typename Ts_::WarpTile_0>;
+                                               typename Ts_::WarpPerBlock_1,
+                                               typename Ts_::WarpTile_1>;
     using f_problem =
         ck_tile::FusedMoeGemmPipelineProblem<typename Ts_::ADataType,
                                              typename Ts_::GDataType,
@@ -38,9 +38,9 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
                                              f_traits>;
 
     // using f_pipeline    = ck_tile::FusedMoeGemmPipeline_FlatmmEx<f_problem>;
-    using f_pipeline    = ck_tile::FusedMoeGemmPipeline_FlatmmUk<f_problem>;
+    using f_pipeline    = ck_tile::FusedMoeGemmPipeline_General<f_problem>;
     using f_partitioner = ck_tile::FusedMoeGemmTilePartitioner_Linear<f_shape>;
-    using f_kernel      = ck_tile::FusedMoeGemmKernel<f_partitioner, f_pipeline, void>;
+    using f_kernel      = ck_tile::FusedMoeGemmGlKernel<f_partitioner, f_pipeline, void>;
 
     const dim3 grids                       = f_kernel::GridSize(a);
     constexpr dim3 blocks                  = f_kernel::BlockSize();

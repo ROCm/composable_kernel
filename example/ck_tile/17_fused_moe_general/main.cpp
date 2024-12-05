@@ -261,8 +261,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     // permute weight
-    ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w, 1);
-    ck_tile::HostTensor<DDataType> d_perm_host = shuffle_moe_weight(d_host, prec_w, 1);
+    // ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w, 1);
+    // ck_tile::HostTensor<DDataType> d_perm_host = shuffle_moe_weight(d_host, prec_w, 1);
 
     // do moe sorting
     if(balance)
@@ -345,8 +345,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         // done, preparing GPU buffer
         ck_tile::DeviceMem a_buf(a_host);
-        ck_tile::DeviceMem g_perm_buf(g_perm_host);
-        ck_tile::DeviceMem d_perm_buf(d_perm_host);
+        ck_tile::DeviceMem g_perm_buf(g_host);
+        ck_tile::DeviceMem d_perm_buf(d_host);
         ck_tile::DeviceMem sa_buf(sa_host);
         ck_tile::DeviceMem sg_buf(sg_host);
         ck_tile::DeviceMem sd_buf(sd_host);
@@ -390,7 +390,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                 tokens,
                                 experts,
                                 topk,
-                                stride};
+                                stride,
+                                max_num_tokens_padded};
 
         float ave_time = fused_moegemm(
             traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
