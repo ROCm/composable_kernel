@@ -186,15 +186,15 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             b_tensors[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
             for(int j = 0; j < NumDMatrices; ++j)
             {
-                d_tensors[i][j].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+                d_tensors[i][j].GenerateTensorValue(GeneratorTensor_3<DDataType>{0.0, 1.0});
             }
             break;
         default:
-            a_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<0>{});
-            b_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+            a_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<ADataType, 0>{});
+            b_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
             for(int j = 0; j < NumDMatrices; ++j)
             {
-                d_tensors[i][j].GenerateTensorValue(GeneratorTensor_Sequential<0>{});
+                d_tensors[i][j].GenerateTensorValue(GeneratorTensor_Sequential<DDataType, 0>{});
             }
         }
     }
@@ -246,7 +246,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     // do GEMM
     auto argument = gemm.MakeArgument(
         p_As, p_Bs, p_Ds, p_Cs, gemm_descs, a_element_op, b_element_op, cde_element_op);
-    gemm.SetKBatchSize(argument, config.k_batch);
+    gemm.SetKBatchSize(&argument, config.k_batch);
     if(!gemm.IsSupportedArgument(argument))
     {
         throw std::runtime_error(
@@ -257,7 +257,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     gemm.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer());
 
     DeviceMem gemm_arg_dev_mem(gemm.GetDeviceKernelArgSize(&argument));
-    gemm.SetDeviceKernelArgs(argument, gemm_arg_dev_mem.GetDeviceBuffer());
+    gemm.SetDeviceKernelArgs(&argument, gemm_arg_dev_mem.GetDeviceBuffer());
 
     invoker.Run(argument, StreamConfig{nullptr, false, 1});
 

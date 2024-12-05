@@ -180,6 +180,58 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
+#ifdef CK_ENABLE_BF16
+        if constexpr(is_same_v<ADataType, ck::bhalf_t> && is_same_v<BDataType, ck::bhalf_t> &&
+                     is_same_v<CDataType, ck::bhalf_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_wmma_bf16_bf16_bf16_mk_kn_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_wmma_bf16_bf16_bf16_mk_nk_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_wmma_bf16_bf16_bf16_km_kn_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_wmma_bf16_bf16_bf16_km_nk_mn_instances(op_ptrs);
+            }
+        }
+#endif
+#ifdef CK_ENABLE_INT8
+        if constexpr(is_same_v<ADataType, int8_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<CDataType, int8_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_wmma_int8_int8_int8_mk_kn_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_wmma_int8_int8_int8_mk_nk_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_wmma_int8_int8_int8_km_kn_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_wmma_int8_int8_int8_km_nk_mn_instances(op_ptrs);
+            }
+        }
+#endif
 #endif
 
 #ifdef CK_USE_XDL

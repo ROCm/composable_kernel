@@ -333,6 +333,48 @@ struct tensor_view
             coord.get_offset(), linear_offset, is_valid_element, x);
     }
 
+    // X is vector of DataType.
+    // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
+    template <typename X,
+              bool oob_conditional_check = true,
+              bool pre_nop               = false,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    update_vectorized_elements_raw(const TensorCoord& coord,
+                                   index_t linear_offset,
+                                   const X& x,
+                                   bool_constant<oob_conditional_check> = {},
+                                   bool_constant<pre_nop>               = {})
+    {
+        buf_.template update_raw<DstInMemOp, X, oob_conditional_check, pre_nop>(
+            coord.get_offset(),
+            linear_offset,
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
+            x);
+    }
+
+    template <typename X,
+              bool oob_conditional_check = true,
+              bool pre_nop               = false,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    update_vectorized_elements_raw(const TensorCoord& coord,
+                                   index_t linear_offset,
+                                   bool is_valid_element,
+                                   const X& x,
+                                   bool_constant<oob_conditional_check> = {},
+                                   bool_constant<pre_nop>               = {})
+    {
+        buf_.template update_raw<DstInMemOp, X, oob_conditional_check, pre_nop>(
+            coord.get_offset(), linear_offset, is_valid_element, x);
+    }
+
     CK_TILE_HOST_DEVICE void print() const
     {
         printf("tensor_view{");
