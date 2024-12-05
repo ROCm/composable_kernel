@@ -6,7 +6,11 @@
             "extensions": ["ms-vscode.cpptools-extension-pack", "eamodio.gitlens", "ms-python.python", "benjamin-simmonds.pythoncpp-debug"]
         }
     },
-    "containerEnv": {"LANG": "C.UTF-8"},
+    "containerEnv": 
+    {
+        "LANG": "C.UTF-8",
+        "HIP_VISIBLE_DEVICES": "6,7"
+    },
     "mounts": [
        "source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached"
     ]
