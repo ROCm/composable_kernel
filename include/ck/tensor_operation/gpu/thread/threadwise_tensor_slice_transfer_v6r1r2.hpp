@@ -102,33 +102,62 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
 
             auto dst_vector_container = dst_vector_type{};
 
+#if 1
             // Emin @debug
             // Debug: Print source vector data if valid
             if (threadIdx.x == 0 && threadIdx.y == 0 && is_src_valid) {
                 // printf("Threadwise_tensor slice v6r1r2 line 108: Src Vector Data at idx %d: %f\n", static_cast<int>(idx_1d.value), static_cast<float>());
-                printf("BlockId %d -  Threadwise_tensor slice v6r1r2 line 109: Src Vector Data at idx %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), static_cast<float>(src_vector_container.template AsType<SrcData>().At(Number<0>{})));
+                
+                // printf("BlockId %d -  Threadwise_tensor slice v6r1r2 line 111: Src Vector Data at idx %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), static_cast<float>(src_vector_container.template AsType<SrcData>().At(Number<0>{})));
+
+                // Trying alternative way instead of above
+                uint16_t src_vector_container_bf16_value = src_vector_container.template AsType<SrcData>().At(Number<0>{}) ;
+                uint32_t fp32_bits = static_cast<uint32_t>(src_vector_container_bf16_value) << 16 ;
+                // float src_vector_container_fp32_value = *reinterpret_cast<float*>(&fp32_bits) ;
+                float src_vector_container_fp32_value;
+                memcpy(&src_vector_container_fp32_value, &fp32_bits, sizeof(float));
+
+                printf("BlockId %d -  Threadwise_tensor slice v6r1r2 line 120: Src Vector Data at idx %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), src_vector_container_fp32_value);
+
                 // printf("Threadwise_tensor slice v6r1r2 line 108: Src Vector Data at idx %d: %hu \n", static_cast<int>(idx_1d.value), src_vector_container.template AsType<SrcData>().At(Number<0>{}));
             }
             // Emin @debug
+
+#endif
 
             // apply pointwise operation
             static_for<0, ScalarPerVector, 1>{}([&](auto i) {
                 SrcData v;
 
+                // Emin @added
+                
+
                 // apply element-wise operation
                 element_op_(v, src_vector_container.template AsType<SrcData>()[i]);
 
+#if 1
                 // Emin @debug
                 // Debug: Print element-wise operation result
                 if (threadIdx.x == 0 && threadIdx.y == 0) {
-                    printf("Threadwise_tensor slice v6r1r2 line 121 : Element-wise Operation Result at idx %d: %f\n", static_cast<int>(i.value), static_cast<float>(v));
+                    //printf("Threadwise_tensor slice v6r1r2 line 121 : Element-wise Operation Result at idx %d: %f\n", static_cast<int>(i.value), static_cast<float>(v));
+
+                    uint16_t v_bf16_value  = v ;
+                    uint32_t fp32_bits_v = static_cast<uint32_t>(v_bf16_value) << 16 ;
+
+                    float v_fp32_value;
+                    memcpy(&v_fp32_value, &fp32_bits_v, sizeof(float));
+
+                    printf("Threadwise_tensor slice v6r1r2 line 147 : Element-wise Operation Result at idx %d: %f\n", static_cast<int>(i.value), v_fp32_value);
+
                 }
 
                 // Emin @added
                 __syncthreads();
 
+#endif
+
  // Emin @debug
- #if 1
+#if 0
                  // Debug: Print SrcData before and after applying element-wise operation
                 if (threadIdx.x == 0 && threadIdx.y == 0) {
                     // printf("Threadwise_tensor_slice_v6r1r2 line 127 : SrcData before element-wise op at idx %d: %f \n", static_cast<int>(i.value), static_cast<float>(src_vector_container.template AsType<SrcData>().At(Number<i>{})));
@@ -136,20 +165,21 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                     // // printf("SrcData after element-wise op at idx %d: %f \n", static_cast<int>(i.value), static_cast<float>(v));
                     // printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 129 : SrcData after element-wise op at idx %d , i %d: %hu \n" , static_cast<int>(blockIdx.x) ,  static_cast<int>(idx_1d.value) , static_cast<int>(i.value), v);
                 
-                    printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 127 : SrcData before element-wise op at idx %d , i %d: %f \n", static_cast<int>(blockIdx.x) ,  static_cast<int>(idx_1d.value),  static_cast<int>(i.value), static_cast<float>(src_vector_container.template AsType<SrcData>().At(Number<i>{})));
+                    printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 165 : SrcData before element-wise op at idx %d , i %d: %f \n", static_cast<int>(blockIdx.x) ,  static_cast<int>(idx_1d.value),  static_cast<int>(i.value), src_vector_container_fp32_value);
                     // printf("SrcData after element-wise op at idx %d: %f \n", static_cast<int>(i.value), static_cast<float>(v));
-                    printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 129 : SrcData after element-wise op at idx %d , i %d: %f \n" , static_cast<int>(blockIdx.x) ,  static_cast<int>(idx_1d.value) , static_cast<int>(i.value), static_cast<float>(v));
+                    printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 167 : SrcData after element-wise op at idx %d , i %d: %f \n" , static_cast<int>(blockIdx.x) ,  static_cast<int>(idx_1d.value) , static_cast<int>(i.value), v_fp32_value);
                 }
-#endif
+
                 // Emin @added
                 __syncthreads();
-
+#endif
                 // apply type convert
                 dst_vector_container.template AsType<DstData>()(i) = type_convert<DstData>(v);
 
                 // Emin @added
                 __syncthreads();
 
+#if 1
                 // Emin @debug
                 // Debug: Print type conversion result
                 if (threadIdx.x == 0 && threadIdx.y == 0) {
@@ -157,11 +187,22 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                     //   printf("DstData after type conversion at idx %d: %f \n", static_cast<int>(i.value), static_cast<float>(dst_vector_container.template AsType<DstData>().At(Number<i>{})));
                     // printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 140 : DstData after type conversion at idx %d, i  %d: %hu \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value) , static_cast<int>(i.value), dst_vector_container.template AsType<DstData>().At(Number<i>{}));
                 
-                    printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 140 : DstData after type conversion at idx %d, i  %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value) , static_cast<int>(i.value), static_cast<float>(dst_vector_container.template AsType<DstData>().At(Number<i>{})));
+                    uint16_t dst_vector_container_bf16_value  = dst_vector_container.template AsType<DstData>().At(Number<i>{}) ;
+                    uint32_t fp32_bits_dst_vector_container = static_cast<uint32_t>(dst_vector_container_bf16_value) << 16 ;
+
+                    float dst_vector_container_fp32_value;
+                    memcpy(&dst_vector_container_fp32_value, &fp32_bits_dst_vector_container, sizeof(float));
+
+
+                    //printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 140 : DstData after type conversion at idx %d, i  %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value) , static_cast<int>(i.value), static_cast<float>(dst_vector_container.template AsType<DstData>().At(Number<i>{})));
+                    printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 140 : DstData after type conversion at idx %d, i  %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value) , static_cast<int>(i.value), dst_vector_container_fp32_value);
+               
                 }
 
                 // Emin @added
                 __syncthreads();
+
+#endif
             });
 
             const bool is_dst_valid =
@@ -172,7 +213,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                 dst_coord_.GetOffset(),
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
-                
+
 #if 0
             // Emin @debug
             //  // Debug: Print data before copying from dst_vector into dst_buf
