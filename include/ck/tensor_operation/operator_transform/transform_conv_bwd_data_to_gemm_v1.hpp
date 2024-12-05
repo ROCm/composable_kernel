@@ -41,15 +41,15 @@ struct TransformConvBwdDataToGemm_v1
 
     static constexpr auto NonSpatialDimsNum = Number<3>{};
 
-    static constexpr auto DIdx = Number<NonSpatialDimsNum>{};
+    static constexpr auto DIdx = NonSpatialDimsNum;
     static constexpr auto HIdx =
-        NDimSpatial == 2 ? Number<NonSpatialDimsNum>{} : Number<NonSpatialDimsNum + 1>{};
+        NDimSpatial == 2 ? NonSpatialDimsNum : Number<NonSpatialDimsNum + 1>{};
     static constexpr auto WIdx =
         NDimSpatial == 2 ? Number<NonSpatialDimsNum + 1>{} : Number<NonSpatialDimsNum + 2>{};
 
-    static constexpr auto ZIdx = Number<NonSpatialDimsNum>{};
+    static constexpr auto ZIdx = NonSpatialDimsNum;
     static constexpr auto YIdx =
-        NDimSpatial == 2 ? Number<NonSpatialDimsNum>{} : Number<NonSpatialDimsNum + 1>{};
+        NDimSpatial == 2 ? NonSpatialDimsNum : Number<NonSpatialDimsNum + 1>{};
     static constexpr auto XIdx =
         NDimSpatial == 2 ? Number<NonSpatialDimsNum + 1>{} : Number<NonSpatialDimsNum + 2>{};
 

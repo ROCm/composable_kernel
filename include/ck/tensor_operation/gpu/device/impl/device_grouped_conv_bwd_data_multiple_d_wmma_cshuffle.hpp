@@ -123,15 +123,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
     GetDummyABDsEGridDescriptor(const ConvToGemmBwdDataTransform& conv_to_gemm_transform)
     {
         const auto a_grid_desc_ak0_m_ak1 = conv_to_gemm_transform.MakeADescriptor_AK0_M_AK1();
-
         const auto b_grid_desc_bk0_n_bk1 = conv_to_gemm_transform.MakeBDescriptor_BK0_N_BK1();
-
         const auto ds_grid_desc_m_n =
             generate_tuple([&](auto) { return conv_to_gemm_transform.MakeCDescriptor_M_N(); },
                            Number<NumDTensor>{});
-
         const auto e_grid_desc_m_n = conv_to_gemm_transform.MakeCDescriptor_M_N();
-
         return make_tuple(
             a_grid_desc_ak0_m_ak1, b_grid_desc_bk0_n_bk1, ds_grid_desc_m_n, e_grid_desc_m_n);
     }
