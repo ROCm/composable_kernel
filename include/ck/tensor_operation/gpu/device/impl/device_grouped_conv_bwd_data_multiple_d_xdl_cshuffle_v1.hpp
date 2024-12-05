@@ -261,9 +261,29 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         const auto b_grid_desc_bk0_n_bk1 = conv_to_gemm_transform.MakeBDescriptor_BK0_N_BK1();
 
-        const auto ds_grid_desc_m_n =
-            generate_tuple([&](auto) { return conv_to_gemm_transform.MakeCDescriptor_M_N(); },
-                           Number<NumDTensor>{});
+        const auto ds_grid_desc_m_n = generate_tuple(
+            [&](auto i) {
+                using DLayout   = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                using ConvToGemmBwdDataTransformD =
+                    TransformConvBwdDataToGemm_v1<NDimSpatial,
+                                                  ConvBackwardDataSpecialization,
+                                                  AK1,
+                                                  BK1,
+                                                  MPerBlock,
+                                                  NPerBlock,
+                                                  KPerBlock,
+                                                  DoPadGemmM,
+                                                  DoPadGemmN,
+                                                  ALayout,
+                                                  BLayout,
+                                                  DLayout,
+                                                  true, /*SplitConvN*/
+                                                  ABDataType,
+                                                  DDataType>;
+                return ConvToGemmBwdDataTransformD{}.MakeCDescriptor_M_N();
+            },
+            Number<NumDTensor>{});
 
         const auto e_grid_desc_m_n = conv_to_gemm_transform.MakeCDescriptor_M_N();
 
