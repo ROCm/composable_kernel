@@ -375,6 +375,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << sorted_token_ids_host << std::endl;
     std::cout << num_sorted_tiles_host << std::endl;
     // output_matrix_3d(g_host, experts, shared_intermediate_size_0, hidden_size);
+    // output_matrix_3d(d_host, experts, hidden_size, shared_intermediate_size_1);
     std::cout << sorted_expert_ids_host << std::endl;
     // std::cout << topk_weight_host << std::endl;
 

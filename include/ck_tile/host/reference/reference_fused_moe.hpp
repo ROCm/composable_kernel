@@ -113,6 +113,8 @@ void reference_fused_moe(
 
         ck_tile::HostTensor<AccDataType> acc_0({1, intermediate_size_0});
         // first gemm
+        // if(i_expert == 0)
+        //     printf("ie:%2d, it:%3d \n", i_expert, i_token);
         for(ck_tile::index_t i_n = 0; i_n < intermediate_size_0; i_n++)
         {
             AccDataType acc = static_cast<AccDataType>(0);
@@ -122,7 +124,8 @@ void reference_fused_moe(
                        type_convert<AccDataType>(g_host(i_expert, i_n, i_k));
             }
             acc_0(0, i_n) = acc;
-            // printf("ie:%2d, it:%3d, in:%d, %f\n", i_expert, i_token, i_n, acc);
+            // if(i_expert == 0)
+            //    printf("in:%d, %f\t", i_n, acc);
         }
 
         ck_tile::HostTensor<AccDataType> y({1, intermediate_size_1});
@@ -135,6 +138,8 @@ void reference_fused_moe(
             for(ck_tile::index_t i_n = 0; i_n < intermediate_size_1; i_n++)
             {
                 Activation{}(y(0, i_n), acc_0(0, i_n));
+                // if(i_expert == 0)
+                //     printf("in:%d, %f\t", i_n, y(0, i_n));
                 // printf("ie:%2d, it:%3d, in:%d, %f\n", i_expert, i_token, i_n, y(0, i_n));
             }
         }
@@ -161,6 +166,8 @@ void reference_fused_moe(
             {
                 acc += y(0, i_k) * type_convert<AccDataType>(d_host(i_expert, i_n, i_k));
             }
+            // if(i_expert == 0)
+            //     printf("in:%d, %f\t", i_n, acc);
             acc_1(0, i_n) = acc * weight; // multiple weight here
         }
 

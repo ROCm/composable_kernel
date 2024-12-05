@@ -247,22 +247,13 @@ struct FusedMoeGemmGlKernel
         const IndexDataType expert_id = __builtin_amdgcn_readfirstlane(
             reinterpret_cast<const IndexDataType*>(kargs.sorted_expert_ids_ptr)[sorted_tile_id]);
 
-        // index along intermediate_size
-        // index_t hidden_idx = __builtin_amdgcn_readfirstlane(intermediate_tile_id *
-        // BlockShape::Block_N0);
         index_t idx_m0 = __builtin_amdgcn_readfirstlane(sorted_tile_id * BlockShape::Block_M0);
-        index_t idx_n0 = __builtin_amdgcn_readfirstlane(sorted_tile_id * BlockShape::Block_N0);
+        index_t idx_n0 =
+            __builtin_amdgcn_readfirstlane(intermediate_tile_id * BlockShape::Block_N0);
 
-        // const auto a_coord         = Pipeline::GetACoord(); // 2d thread offset, [i_row, i_col]
-
-        // if(threadIdx.x == 200 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0){
-        //     printf("\n*************a_coord[0]: %d, a_coord[1]: %d  size: %d \n",
-        //     a_coord[number<0>{}], a_coord[number<1>{}], a_coord.size());
-        // }
-        // const auto sorted_token_id = a_coord[number<0>{}] + sorted_tile_id *
-        // BlockShape::Block_M0;  //not block pos?
-        const auto sorted_token_id = sorted_tile_id * BlockShape::Block_M0; // start block_m
-                                                                            // position
+        const auto a_coord = Pipeline::GetACoord(); // 2d thread offset, [i_row, i_col]
+        const auto sorted_token_id = a_coord[number<0>{}] + idx_m0; // start block_m
+                                                                    // position
 
         // index_t token_id =
         //     reinterpret_cast<const index_t*>(kargs.sorted_token_ids_ptr)[sorted_token_id];

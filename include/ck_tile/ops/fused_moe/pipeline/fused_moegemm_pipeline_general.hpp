@@ -90,7 +90,8 @@ struct FusedMoeGemmPipeline_General
     }
 
     template <typename T>
-    CK_TILE_HOST_DEVICE static void PrintMem(T& tensor)
+    CK_TILE_HOST_DEVICE static void
+    PrintMem(T& tensor, const char* pstr, unsigned int threadid = 0, unsigned int blockid = 0)
     {
         constexpr auto spans = T::get_distributed_spans();
         int counter          = 0;
@@ -99,12 +100,14 @@ struct FusedMoeGemmPipeline_General
                 constexpr auto i_j_idx = make_tuple(idxn, idxk);
                 const auto tile_idx =
                     get_x_indices_from_distributed_indices(tensor.get_tile_distribution(), i_j_idx);
-                if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                if(threadIdx.x == threadid && blockIdx.x == 0 && blockIdx.y == blockid &&
+                   blockIdx.z == 0)
                 {
                     const auto row = tile_idx.at(number<0>{});
                     const auto col = tile_idx.at(number<1>{});
-                    printf("in G row is %d , col is %d, counter is %d, value is: %f"
+                    printf("in %s row is %d , col is %d, counter is %d, value is: %f"
                            " \n",
+                           pstr,
                            row,
                            col,
                            counter,
@@ -119,14 +122,11 @@ struct FusedMoeGemmPipeline_General
                                    const GWindow& g_window_,
                                    const DWindow& d_window_,
                                    OWindow& o_window_,
-                                   TopkWeightDataType /*topk_weight*/,
+                                   TopkWeightDataType topk_weight,
                                    CK_TILE_LDS_ADDR void* smem,
                                    index_t hidden_size,
                                    index_t intermediate_size)
     {
-        ignore                             = d_window_;
-        ignore                             = hidden_size;
-        ignore                             = intermediate_size;
         CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
         auto a_lds_view                    = make_tensor_view<address_space_enum::lds>(
             smem_0, Policy::template MakeLdsBlockDesc_A<Problem>());
@@ -157,13 +157,13 @@ struct FusedMoeGemmPipeline_General
         auto a_dram_block = load_tile(a_global_to_dram_window);
         store_tile(a_lds_win, a_dram_block);
 #if 0
-        PrintMem(a_dram_block);
+        PrintMem(a_dram_block,"A", 0, 1);
 #endif
 
         auto g_dram_block = load_tile(g_global_to_dram_window);
 
-#if 0
-        PrintMem(g_dram_block);
+#if 1
+        PrintMem(g_dram_block, "G", 0, 1);
 #endif
 
         clear_tile(s_acc); // initialize C
@@ -191,7 +191,7 @@ struct FusedMoeGemmPipeline_General
             block_sync_lds();
             gemm_0(s_acc, a_lds_win, g_dram_block);
         }
-#if 1
+#if 0
         PrintMem(s_acc);
 #endif
         // relu
@@ -233,6 +233,25 @@ struct FusedMoeGemmPipeline_General
             d_window_.get_window_origin(),
             Policy::template MakeGlobalTileDistribution_D<Problem>());
         auto d = load_tile(d_global_to_dram_window);
+#if 0
+        PrintMem(d,"D",64);
+#endif
+        // add to LDS
+        auto o_alds_view =
+            make_naive_tensor_view<address_space_enum::lds, memory_operation_enum::atomic_add>(
+                smem_0,
+                make_tuple(number<32>{}, number<32>{}),
+                make_tuple(32, 1),
+                number<8>{},
+                number<1>{});
+        auto o_alds_win =
+            make_tile_window(o_alds_view, make_tuple(number<32>{}, number<32>{}), {0, 0});
+        auto o_olds_win =
+            make_tile_window(o_alds_view,
+                             make_tuple(number<32>{}, number<32>{}),
+                             {0, 0},
+                             Policy::template MakeGlobalTileDistribution_O<Problem>());
+        ignore = o_alds_win;
 
         constexpr index_t kN1  = BlockShape::Block_N1;
         const index_t n1_loops = ck_tile::integer_divide_ceil(hidden_size, kN1);
@@ -258,12 +277,32 @@ struct FusedMoeGemmPipeline_General
             block_sync_lds();
             gemm_1(o_acc, y, d);
 
+            // block_sync_lds();
+            tile_elementwise_inout(
+                [&topk_weight](auto& x) { x = x * type_convert<float>(topk_weight); }, o_acc);
             auto o = cast_tile<ODataType>(o_acc);
-            store_tile(o_window_, o);
-        }
+            store_tile(o_alds_win, o);
+            block_sync_lds();
+            // if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 1 && blockIdx.z == 0)
+            // {
+            //     for(int i = 0; i < 42; i++)
+            //     {
+            //         printf("\n%d value is %f\t", i, type_convert<float>(smem_0[i]));
+            //     }
+            // }
+            if(threadIdx.x < 64)
+            {
+                auto o_out = load_tile(o_olds_win);
+                block_sync_lds();
+                store_tile(o_window_, o_out);
+            }
+            // ignore = o_olds_win;
+            // store_tile(o_window_, o);
 #if 0
-        PrintMem(o_acc);
+        PrintMem(o,"O");
 #endif
+        }
+
         // store_tile(o_window_, a_dram_block);
     }
 };
