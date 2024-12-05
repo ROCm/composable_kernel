@@ -329,10 +329,8 @@ def cmake_build(Map conf=[:]){
         try{
             archiveArtifacts "perf_fmha_fwd_*.log"
             archiveArtifacts "perf_fmha_bwd_*.log"
-            stash name: "perf_fmha_fwd_gfx942.log"
-            stash name: "perf_fmha_bwd_gfx942.log"
-            stash name: "perf_fmha_fwd_gfx90a.log"
-            stash name: "perf_fmha_bwd_gfx90a.log"
+            stash includes: "perf_fmha_**_gfx942.log", name: "perf_fmha_log_gfx942"
+            stash includes: "perf_fmha_**_gfx90a.log", name: "perf_fmha_log_gfx90a"
         }
         catch(Exception err){
             echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
@@ -494,7 +492,7 @@ def Build_CK(Map conf=[:]){
                             sh 'make -j package'
                             archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
                             sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
-                            stash name: "ckprofiler_0.2.0_amd64.deb"
+                            stash includes: "ckprofiler_0.2.0_amd64.deb", name: "ckprofiler_0.2.0_amd64.deb"
                         }
                     }
                     // run performance tests, stash the logs, results will be processed on the master node
@@ -517,20 +515,7 @@ def Build_CK(Map conf=[:]){
                             archiveArtifacts "perf_splitK_gemm.log"
                             archiveArtifacts "perf_onnx_gemm.log"
                             archiveArtifacts "perf_mixed_gemm.log"
-
-                            stash name: "perf_gemm.log"
-                            stash name: "perf_resnet50_N256.log"
-                            stash name: "perf_resnet50_N4.log"
-                            stash name: "perf_batched_gemm.log"
-                            stash name: "perf_grouped_gemm.log"
-                            stash name: "perf_grouped_conv_fwd.log"
-                            stash name: "perf_grouped_conv_bwd_data.log"
-                            stash name: "perf_grouped_conv_bwd_weight.log"
-                            stash name: "perf_gemm_bilinear.log"
-                            stash name: "perf_reduction.log"
-                            stash name: "perf_splitK_gemm.log"
-                            stash name: "perf_onnx_gemm.log"
-                            stash name: "perf_mixed_gemm.log"
+                            stash includes: "perf_**.log", name: "perf_log"
                         }
                         else if ( arch_type == 1 ){
                             // run standard tests on gfx90a
@@ -540,10 +525,7 @@ def Build_CK(Map conf=[:]){
                             archiveArtifacts "perf_onnx_gemm.log"
                             archiveArtifacts "perf_resnet50_N256.log"
                             archiveArtifacts "perf_resnet50_N4.log"
-                            stash name: "perf_gemm.log"
-                            stash name: "perf_onnx_gemm.log"
-                            stash name: "perf_resnet50_N256.log"
-                            stash name: "perf_resnet50_N4.log"
+                            stash includes: "perf_**.log", name: "perf_log"
                         }
                         // disable performance tests on gfx1030 for now.
                         //else if ( arch_type == 3){
@@ -551,21 +533,21 @@ def Build_CK(Map conf=[:]){
                         //    echo "Run gemm performance tests"
                         //    sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx10"
                         //    archiveArtifacts "perf_onnx_gemm_gfx10.log"
-                        //    stash name: "perf_onnx_gemm_gfx10.log"
+                        //    stash includes: "perf_onnx_gemm_gfx10.log", name: "perf_log_gfx10"
                         //}
                         else if ( arch_type == 4){
                             // run basic tests on gfx11
                             echo "Run gemm performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx11"
                             archiveArtifacts "perf_onnx_gemm_gfx11.log"
-                            stash name: "perf_onnx_gemm_gfx11.log"
+                            stash includes: "perf_onnx_gemm_gfx11.log", name: "perf_log_gfx11"
                         }
                         else if ( arch_type == 5 ){
                             // run basic tests on gfx12
                             echo "Run gemm performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx12"
                             archiveArtifacts "perf_onnx_gemm_gfx12.log"
-                            stash name: "perf_onnx_gemm_gfx12.log"
+                            stash includes: "perf_onnx_gemm_gfx12.log", name: "perf_log_gfx12"
                         }                        
                         }
                     }
@@ -642,10 +624,8 @@ def process_results(Map conf=[:]){
                 dir("script"){
                     if (params.RUN_CK_TILE_FMHA_TESTS){
                         try{
-                            unstash "perf_fmha_fwd_gfx942.log"
-                            unstash "perf_fmha_bwd_gfx942.log"
-                            unstash "perf_fmha_fwd_gfx90a.log"
-                            unstash "perf_fmha_bwd_gfx90a.log"
+                            unstash "perf_fmha_log_gfx942"
+                            unstash "perf_fmha_log_gfx90a"
                         }
                         catch(Exception err){
                             echo "could not locate the FMHA performance logs: ${err.getMessage()}."
@@ -655,22 +635,10 @@ def process_results(Map conf=[:]){
                         // unstash perf files to master
                         unstash "ckprofiler_0.2.0_amd64.deb"
                         sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
-                        unstash "perf_gemm.log"
-                        unstash "perf_resnet50_N256.log"
-                        unstash "perf_resnet50_N4.log"
-                        unstash "perf_batched_gemm.log"
-                        unstash "perf_grouped_gemm.log"
-                        unstash "perf_grouped_conv_fwd.log"
-                        unstash "perf_grouped_conv_bwd_data.log"
-                        unstash "perf_grouped_conv_bwd_weight.log"
-                        unstash "perf_gemm_bilinear.log"
-                        unstash "perf_reduction.log"
-                        unstash "perf_splitK_gemm.log"
-                        unstash "perf_onnx_gemm.log"
-                        unstash "perf_mixed_gemm.log"
+                        unstash "perf_log"
                         try{
-                            unstash "perf_gemm_gfx11.log"
-                            unstash "perf_gemm_gfx12.log"
+                            unstash "perf_log_gfx11"
+                            unstash "perf_log_gfx12"
                         }
                         catch(Exception err){
                             echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
@@ -679,12 +647,10 @@ def process_results(Map conf=[:]){
                     }
                     else{
                         // unstash perf files to master
-                        unstash "perf_gemm.log"
-                        unstash "perf_resnet50_N256.log"
-                        unstash "perf_resnet50_N4.log"
+                        unstash "perf_log"
                         try{
-                            unstash "perf_gemm_gfx11.log"
-                            unstash "perf_gemm_gfx12.log"
+                            unstash "perf_log_gfx11"
+                            unstash "perf_log_gfx12"
                         }
                         catch(Exception err){
                             echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
