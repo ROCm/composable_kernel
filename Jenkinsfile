@@ -545,13 +545,14 @@ def Build_CK(Map conf=[:]){
                             stash name: "perf_resnet50_N256.log"
                             stash name: "perf_resnet50_N4.log"
                         }
-                        else if ( arch_type == 3){
+                        // disable performance tests on gfx1030 for now.
+                        //else if ( arch_type == 3){
                             // run basic tests on gfx1030
-                            echo "Run gemm performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx10"
-                            archiveArtifacts "perf_onnx_gemm_gfx10.log"
-                            stash name: "perf_onnx_gemm_gfx10.log"
-                        }
+                        //    echo "Run gemm performance tests"
+                        //    sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx10"
+                        //    archiveArtifacts "perf_onnx_gemm_gfx10.log"
+                        //    stash name: "perf_onnx_gemm_gfx10.log"
+                        //}
                         else if ( arch_type == 4){
                             // run basic tests on gfx11
                             echo "Run gemm performance tests"
