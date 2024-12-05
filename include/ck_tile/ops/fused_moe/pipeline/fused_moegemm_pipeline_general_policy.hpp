@@ -175,7 +175,7 @@ struct FusedMoeGemmPipelineGeneralPolicy
     {
         using WG = decltype(GetWarpGemm0<Problem>());
         using S_ = typename Problem::BlockShape;
-        static_assert(S_::WarpPerBlock_N0==4);
+        static_assert(S_::WarpPerBlock_N0 == 4);
         constexpr auto g_outer_dstr_enc = tile_distribution_encoding<
             sequence<S_::WarpPerBlock_M0>,
             tuple<sequence<S_::Repeat_N0, S_::WarpPerBlock_N0>, sequence<S_::Repeat_K0>>,
@@ -240,13 +240,14 @@ struct FusedMoeGemmPipelineGeneralPolicy
         using S_       = remove_cvref_t<typename Problem::BlockShape>;
         using WarpGemm = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
 
-        constexpr auto y_outer_dstr_enc = tile_distribution_encoding<
-            sequence<1>,
-            tuple<sequence<S_::Repeat_M1, S_::WarpPerBlock_M1>, sequence<S_::WarpPerBlock_K1, S_::Repeat_K1>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 0>>,
-            sequence<1, 2>,
-            sequence<0, 1>>{};
+        constexpr auto y_outer_dstr_enc =
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<S_::Repeat_M1, S_::WarpPerBlock_M1>,
+                                             sequence<S_::WarpPerBlock_K1, S_::Repeat_K1>>,
+                                       tuple<sequence<1, 2>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{};
 
         constexpr auto y_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             y_outer_dstr_enc, typename WarpGemm::AWarpDstrEncoding{});
@@ -260,13 +261,14 @@ struct FusedMoeGemmPipelineGeneralPolicy
         using S_       = remove_cvref_t<typename Problem::BlockShape>;
         using WarpGemm = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
 
-        constexpr auto d_outer_dstr_enc = tile_distribution_encoding<
-            sequence<1>,
-            tuple<sequence<S_::Repeat_N1, S_::WarpPerBlock_N1>, sequence<S_::WarpPerBlock_K1, S_::Repeat_K1>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 0>>,
-            sequence<1, 2>,
-            sequence<0, 1>>{};
+        constexpr auto d_outer_dstr_enc =
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<S_::Repeat_N1, S_::WarpPerBlock_N1>,
+                                             sequence<S_::WarpPerBlock_K1, S_::Repeat_K1>>,
+                                       tuple<sequence<1, 2>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{};
 
         constexpr auto d_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             d_outer_dstr_enc, typename WarpGemm::BWarpDstrEncoding{});
@@ -356,8 +358,8 @@ struct FusedMoeGemmPipelineGeneralPolicy
                 1>>{};
         }
         else if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::bf16_t> &&
-                     std::is_same_v<typename Problem::GDataType, ck_tile::bf16_t> &&
-                     S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 8)
+                          std::is_same_v<typename Problem::GDataType, ck_tile::bf16_t> &&
+                          S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 8)
         {
             return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
                 WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<wg_ctrl>,
@@ -396,8 +398,8 @@ struct FusedMoeGemmPipelineGeneralPolicy
                 1>>{};
         }
         else if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::bf16_t> &&
-                     std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
-                     S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 8)
+                          std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
+                          S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 8)
         {
             return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
                 WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<wg_ctrl>,

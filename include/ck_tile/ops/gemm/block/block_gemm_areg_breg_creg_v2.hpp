@@ -52,16 +52,16 @@ struct BlockGemmARegBRegCRegV2
         // M->N Warp
         // constexpr auto a_block_outer_dstr_encoding =
         //     tile_distribution_encoding<sequence<NWarp>,
-        //                                tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-        //                                tuple<sequence<1, 0>>,
+        //                                tuple<sequence<MIterPerWarp, MWarp>,
+        //                                sequence<KIterPerWarp>>, tuple<sequence<1, 0>>,
         //                                tuple<sequence<1, 0>>,
         //                                sequence<1, 2>,
         //                                sequence<0, 0>>{};
 
         // constexpr auto b_block_outer_dstr_encoding =
         //     tile_distribution_encoding<sequence<MWarp>,
-        //                                tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
-        //                                tuple<sequence<0, 1>>,
+        //                                tuple<sequence<NIterPerWarp, NWarp>,
+        //                                sequence<KIterPerWarp>>, tuple<sequence<0, 1>>,
         //                                tuple<sequence<0, 1>>,
         //                                sequence<1, 2>,
         //                                sequence<0, 0>>{};

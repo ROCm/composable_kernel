@@ -83,13 +83,43 @@ void topid_unique_gen(
         host_tensor[i] = current_v;
     }
 }
-
+template <typename IndexType>
+void output_matrix_2d(ck_tile::HostTensor<IndexType>& data, int m, int n)
+{
+    std::cout << std::endl;
+    for(int i = 0; i < m; i++)
+    {
+        std::cout << "Line " << i << "\t";
+        for(int j = 0; j < n; j++)
+        {
+            std::cout << ck_tile::type_convert<float>(data(i, j)) << "\t";
+        }
+        std::cout << std::endl;
+    }
+}
+template <typename IndexType>
+void output_matrix_3d(ck_tile::HostTensor<IndexType>& data, int M, int N, int J)
+{
+    std::cout << std::endl;
+    for(int m = 0; m < M; m++)
+    {
+        for(int n = 0; n < N; n++)
+        {
+            std::cout << "experts: " << m << " Line: " << n << "\t";
+            for(int j = 0; j < J; j++)
+            {
+                std::cout << ck_tile::type_convert<float>(data(m, n, j)) << "\t";
+            }
+            std::cout << std::endl;
+        }
+    }
+}
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("t", "128", "num input tokens")
         .insert("e", "32", "num of experts")
-        .insert("k", "5", "topk")
+        .insert("k", "2", "topk")
         .insert("h", "8192", "hidden_size of this model")
         .insert("i", "8192", "intermediate_size between 2 gemms of FFN")
         .insert("stride", "-1", "stride per row, if -1 then equal to hidden_size")
@@ -112,7 +142,7 @@ auto create_args(int argc, char* argv[])
                 "0",
                 "if set to 1, will try balance the expert in topk-ids(convenient for testing)")
         .insert("init",
-                "2",
+                "1",
                 "init method. 0:random stepped float(fast). 1: random uniform, 2:rand normalized"
                 "normalized(slow)")
         .insert("seed", "11939", "seed used to do random")
@@ -176,9 +206,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
         return base_str;
     }();
-    auto api_str = [&]() {
-        return std::string("moeg");
-    }();
+    auto api_str = [&]() { return std::string("moeg"); }();
 
     auto stride_str = [&]() {
         if(stride == hidden_size)
@@ -245,7 +273,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f, seed, true}(sg_host);
         ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f, seed, true}(sd_host);
         ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f, seed, true}(sy_host);
-        ck_tile::FillUniformDistribution<TopkWeightDataType>{-.5f, .5f, seed, true}(
+        ck_tile::FillUniformDistribution<TopkWeightDataType>{0.0f, 1.0f, seed, true}(
             topk_weight_host);
     }
     else if(init == 2)
@@ -333,116 +361,122 @@ bool run(const ck_tile::ArgParser& arg_parser)
                (static_cast<double>(ms) * 1e-3) / 1e12;
     };
 
-        ck_tile::reference_moe_sorting<TopkWeightDataType, IndexDataType>(
-            topk_ids_host,
-            topk_weight_host,
+    ck_tile::reference_moe_sorting<TopkWeightDataType, IndexDataType>(
+        topk_ids_host,
+        topk_weight_host,
+        sorted_token_ids_host,
+        sorted_weight_host,
+        sorted_expert_ids_host,
+        num_sorted_tiles_host.mData[0],
+        experts,
+        block_m);
+
+    // output_matrix_2d(a_host, tokens, hidden_size);
+    std::cout << sorted_token_ids_host << std::endl;
+    std::cout << num_sorted_tiles_host << std::endl;
+    // output_matrix_3d(g_host, experts, shared_intermediate_size_0, hidden_size);
+    std::cout << sorted_expert_ids_host << std::endl;
+    // std::cout << topk_weight_host << std::endl;
+
+    // std::cout << sorted_weight_host << std::endl;
+    // done, preparing GPU buffer
+    ck_tile::DeviceMem a_buf(a_host);
+    ck_tile::DeviceMem g_perm_buf(g_host);
+    ck_tile::DeviceMem d_perm_buf(d_host);
+    ck_tile::DeviceMem sa_buf(sa_host);
+    ck_tile::DeviceMem sg_buf(sg_host);
+    ck_tile::DeviceMem sd_buf(sd_host);
+    ck_tile::DeviceMem sy_buf(sy_host);
+    ck_tile::DeviceMem o_buf(o_host);
+
+    // manually clear output buffer for atomic
+    o_buf.SetZero();
+    //
+
+    ck_tile::DeviceMem sorted_token_ids_buf(sorted_token_ids_host);
+    ck_tile::DeviceMem sorted_weight_buf(sorted_weight_host);
+    ck_tile::DeviceMem sorted_expert_ids_buf(sorted_expert_ids_host);
+    ck_tile::DeviceMem num_sorted_tiles_buf(num_sorted_tiles_host);
+
+    fused_moegemm_traits traits{prec_i,
+                                prec_w,
+                                prec_o,
+                                prec_st,
+                                prec_sw,
+                                prec_sq,
+                                prec_kw,
+                                block_m,
+                                gate_only,
+                                fused_quant};
+
+    fused_moegemm_args args{a_buf.GetDeviceBuffer(),
+                            fused_quant != 0 ? sa_buf.GetDeviceBuffer() : nullptr,
+                            g_perm_buf.GetDeviceBuffer(),
+                            d_perm_buf.GetDeviceBuffer(),
+                            fused_quant != 0 ? sg_buf.GetDeviceBuffer() : nullptr,
+                            fused_quant != 0 ? sd_buf.GetDeviceBuffer() : nullptr,
+                            fused_quant == 1 ? sy_buf.GetDeviceBuffer() : nullptr,
+                            o_buf.GetDeviceBuffer(),
+                            sorted_token_ids_buf.GetDeviceBuffer(),
+                            sorted_weight_buf.GetDeviceBuffer(),
+                            sorted_expert_ids_buf.GetDeviceBuffer(),
+                            num_sorted_tiles_buf.GetDeviceBuffer(),
+                            hidden_size,
+                            shared_intermediate_size_0,
+                            tokens,
+                            experts,
+                            topk,
+                            stride,
+                            max_num_tokens_padded};
+
+    float ave_time = fused_moegemm(
+        traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
+
+    if(ave_time < 0)
+    {
+        std::cout << " not supported!" << std::endl << std::flush;
+        return false;
+    }
+
+    // float gb_per_sec = num_byte / 1.E6 / ave_time;
+    std::cout << ", " << ave_time * 1.E3 << " us, " << cal_tflops(ave_time) << " tflops, "
+              << cal_tbps(ave_time) << " TB/s" << std::flush;
+    bool pass = true;
+
+    if(do_validation)
+    {
+        ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Gelu>(
+            a_host,
+            g_host,
+            d_host,
+            sa_host,
+            sg_host,
+            sd_host,
+            sy_host,
+            o_host,
             sorted_token_ids_host,
             sorted_weight_host,
             sorted_expert_ids_host,
-            num_sorted_tiles_host.mData[0],
+            num_sorted_tiles_host,
+            topk_ids_host,
+            block_m,
+            tokens,
             experts,
-            block_m);
+            hidden_size,
+            shared_intermediate_size_0,
+            topk,
+            gate_only);
 
-        // done, preparing GPU buffer
-        ck_tile::DeviceMem a_buf(a_host);
-        ck_tile::DeviceMem g_perm_buf(g_host);
-        ck_tile::DeviceMem d_perm_buf(d_host);
-        ck_tile::DeviceMem sa_buf(sa_host);
-        ck_tile::DeviceMem sg_buf(sg_host);
-        ck_tile::DeviceMem sd_buf(sd_host);
-        ck_tile::DeviceMem sy_buf(sy_host);
-        ck_tile::DeviceMem o_buf(o_host);
+        auto o_dev = o_buf.ToHost<ODataType>();
+        // o_dev.savetxt("gpu-out.txt", "float");
+        auto [rtol, atol] = get_elimit<ADataType>();
+        pass &= ck_tile::check_err(
+            o_dev, o_host, std::string("OUT Error: Incorrect results!"), rtol, atol);
+        std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
+    }
+    std::cout << std::flush << std::endl;
 
-        // manually clear output buffer for atomic
-        o_buf.SetZero();
-        //
-
-        ck_tile::DeviceMem sorted_token_ids_buf(sorted_token_ids_host);
-        ck_tile::DeviceMem sorted_weight_buf(sorted_weight_host);
-        ck_tile::DeviceMem sorted_expert_ids_buf(sorted_expert_ids_host);
-        ck_tile::DeviceMem num_sorted_tiles_buf(num_sorted_tiles_host);
-
-        fused_moegemm_traits traits{prec_i,
-                                    prec_w,
-                                    prec_o,
-                                    prec_st,
-                                    prec_sw,
-                                    prec_sq,
-                                    prec_kw,
-                                    block_m,
-                                    gate_only,
-                                    fused_quant};
-
-        fused_moegemm_args args{a_buf.GetDeviceBuffer(),
-                                fused_quant != 0 ? sa_buf.GetDeviceBuffer() : nullptr,
-                                g_perm_buf.GetDeviceBuffer(),
-                                d_perm_buf.GetDeviceBuffer(),
-                                fused_quant != 0 ? sg_buf.GetDeviceBuffer() : nullptr,
-                                fused_quant != 0 ? sd_buf.GetDeviceBuffer() : nullptr,
-                                fused_quant == 1 ? sy_buf.GetDeviceBuffer() : nullptr,
-                                o_buf.GetDeviceBuffer(),
-                                sorted_token_ids_buf.GetDeviceBuffer(),
-                                sorted_weight_buf.GetDeviceBuffer(),
-                                sorted_expert_ids_buf.GetDeviceBuffer(),
-                                num_sorted_tiles_buf.GetDeviceBuffer(),
-                                hidden_size,
-                                shared_intermediate_size_0,
-                                tokens,
-                                experts,
-                                topk,
-                                stride,
-                                max_num_tokens_padded};
-
-        float ave_time = fused_moegemm(
-            traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
-
-        if(ave_time < 0)
-        {
-            std::cout << " not supported!" << std::endl << std::flush;
-            return false;
-        }
-
-        // float gb_per_sec = num_byte / 1.E6 / ave_time;
-        std::cout << ", " << ave_time * 1.E3 << " us, " << cal_tflops(ave_time) << " tflops, "
-                  << cal_tbps(ave_time) << " TB/s" << std::flush;
-        bool pass = true;
-
-        if(do_validation)
-        {
-            ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Gelu>(
-                a_host,
-                g_host,
-                d_host,
-                sa_host,
-                sg_host,
-                sd_host,
-                sy_host,
-                o_host,
-                sorted_token_ids_host,
-                sorted_weight_host,
-                sorted_expert_ids_host,
-                num_sorted_tiles_host,
-                topk_ids_host,
-                block_m,
-                tokens,
-                experts,
-                hidden_size,
-                shared_intermediate_size_0,
-                topk,
-                gate_only);
-
-            auto o_dev = o_buf.ToHost<ODataType>();
-            // o_dev.savetxt("gpu-out.txt", "float");
-            auto [rtol, atol] = get_elimit<ADataType>();
-            pass &= ck_tile::check_err(
-                o_dev, o_host, std::string("OUT Error: Incorrect results!"), rtol, atol);
-            std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
-        }
-        std::cout << std::flush << std::endl;
-
-        return pass;
-    
-
+    return pass;
 }
 
 int main(int argc, char* argv[])

@@ -124,9 +124,9 @@ struct FusedMoeGemmPipeline_General
                                    index_t hidden_size,
                                    index_t intermediate_size)
     {
-        ignore = d_window_;
-        ignore = hidden_size;
-        ignore = intermediate_size;
+        ignore                             = d_window_;
+        ignore                             = hidden_size;
+        ignore                             = intermediate_size;
         CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
         auto a_lds_view                    = make_tensor_view<address_space_enum::lds>(
             smem_0, Policy::template MakeLdsBlockDesc_A<Problem>());
@@ -191,12 +191,13 @@ struct FusedMoeGemmPipeline_General
             block_sync_lds();
             gemm_0(s_acc, a_lds_win, g_dram_block);
         }
-        // relu
-        const auto activation =  ck_tile::element_wise::Gelu{};
-        tile_elementwise_inout(activation, s_acc, s_acc);
-#if 0
+#if 1
         PrintMem(s_acc);
 #endif
+        // relu
+        const auto activation = ck_tile::element_wise::Gelu{};
+        tile_elementwise_inout(activation, s_acc, s_acc);
+
         // move sacc to LDS
         auto bridge_lds_view = make_tensor_view<address_space_enum::lds>(
             smem_0, Policy::template MakeBridgeLdsBlockDesc<Problem>());
@@ -238,7 +239,7 @@ struct FusedMoeGemmPipeline_General
         index_t iCounter1      = n1_loops - 1;
         while(iCounter1 > 0)
         {
-            clear_tile(o_acc); 
+            clear_tile(o_acc);
             block_sync_lds();
             gemm_1(o_acc, y, d);
             block_sync_lds();
@@ -253,7 +254,7 @@ struct FusedMoeGemmPipeline_General
         }
         // tail
         {
-            clear_tile(o_acc); 
+            clear_tile(o_acc);
             block_sync_lds();
             gemm_1(o_acc, y, d);
 

@@ -213,9 +213,9 @@ struct FusedMoeGemmGlKernel
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& hargs)
     {
-        //constexpr index_t block_m = BlockShape::Block_M0;
+        // constexpr index_t block_m = BlockShape::Block_M0;
         int max_num_tokens_padded = hargs.max_num_tokens_padded;
-            //hargs.topk * hargs.num_tokens + hargs.num_experts * block_m - hargs.topk;
+        // hargs.topk * hargs.num_tokens + hargs.num_experts * block_m - hargs.topk;
         // printf("xxx max_num_tokens_padded:%d\n", max_num_tokens_padded);
         return Partitioner::GridSize(max_num_tokens_padded, hargs.intermediate_size);
     }
