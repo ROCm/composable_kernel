@@ -68,8 +68,7 @@ struct gemm_basic_args
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("b", "1", "batch size")
-        .insert("m", "3840", "m dimension")
+    arg_parser.insert("m", "3840", "m dimension")
         .insert("n", "4096", "n dimension")
         .insert("k", "2048", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
@@ -82,7 +81,11 @@ auto create_args(int argc, char* argv[])
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer");
+        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
+        .insert(
+            "split_k",
+            "1",
+            "splitK value, set to 0 to run the set of the values {1, 2, 4, 8, 16, 32, 64, 128}");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

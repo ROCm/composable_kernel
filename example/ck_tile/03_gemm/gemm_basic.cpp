@@ -87,7 +87,8 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                                    args.K,
                                    args.stride_A,
                                    args.stride_B,
-                                   args.stride_C);
+                                   args.stride_C,
+                                   args.kbatch);
 
     const dim3 grids      = Kernel::GridSize(args.M, args.N, args.kbatch);
     constexpr dim3 blocks = Kernel::BlockSize();

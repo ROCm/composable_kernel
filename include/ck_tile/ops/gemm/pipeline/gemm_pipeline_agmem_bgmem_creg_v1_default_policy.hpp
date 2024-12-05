@@ -13,6 +13,8 @@ namespace ck_tile {
 struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 {
 
+    static constexpr bool TransposeC = false;
+
 #if 0
     // 2d
     template <typename Problem>
@@ -485,13 +487,14 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         }
     }
 
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return TransposeC; }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        constexpr bool TransposeC = false;
-        constexpr auto I0         = number<0>{};
-        constexpr auto I1         = number<1>{};
-        constexpr auto I2         = number<2>{};
+        constexpr auto I0 = number<0>{};
+        constexpr auto I1 = number<1>{};
+        constexpr auto I2 = number<2>{};
 
         using AccDataType     = float;
         using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
