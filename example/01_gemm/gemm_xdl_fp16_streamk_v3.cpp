@@ -27,6 +27,82 @@ using DeviceGemmV2_Streamk_Instance =
         ALayout,   BLayout,  CLayout,   
         ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
+        64,  // Block Size
+        16, // MPer Block
+        16, // NPer Block
+        64,  // KPer Block
+        8,   // AK1
+        8,   // BK1
+        16,  // MPer XDL
+        16,  // NPer XDL
+        1,   // Mxdl Per Wave
+        1,   // Nxdl Per Wave
+        S<8, 8, 1>,  // AblockTransfer ThreadCluster Lenghts_K0_M_kK1
+        S<1, 0, 2>,   // ABlockTransfer ThreadCluster ArrangeOrder
+        S<1, 0, 2>,   // ABlockTransfer SrcAccessOrder
+        2,            // ABlockTransfer SrcVectorDim
+        8,            // ABlockTransfer SrcScalar PerVector
+        8,            // ABlockTransfer DstScalar PerVector_K1
+        0,            // ABlockLds AddExtraM
+        S<8, 8, 1>,  // BBlockTransfer ThreadCluster Lengths_K0_N_K1
+        S<1, 0, 2>,   // BBlockTransfer ThreadCluster ArrangeOrder
+        S<1, 0, 2>,   // BlockTransfer  SrcAccessOrder
+        2,            // BBlockTransfer SrcVectorDim
+        8,            // BBlockTransfer SrcScalar PerVector
+        8,            // BBlockTransfer DstScalar PerVector_K1
+        0,            // BBlocksLds AddExtraN
+        1,            // CShuffle MXdlPerWave PerShuffle
+        1,            // CShuffle NXdlPerWave PerShuffle
+        S<1, 16, 1, 4>, // CBlockTransferClusterLenghts _MBlock_MXdlPerWave_MWaveMPerXdl _NBlock_NXdlPerWave_NWaveNPerXdl
+        4,              // CBlockTransfer ScalarPerVector _NWaveNPerXdl
+        ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3>;
+// clang-format on
+
+
+// // clang-format off
+// using DeviceGemmV2_Streamk_Instance = 
+//     ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle_Streamk_V3<
+//         ALayout,   BLayout,  CLayout,   
+//         ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
+//         PassThrough, PassThrough, PassThrough, GemmDefault, 
+//         64,  // Block Size
+//         16, // MPer Block
+//         16, // NPer Block
+//         128,  // KPer Block
+//         8,   // AK1
+//         8,   // BK1
+//         16,  // MPer XDL
+//         16,  // NPer XDL
+//         1,   // Mxdl Per Wave
+//         1,   // Nxdl Per Wave
+//         S<16, 4, 1>,  // AblockTransfer ThreadCluster Lenghts_K0_M_kK1
+//         S<1, 0, 2>,   // ABlockTransfer ThreadCluster ArrangeOrder
+//         S<1, 0, 2>,   // ABlockTransfer SrcAccessOrder
+//         2,            // ABlockTransfer SrcVectorDim
+//         8,            // ABlockTransfer SrcScalar PerVector
+//         8,            // ABlockTransfer DstScalar PerVector_K1
+//         0,            // ABlockLds AddExtraM
+//         S<16, 4, 1>,  // BBlockTransfer ThreadCluster Lengths_K0_N_K1
+//         S<1, 0, 2>,   // BBlockTransfer ThreadCluster ArrangeOrder
+//         S<1, 0, 2>,   // BlockTransfer  SrcAccessOrder
+//         2,            // BBlockTransfer SrcVectorDim
+//         8,            // BBlockTransfer SrcScalar PerVector
+//         8,            // BBlockTransfer DstScalar PerVector_K1
+//         0,            // BBlocksLds AddExtraN
+//         1,            // CShuffle MXdlPerWave PerShuffle
+//         1,            // CShuffle NXdlPerWave PerShuffle
+//         S<1, 16, 1, 4>, // CBlockTransferClusterLenghts _MBlock_MXdlPerWave_MWaveMPerXdl _NBlock_NXdlPerWave_NWaveNPerXdl
+//         4,              // CBlockTransfer ScalarPerVector _NWaveNPerXdl
+//         ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3>;
+// // clang-format on
+
+#if 0
+// clang-format off
+using DeviceGemmV2_Streamk_Instance = 
+    ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle_Streamk_V3<
+        ALayout,   BLayout,  CLayout,   
+        ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
+        PassThrough, PassThrough, PassThrough, GemmDefault, 
         256,
         224, 256, 
         64, 8, 2,
@@ -39,6 +115,8 @@ using DeviceGemmV2_Streamk_Instance =
         1, 2, S<1, 32, 1, 8>, 8,
         ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3>;
 // clang-format on
+
+#endif
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;

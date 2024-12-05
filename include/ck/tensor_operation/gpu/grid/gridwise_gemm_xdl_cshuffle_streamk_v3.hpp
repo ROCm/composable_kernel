@@ -1149,13 +1149,15 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         bool is_sk_block, is_dp_block;
         index_t num_k_block_main_loop;
 
-
+#if 0
         // Emin @debug
         // Debug: Print initial problem size and grid configuration
         
-        // if (threadIdx.x == 0 && threadIdx.y == 0) {
-        //     printf("Gridwise_gemm_sk Line:1157 Problem M: %d, N: %d, K: %d, Grid Size: %d\n", problem.M, problem.N, problem.K, problem.Grid_size);
-        // }
+        if (threadIdx.x == 0 && threadIdx.y == 0) {
+            printf("Gridwise_gemm_sk Line:1157 Problem M: %d, N: %d, K: %d, Grid Size: %d\n", problem.M, problem.N, problem.K, problem.Grid_size);
+        }
+
+#endif
 
 
         for(auto block_idx = get_block_1d_id();
@@ -1174,13 +1176,14 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             block_2_ctile_map_streamk.get_block_itr(block_idx, iter_start, iter_end);
             num_k_block_main_loop = iter_end - iter_start;
 
+#if 1
             // Emin @debug
             // Debug: Print block information
             if (threadIdx.x == 0 && threadIdx.y == 0) {
                 printf("Block Index: %d, Iteration Start: %d, Iteration End: %d, Is Stream-K: %d, Is Data-Parallel: %d\n",
                        block_idx, iter_start, iter_end, is_sk_block, is_dp_block);
             }
-
+#endif
             __syncthreads();
 
             while(true)
@@ -1216,6 +1219,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 // Emin @added
                 __syncthreads();
 
+#if 0
+
                 // Emin @debug
                 // Debug: Print grid descriptor sizes
                 if (threadIdx.x == 0 && threadIdx.y == 0) {
@@ -1224,6 +1229,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                            b_grid_desc_bk0_n_bk1.GetElementSpaceSize(),
                            c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
                 }
+
+#endif
 
                 // Emin @added
                 __syncthreads();
@@ -1259,6 +1266,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 // Emin @added
                 __syncthreads();
 
+#if 0
                 // Emin @debug
                 // Debug: Print block data indices on grid
                 if (threadIdx.x == 0 && threadIdx.y == 0) {
@@ -1266,7 +1274,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                            m_block_data_idx_on_grid, n_block_data_idx_on_grid, k0_block_data_idx_on_grid);
                 }
 
-
+#endif
                 // Emin @added
                 __syncthreads();
 
@@ -1363,15 +1371,16 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 constexpr auto b_block_slice_copy_step =
                     make_multi_index(KPerBlock / BK1Number, 0, 0);
 
+#if 0
                 // Emin @debug
                 // Debug: Print shared memory buffer sizes for A and B
-                // if (threadIdx.x == 0 && threadIdx.y == 0) {
-                //     printf("Shared Memory Buffer Size - A: %d, B: %d\n",
-                //            a_block_desc_ak0_m_ak1.GetElementSpaceSize(),
-                //            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
-                // }
+                if (threadIdx.x == 0 && threadIdx.y == 0) {
+                    printf("Shared Memory Buffer Size - A: %d, B: %d\n",
+                           a_block_desc_ak0_m_ak1.GetElementSpaceSize(),
+                           b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+                }
 
-
+#endif
 
                 // Blockwise GEMM pipeline
                 static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
@@ -1528,6 +1537,9 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                                n_thread_data_on_block_idx[I2]),
                               ck::tensor_operation::element_wise::PassThrough{}};
 
+
+// Emin @Note : I traced this !!  ThreadGroupTensorSliceTransfer_v6r1r2 -- >  Threadwise_tensor_slice_transfer_v6r1r2 !!!!!!!
+
                     // shuffle: blockwise copy C from LDS to global
                     auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1r2<
                         ThisThreadBlock,       // ThreadGroup
@@ -1588,15 +1600,33 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                           // Emin @added
                         __syncthreads();
 
+// Emin @Note : This prints always 0 !!!!! 
+#if 0
+
                         // Emin @debug
                         // Debug: Print before writing C to LDS
                         if (threadIdx.x == 0 && threadIdx.y == 0) {
-                            printf("Gridwise_gemm_sk line 1594 --Block %d, Access %d: Writing C from VGPR to LDS.\n", block_idx, static_cast<int>(access_id));
+                            printf("Gridwise_gemm_sk line 1606 --Block %d, Access %d: Writing C from VGPR to LDS.\n", block_idx, static_cast<int>(access_id));
                         }
 
+#endif
 
                          // Emin @added
                         __syncthreads();
+
+// Emin @debug
+// Debug: Print sfc_c_vgpr index tuple
+#if 1
+                        if (threadIdx.x == 0 && threadIdx.y == 0) {
+                            auto index_tuple = sfc_c_vgpr.GetIndexTupleOfNumber(access_id);
+                            printf("Gridwise_gemm_sk Debug line 1618--Block %d, Access %d: sfc_c_vgpr Index Tuple = (%d, %d, %d, ...).\n", 
+                                block_idx, static_cast<int>(access_id), 
+                                static_cast<int>(index_tuple.At(Number<0>{})), 
+                                static_cast<int>(index_tuple.At(Number<1>{})),
+                                static_cast<int>(index_tuple.At(Number<2>{}))); // Adjust based on tuple size
+                        }
+#endif
+
 
                         // each thread write its data from VGPR to LDS
                         c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
@@ -1628,9 +1658,13 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                             // Emin @added
                             __syncthreads();
 
+#if 1
+                            // Emin @debug
                             if (threadIdx.x == 0 && threadIdx.y == 0) {
-                                printf("Gridwise_gemm_sk line 1602 --is_sk_block !! each block copy data from LDS to global.\n");
+                                printf("Gridwise_gemm_sk line 1662 --is_sk_block !! each block copy data from LDS to global #Start.\n");
                             }
+#endif
+
 
                             // Emin @added
                             __syncthreads();
@@ -1645,6 +1679,14 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                     c_shuffle_block_buf,
                                     c_grid_desc_mblock_mperblock_nblock_nperblock,
                                     c_grid_buf);
+
+#if 1
+                            // Emin @debug
+                            if (threadIdx.x == 0 && threadIdx.y == 0) {
+                                printf("Gridwise_gemm_sk line 1684 --is_sk_block !! each block copy data from LDS to global #End.\n");
+                            }
+#endif
+
                         }
 
                         if constexpr(access_id < num_access - 1)

@@ -103,13 +103,13 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
             auto dst_vector_container = dst_vector_type{};
 
             // Emin @debug
-             // Debug: Print source vector data if valid
+            // Debug: Print source vector data if valid
             if (threadIdx.x == 0 && threadIdx.y == 0 && is_src_valid) {
                 // printf("Threadwise_tensor slice v6r1r2 line 108: Src Vector Data at idx %d: %f\n", static_cast<int>(idx_1d.value), static_cast<float>());
-                printf("BlockId %d -  Threadwise_tensor slice v6r1r2 line 108: Src Vector Data at idx %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), static_cast<float>(src_vector_container.template AsType<SrcData>().At(Number<0>{})));
+                printf("BlockId %d -  Threadwise_tensor slice v6r1r2 line 109: Src Vector Data at idx %d: %f \n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), static_cast<float>(src_vector_container.template AsType<SrcData>().At(Number<0>{})));
                 // printf("Threadwise_tensor slice v6r1r2 line 108: Src Vector Data at idx %d: %hu \n", static_cast<int>(idx_1d.value), src_vector_container.template AsType<SrcData>().At(Number<0>{}));
             }
-            // Emin@debug
+            // Emin @debug
 
             // apply pointwise operation
             static_for<0, ScalarPerVector, 1>{}([&](auto i) {
@@ -120,14 +120,15 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
 
                 // Emin @debug
                 // Debug: Print element-wise operation result
-                // if (threadIdx.x == 0 && threadIdx.y == 0) {
-                //     printf("Threadwise_tensor slice v6r1r2 line 121 : Element-wise Operation Result at idx %d: %f\n", static_cast<int>(i.value), static_cast<float>(v));
-                // }
+                if (threadIdx.x == 0 && threadIdx.y == 0) {
+                    printf("Threadwise_tensor slice v6r1r2 line 121 : Element-wise Operation Result at idx %d: %f\n", static_cast<int>(i.value), static_cast<float>(v));
+                }
 
                 // Emin @added
                 __syncthreads();
 
-
+ // Emin @debug
+ #if 1
                  // Debug: Print SrcData before and after applying element-wise operation
                 if (threadIdx.x == 0 && threadIdx.y == 0) {
                     // printf("Threadwise_tensor_slice_v6r1r2 line 127 : SrcData before element-wise op at idx %d: %f \n", static_cast<int>(i.value), static_cast<float>(src_vector_container.template AsType<SrcData>().At(Number<i>{})));
@@ -139,7 +140,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                     // printf("SrcData after element-wise op at idx %d: %f \n", static_cast<int>(i.value), static_cast<float>(v));
                     printf("BlockId %d -  Threadwise_tensor_slice_v6r1r2 line 129 : SrcData after element-wise op at idx %d , i %d: %f \n" , static_cast<int>(blockIdx.x) ,  static_cast<int>(idx_1d.value) , static_cast<int>(i.value), static_cast<float>(v));
                 }
-
+#endif
                 // Emin @added
                 __syncthreads();
 
@@ -171,14 +172,18 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                 dst_coord_.GetOffset(),
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
+                
+#if 0
+            // Emin @debug
+            //  // Debug: Print data before copying from dst_vector into dst_buf
+            if (threadIdx.x == 0 && threadIdx.y == 0 && is_dst_valid) {
+                // printf("Dst Vector Data being copied to dst_buf at idx %d: %v4hu", static_cast<int>(idx_1d.value), dst_buf.template AsType<DstData>().At(I0));
+                // printf("BlockId %d -  Dst Vector Data being copied to dst_buf at idx %d: %hu\n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid));
 
-            // // //  // Debug: Print data before copying from dst_vector into dst_buf
-            // if (threadIdx.x == 0 && threadIdx.y == 0 && is_dst_valid) {
-            //     // printf("Dst Vector Data being copied to dst_buf at idx %d: %v4hu", static_cast<int>(idx_1d.value), dst_buf.template AsType<DstData>().At(I0));
-            //     // printf("BlockId %d -  Dst Vector Data being copied to dst_buf at idx %d: %hu\n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid));
+                printf("BlockId %d -  Dst Vector Data being copied to dst_buf at idx %d: %hu\n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid));
+            }
 
-            //     printf("BlockId %d -  Dst Vector Data being copied to dst_buf at idx %d: %hu\n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid));
-            // }
+#endif
 
             // move coordinate
             if constexpr(idx_1d.value != num_access - 1)
