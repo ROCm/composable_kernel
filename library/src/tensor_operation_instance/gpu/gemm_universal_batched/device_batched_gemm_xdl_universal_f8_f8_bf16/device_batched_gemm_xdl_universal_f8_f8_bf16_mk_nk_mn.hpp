@@ -60,7 +60,7 @@ using device_batched_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_instances = std
         DeviceBatchedGemmMultiD_Xdl_CShuffle_V3<  Row,     Col, DsLayout,    Row,     F8,     F8, DsDataType, BF16,   F32,     BF16,  PassThrough, PassThrough, PassThrough,       GemmSpec,   256,   128,    64,    128, 16,  16,  32,   32,    2,    1,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           1,                   S<1, 32, 1, 8>,               S<8>,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3, F8>,
         DeviceBatchedGemmMultiD_Xdl_CShuffle_V3<  Row,     Col, DsLayout,    Row,     F8,     F8, DsDataType, BF16,   F32,     BF16,  PassThrough, PassThrough, PassThrough,       GemmSpec,   256,    64,    64,    128, 16,  16,  32,   32,    1,    1,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           1,                   S<1, 32, 1, 8>,               S<8>,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3, F8>
 #endif
-// clang-format on
+    // clang-format on
     >;
 
 template <BlockGemmPipelineScheduler BlkGemmPipeSched,
@@ -103,7 +103,7 @@ using device_batched_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_instances = std:
         DeviceBatchedGemmMultiD_Xdl_CShuffle_V3<  Row,     Col, DsLayout,    Row,     F8,     F8, DsDataType,   BF16,   F32,     BF16,  PassThrough, PassThrough, PassThrough,       GemmSpec,   256,    16,  256,    128, 16,  16,  16,   16,    1,    4,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           1,                   S<1, 16, 1, 16>,              S<4>,  BlkGemmPipeSched, BlockGemmPipelineVersion::v2, F8>,
         DeviceBatchedGemmMultiD_Xdl_CShuffle_V3<  Row,     Col, DsLayout,    Row,     F8,     F8, DsDataType,   BF16,   F32,     BF16,  PassThrough, PassThrough, PassThrough,       GemmSpec,   256,    32,  256,    128, 16,  16,  32,   32,    1,    2,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           1,                   S<1, 16, 1, 16>,              S<8>,  BlkGemmPipeSched, BlockGemmPipelineVersion::v2, F8>
 #endif
-// clang-format on
+    // clang-format on
     >;
 } // namespace instance
 } // namespace device
