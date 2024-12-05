@@ -106,40 +106,39 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
     static constexpr auto I3           = Number<3>{};
     static constexpr index_t KPerBlock = K0PerBlock * K1;
 
-    using ConvToGemmBwdDataTransformer =
-        TransformConvBwdDataToGemm_v1<NDimSpatial,
-                                      ConvBackwardDataSpecialization,
-                                      K1,
-                                      K1,
-                                      MPerBlock,
-                                      NPerBlock,
-                                      KPerBlock,
-                                      true /* DoPadGemmM */,
-                                      true /* DoPadGemmN */,
-                                      ALayout,
-                                      BLayout,
-                                      ELayout>;
+    using ConvToGemmBwdDataTransform = TransformConvBwdDataToGemm_v1<NDimSpatial,
+                                                                     ConvBackwardDataSpecialization,
+                                                                     K1,
+                                                                     K1,
+                                                                     MPerBlock,
+                                                                     NPerBlock,
+                                                                     KPerBlock,
+                                                                     true /* DoPadGemmM */,
+                                                                     true /* DoPadGemmN */,
+                                                                     ALayout,
+                                                                     BLayout,
+                                                                     ELayout>;
 
     static auto
-    GetDummyABDsEGridDescriptor(const ConvToGemmBwdDataTransformer& conv_to_gemm_transformer)
+    GetDummyABDsEGridDescriptor(const ConvToGemmBwdDataTransform& conv_to_gemm_transform)
     {
-        const auto a_grid_desc_ak0_m_ak1 = conv_to_gemm_transformer.MakeADescriptor_AK0_M_AK1();
+        const auto a_grid_desc_ak0_m_ak1 = conv_to_gemm_transform.MakeADescriptor_AK0_M_AK1();
 
-        const auto b_grid_desc_bk0_n_bk1 = conv_to_gemm_transformer.MakeBDescriptor_BK0_N_BK1();
+        const auto b_grid_desc_bk0_n_bk1 = conv_to_gemm_transform.MakeBDescriptor_BK0_N_BK1();
 
         const auto ds_grid_desc_m_n =
-            generate_tuple([&](auto) { return conv_to_gemm_transformer.MakeCDescriptor_M_N(); },
+            generate_tuple([&](auto) { return conv_to_gemm_transform.MakeCDescriptor_M_N(); },
                            Number<NumDTensor>{});
 
-        const auto e_grid_desc_m_n = conv_to_gemm_transformer.MakeCDescriptor_M_N();
+        const auto e_grid_desc_m_n = conv_to_gemm_transform.MakeCDescriptor_M_N();
 
         return make_tuple(
             a_grid_desc_ak0_m_ak1, b_grid_desc_bk0_n_bk1, ds_grid_desc_m_n, e_grid_desc_m_n);
     }
 
     // desc
-    constexpr static ConvToGemmBwdDataTransformer dummy_conv_to_gemm_transformer;
-    using ABDsEGridDesc = decltype(GetDummyABDsEGridDescriptor(dummy_conv_to_gemm_transformer));
+    constexpr static ConvToGemmBwdDataTransform dummy_conv_to_gemm_transform;
+    using ABDsEGridDesc = decltype(GetDummyABDsEGridDescriptor(dummy_conv_to_gemm_transform));
 
     using AGridDesc_AK0_M_AK1 = remove_cvref_t<tuple_element_t<0, ABDsEGridDesc>>;
     using BGridDesc_BK0_N_BK1 = remove_cvref_t<tuple_element_t<1, ABDsEGridDesc>>;
@@ -326,24 +325,23 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                             tildes = {i_ztilde, i_ytilde, i_xtilde};
                         }
 
-                        ConvToGemmBwdDataTransformer conv_to_gemm_transformer_{
-                            a_g_n_k_wos_lengths,
-                            a_g_n_k_wos_strides,
-                            b_g_k_c_xs_lengths,
-                            b_g_k_c_xs_strides,
-                            e_g_n_c_wis_lengths,
-                            e_g_n_c_wis_strides,
-                            conv_filter_strides,
-                            conv_filter_dilations,
-                            input_left_pads,
-                            input_right_pads,
-                            tildes};
+                        ConvToGemmBwdDataTransform conv_to_gemm_transform_{a_g_n_k_wos_lengths,
+                                                                           a_g_n_k_wos_strides,
+                                                                           b_g_k_c_xs_lengths,
+                                                                           b_g_k_c_xs_strides,
+                                                                           e_g_n_c_wis_lengths,
+                                                                           e_g_n_c_wis_strides,
+                                                                           conv_filter_strides,
+                                                                           conv_filter_dilations,
+                                                                           input_left_pads,
+                                                                           input_right_pads,
+                                                                           tildes};
 
                         const auto a_grid_desc_ak0_m_ak1 =
-                            conv_to_gemm_transformer_.MakeADescriptor_AK0_M_AK1();
+                            conv_to_gemm_transform_.MakeADescriptor_AK0_M_AK1();
 
                         const auto b_grid_desc_bk0_n_bk1 =
-                            conv_to_gemm_transformer_.MakeBDescriptor_BK0_N_BK1();
+                            conv_to_gemm_transform_.MakeBDescriptor_BK0_N_BK1();
 
                         DsGridDesc_M_N ds_grid_desc_m_n;
 
@@ -351,7 +349,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                         static_for<0, NumDTensor, 1>{}([&](auto i) {
                             using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
                             static_assert(is_same_v<DLayout, ELayout>);
-                            ConvToGemmBwdDataTransformer conv_to_gemm_transformer_d{
+                            ConvToGemmBwdDataTransform conv_to_gemm_transform_d{
                                 a_g_n_k_wos_lengths,
                                 a_g_n_k_wos_strides,
                                 b_g_k_c_xs_lengths,
@@ -364,11 +362,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                                 input_right_pads,
                                 tildes};
 
-                            ds_grid_desc_m_n(i) = conv_to_gemm_transformer_d.MakeCDescriptor_M_N();
+                            ds_grid_desc_m_n(i) = conv_to_gemm_transform_d.MakeCDescriptor_M_N();
                         });
 
-                        const auto e_grid_desc_m_n =
-                            conv_to_gemm_transformer_.MakeCDescriptor_M_N();
+                        const auto e_grid_desc_m_n = conv_to_gemm_transform_.MakeCDescriptor_M_N();
 
                         // for check validity
                         ds_grid_desc_m_n_container_.push_back(ds_grid_desc_m_n);

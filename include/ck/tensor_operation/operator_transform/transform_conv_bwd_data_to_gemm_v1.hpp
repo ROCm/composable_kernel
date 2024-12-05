@@ -598,13 +598,14 @@ struct TransformConvBwdDataToGemm_v1
         }
     }
 
-    template <typename ALay                       = ALayout,
-              typename std::enable_if<(NDimSpatial == 2 || NDimSpatial == 3) &&
-                                          (is_same_v<ALay, tensor_layout::convolution::GNHWK> ||
-                                           is_same_v<ALay, tensor_layout::convolution::GNDHWK> ||
-                                           is_same_v<ALay, tensor_layout::convolution::NHWGK> ||
-                                           is_same_v<ALay, tensor_layout::convolution::NDHWGK>),
-                                      bool>::type = false>
+    template <
+        typename ALayout_                   = ALayout,
+        typename std::enable_if<(NDimSpatial == 2 || NDimSpatial == 3) &&
+                                    (is_same_v<ALayout_, tensor_layout::convolution::GNHWK> ||
+                                     is_same_v<ALayout_, tensor_layout::convolution::GNDHWK> ||
+                                     is_same_v<ALayout_, tensor_layout::convolution::NHWGK> ||
+                                     is_same_v<ALayout_, tensor_layout::convolution::NDHWGK>),
+                                bool>::type = false>
     __host__ __device__ auto MakeADescriptor_AK0_M_AK1() const
     {
         // n_do_ho_wo_k for 3d or n_ho_wo_k for 2d
@@ -833,10 +834,10 @@ struct TransformConvBwdDataToGemm_v1
         }
     }
 
-    template <typename BLay                       = BLayout,
+    template <typename BLayout_                   = BLayout,
               typename std::enable_if<(NDimSpatial == 2 || NDimSpatial == 3) &&
-                                          (is_same_v<BLay, tensor_layout::convolution::GKYXC> ||
-                                           is_same_v<BLay, tensor_layout::convolution::GKZYXC>),
+                                          (is_same_v<BLayout_, tensor_layout::convolution::GKYXC> ||
+                                           is_same_v<BLayout_, tensor_layout::convolution::GKZYXC>),
                                       bool>::type = false>
     __host__ __device__ auto MakeBDescriptor_BK0_N_BK1() const
     {
@@ -1023,14 +1024,15 @@ struct TransformConvBwdDataToGemm_v1
         }
     }
 
-    template <typename CLay                       = CLayout,
-              typename std::enable_if<(NDimSpatial == 2 || NDimSpatial == 3) &&
-                                          (is_same_v<CLay, tensor_layout::convolution::GNHWC> ||
-                                           is_same_v<CLay, tensor_layout::convolution::GNDHWC> ||
-                                           is_same_v<CLay, tensor_layout::convolution::NHWGC> ||
-                                           is_same_v<CLay, tensor_layout::convolution::NDHWGC> ||
-                                           is_same_v<CLay, tensor_layout::convolution::G_NHW_C>),
-                                      bool>::type = false>
+    template <
+        typename CLayout_                   = CLayout,
+        typename std::enable_if<(NDimSpatial == 2 || NDimSpatial == 3) &&
+                                    (is_same_v<CLayout_, tensor_layout::convolution::GNHWC> ||
+                                     is_same_v<CLayout_, tensor_layout::convolution::GNDHWC> ||
+                                     is_same_v<CLayout_, tensor_layout::convolution::NHWGC> ||
+                                     is_same_v<CLayout_, tensor_layout::convolution::NDHWGC> ||
+                                     is_same_v<CLayout_, tensor_layout::convolution::G_NHW_C>),
+                                bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
         // assume strided
@@ -1289,10 +1291,10 @@ struct TransformConvBwdDataToGemm_v1
     }
 
     // for input bias
-    template <typename CLay                       = CLayout,
+    template <typename CLayout_                   = CLayout,
               typename std::enable_if<NDimSpatial == 2 &&
-                                          (is_same_v<CLay, tensor_layout::convolution::GC> ||
-                                           is_same_v<CLay, tensor_layout::convolution::G_C>),
+                                          (is_same_v<CLayout_, tensor_layout::convolution::GC> ||
+                                           is_same_v<CLayout_, tensor_layout::convolution::G_C>),
                                       bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
