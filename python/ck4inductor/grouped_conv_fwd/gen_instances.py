@@ -130,9 +130,7 @@ def gen_conv_ops_library() -> List[CKGroupedConvFwdOp]:
     # substitute templated args by looping through their domains
     substitute_instances = []
     for instance in op_instances:
-        sub_scheduler = (
-            instance.block_gemm_pipeline_scheduler == "BlkGemmPipeSched"
-        )
+        sub_scheduler = instance.block_gemm_pipeline_scheduler == "BlkGemmPipeSched"
         sub_spec = instance.conv_forward_specialization == "ConvSpec"
         schedulers_range = (
             schedulers if sub_scheduler else [instance.block_gemm_pipeline_scheduler]

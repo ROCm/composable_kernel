@@ -11,20 +11,21 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 
-template <typename Tuple>
+template <typename Tuple, ck_tile::GemmPipelineScheduler Scheduler_>
 class TestCkTileGemmMemPipeline : public ::testing::Test
 {
     protected:
-    using ALayout     = std::tuple_element_t<0, Tuple>;
-    using BLayout     = std::tuple_element_t<1, Tuple>;
-    using CLayout     = std::tuple_element_t<2, Tuple>;
-    using ADataType   = std::tuple_element_t<3, Tuple>;
-    using BDataType   = std::tuple_element_t<4, Tuple>;
-    using AccDataType = std::tuple_element_t<5, Tuple>;
-    using CDataType   = std::tuple_element_t<6, Tuple>;
+    using ALayout                   = std::tuple_element_t<0, Tuple>;
+    using BLayout                   = std::tuple_element_t<1, Tuple>;
+    using CLayout                   = std::tuple_element_t<2, Tuple>;
+    using ADataType                 = std::tuple_element_t<3, Tuple>;
+    using BDataType                 = std::tuple_element_t<4, Tuple>;
+    using AccDataType               = std::tuple_element_t<5, Tuple>;
+    using CDataType                 = std::tuple_element_t<6, Tuple>;
+    static constexpr auto Scheduler = Scheduler_;
     // TODO: expose tile size through test t-param ?
 
-    struct gemm_basic_args
+    struct gemm_args
     {
         const void* p_a;
         const void* p_b;
@@ -38,7 +39,7 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
         ck_tile::index_t stride_C;
     };
 
-    void invoke_gemm(const gemm_basic_args& args, const ck_tile::stream_config& s)
+    void invoke_gemm(const gemm_args& args, const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
         constexpr ck_tile::index_t M_Tile = 128;
@@ -89,7 +90,7 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
                                                       AccDataType,
                                                       GemmShape,
                                                       Traits,
-                                                      ck_tile::GemmPipelineScheduler::Intrawave,
+                                                      Scheduler,
                                                       has_hot_loop_v,
                                                       tail_number_v>>;
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -288,7 +289,7 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        gemm_basic_args args;
+        gemm_args args;
         args.p_a      = a_m_k_dev_buf.GetDeviceBuffer();
         args.p_b      = b_k_n_dev_buf.GetDeviceBuffer();
         args.p_c      = c_m_n_dev_buf.GetDeviceBuffer();
