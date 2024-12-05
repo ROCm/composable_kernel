@@ -38,6 +38,8 @@ struct Array
     }
     __host__ __device__ constexpr const TData* begin() const { return &mData[0]; }
     __host__ __device__ constexpr const TData* end() const { return &mData[NSize]; }
+    __host__ __device__ constexpr TData* begin() { return &mData[0]; }
+    __host__ __device__ constexpr TData* end() { return &mData[NSize]; }
 };
 
 // empty Array
