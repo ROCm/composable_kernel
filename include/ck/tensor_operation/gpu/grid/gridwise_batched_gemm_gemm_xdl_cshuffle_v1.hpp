@@ -607,8 +607,15 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         // with 'group_size' amount of contiguous elements. Having Gemm1KPack greater than A1K1 will
         // cause mismatch in summation index for example c[0:7] = a1[[0:3, 8:11]] * b1[0:7].
         // therefore we may just as well assign Gemm1KPack = group_size
+
+#if defined(CK_USE_AMD_MFMA_GFX950)
+        // TODO: fix logic for gfx950 as it's temperary hack for passing compiling
+        constexpr index_t Gemm1KPack = math::max(
+            math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+#else
         constexpr index_t Gemm1KPack =
             MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size;
+#endif
 
         auto gemm1_blockwise_gemm = BlockwiseGemmXdlops_v2<
             BlockSize,
