@@ -1,4 +1,4 @@
-ARG BASE_DOCKER="rocm/composable_kernel:ck_ub20.04_rocm6.2"
+ARG BASE_DOCKER="rocm/composable_kernel:ck_ub20.04_rocm6.3"
 FROM $BASE_DOCKER
 ARG compiler_version=""
 ARG compiler_commit=""
