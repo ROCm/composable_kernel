@@ -77,7 +77,9 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
         using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
 
-        const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K);
+        const ck_tile::index_t k_grain     = args.kbatch * K_Tile;
+        const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
+        const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
@@ -103,7 +105,8 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
                                            args.K,
                                            args.stride_A,
                                            args.stride_B,
-                                           args.stride_C);
+                                           args.stride_C,
+                                           args.kbatch);
 
             const dim3 grids      = Kernel::GridSize(args.M, args.N, args.kbatch);
             constexpr dim3 blocks = Kernel::BlockSize();

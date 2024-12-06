@@ -82,7 +82,7 @@ struct GemmKernel
             }
             else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * KRead * kargs.StrideA;
+                a_k_split_offset = blockIdx.z * KRead * kargs.stride_A;
             }
 
             if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
@@ -111,6 +111,20 @@ struct GemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GemmCommonKargs& kargs)
     {
+        constexpr bool is_output_c_reg_transposed =
+            EpiloguePipeline::IsOutputTransposed() != GemmPipeline::IsTransposeC();
+        if constexpr(!((GemmPipeline::VectorSizeC % 2 == 0 &&
+                        std::is_same_v<CLayout, tensor_layout::gemm::RowMajor> &&
+                        is_output_c_reg_transposed) ||
+                       !(std::is_same_v<CDataType, half_t> ||
+                         std::is_same_v<CDataType, bfloat16_t>)))
+        {
+            if(kargs.KBatch != 1)
+            {
+                return false;
+            }
+        }
+
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
             if(kargs.K % TilePartitioner::kK != 0 && GemmPipeline::kPadK == false)

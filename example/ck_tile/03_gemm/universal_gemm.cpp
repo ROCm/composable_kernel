@@ -78,7 +78,9 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 #endif
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
 
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K);
+    const ck_tile::index_t k_grain     = args.kbatch * K_Tile;
+    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
+    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
