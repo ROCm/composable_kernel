@@ -96,17 +96,17 @@ struct GemmKernel
 
             if(blockIdx.z < static_cast<uint32_t>(kargs.KBatch - 1))
             {
-                SplittedK = KRead;
+                splitted_k = KRead;
             }
             else
             {
-                SplittedK = kargs.K - KRead * (kargs.KBatch - 1);
+                splitted_k = kargs.K - KRead * (kargs.KBatch - 1);
             }
         }
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
-        index_t SplittedK;
+        index_t splitted_k;
     };
 
     CK_TILE_HOST static bool IsSupportedArgument(const GemmCommonKargs& kargs)
@@ -116,8 +116,7 @@ struct GemmKernel
         if constexpr(!((GemmPipeline::VectorSizeC % 2 == 0 &&
                         std::is_same_v<CLayout, tensor_layout::gemm::RowMajor> &&
                         is_output_c_reg_transposed) ||
-                       !(std::is_same_v<CDataType, half_t> ||
-                         std::is_same_v<CDataType, bfloat16_t>)))
+                       !(std::is_same_v<CDataType, fp16_t> || std::is_same_v<CDataType, bf16_t>)))
         {
             if(kargs.KBatch != 1)
             {
@@ -211,7 +210,7 @@ struct GemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     a_start,
-                    make_tuple(kargs.M, splitk_batch_offset.SplittedK),
+                    make_tuple(kargs.M, splitk_batch_offset.splitted_k),
                     make_tuple(kargs.stride_A, 1),
                     number<GemmPipeline::VectorSizeA>{},
                     number<1>{});
@@ -220,7 +219,7 @@ struct GemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     a_start,
-                    make_tuple(kargs.M, splitk_batch_offset.SplittedK),
+                    make_tuple(kargs.M, splitk_batch_offset.splitted_k),
                     make_tuple(1, kargs.stride_A),
                     number<1>{},
                     number<1>{});
@@ -232,7 +231,7 @@ struct GemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     b_start,
-                    make_tuple(kargs.N, splitk_batch_offset.SplittedK),
+                    make_tuple(kargs.N, splitk_batch_offset.splitted_k),
                     make_tuple(1, kargs.stride_B),
                     number<1>{},
                     number<1>{});
@@ -241,7 +240,7 @@ struct GemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     b_start,
-                    make_tuple(kargs.N, splitk_batch_offset.SplittedK),
+                    make_tuple(kargs.N, splitk_batch_offset.splitted_k),
                     make_tuple(kargs.stride_B, 1),
                     number<GemmPipeline::VectorSizeB>{},
                     number<1>{});
@@ -296,7 +295,7 @@ struct GemmKernel
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.SplittedK);
+        const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
 
         // Run GEMM cooperatively by whole wokrgroup.
         auto c_block_tile =
@@ -399,8 +398,7 @@ struct GemmKernel
             if constexpr((GemmPipeline::VectorSizeC % 2 == 0 &&
                           std::is_same_v<CLayout, tensor_layout::gemm::RowMajor> &&
                           is_output_c_reg_transposed) ||
-                         !(std::is_same_v<CDataType, half_t> ||
-                           std::is_same_v<CDataType, bfloat16_t>))
+                         !(std::is_same_v<CDataType, fp16_t> || std::is_same_v<CDataType, bf16_t>))
             {
                 EpiloguePipeline{}
                     .template operator()<decltype(CBlockWindow_pad),
