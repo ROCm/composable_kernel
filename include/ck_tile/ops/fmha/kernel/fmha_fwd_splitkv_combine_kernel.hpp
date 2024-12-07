@@ -339,7 +339,7 @@ struct FmhaFwdSplitKVCombineKernel
                 number<FmhaPipeline::kAlignmentOacc>{},
                 number<1>{});
 
-            auto o_acc_dram_view = pad_tensor_view(
+            const auto o_acc_dram_view = pad_tensor_view(
                 o_acc_dram_naive,
                 make_tuple(number<1>{}, number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
                 sequence<false, kPadSeqLenQ, kPadHeadDimV>{});
