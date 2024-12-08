@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -106,89 +106,35 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
     static constexpr auto I3           = Number<3>{};
     static constexpr index_t KPerBlock = K0PerBlock * K1;
 
-    static constexpr auto transform_conv_to_gemm =
-        TransformConvBwdDataToGemm_v1<NDimSpatial,
-                                      ConvBackwardDataSpecialization,
-                                      K1,
-                                      K1,
-                                      MPerBlock,
-                                      NPerBlock,
-                                      KPerBlock,
-                                      true /* DoPadGemmM */,
-                                      true /* DoPadGemmN */>{};
+    using ConvToGemmBwdDataTransform = TransformConvBwdDataToGemm_v1<NDimSpatial,
+                                                                     ConvBackwardDataSpecialization,
+                                                                     K1,
+                                                                     K1,
+                                                                     MPerBlock,
+                                                                     NPerBlock,
+                                                                     KPerBlock,
+                                                                     true /* DoPadGemmM */,
+                                                                     true /* DoPadGemmN */,
+                                                                     ALayout,
+                                                                     BLayout,
+                                                                     ELayout>;
 
-    static auto GetDummyABDsEGridDescriptor()
+    static auto
+    GetDummyABDsEGridDescriptor(const ConvToGemmBwdDataTransform& conv_to_gemm_transform)
     {
-        const std::array<index_t, NDimSpatial + 3> dummy_tensor_lengths = {1};
-        const std::array<index_t, NDimSpatial + 3> dummy_tensor_strides = {1};
-        const std::array<index_t, NDimSpatial> dummy_spatial_lengths    = {1};
-
-        const auto a_grid_desc_ak0_m_ak1 =
-            transform_conv_to_gemm.template MakeADescriptor_AK0_M_AK1<ALayout>(
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths);
-
-        const auto b_grid_desc_bk0_n_bk1 =
-            transform_conv_to_gemm.template MakeBDescriptor_BK0_N_BK1<BLayout>(
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths);
-
-        const auto ds_grid_desc_m_n = generate_tuple(
-            [&](auto i) {
-                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-
-                return transform_conv_to_gemm.template MakeCDescriptor_M_N<DLayout>(
-                    dummy_tensor_lengths,
-                    dummy_tensor_strides,
-                    dummy_tensor_lengths,
-                    dummy_tensor_strides,
-                    dummy_tensor_lengths,
-                    dummy_tensor_strides,
-                    dummy_spatial_lengths,
-                    dummy_spatial_lengths,
-                    dummy_spatial_lengths,
-                    dummy_spatial_lengths,
-                    dummy_spatial_lengths);
-            },
-            Number<NumDTensor>{});
-
-        const auto e_grid_desc_m_n =
-            transform_conv_to_gemm.template MakeCDescriptor_M_N<ELayout>(dummy_tensor_lengths,
-                                                                         dummy_tensor_strides,
-                                                                         dummy_tensor_lengths,
-                                                                         dummy_tensor_strides,
-                                                                         dummy_tensor_lengths,
-                                                                         dummy_tensor_strides,
-                                                                         dummy_spatial_lengths,
-                                                                         dummy_spatial_lengths,
-                                                                         dummy_spatial_lengths,
-                                                                         dummy_spatial_lengths,
-                                                                         dummy_spatial_lengths);
-
+        const auto a_grid_desc_ak0_m_ak1 = conv_to_gemm_transform.MakeADescriptor_AK0_M_AK1();
+        const auto b_grid_desc_bk0_n_bk1 = conv_to_gemm_transform.MakeBDescriptor_BK0_N_BK1();
+        const auto ds_grid_desc_m_n =
+            generate_tuple([&](auto) { return conv_to_gemm_transform.MakeCDescriptor_M_N(); },
+                           Number<NumDTensor>{});
+        const auto e_grid_desc_m_n = conv_to_gemm_transform.MakeCDescriptor_M_N();
         return make_tuple(
             a_grid_desc_ak0_m_ak1, b_grid_desc_bk0_n_bk1, ds_grid_desc_m_n, e_grid_desc_m_n);
     }
 
     // desc
-    using ABDsEGridDesc = decltype(GetDummyABDsEGridDescriptor());
+    constexpr static ConvToGemmBwdDataTransform dummy_conv_to_gemm_transform;
+    using ABDsEGridDesc = decltype(GetDummyABDsEGridDescriptor(dummy_conv_to_gemm_transform));
 
     using AGridDesc_AK0_M_AK1 = remove_cvref_t<tuple_element_t<0, ABDsEGridDesc>>;
     using BGridDesc_BK0_N_BK1 = remove_cvref_t<tuple_element_t<1, ABDsEGridDesc>>;
@@ -270,7 +216,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
                  const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
-                     ds_g_n_c_wis_lengths,
+                 /*ds_g_n_c_wis_lengths*/,
                  const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
                      ds_g_n_c_wis_strides,
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_c_wis_lengths,
@@ -291,15 +237,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op},
               a_g_n_k_wos_lengths_{a_g_n_k_wos_lengths},
-              a_g_n_k_wos_strides_{a_g_n_k_wos_strides},
               b_g_k_c_xs_lengths_{b_g_k_c_xs_lengths},
-              b_g_k_c_xs_strides_{b_g_k_c_xs_strides},
-              ds_g_n_c_wis_lengths_{ds_g_n_c_wis_lengths},
-              ds_g_n_c_wis_strides_{ds_g_n_c_wis_strides},
-              e_g_n_c_wis_lengths_{e_g_n_c_wis_lengths},
-              e_g_n_c_wis_strides_{e_g_n_c_wis_strides},
               conv_filter_strides_{conv_filter_strides},
-              conv_filter_dilations_{conv_filter_dilations},
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads}
         {
@@ -382,68 +321,47 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                             tildes = {i_ztilde, i_ytilde, i_xtilde};
                         }
 
+                        ConvToGemmBwdDataTransform conv_to_gemm_transform_{a_g_n_k_wos_lengths,
+                                                                           a_g_n_k_wos_strides,
+                                                                           b_g_k_c_xs_lengths,
+                                                                           b_g_k_c_xs_strides,
+                                                                           e_g_n_c_wis_lengths,
+                                                                           e_g_n_c_wis_strides,
+                                                                           conv_filter_strides,
+                                                                           conv_filter_dilations,
+                                                                           input_left_pads,
+                                                                           input_right_pads,
+                                                                           tildes};
+
                         const auto a_grid_desc_ak0_m_ak1 =
-                            transform_conv_to_gemm.template MakeADescriptor_AK0_M_AK1<ALayout>(
-                                a_g_n_k_wos_lengths,
-                                a_g_n_k_wos_strides,
-                                b_g_k_c_xs_lengths,
-                                b_g_k_c_xs_strides,
-                                e_g_n_c_wis_lengths,
-                                e_g_n_c_wis_strides,
-                                conv_filter_strides,
-                                conv_filter_dilations,
-                                input_left_pads,
-                                input_right_pads,
-                                tildes);
+                            conv_to_gemm_transform_.MakeADescriptor_AK0_M_AK1();
 
                         const auto b_grid_desc_bk0_n_bk1 =
-                            transform_conv_to_gemm.template MakeBDescriptor_BK0_N_BK1<BLayout>(
-                                a_g_n_k_wos_lengths,
-                                a_g_n_k_wos_strides,
-                                b_g_k_c_xs_lengths,
-                                b_g_k_c_xs_strides,
-                                e_g_n_c_wis_lengths,
-                                e_g_n_c_wis_strides,
-                                conv_filter_strides,
-                                conv_filter_dilations,
-                                input_left_pads,
-                                input_right_pads,
-                                tildes);
+                            conv_to_gemm_transform_.MakeBDescriptor_BK0_N_BK1();
 
                         DsGridDesc_M_N ds_grid_desc_m_n;
 
                         // populate Ds desc
                         static_for<0, NumDTensor, 1>{}([&](auto i) {
                             using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-
-                            ds_grid_desc_m_n(i) =
-                                transform_conv_to_gemm.template MakeCDescriptor_M_N<DLayout>(
-                                    a_g_n_k_wos_lengths,
-                                    a_g_n_k_wos_strides,
-                                    b_g_k_c_xs_lengths,
-                                    b_g_k_c_xs_strides,
-                                    ds_g_n_c_wis_lengths[i],
-                                    ds_g_n_c_wis_strides[i],
-                                    conv_filter_strides,
-                                    conv_filter_dilations,
-                                    input_left_pads,
-                                    input_right_pads,
-                                    tildes);
-                        });
-
-                        const auto e_grid_desc_m_n =
-                            transform_conv_to_gemm.template MakeCDescriptor_M_N<ELayout>(
+                            static_assert(is_same_v<DLayout, ELayout>);
+                            ConvToGemmBwdDataTransform conv_to_gemm_transform_d{
                                 a_g_n_k_wos_lengths,
                                 a_g_n_k_wos_strides,
                                 b_g_k_c_xs_lengths,
                                 b_g_k_c_xs_strides,
                                 e_g_n_c_wis_lengths,
-                                e_g_n_c_wis_strides,
+                                ds_g_n_c_wis_strides[i],
                                 conv_filter_strides,
                                 conv_filter_dilations,
                                 input_left_pads,
                                 input_right_pads,
-                                tildes);
+                                tildes};
+
+                            ds_grid_desc_m_n(i) = conv_to_gemm_transform_d.MakeCDescriptor_M_N();
+                        });
+
+                        const auto e_grid_desc_m_n = conv_to_gemm_transform_.MakeCDescriptor_M_N();
 
                         // for check validity
                         ds_grid_desc_m_n_container_.push_back(ds_grid_desc_m_n);
@@ -522,17 +440,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
         BElementwiseOp b_element_op_;
         CDEElementwiseOp cde_element_op_;
 
-        // for checking IsSupportedArgument()
         std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_lengths_;
-        std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_;
         std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_;
-        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_;
-        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_c_wis_lengths_;
-        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_c_wis_strides_;
-        std::array<index_t, NDimSpatial + 3> e_g_n_c_wis_lengths_;
-        std::array<index_t, NDimSpatial + 3> e_g_n_c_wis_strides_;
         std::array<index_t, NDimSpatial> conv_filter_strides_;
-        std::array<index_t, NDimSpatial> conv_filter_dilations_;
         std::array<index_t, NDimSpatial> input_left_pads_;
         std::array<index_t, NDimSpatial> input_right_pads_;
     };
