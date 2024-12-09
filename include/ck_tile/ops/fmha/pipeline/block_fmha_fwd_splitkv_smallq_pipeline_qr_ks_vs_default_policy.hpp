@@ -68,7 +68,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeM4LdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = 4;
+        // constexpr index_t kKPerBlock = 4;
 
         constexpr auto m4_lds_block_desc_0 =
             make_naive_tensor_descriptor(make_tuple(number<4>{}, number<kMPerBlock>{}),
@@ -85,10 +85,10 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeM4TileDistribution()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
+        // constexpr index_t kBlockSize = Problem::kBlockSize;
 
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = 4;
+        // constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        // constexpr index_t kKPerBlock = 4;
 
         constexpr index_t MThreadPerWarp = 16;
         constexpr index_t NThreadPerWarp = 4;
