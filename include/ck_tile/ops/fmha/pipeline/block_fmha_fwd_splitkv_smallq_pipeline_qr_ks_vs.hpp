@@ -194,8 +194,9 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
         auto m_lds_window = make_tile_window(
             m_lds, Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(), {0});
 
-        array<decltype(m_lds_window), 4> m_lds_windows;
-        for(int i_warp = 0; i_warp < 4; ++i_warp)
+        constexpr index_t Gemm0NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
+        array<decltype(m_lds_window), Gemm0NWarps> m_lds_windows;
+        for(int i_warp = 0; i_warp < Gemm0NWarps; ++i_warp)
         {
             auto lds = make_tensor_view<address_space_enum::lds>(
                 m_lds_ptr + i_warp * kM0, Policy::template MakeMLdsBlockDescriptor<Problem>());

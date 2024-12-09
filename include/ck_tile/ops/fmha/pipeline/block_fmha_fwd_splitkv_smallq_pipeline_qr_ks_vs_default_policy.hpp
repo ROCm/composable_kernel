@@ -95,7 +95,6 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
 
         constexpr index_t MWarps = 1;
         constexpr index_t NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
-        ;
 
         constexpr index_t MPerThread = 1;
         constexpr index_t NPerThread = 4;
@@ -138,8 +137,9 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
+        constexpr index_t Gemm0NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
         return BasePolicy::template GetSmemSizeKV<Problem>() + GetSmemSizeP<Problem>() +
-               4 * GetSmemSizeM<Problem>();
+               Gemm0NWarps * GetSmemSizeM<Problem>();
     }
 
     template <typename Problem>
