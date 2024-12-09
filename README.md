@@ -105,6 +105,45 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     make -j install
     ```
 
+## Building grouped GEMM assets for MI300X
+
+When running CMake config step, use flag
+```bash
+-D GPU_TARGETS="gfx940;gfx941;gfx942"
+```
+to target MI300X.
+
+The following commands assume that you are in the **build** directory. 
+
+Some relevant grouped GEMM instances (part of the whole GEMM operations library)
+
+```bash
+    make -j device_grouped_gemm_instance
+```
+
+```bash
+    make -j device_gemm_splitk_instance
+```
+
+Static GEMM operations library
+```bash
+    make -j device_gemm_operations
+```
+
+Tests
+```bash
+    make -j test_grouped_gemm
+```
+
+Running tests
+```bash
+    bin/test_grouped_gemm_interface
+```
+
+```bash
+    bin/test_grouped_gemm_splitk
+```
+
 ## Optional post-install steps
 
 * Build examples and tests:
