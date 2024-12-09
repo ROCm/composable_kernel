@@ -97,7 +97,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
         constexpr index_t NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
 
         constexpr index_t MPerThread = 1;
-        constexpr index_t NPerThread = 4;
+        constexpr index_t NPerThread = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
 
         return make_static_tile_distribution(
             tile_distribution_encoding<
