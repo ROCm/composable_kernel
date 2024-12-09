@@ -186,13 +186,31 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
             p_lds, Policy::template MakePLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
         // M tile in LDS
+        auto m_lds_ptr = reinterpret_cast<SMPLComputeDataType*>(
+            reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>() +
+            Policy::template GetSmemSizeP<Problem>());
         auto m_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<SMPLComputeDataType*>(reinterpret_cast<char*>(smem_ptr) +
-                                                   Policy::template GetSmemSizeKV<Problem>() +
-                                                   Policy::template GetSmemSizeP<Problem>()),
-            Policy::template MakeMLdsBlockDescriptor<Problem>());
+            m_lds_ptr, Policy::template MakeMLdsBlockDescriptor<Problem>());
         auto m_lds_window = make_tile_window(
             m_lds, Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(), {0});
+
+        array<decltype(m_lds_window), 4> m_lds_windows;
+        for(int i_warp = 0; i_warp < 4; ++i_warp)
+        {
+            auto lds = make_tensor_view<address_space_enum::lds>(
+                m_lds_ptr + i_warp * kM0, Policy::template MakeMLdsBlockDescriptor<Problem>());
+
+            m_lds_windows[i_warp] = make_tile_window(
+                lds, Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(), {0});
+        }
+
+        auto m4_lds = make_tensor_view<address_space_enum::lds>(
+            m_lds_ptr, Policy::template MakeM4LdsBlockDescriptor<Problem>());
+        auto m4_lds_window =
+            make_tile_window(m4_lds,
+                             Policy::template MakeM4LdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0},
+                             Policy::template MakeM4TileDistribution<Problem>());
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
@@ -480,6 +498,28 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                 -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
             block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
+            block_sync_lds();
+            store_tile(m_lds_windows(get_warp_id()), m_local);
+            block_sync_lds();
+
+            auto m_local4        = load_tile(m4_lds_window);
+            auto m_local4_reduce = block_tile_reduce<SMPLComputeDataType>(
+                m_local4,
+                sequence<1>{},
+                f_max,
+                -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
+            block_tile_reduce_sync(m_local4_reduce, f_max, bool_constant<false>{});
+
+            // copy back to m_local
+            {
+                constexpr auto m_spans = decltype(m_local)::get_distributed_spans();
+                sweep_tile_span(m_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+
+                    m_local(i_idx) = m_local4_reduce[i_idx];
+                });
+            }
+
             const auto m_old = m; // m{j-1}
             tile_elementwise_inout(
                 [](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); }, m, m_old, m_local); // m{j}
@@ -531,6 +571,30 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                 p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
+
+            block_sync_lds();
+            store_tile(m_lds_windows(get_warp_id()), rowsum_p);
+            block_sync_lds();
+
+            auto rowsum_p4 = decltype(load_tile(m4_lds_window)){};
+            if(get_lane_id() < kM0)
+            {
+                rowsum_p4 = load_tile(m4_lds_window);
+            }
+            auto rowsum_p4_reduce = block_tile_reduce<SMPLComputeDataType>(
+                rowsum_p4, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
+
+            block_tile_reduce_sync(rowsum_p4_reduce, f_sum, bool_constant<false>{});
+
+            // copy back to rowsum_p
+            {
+                constexpr auto m_spans = decltype(rowsum_p)::get_distributed_spans();
+                sweep_tile_span(m_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+
+                    rowsum_p(i_idx) = rowsum_p4_reduce[i_idx];
+                });
+            }
 
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));

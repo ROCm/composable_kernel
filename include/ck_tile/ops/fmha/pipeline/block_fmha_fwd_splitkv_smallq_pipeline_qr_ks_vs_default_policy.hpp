@@ -65,6 +65,51 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeM4LdsBlockDescriptor()
+    {
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = 4;
+
+        constexpr auto m4_lds_block_desc_0 =
+            make_naive_tensor_descriptor(make_tuple(number<4>{}, number<kMPerBlock>{}),
+                                         make_tuple(number<kMPerBlock>{}, number<1>{}));
+
+        return transform_tensor_descriptor(
+            m4_lds_block_desc_0,
+            make_tuple(make_pass_through_transform(number<4>{}),
+                       make_pass_through_transform(number<kMPerBlock>{})),
+            make_tuple(sequence<0>{}, sequence<1>{}),
+            make_tuple(sequence<1>{}, sequence<0>{}));
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeM4TileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = 4;
+
+        constexpr index_t MThreadPerWarp = 16;
+        constexpr index_t NThreadPerWarp = 4;
+
+        constexpr index_t MWarps = 1;
+        constexpr index_t NWarps = 4;
+
+        constexpr index_t MPerThread = 1;
+        constexpr index_t NPerThread = 4;
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<NWarps, NThreadPerWarp>,
+                tuple<sequence<MWarps, MThreadPerWarp, MPerThread>, sequence<NPerThread>>,
+                tuple<sequence<1, 0>, sequence<0, 1>>,
+                tuple<sequence<0, 0>, sequence<1, 1>>,
+                sequence<1, 2>,
+                sequence<2, 0>>{});
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeMLdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
@@ -93,7 +138,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         return BasePolicy::template GetSmemSizeKV<Problem>() + GetSmemSizeP<Problem>() +
-               GetSmemSizeM<Problem>();
+               4 * GetSmemSizeM<Problem>();
     }
 
     template <typename Problem>
@@ -130,7 +175,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
                     Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
                     Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
                     Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                    false>{};
+                    true>{};
             }
         }();
 
