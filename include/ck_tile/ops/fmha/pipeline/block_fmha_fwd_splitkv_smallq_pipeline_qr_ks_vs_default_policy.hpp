@@ -68,15 +68,15 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeM4LdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        // constexpr index_t kKPerBlock = 4;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
 
         constexpr auto m4_lds_block_desc_0 =
-            make_naive_tensor_descriptor(make_tuple(number<4>{}, number<kMPerBlock>{}),
+            make_naive_tensor_descriptor(make_tuple(number<kKPerBlock>{}, number<kMPerBlock>{}),
                                          make_tuple(number<kMPerBlock>{}, number<1>{}));
 
         return transform_tensor_descriptor(
             m4_lds_block_desc_0,
-            make_tuple(make_pass_through_transform(number<4>{}),
+            make_tuple(make_pass_through_transform(number<kKPerBlock>{}),
                        make_pass_through_transform(number<kMPerBlock>{})),
             make_tuple(sequence<0>{}, sequence<1>{}),
             make_tuple(sequence<1>{}, sequence<0>{}));
@@ -94,7 +94,8 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
         constexpr index_t NThreadPerWarp = 4;
 
         constexpr index_t MWarps = 1;
-        constexpr index_t NWarps = 4;
+        constexpr index_t NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
+        ;
 
         constexpr index_t MPerThread = 1;
         constexpr index_t NPerThread = 4;
