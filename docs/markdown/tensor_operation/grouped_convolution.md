@@ -32,40 +32,40 @@ Table of supported cases by instance factory with XDL instruction:
 
 |       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|GNHWC/GKYXC/GNHWK|
 |-------|---|---|---|
-|bhalf_t|2D, 3D|2D|1D, 2D, 3D|
-|half_t |2D, 3D|2D|1D, 2D, 3D|
-|float  |2D, 3D|2D|1D, 2D, 3D|
-|int8_t |2D, 3D|2D|1D, 3D|
-|fp8_t  |3D|&cross;|&cross;|
-|bf8_t  |3D|&cross;|&cross;|
+|bf16 |2D, 3D|2D|1D, 2D, 3D|
+|fp16 |2D, 3D|2D|1D, 2D, 3D|
+|fp32 |2D, 3D|2D|1D, 2D, 3D|
+|int8 |2D, 3D|2D|1D, 3D|
+|fp8  |3D|&cross;|&cross;|
+|bf8  |3D|&cross;|&cross;|
 
 Table of supported cases by instance factory with WMMA instruction:
 
 |       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|GNHWC/GKYXC/GNHWK|
 |-------|---|---|---|
-|half_t |2D, 3D|&cross;|2D, 3D|
-|int8_t |2D, 3D|&cross;|2D, 3D|
+|fp16 |2D, 3D|&cross;|2D, 3D|
+|int8 |2D, 3D|&cross;|2D, 3D|
 
 Table of supported cases by instance factory with DL instruction:
 
 |       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|GNHWC/GKYXC/GNHWK|
 |-------|---|---|---|
-|bhalf_t|&cross;|&cross;|2D|
-|half_t |&cross;|&cross;|2D|
-|float  |&cross;|&cross;|2D|
-|int8_t |&cross;|&cross;|2D|
+|bf16 |&cross;|&cross;|2D|
+|fp16 |&cross;|&cross;|2D|
+|fp32 |&cross;|&cross;|2D|
+|int8 |&cross;|&cross;|2D|
 
 Table of supported cases by instance factory with fused elementwise operation:
 
-* **Dynamic elementwise operation** - 2D/3D, NHWGC, bhalf_t/half_t/float/int8_t
-* **Bilinear** - 3D, NHWGC, bhalf_t/half_t/float/int8_t
-* **ConvInvScale** - 3D, NHWGC, fp8_t
-* **ConvScale** - 3D, NHWGC, fp8_t/bf8_t
-* **ConvScale + Add** - 3D, NHWGC, fp8_t
-* **ConvScale + Relu** - 3D, NHWGC, fp8_t
-* **Scale** - 3D, NHWGC, bhalf_t/half_t/float/int8_t
-* **Scale + Add (for A and B)** - 3D, NHWGC, bhalf_t/half_t/float/int8_t
-* **Scale + Add + Scale + Add + Relu** - 3D, NHWGC, bhalf_t/half_t/float/int8_t
+* **Dynamic elementwise operation** - 2D/3D, NHWGC, bf16/fp16/fp32/int8
+* **Bilinear** - 3D, NHWGC, bf16/fp16/fp32/int8
+* **ConvInvScale** - 3D, NHWGC, fp8
+* **ConvScale** - 3D, NHWGC, fp8/bf8
+* **ConvScale + Add** - 3D, NHWGC, fp8
+* **ConvScale + Relu** - 3D, NHWGC, fp8
+* **Scale** - 3D, NHWGC, bf16/fp16/fp32/int8
+* **Scale + Add (for A and B)** - 3D, NHWGC, bf16/fp16/fp32/int8
+* **Scale + Add + Scale + Add + Relu** - 3D, NHWGC, bf16/fp16/fp32/int8
 
 ## Grouped Convolution Backward Weight
 
@@ -102,30 +102,30 @@ Table of supported cases by instance factory with XDL instruction:
 
 |       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|GNHWC/GKYXC/GNHWK|
 |-------|---|---|---|
-|bhalf_t|2D, 3D|&cross;|&cross;|
-|bhalf_t(float for weight)|2D, 3D|&cross;|1D, 2D, 3D|
-|half_t |2D, 3D|&cross;|1D, 2D, 3D|
-|float  |2D, 3D|&cross;|1D, 2D, 3D|
+|bf16|2D, 3D|&cross;|&cross;|
+|bf16(fp32 for weight)|2D, 3D|&cross;|1D, 2D, 3D|
+|fp16 |2D, 3D|&cross;|1D, 2D, 3D|
+|fp32  |2D, 3D|&cross;|1D, 2D, 3D|
 
 Table of supported cases by instance factory with WMMA instruction:
 
 |       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|GNHWC/GKYXC/GNHWK|
 |-------|---|---|---|
-|half_t |3D|&cross;|3D|
-|int8_t |3D|&cross;|3D|
+|fp16 |3D|&cross;|3D|
+|int8 |3D|&cross;|3D|
 
 Table of supported cases by instance factory with DL instruction:
 
 |       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|GNHWC/GKYXC/GNHWK|
 |-------|---|---|---|
-|bhalf_t(float for weight)|1D, 2D, 3D|&cross;|1D, 2D, 3D|
-|half_t |1D, 2D, 3D|&cross;|1D, 2D, 3D|
-|float  |1D, 2D, 3D|&cross;|1D, 2D, 3D|
+|bf16(fp32 for weight)|1D, 2D, 3D|&cross;|1D, 2D, 3D|
+|fp16 |1D, 2D, 3D|&cross;|1D, 2D, 3D|
+|fp32  |1D, 2D, 3D|&cross;|1D, 2D, 3D|
 
 Table of supported cases by instance factory with fused elementwise operation:
 
-* **Bilinear** - 3D, NHWGC, bhalf_t(float for weight)/half_t/float
-* **Scale** - 3D, NHWGC, bhalf_t(float for weight)/half_t/float
+* **Bilinear** - 3D, NHWGC, bf16(fp32 for weight)/fp16/fp32
+* **Scale** - 3D, NHWGC, bf16(fp32 for weight)/fp16/fp32
 
 ## Grouped Convolution Backward Data
 
@@ -157,18 +157,18 @@ Table of supported cases by instance factory with XDL instruction:
 
 |       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|GNHWC/GKYXC/GNHWK|
 |-------|---|---|---|
-|bhalf_t|2D, 3D|&cross;|2D, 3D|
-|half_t |2D, 3D|&cross;|2D, 3D|
-|float  |2D, 3D|&cross;|2D, 3D|
+|bf16|2D, 3D|&cross;|2D, 3D|
+|fp16 |2D, 3D|&cross;|2D, 3D|
+|fp32  |2D, 3D|&cross;|2D, 3D|
 
 Table of supported cases by instance factory with WMMA instruction:
 
 |       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|GNHWC/GKYXC/GNHWK|
 |-------|---|---|---|
-|half_t |2D, 3D|&cross;|2D, 3D|
-|int8_t |2D, 3D|&cross;|2D, 3D|
+|fp16 |2D, 3D|&cross;|2D, 3D|
+|int8 |2D, 3D|&cross;|2D, 3D|
 
 Table of supported cases by instance factory with fused elementwise operation:
 
-* **Bilinear** - 3D, NHWGC, bhalf_t/half_t/float
-* **Scale** - 3D, NHWGC, bhalf_t/half_t/float
+* **Bilinear** - 3D, NHWGC, bf16/fp16/fp32
+* **Scale** - 3D, NHWGC, bf16/fp16/fp32
