@@ -493,7 +493,6 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                 -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
             block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
-            block_sync_lds();
             store_tile(m_lds_windows(get_warp_id()), m_local);
             block_sync_lds();
 
@@ -567,19 +566,12 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
 
-            block_sync_lds();
             store_tile(m_lds_windows(get_warp_id()), rowsum_p);
             block_sync_lds();
 
-            auto rowsum_p4 = decltype(load_tile(m4_lds_window)){};
-            if(get_lane_id() < kM0)
-            {
-                rowsum_p4 = load_tile(m4_lds_window);
-            }
+            auto rowsum_p4        = load_tile(m4_lds_window);
             auto rowsum_p4_reduce = block_tile_reduce<SMPLComputeDataType>(
                 rowsum_p4, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
-
-            block_tile_reduce_sync(rowsum_p4_reduce, f_sum, bool_constant<false>{});
 
             // copy back to rowsum_p
             {
