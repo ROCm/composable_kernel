@@ -244,15 +244,6 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
         auto m     = MLBlockTileType{};
         auto l     = MLBlockTileType{};
 
-        // tile window for shuffling tensors (used to rescale o_acc)
-        using NewMLBlockTileType = decltype(block_tile_reduce<SMPLComputeDataType>(
-            o_acc, sequence<1>{}, f_max, SMPLComputeDataType{0}));
-        auto new_m_lds_window =
-            make_tile_window(m_lds,
-                             Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(),
-                             {0},
-                             NewMLBlockTileType{}.get_tile_distribution());
-
         clear_tile(o_acc);
         set_tile(m, -numeric<SMPLComputeDataType>::infinity());
         clear_tile(l);
@@ -600,50 +591,35 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
             store_tile(p_lds_window, p);
 
-            auto l_scale = MLBlockTileType{};
             // l{j}, Oacc{j}
-            {
-                constexpr auto o_spans = decltype(s_acc)::get_distributed_spans();
-                sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
-                    constexpr auto i_idx = make_tuple(idx0);
+            constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
+            sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                    const auto tmp = [&]() {
-                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                     BiasEnum == BlockAttentionBiasEnum::ALIBI)
-                        {
-                            return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
-                        }
-                        else
-                        {
-                            auto row_max = scale_s * get_validated_m(m[i_idx]);
-                            return exp2(scale_s * m_old[i_idx] - row_max);
-                        }
-                    }();
+                const auto tmp = [&]() {
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                    {
+                        return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+                    }
+                    else
+                    {
+                        auto row_max = scale_s * get_validated_m(m[i_idx]);
+                        return exp2(scale_s * m_old[i_idx] - row_max);
+                    }
+                }();
 #else
                 const auto tmp       = exp(m_old[i_idx] - get_validated_m(m[i_idx]));
 #endif
-                    l_scale(i_idx) = tmp;
-
-                    l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
+                l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
+                sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    // FIXME: this use different equation from FA v2 paper,
+                    // but produce correc result.
+                    // Is the equation wrong?
+                    o_acc(i_j_idx) *= tmp;
                 });
-            }
-            {
-                store_tile(m_lds_window, l_scale);
-                block_sync_lds();
-                auto new_l_scale = load_tile(new_m_lds_window);
-
-                constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
-                sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
-                    constexpr auto i_idx = make_tuple(idx0);
-                    sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        // FIXME: this use different equation from FA v2 paper,
-                        // but produce correc result.
-                        // Is the equation wrong?
-                        o_acc(i_j_idx) *= new_l_scale(i_idx);
-                    });
-                });
-            }
+            });
 
             block_sync_lds();
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
@@ -739,21 +715,18 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
         }
 
         // finally, O
-        store_tile(m_lds_window, l);
-        block_sync_lds();
-        auto new_l = load_tile(new_m_lds_window);
-
         constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
+
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
             constexpr auto i_idx = make_tuple(idx0);
             const auto tmp       = [&]() {
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                              FmhaMask::IsMasking)
                 {
-                    return new_l[i_idx] == 0.f ? 0.f : 1 / new_l[i_idx];
+                    return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
                 }
                 else
-                    return 1 / new_l[i_idx];
+                    return 1 / l[i_idx];
             }();
             sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
