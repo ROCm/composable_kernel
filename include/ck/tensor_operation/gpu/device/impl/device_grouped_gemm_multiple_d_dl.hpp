@@ -412,11 +412,11 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
 
     struct Argument : public BaseArgument
     {
-        Argument(std::vector<const void*, Allocator>& p_As,
-                 std::vector<const void*, Allocator>& p_Bs,
-                 std::vector<std::array<const void*, NumDTensor>, Allocator>& p_Ds,
-                 std::vector<void*, Allocator>& p_Es,
-                 std::vector<GemmDesc, Allocator>& gemm_descs,
+        Argument(std::vector<const void*>& p_As,
+                 std::vector<const void*>& p_Bs,
+                 std::vector<std::array<const void*, NumDTensor>>& p_Ds,
+                 std::vector<void*>& p_Es,
+                 std::vector<GemmDesc>& gemm_descs,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CDEElementwiseOperation cde_element_op)
