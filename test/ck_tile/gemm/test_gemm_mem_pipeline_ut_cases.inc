@@ -3,11 +3,7 @@
 
 #pragma once
 
-//------------------------------------------------------------------------------------------------
-//              INTERWAVE SCHEDULER
-//------------------------------------------------------------------------------------------------
-
-TYPED_TEST(TestCkTileGemmMemPipelineInterwave, SmallM)
+TYPED_TEST(TestCkTileGemmMemPipeline, SmallM)
 {
     std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 1024;
@@ -17,7 +13,7 @@ TYPED_TEST(TestCkTileGemmMemPipelineInterwave, SmallM)
         this->Run(M, N, K);
 }
 
-TYPED_TEST(TestCkTileGemmMemPipelineInterwave, MidLargeM)
+TYPED_TEST(TestCkTileGemmMemPipeline, MidLargeM)
 {
     std::vector<int> Ms{127, 255, 312, 799, 1573};
     constexpr int N = 1024;
@@ -27,7 +23,7 @@ TYPED_TEST(TestCkTileGemmMemPipelineInterwave, MidLargeM)
         this->Run(M, N, K);
 }
 
-TYPED_TEST(TestCkTileGemmMemPipelineInterwave, PaddK)
+TYPED_TEST(TestCkTileGemmMemPipeline, PaddK)
 {
     std::vector<int> Ms{127};
     constexpr int N = 1024;
@@ -37,7 +33,7 @@ TYPED_TEST(TestCkTileGemmMemPipelineInterwave, PaddK)
         this->Run(M, N, K);
 }
 
-TYPED_TEST(TestCkTileGemmMemPipelineInterwave, Regular)
+TYPED_TEST(TestCkTileGemmMemPipeline, Regular)
 {
     std::vector<int> Ms{512};
     constexpr int N = 1024;
@@ -47,46 +43,15 @@ TYPED_TEST(TestCkTileGemmMemPipelineInterwave, Regular)
         this->Run(M, N, K);
 }
 
-//------------------------------------------------------------------------------------------------
-//              INTRAWAVE SCHEDULER
-//------------------------------------------------------------------------------------------------
-
-TYPED_TEST(TestCkTileGemmMemPipelineIntrawave, SmallM)
+TYPED_TEST(TestCkTileGemmMemPipeline, NotSupportedArgument)
 {
-    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
-    constexpr int N = 1024;
-    constexpr int K = 320;
+    constexpr int M = 512;
+    constexpr int N = 1025;
+    constexpr int K = 513;
 
-    for(int M : Ms)
-        this->Run(M, N, K);
-}
+    constexpr bool PadM = false;
+    constexpr bool PadN = false;
+    constexpr bool PadK = false;
 
-TYPED_TEST(TestCkTileGemmMemPipelineIntrawave, MidLargeM)
-{
-    std::vector<int> Ms{127, 255, 312, 799, 1573};
-    constexpr int N = 1024;
-    constexpr int K = 320;
-
-    for(int M : Ms)
-        this->Run(M, N, K);
-}
-
-TYPED_TEST(TestCkTileGemmMemPipelineIntrawave, PaddK)
-{
-    std::vector<int> Ms{127};
-    constexpr int N = 1024;
-    constexpr int K = 432;
-
-    for(int M : Ms)
-        this->Run(M, N, K);
-}
-
-TYPED_TEST(TestCkTileGemmMemPipelineIntrawave, Regular)
-{
-    std::vector<int> Ms{512};
-    constexpr int N = 1024;
-    constexpr int K = 512;
-
-    for(int M : Ms)
-        this->Run(M, N, K);
+    EXPECT_THROW((this->template Run<PadM, PadN, PadK>(M, N, K)), std::runtime_error);
 }
