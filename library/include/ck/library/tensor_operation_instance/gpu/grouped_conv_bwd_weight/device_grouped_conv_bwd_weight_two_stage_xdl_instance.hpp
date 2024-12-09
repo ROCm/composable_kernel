@@ -41,7 +41,7 @@ template <ck::index_t NDimSpatial,
           BlockGemmPipelineVersion PipelineVersion>
 using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_f16_generic_instances =
     std::tuple<
-        // clang-format off
+// clang-format off
         //#########################################|              Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer| BlockGemm| BlockGemm| NumGroups|
         //#########################################|              Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|  Pipeline|  Pipeline|   ToMerge|
         //#########################################|          Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation|            Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl| Scheduler|   Version|          |
@@ -50,7 +50,7 @@ using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_f16_generic_i
 #else
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    16,    16,     32,   8,   16,   16,    1,    1,  S<4, 8,  1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              1,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              1,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 1>
 #endif // defined(CK_USE_AMD_MFMA_GFX950)
-        // clang-format on
+       // clang-format on
         >;
 
 template <ck::index_t NDimSpatial,
@@ -61,7 +61,7 @@ template <ck::index_t NDimSpatial,
           BlockGemmPipelineScheduler Scheduler,
           BlockGemmPipelineVersion PipelineVersion>
 using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_f16_instances = std::tuple<
-    // clang-format off
+// clang-format off
         //#########################################|              Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer| BlockGemm| BlockGemm| NumGroups|
         //#########################################|              Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|  Pipeline|  Pipeline|   ToMerge|
         //#########################################|          Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation|            Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl| Scheduler|   Version|          |
@@ -90,7 +90,7 @@ template <ck::index_t NDimSpatial,
           BlockGemmPipelineVersion PipelineVersion>
 using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_bf16_generic_instances =
     std::tuple<
-        // clang-format off
+// clang-format off
         //#########################################|              Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer| BlockGemm| BlockGemm| NumGroups|
         //#########################################|              Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|  Pipeline|  Pipeline|   ToMerge|
         //#########################################|          Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation|            Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl| Scheduler|   Version|          |
@@ -99,7 +99,7 @@ using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_bf16_generic_
 #else
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    16,    16,     32,   8,   16,   16,    1,    1,  S<4, 8,  1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              1,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              1,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 1>
 #endif // defined(CK_USE_AMD_MFMA_GFX950)
-        // clang-format on
+       // clang-format on
         >;
 
 template <ck::index_t NDimSpatial,
@@ -110,7 +110,7 @@ template <ck::index_t NDimSpatial,
           BlockGemmPipelineScheduler Scheduler,
           BlockGemmPipelineVersion PipelineVersion>
 using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_bf16_instances = std::tuple<
-    // clang-format off
+// clang-format off
         //#########################################|              Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer| BlockGemm| BlockGemm| NumGroups|
         //#########################################|              Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|  Pipeline|  Pipeline|   ToMerge|
         //#########################################|          Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation|            Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl| Scheduler|   Version|          |
@@ -139,7 +139,7 @@ template <ck::index_t NDimSpatial,
           BlockGemmPipelineVersion PipelineVersion>
 using device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_f16_generic_instances =
     std::tuple<
-        // clang-format off
+// clang-format off
         //#########################################|              Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer| BlockGemm| BlockGemm| NumGroups|
         //#########################################|              Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|  Pipeline|  Pipeline|   ToMerge|
         //#########################################|          Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation|            Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl| Scheduler|   Version|          |
@@ -148,7 +148,7 @@ using device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_f16_generic_i
 #else
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    16,    16,     32,   8,   16,   16,    1,    1,  S<4, 8,  1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              1,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              1,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 1, F16, F16, 1, 1>
 #endif // defined(CK_USE_AMD_MFMA_GFX950)
-        // clang-format on
+       // clang-format on
         >;
 
 // NGCHW requires transpose, we use vector loads and stores params for them
@@ -203,7 +203,7 @@ template <ck::index_t NDimSpatial,
           BlockGemmPipelineVersion PipelineVersion>
 using device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_bf16_generic_instances =
     std::tuple<
-        // clang-format off
+// clang-format off
         //#########################################|              Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer| BlockGemm| BlockGemm| NumGroups|
         //#########################################|              Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|  Pipeline|  Pipeline|   ToMerge|
         //#########################################|          Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation|            Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl| Scheduler|   Version|          |
@@ -212,7 +212,7 @@ using device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_bf16_generic_
 #else
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,    F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    16,    16,     32,   8,   16,   16,    1,    1,  S<4, 8,  1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              1,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              1,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 1, BF16, BF16, 1, 1>
 #endif // defined(CK_USE_AMD_MFMA_GFX950)
-        // clang-format on
+       // clang-format on
         >;
 
 template <ck::index_t NDimSpatial,
@@ -223,7 +223,7 @@ template <ck::index_t NDimSpatial,
           BlockGemmPipelineScheduler Scheduler,
           BlockGemmPipelineVersion PipelineVersion>
 using device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_bf16_instances = std::tuple<
-    // clang-format off
+// clang-format off
         //#########################################|              Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer| BlockGemm| BlockGemm| NumGroups|
         //#########################################|              Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|  Pipeline|  Pipeline|   ToMerge|
         //#########################################|          Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation|            Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl| Scheduler|   Version|          |
