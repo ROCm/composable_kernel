@@ -377,7 +377,7 @@ def buildHipClangJob(Map conf=[:]){
 
         gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 48, unit: 'HOURS')
+                timeout(time: 20, unit: 'HOURS')
                 {
                     cmake_build(conf)
                 }
@@ -449,7 +449,7 @@ def Build_CK(Map conf=[:]){
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES'){
+                    timeout(time: 2, unit: 'MINUTES'){
                         sh 'rocminfo | tee rocminfo.log'
                         if ( !runShell('grep -n "gfx" rocminfo.log') ){
                             throw new Exception ("GPU not found")
@@ -465,7 +465,7 @@ def Build_CK(Map conf=[:]){
                 throw e
             }
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 12, unit: 'HOURS')
+                timeout(time: 20, unit: 'HOURS')
                 {
                     //check whether to run performance tests on this node
                     def arch_type = 0
@@ -620,7 +620,7 @@ def process_results(Map conf=[:]){
     }
 
     withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-        timeout(time: 1, unit: 'HOURS'){
+        timeout(time: 15, unit: 'MINUTES'){
             try{
                 dir("script"){
                     if (params.RUN_CK_TILE_FMHA_TESTS){
