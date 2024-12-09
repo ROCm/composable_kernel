@@ -421,11 +421,11 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             }
 
             hip_check_error(
-                hipMemcpyWithStream(arg.p_workspace_,
-                                    arg.gemm_kernel_args_.data(),
-                                    arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
-                                    hipMemcpyHostToDevice,
-                                    stream_config.stream_id_));
+                hipMemcpyAsync(arg.p_workspace_,
+                               arg.gemm_kernel_args_.data(),
+                               arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
+                               hipMemcpyHostToDevice,
+                               stream_config.stream_id_));
 
             float ave_time = 0;
 
@@ -538,10 +538,16 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             return false;
         }
 
+        if(std::is_same_v<EDataType, ck::bhalf_t> && arg.K_BATCH > 1 && !is_bf16_atomic_supported())
+        {
+            return false;
+        }
+
         bool supported = true;
         for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
         {
-            const auto& a        = arg.gemm_kernel_args_[i].karg_;
+            const auto& a = arg.gemm_kernel_args_[i].karg_;
+
             bool group_arg_valid = GridwiseGemm::CheckValidity(a);
             if(not group_arg_valid)
             {
@@ -631,16 +637,42 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
-        return dynamic_cast<const Argument*>(p_arg)->gemm_kernel_args_.size() *
-               sizeof(GemmTransKernelArg);
+        auto p_arg_ = dynamic_cast<const Argument*>(p_arg);
+        if(p_arg_)
+        {
+            return p_arg_->gemm_kernel_args_.size() * sizeof(GemmTransKernelArg);
+        }
+        else
+            throw std::runtime_error(
+                "The argument pointer is not an object of "
+                "DeviceGroupedGemmMultipleDSplitKXdlCShuffle::Argument structure!");
     }
 
+    size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override
+    {
+        return GetWorkSpaceSize(p_arg);
+    }
+
+    // TODO: deperecation notice.
     static void SetKBatchSize(Argument& arg, index_t kbatch) { arg.UpdateKBatch(kbatch); }
 
     // polymorphic
     void SetKBatchSize(BaseArgument* p_arg, index_t kbatch) const override
     {
-        return SetKBatchSize(*dynamic_cast<Argument*>(p_arg), kbatch);
+        auto p_arg_ = dynamic_cast<Argument*>(p_arg);
+        if(p_arg_)
+        {
+            p_arg_->UpdateKBatch(kbatch);
+        }
+        else
+            throw std::runtime_error(
+                "The argument pointer is not an object of "
+                "DeviceGroupedGemmMultipleDSplitKXdlCShuffle::Argument structure!");
+    }
+
+    void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const override
+    {
+        return this->SetWorkSpacePointer(p_arg, p_dev_kernel_args);
     }
 };
 
