@@ -266,8 +266,11 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
 
                     set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
 
-                    store_tile(lse_acc_dram_window_tmp,
-                               tile_elementwise_in(lse_acc_element_func, lse_acc));
+                    if(get_thread_local_1d_id() < kM0)
+                    {
+                        store_tile(lse_acc_dram_window_tmp,
+                                   tile_elementwise_in(lse_acc_element_func, lse_acc));
+                    }
                 }
 
                 // Note: here occ are all cleard, return it
@@ -711,7 +714,11 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
 #endif
             });
 
-            store_tile(lse_acc_dram_window_tmp, tile_elementwise_in(lse_acc_element_func, lse_acc));
+            if(get_thread_local_1d_id() < kM0)
+            {
+                store_tile(lse_acc_dram_window_tmp,
+                           tile_elementwise_in(lse_acc_element_func, lse_acc));
+            }
         }
 
         // finally, O
