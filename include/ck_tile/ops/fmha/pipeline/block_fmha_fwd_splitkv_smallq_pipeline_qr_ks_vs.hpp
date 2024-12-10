@@ -493,6 +493,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                 -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
             block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
+            __builtin_amdgcn_s_barrier();
             store_tile(m_lds_windows(get_warp_id()), m_local);
             block_sync_lds();
 
@@ -566,6 +567,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
 
+            __builtin_amdgcn_s_barrier();
             store_tile(m_lds_windows(get_warp_id()), rowsum_p);
             block_sync_lds();
 
