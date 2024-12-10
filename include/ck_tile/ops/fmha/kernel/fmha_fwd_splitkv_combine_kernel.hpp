@@ -359,17 +359,13 @@ struct FmhaFwdSplitKVCombineKernel
 
         auto lse_acc_dram_window = make_tile_window(
             lse_acc_dram,
-            [&]() {
-                return make_tuple(number<FmhaPipeline::kMaxSplits>{}, number<FmhaPipeline::kM0>{});
-            }(),
+            make_tuple(number<FmhaPipeline::kMaxSplits>{}, number<FmhaPipeline::kM0>{}),
             {0, i_m0});
 
-        auto o_acc_dram_window = make_tile_window(
-            o_acc_dram,
-            [&]() {
-                return make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{});
-            }(),
-            {i_m0, i_n1});
+        auto o_acc_dram_window =
+            make_tile_window(o_acc_dram,
+                             make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+                             {i_m0, i_n1});
 
         // LSE DRAM window
         auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
