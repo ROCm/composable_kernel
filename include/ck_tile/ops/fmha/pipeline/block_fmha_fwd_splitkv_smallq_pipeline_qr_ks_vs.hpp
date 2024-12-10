@@ -154,6 +154,8 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
             "wrong!");
 
         static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                          kSubQKHeaddim ==
+                              QDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                           kN0 == KDramBlockWindowLengths{}[number<0>{}] &&
                           kK0 == KDramBlockWindowLengths{}[number<1>{}] &&
                           kN1 == VDramBlockWindowLengths{}[number<0>{}] &&
@@ -162,7 +164,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
         // Q tile in LDS
-        KDataType* q_lds_ptr =
+        QDataType* q_lds_ptr =
             static_cast<QDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
         auto q_lds = make_tensor_view<address_space_enum::lds>(
             q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
@@ -243,6 +245,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
             {0, 0},
             Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
 
+        block_sync_lds();
         auto q = load_tile(q_lds_window);
 
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
