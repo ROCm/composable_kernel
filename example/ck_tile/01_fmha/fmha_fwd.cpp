@@ -1168,10 +1168,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         naive_attention_fwd(naive_t, naive_a, naive_s);
 
-        auto o_naive_ref = o_naive_buf.ToHost<DataType>();
+        auto o_naive_ref = o_naive_buf.ToHost<ODataType>();
         o_buf.FromDevice(o_host.data()); // TODO: ugly
 
-        auto [rtol_, atol_] = get_elimit<DataType>(init_method);
+        auto [rtol_, atol_] = get_elimit<DataTypeConfig>(init_method);
         bool pass_          = ck_tile::check_err(
             o_host, o_naive_ref, std::string("OUT Error: Incorrect results!"), rtol_, atol_);
         std::cout << ", valid:" << (pass_ ? "y" : "n") << std::flush << std::endl;

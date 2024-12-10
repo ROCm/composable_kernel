@@ -172,7 +172,7 @@ struct naive_attention_fwd_kernel
             return i_s % s;
         }
 
-        __device__ int64_t get_offset(int i_s, int i_d, int verbose = 0)
+        __device__ int64_t get_offset(int i_s, int i_d)
         {
             int page_offset  = get_phy_page_offset(i_s);
             int64_t page_idx = get_phy_page_idx(i_s);
@@ -194,10 +194,7 @@ struct naive_attention_fwd_kernel
 
         // below set of API will directly use pointer inside this struct
         __device__ void init(int /*i_b*/, int i_h_) { i_h = i_h_; }
-        __device__ T load(int i_s, int i_d, int verbose = 0)
-        {
-            return base_ptr[get_offset(i_s, i_d, verbose)];
-        }
+        __device__ T load(int i_s, int i_d) { return base_ptr[get_offset(i_s, i_d)]; }
         __device__ void store(T /*value*/, int /*i_s*/, int /*i_d*/) {}
     };
 
