@@ -611,7 +611,7 @@ inline __device__ int8_t neg<int8_t>(int8_t x)
 template <>
 inline __device__ half_t neg<half_t>(half_t x)
 {
-    return __hneg(x);
+    return __hneg(static_cast<__half>(x));
 };
 
 template <typename T>
