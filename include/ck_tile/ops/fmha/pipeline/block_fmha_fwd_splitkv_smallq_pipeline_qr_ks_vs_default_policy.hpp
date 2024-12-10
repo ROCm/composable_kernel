@@ -211,7 +211,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         constexpr index_t Gemm0NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
-        return max(GetSmemSizeQ<Problem>(), BasePolicy::template GetSmemSizeKV<Problem>()) +
+        return GetSmemSizeQ<Problem>() + BasePolicy::template GetSmemSizeKV<Problem>() +
                GetSmemSizeP<Problem>() + Gemm0NWarps * GetSmemSizeM<Problem>();
     }
 
