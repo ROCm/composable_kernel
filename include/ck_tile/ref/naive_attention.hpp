@@ -532,11 +532,12 @@ struct naive_attention_fwd_kernel
                     for(int i_j = 0; i_j < p_vec_elem; i_j++)
                     {
                         int sv_offset = i_loop2 * p_vec_elem + i_j;
+                        int i_sv      = sk_start + sv_offset;
 
                         VType v = 0.f;
-                        if(i_dv < args.hdim_v)
+                        if(i_dv < args.hdim_v && i_sv < seqlen_kv)
                         {
-                            v = v_addr.load(sk_start + sv_offset, i_dv);
+                            v = v_addr.load(i_sv, i_dv);
                         }
 
                         o_acc_local += type_convert<AccType>(p_vec[i_j]) * type_convert<AccType>(v);
