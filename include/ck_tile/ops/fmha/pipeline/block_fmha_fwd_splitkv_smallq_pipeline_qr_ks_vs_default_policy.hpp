@@ -73,10 +73,10 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
     {
-        [[maybe_unused]] constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kMPerBlock                  = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock                  = Problem::BlockFmhaShape::kSubQKHeaddim;
-#if 0
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
+
         constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
         static_assert(0 < ElemPerThread);
         constexpr index_t kKPack = min(ElemPerThread, GetSmemKPackQ<Problem>());
@@ -96,15 +96,6 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return q_lds_block_desc;
-#else
-        constexpr auto q_lds_block_desc_0 =
-            make_naive_tensor_descriptor(make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                                         make_tuple(number<kKPerBlock>{}, number<1>{}),
-                                         number<1>{},
-                                         number<0>{});
-
-        return q_lds_block_desc_0;
-#endif
     }
 
     template <typename Problem>
@@ -122,21 +113,21 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
         constexpr index_t kKPack     = GetSmemKPackP<Problem>();
 
-        constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
+        constexpr auto p_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
             make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
             number<8>{},
             number<1>{});
 
-        constexpr auto k_lds_block_desc = transform_tensor_descriptor(
-            k_lds_block_desc_0,
+        constexpr auto p_lds_block_desc = transform_tensor_descriptor(
+            p_lds_block_desc_0,
             make_tuple(
                 make_pass_through_transform(number<kMPerBlock>{}),
                 make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
-        return k_lds_block_desc;
+        return p_lds_block_desc;
     }
 
     template <typename Problem>
@@ -189,10 +180,10 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
 
-        constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
+        constexpr auto m_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kMPerBlock>{}), make_tuple(number<1>{}), number<8>{}, number<1>{});
 
-        return k_lds_block_desc_0;
+        return m_lds_block_desc_0;
     }
 
     template <typename Problem>
