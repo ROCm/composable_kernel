@@ -38,13 +38,14 @@ def getBaseDockerImageName(){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
-    if (params.ROCMVERSION != "6.3"){
-        img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
+        def ROCM_numeric = "${params.ROCMVERSION}" as float
+        if ( ROCM_numeric < 6.4 ){
+            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
+            }
+        else{
+            img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}"
+            }
         }
-    else{
-        img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}"
-        }
-    }
     return img
 }
 
@@ -329,10 +330,8 @@ def cmake_build(Map conf=[:]){
         try{
             archiveArtifacts "perf_fmha_fwd_*.log"
             archiveArtifacts "perf_fmha_bwd_*.log"
-            stash name: "perf_fmha_fwd_gfx942.log"
-            stash name: "perf_fmha_bwd_gfx942.log"
-            stash name: "perf_fmha_fwd_gfx90a.log"
-            stash name: "perf_fmha_bwd_gfx90a.log"
+            stash includes: "perf_fmha_**_gfx942.log", name: "perf_fmha_log_gfx942"
+            stash includes: "perf_fmha_**_gfx90a.log", name: "perf_fmha_log_gfx90a"
         }
         catch(Exception err){
             echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
@@ -378,7 +377,7 @@ def buildHipClangJob(Map conf=[:]){
 
         gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 48, unit: 'HOURS')
+                timeout(time: 20, unit: 'HOURS')
                 {
                     cmake_build(conf)
                 }
@@ -397,128 +396,6 @@ def buildHipClangJobAndReboot(Map conf=[:]){
     }
     catch(e){
         echo "throwing error exception for the stage"
-        echo 'Exception occurred: ' + e.toString()
-        throw e
-    }
-    finally{
-        if (!conf.get("no_reboot", false)) {
-            reboot()
-        }
-    }
-}
-
-def runCKProfiler(Map conf=[:]){
-        show_node_info()
-
-        env.HSA_ENABLE_SDMA=0
-        checkout scm
-
-        def image = getDockerImageName()
-        def prefixpath = conf.get("prefixpath", "/opt/rocm")
-
-        // Jenkins is complaining about the render group 
-        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-        if (conf.get("enforce_xnack_on", false)) {
-            dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
-        }
-        def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
-        def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
-        dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
-        echo "Docker flags: ${dockerOpts}"
-
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-
-        def variant = env.STAGE_NAME
-        def retimage
-
-        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
-            try {
-                (retimage, image) = getDockerImage(conf)
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES'){
-                        sh 'rocminfo | tee rocminfo.log'
-                        if ( !runShell('grep -n "gfx" rocminfo.log') ){
-                            throw new Exception ("GPU not found")
-                        }
-                        else{
-                            echo "GPU is OK"
-                        }
-                    }
-                }
-            }
-            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                echo "The job was cancelled or aborted"
-                throw e
-            }
-
-            withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 24, unit: 'HOURS')
-                {
-                    sh """
-                        rm -rf build
-                        mkdir build
-                    """
-                    dir("build"){
-                        unstash 'ckProfiler.tar.gz'
-                        sh 'tar -xvf ckProfiler.tar.gz'
-                    }
-
-					dir("script"){
-                        if (params.RUN_FULL_QA){
-                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm.log"
-                            archiveArtifacts "perf_resnet50_N256.log"
-                            archiveArtifacts "perf_resnet50_N4.log"
-                            archiveArtifacts "perf_batched_gemm.log"
-                            archiveArtifacts "perf_grouped_gemm.log"
-                            archiveArtifacts "perf_grouped_conv_fwd.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_data.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_weight.log"
-                            archiveArtifacts "perf_gemm_bilinear.log"
-                            archiveArtifacts "perf_reduction.log"
-                            archiveArtifacts "perf_splitK_gemm.log"
-                            archiveArtifacts "perf_onnx_gemm.log"
-                            archiveArtifacts "perf_mixed_gemm.log"
-                           // stash perf files to master
-                            stash name: "perf_gemm.log"
-                            stash name: "perf_resnet50_N256.log"
-                            stash name: "perf_resnet50_N4.log"
-                            stash name: "perf_batched_gemm.log"
-                            stash name: "perf_grouped_gemm.log"
-                            stash name: "perf_grouped_conv_fwd.log"
-                            stash name: "perf_grouped_conv_bwd_data.log"
-                            stash name: "perf_grouped_conv_bwd_weight.log"
-                            stash name: "perf_gemm_bilinear.log"
-                            stash name: "perf_reduction.log"
-                            stash name: "perf_splitK_gemm.log"
-                            stash name: "perf_onnx_gemm.log"
-                            stash name: "perf_mixed_gemm.log"
-                            //we will process results on the master node
-                        }
-                        else{
-                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm.log"
-                            archiveArtifacts "perf_resnet50_N256.log"
-                            archiveArtifacts "perf_resnet50_N4.log"
-                            // stash perf files to master
-                            stash name: "perf_gemm.log"
-                            stash name: "perf_resnet50_N256.log"
-                            stash name: "perf_resnet50_N4.log"
-                            //we will process the results on the master node
-                        }
-					}
-                }
-            }
-        }
-        return retimage
-}
-
-def runPerfTest(Map conf=[:]){
-    try{
-        runCKProfiler(conf)
-    }
-    catch(e){
-        echo "throwing error exception in performance tests"
         echo 'Exception occurred: ' + e.toString()
         throw e
     }
@@ -572,7 +449,7 @@ def Build_CK(Map conf=[:]){
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES'){
+                    timeout(time: 2, unit: 'MINUTES'){
                         sh 'rocminfo | tee rocminfo.log'
                         if ( !runShell('grep -n "gfx" rocminfo.log') ){
                             throw new Exception ("GPU not found")
@@ -588,36 +465,95 @@ def Build_CK(Map conf=[:]){
                 throw e
             }
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 24, unit: 'HOURS')
+                timeout(time: 20, unit: 'HOURS')
                 {
                     //check whether to run performance tests on this node
-                    def do_perf_tests = 0
+                    def arch_type = 0
                     sh 'rocminfo | tee rocminfo.log'
-                    if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') || runShell('grep -n "gfx1201" rocminfo.log') || runShell('grep -n "gfx942" rocminfo.log') ){
-                        do_perf_tests = 1
-                        echo "Stash profiler and run performance tests"
+                    if ( runShell('grep -n "gfx90a" rocminfo.log') ){
+                        arch_type = 1
+                    }
+                    else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
+                        arch_type = 2
+                    }
+                    else if ( runShell('grep -n "gfx1030" rocminfo.log') ) {
+                        arch_type = 3
+                    }
+                    else if ( runShell('grep -n "gfx1101" rocminfo.log') ) {
+                        arch_type = 4
+                    }
+                    else if ( runShell('grep -n "gfx1201" rocminfo.log') ) {
+                        arch_type = 5
                     }
                     cmake_build(conf)
                     dir("build"){
-                        //run tests and examples
-                        //sh 'make -j check'
-                        if (params.RUN_PERFORMANCE_TESTS && do_perf_tests == 0 ){
-                            //we only need the ckProfiler to run the performance tests, so we pack and stash it
-                            //do not stash profiler on nodes where we don't need to run performance tests
-                            sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
-                            stash name: "ckProfiler.tar.gz"
-                        }
-                        if (params.RUN_FULL_QA && do_perf_tests == 0 ){
-                            // build deb packages for all gfx9 targets and prepare to export
+                        if (params.RUN_FULL_QA && arch_type == 1 ){
+                            // build deb packages for all gfx9 targets on gfx90a system and prepare to export
+                            echo "Build ckProfiler package"
                             sh 'make -j package'
                             archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
-                            archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
                             sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
-                            stash name: "ckprofiler_0.2.0_amd64.deb"
+                            stash includes: "ckprofiler_0.2.0_amd64.deb", name: "ckprofiler_0.2.0_amd64.deb"
                         }
                     }
-                    if (params.hipTensor_test && do_perf_tests == 0 ){
-                        //build and test hipTensor
+                    // run performance tests, stash the logs, results will be processed on the master node
+					dir("script"){
+                        if (params.RUN_PERFORMANCE_TESTS){
+                        if (params.RUN_FULL_QA && arch_type == 1){
+                            // run full tests on gfx90a
+                            echo "Run full performance tests"
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            archiveArtifacts "perf_gemm.log"
+                            archiveArtifacts "perf_resnet50_N256.log"
+                            archiveArtifacts "perf_resnet50_N4.log"
+                            archiveArtifacts "perf_batched_gemm.log"
+                            archiveArtifacts "perf_grouped_gemm.log"
+                            archiveArtifacts "perf_grouped_conv_fwd.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_data.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_weight.log"
+                            archiveArtifacts "perf_gemm_bilinear.log"
+                            archiveArtifacts "perf_reduction.log"
+                            archiveArtifacts "perf_splitK_gemm.log"
+                            archiveArtifacts "perf_onnx_gemm.log"
+                            archiveArtifacts "perf_mixed_gemm.log"
+                            stash includes: "perf_**.log", name: "perf_log"
+                        }
+                        else if ( arch_type == 1 ){
+                            // run standard tests on gfx90a
+                            echo "Run performance tests"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            archiveArtifacts "perf_gemm.log"
+                            archiveArtifacts "perf_onnx_gemm.log"
+                            archiveArtifacts "perf_resnet50_N256.log"
+                            archiveArtifacts "perf_resnet50_N4.log"
+                            stash includes: "perf_**.log", name: "perf_log"
+                        }
+                        // disable performance tests on gfx1030 for now.
+                        //else if ( arch_type == 3){
+                            // run basic tests on gfx1030
+                        //    echo "Run gemm performance tests"
+                        //    sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx10"
+                        //    archiveArtifacts "perf_onnx_gemm_gfx10.log"
+                        //    stash includes: "perf_onnx_gemm_gfx10.log", name: "perf_log_gfx10"
+                        //}
+                        else if ( arch_type == 4){
+                            // run basic tests on gfx11
+                            echo "Run gemm performance tests"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx11"
+                            archiveArtifacts "perf_onnx_gemm_gfx11.log"
+                            stash includes: "perf_onnx_gemm_gfx11.log", name: "perf_log_gfx11"
+                        }
+                        else if ( arch_type == 5 ){
+                            // run basic tests on gfx12
+                            echo "Run gemm performance tests"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx12"
+                            archiveArtifacts "perf_onnx_gemm_gfx12.log"
+                            stash includes: "perf_onnx_gemm_gfx12.log", name: "perf_log_gfx12"
+                        }                        
+                        }
+                    }
+                    if (params.hipTensor_test && arch_type == 1 ){
+                        // build and test hipTensor on gfx90a node
                         sh """#!/bin/bash
                             rm -rf "${params.hipTensor_branch}".zip
                             rm -rf hipTensor-"${params.hipTensor_branch}"
@@ -684,15 +620,13 @@ def process_results(Map conf=[:]){
     }
 
     withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-        timeout(time: 1, unit: 'HOURS'){
+        timeout(time: 15, unit: 'MINUTES'){
             try{
                 dir("script"){
                     if (params.RUN_CK_TILE_FMHA_TESTS){
                         try{
-                            unstash "perf_fmha_fwd_gfx942.log"
-                            unstash "perf_fmha_bwd_gfx942.log"
-                            unstash "perf_fmha_fwd_gfx90a.log"
-                            unstash "perf_fmha_bwd_gfx90a.log"
+                            unstash "perf_fmha_log_gfx942"
+                            unstash "perf_fmha_log_gfx90a"
                         }
                         catch(Exception err){
                             echo "could not locate the FMHA performance logs: ${err.getMessage()}."
@@ -702,26 +636,26 @@ def process_results(Map conf=[:]){
                         // unstash perf files to master
                         unstash "ckprofiler_0.2.0_amd64.deb"
                         sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
-                        unstash "perf_gemm.log"
-                        unstash "perf_resnet50_N256.log"
-                        unstash "perf_resnet50_N4.log"
-                        unstash "perf_batched_gemm.log"
-                        unstash "perf_grouped_gemm.log"
-                        unstash "perf_grouped_conv_fwd.log"
-                        unstash "perf_grouped_conv_bwd_data.log"
-                        unstash "perf_grouped_conv_bwd_weight.log"
-                        unstash "perf_gemm_bilinear.log"
-                        unstash "perf_reduction.log"
-                        unstash "perf_splitK_gemm.log"
-                        unstash "perf_onnx_gemm.log"
-                        unstash "perf_mixed_gemm.log"
+                        unstash "perf_log"
+                        try{
+                            unstash "perf_log_gfx11"
+                            unstash "perf_log_gfx12"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
+                        }
                         sh "./process_qa_data.sh"
                     }
                     else{
                         // unstash perf files to master
-                        unstash "perf_gemm.log"
-                        unstash "perf_resnet50_N256.log"
-                        unstash "perf_resnet50_N4.log"
+                        unstash "perf_log"
+                        try{
+                            unstash "perf_log_gfx11"
+                            unstash "perf_log_gfx12"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
+                        }
                         sh "./process_perf_data.sh"
                     }
                 }
@@ -739,10 +673,10 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.2;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true
-                                              0 21 * * * % ROCMVERSION=6.2;hipTensor_test=true;RUN_CODEGEN_TESTS=true
-                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.3;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true
+                                              0 21 * * * % ROCMVERSION=6.3;hipTensor_test=true;RUN_CODEGEN_TESTS=true
+                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
+                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false
                                               0 13 * * * % BUILD_LEGACY_OS=true''' : ""
 
@@ -765,8 +699,8 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '6.2', 
-            description: 'Specify which ROCM version to use: 6.2 (default).')
+            defaultValue: '6.3',
+            description: 'Specify which ROCM version to use: 6.3 (default).')
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: '', 
@@ -829,8 +763,8 @@ pipeline {
             description: "Test building instances for various architectures simultaneously (default: OFF)")
         booleanParam(
             name: "BUILD_GFX12",
-            defaultValue: false,
-            description: "Build CK and run tests on gfx12 (default: OFF)")
+            defaultValue: true,
+            description: "Build CK and run tests on gfx12 (default: ON)")
         booleanParam(
             name: "NINJA_BUILD_TRACE",
             defaultValue: false,
@@ -1235,29 +1169,6 @@ pipeline {
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                        cleanWs()
-                    }
-                }
-            }
-        }
-
-        stage("Performance Tests")
-        {
-            parallel
-            {
-                stage("Run ckProfiler: gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_PERFORMANCE_TESTS.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
-                    }
-                    options { retry(1) }
-                    agent{ label rocmnode("gfx90a")}
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                    }
-                    steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
                         cleanWs()
                     }
                 }
