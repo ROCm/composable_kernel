@@ -38,7 +38,6 @@ enum struct MfmaInstr
     mfma_f32_16x16x32f8bf8,
     mfma_f32_32x32x16bf8f8,
     mfma_f32_16x16x32bf8f8,
-    // mi355 new mfma instructions
     mfma_f32_32x32x16f16,
     mfma_f32_16x16x32f16,
     mfma_f32_32x32x16bf16,
