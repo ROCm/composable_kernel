@@ -609,7 +609,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         // therefore we may just as well assign Gemm1KPack = group_size
 
 #if defined(CK_USE_AMD_MFMA_GFX950)
-        // TODO: fix logic for gfx950 as it's temperary hack for passing compiling
+        // TODO: fix logic for gfx950 as it's temporary hack for passing compiling
         constexpr index_t Gemm1KPack = math::max(
             math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 #else
