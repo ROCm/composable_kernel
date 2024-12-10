@@ -143,11 +143,12 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         // copy lse_acc tile (shape=[kMaxSplits, kM0]) to LDS (shape=[kMaxSplits, kM0]).
         auto lse_acc_tile = load_tile(lse_acc_dram_window);
         store_tile(lse_acc_lds_write_window, lse_acc_tile);
-        block_sync_lds();
 
         auto lse_accum = make_static_distributed_tensor<LSEDataType>(
             Policy::template MakeLSEaccRegTileDistribution<Problem>());
 
+        __builtin_amdgcn_sched_barrier(0);
+        block_sync_lds();
         // copy LDS (shape=[kM0, kMaxSplits]) to lse_accum (shape=[kM0, kMaxSplits])
         // and fill up -INF values outside the [kM0, num_splits] region.
         {
@@ -264,7 +265,6 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                 }
             });
         }
-        block_sync_lds();
 
         if constexpr(kStoreLSE)
         {
@@ -282,6 +282,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
         const index_t padded_seqlen_q = integer_divide_ceil(seqlen_q, kM0) * kM0;
 
+        __builtin_amdgcn_sched_barrier(0);
+        block_sync_lds();
         for(index_t i_split = 0; i_split < num_splits; ++i_split)
         {
             auto o_tile = load_tile(o_acc_dram_window);
