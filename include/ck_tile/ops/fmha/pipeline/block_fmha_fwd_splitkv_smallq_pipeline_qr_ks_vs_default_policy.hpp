@@ -33,6 +33,67 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeOriginQDramTileDistribution()
+    {
+        using QDataType = remove_cvref_t<typename Problem::QDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+
+        constexpr index_t ElemPerThread = kMPerBlock * kKPerBlock / kBlockSize;
+        static_assert(0 < ElemPerThread);
+        constexpr index_t kMaxVecLoad =
+            min(ElemPerThread, static_cast<index_t>(16 / sizeof(QDataType)));
+
+        constexpr index_t K1 = kMaxVecLoad;
+        constexpr index_t K0 = kKPerBlock / K1;
+        constexpr index_t M2 = get_warp_size() / K0;
+        constexpr index_t M1 = kBlockSize / get_warp_size();
+        constexpr index_t M0 = kMPerBlock / (M2 * M1);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackQ()
+    {
+        // TODO: this is for 3d layout
+        using QDataType = remove_cvref_t<typename Problem::QDataType>;
+        return static_cast<index_t>(16 / sizeof(QDataType));
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
+    {
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPack     = GetSmemKPackQ<Problem>();
+
+        constexpr auto q_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
+            make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
+            number<8>{},
+            number<1>{});
+
+        constexpr auto q_lds_block_desc = transform_tensor_descriptor(
+            q_lds_block_desc_0,
+            make_tuple(
+                make_pass_through_transform(number<kMPerBlock>{}),
+                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return q_lds_block_desc;
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackP()
     {
         // TODO: this is for 3d layout
@@ -121,6 +182,13 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeQ()
+    {
+        return MakeQLdsBlockDescriptor<Problem>().get_element_space_size() *
+               sizeof(typename Problem::QDataType);
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeP()
     {
         return MakePLdsBlockDescriptor<Problem>().get_element_space_size() *
@@ -138,8 +206,8 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         constexpr index_t Gemm0NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
-        return BasePolicy::template GetSmemSizeKV<Problem>() + GetSmemSizeP<Problem>() +
-               Gemm0NWarps * GetSmemSizeM<Problem>();
+        return max(GetSmemSizeQ<Problem>(), BasePolicy::template GetSmemSizeKV<Problem>()) +
+               GetSmemSizeP<Problem>() + Gemm0NWarps * GetSmemSizeM<Problem>();
     }
 
     template <typename Problem>

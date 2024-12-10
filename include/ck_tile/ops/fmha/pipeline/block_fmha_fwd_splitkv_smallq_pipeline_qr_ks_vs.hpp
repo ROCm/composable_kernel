@@ -161,11 +161,16 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                           kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
+        // Q tile in LDS
+        KDataType* q_lds_ptr =
+            static_cast<QDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
+        auto q_lds = make_tensor_view<address_space_enum::lds>(
+            q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
 
         // K tile in LDS
-        KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>()));
-        auto k_lds           = make_tensor_view<address_space_enum::lds>(
+        KDataType* k_lds_ptr =
+            static_cast<KDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
+        auto k_lds = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsBlockDescriptor<Problem>());
         auto k_lds_window =
             make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0>{}), {0, 0});
@@ -194,6 +199,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
         auto m_lds_window = make_tile_window(
             m_lds, Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(), {0});
 
+        // M tile in LDS (for reduction)
         constexpr index_t Gemm0NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
         array<decltype(m_lds_window), Gemm0NWarps> m_lds_windows;
         for(int i_warp = 0; i_warp < Gemm0NWarps; ++i_warp)
@@ -217,13 +223,27 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
 
-        auto q_dram_window = make_tile_window(
-            q_dram_block_window_tmp.get_bottom_tensor_view(),
-            q_dram_block_window_tmp.get_window_lengths(),
-            q_dram_block_window_tmp.get_window_origin(),
+        auto q_dram_window =
+            make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+                             q_dram_block_window_tmp.get_window_lengths(),
+                             q_dram_block_window_tmp.get_window_origin(),
+                             Policy::template MakeOriginQDramTileDistribution<Problem>());
+
+        {
+            auto q_lds_window_for_store = make_tile_window(
+                q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+
+            auto origin_q = load_tile(q_dram_window);
+            store_tile(q_lds_window_for_store, origin_q);
+        }
+
+        auto q_lds_window = make_tile_window(
+            q_lds,
+            Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
+            {0, 0},
             Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
 
-        auto q = load_tile(q_dram_window);
+        auto q = load_tile(q_lds_window);
 
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
         auto s_acc              = SaccBlockTileType{};
