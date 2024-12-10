@@ -17,7 +17,8 @@ enum class naive_attention_layout_enum
     BHSD,  // [batch, nhead, seqlen, hdim]
     BS3HD, // [batch, nhead, 3, seqlen, hdim], used when qkv are packed
     PHSD,  // [pages, nhead, page_size, hdim]
-    PHSDX, // [pages, nhead, page_size/x, hdim, x], where <# used pages>*page_size = seqlen
+    // PHSDX, // [pages, nhead, page_size/x, hdim, x], where <# used pages>*page_size = seqlen
+    PHDSX, // [pages, nhead, hdim/x, page_size, x], where <# used pages>*page_size = seqlen
     PHDS,  // [pages, nhead, hdim, page_size], where <# used pages>*page_size = seqlen
 };
 
@@ -38,8 +39,8 @@ struct naive_attention_fwd_args
     void* o_ptr;
     void* context_len_ptr; // [batch] used when seqlen kv come from a pointer(each element is a
                            // number, not cumsum)
-    void* page_table_ptr; // [batch, num_blocks] seqlen_kv is in different block(paged attn)
-    void* kvscale_ptr;    // [nhead, 2(kv), hdim] used for kvcache dequant
+    void* page_table_ptr;  // [batch, max_pages_per_seq] seqlen_kv is in different block(paged attn)
+    void* kvscale_ptr;     // [nhead, 2(kv), hdim] used for kvcache dequant
     float scale_s;
     int hdim;
     int hdim_v; // could be cross-attn, where V and Q/K hdim are different
@@ -52,6 +53,7 @@ struct naive_attention_fwd_args
     int nhead_kv;
     int nhead_ratio_kv; // nhead_q / nhead_kv
     int page_size;      // if paged, the seqlen-kv per each block
+    int max_pages_per_seq;
 };
 
 // this is trait for host API
@@ -100,19 +102,6 @@ struct naive_attention_fwd_kernel
     using SoftmaxType = float;
     using PType       = VType; // src A of gemm2, same type as V
 
-#if 0
-    template <typename Acc>
-    struct gemm2_vector_type;
-    template <>
-    struct gemm2_vector_type<float>
-    {
-        using type                = fp32x4_t;
-        static constexpr int elem = 4;
-    };
-    using gemm2_vec_type                = typename gemm2_vector_type<AccType>::type;
-    static constexpr int gemm2_vec_elem = gemm2_vector_type<AccType>::elem;
-#endif
-
     using p_vec_type                = ext_vector_t<PType, 16 / sizeof(PType)>;
     static constexpr int p_vec_elem = vector_traits<p_vec_type>::vector_size;
 
@@ -154,7 +143,7 @@ struct naive_attention_fwd_kernel
     template <typename T, naive_attention_layout_enum Layout>
     struct page_addresser
     {
-        int s, h, d;                             // page_size, nhead, hdim, vector(k matrix)
+        int s, h, d;                             // page_size, nhead, hdim
         static constexpr int x = 16 / sizeof(T); // pack 4 dword
         T* base_ptr;
         int* page_table_ptr; // TODO: page table always int
@@ -183,28 +172,32 @@ struct naive_attention_fwd_kernel
             return i_s % s;
         }
 
-        __device__ int64_t get_offset(int i_s, int i_d)
+        __device__ int64_t get_offset(int i_s, int i_d, int verbose = 0)
         {
             int page_offset  = get_phy_page_offset(i_s);
             int64_t page_idx = get_phy_page_idx(i_s);
             int64_t base_    = page_idx * h * s * d;
             if constexpr(Layout == naive_attention_layout_enum::PHSD)
                 return static_cast<int64_t>(i_h * s * d + page_offset * d + i_d) + base_;
-            else if constexpr(Layout == naive_attention_layout_enum::PHSDX)
+            else if constexpr(Layout == naive_attention_layout_enum::PHDSX)
             {
-                int x_r = page_offset % x;
-                int x_s = page_offset / x;
-                return static_cast<int64_t>(i_h * s * d + x_s * d * x + i_d * x + x_r) + base_;
+                int d_r = i_d / x;
+                int d_x = i_d % x;
+                return static_cast<int64_t>(i_h * d * s + d_r * s * x + page_offset * x + d_x) +
+                       base_;
             }
             else if constexpr(Layout == naive_attention_layout_enum::PHDS)
             {
-                return static_cast<int64_t>(i_h * s * d + i_d * s + page_offset) + base_;
+                return static_cast<int64_t>(i_h * d * s + i_d * s + page_offset) + base_;
             }
         }
 
         // below set of API will directly use pointer inside this struct
         __device__ void init(int /*i_b*/, int i_h_) { i_h = i_h_; }
-        __device__ T load(int i_s, int i_d) { return base_ptr[get_offset(i_s, i_d)]; }
+        __device__ T load(int i_s, int i_d, int verbose = 0)
+        {
+            return base_ptr[get_offset(i_s, i_d, verbose)];
+        }
         __device__ void store(T /*value*/, int /*i_s*/, int /*i_d*/) {}
     };
 
@@ -239,8 +232,9 @@ struct naive_attention_fwd_kernel
     __host__ static dim3 get_grid_size(naive_attention_fwd_args args)
     {
         constexpr int wg_size = get_block_size();
-        return dim3(
-            (args.hdim_v + wg_size - 1) / wg_size, args.seqlen_q, args.batch_q * args.nhead_q);
+        auto g =
+            dim3((args.hdim_v + wg_size - 1) / wg_size, args.seqlen_q, args.batch_q * args.nhead_q);
+        return g;
     }
 
     // reduce single pixel within a wave
@@ -292,6 +286,26 @@ struct naive_attention_fwd_kernel
     {
         constexpr int wg_size = get_block_size();
         __shared__ char smem[wg_size * 4 * sizeof(float)]; //  should enough
+        int i_dv    = blockIdx.x * wg_size + threadIdx.x;  // index of hdim_v
+        int i_sq    = blockIdx.y;                          // index of seqlen_q
+        int i_batch = blockIdx.z;                          // index of batch_q * nhead_q
+        int i_bq    = i_batch / args.nhead_q;              // index of batch_q
+        int i_hq    = i_batch % args.nhead_q;              // index of nhead_q
+
+        int i_bk = i_bq / args.batch_ratio_kv;
+        int i_hk = i_hq / args.nhead_ratio_kv;
+
+        void* page_table_ptr = [&]() {
+            if constexpr(Traits::variation == naive_attention_variation_enum::DECODE_PAGED)
+            {
+                return reinterpret_cast<int*>(args.page_table_ptr) + i_bq * args.max_pages_per_seq;
+            }
+            else
+            {
+                return nullptr;
+            }
+        }();
+
         auto q_addr = [&]() {
             if constexpr(Traits::variation == naive_attention_variation_enum::FLASH_BATCHED)
             {
@@ -313,7 +327,7 @@ struct naive_attention_fwd_kernel
             else if constexpr(Traits::variation == naive_attention_variation_enum::DECODE_PAGED)
             {
                 return page_addresser<KType, KLayout>{
-                    args.page_size, args.nhead_kv, args.hdim, args.k_ptr, args.page_table_ptr};
+                    args.page_size, args.nhead_kv, args.hdim, args.k_ptr, page_table_ptr};
             }
         }();
         auto v_addr = [&]() {
@@ -325,7 +339,7 @@ struct naive_attention_fwd_kernel
             else if constexpr(Traits::variation == naive_attention_variation_enum::DECODE_PAGED)
             {
                 return page_addresser<VType, VLayout>{
-                    args.page_size, args.nhead_kv, args.hdim_v, args.v_ptr, args.page_table_ptr};
+                    args.page_size, args.nhead_kv, args.hdim_v, args.v_ptr, page_table_ptr};
             }
         }();
         auto o_addr = [&]() {
@@ -340,15 +354,6 @@ struct naive_attention_fwd_kernel
                     args.batch_q, args.seqlen_q, args.nhead_q, args.hdim_v, args.o_ptr};
             }
         }();
-
-        int i_dv    = blockIdx.x * wg_size + threadIdx.x; // index of hdim_v
-        int i_sq    = blockIdx.y;                         // index of seqlen_q
-        int i_batch = blockIdx.z;                         // index of batch_q * nhead_q
-        int i_bq    = i_batch / args.nhead_q;             // index of batch_q
-        int i_hq    = i_batch % args.nhead_q;             // index of nhead_q
-
-        int i_bk = i_bq / args.batch_ratio_kv;
-        int i_hk = i_hq / args.nhead_ratio_kv;
 
         q_addr.init(i_bq, i_hq);
         k_addr.init(i_bk, i_hk);
@@ -421,7 +426,7 @@ struct naive_attention_fwd_kernel
         {
             int i_sk = i_loop1 * wg_size + threadIdx.x;
             // gemm-1
-            SoftmaxType s_softmax = -numeric<AccType>::infinity();
+            SoftmaxType s_softmax = -numeric<SoftmaxType>::infinity();
             if(i_sk < seqlen_kv)
             {
                 AccType s_acc{0}; // clear for every loop
@@ -517,7 +522,6 @@ struct naive_attention_fwd_kernel
 
             // gemm-2, simple loop over vector by vector
             constexpr int gemm_2_loop = wg_size / p_vec_elem;
-            if(i_dv < args.hdim_v)
             {
                 AccType o_acc_local = {0};
                 int sk_start = i_loop1 * wg_size; // we start from the first seqlen_kv element
@@ -528,7 +532,13 @@ struct naive_attention_fwd_kernel
                     for(int i_j = 0; i_j < p_vec_elem; i_j++)
                     {
                         int sv_offset = i_loop2 * p_vec_elem + i_j;
-                        auto v        = v_addr.load(sk_start + sv_offset, i_dv);
+
+                        VType v = 0.f;
+                        if(i_dv < args.hdim_v)
+                        {
+                            v = v_addr.load(sk_start + sv_offset, i_dv);
+                        }
+
                         o_acc_local += type_convert<AccType>(p_vec[i_j]) * type_convert<AccType>(v);
                     }
                 }
@@ -545,7 +555,7 @@ struct naive_attention_fwd_kernel
         // post scale o_acc
         {
             SoftmaxType tmp = l == 0.f ? 0.f : 1.f / l; // in case masking
-            o_acc *= type_convert<AccType>(tmp);
+            o_acc           = type_convert<AccType>(type_convert<SoftmaxType>(o_acc) * tmp);
         }
 
         // store O
@@ -595,11 +605,11 @@ struct naive_attention_fwd_kernel
         constexpr int variation_ = 0;                                                              \
         CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_INTERNAL_();                                              \
     }                                                                                              \
-    else if(t.variation == 2 && t.q_layout == "bhsd" && t.k_layout == "phsdx" &&                   \
+    else if(t.variation == 2 && t.q_layout == "bhsd" && t.k_layout == "phdsx" &&                   \
             t.v_layout == "phds" && t.o_layout == "bhsd")                                          \
     {                                                                                              \
         constexpr auto q_layout_ = naive_attention_layout_enum::BHSD;                              \
-        constexpr auto k_layout_ = naive_attention_layout_enum::PHSDX;                             \
+        constexpr auto k_layout_ = naive_attention_layout_enum::PHDSX;                             \
         constexpr auto v_layout_ = naive_attention_layout_enum::PHDS;                              \
         constexpr auto o_layout_ = naive_attention_layout_enum::BHSD;                              \
         constexpr int variation_ = 2;                                                              \
