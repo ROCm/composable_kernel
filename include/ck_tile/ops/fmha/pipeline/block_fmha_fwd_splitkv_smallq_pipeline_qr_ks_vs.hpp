@@ -231,12 +231,13 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                              q_dram_block_window_tmp.get_window_origin(),
                              Policy::template MakeOriginQDramTileDistribution<Problem>());
 
+        // store Q into LDS to maximize throughput
         {
-            auto q_lds_window_for_store = make_tile_window(
+            auto q_lds_window = make_tile_window(
                 q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
             auto origin_q = load_tile(q_dram_window);
-            store_tile(q_lds_window_for_store, origin_q);
+            store_tile(q_lds_window, origin_q);
         }
 
         auto q_lds_window = make_tile_window(
