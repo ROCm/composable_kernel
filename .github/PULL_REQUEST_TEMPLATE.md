@@ -9,7 +9,7 @@ Please put an `x` into the boxes that apply. You can also fill these out after c
 - [ ] I have added tests relevant to the introduced functionality, and the unit tests are passing locally
 - [ ] I have added inline documentation which enables the maintainers with understanding the motivation
 - [ ] I have removed the stale documentation which is no longer relevant after this pull request
-- [ ] I have added release notes which provide the end users with a brief summary of the improvement from this pull request
+- [ ] (If this change is user-facing) I have added release notes which provide the end users with a brief summary of the improvement from this pull request
 - [ ] I have run `clang-format` on all changed files
 - [ ] Any dependent changes have been merged
 
