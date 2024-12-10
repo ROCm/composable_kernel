@@ -529,7 +529,6 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                 sequence<1>{},
                 f_max,
                 -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
-            block_tile_reduce_sync(m_local4_reduce, f_max, bool_constant<false>{});
 
             // copy back to m_local
             {
