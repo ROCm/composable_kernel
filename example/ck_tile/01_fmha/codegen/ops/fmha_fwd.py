@@ -282,7 +282,7 @@ class FmhaFwdApiPool:
                                    F_squant=BOOL_MAP[trait.squant], F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0max=trait.bk0max,
-                                   F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
+                                   F_hdim=hdim, F_dtype=FWD_DTYPE_MAP[dtype])
                 if_j = 'if' if j == 0 else 'else if'
                 per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
             if_i = 'if' if i == 0 else 'else if'
@@ -301,7 +301,7 @@ class FmhaFwdTileSize:
     F_bk1       : int  # tile size along kv gemm unroll
     F_bk0max    : int  # total length of K0, used for pipeline that need load Q at once (or repeately load Q as a whole tile)
     F_rm0       : int  # number of warps for gemm0 along q seqlen
-    F_rn0       : int  # number of warps for gemm0 along k seqlen 
+    F_rn0       : int  # number of warps for gemm0 along k seqlen
     F_rk0       : int  # number of warps for gemm0 along head dim q (not used)
     F_rm1       : int  # number of warps for gemm1 along q seqlen
     F_rn1       : int  # number of warps for gemm1 along head dim v
@@ -339,7 +339,7 @@ class FmhaFwdKernel:
             FMHA_FWD_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
                 F_hdim          = self.F_hdim,
-                F_dtype         = DTYPE_MAP[self.F_dtype],
+                F_dtype         = FWD_DTYPE_MAP[self.F_dtype],
                 F_bm0           = self.F_tile.F_bm0,
                 F_bn0           = self.F_tile.F_bn0,
                 F_bk0           = self.F_tile.F_bk0,
@@ -462,6 +462,9 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
             # no need lse/dropout kernels
             for mask, bias in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
                 pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, 'f', 'f', squant, mask))
+        elif dtype in ['fp8fp16', 'fp8bf16']:
+            # TODO
+            None
         else:
             assert False
         return pipelines
@@ -469,7 +472,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
-    for dtype in DTYPE_MAP.keys():
+    for dtype in FWD_DTYPE_MAP.keys():
         d = get_fmha_fwd_tile_dict_from_dtype(dtype)
         if d == None:
             continue
