@@ -160,7 +160,7 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
         constexpr index_t kNPerBlock = Problem::kMaxSplits;
         constexpr index_t kMPerBlock = Problem::kM0;
 
-        constexpr index_t NThreads   = 8;
+        constexpr index_t NThreads   = min(kNPerBlock, 8);
         constexpr index_t NPerThread = kNPerBlock / NThreads;
 
         constexpr index_t MThreads       = kBlockSize / NThreads;

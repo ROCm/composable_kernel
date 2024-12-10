@@ -121,9 +121,7 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     using ODataType    = remove_cvref_t<ODataType_>;
     using Traits       = remove_cvref_t<Traits_>;
 
-    static constexpr index_t kNumWarps  = kM0_ / (get_warp_size() / 8);
-    static constexpr index_t kBlockSize = kNumWarps * get_warp_size();
-    static constexpr bool kIsGroupMode  = kIsGroupMode_;
+    static constexpr bool kIsGroupMode = kIsGroupMode_;
 
     static constexpr index_t kHeadDimV = HeadDimV_;
     static constexpr index_t kM0       = kM0_;
@@ -136,6 +134,9 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr index_t kMaxSplits     = Traits::kMaxSplits;
+
+    static constexpr index_t kNumWarps  = kM0_ / (get_warp_size() / min(kMaxSplits, 8));
+    static constexpr index_t kBlockSize = kNumWarps * get_warp_size();
 };
 
 template <typename QDataType_,
