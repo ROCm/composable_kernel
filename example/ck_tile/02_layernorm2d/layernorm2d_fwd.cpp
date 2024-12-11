@@ -41,6 +41,7 @@ auto create_args(int argc, char* argv[])
         .insert("prec_sy",
                 "auto",
                 "output quant scale type, set auto will use fp32. used when fquant=1 or 2")
+        .insert("bias", "0", "add bias, 0:no add, 1:add bias before fadd")
         .insert("fadd", "0", "fused-add, 0:no fused add, 1:preadd+store, 2:preadd only")
         .insert("fquant", "0", "fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant")
         .insert("warmup", "5", "cold iter")
@@ -93,6 +94,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int do_validation = arg_parser.get_int("v");
     int warmup        = arg_parser.get_int("warmup");
     int repeat        = arg_parser.get_int("repeat");
+    int bias          = arg_parser.get_int("bias");
     int fused_add     = arg_parser.get_int("fadd");
     int fused_quant   = arg_parser.get_int("fquant");
     if(fused_quant == 1 && prec_o != "int8")
@@ -107,6 +109,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using XDataType         = typename TypeConfig::XDataType;
     using YDataType         = typename TypeConfig::YDataType;
+    using BiasDataType      = typename TypeConfig::BiasDataType;
     using GammaDataType     = typename TypeConfig::GammaDataType;
     using BetaDataType      = typename TypeConfig::BetaDataType;
     using XResidualDataType = XDataType;
@@ -121,6 +124,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // host verify
     ck_tile::HostTensor<XDataType> x_host({m, n}, {x_stride, 1});
+    ck_tile::HostTensor<BiasDataType> bias_host({n});
     ck_tile::HostTensor<GammaDataType> gamma_host({n});
     ck_tile::HostTensor<BetaDataType> beta_host({n});
 
@@ -141,10 +145,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::FillUniformDistribution<XDataType>{-.5f, .5f}(x_host);
     ck_tile::FillUniformDistribution<XResidualDataType>{-.5f, .5f}(x_residual_host);
     ck_tile::FillUniformDistribution<XScaleDataType>{-1.f, 1.f}(x_scale_host);
+    ck_tile::FillUniformDistribution<BiasDataType>{-.5f, .5f}(bias_host);
     ck_tile::FillUniformDistribution<GammaDataType>{-.5f, .5f}(gamma_host);
     ck_tile::FillUniformDistribution<BetaDataType>{-.5f, .5f}(beta_host);
 
     ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem bias_buf(bias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem gamma_buf(gamma_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem beta_buf(beta_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_buf(y_host_dev.get_element_space_size_in_bytes());
@@ -155,6 +161,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem y_residual_buf(y_residual_host.get_element_space_size_in_bytes());
 
     x_buf.ToDevice(x_host.data());
+    bias_buf.ToDevice(bias_host.data());
     gamma_buf.ToDevice(gamma_host.data());
     beta_buf.ToDevice(beta_host.data());
     x_residual_buf.ToDevice(x_residual_host.data());
@@ -179,11 +186,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << ", yr_stride:" << yr_stride << std::flush;
 
     layernorm2d_fwd_traits traits{
-        prec_i, prec_o, prec_sx, prec_sy, SaveMeanVar, fused_add, fused_quant};
+        prec_i, prec_o, prec_sx, prec_sy, SaveMeanVar, bias, fused_add, fused_quant};
 
     layernorm2d_fwd_args args{x_buf.GetDeviceBuffer(),
                               fused_add != 0 ? x_residual_buf.GetDeviceBuffer() : nullptr,
                               fused_quant == 1 ? x_scale_buf.GetDeviceBuffer() : nullptr,
+                              bias_buf.GetDeviceBuffer(),
                               gamma_buf.GetDeviceBuffer(),
                               beta_buf.GetDeviceBuffer(),
 
@@ -210,7 +218,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-    std::size_t num_byte = sizeof(XDataType) * m * n + sizeof(GammaDataType) * n +
+    std::size_t num_byte = sizeof(XDataType) * m * n + sizeof(BiasDataType) * n + sizeof(GammaDataType) * n +
                            sizeof(BetaDataType) * n + sizeof(YDataType) * m * n;
 
     float gb_per_sec = num_byte / 1.E6 / ave_time;
@@ -223,6 +231,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // reference
         if(fused_add != 0)
         {
+            if(bias != 0)
+            {
+                // add bias before fadd
+                int M = x_host.mDesc.get_lengths()[0];
+                int N = x_host.mDesc.get_lengths()[1];
+                for(int idx_m = 0; idx_m < M; ++idx_m)
+                {
+                    for(int idx_n = 0; idx_n < N; ++idx_n)
+                    {
+                        x_host(idx_m, idx_n) = ck_tile::type_convert<XDataType>(ck_tile::type_convert<ComputeDataType>(x_host(idx_m, idx_n)) + ck_tile::type_convert<ComputeDataType>(bias_host(idx_n)));
+                    }
+                }
+            }
             // fused pre_add/pre_add_store
             // TODO we accumulate directly to x_host for simplcity here...
 

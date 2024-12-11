@@ -8,6 +8,7 @@
 namespace ck_tile {
 
 template <typename XDataType_,
+          typename BiasDataType_,
           typename GammaDataType_,
           typename BetaDataType_,
           typename ComputeDataType_,
@@ -21,6 +22,7 @@ template <typename XDataType_,
 struct Layernorm2dFwdPipelineProblem
 {
     using XDataType       = remove_cvref_t<XDataType_>;
+    using BiasDataType   = remove_cvref_t<BiasDataType_>;
     using GammaDataType   = remove_cvref_t<GammaDataType_>;
     using BetaDataType    = remove_cvref_t<BetaDataType_>;
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;

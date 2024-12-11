@@ -18,6 +18,7 @@ struct Layernorm2dFwdPipelineOnePass
     using Policy  = ck_tile::remove_cvref_t<Policy_>;
 
     using XDataType       = ck_tile::remove_cvref_t<typename Problem::XDataType>;
+    using BiasDataType    = ck_tile::remove_cvref_t<typename Problem::BiasDataType>;
     using GammaDataType   = ck_tile::remove_cvref_t<typename Problem::GammaDataType>;
     using BetaDataType    = ck_tile::remove_cvref_t<typename Problem::BetaDataType>;
     using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
@@ -37,6 +38,7 @@ struct Layernorm2dFwdPipelineOnePass
     static constexpr bool kPadM              = false; // TODO - BlockLayernorm2dFwdProblem::kPadM
     static constexpr bool kPadN              = Problem::Traits::kPadN;
     static constexpr bool kFastFDiv          = Problem::Traits::kFastFDiv;
+    static constexpr auto kBias              = Problem::Traits::kBias;
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
@@ -54,6 +56,7 @@ struct Layernorm2dFwdPipelineOnePass
 
     template <typename XWindow,
               typename XResidualWindow,
+              typename BiasWindow,
               typename GammaWindow,
               typename BetaWindow,
               typename YWindow,
@@ -65,6 +68,7 @@ struct Layernorm2dFwdPipelineOnePass
               typename Epilogue>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
                                    const XResidualWindow& x_residual_window_,
+                                   const BiasWindow& bias_window_,
                                    const GammaWindow& gamma_window_,
                                    const BetaWindow& beta_window_,
                                    YWindow& y_window_,
@@ -80,6 +84,8 @@ struct Layernorm2dFwdPipelineOnePass
     {
         const auto x_window =
             make_tile_window(x_window_, Policy::template MakeXBlockTileDistribution<Problem>());
+        const auto bias_window = make_tile_window(
+            bias_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
         const auto gamma_window = make_tile_window(
             gamma_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
         const auto beta_window = make_tile_window(
@@ -89,8 +95,9 @@ struct Layernorm2dFwdPipelineOnePass
         auto y_residual_window = make_tile_window(
             y_residual_window_, Policy::template MakeXBlockTileDistribution<Problem>());
 
-        auto x      = load_tile(x_window);
-        auto x_resi = load_tile(x_residual_window);
+        auto x          = load_tile(x_window);
+        auto x_resi     = load_tile(x_residual_window);
+        const auto bias = load_tile(bias_window);
 
         int cur_count = 0;
         int max_count =
@@ -110,6 +117,12 @@ struct Layernorm2dFwdPipelineOnePass
                      kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD)
         {
             sweep_tile(x_resi, [&](auto idx) {
+                if constexpr(kBias == Layernorm2dBiasEnum::ADD_BIAS)
+                {
+                    // compute x = bias + x
+                    constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+                    acc(idx) = type_convert<ComputeDataType>(bias[j_idx]) + acc(idx);
+                }
                 // compute x = x_resi + x
                 acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
             });
