@@ -7,17 +7,8 @@
 
 namespace ck_tile {
 
-struct BatchedGemmHostArgs
+struct BatchedGemmHargs : GemmHargs
 {
-    const void* a_ptr;
-    const void* b_ptr;
-    void* c_ptr;
-    index_t M;
-    index_t N;
-    index_t K;
-    index_t stride_A;
-    index_t stride_B;
-    index_t stride_C;
     index_t batch_stride_A;
     index_t batch_stride_B;
     index_t batch_stride_C;
@@ -29,7 +20,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 {
     using Base = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
 
-    using GemmCommonKargs = typename Base::GemmCommonKargs;
+    using GemmKargs = typename Base::GemmKargs;
 
     using ADataType = typename Base::ADataType;
     using BDataType = typename Base::BDataType;
@@ -42,7 +33,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     using BLayout          = typename Base::BLayout;
     using CLayout          = typename Base::CLayout;
 
-    struct BatchedGemmKargs : GemmCommonKargs
+    struct BatchedGemmKargs : GemmKargs
     {
         index_t batch_stride_A;
         index_t batch_stride_B;
@@ -51,7 +42,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     };
 
     using Kargs = BatchedGemmKargs;
-    using Hargs = BatchedGemmHostArgs;
+    using Hargs = BatchedGemmHargs;
 
     __host__ static constexpr auto GridSize(const Hargs& k)
     {
@@ -102,7 +93,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         const auto batch_offset_C = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_C);
         CDataType* c_start        = static_cast<CDataType*>(kargs.c_ptr) + batch_offset_C;
 
-        this->run_common_gemm_pipeline(a_start, b_start, c_start, kargs, i_m, i_n);
+        this->RunGemm(a_start, b_start, c_start, kargs, i_m, i_n);
     }
 };
 

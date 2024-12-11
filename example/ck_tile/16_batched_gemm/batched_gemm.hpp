@@ -29,7 +29,7 @@ using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
 using CDataType   = Types::CDataType;
 
-struct batched_gemm_kargs : public ck_tile::BatchedGemmHostArgs
+struct batched_gemm_kargs : public ck_tile::BatchedGemmHargs
 {
 };
 
