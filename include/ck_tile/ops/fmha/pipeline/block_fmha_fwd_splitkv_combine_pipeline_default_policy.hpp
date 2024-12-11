@@ -56,10 +56,23 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeLSEacc()
     {
         return sizeof(typename Problem::LSEDataType) *
                MakeLSEaccLdsBlockDescriptor<Problem>().get_element_space_size();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeOacc4()
+    {
+        return sizeof(typename Problem::OaccDataType) *
+               MakeOacc4LdsBlockDescriptor<Problem>().get_element_space_size();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        return GetSmemSizeLSEacc<Problem>() + GetSmemSizeOacc4<Problem>();
     }
 
     // shape=[kMaxSplits, kM0]
@@ -128,6 +141,7 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccLdsBlockDescriptor()
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
+        static_assert(Problem::kM0 == 4);
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -150,6 +164,35 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
             make_tuple(sequence<1>{}, sequence<0>{}));
 
         return lse_acc_t_lds_block_desc;
+    }
+
+    // 3d + padding, shape=[4 * kM0, kN1]
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeOacc4LdsBlockDescriptor()
+    {
+        using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
+        constexpr index_t kMPerBlock = 4 * Problem::kM0;
+        constexpr index_t kNPerBlock = Problem::kN1;
+        constexpr index_t NPack =
+            GetVectorSizeForTile<kBlockSize, kMPerBlock, kNPerBlock, LSEDataType>();
+
+        constexpr auto o_acc_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<kNPerBlock / NPack>{}, number<kMPerBlock>{}, number<NPack>{}),
+            make_tuple(number<(kMPerBlock + 1) * NPack>{}, number<NPack>{}, number<1>{}),
+            number<8>{},
+            number<1>{});
+
+        constexpr auto o_acc_t_lds_block_desc = transform_tensor_descriptor(
+            o_acc_lds_block_desc_0,
+            make_tuple(make_pass_through_transform(kMPerBlock),
+                       make_merge_transform(make_tuple(kNPerBlock / NPack, NPack))),
+            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<1>{}, sequence<0>{}));
+
+        return o_acc_t_lds_block_desc;
     }
 
     template <typename Problem>
@@ -181,12 +224,37 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
                 sequence<2, 1>>{});
     }
 
+    // similar to MakeOaccDramTileDistribution(), but duplicate same 1-warp encoding 4 times on M
+    // direction
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeOacc4DramTileDistribution()
+    {
+        constexpr index_t kMPerBlock = Problem::kM0; // real kMPerBlock we want is (4 * kM0)
+        constexpr index_t kNPerBlock = Problem::kN1;
+        static_assert(get_warp_size() <= kMPerBlock * kNPerBlock);
+
+        constexpr index_t M1 = 1; // compose encoding base on 1 warp
+        constexpr index_t M2 = min(kMPerBlock / M1, get_warp_size());
+        constexpr index_t N0 = get_warp_size() / M2;
+        constexpr index_t N1 = kNPerBlock / N0;
+        constexpr index_t M0 = kMPerBlock / (M2 * M1);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<4, M0, M1, M2>, sequence<N0, N1>>,
+                                       tuple<sequence<1, 1>, sequence<1, 2>>,
+                                       tuple<sequence<0, 2>, sequence<3, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<1, 1>>{});
+    }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOaccDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::kM0;
         constexpr index_t kNPerBlock = Problem::kN1;
+        static_assert(kBlockSize <= kMPerBlock * kNPerBlock);
 
         constexpr index_t M1 = kBlockSize / get_warp_size();
         constexpr index_t M2 = min(kMPerBlock / M1, get_warp_size());

@@ -110,8 +110,6 @@ template <typename LSEDataType_,
           typename OaccDataType_,
           typename ODataType_,
           index_t HeadDimV_,
-          index_t kM0_,
-          index_t kN1_,
           bool kIsGroupMode_,
           typename Traits_>
 struct BlockFmhaSplitKVCombinePipelineProblem
@@ -124,8 +122,10 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     static constexpr bool kIsGroupMode = kIsGroupMode_;
 
     static constexpr index_t kHeadDimV = HeadDimV_;
-    static constexpr index_t kM0       = kM0_;
-    static constexpr index_t kN1       = kN1_;
+
+    static constexpr index_t NThreads = kHeadDimV / 8;
+    static constexpr index_t kM0      = get_warp_size() / NThreads;
+    static constexpr index_t kN1      = kHeadDimV;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
@@ -135,8 +135,10 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr index_t kMaxSplits     = Traits::kMaxSplits;
 
-    static constexpr index_t kNumWarps  = kM0_ / (get_warp_size() / min(kMaxSplits, 8));
-    static constexpr index_t kBlockSize = kNumWarps * get_warp_size();
+    static constexpr index_t NumWarps   = 4; // always use 4 warps for each workgroup
+    static constexpr index_t kBlockSize = NumWarps * get_warp_size();
+
+    static_assert(kBlockSize <= (kM0 * kN1) && (kM0 * kN1) % kBlockSize == 0);
 };
 
 template <typename QDataType_,

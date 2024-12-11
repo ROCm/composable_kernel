@@ -345,16 +345,34 @@ struct FmhaFwdSplitKVCombineKernel
                 make_tuple(number<4>{}, number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
                 sequence<true, kPadSeqLenQ, kPadHeadDimV>{});
 
+            const index_t padded_num_splits =
+                o_acc_dram_view.get_tensor_descriptor().get_lengths()[number<0>{}];
             const index_t padded_seqlen_q =
                 o_acc_dram_view.get_tensor_descriptor().get_lengths()[number<1>{}];
             const index_t padded_hdim_v =
                 o_acc_dram_view.get_tensor_descriptor().get_lengths()[number<2>{}];
 
-            return transform_tensor_view(
+            const index_t num_m_tiles = integer_divide_floor(padded_seqlen_q, FmhaPipeline::kM0);
+
+            // transform tensor view by following steps, given shape: (padded_num_splits,
+            // padded_seqlen_q, padded_hdim_v)
+            //     1. unmerge to (padded_num_splits, num_m_tiles, kM0, padded_hdim_v)
+            //     2. transpose to (num_m_tiles, padded_num_splits, kM0, padded_hdim_v)
+            //     3. merge to (num_m_tiles * padded_num_splits * kM0, padded_hdim_v)
+            auto transposed = transform_tensor_view(
                 o_acc_dram_view,
-                make_tuple(make_merge_transform(make_tuple(kargs.num_splits, padded_seqlen_q)),
+                make_tuple(make_pass_through_transform(padded_num_splits),
+                           make_unmerge_transform(make_tuple(num_m_tiles, FmhaPipeline::kM0)),
                            make_pass_through_transform(padded_hdim_v)),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                make_tuple(sequence<1>{}, sequence<0, 2>{}, sequence<3>{}));
+
+            return transform_tensor_view(
+                transposed,
+                make_tuple(make_merge_transform(
+                               make_tuple(num_m_tiles, padded_num_splits, FmhaPipeline::kM0)),
+                           make_pass_through_transform(padded_hdim_v)),
+                make_tuple(sequence<0, 1, 2>{}, sequence<3>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }();
 
@@ -363,10 +381,12 @@ struct FmhaFwdSplitKVCombineKernel
             make_tuple(number<FmhaPipeline::kMaxSplits>{}, number<FmhaPipeline::kM0>{}),
             {0, i_m0});
 
-        auto o_acc_dram_window =
-            make_tile_window(o_acc_dram,
-                             make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                             {i_m0, i_n1});
+        const index_t padded_num_splits = integer_divide_ceil(kargs.num_splits, 4) * 4;
+
+        auto o_acc_dram_window = make_tile_window(
+            o_acc_dram,
+            make_tuple(number<4 * FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+            {i_m0 * padded_num_splits * FmhaPipeline::kM0, i_n1});
 
         // LSE DRAM window
         auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
@@ -407,7 +427,6 @@ struct FmhaFwdSplitKVCombineKernel
                     identity{},                                          // lse_element_func
                     composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
                     kargs.num_splits,
-                    kargs.seqlen_q,
                     smem_ptr);
             }
             else
@@ -416,7 +435,6 @@ struct FmhaFwdSplitKVCombineKernel
                                       o_acc_dram_window,
                                       lse_dram_window,
                                       kargs.num_splits,
-                                      kargs.seqlen_q,
                                       smem_ptr);
             }
         }();
