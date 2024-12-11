@@ -339,10 +339,11 @@ struct FmhaFwdSplitKVCombineKernel
                 number<FmhaPipeline::kAlignmentOacc>{},
                 number<1>{});
 
+            // read 4 * (kM0, kN1) o_acc tiles simultaneously by 4 warps
             const auto o_acc_dram_view = pad_tensor_view(
                 o_acc_dram_naive,
-                make_tuple(number<1>{}, number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                sequence<false, kPadSeqLenQ, kPadHeadDimV>{});
+                make_tuple(number<4>{}, number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+                sequence<true, kPadSeqLenQ, kPadHeadDimV>{});
 
             const index_t padded_seqlen_q =
                 o_acc_dram_view.get_tensor_descriptor().get_lengths()[number<1>{}];
