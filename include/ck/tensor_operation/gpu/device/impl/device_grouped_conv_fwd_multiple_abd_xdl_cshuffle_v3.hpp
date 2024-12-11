@@ -117,7 +117,7 @@ __global__ void
                                         c_grid_desc_mblock_mperblock_nblock_nperblock);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename GridwiseGemm,
@@ -183,7 +183,7 @@ __global__ void
                                              c_grid_desc_mblock_mperblock_nblock_nperblock);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 } // namespace
