@@ -294,6 +294,35 @@ struct MultiplyMultiply
     }
 };
 
+struct MultiplyMultiplyAdd
+{
+    template <typename E, typename C, typename D0, typename D1, typename D2>
+    __host__ __device__ constexpr void
+    operator()(E& e, const C& c, const D0& d0, const D1& d1, const D2& d2) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, int, float, float, ck::half_t>(
+        ck::half_t& e, const int& c, const float& d0, const float& d1, const ck::half_t& d2) const
+    {
+        const float x0_f =
+            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1) +
+            ck::type_convert<float>(d2);
+
+        e = ck::type_convert<ck::half_t>(x0_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::bhalf_t, int, float, float, ck::bhalf_t>(
+        ck::bhalf_t& e, const int& c, const float& d0, const float& d1, const ck::bhalf_t& d2) const
+    {
+        const float x0_f =
+            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1) +
+            ck::type_convert<float>(d2);
+
+        e = ck::type_convert<ck::bhalf_t>(x0_f);
+    }
+};
+
 struct MultiplyAddFastGelu
 {
     template <typename E, typename C, typename D0, typename D1>

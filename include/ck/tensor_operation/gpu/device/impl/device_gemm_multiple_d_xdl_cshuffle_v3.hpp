@@ -190,7 +190,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                     });
                     ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
                         arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer, DsSize);
-                    rotating_mem.Print();
+                    // rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
                         // flush icache
