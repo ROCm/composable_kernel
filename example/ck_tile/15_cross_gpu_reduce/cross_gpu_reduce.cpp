@@ -9,9 +9,20 @@
 #include <future>
 #include <vector>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wsuggest-destructor-override"
+#pragma clang diagnostic ignored "-Wold-style-cast"
+#pragma clang diagnostic ignored "-Wshadow-field-in-constructor"
+#pragma clang diagnostic ignored "-Wdocumentation"
+#pragma clang diagnostic ignored "-Winconsistent-missing-destructor-override"
+#pragma clang diagnostic ignored "-Wcast-align"
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+
 #include <mscclpp/core.hpp>
 #include <mscclpp/gpu_utils.hpp>
 #include <mscclpp/sm_channel.hpp>
+
+#pragma clang diagnostic pop
 
 #include "cross_gpu_reduce.hpp"
 #include "ck_tile/host.hpp"
