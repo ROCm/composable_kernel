@@ -24,6 +24,18 @@ python3 process_perf_data.py perf_splitK_gemm.log
 python3 process_perf_data.py perf_onnx_gemm.log
 python3 process_perf_data.py perf_mixed_gemm.log
 
+file=./perf_onnx_gemm_gfx10.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_onnx_gemm_gfx10.log
+fi
+file=./perf_onnx_gemm_gfx11.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_onnx_gemm_gfx11.log
+fi
+file=./perf_onnx_gemm_gfx12.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_onnx_gemm_gfx12.log
+fi
 file=./perf_fmha_fwd_gfx942.log
 if [ -e "$file" ]; then
     python3 process_perf_data.py perf_fmha_fwd_gfx942.log

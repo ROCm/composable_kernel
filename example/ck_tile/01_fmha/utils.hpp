@@ -145,7 +145,7 @@ decode_seqlen(mode_enum mode,
               std::string k_val,
               std::string k_pad_val,
               ck_tile::index_t seqlen_k_min = 0,
-              bool use_kvcache              = false,
+              bool need_append_kvcache      = false,
               std::optional<unsigned> seed  = std::nullopt)
 {
 #define _S2I_(str_) static_cast<ck_tile::index_t>(std::atoi((str_).c_str()))
@@ -159,7 +159,7 @@ decode_seqlen(mode_enum mode,
             const ck_tile::index_t seqlen_k_max = (k < 0 ? q : k);
             std::vector<ck_tile::index_t> seqlen_ks(batch, seqlen_k_max);
 
-            if(1 < batch && use_kvcache)
+            if(1 < batch && need_append_kvcache)
             {
                 // to keep the original s_k value, we always use seqlen_k_max in first batch
                 randints(std::next(seqlen_ks.begin()),

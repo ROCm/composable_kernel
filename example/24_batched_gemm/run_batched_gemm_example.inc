@@ -210,7 +210,39 @@ bool run_batched_gemm_example(int argc, char* argv[])
 
     problem_size.M = 256 * (dis(gen) + 1);
     problem_size.N = 128 * (dis(gen) + 1);
-    problem_size.K = 64 * (dis(gen) + 2);
+    problem_size.K = 128 * (dis(gen) + 2);
+
+    problem_size.batch_count = 2;
+
+    if(argc == 4)
+    {
+        config.do_verification = std::stoi(argv[1]);
+        config.init_method     = std::stoi(argv[2]);
+        config.time_kernel     = std::stoi(argv[3]);
+    }
+    else if(argc == 8)
+    {
+        config.do_verification   = std::stoi(argv[1]);
+        config.init_method       = std::stoi(argv[2]);
+        config.time_kernel       = std::stoi(argv[3]);
+        problem_size.M           = std::stoi(argv[4]);
+        problem_size.N           = std::stoi(argv[5]);
+        problem_size.K           = std::stoi(argv[6]);
+        problem_size.batch_count = std::stoi(argv[7]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
+        printf("optinal\n");
+        printf("arg4-7: M = %d N = %d K = %d Batch = %d\n",
+               problem_size.M,
+               problem_size.N,
+               problem_size.K,
+               problem_size.batch_count);
+        exit(0);
+    }
 
     problem_size.stride_A = problem_size.K;
     problem_size.stride_B = problem_size.K;
@@ -219,22 +251,6 @@ bool run_batched_gemm_example(int argc, char* argv[])
     problem_size.batch_stride_A = problem_size.M * problem_size.K;
     problem_size.batch_stride_B = problem_size.K * problem_size.N;
     problem_size.batch_stride_C = problem_size.M * problem_size.N;
-
-    problem_size.batch_count = 16;
-
-    if(argc == 4)
-    {
-        config.do_verification = std::stoi(argv[1]);
-        config.init_method     = std::stoi(argv[2]);
-        config.time_kernel     = std::stoi(argv[3]);
-    }
-    else
-    {
-        printf("arg1: verification (0=no, 1=yes)\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=n0, 1=yes)\n");
-        exit(0);
-    }
 
     return run_batched_gemm(problem_size, config);
 }

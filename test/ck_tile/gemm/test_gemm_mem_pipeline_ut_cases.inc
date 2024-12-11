@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 TYPED_TEST(TestCkTileGemmMemPipeline, SmallM)
@@ -38,4 +41,17 @@ TYPED_TEST(TestCkTileGemmMemPipeline, Regular)
 
     for(int M : Ms)
         this->Run(M, N, K);
+}
+
+TYPED_TEST(TestCkTileGemmMemPipeline, NotSupportedArgument)
+{
+    constexpr int M = 512;
+    constexpr int N = 1025;
+    constexpr int K = 513;
+
+    constexpr bool PadM = false;
+    constexpr bool PadN = false;
+    constexpr bool PadK = false;
+
+    EXPECT_THROW((this->template Run<PadM, PadN, PadK>(M, N, K)), std::runtime_error);
 }

@@ -82,7 +82,7 @@ def parse_logfile(logfile):
     StrideA=[]
     StrideB=[]
     StrideC=[]
-    if 'perf_gemm.log' in logfile:
+    if 'perf_gemm' in logfile and 'gemm_bilinear' not in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
@@ -260,7 +260,7 @@ def main():
         conn = sqlEngine.connect()
 
         #save gemm performance tests:
-        if 'perf_gemm.log' in filename:
+        if 'perf_gemm' in filename and 'gemm_bilinear' not in filename:
             #write the ck_gemm_test_params table only needed once the test set changes
             #post_test_params(test_list,conn)
             for i in range(1,len(results)+1):
