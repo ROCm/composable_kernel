@@ -59,6 +59,11 @@ void reference_layernorm2d_fwd(const HostTensor<XDataType>& x_m_n,
         {
             ++count;
             ComputeDataType x     = ck_tile::type_convert<ComputeDataType>(x_m_n(m, n));
+            // printf("dteng_ck_print::x_pre[%lu][%d] = %f\n",m,n,x);
+            // printf("dteng_ck_print::gamma_n[0][%d] = %f\n",n,ck_tile::type_convert<ComputeDataType>(gamma_n(n)));
+            // x = x + ck_tile::type_convert<ComputeDataType>(bias_n(n));
+            // x_m_n(m, n) = ck_tile::type_convert<XDataType>(x);
+            // printf("dteng_ck_print::x_post[%lu][%d] = %f\n",m,n,x);
             ComputeDataType delta = x - mean;
             mean += delta / count;
             ComputeDataType delta2 = x - mean;
@@ -85,6 +90,10 @@ void reference_layernorm2d_fwd(const HostTensor<XDataType>& x_m_n,
             a_                    = a_ * gamma + beta;
 
             acc(m, n) = a_;
+            // printf("dteng_ck_print::mean[%lu][%d] = %f\n",m,n,mean);
+            // printf("dteng_ck_print::gamma[%lu][%d] = %f\n",m,n,gamma);
+            // printf("dteng_ck_print::beta[%lu][%d] = %f\n",m,n,beta);
+            // printf("dteng_ck_print::acc[%lu][%d] = %f\n",m,n,a_);
         }
 
         epilogue_functor(m, y_m_n, acc);
