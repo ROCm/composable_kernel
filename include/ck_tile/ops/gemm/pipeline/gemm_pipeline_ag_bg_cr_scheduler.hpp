@@ -11,6 +11,7 @@ namespace ck_tile {
 
 enum struct GemmPipelineScheduler
 {
+    Default,
     Intrawave,
     Interwave,
 };
@@ -43,6 +44,7 @@ inline std::ostream& operator<<(std::ostream& os, const ck_tile::GemmPipelineSch
 {
     switch(s)
     {
+    case ck_tile::GemmPipelineScheduler::Default: os << "Default"; break;
     case ck_tile::GemmPipelineScheduler::Intrawave: os << "Intrawave"; break;
     case ck_tile::GemmPipelineScheduler::Interwave: os << "Interwave"; break;
     default: os << "";
