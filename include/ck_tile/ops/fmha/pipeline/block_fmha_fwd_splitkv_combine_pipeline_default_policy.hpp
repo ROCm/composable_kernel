@@ -22,7 +22,7 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
         }
         else
         { // try dividing tile by smaller # of warps
-            return GetVectorSizeForTile<NumWarps / 2, M, N, DataType>();
+            return GetMaxNumWarpsForTile<NumWarps / 2, M, N, DataType>();
         }
     }
 
