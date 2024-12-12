@@ -385,7 +385,7 @@ struct FmhaFwdSplitKVCombineKernel
         auto o_acc_dram_window = make_tile_window(
             o_acc_dram,
             make_tuple(number<4 * FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-            {i_m0 * padded_num_splits * FmhaPipeline::kM0, i_n1});
+            {i_tile_m * padded_num_splits * FmhaPipeline::kM0, i_n1});
 
         // LSE DRAM window
         auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
