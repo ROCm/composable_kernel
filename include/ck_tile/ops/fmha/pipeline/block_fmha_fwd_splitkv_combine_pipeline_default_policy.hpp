@@ -129,15 +129,15 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
-        constexpr index_t kMPerBlock = Problem::kMaxSplits;
-        constexpr index_t kNPerBlock = Problem::kM0;
+        constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kNPerBlock = Problem::kMaxSplits;
         constexpr index_t NPack =
             GetVectorSizeForTile<Problem::kNumWarps, kMPerBlock, kNPerBlock, LSEDataType>();
 
         constexpr auto lse_acc_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock / NPack>{}, number<kMPerBlock>{}, number<NPack>{}),
             make_tuple(number<(kMPerBlock + 1) * NPack>{}, number<NPack>{}, number<1>{}),
-            number<8>{},
+            number<NPack>{},
             number<1>{});
 
         constexpr auto lse_acc_lds_block_desc = transform_tensor_descriptor(
@@ -156,15 +156,15 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
-        constexpr index_t kMPerBlock = Problem::kMaxSplits;
-        constexpr index_t kNPerBlock = Problem::kM0;
+        constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kNPerBlock = Problem::kMaxSplits;
         constexpr index_t NPack =
             GetVectorSizeForTile<Problem::kNumWarps, kMPerBlock, kNPerBlock, LSEDataType>();
 
         constexpr auto lse_acc_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock / NPack>{}, number<kMPerBlock>{}, number<NPack>{}),
             make_tuple(number<(kMPerBlock + 1) * NPack>{}, number<NPack>{}, number<1>{}),
-            number<8>{},
+            number<NPack>{},
             number<1>{});
 
         constexpr auto lse_acc_t_lds_block_desc = transform_tensor_descriptor(
