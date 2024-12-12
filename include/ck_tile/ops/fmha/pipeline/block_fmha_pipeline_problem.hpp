@@ -156,7 +156,6 @@ struct BlockFmhaSplitKVCombinePipelineProblem
 
     static_assert(get_warp_size() <= (kM0 * kMaxSplits) &&
                   (kM0 * kMaxSplits) % get_warp_size() == 0);
-    static_assert(kBlockSize <= (kM0 * kN1) && (kM0 * kN1) % kBlockSize == 0);
 };
 
 template <typename QDataType_,
