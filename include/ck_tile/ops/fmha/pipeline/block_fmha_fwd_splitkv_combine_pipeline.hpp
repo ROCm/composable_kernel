@@ -280,13 +280,17 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         auto o_acc_4 = make_static_distributed_tensor<OaccDataType>(o_acc_4_dist);
         clear_tile(o_acc_4);
 
-        const index_t num_splits_round = integer_divide_ceil(num_splits, 4) * 4;
+        const index_t num_splits_round =
+            integer_divide_ceil(num_splits, Problem::kNumWarps) * Problem::kNumWarps;
 
         __builtin_amdgcn_sched_barrier(0);
         block_sync_lds();
-        for(index_t split_start = 0; split_start < num_splits_round; split_start += 4)
+        for(index_t split_start = 0; split_start < num_splits_round;
+            split_start += Problem::kNumWarps)
         {
-            auto o_tile = load_tile(o_acc_4_dram_window);
+            auto o_tile             = load_tile(o_acc_4_dram_window);
+            const index_t i_split   = split_start + get_warp_id();
+            const index_t row_start = kM0 * get_warp_id();
             {
                 constexpr auto spans = decltype(o_acc_4)::get_distributed_spans();
                 sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
@@ -297,13 +301,13 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
                         const auto row = x_indices.at(number<0>{});
 
-                        const LSEDataType lse_scale = lse_acc_lds(row, split_start + get_warp_id());
+                        const LSEDataType lse_scale = lse_acc_lds(row - row_start, i_split);
                         o_acc_4(i_j_idx) += lse_scale * o_tile(i_j_idx);
                     });
                 });
             }
 
-            move_tile_window(o_acc_4_dram_window, {4 * kM0, 0});
+            move_tile_window(o_acc_4_dram_window, {Problem::kNumWarps * kM0, 0});
         }
 
         // 4 o_acc tiles in LDS
@@ -330,7 +334,9 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         auto o_acc = make_static_distributed_tensor<OaccDataType>(o_acc_dist);
         clear_tile(o_acc);
 
-        for(index_t i = 0; i < 4; ++i)
+        __builtin_amdgcn_sched_barrier(0);
+        block_sync_lds();
+        for(index_t repeat = 0; repeat < Problem::kNumWarps; ++repeat)
         {
             auto o_acc_in = load_tile(o_acc_4_lds_window);
 
