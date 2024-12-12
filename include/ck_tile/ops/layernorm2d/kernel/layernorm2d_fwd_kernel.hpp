@@ -15,7 +15,7 @@ struct Layernorm2dFwdHostArgs
     const void* p_x;          // [m ,n], input, fp16/bf16
     const void* p_x_residual; // [m ,n], shortcut input, prec same as input, nullptr if not used
     const void* p_x_scale;    // [1 ,n], smooth scale input, fp32, nullptr if not used
-    const void* p_bias;       // [1, n], bias, prec same as input
+    const void* p_x_bias;     // [1, n], bias, prec same as input
     const void* p_gamma;      // [1, n], gamma, prec same as input
     const void* p_beta;       // [1, n], beta, prec same as input
 
@@ -44,7 +44,7 @@ struct Layernorm2dFwd
     using Problem  = typename Pipeline::Problem;
 
     using XDataType       = remove_cvref_t<typename Problem::XDataType>;
-    using BiasDataType    = remove_cvref_t<typename Problem::BiasDataType>;
+    using XBiasDataType   = remove_cvref_t<typename Problem::XBiasDataType>;
     using GammaDataType   = remove_cvref_t<typename Problem::GammaDataType>;
     using BetaDataType    = remove_cvref_t<typename Problem::BetaDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
@@ -85,7 +85,7 @@ struct Layernorm2dFwd
         const void* p_x;          // [m ,n], input, fp16/bf16
         const void* p_x_residual; // [m ,n], shortcut input, prec same as input, nullptr if not used
         const void* p_x_scale;    // [1 ,n], smooth scale input, fp32, nullptr if not used
-        const void* p_bias;       // [1, n], bias, prec same as input
+        const void* p_x_bias;     // [1, n], bias, prec same as input
         const void* p_gamma;      // [1, n], gamma, prec same as input
         const void* p_beta;       // [1, n], beta, prec same as input
 
@@ -112,7 +112,7 @@ struct Layernorm2dFwd
         return Kargs{hargs.p_x,
                      hargs.p_x_residual,
                      hargs.p_x_scale,
-                     hargs.p_bias,
+                     hargs.p_x_bias,
                      hargs.p_gamma,
                      hargs.p_beta,
                      hargs.p_y,
@@ -234,11 +234,11 @@ struct Layernorm2dFwd
             }
         }();
 
-        const auto bias_window = [&]() {
+        const auto x_bias_window = [&]() {
             if constexpr(kBias == Layernorm2dBiasEnum::ADD_BIAS)
             {
                 const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                    static_cast<const BiasDataType*>(kargs.p_bias),
+                    static_cast<const XBiasDataType*>(kargs.p_x_bias),
                     make_tuple(kargs.n),
                     make_tuple(1),
                     number<Vector_N>{},
@@ -398,7 +398,7 @@ struct Layernorm2dFwd
 
         Pipeline{}(x_window,
                    x_residual_window,
-                   bias_window,
+                   x_bias_window,
                    gamma_window,
                    beta_window,
                    y_window,

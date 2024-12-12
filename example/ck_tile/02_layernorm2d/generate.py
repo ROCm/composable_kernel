@@ -198,7 +198,7 @@ float layernorm2d_fwd_(const S& s, A a)
         static_cast<ck_tile::Layernorm2dFusedQuantEnum>(Traits_::kFusedQuant)>;
     using PipelineProblem = ck_tile::Layernorm2dFwdPipelineProblem<
         typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::XDataType,
-        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::BiasDataType,
+        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::XBiasDataType,
         typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::GammaDataType,
         typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::BetaDataType,
         typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::ComputeDataType,
@@ -330,7 +330,7 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
     @dataclass
     class k_problem:
         F_XDataType       : str
-        F_BiasDataType    : str
+        F_XBiasDataType   : str
         F_GammaDataType   : str
         F_BetaDataType    : str
         F_ComputeDataType : str
