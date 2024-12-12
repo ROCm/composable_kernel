@@ -141,7 +141,6 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccLdsBlockDescriptor()
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
-        static_assert(Problem::kM0 == 4);
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
