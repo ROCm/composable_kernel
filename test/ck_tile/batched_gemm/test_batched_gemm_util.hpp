@@ -24,7 +24,7 @@ class TestCkTileBatchedGemm : public ::testing::Test
     using AccDataType = std::tuple_element_t<5, Tuple>;
     using CDataType   = std::tuple_element_t<6, Tuple>;
 
-    struct batched_gemm_kargs : public ck_tile::BatchedGemmHargs
+    struct batched_gemm_kargs : public ck_tile::BatchedGemmHostArgs
     {
     };
 
