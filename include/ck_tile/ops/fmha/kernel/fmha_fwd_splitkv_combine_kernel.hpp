@@ -8,9 +8,11 @@ namespace ck_tile {
 template <typename TilePartitioner_, typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdSplitKVCombineKernel
 {
-    using TilePartitioner                = remove_cvref_t<TilePartitioner_>;
-    using FmhaPipeline                   = remove_cvref_t<FmhaPipeline_>;
-    using EpiloguePipeline               = remove_cvref_t<EpiloguePipeline_>;
+    using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
+    using FmhaPipeline     = remove_cvref_t<FmhaPipeline_>;
+    using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
+
+    static constexpr index_t kNumWarps   = FmhaPipeline::kNumWarps;
     static constexpr index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
@@ -341,7 +343,8 @@ struct FmhaFwdSplitKVCombineKernel
             // read 4 * (kM0, kN1) o_acc tiles simultaneously by 4 warps
             const auto o_acc_dram_view = pad_tensor_view(
                 o_acc_dram_naive,
-                make_tuple(number<4>{}, number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+                make_tuple(
+                    number<kNumWarps>{}, number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
                 sequence<true, kPadSeqLenQ, kPadHeadDimV>{});
 
             const index_t padded_num_splits =
@@ -380,11 +383,12 @@ struct FmhaFwdSplitKVCombineKernel
             make_tuple(number<FmhaPipeline::kMaxSplits>{}, number<FmhaPipeline::kM0>{}),
             {0, i_m0});
 
-        const index_t padded_num_splits = integer_divide_ceil(kargs.num_splits, 4) * 4;
+        const index_t padded_num_splits =
+            integer_divide_ceil(kargs.num_splits, kNumWarps) * kNumWarps;
 
         auto o_acc_dram_window = make_tile_window(
             o_acc_dram,
-            make_tuple(number<4 * FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+            make_tuple(number<kNumWarps * FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
             {i_tile_m * padded_num_splits * FmhaPipeline::kM0, i_n1});
 
         // LSE DRAM window

@@ -53,6 +53,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
     using OaccDataType = remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType    = remove_cvref_t<typename Problem::ODataType>;
 
+    static constexpr index_t kNumWarps  = Problem::kNumWarps;
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr index_t kHeadDimV = Problem::kHeadDimV;
@@ -277,16 +278,16 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                              o_acc_dram_block_window_tmp.get_window_origin(),
                              o_acc_4_dist);
 
+        // shape=[4 * KM0, kN1]
         auto o_acc_4 = make_static_distributed_tensor<OaccDataType>(o_acc_4_dist);
         clear_tile(o_acc_4);
 
-        const index_t num_splits_round =
-            integer_divide_ceil(num_splits, Problem::kNumWarps) * Problem::kNumWarps;
+        const index_t padded_num_splits = integer_divide_ceil(num_splits, kNumWarps) * kNumWarps;
 
         __builtin_amdgcn_sched_barrier(0);
         block_sync_lds();
-        for(index_t split_start = 0; split_start < num_splits_round;
-            split_start += Problem::kNumWarps)
+        // each warp handles a [KM0, kN1] tile
+        for(index_t split_start = 0; split_start < padded_num_splits; split_start += kNumWarps)
         {
             auto o_tile             = load_tile(o_acc_4_dram_window);
             const index_t i_split   = split_start + get_warp_id();
@@ -307,10 +308,10 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                 });
             }
 
-            move_tile_window(o_acc_4_dram_window, {Problem::kNumWarps * kM0, 0});
+            move_tile_window(o_acc_4_dram_window, {kNumWarps * kM0, 0});
         }
 
-        // 4 o_acc tiles in LDS
+        // 4 o_acc tiles in LDS. shape=[4 * kM0, kN1]
         OaccDataType* o_acc_4_lds_ptr = static_cast<OaccDataType*>(static_cast<void*>(
             static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeLSEacc<Problem>()));
 
@@ -336,7 +337,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
         __builtin_amdgcn_sched_barrier(0);
         block_sync_lds();
-        for(index_t repeat = 0; repeat < Problem::kNumWarps; ++repeat)
+        for(index_t repeat = 0; repeat < kNumWarps; ++repeat)
         {
             auto o_acc_in = load_tile(o_acc_4_lds_window);
 
