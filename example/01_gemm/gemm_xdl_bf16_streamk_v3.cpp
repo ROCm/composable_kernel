@@ -54,6 +54,17 @@ using DeviceGemmV2_Streamk_Instance =
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
+using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALayout,
+                                                                             BLayout,
+                                                                             CLayout,
+                                                                             ADataType,
+                                                                             BDataType,
+                                                                             CDataType,
+                                                                             AccDataType,
+                                                                             AElementOp,
+                                                                             BElementOp,
+                                                                             CElementOp>;
+
 #include "run_gemm_example_streamk_v2.inc"
 
 int main(int argc, char* argv[]) { return !run_gemm_universal_streamk_example(argc, argv); }
