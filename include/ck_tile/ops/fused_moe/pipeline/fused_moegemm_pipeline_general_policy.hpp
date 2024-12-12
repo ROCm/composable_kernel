@@ -216,14 +216,15 @@ struct FusedMoeGemmPipelineGeneralPolicy
                                                            typename S_::WarpTile_0>>;
 
         constexpr auto warp_gemm = GetWarpGemm0<Problem>();
-        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
-                                                                      // using BlockGemmPolicy =
-                                                                      // BlockGemmASmemBRegCRegV1CustomPolicy<typename
-                                                                      // Problem::ADataType,
-                                                                      typename Problem::GDataType,
-                                                                      typename Problem::AccDataType,
-                                                                      typename S_::WarpPerBlock_0,
-                                                                      decltype(warp_gemm)>;
+        using BlockGemmPolicy =
+            BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
+                                                  // using BlockGemmPolicy =
+                                                  // BlockGemmASmemBRegCRegV1CustomPolicy<typename
+                                                  // Problem::ADataType,
+                                                  typename Problem::GDataType,
+                                                  typename Problem::AccDataType,
+                                                  typename S_::WarpPerBlock_0,
+                                                  decltype(warp_gemm)>;
 
         return BlockGemmASmemBSmemCRegV1<GemmProblem, BlockGemmPolicy>{};
         // return BlockGemmASmemBRegCRegV1<GemmProblem, BlockGemmPolicy>{};
