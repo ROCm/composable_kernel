@@ -23,7 +23,7 @@ template <bool IsGateOnly_,
               FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten,
           bool PadHiddenSize_       = false,
           bool PadIntermediateSize_ = false,
-          bool PipeInterleave_ = true>
+          bool PipeInterleave_      = true>
 struct FusedMoeGemmTraits
 {
     // Gate+Up or Gate only
