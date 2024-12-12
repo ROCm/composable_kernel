@@ -85,7 +85,9 @@ int profile_batched_gemm_universal(int argc, char* argv[])
     const int BatchCount = std::stoi(argv[17]);
     const int KBatch     = std::stoi(argv[18]);
 
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
     using F8   = ck::f8_t;
+#endif
     using BF16 = ck::bhalf_t;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
