@@ -7,6 +7,7 @@ import copy
 
 NS = 'ck_tile'
 OPS = 'ops'
+REF = 'ref'
 OPS_COMMON = 'common' # common header will be duplicated into ops/* other module
 
 HEADER_COMMON = f"""// SPDX-License-Identifier: MIT
@@ -29,6 +30,9 @@ class submodule_t:
     def push(self, f):
         if len(f.parents) != 1: # ignore ./xxx.hpp
             mod = get_module(f)
+            # ref is supposed to include one header on demand
+            if mod == REF:
+                return
             if mod == OPS:
                 if mod not in self.m.keys():
                     self.m[mod] = dict()

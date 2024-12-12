@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -12,7 +12,7 @@
 #include "profiler/profile_grouped_conv_bwd_data_impl.hpp"
 
 template <typename Tuple>
-class TestGroupedConvndBwdData : public ::testing::Test
+class TestGroupedConvndBwdDataWmma : public ::testing::Test
 {
     protected:
     using DataType  = std::tuple_element_t<0, Tuple>;
@@ -48,38 +48,30 @@ class TestGroupedConvndBwdData : public ::testing::Test
 
 using namespace ck::tensor_layout::convolution;
 
-using KernelTypes2d = ::testing::Types<std::tuple<float, GNHWK, GKYXC, GNHWC>,
-                                       std::tuple<ck::half_t, GNHWK, GKYXC, GNHWC>,
-                                       std::tuple<ck::bhalf_t, GNHWK, GKYXC, GNHWC>,
+using KernelTypes2d = ::testing::Types<std::tuple<ck::half_t, GNHWK, GKYXC, GNHWC>,
                                        std::tuple<int8_t, GNHWK, GKYXC, GNHWC>,
-                                       std::tuple<float, NHWGK, GKYXC, NHWGC>,
                                        std::tuple<ck::half_t, NHWGK, GKYXC, NHWGC>,
-                                       std::tuple<ck::bhalf_t, NHWGK, GKYXC, NHWGC>,
                                        std::tuple<int8_t, NHWGK, GKYXC, NHWGC>>;
 
-using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<ck::half_t, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<ck::bhalf_t, GNDHWK, GKZYXC, GNDHWC>,
+using KernelTypes3d = ::testing::Types<std::tuple<ck::half_t, GNDHWK, GKZYXC, GNDHWC>,
                                        std::tuple<int8_t, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<float, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<ck::half_t, NDHWGK, GKZYXC, NDHWGC>,
-                                       std::tuple<ck::bhalf_t, NDHWGK, GKZYXC, NDHWGC>,
                                        std::tuple<int8_t, NDHWGK, GKZYXC, NDHWGC>>;
 
 template <typename Tuple>
-class TestGroupedConvndBwdData2d : public TestGroupedConvndBwdData<Tuple>
+class TestGroupedConvndBwdDataWmma2d : public TestGroupedConvndBwdDataWmma<Tuple>
 {
 };
 
 template <typename Tuple>
-class TestGroupedConvndBwdData3d : public TestGroupedConvndBwdData<Tuple>
+class TestGroupedConvndBwdDataWmma3d : public TestGroupedConvndBwdDataWmma<Tuple>
 {
 };
 
-TYPED_TEST_SUITE(TestGroupedConvndBwdData2d, KernelTypes2d);
-TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
+TYPED_TEST_SUITE(TestGroupedConvndBwdDataWmma2d, KernelTypes2d);
+TYPED_TEST_SUITE(TestGroupedConvndBwdDataWmma3d, KernelTypes3d);
 
-TYPED_TEST(TestGroupedConvndBwdData2d, Test2D)
+TYPED_TEST(TestGroupedConvndBwdDataWmma2d, Test2D)
 {
     this->conv_params.clear();
 
@@ -97,7 +89,7 @@ TYPED_TEST(TestGroupedConvndBwdData2d, Test2D)
     this->template Run<2>();
 }
 
-TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
+TYPED_TEST(TestGroupedConvndBwdDataWmma3d, Test3D)
 {
     this->conv_params.clear();
     this->conv_params.push_back(
