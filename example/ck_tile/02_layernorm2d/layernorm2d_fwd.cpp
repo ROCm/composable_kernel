@@ -109,7 +109,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using XDataType         = typename TypeConfig::XDataType;
     using YDataType         = typename TypeConfig::YDataType;
-    using BiasDataType      = typename TypeConfig::BiasDataType;
+    using XBiasDataType     = typename TypeConfig::XBiasDataType;
     using GammaDataType     = typename TypeConfig::GammaDataType;
     using BetaDataType      = typename TypeConfig::BetaDataType;
     using XResidualDataType = XDataType;
@@ -124,7 +124,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // host verify
     ck_tile::HostTensor<XDataType> x_host({m, n}, {x_stride, 1});
-    ck_tile::HostTensor<BiasDataType> bias_host({n});
+    ck_tile::HostTensor<XBiasDataType> x_bias_host({n});
     ck_tile::HostTensor<GammaDataType> gamma_host({n});
     ck_tile::HostTensor<BetaDataType> beta_host({n});
 
@@ -145,12 +145,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::FillUniformDistribution<XDataType>{-.5f, .5f}(x_host);
     ck_tile::FillUniformDistribution<XResidualDataType>{-.5f, .5f}(x_residual_host);
     ck_tile::FillUniformDistribution<XScaleDataType>{-1.f, 1.f}(x_scale_host);
-    ck_tile::FillUniformDistribution<BiasDataType>{-.5f, .5f}(bias_host);
+    ck_tile::FillUniformDistribution<XBiasDataType>{-.5f, .5f}(x_bias_host);
     ck_tile::FillUniformDistribution<GammaDataType>{-.5f, .5f}(gamma_host);
     ck_tile::FillUniformDistribution<BetaDataType>{-.5f, .5f}(beta_host);
 
     ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem bias_buf(bias_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem x_bias_buf(x_bias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem gamma_buf(gamma_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem beta_buf(beta_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_buf(y_host_dev.get_element_space_size_in_bytes());
@@ -161,7 +161,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem y_residual_buf(y_residual_host.get_element_space_size_in_bytes());
 
     x_buf.ToDevice(x_host.data());
-    bias_buf.ToDevice(bias_host.data());
+    x_bias_buf.ToDevice(x_bias_host.data());
     gamma_buf.ToDevice(gamma_host.data());
     beta_buf.ToDevice(beta_host.data());
     x_residual_buf.ToDevice(x_residual_host.data());
@@ -191,7 +191,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     layernorm2d_fwd_args args{x_buf.GetDeviceBuffer(),
                               fused_add != 0 ? x_residual_buf.GetDeviceBuffer() : nullptr,
                               fused_quant == 1 ? x_scale_buf.GetDeviceBuffer() : nullptr,
-                              bias_buf.GetDeviceBuffer(),
+                              x_bias_buf.GetDeviceBuffer(),
                               gamma_buf.GetDeviceBuffer(),
                               beta_buf.GetDeviceBuffer(),
 
@@ -218,8 +218,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-    std::size_t num_byte = sizeof(XDataType) * m * n + sizeof(BiasDataType) * n + sizeof(GammaDataType) * n +
-                           sizeof(BetaDataType) * n + sizeof(YDataType) * m * n;
+    std::size_t num_byte = sizeof(XDataType) * m * n + sizeof(XBiasDataType) * n +
+                           sizeof(GammaDataType) * n + sizeof(BetaDataType) * n +
+                           sizeof(YDataType) * m * n;
 
     float gb_per_sec = num_byte / 1.E6 / ave_time;
     std::cout << ", " << ave_time * 1.E3 << " us, " << gb_per_sec << " GB/s" << std::flush;
@@ -240,7 +241,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 {
                     for(int idx_n = 0; idx_n < N; ++idx_n)
                     {
-                        x_host(idx_m, idx_n) = ck_tile::type_convert<XDataType>(ck_tile::type_convert<ComputeDataType>(x_host(idx_m, idx_n)) + ck_tile::type_convert<ComputeDataType>(bias_host(idx_n)));
+                        x_host(idx_m, idx_n) = ck_tile::type_convert<XDataType>(
+                            ck_tile::type_convert<ComputeDataType>(x_host(idx_m, idx_n)) +
+                            ck_tile::type_convert<ComputeDataType>(x_bias_host(idx_n)));
                     }
                 }
             }

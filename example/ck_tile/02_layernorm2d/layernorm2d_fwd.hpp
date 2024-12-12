@@ -16,7 +16,7 @@ struct LayerNormTypeConfig<ck_tile::half_t, OutType, XScaleDataType_, YScaleData
 {
     using XDataType       = ck_tile::half_t;
     using YDataType       = OutType;
-    using BiasDataType    = ck_tile::half_t;
+    using XBiasDataType   = ck_tile::half_t;
     using GammaDataType   = ck_tile::half_t;
     using BetaDataType    = ck_tile::half_t;
     using MeanDataType    = ck_tile::half_t;
@@ -31,7 +31,7 @@ struct LayerNormTypeConfig<ck_tile::bf16_t, OutType, XScaleDataType_, YScaleData
 {
     using XDataType       = ck_tile::bf16_t;
     using YDataType       = OutType;
-    using BiasDataType    = ck_tile::bf16_t;
+    using XBiasDataType   = ck_tile::bf16_t;
     using GammaDataType   = ck_tile::bf16_t;
     using BetaDataType    = ck_tile::bf16_t;
     using MeanDataType    = ck_tile::bf16_t;
