@@ -110,8 +110,8 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
         constexpr index_t MThreadsPerWarp = get_warp_size() / NThreads;
         constexpr index_t MPerThread      = kMPerBlock / (MaxNumWarps * MThreadsPerWarp);
 
-        static_assert(NThreads * NPerThread == kNPerBlock);
         static_assert(MPerThread * MaxNumWarps * MThreadsPerWarp == kMPerBlock);
+        static_assert(NThreads * NPerThread == kNPerBlock);
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<Replicate>,
@@ -222,16 +222,8 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
         constexpr index_t MaxNumWarps = (MThreads * NThreads) / get_warp_size();
         constexpr index_t Replicate   = Problem::kNumWarps / MaxNumWarps;
 
-        static_assert(kMPerBlock == MThreads);
-        static_assert(0 < NThreads);
-        static_assert(0 < NPerThread);
-        static_assert(0 < MPerThread);
-        static_assert(0 < MaxNumWarps);
-        static_assert(0 < MThreadPerWarp);
-        static_assert(0 < MPerThread);
-
-        static_assert(NThreads * NPerThread == kNPerBlock);
         static_assert(MaxNumWarps * MThreadPerWarp * MPerThread == kMPerBlock);
+        static_assert(NThreads * NPerThread == kNPerBlock);
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<Replicate>,
