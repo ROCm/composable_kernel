@@ -68,16 +68,24 @@ struct FusedMoeGemmPipeline_General
 
     static constexpr const char* name = "flatmm_gl";
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeA()
     {
         // matrix a or tokens smem
         constexpr index_t smem_mat_a =
             BlockShape::Block_M0 * BlockShape::Block_K0 * sizeof(ADataType);
+        return smem_mat_a;
+    }
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        // matrix a or tokens smem
+        constexpr index_t smem_mat_a = GetSmemSizeA();
+        constexpr index_t smem_mat_d =
+            BlockShape::Block_N0 * BlockShape::Block_K0 * sizeof(GDataType);
         // shuffle C matrix
         constexpr index_t smem_bridge =
             BlockShape::Block_M0 * BlockShape::Block_N0 * sizeof(YDataType);
 
-        return max(smem_mat_a, smem_bridge);
+        return max(smem_mat_a + smem_mat_d, smem_bridge);
         // return Policy::template GetSmemSize<Problem>();
     }
 
@@ -117,7 +125,11 @@ struct FusedMoeGemmPipeline_General
             });
         });
     }
-    template <typename AWindow, typename GWindow, typename DWindow, typename OWindow>
+    template <typename AWindow,
+              typename GWindow,
+              typename DWindow,
+              typename OWindow,
+              typename CWindow>
     CK_TILE_DEVICE auto operator()(const AWindow& a_window_,
                                    const GWindow& g_window_,
                                    const DWindow& d_window_,
@@ -125,14 +137,28 @@ struct FusedMoeGemmPipeline_General
                                    TopkWeightDataType topk_weight,
                                    CK_TILE_LDS_ADDR void* smem,
                                    index_t hidden_size,
-                                   index_t intermediate_size)
+                                   index_t /*intermediate_size*/,
+                                   CWindow& c_window_)
     {
+        ignore                             = topk_weight;
+        ignore                             = c_window_;
+        ignore                             = hidden_size;
         CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
-        auto a_lds_view                    = make_tensor_view<address_space_enum::lds>(
+        CK_TILE_LDS_ADDR GDataType* smem_1 = reinterpret_cast<CK_TILE_LDS_ADDR GDataType*>(
+            smem_0 + GetSmemSizeA() / sizeof(ADataType));
+
+        auto a_lds_view = make_tensor_view<address_space_enum::lds>(
             smem_0, Policy::template MakeLdsBlockDesc_A<Problem>());
         auto a_lds_win = make_tile_window(
             a_lds_view,
             make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_K0>{}),
+            {0, 0});
+
+        auto g_lds_view = make_tensor_view<address_space_enum::lds>(
+            smem_1, Policy::template MakeLdsBlockDesc_G<Problem>());
+        auto g_lds_win = make_tile_window(
+            g_lds_view,
+            make_tuple(number<BlockShape::Block_N0>{}, number<BlockShape::Block_K0>{}),
             {0, 0});
 
         auto a_global_to_dram_window = make_tile_window(
@@ -148,69 +174,85 @@ struct FusedMoeGemmPipeline_General
             g_window_.get_window_origin(),
             Policy::template MakeGlobalTileDistribution_G<Problem>());
 
-        // gemm gate
+#if 0
+        PrintMem(g_dram_block, "G", 0);
+#endif
+        // gemm0(gate)
         constexpr auto gemm_0   = Policy::template GetBlockGemm0<Problem>();
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
         auto s_acc              = SaccBlockTileType{};
 
-        // save tokens to lds
         auto a_dram_block = load_tile(a_global_to_dram_window);
-        store_tile(a_lds_win, a_dram_block);
-#if 0
-        PrintMem(a_dram_block,"A", 0, 1);
-#endif
-
         auto g_dram_block = load_tile(g_global_to_dram_window);
+        // block_sync_load_raw();
+        // save tokens to lds
+        store_tile(a_lds_win, a_dram_block);
+        store_tile(g_lds_win, g_dram_block);
 
-#if 1
-        PrintMem(g_dram_block, "G", 0, 1);
+#if 0
+        PrintMem(a_dram_block,"A", 0);
 #endif
-
         clear_tile(s_acc); // initialize C
         constexpr index_t kK0  = BlockShape::Block_K0;
         const index_t k0_loops = ck_tile::integer_divide_ceil(hidden_size, kK0);
         index_t iCounter0      = k0_loops - 1;
-        while(iCounter0 > 0)
+        while(iCounter0 >= 0)
         {
+            if(iCounter0 > 0)
+            {
+                move_tile_window(a_global_to_dram_window, {0, kK0});
+                move_tile_window(g_global_to_dram_window, {0, kK0});
+
+                a_dram_block = load_tile(a_global_to_dram_window);
+                g_dram_block = load_tile(g_global_to_dram_window);
+            }
+
+            block_sync_lds();
+            gemm_0(s_acc, a_lds_win, g_lds_win);
+            // gemm_0(s_acc, a_lds_win, g_dram_block);
+
             block_sync_lds();
 
-            gemm_0(s_acc, a_lds_win, g_dram_block);
+            if(iCounter0 > 0)
+            {
+                store_tile(a_lds_win, a_dram_block);
+                store_tile(g_lds_win, g_dram_block);
+            }
 
-            block_sync_lds();
-            move_tile_window(a_global_to_dram_window, {0, kK0});
-            move_tile_window(g_global_to_dram_window, {0, kK0});
-
-            a_dram_block = load_tile(a_global_to_dram_window);
-            g_dram_block = load_tile(g_global_to_dram_window);
-
-            store_tile(a_lds_win, a_dram_block);
             iCounter0--;
         }
         // tail
-        {
-            block_sync_lds();
-            gemm_0(s_acc, a_lds_win, g_dram_block);
-        }
+        // {
+        //     block_sync_lds();
+        //     // gemm_0(s_acc, a_lds_win, g_dram_block);
+        //     gemm_0(s_acc, a_lds_win, g_lds_win);
+        //     block_sync_lds();
+        // }
+
 #if 0
-        PrintMem(s_acc);
+        PrintMem(s_acc, "S", 0);
 #endif
         // relu
-        const auto activation = ck_tile::element_wise::Gelu{};
-        tile_elementwise_inout(activation, s_acc, s_acc);
+        // const auto activation = ck_tile::element_wise::Gelu{};
+        // tile_elementwise_inout(activation, s_acc, s_acc);
+        // cast data to YDataType
+        auto y_pre = cast_tile<YDataType>(s_acc);
 
-        // move sacc to LDS
+#if 0
+        PrintMem(y_pre, "Y_pre", 0);
+#endif
+        if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+        {
+            block_sync_lds();
+            store_tile(c_window_, y_pre);
+        }
+        // save to lds
         auto bridge_lds_view = make_tensor_view<address_space_enum::lds>(
             smem_0, Policy::template MakeBridgeLdsBlockDesc<Problem>());
         auto bridge_slds_win =
             make_tile_window(bridge_lds_view,
                              Policy::template MakeBridgeLdsBlockDesc<Problem>().get_lengths(),
                              {0, 0});
-        // cast data to YDataType
-        auto y_pre = cast_tile<YDataType>(s_acc);
-#if 0
-        PrintMem(y_pre);
-#endif
-        // save to lds
         store_tile(bridge_slds_win, y_pre);
         block_sync_lds();
 
@@ -225,7 +267,20 @@ struct FusedMoeGemmPipeline_General
                              {0, 0},
                              Policy::template MakeYTileDistribution<Problem>());
         auto y = load_tile(bridge_llds_win);
+        block_sync_lds();
 
+#if 0
+        PrintMem(y,"Y",0);
+        //PrintMem(y,"Y",32);
+        if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+        {
+            for(int i = 0; i < 16; i++)
+            {
+                printf("\n smem_0[%d]: %f ", i, type_convert<float>(smem_0[i]));
+            }
+        }
+        //store_tile(c_window_, y);
+#endif
         // d data
         auto d_global_to_dram_window = make_tile_window(
             d_window_.get_bottom_tensor_view(),
@@ -234,20 +289,20 @@ struct FusedMoeGemmPipeline_General
             Policy::template MakeGlobalTileDistribution_D<Problem>());
         auto d = load_tile(d_global_to_dram_window);
 #if 0
-        PrintMem(d,"D",64);
+        PrintMem(d,"D",0);
 #endif
         // add to LDS
-        auto o_alds_view =
+        auto o_lds_view =
             make_naive_tensor_view<address_space_enum::lds, memory_operation_enum::atomic_add>(
                 smem_0,
-                make_tuple(number<32>{}, number<32>{}),
+                make_tuple(number<128>{}, number<32>{}),
                 make_tuple(32, 1),
                 number<8>{},
                 number<1>{});
         auto o_alds_win =
-            make_tile_window(o_alds_view, make_tuple(number<32>{}, number<32>{}), {0, 0});
+            make_tile_window(o_lds_view, make_tuple(number<128>{}, number<32>{}), {0, 0});
         auto o_olds_win =
-            make_tile_window(o_alds_view,
+            make_tile_window(o_lds_view,
                              make_tuple(number<32>{}, number<32>{}),
                              {0, 0},
                              Policy::template MakeGlobalTileDistribution_O<Problem>());
@@ -278,31 +333,38 @@ struct FusedMoeGemmPipeline_General
             gemm_1(o_acc, y, d);
 
             // block_sync_lds();
-            tile_elementwise_inout(
-                [&topk_weight](auto& x) { x = x * type_convert<float>(topk_weight); }, o_acc);
+            // tile_elementwise_inout(
+            //     [&topk_weight](auto& x) { x = x * type_convert<float>(topk_weight); }, o_acc);
             auto o = cast_tile<ODataType>(o_acc);
+#if 0
+            PrintMem(o, "O", 65);
+#endif
             store_tile(o_alds_win, o);
             block_sync_lds();
-            // if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 1 && blockIdx.z == 0)
-            // {
-            //     for(int i = 0; i < 42; i++)
-            //     {
-            //         printf("\n%d value is %f\t", i, type_convert<float>(smem_0[i]));
-            //     }
-            // }
-            if(threadIdx.x < 64)
+            if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
             {
-                auto o_out = load_tile(o_olds_win);
-                block_sync_lds();
-                store_tile(o_window_, o_out);
+                if(threadIdx.x < 64)
+                {
+                    auto o0 = load_tile(o_olds_win);
+                    for(int step = 1; step < 4; step++)
+                    {
+                        move_tile_window(o_olds_win, {32, 0});
+                        auto o1 = load_tile(o_olds_win);
+                        for(int i = 0; i < 16; i++)
+                        {
+                            o0.get_thread_buffer()(i) = type_convert<ODataType>(
+                                type_convert<float>(o0.get_thread_buffer()[i]) +
+                                type_convert<float>(o1.get_thread_buffer()[i]));
+                        }
+                    }
+                    update_tile(o_window_, o0);
+                }
             }
-            // ignore = o_olds_win;
             // store_tile(o_window_, o);
 #if 0
         PrintMem(o,"O");
 #endif
         }
-
         // store_tile(o_window_, a_dram_block);
     }
 };

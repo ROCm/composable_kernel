@@ -199,6 +199,7 @@ struct FusedMoeGemmGlKernel
 
         index_t stride_token; // for input/output, stride for each row, should >= hidden_size
         index_t max_num_tokens_padded; // size of sorted_token_ids_ptr
+        void* c_ptr;
     };
 
     // TODO: switch karg based on
@@ -251,12 +252,10 @@ struct FusedMoeGemmGlKernel
         index_t idx_n0 =
             __builtin_amdgcn_readfirstlane(intermediate_tile_id * BlockShape::Block_N0);
 
-        const auto a_coord = Pipeline::GetACoord(); // 2d thread offset, [i_row, i_col]
+        const auto a_coord         = Pipeline::GetACoord(); // 2d thread offset, [i_row, i_col]
         const auto sorted_token_id = a_coord[number<0>{}] + idx_m0; // start block_m
                                                                     // position
 
-        // index_t token_id =
-        //     reinterpret_cast<const index_t*>(kargs.sorted_token_ids_ptr)[sorted_token_id];
         auto topk_weight =
             reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr)[sorted_token_id];
 
@@ -305,17 +304,24 @@ struct FusedMoeGemmGlKernel
                 make_tuple(number<BlockShape::Block_N0>{}, number<BlockShape::Block_K0>{}),
                 {idx_n0, 0});
 
-            // if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
-            // {
-            //     for(int i = 0; i < 16; i++)
-            //     {
-            //         printf("in G index is %d ,  value is: %f\n",
-            //                i,
-            //                ck_tile::type_convert<float>(g_ptr[i]));
-            //     }
-            // }
-
             return g_window_;
+        }();
+
+        auto c_window = [&]() {
+            YDataType* c_ptr = reinterpret_cast<YDataType*>(kargs.c_ptr);
+            // note interm_idx_nr is along the gemm-k dim of 2nd gemm
+            auto c_view_ = make_naive_tensor_view<address_space_enum::global>(
+                c_ptr,
+                make_tuple(kargs.num_tokens, kargs.intermediate_size),
+                make_tuple(kargs.intermediate_size, 1),
+                number<Pipeline::kAlignmentD>{},
+                number<1>{});
+
+            auto c_window_ = make_tile_window(
+                c_view_,
+                make_tuple(number<BlockShape::Block_M0>{}, number<BlockShape::Block_N0>{}),
+                {0, 0});
+            return c_window_;
         }();
 
         const auto d_window = [&]() {
@@ -371,7 +377,8 @@ struct FusedMoeGemmGlKernel
                    topk_weight,
                    smem,
                    kargs.hidden_size,
-                   kargs.intermediate_size);
+                   kargs.intermediate_size,
+                   c_window);
     }
 };
 

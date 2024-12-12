@@ -10,6 +10,8 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_problem.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_breg_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_breg_creg_v1.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1_custom_policy.hpp"
@@ -198,7 +200,7 @@ struct FusedMoeGemmPipelineGeneralPolicy
                                        tuple<sequence<0, 1>, sequence<1, 2>>,
                                        tuple<sequence<0, 0>, sequence<2, 0>>,
                                        sequence<1, 2>,
-                                       sequence<0, 1>>{});
+                                       sequence<1, 1>>{});
     }
 
     template <typename Problem>
@@ -214,13 +216,17 @@ struct FusedMoeGemmPipelineGeneralPolicy
                                                            typename S_::WarpTile_0>>;
 
         constexpr auto warp_gemm = GetWarpGemm0<Problem>();
-        using BlockGemmPolicy    = BlockGemmASmemBRegCRegV1CustomPolicy<typename Problem::ADataType,
-                                                                     typename Problem::GDataType,
-                                                                     typename Problem::AccDataType,
-                                                                     typename S_::WarpPerBlock_0,
-                                                                     decltype(warp_gemm)>;
+        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
+                                                                      // using BlockGemmPolicy =
+                                                                      // BlockGemmASmemBRegCRegV1CustomPolicy<typename
+                                                                      // Problem::ADataType,
+                                                                      typename Problem::GDataType,
+                                                                      typename Problem::AccDataType,
+                                                                      typename S_::WarpPerBlock_0,
+                                                                      decltype(warp_gemm)>;
 
-        return BlockGemmASmemBRegCRegV1<GemmProblem, BlockGemmPolicy>{};
+        return BlockGemmASmemBSmemCRegV1<GemmProblem, BlockGemmPolicy>{};
+        // return BlockGemmASmemBRegCRegV1<GemmProblem, BlockGemmPolicy>{};
     }
 
     template <typename Problem>
@@ -288,28 +294,6 @@ struct FusedMoeGemmPipelineGeneralPolicy
         return d_block_dstr;
     }
 
-    // template <typename Problem>
-    // CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_O()
-    // {
-    //     using S_       = remove_cvref_t<typename Problem::BlockShape>;
-    //     using WarpGemm = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
-    //     // using CDataType = typename WarpGemm::CDataType;
-
-    //     constexpr auto c_block_outer_dstr_encoding =
-    //         tile_distribution_encoding<sequence<>,
-    //                                    tuple<sequence<S_::Repeat_M1, S_::WarpPerBlock_M1>,
-    //                                          sequence<S_::Repeat_N1, S_::WarpPerBlock_N1>>,
-    //                                    tuple<sequence<1, 2>>,
-    //                                    tuple<sequence<1, 1>>,
-    //                                    sequence<1, 2>,
-    //                                    sequence<0, 0>>{};
-
-    //     constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-    //         c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
-    //     constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-    //     return c_block_dstr;
-    // }
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDesc_A()
     {
@@ -322,7 +306,7 @@ struct FusedMoeGemmPipelineGeneralPolicy
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kK0>{}, number<Block_M>{}, number<kK1>{}),
-            make_tuple(number<(Block_M + 1) * kK1>{}, number<kK1>{}, number<1>{}),
+            make_tuple(number<Block_M * kK1>{}, number<kK1>{}, number<1>{}),
             number<8>{},
             number<1>{});
 
@@ -333,7 +317,45 @@ struct FusedMoeGemmPipelineGeneralPolicy
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
+        // constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
+        //     make_tuple(number<Block_M>{}, number<Block_K>{}),
+        //     make_tuple(number<Block_K>{},  number<1>{}),
+        //     number<8>{},
+        //     number<1>{});
+
         return a_lds_block_desc;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDesc_G()
+    {
+        constexpr index_t Block_N = Problem::BlockShape::Block_N0;
+        constexpr index_t Block_K = Problem::BlockShape::Block_K0;
+        constexpr index_t kK1     = GetSmemKPack_A<Problem>(); // LDS
+        constexpr index_t kK0     = Block_K / kK1;
+
+        static_assert(Block_K % kK1 == 0);
+
+        constexpr auto d_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<kK0>{}, number<Block_N>{}, number<kK1>{}),
+            make_tuple(number<Block_N * kK1>{}, number<kK1>{}, number<1>{}),
+            number<8>{},
+            number<1>{});
+
+        constexpr auto d_lds_block_desc = transform_tensor_descriptor(
+            d_lds_block_desc_0,
+            make_tuple(make_pass_through_transform(number<Block_N>{}),
+                       make_merge_transform(make_tuple(number<kK0>{}, number<kK1>{}))),
+            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        // constexpr auto d_lds_block_desc = make_naive_tensor_descriptor(
+        //     make_tuple(number<Block_N>{}, number<Block_K>{}),
+        //     make_tuple(number<Block_K>{},  number<1>{}),
+        //     number<8>{},
+        //     number<1>{});
+
+        return d_lds_block_desc;
     }
 
     template <typename Problem>
@@ -343,11 +365,10 @@ struct FusedMoeGemmPipelineGeneralPolicy
         constexpr index_t Block_N = Problem::BlockShape::Block_N0;
 
         constexpr index_t KVector = GetSmemKPack_Y<Problem>();
-        constexpr index_t KPad    = 0;
 
         constexpr auto desc =
             make_naive_tensor_descriptor(make_tuple(number<Block_M>{}, number<Block_N>{}),
-                                         make_tuple(number<Block_N + KPad>{}, number<1>{}),
+                                         make_tuple(number<Block_N>{}, number<1>{}),
                                          number<KVector>{},
                                          number<1>{});
         return desc;

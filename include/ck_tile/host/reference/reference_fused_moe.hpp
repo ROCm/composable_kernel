@@ -137,6 +137,7 @@ void reference_fused_moe(
                     ", 1:" + std::to_string(intermediate_size_1));
             for(ck_tile::index_t i_n = 0; i_n < intermediate_size_1; i_n++)
             {
+                //y(0, i_n) =  acc_0(0, i_n);
                 Activation{}(y(0, i_n), acc_0(0, i_n));
                 // if(i_expert == 0)
                 //     printf("in:%d, %f\t", i_n, y(0, i_n));

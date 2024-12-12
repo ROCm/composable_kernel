@@ -586,7 +586,7 @@ struct HostTensor
             }
             if constexpr(std::is_same_v<T, bf16_t> || std::is_same_v<T, fp16_t>)
             {
-                os << type_convert<float>(t.mData[idx]) << " #### ";
+                os << type_convert<float>(t.mData[idx]) << " ";
             }
             else
             {

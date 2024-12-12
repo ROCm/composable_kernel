@@ -87,32 +87,42 @@ template <typename IndexType>
 void output_matrix_2d(ck_tile::HostTensor<IndexType>& data, int m, int n)
 {
     std::cout << std::endl;
+    std::cout << "[";
     for(int i = 0; i < m; i++)
     {
-        std::cout << "Line " << i << "\t";
+        std::cout << "[";
         for(int j = 0; j < n; j++)
         {
-            std::cout << ck_tile::type_convert<float>(data(i, j)) << "\t";
+            std::cout << ck_tile::type_convert<float>(data(i, j));
+            if(j != n - 1)
+                std::cout << ", ";
         }
-        std::cout << std::endl;
+        std::cout << "],\n";
     }
+    std::cout << "]\n";
 }
 template <typename IndexType>
 void output_matrix_3d(ck_tile::HostTensor<IndexType>& data, int M, int N, int J)
 {
     std::cout << std::endl;
+    std::cout << "[";
     for(int m = 0; m < M; m++)
     {
+        std::cout << "[";
         for(int n = 0; n < N; n++)
         {
-            std::cout << "experts: " << m << " Line: " << n << "\t";
+            std::cout << "[";
             for(int j = 0; j < J; j++)
             {
-                std::cout << ck_tile::type_convert<float>(data(m, n, j)) << "\t";
+                std::cout << ck_tile::type_convert<float>(data(m, n, j));
+                if(j != j - 1)
+                    std::cout << ", ";
             }
-            std::cout << std::endl;
+            std::cout << "],\n";
         }
+        std::cout << "],\n";
     }
+    std::cout << "]\n";
 }
 auto create_args(int argc, char* argv[])
 {
@@ -237,6 +247,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // host verify
     ck_tile::HostTensor<ADataType> a_host({tokens, hidden_size}, {stride, 1});
     ck_tile::HostTensor<GDataType> g_host({experts, shared_intermediate_size_0, hidden_size});
+    ck_tile::HostTensor<ODataType> c_host({tokens, intermediate_size});
     ck_tile::HostTensor<DDataType> d_host({experts, hidden_size, shared_intermediate_size_1});
     ck_tile::HostTensor<ODataType> o_host({tokens, hidden_size}, {stride, 1});
     ck_tile::HostTensor<AScaleDataType> sa_host({tokens});
@@ -269,6 +280,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f, seed, true}(a_host);
         ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f, seed, true}(g_host);
         ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f, seed, true}(d_host);
+        // ck_tile::FillConstant<ADataType>{1}(a_host);
+        // ck_tile::FillConstant<GDataType>{1}(g_host);
+        // ck_tile::FillConstant<DDataType>{1}(d_host);
         ck_tile::FillUniformDistribution<AScaleDataType>{-.5f, .5f, seed, true}(sa_host);
         ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f, seed, true}(sg_host);
         ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f, seed, true}(sd_host);
@@ -389,6 +403,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem sd_buf(sd_host);
     ck_tile::DeviceMem sy_buf(sy_host);
     ck_tile::DeviceMem o_buf(o_host);
+    ck_tile::DeviceMem c_buf(c_host);
+    c_buf.SetZero();
+    std::cout << "\nc size: " << c_buf.GetBufferSize()
+              << "  tokens * intermediate_size: " << tokens * intermediate_size << std::endl;
 
     // manually clear output buffer for atomic
     o_buf.SetZero();
@@ -428,7 +446,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                             experts,
                             topk,
                             stride,
-                            max_num_tokens_padded};
+                            max_num_tokens_padded,
+                            c_buf.GetDeviceBuffer()};
 
     float ave_time = fused_moegemm(
         traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
@@ -469,6 +488,22 @@ bool run(const ck_tile::ArgParser& arg_parser)
             gate_only);
 
         auto o_dev = o_buf.ToHost<ODataType>();
+        auto c_dev = c_buf.ToHost<ADataType>();
+        std::cout << std::endl;
+        std::cout << o_dev << std::endl;
+        // std::cout << c_dev << std::endl;
+        // int count = 0;
+        // std::cout << "[";
+        // for(int i = 0; i < tokens; i++)
+        // {
+        //     std::cout << "[";
+        //     for(int j = 0; j < intermediate_size; j++)
+        //     {
+        //         std::cout << ck_tile::type_convert<float>(c_dev(count++)) << ",";
+        //     }
+        //     std::cout << "],\n";
+        // }
+        // std::cout << "]\n";
         // o_dev.savetxt("gpu-out.txt", "float");
         auto [rtol, atol] = get_elimit<ADataType>();
         pass &= ck_tile::check_err(
