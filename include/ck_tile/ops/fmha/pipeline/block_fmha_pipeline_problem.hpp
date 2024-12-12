@@ -142,6 +142,8 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     using BaseType::kM0;
     using BaseType::kN1;
 
+    static_assert(kN1 <= kHeadDimV && kHeadDimV % kN1 == 0);
+
     // attributes from traits
     static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
     static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
