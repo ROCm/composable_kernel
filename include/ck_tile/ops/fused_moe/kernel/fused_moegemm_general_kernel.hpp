@@ -362,8 +362,13 @@ struct FusedMoeGemmGlKernel
                 make_tuple(sequence<0>{}, sequence<1>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
-            auto o_window_ = make_tile_window(
+            auto o_padd_view_ = pad_tensor_view(
                 o_scatter_view_,
+                make_tuple(number<BlockShape::Block_M1>{}, number<BlockShape::Block_N1>{}),
+                sequence<true, 0>{});
+
+            auto o_window_ = make_tile_window(
+                o_padd_view_,
                 make_tuple(number<BlockShape::Block_M1>{}, number<BlockShape::Block_N1>{}),
                 {idx_m0, 0});
             return o_window_;

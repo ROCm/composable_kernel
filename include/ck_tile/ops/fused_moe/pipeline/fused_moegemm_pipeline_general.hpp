@@ -308,6 +308,27 @@ struct FusedMoeGemmPipeline_General
                              Policy::template MakeGlobalTileDistribution_O<Problem>());
         ignore = o_alds_win;
 
+        auto save_o = [&]() {
+            if(blockIdx.x == 0 && (blockIdx.y == 0 || blockIdx.y == 1) && blockIdx.z == 0)
+            {
+                if(threadIdx.x < 64)
+                {
+                    auto o0 = load_tile(o_olds_win);
+                    for(int step = 1; step < 4; step++)
+                    {
+                        move_tile_window(o_olds_win, {32, 0});
+                        auto o1 = load_tile(o_olds_win);
+                        for(int i = 0; i < 16; i++)
+                        {
+                            o0.get_thread_buffer()(i) = type_convert<ODataType>(
+                                type_convert<float>(o0.get_thread_buffer()[i]) +
+                                type_convert<float>(o1.get_thread_buffer()[i]));
+                        }
+                    }
+                    update_tile(o_window_, o0);
+                }
+            }
+        };
         constexpr index_t kN1  = BlockShape::Block_N1;
         const index_t n1_loops = ck_tile::integer_divide_ceil(hidden_size, kN1);
         index_t iCounter1      = n1_loops - 1;
@@ -336,30 +357,9 @@ struct FusedMoeGemmPipeline_General
             // tile_elementwise_inout(
             //     [&topk_weight](auto& x) { x = x * type_convert<float>(topk_weight); }, o_acc);
             auto o = cast_tile<ODataType>(o_acc);
-#if 0
-            PrintMem(o, "O", 65);
-#endif
             store_tile(o_alds_win, o);
             block_sync_lds();
-            if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
-            {
-                if(threadIdx.x < 64)
-                {
-                    auto o0 = load_tile(o_olds_win);
-                    for(int step = 1; step < 4; step++)
-                    {
-                        move_tile_window(o_olds_win, {32, 0});
-                        auto o1 = load_tile(o_olds_win);
-                        for(int i = 0; i < 16; i++)
-                        {
-                            o0.get_thread_buffer()(i) = type_convert<ODataType>(
-                                type_convert<float>(o0.get_thread_buffer()[i]) +
-                                type_convert<float>(o1.get_thread_buffer()[i]));
-                        }
-                    }
-                    update_tile(o_window_, o0);
-                }
-            }
+            save_o();
             // store_tile(o_window_, o);
 #if 0
         PrintMem(o,"O");
