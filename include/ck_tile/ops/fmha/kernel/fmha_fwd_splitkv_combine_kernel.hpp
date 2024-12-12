@@ -50,8 +50,7 @@ struct FmhaFwdSplitKVCombineKernel
         return
             _SS_("fmha_fwd_splitkv_combine_d") + _TS_(FmhaPipeline::kHeadDimV) + "_" + _SS_(t2s<ODataType>::name) +
             "_" + (kIsGroupMode ? "group" : "batch") + "_"
-            "b" + _TS_(FmhaPipeline::kM0) + "x" +
-                    _TS_(FmhaPipeline::kN1) + "_" +
+            "b" + _TS_(FmhaPipeline::kN1) + "_" +
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) +
             _SS_(FmhaPipeline::name) +
             (pn.empty() ? "" : "_" + pn) +
