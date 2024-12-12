@@ -106,6 +106,17 @@ struct BlockFmhaFwdSplitKVPipelineProblem
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
 };
 
+// extract tile size attributes to remove dependency on traits
+template <typename LSEDataType_, ck_tile::index_t kN1_>
+struct BlockFmhaSplitKVCombinePipelineTileSizes
+{
+    static constexpr index_t MaxVectorSize = 16 / sizeof(LSEDataType_);
+
+    static constexpr index_t kN1      = kN1_;
+    static constexpr index_t NThreads = kN1 / MaxVectorSize;
+    static constexpr index_t kM0      = get_warp_size() / NThreads; // MThreadPerWarp
+};
+
 template <typename LSEDataType_,
           typename OaccDataType_,
           typename ODataType_,
@@ -114,22 +125,22 @@ template <typename LSEDataType_,
           ck_tile::index_t kN1_,
           typename Traits_>
 struct BlockFmhaSplitKVCombinePipelineProblem
+    : BlockFmhaSplitKVCombinePipelineTileSizes<LSEDataType_, kN1_>
 {
+    using BaseType = BlockFmhaSplitKVCombinePipelineTileSizes<LSEDataType_, kN1_>;
+
     using LSEDataType  = remove_cvref_t<LSEDataType_>;
     using OaccDataType = remove_cvref_t<OaccDataType_>;
     using ODataType    = remove_cvref_t<ODataType_>;
     using Traits       = remove_cvref_t<Traits_>;
 
-    static constexpr bool kIsGroupMode = kIsGroupMode_;
-
-    static constexpr index_t kHeadDimV = HeadDimV_;
-
-    static constexpr index_t MaxVectorSize = 16 / sizeof(OaccDataType);
     static_assert(std::is_same_v<LSEDataType, OaccDataType>);
 
-    static constexpr index_t kN1      = kN1_;
-    static constexpr index_t NThreads = kN1 / MaxVectorSize;
-    static constexpr index_t kM0      = get_warp_size() / NThreads; // MThreadPerWarp
+    static constexpr index_t kHeadDimV = HeadDimV_;
+    static constexpr bool kIsGroupMode = kIsGroupMode_;
+
+    using BaseType::kM0;
+    using BaseType::kN1;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
