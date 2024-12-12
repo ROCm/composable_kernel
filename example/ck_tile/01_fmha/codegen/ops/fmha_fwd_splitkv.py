@@ -29,6 +29,14 @@ DTYPE_BITS = {
     "bf8" : 8
 }
 
+K0_MAX_SUBMAX_MAP = {
+    32 : 32,
+    64 : 64,
+    96 : 128,
+    128: 128,
+    256: 256
+}
+
 FMHA_FWD_SPLITKV_PIPELINE_MAP = {
     "qr" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVS",
     "qr_async" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVSAsync",
@@ -41,14 +49,13 @@ using fmha_mask_{F_idx} = {F_mask};
 namespace {{
 template <bool kHasUnevenSplits>
 struct kernel_runner {{
-using fmha_block_tile = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}>;
-using fmha_block_warps = ck_tile::sequence<{F_rm}, {F_rn}, {F_rk}>;
+using fmha_block_tile = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}>;
 using fmha_warp_tile = ck_tile::sequence<{F_wm}, {F_wn}, {F_wk}>;
 
 using fmha_shape = ck_tile::TileFmhaShape<fmha_block_tile,
-                                          fmha_block_warps,
+                                          ck_tile::sequence<{F_rm0}, {F_rn0}, {F_rk0}>,
                                           fmha_warp_tile,
-                                          fmha_block_warps,
+                                          ck_tile::sequence<{F_rm1}, {F_rn1}, {F_rk1}>,
                                           fmha_warp_tile,
                                           {F_vlayout}>;
 
@@ -104,7 +111,7 @@ static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 }};
 }}
 
-using trait_{F_idx} = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout},
+using trait_{F_idx} = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
                         {F_pipeline_enum}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_squant}, {F_pagedkv}, {F_spad}, {F_skpad}, {F_dpad}, 
                         {F_dvpad}>;
 
@@ -162,10 +169,12 @@ using fmha_pipeline_problem = ck_tile::BlockFmhaSplitKVCombinePipelineProblem<
 using fmha_pipeline = ck_tile::BlockFmhaFwdSplitKVCombinePipeline<
     fmha_pipeline_problem>;
 
+/// FIXME: use {F_spad}/{F_dvpad} as kPadM/kPadN parameters after solving
+///        store_tile_raw() data corruption issue
 using fmha_epilogue =
     ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
                                            typename FmhaFwdTypeConfig<{F_dtype}>::ODataType,
-                                           {F_spad}, {F_dvpad}>>;
+                                           false, false>>;
 
 using fmha_kernel =
     ck_tile::FmhaFwdSplitKVCombineKernel<ck_tile::FmhaFwdSplitKVCombineTilePartitioner<{F_bm0}, {F_bn1}>,
@@ -191,7 +200,9 @@ using trait_{F_idx} = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_m
 template<>
 void fmha_fwd_splitkv_combine_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
-    if (a.num_splits <= 16) {{
+    if (a.num_splits <= 8) {{
+        kernel_runner<3>::run(s, a);
+    }} else if (a.num_splits <= 16) {{
         kernel_runner<4>::run(s, a);
     }} else if (a.num_splits <= 32) {{
         kernel_runner<5>::run(s, a);
@@ -236,12 +247,22 @@ float fmha_fwd_splitkv(fmha_fwd_splitkv_traits t, fmha_fwd_splitkv_args a, const
 }}
 """
 
-FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse}) && (t.do_fp8_static_quant == {F_squant}) &&
+FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.do_fp8_static_quant == {F_squant}) &&
                         ((a.block_table_ptr != nullptr) == {F_pagedkv}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
-                using traits_ = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout}, {F_pipeline_enum}, {F_mask}, {F_bias}, {F_lse}, {F_squant}, {F_pagedkv}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
-                using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}/2, {F_bn1}, {F_lse}, {F_squant}, {F_spad}, {F_dvpad}>;
+                using traits_ = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_mask}, {F_bias}, true, {F_squant}, {F_pagedkv}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+                if (t.has_lse) {{
+                    if constexpr (std::is_same_v<{F_dtype}, ck_tile::fp8_t>) {{
+                        return -1;
+                    }} else {{
+                        using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}/2, {F_bn1}/2, true, {F_squant}, {F_spad}, {F_dvpad}>;
 
-                return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
+                        return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
+                    }}
+                }} else {{
+                    using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}/2, {F_bn1}/2, false, {F_squant}, {F_spad}, {F_dvpad}>;
+
+                    return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
+                }}
             }}
 """
 
@@ -257,7 +278,7 @@ class FmhaFwdSplitKVApiTrait:
     bk0       : int  # tile size along qk gemm unroll
     bn1       : int  # tile size along v head_dim
     bk1       : int  # tile size along kv gemm unroll
-    bk0blen   : int
+    bk0max    : int
     vlayout   : str
     mask      : str
     bias      : str  #
@@ -267,11 +288,11 @@ class FmhaFwdSplitKVApiTrait:
     skpad     : str
     dpad      : str
     dvpad     : str
-    pagedkv : str
+    pagedkv   : str
 
     @property
     def name(self) -> str:
-        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.bm0}-{self.bn0}-{self.bk0}-{self.bn0}-{self.bk1}-{self.bk0blen}-'+\
+        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.bm0}-{self.bn0}-{self.bk0}-{self.bn0}-{self.bk1}-{self.bk0max}-'+\
                     f'{self.vlayout}-{self.mask}-{self.bias}-{self.lse}-{self.squant}-{self.spad}-{self.skpad}-{self.dpad}-'+\
                     f'{self.dvpad}-{self.pagedkv}'
 
@@ -304,8 +325,9 @@ class FmhaFwdSplitKVApiTrait:
             if self.dpad == 't': return f'a.hdim_q % {vec} == 0'
             else :               assert False
         elif self.pipeline_tag in ['qr']:
-            if self.dpad == 't': return f'true /*a.hdim_q % {self.bk0blen} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :               return f'a.hdim_q % {self.bk0blen} == 0'
+            bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
+            if self.dpad == 't': return f'true /*a.hdim_q % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
+            else :               return f'a.hdim_q % {bk0submax} == 0'
         else:   assert False
 
     @property
@@ -315,8 +337,9 @@ class FmhaFwdSplitKVApiTrait:
             if self.dvpad == 't': return f'a.hdim_v % {vec} == 0'
             else :                assert False
         elif self.pipeline_tag in ['qr']:
-            if self.dvpad == 't': return f'true /*a.hdim_v % {self.bk0blen} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :                return f'a.hdim_v % {self.bk0blen} == 0'
+            bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
+            if self.dvpad == 't': return f'true /*a.hdim_v % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
+            else :                return f'a.hdim_v % {bk0submax} == 0'
         else:   assert False
 
 @dataclass
@@ -411,7 +434,7 @@ class FmhaFwdSplitKVApiPool:
                                    F_lse=BOOL_MAP[trait.lse], F_squant=BOOL_MAP[trait.squant], F_pagedkv=BOOL_MAP[trait.pagedkv], 
                                    F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
-                                   F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0blen=trait.bk0blen,
+                                   F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0max=trait.bk0max,
                                    F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
                 if_j = 'if' if j == 0 else 'else if'
                 per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
@@ -455,10 +478,13 @@ class FmhaFwdSplitKVKernel:
                 F_bk0           = self.F_tile.F_bk0,
                 F_bn1           = self.F_tile.F_bn1,
                 F_bk1           = self.F_tile.F_bk1,
-                F_bk0blen       = self.F_tile.F_bk0blen,
-                F_rm            = self.F_tile.F_rm,
-                F_rn            = self.F_tile.F_rn,
-                F_rk            = self.F_tile.F_rk,
+                F_bk0max        = self.F_tile.F_bk0max,
+                F_rm0           = self.F_tile.F_rm0,
+                F_rn0           = self.F_tile.F_rn0,
+                F_rk0           = self.F_tile.F_rk0,
+                F_rm1           = self.F_tile.F_rm1,
+                F_rn1           = self.F_tile.F_rn1,
+                F_rk1           = self.F_tile.F_rk1,
                 F_wm            = self.F_tile.F_wm,
                 F_wn            = self.F_tile.F_wn,
                 F_wk            = self.F_tile.F_wk,
@@ -498,7 +524,7 @@ class FmhaFwdSplitKVKernel:
                 bk0=self.F_tile.F_bk0,
                 bn1=self.F_tile.F_bn1,
                 bk1=self.F_tile.F_bk1,
-                bk0blen=self.F_tile.F_bk0blen,
+                bk0max=self.F_tile.F_bk0max,
                 vlayout=self.F_pipeline.F_vlayout,
                 mask=self.F_pipeline.F_mask,
                 bias=self.F_pipeline.F_bias,
@@ -551,16 +577,17 @@ class FmhaFwdSplitKVCombineKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-                '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, -1),
-                '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, -1),
-                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, -1),
-                '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, -1),
+            '32'  : FmhaFwdTileSize(32, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  16, 16, 16, -1),
+            '64'  : FmhaFwdTileSize(64, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
+            ## '96'  : FmhaFwdTileSize(64, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
+            '128' : FmhaFwdTileSize(64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
+            '256' : FmhaFwdTileSize(64, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16, -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     2, 1, 1, 32, 32, 32, -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 32, -1)
+            '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32, -1),
+            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1),
+            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1)
         }
     else:
         return None
@@ -568,16 +595,17 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
 def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-                '32'  : FmhaFwdSplitKVCombineTileSize(64, 32, -1),
-                '64'  : FmhaFwdSplitKVCombineTileSize(64, 64, -1),
-                '128' : FmhaFwdSplitKVCombineTileSize(64, 128, -1),
-                '256' : FmhaFwdSplitKVCombineTileSize(64, 256, -1),
+            '32'  : FmhaFwdSplitKVCombineTileSize(16, 16,  -1),
+            '64'  : FmhaFwdSplitKVCombineTileSize(32, 32,  -1),
+            ## '96' : FmhaFwdSplitKVCombineTileSize(32, 64,  -1),
+            '128' : FmhaFwdSplitKVCombineTileSize(32, 64,  -1),
+            '256' : FmhaFwdSplitKVCombineTileSize(32, 128, -1),
     }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-                '64'  : FmhaFwdSplitKVCombineTileSize(64, 64, -1),
-                '128' : FmhaFwdSplitKVCombineTileSize(64, 128, -1),
-                '256' : FmhaFwdSplitKVCombineTileSize(64, 256, -1),
+            '64'  : FmhaFwdSplitKVCombineTileSize(64, 32,  -1),
+            '128' : FmhaFwdSplitKVCombineTileSize(64, 64,  -1),
+            '256' : FmhaFwdSplitKVCombineTileSize(64, 128, -1),
         }
     else:
         return None
@@ -596,27 +624,26 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
         squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
-            for mask, bias, lse, pagedkv in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"]):
+            for mask, bias, pagedkv in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"]):
                 # TODO: use async pipeline when compiler is more stable 
-                if hdim == 256 or hdim in [32, 64, 128]:
+                if hdim == 256 or hdim in [32, 64, 128]:         ### [32, 64, 96, 128]:
                 # if True:
-                    pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', bias, lse, squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', bias, lse, squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
 
-                    pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', bias, lse, squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', bias, lse, squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
                 else:
-                    pipelines.append(Pipeline('qr_async', 'row', 't', 'f', 't', 't', bias, lse, squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr_async', 'row', 't', 't', 't', 't', bias, lse, squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr_async', 'col', 't', 'f', 't', 't', bias, lse, squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr_async', 'col', 't', 't', 't', 't', bias, lse, squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_async', 'row', 't', 'f', 't', 't', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_async', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_async', 'col', 't', 'f', 't', 't', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_async', 'col', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
                     if receipt == 1:
-                        pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', bias, lse, squant, pagedkv, mask)) # TODO: cover arbitraty hdim
-                        pipelines.append(Pipeline('qr', 'col', 't', 'f', 't', 't', bias, lse, squant, pagedkv, mask)) # TODO: cover arbitraty hdim
+                        pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask)) # TODO: cover arbitraty hdim
+                        pipelines.append(Pipeline('qr', 'col', 't', 'f', 't', 't', bias, 't', squant, pagedkv, mask)) # TODO: cover arbitraty hdim
         elif dtype in ['fp8', 'bf8']:
-            # no need lse/paged-kv kernels
             for mask, bias in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
-                pipelines.append(Pipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, 'f', squant, 'f', mask))
+                pipelines.append(Pipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, 't', squant, 'f', mask))
         else:
             assert False
         return pipelines
@@ -636,9 +663,6 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                 if mode == "group":
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
-                        continue
-                    if pipeline.F_pagedkv == 't':
-                        # we only use batch mode kernels to handle (paged-) kvcache problems
                         continue
                 k = Kernel(F_idx=0,
                            F_hdim=hdim,

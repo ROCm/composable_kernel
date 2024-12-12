@@ -32,40 +32,42 @@ def runShell(String command){
     return (output != "")
 }
 
-def getDockerImageName(){
+def getBaseDockerImageName(){
     def img
     if (params.USE_CUSTOM_DOCKER != ""){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
-    if (params.ROCMVERSION != "6.3"){
-       if (params.COMPILER_VERSION == "") {
-           img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
-       }
-       else{
-          if (params.COMPILER_COMMIT == ""){
-             img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
-          }
-          else{
-             def commit = "${params.COMPILER_COMMIT}"[0..6]
-             img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
-          }
-       }
+        def ROCM_numeric = "${params.ROCMVERSION}" as float
+        if ( ROCM_numeric < 6.4 ){
+            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
+            }
+        else{
+            img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}"
+            }
+        }
+    return img
+}
+
+def getDockerImageName(){
+    def img
+    def base_name = getBaseDockerImageName()
+    if (params.USE_CUSTOM_DOCKER != ""){
+        img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
        if (params.COMPILER_VERSION == "") {
-           img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}"
+           img = "${base_name}"
        }
        else{
           if (params.COMPILER_COMMIT == ""){
-             img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+             img = "${base_name}_${params.COMPILER_VERSION}"
           }
           else{
              def commit = "${params.COMPILER_COMMIT}"[0..6]
-             img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+             img = "${base_name}_${params.COMPILER_VERSION}_${commit}"
           }
        }
-    }
     }
     return img
 }
@@ -131,17 +133,21 @@ def buildDocker(install_prefix){
     env.DOCKER_BUILDKIT=1
     checkout scm
     def image_name = getDockerImageName()
+    def base_image_name = getBaseDockerImageName()
     echo "Building Docker for ${image_name}"
-    def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' --build-arg DISABLE_CACHE='git rev-parse ${params.COMPILER_VERSION}' "
-    if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
-        dockerArgs = dockerArgs + " --no-cache "
+    def dockerArgs = "--build-arg PREFIX=${install_prefix} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
+    if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
+        dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f Dockerfile.compiler . "
+    }
+    else{
+        dockerArgs = dockerArgs + " -f Dockerfile . "
     }
     echo "Build Args: ${dockerArgs}"
     try{
         if(params.BUILD_DOCKER){
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
-            retimage = docker.build("${image_name}", dockerArgs + ' .')
+            retimage = docker.build("${image_name}", dockerArgs)
             withDockerRegistry([ credentialsId: "docker_test_cred", url: "" ]) {
                 retimage.push()
             }
@@ -358,7 +364,7 @@ def buildHipClangJob(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
         def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
@@ -549,7 +555,7 @@ def Build_CK(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
         if(params.BUILD_LEGACY_OS){
@@ -734,12 +740,12 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.2;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true
-                                              0 21 * * * % ROCMVERSION=6.2;hipTensor_test=true
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.3;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true
+                                              0 21 * * * % ROCMVERSION=6.3;hipTensor_test=true;RUN_CODEGEN_TESTS=true
                                               0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_CODEGEN_TESTS=false;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false
-                                              0 13 * * * % BUILD_LEGACY_OS=true ''' : ""
+                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
+                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false
+                                              0 13 * * * % BUILD_LEGACY_OS=true''' : ""
 
 pipeline {
     agent none
@@ -760,12 +766,12 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '6.2', 
-            description: 'Specify which ROCM version to use: 6.2 (default).')
+            defaultValue: '6.3',
+            description: 'Specify which ROCM version to use: 6.3 (default).')
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: '', 
-            description: 'Specify which version of compiler to use: release, amd-staging, amd-mainline-open, or leave blank (default).')
+            description: 'Specify which version of compiler to use: release, amd-staging, amd-mainline, or leave blank (default).')
         string(
             name: 'COMPILER_COMMIT', 
             defaultValue: '', 
@@ -806,6 +812,10 @@ pipeline {
             name: "RUN_GROUPED_CONV_LARGE_CASES_TESTS",
             defaultValue: false,
             description: "Run the grouped conv large cases tests (default: OFF)")
+        booleanParam(
+            name: "RUN_CODEGEN_TESTS",
+            defaultValue: false,
+            description: "Run codegen tests (default: OFF)")
         booleanParam(
             name: "RUN_CK_TILE_FMHA_TESTS",
             defaultValue: false,
@@ -926,7 +936,30 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 test_grouped_convnd_fwd_large_cases_xdl && \
                                            ./bin/test_grouped_convnd_fwd_large_cases_xdl"""
-                   }
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+            }
+        }
+        stage("Run Codegen Tests")
+        {
+            parallel
+            {
+                stage("Run Codegen Tests on gfx90a")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CODEGEN_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a")}
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ CXX=/opt/rocm/llvm/bin/clang++ cmake ../codegen && \
+                                           make -j64 check"""
+                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
@@ -951,7 +984,7 @@ pipeline {
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
-                   }
+                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
@@ -970,7 +1003,7 @@ pipeline {
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
-                   }
+                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
@@ -995,7 +1028,7 @@ pipeline {
                                            make -j64 tile_example_gemm_basic && \
                                            cd ../ &&
                                            example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
-                   }
+                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
@@ -1014,7 +1047,7 @@ pipeline {
                                            make -j64 tile_example_gemm_basic && \
                                            cd ../ &&
                                            example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
-                   }
+                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
@@ -1040,7 +1073,7 @@ pipeline {
                                          -DCMAKE_CXX_FLAGS=" -O3 " \
                                          -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
                         execute_args = " "
-                   }
+                    }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", no_reboot:true, build_type: 'Release', docker_name: docker_name)
                         cleanWs()
@@ -1059,7 +1092,7 @@ pipeline {
                                          -DCMAKE_CXX_FLAGS=" -O3 " \
                                          -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
                         execute_args = " "
-                   }
+                    }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", no_reboot:true, build_type: 'Release', docker_name: docker_name)
                         cleanWs()
@@ -1074,11 +1107,11 @@ pipeline {
                     agent{ label rocmnode("gfx90a") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install \
-                                         -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" \
+                                         -DGPU_TARGETS="gfx908;gfx90a;gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" \
+                                           -DGPU_TARGETS="gfx908;gfx90a;gfx942" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
@@ -1138,9 +1171,9 @@ pipeline {
                         execute_args = """ cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -D CMAKE_BUILD_TYPE=Release \
-                                           -D GPU_ARCHS="gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102"  \
+                                           -D GPU_ARCHS="gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102"  \
                                            -D CMAKE_CXX_FLAGS=" -O3 " .. && make -j64 """
-                   }
+                    }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()

@@ -117,9 +117,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     auto f_get_default_stride =
         [](std::size_t row, std::size_t col, ck::index_t stride, auto layout) {
-            if(stride == 0)
+            if(stride == -1)
             {
-                // give a chance if stride is 0, return a default packed stride
+                // give a chance if stride is -1, return a default packed stride
                 if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
                 {
                     return static_cast<std::size_t>(col);
@@ -176,6 +176,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_device_ref_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -201,6 +202,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_device_ref_buf(sizeof(CDataType) *
+                                   c_m_n_device_ref_result.mDesc.GetElementSpaceSize());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
@@ -245,8 +248,15 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         return true;
     }
 
+    std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
+    if(workspace_size != 0)
+    {
+        workspace.Realloc(workspace_size);
+        gemm.SetWorkSpacePointer(&argument, workspace.GetDeviceBuffer());
+    }
+
     bool pass = true;
-    if(config.do_verification)
+    if((config.do_verification == 1) || (config.do_verification == 3))
     {
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -274,6 +284,36 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      get_rtol<CDataType>(),
                                      get_atol<CDataType>());
 #endif
+    }
+
+    if((config.do_verification == 2) || (config.do_verification == 3))
+    {
+        // GPU verification
+        auto ref_gemm_gpu    = ReferenceGemmInstanceGPU{};
+        auto ref_invoker_gpu = ref_gemm_gpu.MakeInvoker();
+
+        auto ref_argument_gpu = ref_gemm_gpu.MakeArgument(
+            static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+            static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_m_n_device_ref_buf.GetDeviceBuffer()),
+            M,
+            N,
+            K,
+            a_element_op,
+            b_element_op,
+            c_element_op);
+
+        std::cout << "Running verification on GPU." << std::endl;
+        ref_invoker_gpu.Run(ref_argument_gpu, StreamConfig{});
+
+        c_m_n_device_ref_buf.FromDevice(c_m_n_device_ref_result.mData.data());
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_device_ref_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
     }
 
     if(config.time_kernel)

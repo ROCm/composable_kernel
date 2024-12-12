@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -167,11 +167,11 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             b_tensors[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
             break;
         default:
-            a_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<0>{});
-            b_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+            a_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<ADataType, 0>{});
+            b_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
         }
 
-        d0_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+        d0_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<D0DataType, 1>{});
     }
 
     using GroupedGemmKernelArgument = ck::tensor_operation::device::GroupedGemmKernelArgument<1>;
@@ -254,7 +254,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                               gemm.GetDeviceKernelArgSize(&argument),
                               hipMemcpyHostToDevice));
 
-    gemm.SetDeviceKernelArgs(argument, gemm_kernel_args_dev.GetDeviceBuffer());
+    gemm.SetDeviceKernelArgs(&argument, gemm_kernel_args_dev.GetDeviceBuffer());
     gemm.SetKBatch(argument, config.k_batch);
 
     invoker.Run(argument, StreamConfig{nullptr, false});

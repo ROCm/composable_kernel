@@ -8,7 +8,7 @@
 using ADataType        = ck::half_t;
 using BDataType        = ck::half_t;
 using AccDataType      = float;
-using CShuffleDataType = ck::half_t;
+using CShuffleDataType = float;
 using CDataType        = ck::half_t;
 
 using ALayout = Row;
@@ -42,6 +42,17 @@ using DeviceGemmV2_Streamk_Instance =
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+
+using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALayout,
+                                                                             BLayout,
+                                                                             CLayout,
+                                                                             ADataType,
+                                                                             BDataType,
+                                                                             CDataType,
+                                                                             AccDataType,
+                                                                             AElementOp,
+                                                                             BElementOp,
+                                                                             CElementOp>;
 
 #include "run_gemm_example_streamk_v2.inc"
 

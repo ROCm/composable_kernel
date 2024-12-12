@@ -62,7 +62,7 @@ auto create_args(int argc, char* argv[])
                 "-1 to choose s_knew in [1, s] randomly.")
         .insert("s_kpad",
                 "-1",
-                "seqlen_k stride between 2 tokens, currently used in group-mode only\n"
+                "seqlen_k stride between 2 batches, currently used in group-mode only\n"
                 "for kv-cache case, each batch [1,s,h,d]/[1,h,s,d] can have a stride\n"
                 "along seqlen, instead of packed. same as xformer kv_padding")
         .insert("d", "128", "head dim for q, k")
@@ -294,7 +294,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 #if !CK_TILE_FMHA_FWD_APPENDKV_API
     if(seqlen_knew != 0)
     {
-        std::cerr << "kvcache is not supported. ignoring the 's_knew' option" << std::endl;
+        std::cerr << "fmha_fwd_appendkv() is not enabled. ignoring the 's_knew' option"
+                  << std::endl;
         seqlen_knew = 0;
     }
 #endif
@@ -321,6 +322,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         rotary_dim = 0;
     }
 #endif
+    // to use fmha_fwd_appendkv(), make sure it's in batch mode
+    const bool need_append_kvcache = (0 < seqlen_knew || 0 < rotary_dim);
+    if(need_append_kvcache && mode == mode_enum::group)
+    {
+        std::cerr << "fmha_fwd_appendkv() will be invoked. ignoring the 'mode' option" << std::endl;
+        mode = mode_enum::batch;
+    }
     if(!(rotary_dim <= hdim_q))
     {
         std::cerr << "rotary_dim should be less than or equal to head dim for q" << std::endl;
@@ -356,22 +364,26 @@ bool run(const ck_tile::ArgParser& arg_parser)
                   << std::endl;
         use_cache_batch_idx = false;
     }
+#else
+    if(use_cache_batch_idx)
+    {
+        if(0 < page_block_size)
+        {
+            std::cerr << "paged-kvcache does not support cache_batch_idx. ignoring the "
+                         "'cache_batch_idx' option"
+                      << std::endl;
+            use_cache_batch_idx = false;
+        }
+        else if(mode == mode_enum::group)
+        {
+            std::cerr << "group mode will not use cache_batch_idx. ignoring the "
+                         "'cache_batch_idx' option"
+                      << std::endl;
+            use_cache_batch_idx = false;
+        }
+    }
 #endif
-    if(0 < page_block_size && use_cache_batch_idx)
-    {
-        std::cerr << "paged-kvcache does not support cache_batch_idx. ignoring the "
-                     "'cache_batch_idx' option"
-                  << std::endl;
-        use_cache_batch_idx = false;
-    }
-    // the input tensor layout for kvcache is same as batch mode
-    const bool need_append_kvcache = (0 < seqlen_knew || 0 < rotary_dim);
     const bool use_kvcache = (need_append_kvcache || use_cache_batch_idx || 0 < page_block_size);
-    if(use_kvcache && mode != mode_enum::batch)
-    {
-        std::cerr << "kvcache enabled. ignoring the 'mode' option" << std::endl;
-        mode = mode_enum::batch;
-    }
 
     auto [seqlen_qs, seqlen_ks, seqlen_kpads] =
         decode_seqlen(mode,
@@ -380,7 +392,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                       arg_parser.get_str("s_k"),
                       arg_parser.get_str("s_kpad"),
                       /*seqlen_k_min=*/0 < seqlen_knew ? seqlen_knew : 0,
-                      use_kvcache);
+                      need_append_kvcache);
     // compute kvcache seqlen_k (before appending knew/vnew)
     auto cache_seqlen_ks = seqlen_ks;
     std::transform(cache_seqlen_ks.begin(),
@@ -557,33 +569,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 #endif
 
-    struct
-    {
-        auto operator()(bool permute,
-                        ck_tile::index_t b /*batch*/,
-                        ck_tile::index_t h /*nhead*/,
-                        ck_tile::index_t s /*seqlen*/,
-                        ck_tile::index_t d /*hdim*/)
-        {
-            if(permute)
-                return std::array<ck_tile::index_t, 4>{b, h, s, d};
-            else
-                return std::array<ck_tile::index_t, 4>{b, s, h, d};
-        }
-
-        auto operator()(bool permute,
-                        ck_tile::index_t ns /*num_splits*/,
-                        ck_tile::index_t b /*batch*/,
-                        ck_tile::index_t h /*nhead*/,
-                        ck_tile::index_t s /*seqlen*/,
-                        ck_tile::index_t d /*hdim*/)
-        {
-            if(permute)
-                return std::array<ck_tile::index_t, 5>{ns, b, h, s, d};
-            else
-                return std::array<ck_tile::index_t, 5>{ns, b, s, h, d};
-        }
-    } get_lengths;
+    static const auto get_lengths = [](bool permute,
+                                       ck_tile::index_t b /*batch*/,
+                                       ck_tile::index_t h /*nhead*/,
+                                       ck_tile::index_t s /*seqlen*/,
+                                       ck_tile::index_t d /*hdim*/) {
+        if(permute)
+            return std::array<ck_tile::index_t, 4>{b, h, s, d};
+        else
+            return std::array<ck_tile::index_t, 4>{b, s, h, d};
+    };
 
     bool is_v_rowmajor = vlayout == std::string("r");
 
@@ -635,12 +630,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
         1 < num_splits || use_kvcache
-            ? std::array<ck_tile::index_t, 4>{num_splits, shape_batch, nhead, shape_seqlen_q}
+            ? std::array<ck_tile::index_t, 4>{shape_batch, nhead, num_splits, shape_seqlen_q}
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     ck_tile::HostTensor<OaccDataType> o_acc_host(
-        1 < num_splits || use_kvcache
-            ? get_lengths(o_perm, num_splits, shape_batch, nhead, shape_seqlen_q, hdim_v)
-            : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
+        1 < num_splits || use_kvcache ? std::array<ck_tile::index_t, 5>{shape_batch,
+                                                                        nhead,
+                                                                        num_splits,
+                                                                        shape_seqlen_q,
+                                                                        hdim_v}
+                                      : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
     // batch mode of lse data layout is [batch, nhead, seqlen_q]
     // group mode of lse data layout is [nhead, total_seqlen_q]
@@ -755,8 +753,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
-    ck_tile::DeviceMem seqlen_k_buf(
-        use_kvcache || 0 <= seqlen_kpads[0] ? seqlen_ks.size() * sizeof(int32_t) : 0);
+    ck_tile::DeviceMem seqlen_k_buf((mode == mode_enum::batch && use_kvcache) ||
+                                            0 <= seqlen_kpads[0]
+                                        ? seqlen_ks.size() * sizeof(int32_t)
+                                        : 0);
     ck_tile::DeviceMem cache_seqlen_k_buf(
         need_append_kvcache ? cache_seqlen_ks.size() * sizeof(int32_t) : 0);
     ck_tile::DeviceMem rotary_cos_buf(rotary_cos_host.get_element_space_size_in_bytes());
@@ -777,7 +777,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqlen_kpads[0] < 0 ? seqstart_k_host.data()
                                             : seqstart_k_with_padding_host.data());
-    seqlen_k_buf.ToDevice(use_kvcache || 0 <= seqlen_kpads[0] ? seqlen_ks.data() : nullptr);
+    seqlen_k_buf.ToDevice((mode == mode_enum::batch && use_kvcache) || 0 <= seqlen_kpads[0]
+                              ? seqlen_ks.data()
+                              : nullptr);
     cache_seqlen_k_buf.ToDevice(need_append_kvcache ? cache_seqlen_ks.data() : nullptr);
     rotary_cos_buf.ToDevice(rotary_cos_host.data());
     rotary_sin_buf.ToDevice(rotary_sin_host.data());
@@ -880,7 +882,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }();
         const ck_tile::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
         const ck_tile::index_t stride_randval = (max_seqlen_k);
-        const ck_tile::index_t stride_o_acc   = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck_tile::index_t stride_o_acc   = (hdim_v);
         const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
@@ -906,8 +908,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
-        const ck_tile::index_t nhead_stride_lse_acc = shape_seqlen_q;
-        const ck_tile::index_t nhead_stride_o_acc   = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_lse_acc = (num_splits * shape_seqlen_q);
+        const ck_tile::index_t nhead_stride_o_acc   = (num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q = (nhead * shape_seqlen_q * hdim_q);
@@ -922,13 +924,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
-        const ck_tile::index_t batch_stride_lse_acc = (nhead * shape_seqlen_q);
-        const ck_tile::index_t batch_stride_o_acc   = (nhead * shape_seqlen_q * hdim_v);
-        const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
+        const ck_tile::index_t batch_stride_lse_acc = (nhead * num_splits * shape_seqlen_q);
+        const ck_tile::index_t batch_stride_o_acc = (nhead * num_splits * shape_seqlen_q * hdim_v);
+        const ck_tile::index_t batch_stride_o     = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
         // setup split_stride_* arguments (only used in split-kv kernel)
-        const ck_tile::index_t split_stride_lse_acc = (shape_batch * nhead * shape_seqlen_q);
-        const ck_tile::index_t split_stride_o_acc = (shape_batch * nhead * shape_seqlen_q * hdim_v);
+        const ck_tile::index_t split_stride_lse_acc = (shape_seqlen_q);
+        const ck_tile::index_t split_stride_o_acc   = (shape_seqlen_q * hdim_v);
 
         args.q_ptr = q_buf.GetDeviceBuffer();
         args.k_ptr = k_buf.GetDeviceBuffer();
@@ -990,8 +992,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 (mode == mode_enum::group ? seqstart_q.GetDeviceBuffer() : nullptr);
             args.seqstart_k_ptr =
                 (mode == mode_enum::group ? seqstart_k.GetDeviceBuffer() : nullptr);
-            args.seqlen_k_ptr =
-                (use_kvcache || 0 <= k_paddings_[0] ? seqlen_k_buf.GetDeviceBuffer() : nullptr);
+            args.seqlen_k_ptr = ((mode == mode_enum::batch && use_kvcache) || 0 <= k_paddings_[0]
+                                     ? seqlen_k_buf.GetDeviceBuffer()
+                                     : nullptr);
 
             args.seqlen_k     = shape_seqlen_k; // unused in group mode (or kvcache enabled)
             args.max_seqlen_q = max_seqlen_q;
@@ -1043,6 +1046,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                     (0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr);
                 args.batch_stride_block_table = batch_stride_block_table;
                 args.page_block_size          = page_block_size;
+                args.is_gappy = false; // use 'false' for flash-attention integration
 
                 args.cache_batch_idx =
                     (use_cache_batch_idx ? cache_batch_idx_buf.GetDeviceBuffer() : nullptr);

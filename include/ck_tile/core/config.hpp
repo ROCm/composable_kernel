@@ -11,13 +11,15 @@
 #define __gfx94__
 #endif
 #if defined(__gfx1030__) || defined(__gfx1031__) || defined(__gfx1032__) || \
-    defined(__gfx1034__) || defined(__gfx1035__) || defined(__gfx1036__)
+    defined(__gfx1034__) || defined(__gfx1035__) || defined(__gfx1036__) || \
+    defined(__gfx10_3_generic__)
 #define __gfx103__
 #endif
-#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx1103__)
+#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
+    defined(__gfx1103__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
-#if defined(__gfx1200__) || defined(__gfx1201__)
+#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
 #define __gfx12__
 #endif
 
@@ -32,13 +34,28 @@
 #define CK_TILE_DEVICE inline __device__
 #define CK_TILE_HOST_DEVICE inline __host__ __device__
 #define CK_TILE_DEVICE_EXTERN __device__
+#define CK_TILE_HOST_DEVICE_EXTERN __host__ __device__
 #else
 #define CK_TILE_HOST inline
 #define CK_TILE_DEVICE inline
 #define CK_TILE_HOST_DEVICE inline
 #define CK_TILE_DEVICE_EXTERN
+#define CK_TILE_HOST_DEVICE_EXTERN
 #endif
 
+// implementing the "memory address space" attribute
+// https://llvm.org/docs/AMDGPUUsage.html#amdgpu-address-spaces-table
+#ifdef __HIPCC_
+#define CK_TILE_GENERIC_ADDR __attribute__((address_space(0)))
+#define CK_TILE_GLOBAL_ADDR __attribute__((address_space(1)))
+#define CK_TILE_LDS_ADDR __attribute__((address_space(3)))
+#define CK_TILE_BUF_RES_ADDR __attribute__((address_space(8)))
+#else
+#define CK_TILE_GENERIC_ADDR
+#define CK_TILE_GLOBAL_ADDR
+#define CK_TILE_LDS_ADDR
+#define CK_TILE_BUF_RES_ADDR
+#endif
 #ifndef CK_TILE_USE_CUSTOM_DATA_TYPE
 #define CK_TILE_USE_CUSTOM_DATA_TYPE 0 // custom data type will generate extra move/bfi code
 #endif
@@ -47,6 +64,7 @@
 #define CK_TILE_FLOAT_TO_BFLOAT16_TRUNCATE_WITH_NAN 1
 #define CK_TILE_FLOAT_TO_BFLOAT16_TRUNCATE 2
 #define CK_TILE_FLOAT_TO_BFLOAT16_STANDARD_ASM 3
+#define CK_TILE_FLOAT_TO_BFLOAT16_RTA_ASM 4
 
 #ifndef CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT
 #define CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT CK_TILE_FLOAT_TO_BFLOAT16_TRUNCATE
@@ -157,8 +175,11 @@
 #endif
 #endif
 
+// workaround for ROCm 6.2 and later
 #ifndef CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE
-#if HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 2 && HIP_VERSION_PATCH >= 41133
+#if(HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 2 && HIP_VERSION_PATCH >= 41133) ||  \
+    (HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 3 && HIP_VERSION_PATCH >= 42131) || \
+    (HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR > 3)
 #define CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE 1
 #else
 #define CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE 0
@@ -199,4 +220,13 @@
 
 #ifndef CK_TILE_BUFFER_LOAD_RAW_BF16_WA
 #define CK_TILE_BUFFER_LOAD_RAW_BF16_WA 1
+#endif
+
+// workaround: compiler not emiting reciprocal instruction frm __frcp_rn()
+#ifndef CK_TILE_WORKAROUND_SWDEV_383542
+#define CK_TILE_WORKAROUND_SWDEV_383542 1
+#endif
+
+#ifndef CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
+#define CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID 1
 #endif

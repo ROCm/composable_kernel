@@ -488,6 +488,26 @@ CK_TILE_HOST_DEVICE constexpr auto transform_tuples(F f, const X& x, const Y& y,
         f, x, y, z, typename arithmetic_sequence_gen<0, X::size(), 1>::type{});
 }
 
+namespace detail {
+
+template <typename F, typename X, index_t... Is>
+CK_TILE_HOST_DEVICE constexpr auto embed_tuples_impl(F f, const X& x, sequence<Is...>)
+{
+    return concat_tuple(f(x.at(number<Is>{}))...);
+}
+
+} // namespace detail
+
+// make sure F return at least a tuple
+// e.g. x : tuple<X, Y>, f will return tuple<Z, W>
+// this function will return
+template <typename F, typename X>
+CK_TILE_HOST_DEVICE constexpr auto embed_tuples(F f, const X& x)
+{
+    return detail::embed_tuples_impl(
+        f, x, typename arithmetic_sequence_gen<0, X::size(), 1>::type{});
+}
+
 // By default unroll to the flatten
 template <index_t Depth = 0, index_t MaxDepth = -1>
 CK_TILE_HOST_DEVICE constexpr auto unroll_nested_tuple(const tuple<>& t)
@@ -603,7 +623,7 @@ template <typename... Ys,
               false>
 CK_TILE_HOST_DEVICE constexpr auto operator+=(tuple<Ys...>& y, const X& x)
 {
-    static_assert(X::Size() == sizeof...(Ys), "wrong! size not the same");
+    static_assert(X::size() == sizeof...(Ys), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Ys);
     static_for<0, NSize, 1>{}([&](auto i) { y[i] += x[i]; });
     return y;
@@ -615,7 +635,7 @@ template <typename... Ys,
               false>
 CK_TILE_HOST_DEVICE constexpr auto operator-=(tuple<Ys...>& y, const X& x)
 {
-    static_assert(X::Size() == sizeof...(Ys), "wrong! size not the same");
+    static_assert(X::size() == sizeof...(Ys), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Ys);
     static_for<0, NSize, 1>{}([&](auto i) { y[i] -= x[i]; });
     return y;
@@ -627,12 +647,20 @@ template <typename... Xs,
               false>
 CK_TILE_HOST_DEVICE constexpr auto operator+(const tuple<Xs...>& x, const Y& y)
 {
-    static_assert(Y::Size() == sizeof...(Xs), "wrong! size not the same");
+    static_assert(Y::size() == sizeof...(Xs), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Xs);
 
     tuple<Xs...> r;
     static_for<0, NSize, 1>{}([&](auto i) { r[i] = x[i] + y[i]; });
     return r;
+}
+
+template <typename... Xs, typename... Ys>
+CK_TILE_HOST_DEVICE constexpr auto operator+(const tuple<Xs...>& x, const tuple<Ys...>& y)
+{
+    static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong!");
+    constexpr index_t NSize = sizeof...(Xs);
+    return generate_tuple([&](auto i) { return x[i] + y[i]; }, number<NSize>{});
 }
 
 template <typename... Xs,
@@ -641,12 +669,20 @@ template <typename... Xs,
               false>
 CK_TILE_HOST_DEVICE constexpr auto operator-(const tuple<Xs...>& x, const Y& y)
 {
-    static_assert(Y::Size() == sizeof...(Xs), "wrong! size not the same");
+    static_assert(Y::size() == sizeof...(Xs), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Xs);
 
     tuple<Xs...> r;
     static_for<0, NSize, 1>{}([&](auto i) { r[i] = x[i] - y[i]; });
     return r;
+}
+
+template <typename... Xs, typename... Ys>
+CK_TILE_HOST_DEVICE constexpr auto operator-(const tuple<Xs...>& x, const tuple<Ys...>& y)
+{
+    static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong!");
+    constexpr index_t NSize = sizeof...(Xs);
+    return generate_tuple([&](auto i) { return x[i] - y[i]; }, number<NSize>{});
 }
 
 template <typename... Xs,
@@ -655,7 +691,7 @@ template <typename... Xs,
               false>
 CK_TILE_HOST_DEVICE constexpr auto operator*(const tuple<Xs...>& x, const Y& y)
 {
-    static_assert(Y::Size() == sizeof...(Xs), "wrong! size not the same");
+    static_assert(Y::size() == sizeof...(Xs), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Xs);
 
     tuple<Xs...> r;
@@ -684,6 +720,14 @@ template <
 CK_TILE_HOST_DEVICE constexpr auto operator*(const tuple<Xs...>& x, Y a)
 {
     return a * x;
+}
+
+template <typename... Xs, typename... Ys>
+CK_TILE_HOST_DEVICE constexpr auto operator*(const tuple<Xs...>& x, const tuple<Ys...>& y)
+{
+    static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong!");
+    constexpr index_t NSize = sizeof...(Xs);
+    return generate_tuple([&](auto i) { return x[i] * y[i]; }, number<NSize>{});
 }
 
 template <typename... Xs, typename... Ys>

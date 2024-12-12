@@ -80,6 +80,8 @@ static inline __host__ bool isnan(half_t x)
     return (xx & 0x7FFF) > 0x7C00;
 };
 
+static inline __host__ bool isnan(f8_t x) { return ck::fp8_is_nan(x); };
+
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 static inline __host__ bool isnan(int4_t x)
 {
@@ -529,6 +531,8 @@ static inline __device__ bool isnan(half_t x)
     return (xx & 0x7FFF) > 0x7C00;
 };
 
+static inline __device__ bool isnan(f8_t x) { return ck::fp8_is_nan(x); };
+
 static inline __device__ half_t sqrt(half_t x)
 {
     return static_cast<half_t>(__builtin_amdgcn_sqrtf(static_cast<float>(x)));
@@ -649,7 +653,7 @@ inline __device__ double sin<double>(double x)
 template <>
 inline __device__ half_t sin<half_t>(half_t x)
 {
-    return ::hsin(x);
+    return hsin(static_cast<__half>(x));
 };
 
 template <typename T>
@@ -781,7 +785,7 @@ inline __device__ double ceil<double>(double x)
 template <>
 inline __device__ half_t ceil<half_t>(half_t x)
 {
-    return ::hceil(x);
+    return hceil(static_cast<__half>(x));
 };
 
 template <typename T>
@@ -823,7 +827,7 @@ inline __device__ double floor<double>(double x)
 template <>
 inline __device__ half_t floor<half_t>(half_t x)
 {
-    return ::hfloor(x);
+    return hfloor(static_cast<__half>(x));
 };
 
 template <typename T>
@@ -845,7 +849,7 @@ inline __device__ T exp(T x)
 template <>
 inline __device__ half_t exp<half_t>(half_t x)
 {
-    return hexp(x);
+    return hexp(static_cast<__half>(x));
 };
 
 template <>
@@ -869,7 +873,7 @@ inline __device__ T log(T x)
 template <>
 inline __device__ half_t log<half_t>(half_t x)
 {
-    return hlog(x);
+    return hlog(static_cast<__half>(x));
 };
 
 template <>
