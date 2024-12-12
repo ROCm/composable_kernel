@@ -253,9 +253,9 @@ FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F
                 using traits_ = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_mask}, {F_bias}, true, {F_squant}, {F_pagedkv}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
                 
                 // get combine kernel tile sizes
-                using LSEDataType = typename FmhaFwdTypeConfig<{F_dtype}>::LSEDataType;
-                constexpr ck_tile::index_t kM0 = ck_tile::BlockFmhaSplitKVCombinePipelineTileSizes<LSEDataType, /*F_bn1=*/32>::kM0;
-                
+                using OaccDataType = typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType;
+                constexpr ck_tile::index_t kM0 = ck_tile::BlockFmhaSplitKVCombinePipelineTileSizes<OaccDataType, /*F_bn1=*/32>::kM0;
+
                 // make sure we can reuse the padding flags in combine kernels
                 static_assert({F_bm0} % kM0 == 0);
                 static_assert({F_bn1} % 32 == 0);

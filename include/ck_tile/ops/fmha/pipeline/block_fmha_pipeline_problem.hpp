@@ -107,10 +107,10 @@ struct BlockFmhaFwdSplitKVPipelineProblem
 };
 
 // extract tile size attributes to remove dependency on traits
-template <typename LSEDataType_, ck_tile::index_t kN1_>
+template <typename OaccDataType_, ck_tile::index_t kN1_>
 struct BlockFmhaSplitKVCombinePipelineTileSizes
 {
-    static constexpr index_t MaxVectorSize = 16 / sizeof(LSEDataType_);
+    static constexpr index_t MaxVectorSize = 16 / sizeof(OaccDataType_);
 
     static constexpr index_t kN1      = kN1_;
     static constexpr index_t NThreads = kN1 / MaxVectorSize;
@@ -125,9 +125,9 @@ template <typename LSEDataType_,
           ck_tile::index_t kN1_,
           typename Traits_>
 struct BlockFmhaSplitKVCombinePipelineProblem
-    : BlockFmhaSplitKVCombinePipelineTileSizes<LSEDataType_, kN1_>
+    : BlockFmhaSplitKVCombinePipelineTileSizes<OaccDataType_, kN1_>
 {
-    using BaseType = BlockFmhaSplitKVCombinePipelineTileSizes<LSEDataType_, kN1_>;
+    using BaseType = BlockFmhaSplitKVCombinePipelineTileSizes<OaccDataType_, kN1_>;
 
     using LSEDataType  = remove_cvref_t<LSEDataType_>;
     using OaccDataType = remove_cvref_t<OaccDataType_>;
