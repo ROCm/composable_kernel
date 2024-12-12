@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 ARG DEBIAN_FRONTEND=noninteractive
 ARG ROCMVERSION=6.3
 ARG compiler_version=""
@@ -48,6 +48,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libnuma-dev \
     libpthread-stubs0-dev \
     llvm-amdgpu \
+    mpich \
     net-tools \
     pkg-config \
     python \
@@ -70,7 +71,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rm -rf /var/lib/apt/lists/* && \
     rm -rf amdgpu-install* && \
 # Remove unnecessary rocm components that take a lot of space
-    apt-get remove -y rocblas rocfft rocsparse composablekernel-dev
+    apt-get remove -y rocblas rocfft rocsparse composablekernel-dev hipblaslt
 
 # Update the cmake to version 3.27.5
 RUN pip install --upgrade cmake==3.27.5 && \
