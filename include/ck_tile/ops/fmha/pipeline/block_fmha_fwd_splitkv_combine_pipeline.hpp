@@ -308,7 +308,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
         // 4 o_acc tiles in LDS
         OaccDataType* o_acc_4_lds_ptr = static_cast<OaccDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeLSEacc()));
+            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeLSEacc<Problem>()));
 
         {
             auto o_acc_4_lds_window = [&]() {

@@ -10,23 +10,38 @@ namespace ck_tile {
 
 struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
 {
-    template <index_t BlockSize, index_t M, index_t N, typename DataType>
+    template <index_t NumWarps, index_t M, index_t N, typename DataType>
+    CK_TILE_HOST_DEVICE static constexpr auto GetMaxNumWarpsForTile()
+    {
+        static_assert(NumWarps == 1 || NumWarps == 2 || NumWarps == 4);
+
+        constexpr index_t ElemPerThread = (M * N) / (NumWarps * get_warp_size());
+        if constexpr(0 < ElemPerThread)
+        {
+            return NumWarps;
+        }
+        else
+        { // try dividing tile by smaller # of warps
+            return GetVectorSizeForTile<NumWarps / 2, M, N, DataType>();
+        }
+    }
+
+    template <index_t NumWarps, index_t M, index_t N, typename DataType>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeForTile()
     {
-        constexpr index_t PixelsPerThread = (M * N) / BlockSize;
-        static_assert(0 < PixelsPerThread);
+        constexpr index_t MaxNumWarps = GetMaxNumWarpsForTile<NumWarps, M, N, DataType>();
+
+        constexpr index_t ElemPerThread = (M * N) / (MaxNumWarps * get_warp_size());
 
         constexpr index_t MaxNPerThread = 16 / sizeof(DataType);
-        constexpr index_t NPerThread    = min(MaxNPerThread, PixelsPerThread);
-
-        return NPerThread;
+        return min(MaxNPerThread, ElemPerThread);
     }
 
     // alignment for dram lse tile (shape=[kMaxSplits, kM0])
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentLSE()
     {
-        return GetVectorSizeForTile<Problem::kBlockSize,
+        return GetVectorSizeForTile<Problem::kNumWarps,
                                     Problem::kMaxSplits,
                                     Problem::kM0,
                                     typename Problem::LSEDataType>();
@@ -81,28 +96,29 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNumWarps  = Problem::kNumWarps;
-
-        constexpr index_t kNPerBlock = Problem::kM0;
         constexpr index_t kMPerBlock = Problem::kMaxSplits;
+        constexpr index_t kNPerBlock = Problem::kM0;
+
+        constexpr index_t MaxNumWarps =
+            GetMaxNumWarpsForTile<Problem::kNumWarps, kNPerBlock, kMPerBlock, LSEDataType>();
+        constexpr index_t Replicate = Problem::kNumWarps / MaxNumWarps;
 
         constexpr index_t NPerThread =
-            GetVectorSizeForTile<kBlockSize, kMPerBlock, kNPerBlock, LSEDataType>();
+            GetVectorSizeForTile<MaxNumWarps, kMPerBlock, kNPerBlock, LSEDataType>();
         constexpr index_t NThreads = kNPerBlock / NPerThread;
 
         constexpr index_t MThreadsPerWarp = get_warp_size() / NThreads;
-        constexpr index_t MPerThread      = kMPerBlock / (kNumWarps * MThreadsPerWarp);
+        constexpr index_t MPerThread      = kMPerBlock / (MaxNumWarps * MThreadsPerWarp);
 
         static_assert(NThreads * NPerThread == kNPerBlock);
-        static_assert(MPerThread * kNumWarps * MThreadsPerWarp == kMPerBlock);
+        static_assert(MPerThread * MaxNumWarps * MThreadsPerWarp == kMPerBlock);
 
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<MPerThread, kNumWarps, MThreadsPerWarp>,
+            tile_distribution_encoding<sequence<Replicate>,
+                                       tuple<sequence<MPerThread, MaxNumWarps, MThreadsPerWarp>,
                                              sequence<NThreads, NPerThread>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       tuple<sequence<0, 1>, sequence<1, 2>>,
+                                       tuple<sequence<0, 1>, sequence<2, 0>>,
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
     }
@@ -113,12 +129,10 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-
         constexpr index_t kMPerBlock = Problem::kMaxSplits;
         constexpr index_t kNPerBlock = Problem::kM0;
         constexpr index_t NPack =
-            GetVectorSizeForTile<kBlockSize, kMPerBlock, kNPerBlock, LSEDataType>();
+            GetVectorSizeForTile<Problem::kNumWarps, kMPerBlock, kNPerBlock, LSEDataType>();
 
         constexpr auto lse_acc_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock / NPack>{}, number<kMPerBlock>{}, number<NPack>{}),
@@ -142,12 +156,10 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-
         constexpr index_t kMPerBlock = Problem::kMaxSplits;
         constexpr index_t kNPerBlock = Problem::kM0;
         constexpr index_t NPack =
-            GetVectorSizeForTile<kBlockSize, kMPerBlock, kNPerBlock, LSEDataType>();
+            GetVectorSizeForTile<Problem::kNumWarps, kMPerBlock, kNPerBlock, LSEDataType>();
 
         constexpr auto lse_acc_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock / NPack>{}, number<kMPerBlock>{}, number<NPack>{}),
@@ -171,12 +183,10 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-
         constexpr index_t kMPerBlock = 4 * Problem::kM0;
         constexpr index_t kNPerBlock = Problem::kN1;
         constexpr index_t NPack =
-            GetVectorSizeForTile<kBlockSize, kMPerBlock, kNPerBlock, LSEDataType>();
+            GetVectorSizeForTile<Problem::kNumWarps, kMPerBlock, kNPerBlock, LSEDataType>();
 
         constexpr auto o_acc_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock / NPack>{}, number<kMPerBlock>{}, number<NPack>{}),
@@ -194,33 +204,43 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
         return o_acc_t_lds_block_desc;
     }
 
+    // shape=[kM0, kMaxSplits]
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccRegTileDistribution()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-
-        constexpr index_t kNPerBlock = Problem::kMaxSplits;
         constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kNPerBlock = Problem::kMaxSplits;
 
-        constexpr index_t NThreads   = min(kNPerBlock, 8);
-        constexpr index_t NPerThread = kNPerBlock / NThreads;
+        constexpr index_t MaxNThreads = 8;
+        constexpr index_t NThreads    = min(kNPerBlock, MaxNThreads);
+        constexpr index_t NPerThread  = kNPerBlock / NThreads;
 
-        constexpr index_t MThreads       = kBlockSize / NThreads;
-        constexpr index_t MPerThread     = kMPerBlock / MThreads;
-        constexpr index_t MWarps         = kBlockSize / get_warp_size();
+        constexpr index_t MPerThread     = 1;
+        constexpr index_t MThreads       = kMPerBlock / MPerThread;
         constexpr index_t MThreadPerWarp = get_warp_size() / NThreads;
 
+        constexpr index_t MaxNumWarps = (MThreads * NThreads) / get_warp_size();
+        constexpr index_t Replicate   = Problem::kNumWarps / MaxNumWarps;
+
+        static_assert(kMPerBlock == MThreads);
+        static_assert(0 < NThreads);
+        static_assert(0 < NPerThread);
+        static_assert(0 < MPerThread);
+        static_assert(0 < MaxNumWarps);
+        static_assert(0 < MThreadPerWarp);
+        static_assert(0 < MPerThread);
+
         static_assert(NThreads * NPerThread == kNPerBlock);
-        static_assert(MWarps * MThreadPerWarp * MPerThread == kMPerBlock);
+        static_assert(MaxNumWarps * MThreadPerWarp * MPerThread == kMPerBlock);
 
         return make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<1>,
-                tuple<sequence<MWarps, MThreadPerWarp, MPerThread>, sequence<NThreads, NPerThread>>,
-                tuple<sequence<1>, sequence<2, 1>>,
-                tuple<sequence<0>, sequence<0, 1>>,
-                sequence<1, 2>,
-                sequence<2, 1>>{});
+            tile_distribution_encoding<sequence<Replicate>,
+                                       tuple<sequence<MaxNumWarps, MThreadPerWarp, MPerThread>,
+                                             sequence<NThreads, NPerThread>>,
+                                       tuple<sequence<0, 1>, sequence<2, 1>>,
+                                       tuple<sequence<0, 0>, sequence<0, 1>>,
+                                       sequence<1, 2>,
+                                       sequence<2, 1>>{});
     }
 
     // similar to MakeOaccDramTileDistribution(), but duplicate same 1-warp encoding 4 times on M

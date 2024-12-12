@@ -138,11 +138,14 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr index_t kMaxSplits     = Traits::kMaxSplits;
+    static_assert(8 <= kMaxSplits);
 
-    static constexpr index_t NumWarps   = 4; // always use 4 warps for each workgroup
-    static constexpr index_t kBlockSize = NumWarps * get_warp_size();
+    static constexpr index_t kNumWarps  = 4; // always use 4 warps for each workgroup
+    static constexpr index_t kBlockSize = kNumWarps * get_warp_size();
 
-    static_assert(get_warp_size() <= (kM0 * kMaxSplits) && kBlockSize <= (kM0 * kN1));
+    static_assert(get_warp_size() <= (kM0 * kMaxSplits) &&
+                  (kM0 * kMaxSplits) % get_warp_size() == 0);
+    static_assert(kBlockSize <= (kM0 * kN1) && (kM0 * kN1) % kBlockSize == 0);
 };
 
 template <typename QDataType_,
