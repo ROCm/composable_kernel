@@ -4,6 +4,7 @@
 #include "gtest/gtest.h"
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
+#include "ck/utility/scaled_type_convert.hpp"
 
 using ck::e8m0_bexp_t;
 using ck::f4_convert_rne;
