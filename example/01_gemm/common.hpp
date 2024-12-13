@@ -44,7 +44,7 @@ struct ProblemSizeStreamK final
     ck::index_t StrideB = -1;
     ck::index_t StrideC = -1;
 
-    ck::index_t NumSKBlocks = -1;
+    ck::index_t NumSKBlocks = -1; // number of stream-k blocks
 };
 struct ProblemSizeStreamK_universal final
 {
@@ -76,7 +76,7 @@ struct ProblemSizeSplitK final
 struct ExecutionConfig final
 {
     // 0 - no verification, 1 - CPU, 2 - GPU, 3 - CPU + GPU
-    int do_verification = 3;
+    int do_verification = 1;
     int init_method     = 2;
     bool time_kernel    = false;
 };

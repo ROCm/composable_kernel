@@ -205,7 +205,6 @@ int main(int argc, char* argv[])
     a1_device_buf.ToDevice(a1_m_k.mData.data());
     b0_device_buf.ToDevice(b0_k_n.mData.data());
     b1_device_buf.ToDevice(b1_k_n.mData.data());
-    e_device_buf.ToDevice(e_m_n_device_result.mData.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -252,8 +251,6 @@ int main(int argc, char* argv[])
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
-
-    e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
     if(do_verification)
     {

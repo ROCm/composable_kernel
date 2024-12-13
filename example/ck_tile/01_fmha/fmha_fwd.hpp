@@ -16,11 +16,35 @@
 #include <utility>
 #include <variant>
 
+struct FmhaFwdFp16
+{
+};
+
+struct FmhaFwdBf16
+{
+};
+
+struct FmhaFwdFp8
+{
+};
+
+struct FmhaFwdBf8
+{
+};
+
+struct FmhaFwdFp8Fp16
+{
+};
+
+struct FmhaFwdFp8Bf16
+{
+};
+
 template <typename DataType>
 struct FmhaFwdTypeConfig;
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::half_t>
+struct FmhaFwdTypeConfig<FmhaFwdFp16>
 {
     using QDataType             = ck_tile::half_t;
     using KDataType             = ck_tile::half_t;
@@ -36,7 +60,7 @@ struct FmhaFwdTypeConfig<ck_tile::half_t>
 };
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::bf16_t>
+struct FmhaFwdTypeConfig<FmhaFwdBf16>
 {
     using QDataType             = ck_tile::bf16_t;
     using KDataType             = ck_tile::bf16_t;
@@ -52,7 +76,7 @@ struct FmhaFwdTypeConfig<ck_tile::bf16_t>
 };
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::fp8_t>
+struct FmhaFwdTypeConfig<FmhaFwdFp8>
 {
     using QDataType             = ck_tile::fp8_t;
     using KDataType             = ck_tile::fp8_t;
@@ -68,7 +92,7 @@ struct FmhaFwdTypeConfig<ck_tile::fp8_t>
 };
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::bf8_t>
+struct FmhaFwdTypeConfig<FmhaFwdBf8>
 {
     using QDataType             = ck_tile::bf8_t;
     using KDataType             = ck_tile::bf8_t;
@@ -165,6 +189,8 @@ struct fmha_fwd_splitkv_args
     void* block_table_ptr;
     ck_tile::index_t batch_stride_block_table; // only used if 'block_table_ptr' is not nullptr
     ck_tile::index_t page_block_size;          // only used if 'block_table_ptr' is not nullptr
+    bool is_gappy; // differentiate seqstart_k_ptr usage. only used if 'block_table_ptr' is not
+                   // nullptr.
 
     const void* cache_batch_idx;
 
@@ -173,9 +199,21 @@ struct fmha_fwd_splitkv_args
     //             seqlen_k = kargs.seqlen_k
     // group mode: seqlen_q = kargs.seqstart_q_ptr[b + 1] - kargs.seqstart_q_ptr[b]
     //             seqlen_k = kargs.seqstart_k_ptr[b + 1] - kargs.seqstart_k_ptr[b]
-    // kvcache mode (use same kernel as batch mode):
+    //                      or kargs.seqlen_k_ptr[b]
+    //
+    // batch mode (kvcache):
     //             seqlen_q = kargs.seqlen_q
+    //             seqlen_k = kargs.seqlen_k_ptr[b]
+    // group mode (kvcache):
+    //             seqlen_q = kargs.seqstart_q_ptr[b + 1] - kargs.seqstart_q_ptr[b]
+    //
+    //     when is_gappy=true:
+    //             seqlen_k = kargs.seqlen_k_ptr[b]
+    //             seqstart_k_ptr[b] now store local offset of each batch
+    //
+    //     when is_gappy=false:
     //             seqlen_k = kargs.seqstart_k_ptr[b + 1] - kargs.seqstart_k_ptr[b]
+    //                      or kargs.seqlen_k_ptr[b]
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
     const void* seqlen_k_ptr;
@@ -251,7 +289,7 @@ struct fmha_fwd_appendkv_args
     ck_tile::index_t batch_stride_block_table; // only used if 'block_table_ptr' is not nullptr
     ck_tile::index_t page_block_size;          // only used if 'block_table_ptr' is not nullptr
 
-    const void* cache_batch_idx;
+    const void* cache_batch_idx; // only used if block_table_ptr is nullptr -> batch mode (kvcache)
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
@@ -278,87 +316,87 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
         // create group mode kernel arguments
         if constexpr(FmhaKernel::kIsGroupMode)
         {
-            return FmhaKernel::MakeKargs(args.q_ptr,
-                                         args.k_ptr,
-                                         args.v_ptr,
-                                         args.bias_ptr,
-                                         args.rand_val_ptr,
-                                         args.lse_ptr,
-                                         args.o_ptr,
-                                         args.seqstart_q_ptr,
-                                         args.seqstart_k_ptr,
-                                         args.seqlen_k_ptr,
-                                         args.hdim_q,
-                                         args.hdim_v,
-                                         args.nhead_q,
-                                         args.nhead_q / args.nhead_k,
-                                         args.scale_s,
-                                         args.scale_p,
-                                         args.scale_o,
-                                         args.stride_q,
-                                         args.stride_k,
-                                         args.stride_v,
-                                         args.stride_bias,
-                                         args.stride_randval,
-                                         args.stride_o,
-                                         args.nhead_stride_q,
-                                         args.nhead_stride_k,
-                                         args.nhead_stride_v,
-                                         args.nhead_stride_bias,
-                                         args.nhead_stride_randval,
-                                         args.nhead_stride_lse,
-                                         args.nhead_stride_o,
-                                         args.window_size_left,
-                                         args.window_size_right,
-                                         args.mask_type,
-                                         args.p_drop,
-                                         args.s_randval,
-                                         args.drop_seed_offset);
+            return FmhaKernel::MakeKargsImpl(args.q_ptr,
+                                             args.k_ptr,
+                                             args.v_ptr,
+                                             args.bias_ptr,
+                                             args.rand_val_ptr,
+                                             args.lse_ptr,
+                                             args.o_ptr,
+                                             args.seqstart_q_ptr,
+                                             args.seqstart_k_ptr,
+                                             args.seqlen_k_ptr,
+                                             args.hdim_q,
+                                             args.hdim_v,
+                                             args.nhead_q,
+                                             args.nhead_q / args.nhead_k,
+                                             args.scale_s,
+                                             args.scale_p,
+                                             args.scale_o,
+                                             args.stride_q,
+                                             args.stride_k,
+                                             args.stride_v,
+                                             args.stride_bias,
+                                             args.stride_randval,
+                                             args.stride_o,
+                                             args.nhead_stride_q,
+                                             args.nhead_stride_k,
+                                             args.nhead_stride_v,
+                                             args.nhead_stride_bias,
+                                             args.nhead_stride_randval,
+                                             args.nhead_stride_lse,
+                                             args.nhead_stride_o,
+                                             args.window_size_left,
+                                             args.window_size_right,
+                                             args.mask_type,
+                                             args.p_drop,
+                                             args.s_randval,
+                                             args.drop_seed_offset);
         }
         else
         { // create batch mode kernel arguments
-            return FmhaKernel::MakeKargs(args.q_ptr,
-                                         args.k_ptr,
-                                         args.v_ptr,
-                                         args.bias_ptr,
-                                         args.rand_val_ptr,
-                                         args.lse_ptr,
-                                         args.o_ptr,
-                                         args.seqlen_q,
-                                         args.seqlen_k,
-                                         args.hdim_q,
-                                         args.hdim_v,
-                                         args.nhead_q,
-                                         args.nhead_q / args.nhead_k,
-                                         args.scale_s,
-                                         args.scale_p,
-                                         args.scale_o,
-                                         args.stride_q,
-                                         args.stride_k,
-                                         args.stride_v,
-                                         args.stride_bias,
-                                         args.stride_randval,
-                                         args.stride_o,
-                                         args.nhead_stride_q,
-                                         args.nhead_stride_k,
-                                         args.nhead_stride_v,
-                                         args.nhead_stride_bias,
-                                         args.nhead_stride_randval,
-                                         args.nhead_stride_lse,
-                                         args.nhead_stride_o,
-                                         args.batch_stride_q,
-                                         args.batch_stride_k,
-                                         args.batch_stride_v,
-                                         args.batch_stride_bias,
-                                         args.batch_stride_randval,
-                                         args.batch_stride_lse,
-                                         args.batch_stride_o,
-                                         args.window_size_left,
-                                         args.window_size_right,
-                                         args.mask_type,
-                                         args.p_drop,
-                                         args.s_randval,
-                                         args.drop_seed_offset);
+            return FmhaKernel::MakeKargsImpl(args.q_ptr,
+                                             args.k_ptr,
+                                             args.v_ptr,
+                                             args.bias_ptr,
+                                             args.rand_val_ptr,
+                                             args.lse_ptr,
+                                             args.o_ptr,
+                                             args.seqlen_q,
+                                             args.seqlen_k,
+                                             args.hdim_q,
+                                             args.hdim_v,
+                                             args.nhead_q,
+                                             args.nhead_q / args.nhead_k,
+                                             args.scale_s,
+                                             args.scale_p,
+                                             args.scale_o,
+                                             args.stride_q,
+                                             args.stride_k,
+                                             args.stride_v,
+                                             args.stride_bias,
+                                             args.stride_randval,
+                                             args.stride_o,
+                                             args.nhead_stride_q,
+                                             args.nhead_stride_k,
+                                             args.nhead_stride_v,
+                                             args.nhead_stride_bias,
+                                             args.nhead_stride_randval,
+                                             args.nhead_stride_lse,
+                                             args.nhead_stride_o,
+                                             args.batch_stride_q,
+                                             args.batch_stride_k,
+                                             args.batch_stride_v,
+                                             args.batch_stride_bias,
+                                             args.batch_stride_randval,
+                                             args.batch_stride_lse,
+                                             args.batch_stride_o,
+                                             args.window_size_left,
+                                             args.window_size_right,
+                                             args.mask_type,
+                                             args.p_drop,
+                                             args.s_randval,
+                                             args.drop_seed_offset);
         }
     }();
 
@@ -389,6 +427,10 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.nhead_q,
                                      args.nhead_q / args.nhead_k,
                                      args.num_splits,
+                                     args.block_table_ptr,
+                                     args.batch_stride_block_table,
+                                     args.page_block_size,
+                                     args.is_gappy,
                                      args.scale_s,
                                      args.scale_p,
                                      args.stride_q,

@@ -80,7 +80,7 @@ static inline __host__ bool isnan(half_t x)
     return (xx & 0x7FFF) > 0x7C00;
 };
 
-static inline __host__ bool isnan(f8_t x) { return (x & 0x80); };
+static inline __host__ bool isnan(f8_t x) { return ck::fp8_is_nan(x); };
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 static inline __host__ bool isnan(int4_t x)
@@ -531,7 +531,7 @@ static inline __device__ bool isnan(half_t x)
     return (xx & 0x7FFF) > 0x7C00;
 };
 
-static inline __device__ bool isnan(f8_t x) { return (x & 0x80); };
+static inline __device__ bool isnan(f8_t x) { return ck::fp8_is_nan(x); };
 
 static inline __device__ half_t sqrt(half_t x)
 {
@@ -611,7 +611,7 @@ inline __device__ int8_t neg<int8_t>(int8_t x)
 template <>
 inline __device__ half_t neg<half_t>(half_t x)
 {
-    return __hneg(x);
+    return __hneg(static_cast<__half>(x));
 };
 
 template <typename T>
