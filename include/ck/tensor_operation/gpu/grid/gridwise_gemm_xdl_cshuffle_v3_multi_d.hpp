@@ -1718,7 +1718,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                 // make sure it's safe to write to LDS
                 block_sync_lds();
 
-                 if constexpr(access_id < num_access - 1)
+                if constexpr(access_id < num_access - 1)
                 {
                     constexpr auto shuffle_m0 =
                         sfc_c_vgpr.GetIndexTupleOfNumber(access_id + Number<1>{})[Number<0>{}];
@@ -1789,7 +1789,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                         tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                         I0,
                         cde_lds_and_global_step);
-                    
+
                     EpilogueScheduler();
                 }
             });
@@ -2236,7 +2236,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
             static_assert(num_access == sfc_cde_block.GetNumOfAccess(), "wrong!");
 
-             static_for<0, CShuffleMXdlPerWavePerShuffle, 1>{}([&](auto m0) {
+            static_for<0, CShuffleMXdlPerWavePerShuffle, 1>{}([&](auto m0) {
                 static_for<0, CShuffleNXdlPerWavePerShuffle, 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         vector_type<ComputeTypeA, KPack> a_thread_vec;
@@ -2340,7 +2340,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                         tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                         I0,
                         cde_lds_and_global_step);
-                    
+
                     EpilogueScheduler();
                 }
             });

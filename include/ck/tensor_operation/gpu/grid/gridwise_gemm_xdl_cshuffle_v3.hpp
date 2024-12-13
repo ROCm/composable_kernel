@@ -617,8 +617,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // A matrix in LDS memory, dst of blockwise copy
         if constexpr(ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
-            // bank conflict when writting the data into LDS, but don't worry, we have whole entire loop to hide it in v4.
-            // it may give you some benefit from less valu in compute address
+            // bank conflict when writting the data into LDS, but don't worry, we have whole entire
+            // loop to hide it in v4. it may give you some benefit from less valu in compute address
             return make_naive_tensor_descriptor(
                 make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number),
                 make_tuple(Number<MPerBlock>{} * AK1Number, AK1Number, I1));
@@ -756,8 +756,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // B matrix in LDS memory, dst of blockwise copy
         if constexpr(BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
-            // bank conflict when writting the data into LDS, but don't worry, we have whole entire loop to hide it in v4.
-            // it may give you some benefit from less valu in compute address
+            // bank conflict when writting the data into LDS, but don't worry, we have whole entire
+            // loop to hide it in v4. it may give you some benefit from less valu in compute address
             return make_naive_tensor_descriptor(
                 make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
                 make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1Number, BK1Number, I1));
