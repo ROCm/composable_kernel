@@ -194,6 +194,20 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeK()
+    {
+        return MakeKLdsBlockDescriptor<Problem>().get_element_space_size() *
+               sizeof(typename Problem::KDataType);
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeV()
+    {
+        return MakeVLdsBlockDescriptor<Problem>().get_element_space_size() *
+               sizeof(typename Problem::VDataType);
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeP()
     {
         return MakePLdsBlockDescriptor<Problem>().get_element_space_size() *
@@ -211,7 +225,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         constexpr index_t Gemm0NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
-        return GetSmemSizeQ<Problem>() + BasePolicy::template GetSmemSizeKV<Problem>() +
+        return GetSmemSizeQ<Problem>() + GetSmemSizeK<Problem>() + GetSmemSizeV<Problem>() +
                GetSmemSizeP<Problem>() + Gemm0NWarps * GetSmemSizeM<Problem>();
     }
 

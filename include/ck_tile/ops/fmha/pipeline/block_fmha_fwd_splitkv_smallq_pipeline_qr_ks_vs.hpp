@@ -180,7 +180,8 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<VDataType*>(static_cast<char*>(smem_ptr) +
-                                         Policy::template GetSmemSizeQ<Problem>()),
+                                         Policy::template GetSmemSizeQ<Problem>() +
+                                         Policy::template GetSmemSizeK<Problem>()),
             Policy::template MakeVLdsBlockDescriptor<Problem>());
         auto v_lds_window = make_tile_window(
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
@@ -189,7 +190,8 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
         auto p_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<PDataType*>(reinterpret_cast<char*>(smem_ptr) +
                                          Policy::template GetSmemSizeQ<Problem>() +
-                                         Policy::template GetSmemSizeKV<Problem>()),
+                                         Policy::template GetSmemSizeK<Problem>() +
+                                         Policy::template GetSmemSizeV<Problem>()),
             Policy::template MakePLdsBlockDescriptor<Problem>());
         auto p_lds_window = make_tile_window(
             p_lds, Policy::template MakePLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
@@ -197,7 +199,8 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
         // M tile in LDS
         auto m_lds_ptr = reinterpret_cast<SMPLComputeDataType*>(
             reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>() +
-            Policy::template GetSmemSizeKV<Problem>() + Policy::template GetSmemSizeP<Problem>());
+            Policy::template GetSmemSizeK<Problem>() + Policy::template GetSmemSizeV<Problem>() +
+            Policy::template GetSmemSizeP<Problem>());
         auto m_lds = make_tensor_view<address_space_enum::lds>(
             m_lds_ptr, Policy::template MakeMLdsBlockDescriptor<Problem>());
         auto m_lds_window = make_tile_window(
@@ -355,23 +358,25 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
 
         static_assert(2 <= k0_loops);
         static_assert(1 <= k1_loops);
+
+        auto k_dram_window = make_tile_window(
+            k_dram_block_window,
+            Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
+
+        // laod the first tile of the first iteration and store to LDS
+        auto k_block_tile = load_tile(k_dram_window);
+        // moving k_dram_window is an in-page-block operation, so there is
+        // no need to invoke k_page_block_navigator.move_tile_window() here.
+        move_tile_window(k_dram_window, {0, kK0});
+        store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
+
         do
         {
             // STAGE 1, QK gemm
-            auto k_dram_window = make_tile_window(
-                k_dram_block_window,
-                Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
-                                                                        // load
+            clear_tile(s_acc); // initialize C
 
-            auto k_block_tile = load_tile(k_dram_window);
-            {
-                // moving k_dram_window is an in-page-block operation, so there is
-                // no need to invoke k_page_block_navigator.move_tile_window() here.
-                move_tile_window(k_dram_window, {0, kK0});
-                clear_tile(s_acc); // initialize C
-                store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
-                k_block_tile = load_tile(k_dram_window);
-            }
+            // load the second tile of the first iteration
+            k_block_tile = load_tile(k_dram_window);
 
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
@@ -513,6 +518,25 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                         });
                 }
             }
+
+            __builtin_amdgcn_sched_barrier(0);
+
+            // load the first tile for next iteration
+            if(i_total_loops < num_total_loop - 1)
+            {
+                // move K tile windows
+                i_page_block_k = k_page_block_navigator.move_tile_window(
+                    i_page_block_k, k_dram_block_window, {kN0, 0});
+
+                k_dram_window = make_tile_window(
+                    k_dram_block_window,
+                    Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window
+
+                // laod the first tile of the first iteration and store to LDS
+                k_block_tile = load_tile(k_dram_window);
+            }
+
+            __builtin_amdgcn_sched_barrier(0);
 
             const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
@@ -699,9 +723,7 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                         i_page_block_v_, v_dram_window_, {0, kK1});
                 });
             }
-            // move K tile windows
-            i_page_block_k = k_page_block_navigator.move_tile_window(
-                i_page_block_k, k_dram_block_window, {kN0, 0});
+
             // tail
             {
                 block_sync_lds();
@@ -711,6 +733,18 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                                       sequence<kM0, k1_loops * kK1>{}),
                        v_lds_window);
                 block_sync_lds();
+            }
+
+            __builtin_amdgcn_sched_barrier(0);
+
+            // load the first tile for next iteration
+            if(i_total_loops < num_total_loop - 1)
+            {
+                // store the first tile for next iteration to LDS
+                // moving k_dram_window is an in-page-block operation, so there is
+                // no need to invoke k_page_block_navigator.move_tile_window() here.
+                move_tile_window(k_dram_window, {0, kK0});
+                store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
             }
         } while(++i_total_loops < num_total_loop);
 
