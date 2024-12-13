@@ -349,6 +349,7 @@ struct HostTensor
 
     // void SetZero() { ck_tile::ranges::fill<T>(mData, 0); }
     void SetZero() { std::fill(mData.begin(), mData.end(), 0); }
+    void SetValue(int value) { std::fill(mData.begin(), mData.end(), value); }
 
     template <typename F>
     void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)

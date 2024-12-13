@@ -89,14 +89,6 @@ struct FusedMoeGemmPipeline_General
         // return Policy::template GetSmemSize<Problem>();
     }
 
-    // this is the thread-offset along row/col
-    CK_TILE_HOST_DEVICE static auto GetACoord()
-    {
-        constexpr auto a_dist = Policy::template MakeGlobalTileDistribution_A<Problem>();
-        const auto a_coord    = a_dist.calculate_index();
-        return a_coord;
-    }
-
     template <typename T>
     CK_TILE_HOST_DEVICE static void
     PrintMem(T& tensor, const char* pstr, unsigned int threadid = 0, unsigned int blockid = 0)
@@ -129,20 +121,21 @@ struct FusedMoeGemmPipeline_General
               typename GWindow,
               typename DWindow,
               typename OWindow,
-              typename CWindow>
+              typename CWindow,
+              typename WWindow>
     CK_TILE_DEVICE auto operator()(const AWindow& a_window_,
                                    const GWindow& g_window_,
                                    const DWindow& d_window_,
+                                   const WWindow& w_window_,
                                    OWindow& o_window_,
-                                   TopkWeightDataType topk_weight,
                                    CK_TILE_LDS_ADDR void* smem,
                                    index_t hidden_size,
                                    index_t /*intermediate_size*/,
                                    CWindow& c_window_)
     {
-        ignore                             = topk_weight;
         ignore                             = c_window_;
         ignore                             = hidden_size;
+        ignore                             = w_window_;
         CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
         CK_TILE_LDS_ADDR GDataType* smem_1 = reinterpret_cast<CK_TILE_LDS_ADDR GDataType*>(
             smem_0 + GetSmemSizeA() / sizeof(ADataType));
@@ -233,8 +226,8 @@ struct FusedMoeGemmPipeline_General
         PrintMem(s_acc, "S", 0);
 #endif
         // relu
-        // const auto activation = ck_tile::element_wise::Gelu{};
-        // tile_elementwise_inout(activation, s_acc, s_acc);
+        const auto activation = ck_tile::element_wise::Gelu{};
+        tile_elementwise_inout(activation, s_acc, s_acc);
         // cast data to YDataType
         auto y_pre = cast_tile<YDataType>(s_acc);
 
@@ -260,6 +253,28 @@ struct FusedMoeGemmPipeline_General
         constexpr auto gemm_1   = Policy::template GetBlockGemm1<Problem>();
         using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
         auto o_acc              = OaccBlockTileType{};
+
+        constexpr auto w_dstr =
+            make_static_tile_distribution(detail::make_reduce_tile_distribution_encoding(
+                s_acc.get_tile_distribution().get_static_tile_distribution_encoding(), sequence<1>{}));
+        auto w_global_to_dram_window = make_tile_window(
+            w_window_.get_bottom_tensor_view(),
+            make_tuple(number<BlockShape::Block_M0>{}),
+            w_window_.get_window_origin(),
+            w_dstr);
+        auto w = load_tile(w_global_to_dram_window);
+        float weight = type_convert<float>(w.get_thread_buffer()[0]);
+#if 0
+        constexpr index_t w_buffer_size = decltype(w)::get_thread_buffer_size();
+        if(threadIdx.x == 1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+        {
+            for(int i = 0; i < w_buffer_size; i++)
+            {
+                printf("\n len: %d, w[%d]: %f weight: %f", w_buffer_size, i, type_convert<float>(w.get_thread_buffer()[i]), topk_weight);
+            }
+        }
+#endif
+        ignore = w;
         // y data
         auto bridge_llds_win =
             make_tile_window(bridge_lds_view,
@@ -308,7 +323,7 @@ struct FusedMoeGemmPipeline_General
                              Policy::template MakeGlobalTileDistribution_O<Problem>());
 
         auto save_o = [&]() {
-            if(blockIdx.x == 0 && (blockIdx.y == 0 || blockIdx.y == 1) && blockIdx.z == 0)
+            //if(blockIdx.x == 0 && (blockIdx.y == 0 || blockIdx.y == 1) && blockIdx.z == 0)
             {
                 if(threadIdx.x < 64)
                 {
@@ -352,8 +367,8 @@ struct FusedMoeGemmPipeline_General
             gemm_1(o_acc, y, d);
 
             // block_sync_lds();
-            // tile_elementwise_inout(
-            //     [&topk_weight](auto& x) { x = x * type_convert<float>(topk_weight); }, o_acc);
+            tile_elementwise_inout(
+                [&weight](auto& x) { x = x * type_convert<float>(weight); }, o_acc);
             auto o = cast_tile<ODataType>(o_acc);
             store_tile(o_alds_win, o);
             block_sync_lds();

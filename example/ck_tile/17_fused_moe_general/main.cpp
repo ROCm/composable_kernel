@@ -264,6 +264,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {(max_num_tokens_padded + block_m - 1) / block_m});
     ck_tile::HostTensor<IndexDataType> num_sorted_tiles_host({1});
 
+    sorted_token_ids_host.SetValue(max_num_tokens_padded);
     if(init == 0)
     {
         ck_tile::FillStepRange<ADataType>{-.5f, .5f, 0.01f}(a_host);
@@ -280,9 +281,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f, seed, true}(a_host);
         ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f, seed, true}(g_host);
         ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f, seed, true}(d_host);
-        // ck_tile::FillConstant<ADataType>{1}(a_host);
-        // ck_tile::FillConstant<GDataType>{1}(g_host);
-        // ck_tile::FillConstant<DDataType>{1}(d_host);
         ck_tile::FillUniformDistribution<AScaleDataType>{-.5f, .5f, seed, true}(sa_host);
         ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f, seed, true}(sg_host);
         ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f, seed, true}(sd_host);
@@ -300,6 +298,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillNormalDistribution<DScaleDataType>{0.f, 1.f, seed, true}(sd_host);
         ck_tile::FillNormalDistribution<YSmoothScaleDataType>{0.f, 1.f, seed, true}(sy_host);
         ck_tile::FillNormalDistribution<TopkWeightDataType>{0.f, 1.f, seed, true}(topk_weight_host);
+    }
+    else if(init == 3)
+    {
+        ck_tile::FillConstant<ADataType>{1}(a_host);
+        ck_tile::FillConstant<GDataType>{1}(g_host);
+        ck_tile::FillConstant<DDataType>{1}(d_host);
+        ck_tile::FillUniformDistribution<AScaleDataType>{-.5f, .5f, seed, true}(sa_host);
+        ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f, seed, true}(sg_host);
+        ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f, seed, true}(sd_host);
+        ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f, seed, true}(sy_host);
+        ck_tile::FillUniformDistribution<TopkWeightDataType>{0.0f, 1.0f, seed, true}(
+            topk_weight_host);
     }
 
     // permute weight
@@ -393,7 +403,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << sorted_expert_ids_host << std::endl;
     // std::cout << topk_weight_host << std::endl;
 
-    // std::cout << sorted_weight_host << std::endl;
+    std::cout << sorted_weight_host << std::endl;
     // done, preparing GPU buffer
     ck_tile::DeviceMem a_buf(a_host);
     ck_tile::DeviceMem g_perm_buf(g_host);
@@ -490,7 +500,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         auto o_dev = o_buf.ToHost<ODataType>();
         auto c_dev = c_buf.ToHost<ADataType>();
         std::cout << std::endl;
-        std::cout << o_dev << std::endl;
+        // std::cout << o_dev << std::endl;
         // std::cout << c_dev << std::endl;
         // int count = 0;
         // std::cout << "[";

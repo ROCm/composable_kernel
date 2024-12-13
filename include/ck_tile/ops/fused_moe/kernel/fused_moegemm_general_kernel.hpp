@@ -252,12 +252,12 @@ struct FusedMoeGemmGlKernel
         index_t idx_n0 =
             __builtin_amdgcn_readfirstlane(intermediate_tile_id * BlockShape::Block_N0);
 
-        const auto a_coord         = Pipeline::GetACoord(); // 2d thread offset, [i_row, i_col]
-        const auto sorted_token_id = a_coord[number<0>{}] + idx_m0; // start block_m
-                                                                    // position
+        // const auto a_coord         = Pipeline::GetACoord(); // 2d thread offset, [i_row, i_col]
+        // const auto sorted_token_id = a_coord[number<0>{}] + idx_m0; // start block_m
+        //                                                             // position
 
-        auto topk_weight =
-            reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr)[sorted_token_id];
+        // auto topk_weight =
+        //     reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr)[sorted_token_id];
 
         const index_t* sorted_token_ids_ptr =
             reinterpret_cast<const index_t*>(kargs.sorted_token_ids_ptr);
@@ -374,12 +374,28 @@ struct FusedMoeGemmGlKernel
             return o_window_;
         }();
 
+        const auto w_window = [&]() {
+            const TopkWeightDataType* w_ptr = reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr);
+            const auto w_view_     = make_naive_tensor_view<address_space_enum::global>(
+                w_ptr,
+                make_tuple(kargs.max_num_tokens_padded),
+                make_tuple(1),
+                number<1>{},
+                number<1>{});
+
+            const auto w_window_ = make_tile_window(
+                w_view_,
+                make_tuple(number<BlockShape::Block_M0>{}),
+                {idx_m0});
+            return w_window_;
+        }();
+
         // do compute yeah
         Pipeline{}(a_window,
                    g_window,
                    d_window,
+                   w_window,
                    o_window,
-                   topk_weight,
                    smem,
                    kargs.hidden_size,
                    kargs.intermediate_size,
