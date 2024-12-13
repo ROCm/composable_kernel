@@ -299,7 +299,8 @@ struct GemmKernel
     }
 
     /**
-     * Create tensor views, pad views, tile windows, run gemm and epilogue pipeline
+     * Create tensor views, pad views, tile windows.
+     * Runs GEMM cooperatively by whole workgroup with CShuffle or Default 2D Epilogue
      *
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
@@ -307,8 +308,6 @@ struct GemmKernel
      * @param kargs GEMM kernel arguments
      * @param block_idx_m M block index
      * @param block_idx_n N block index
-     *
-     * @return Runs GEMM cooperatively by whole workgroup with CShuffle or Default 2D Epilogue
      */
     CK_TILE_DEVICE void RunGemm(const ADataType* a_ptr,
                                 const BDataType* b_ptr,

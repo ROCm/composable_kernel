@@ -95,15 +95,15 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
                                                       has_hot_loop_v,
                                                       tail_number_v>>;
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKargs(args.p_a,
-                                           args.p_b,
-                                           args.p_c,
-                                           args.M,
-                                           args.N,
-                                           args.K,
-                                           args.stride_A,
-                                           args.stride_B,
-                                           args.stride_C);
+            auto kargs   = Kernel::MakeKernelArgs(args.p_a,
+                                                args.p_b,
+                                                args.p_c,
+                                                args.M,
+                                                args.N,
+                                                args.K,
+                                                args.stride_A,
+                                                args.stride_B,
+                                                args.stride_C);
 
             const dim3 grids      = Kernel::GridSize(args.M, args.N, args.kbatch);
             constexpr dim3 blocks = Kernel::BlockSize();

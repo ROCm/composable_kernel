@@ -30,38 +30,6 @@ using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
 using CDataType   = Types::CDataType;
 
-struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs
-{
-    CK_TILE_HOST BatchedGemmHostArgs() = default;
-    CK_TILE_HOST BatchedGemmHostArgs(const void* a_ptr_,
-                                     const void* b_ptr_,
-                                     void* c_ptr_,
-                                     ck_tile::index_t k_batch_,
-                                     ck_tile::index_t M_,
-                                     ck_tile::index_t N_,
-                                     ck_tile::index_t K_,
-                                     ck_tile::index_t stride_A_,
-                                     ck_tile::index_t stride_B_,
-                                     ck_tile::index_t stride_C_,
-                                     ck_tile::index_t batch_stride_A_,
-                                     ck_tile::index_t batch_stride_B_,
-                                     ck_tile::index_t batch_stride_C_,
-                                     ck_tile::index_t batch_count_)
-        : GemmHostArgs(
-              a_ptr_, b_ptr_, c_ptr_, k_batch_, M_, N_, K_, stride_A_, stride_B_, stride_C_),
-          batch_stride_A(batch_stride_A_),
-          batch_stride_B(batch_stride_B_),
-          batch_stride_C(batch_stride_C_),
-          batch_count(batch_count_)
-    {
-    }
-
-    ck_tile::index_t batch_stride_A;
-    ck_tile::index_t batch_stride_B;
-    ck_tile::index_t batch_stride_C;
-    ck_tile::index_t batch_count;
-};
-
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
