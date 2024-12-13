@@ -70,7 +70,7 @@ function(add_instance_library INSTANCE_NAME)
     # Do not build gemm_universal_f8 or gemm_multiply_multiply_f8 for any targets except gfx94
     if(NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH)
     foreach(source IN LISTS ARGN)
-    if(NOT INST_TARGETS MATCHES "gfx94" AND NOT INST_TARGETS MATCHES "gfx5" AND source MATCHES "gemm_multiply_multiply_xdl_f8")
+    if(NOT INST_TARGETS MATCHES "gfx94" AND NOT INST_TARGETS MATCHES "gfx95" AND source MATCHES "gemm_multiply_multiply_xdl_f8")
          message("removing gemm_multiply_multiply_f8 instance ${source} ")
          list(REMOVE_ITEM ARGN "${source}")
     endif()
