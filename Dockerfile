@@ -64,7 +64,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     nano \
     zlib1g-dev \
     zip \
-    zstd \
+    libzstd-dev \
     openssh-server \
     clang-format-12 \
     kmod && \
