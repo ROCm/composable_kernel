@@ -37,6 +37,15 @@ enum class naive_attention_variation_enum
 enum class naive_attention_quant_algo
 {
     NO = 0,
+    // FP8 quantization for KVCache (tokens is seqlen, became larger while running)
+    // K, V has layout [nhead, tokens, hdim] (ignore the real KVCache layout)
+    // K has per-token quant [nhead, tokens] of float dequant value
+    // inside kernel, only need multiply a single float value after first gemm
+    // ... since hdim is the gemm-k dimensino of 1st gemm
+    // V has per-token-group quant [nhead, token-groups] of float dequant value
+    // inside kernel, also only need multiply a single float value after first gemm
+    // ... seqlen is the gemm-k dimension of 2nd gemm
+    // but since we group them together, so group-size should be same as unroll-k
     FP8_K_PERTOKEN_V_PERGROUP_TOKEN,
     INT8_KV_PERHEAD, // maybe not performant in real product kernel
 };
@@ -383,9 +392,10 @@ struct naive_attention_fwd_kernel
         auto f_max        = [](auto x_, auto y_) { return max(x_, y_); };
         auto f_sum        = [](auto x_, auto y_) { return x_ + y_; };
         auto f_absmax_f32 = [](float v_0_, float v_1_) {
-            float rtn;
-            asm volatile("v_max_f32 %0, abs(%1), abs(%2)" : "=v"(rtn) : "v"(v_0_), "v"(v_1_));
-            return rtn;
+            // float rtn;
+            // asm volatile("v_max_f32 %0, abs(%1), abs(%2)" : "=v"(rtn) : "v"(v_0_), "v"(v_1_));
+            // return rtn;
+            return max(abs(v_0_), abs(v_1_));
         };
 
         int seqlen_kv = [&]() {
@@ -452,7 +462,7 @@ struct naive_attention_fwd_kernel
                 float q = 0;
                 if(static_cast<int>(threadIdx.x) < args.hdim)
                 {
-                    q = type_convert<float>(q_addr.load(0, threadIdx.x));
+                    q = type_convert<float>(q_addr.load(i_sq, threadIdx.x));
                 }
 
                 // apply smooth-quant
@@ -638,7 +648,7 @@ struct naive_attention_fwd_kernel
                                 // simpliciy
                                 int i_tokengroup = i_sv / v_per_token_quant_group_size;
                                 auto v_scale =
-                                    type_convert<float>(vscale_addr.load(i_tokengroup, i_dv, 0));
+                                    type_convert<float>(vscale_addr.load(i_tokengroup, i_hk, 0));
                                 return v_scale * type_convert<AccType>(v);
                             }
                             else
