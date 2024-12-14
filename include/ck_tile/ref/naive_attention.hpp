@@ -593,6 +593,7 @@ struct naive_attention_fwd_kernel
                 {
                     // smooth-quant
                     // find absmax
+#if 0
                     float p_max = wave_reduce(p_compute, f_absmax_f32);
                     p_max = cross_wave_reduce(p_max, f_absmax_f32, reinterpret_cast<float*>(smem));
 
@@ -601,6 +602,12 @@ struct naive_attention_fwd_kernel
 
                     // devide by scale
                     p_compute = p_compute / p_dequant_scale;
+#else
+                    // p, after softmax, always has 1 as max(refer to previous softmax equation)
+                    // so p_max is always 1, p_dequant_scale always 1/240
+                    p_dequant_scale = 1.0 / 240.0;
+                    p_compute *= 240.0;
+#endif
 
                     // fp32->i8
                     fp8_t quantized_p = type_convert<fp8_t>(p_compute);
