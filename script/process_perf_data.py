@@ -332,7 +332,7 @@ def main():
             table_name="ck_fmha_bwd_tflops"
 
         tflops_base = get_baseline(table_name,conn)
-        store_new_test_result(table_name, results, testlist, branch_name, node_id, gpu_arch, compute_units, rocm_vers, hip_vers, environment, conn)
+        store_new_test_result(table_name, results, testlist, branch_name, node_id, gpu_arch, compute_units, rocm_vers, hip_vers, environment, sqlEngine)
         conn.close()
 
     #compare the results to the baseline if baseline exists
