@@ -566,10 +566,8 @@ def Build_CK(Map conf=[:]){
                                 ls -ltr
                                 CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install"
                                 cmake --build build -- -j
+                                ctest --test-dir build
                             """
-                        }
-                        dir("hipTensor-${params.hipTensor_branch}/build"){
-                            sh 'ctest'
                         }
                     }
                 }
