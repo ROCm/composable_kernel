@@ -1,5 +1,5 @@
 #!/bin/bash
-EXE="$(find . -name tile_example_gemm_mem_basic -type f | head -n 1)"
+EXE="$(find . -name tile_example_gemm_universal_gemm -type f | head -n 1)"
 KNAME=1
 
 export CK_WARMUP=0

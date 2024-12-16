@@ -976,7 +976,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 tile_example_gemm_basic tile_example_gemm_mem_pipeline && \
+                                           make -j64 tile_example_gemm_basic tile_example_gemm_universal_gemm && \
                                            cd ../ &&
                                            example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
                     }
@@ -995,7 +995,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make -j64 tile_example_gemm_basic tile_example_gemm_mem_pipeline && \
+                                           make -j64 tile_example_gemm_basic tile_example_gemm_universal_gemm && \
                                            cd ../ &&
                                            example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                     }
