@@ -23,19 +23,28 @@ add_custom_command(
   --api ${LAYERNORM2D_FWD_ENABLE_APIS} --working_path ${CMAKE_CURRENT_BINARY_DIR} --gen_blobs
 )
 
-set(EXAMPLE_LAYERNORM2D_FWD "tile_example_layernorm2d_fwd")
+set(LAYERNORM2D_FWD "tile_layernorm2d_fwd")
 
-message("adding example ${EXAMPLE_LAYERNORM2D_FWD}")
-add_executable(${EXAMPLE_LAYERNORM2D_FWD} EXCLUDE_FROM_ALL layernorm2d_fwd.cpp)
-target_include_directories(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${LAYERNORM2D_FWD_GEN_BLOBS})
+message("adding ${LAYERNORM2D_FWD}")
+add_executable(${LAYERNORM2D_FWD} EXCLUDE_FROM_ALL layernorm2d_fwd.cpp)
+target_include_directories(${LAYERNORM2D_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_sources(${LAYERNORM2D_FWD} PRIVATE ${LAYERNORM2D_FWD_GEN_BLOBS})
 
-set(EXAMPLE_LAYERNORM2D_FWD_COMPILE_OPTIONS)
+set(LAYERNORM2D_FWD_COMPILE_OPTIONS)
 
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
-list(APPEND EXAMPLE_LAYERNORM2D_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
+list(APPEND LAYERNORM2D_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
 
-target_compile_options(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${EXAMPLE_LAYERNORM2D_FWD_COMPILE_OPTIONS})
+target_compile_options(${LAYERNORM2D_FWD} PRIVATE ${LAYERNORM2D_FWD_COMPILE_OPTIONS})
+
+# kernel example
+set(EXAMPLE_LAYERNORM2D_FWD "tile_example_layernorm2d_fwd")
+
+message("adding ${EXAMPLE_LAYERNORM2D_FWD}")
+add_executable(${EXAMPLE_LAYERNORM2D_FWD} EXCLUDE_FROM_ALL example_layernorm2d_fwd.cpp)
+target_include_directories(${LAYERNORM2D_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_compile_options(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${LAYERNORM2D_FWD_COMPILE_OPTIONS})
+
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long

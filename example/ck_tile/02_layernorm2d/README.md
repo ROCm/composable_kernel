@@ -24,8 +24,8 @@ we support smooth/dynamic quantization for `int8` output, by setting `-fquant=1`
 # assume output int8, hidden_states is [m, n] shape and in fp16/bf16
 # [m, 1]
 per_token_amax, _ = torch.max(
-     input=torch.abs(hidden_states), 
-     dim=-1, 
+     input=torch.abs(hidden_states),
+     dim=-1,
      keepdim=True
 )
 per_token_scale = per_token_amax.to(dtype=torch.float32) / 127.0
@@ -43,11 +43,11 @@ return hidden_states, per_token_scale
 # in the root of ck_tile
 mkdir build && cd build
 sh ../script/cmake-ck-dev.sh  ../ <arch>  # you can replace this <arch> to gfx90a, gfx942...
-make tile_example_layernorm2d_fwd -j
+make tile_layernorm2d_fwd -j
 ```
-This will result in an executable `build/bin/tile_example_layernorm2d_fwd`
+This will result in an executable `build/bin/tile_layernorm2d_fwd`
 
-## example
+## argument
 ```
 args:
           -m    m dimension (default:3328)
@@ -74,12 +74,12 @@ Note that `fquant=2`, `fadd=2`, `prec_sx/prec_sy` other than `fp32` are not by d
 ```
 # some case
 # standard fp16 layernorm 2d, m=10. n=1024
-./build/bin/tile_example_layernorm2d_fwd  -m=10 -n=1024
+./build/bin/tile_layernorm2d_fwd  -m=10 -n=1024
 
 # standard fp16 layernorm 2d, m=10. n=1024, fused-smooth-quant, output in int8
-./build/bin/tile_example_layernorm2d_fwd  -m=10 -n=1024 -prec_o=int8 -fquant=1
+./build/bin/tile_layernorm2d_fwd  -m=10 -n=1024 -prec_o=int8 -fquant=1
 
 # standard fp16 layernorm 2d, m=10. n=1024, fused-smooth-quant+fused-add-store, output in int8
-./build/bin/tile_example_layernorm2d_fwd  -m=10 -n=1024 -prec_o=int8 -fquant=1 -fadd=1
+./build/bin/tile_layernorm2d_fwd  -m=10 -n=1024 -prec_o=int8 -fquant=1 -fadd=1
 
 ```
