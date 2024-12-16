@@ -31,7 +31,7 @@ enum struct GemmDataType
 
 int profile_batched_gemm_universal(int argc, char* argv[])
 {
-    if(argc != 18 && argc != 21)
+    if(argc != 19 && argc != 22)
     {
         // clang-format off
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
@@ -44,11 +44,11 @@ int profile_batched_gemm_universal(int argc, char* argv[])
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg6: print tensor value (0: no; 1: yes)\n");
         printf("arg7: time kernel (0=n0, 1=yes)\n");
-        printf("arg8 to 17: M, N, K, StrideA, StrideB, StrideC, BatchStrideA, BatchStrideB, BatchStrideC, BatchCount\n");
+        printf("arg8 to 18: M, N, K, StrideA, StrideB, StrideC, BatchStrideA, BatchStrideB, BatchStrideC, BatchCount, KBatch\n");
         printf("optional:\n");
-        printf("arg18: number of warm-up cycles (default 1)\n");
-        printf("arg19: number of iterations (default 10)\n");
-        printf("arg20: memory for rotating buffer (default 0, size in MB)\n");
+        printf("arg19: number of warm-up cycles (default 1)\n");
+        printf("arg20: number of iterations (default 10)\n");
+        printf("arg21: memory for rotating buffer (default 0, size in MB)\n");
         // clang-format on
         exit(1);
     }
@@ -56,11 +56,11 @@ int profile_batched_gemm_universal(int argc, char* argv[])
     int n_warmup      = 1;
     int n_iter        = 10;
     uint64_t rotating = 0;
-    if(argc == 21)
+    if(argc == 22)
     {
-        n_warmup = std::stoi(argv[18]);
-        n_iter   = std::stoi(argv[19]);
-        rotating = std::stoull(argv[20]) * 1024 * 1024;
+        n_warmup = std::stoi(argv[19]);
+        n_iter   = std::stoi(argv[20]);
+        rotating = std::stoull(argv[21]) * 1024 * 1024;
     }
 
     const auto data_type       = static_cast<GemmDataType>(std::stoi(argv[2]));
@@ -83,6 +83,7 @@ int profile_batched_gemm_universal(int argc, char* argv[])
     const int BatchStrideC = std::stoi(argv[16]);
 
     const int BatchCount = std::stoi(argv[17]);
+    const int KBatch     = std::stoi(argv[18]);
 
 #if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
     using F8 = ck::f8_t;
@@ -159,6 +160,7 @@ int profile_batched_gemm_universal(int argc, char* argv[])
                                                                                     StrideB_,
                                                                                     StrideC_,
                                                                                     BatchCount,
+                                                                                    KBatch,
                                                                                     n_warmup,
                                                                                     n_iter,
                                                                                     rotating);
