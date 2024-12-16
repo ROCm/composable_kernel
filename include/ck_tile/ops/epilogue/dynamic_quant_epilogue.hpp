@@ -127,11 +127,13 @@ struct DynamicQuantEpilogue
 
         auto o_acc_tmp = o_acc_tile;
 
-        sweep_tile(o_acc_tmp, [&](auto idx) {
-            constexpr auto j_idx = make_tuple(idx[number<1>{}]);
-            const auto xs_       = type_convert<AccDataType>(x_scale[j_idx]);
-            o_acc_tmp(idx)       = o_acc_tmp(idx) * xs_;
-        });
+        if constexpr(!std::is_same_v<remove_cvref_t<decltype(x_scale)>, ck_tile::null_tensor>){
+            sweep_tile(o_acc_tmp, [&](auto idx) {
+                constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+                const auto xs_       = type_convert<AccDataType>(x_scale[j_idx]);
+                o_acc_tmp(idx)       = o_acc_tmp(idx) * xs_;
+            });
+        }
 
         const auto f_absmax = [](auto acc_, auto v_0_) { return max(acc_, abs(v_0_)); };
 

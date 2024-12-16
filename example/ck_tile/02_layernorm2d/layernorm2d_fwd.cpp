@@ -102,6 +102,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cout << "if fused_quant is 1, only support \"-prec_o=int8\" case" << std::endl;
         return false;
     }
+    if(fused_quant == 2 && prec_o != "int8")
+    {
+        std::cout << "if fused_quant is 2, only support \"-prec_o=int8\" case" << std::endl;
+        return false;
+    }
 
     assert(x_stride >= n);
 

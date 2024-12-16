@@ -34,6 +34,7 @@ FUSED_ADD_ENUM_STR_MAP = [
 
 FUSED_FUSED_SWEEP_STR_MAP = [
     'no',
+    'smoothdquant',
     'dquant' ]
 
 DATA_TYPE_MAP = {'fp32' : 'float',
@@ -223,7 +224,7 @@ float layernorm2d_fwd_(const S& s, A a)
 
     using DynamicQuantEpilogue = ck_tile::DynamicQuantEpilogue<DynamicQuantEpilogueProblem>;
 
-    using Epilogue = std::conditional_t<Traits_::kFusedQuant == 1, DynamicQuantEpilogue,  Default2DEpilogue>;
+    using Epilogue = std::conditional_t<(Traits_::kFusedQuant >= 1), DynamicQuantEpilogue,  Default2DEpilogue>;
 
     using Kernel = ck_tile::Layernorm2dFwd<Pipeline, Epilogue>;
 
@@ -504,12 +505,11 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
         scale_list = [('fp32,fp32')]
         dtype_list = [('fp16,fp16'), ('bf16,bf16'),
                         ('fp16,int8'), ('bf16,int8')] # NOTE: only fused-dynamic-quant use int8 out
-        #bias_list = [0, 1]
         #fused_add_list = [0, 1, 2]
         #fused_sweep_list = [0, 1, 2] # NOTE: only single pass can use fused dynamic quant
         bias_list = [0, 1]
         fused_add_list = [0, 1]
-        fused_sweep_list = [0, 1] # NOTE: only single pass can use fused dynamic quant
+        fused_sweep_list = [0, 1, 2] # NOTE: only single pass can use fused dynamic quant
 
         #                                                       rm  rn  tm   tn  vn  pd     mv     fdiv  2p     bias   add   sweep
         h_trait_dict = {'64'  : [ h_traits('x', 'y', 'xs', 'ys', 1,  1,  8,  8,  8,  True,  False, True, False,   0,    0,    0),
@@ -567,9 +567,9 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
             for dtype, scale_type, bias, fused_add, fused_quant in itertools.product(dtype_list, scale_list, bias_list, fused_add_list, fused_sweep_list):
                 prec_i, prec_o = dtype.split(',')
                 scale_x, scale_y = scale_type.split(',')
-                if prec_o in dynamic_quant_out_dtype and fused_quant != 1:
+                if prec_o in dynamic_quant_out_dtype and fused_quant == 0:
                     continue # skip non dynamic quant case
-                if fused_quant == 1 and hs_key == 'big':
+                if (fused_quant == 1 or fused_quant == 2) and hs_key == 'big':
                     continue
                 current_hs = list()
                 for chs_ in hs:
