@@ -230,23 +230,24 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(do_validation)
     {
         // reference
-        if(fused_add != 0)
+        if(bias != 0)
         {
-            if(bias != 0)
+            // add bias before fadd
+            int M = x_host.mDesc.get_lengths()[0];
+            int N = x_host.mDesc.get_lengths()[1];
+            for(int idx_m = 0; idx_m < M; ++idx_m)
             {
-                // add bias before fadd
-                int M = x_host.mDesc.get_lengths()[0];
-                int N = x_host.mDesc.get_lengths()[1];
-                for(int idx_m = 0; idx_m < M; ++idx_m)
+                for(int idx_n = 0; idx_n < N; ++idx_n)
                 {
-                    for(int idx_n = 0; idx_n < N; ++idx_n)
-                    {
-                        x_host(idx_m, idx_n) = ck_tile::type_convert<XDataType>(
-                            ck_tile::type_convert<ComputeDataType>(x_host(idx_m, idx_n)) +
-                            ck_tile::type_convert<ComputeDataType>(x_bias_host(idx_n)));
-                    }
+                    x_host(idx_m, idx_n) = ck_tile::type_convert<XDataType>(
+                        ck_tile::type_convert<ComputeDataType>(x_host(idx_m, idx_n)) +
+                        ck_tile::type_convert<ComputeDataType>(x_bias_host(idx_n)));
                 }
             }
+        }
+
+        if(fused_add != 0)
+        {
             // fused pre_add/pre_add_store
             // TODO we accumulate directly to x_host for simplcity here...
 

@@ -130,16 +130,19 @@ struct Layernorm2dFwdPipelineTwoPass
             move_tile_window(x_bias_window, {Block_N});
             auto acc = cast_tile<ComputeDataType>(x);
 
+            if constexpr(kBias == Layernorm2dBiasEnum::ADD_BIAS)
+            {
+                sweep_tile(x, [&](auto idx) {
+                    // compute x = bias + x
+                    constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+                    acc(idx)             = type_convert<ComputeDataType>(x_bias[j_idx]) + acc(idx);
+                });
+            }
+
             if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE ||
                          kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD)
             {
                 sweep_tile(x_resi, [&](auto idx) {
-                    if constexpr(kBias == Layernorm2dBiasEnum::ADD_BIAS)
-                    {
-                        // compute x = bias + x
-                        constexpr auto j_idx = make_tuple(idx[number<1>{}]);
-                        acc(idx) = type_convert<ComputeDataType>(x_bias[j_idx]) + acc(idx);
-                    }
                     // compute x = x_resi + x
                     acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
                 });
@@ -194,16 +197,19 @@ struct Layernorm2dFwdPipelineTwoPass
             const auto x_bias = load_tile(x_bias_window);
             auto acc          = cast_tile<ComputeDataType>(x);
 
+            if constexpr(kBias == Layernorm2dBiasEnum::ADD_BIAS)
+            {
+                sweep_tile(x, [&](auto idx) {
+                    // compute x = bias + x
+                    constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+                    acc(idx)             = type_convert<ComputeDataType>(x_bias[j_idx]) + acc(idx);
+                });
+            }
+
             if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE ||
                          kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD)
             {
                 sweep_tile(x_resi, [&](auto idx) {
-                    if constexpr(kBias == Layernorm2dBiasEnum::ADD_BIAS)
-                    {
-                        // compute x = bias + x
-                        constexpr auto j_idx = make_tuple(idx[number<1>{}]);
-                        acc(idx) = type_convert<ComputeDataType>(x_bias[j_idx]) + acc(idx);
-                    }
                     // compute x = x_resi + x
                     acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
                 });
