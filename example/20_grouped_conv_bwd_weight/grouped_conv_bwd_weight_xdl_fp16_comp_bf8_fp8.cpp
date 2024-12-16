@@ -69,7 +69,6 @@ using DeviceConvBwdWeightInstance =
         2,                    // CBlockTransferScalarPerVector_NWaveNPerXdl
         ck::BlockGemmPipelineScheduler::Intrawave, // BlkGemmPipeSched
         ck::BlockGemmPipelineVersion::v1,          // BlkGemmPipelineVer
-        1,                                         // NumGroupsToMerge
         ComputeTypeA,                              // ComputeTypeA
         ComputeTypeB>;                             // ComputeTypeB
 
