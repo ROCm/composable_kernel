@@ -37,8 +37,8 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
-
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#endif
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
     // Compute friendly for Intrawave scheduler
     constexpr ck_tile::index_t M_Tile = 256;
     constexpr ck_tile::index_t N_Tile = 256;
@@ -57,6 +57,8 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
 
+    constexpr bool TransposeC = false;
+
     constexpr int kBlockPerCu = 1;
 
     // ===============================================
@@ -71,10 +73,13 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
 
     using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+    using GemmUniversalTraits = ck_tile::
+        TileGemmUniversalTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, TransposeC>;
+
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
     using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
-    using BaseGemmPipeline                 = ck_tile::BaseGemmPipelineAgBgCrCompV3<
+    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<
 #endif
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
 
@@ -97,14 +102,16 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                                                   BDataType,
                                                   AccDataType,
                                                   GemmShape,
-                                                  Traits,
+                                                  GemmUniversalTraits,
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
                                                   ck_tile::GemmPipelineScheduler::Interwave,
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
                                                   ck_tile::GemmPipelineScheduler::Intrawave,
 #endif
                                                   has_hot_loop_v,
-                                                  tail_number_v>>;
+                                                  tail_number_v>,
+            ck_tile::UniversalGemmPipelineAgBgCrPolicy>;
+
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKargs(args.p_a,
                                        args.p_b,
@@ -139,6 +146,21 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 
     if(has_hot_loop)
     {
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+        if(tail_num == ck_tile::TailNumber::Full)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
+        else
+        {
+            std::ostringstream err;
+            err << "For compute pipeline tail number should always be Full, but have \"" << tail_num
+                << "\" which is not supported! PrefetchStages: " << BaseGemmPipeline::PrefetchStages
+                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+            throw std::runtime_error(err.str());
+        }
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
         // Tail pipeline One to Seven
         if(tail_num == ck_tile::TailNumber::One)
         {
@@ -199,6 +221,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
             }
         }
+#endif
     }
     else
     {
