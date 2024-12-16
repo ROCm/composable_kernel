@@ -11,9 +11,9 @@ sh ../script/cmake-ck-dev.sh  ../ <arch>
 # The basic pipeline method on the gemm calculation
 make tile_example_gemm_basic -j
 # The memory bound pipeline on the gemm calculation
-make tile_example_gemm_universal_gemm -j
+make tile_example_gemm_universal -j
 ```
-This will result in an executable `build/bin/tile_example_gemm_basic` & `build/bin/tile_example_gemm_universal_gemm`
+This will result in an executable `build/bin/tile_example_gemm_basic` & `build/bin/tile_example_gemm_universal`
 
 ## example
 ```

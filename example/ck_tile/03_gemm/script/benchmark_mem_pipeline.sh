@@ -1,5 +1,5 @@
 #!/bin/sh
-EXE="$(find . -name tile_example_gemm_universal_gemm -type f | head -n 1)"
+EXE="$(find . -name tile_example_gemm_universal -type f | head -n 1)"
 VALID=0
 a_layouts=("R" "C")
 b_layouts=("R" "C")
