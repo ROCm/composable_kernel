@@ -412,7 +412,7 @@ int main(int argc, char* argv[])
     else if(prec_i == "bf16" && prec_o == "bf16" && prec_sx == "fp32" && prec_sy == "fp32" &&
             !save_mv)
     {
-        return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, false>(arg_parser) ? 0 : -2;
     }
 
     // dynamic quant case, only in inference
