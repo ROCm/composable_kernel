@@ -25,7 +25,7 @@ struct GemmKernel
 
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
-    // using CAccDataType = remove_cvref_t<typename GemmPipeline::CDataType>;
+    // Below type is actually accumulation data type - the output of block GEMM.
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     __host__ static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
@@ -238,7 +238,7 @@ struct GemmKernel
 
         const index_t num_loop = TilePartitioner::GetLoopNum(kargs.K);
 
-        // Run GEMM cooperatively by whole wokrgroup.
+        // Run GEMM cooperatively by whole workgroup.
         auto c_block_tile =
             GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr);
 

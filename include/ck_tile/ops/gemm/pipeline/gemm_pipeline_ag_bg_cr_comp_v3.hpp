@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1_default_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
 
@@ -37,7 +37,7 @@ struct BaseGemmPipelineAgBgCrCompV3
 // LocalPreFillStages: 1
 // LocalPreFetchStages: 1
 // LocalSharedMemoryBuffer: 1
-template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCRegV1DefaultPolicy>
+template <typename Problem, typename Policy = UniversalGemmPipelineAgBgCrPolicy>
 struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
@@ -62,15 +62,14 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t VectorSizeA = Problem::VectorSizeA;
-    static constexpr index_t VectorSizeB = Problem::VectorSizeB;
-    static constexpr index_t VectorSizeC = Problem::VectorSizeC;
+    static constexpr index_t VectorSizeA = Policy::template GetVectorSizeA<Problem>();
+    static constexpr index_t VectorSizeB = Policy::template GetVectorSizeB<Problem>();
+    static constexpr index_t VectorSizeC = Policy::template GetVectorSizeC<Problem>();
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
-    // Where is the right place for HasHotLoop and TailNum ???
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
