@@ -337,6 +337,17 @@ def cmake_build(Map conf=[:]){
             echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
         }
     }
+    if (params.RUN_CK_TILE_GEMM_TESTS){
+        try{
+            archiveArtifacts "perf_gemm_basic_*.log"
+            archiveArtifacts "perf_gemm_mem_pipeline_*.log"
+            stash includes: "perf_gemm_**_gfx942.log", name: "perf_gemm_log_gfx942"
+            stash includes: "perf_gemm_**_gfx90a.log", name: "perf_gemm_log_gfx90a"
+        }
+        catch(Exception err){
+            echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
+        }
+    }
 }
 
 def buildHipClangJob(Map conf=[:]){
@@ -630,6 +641,15 @@ def process_results(Map conf=[:]){
                         }
                         catch(Exception err){
                             echo "could not locate the FMHA performance logs: ${err.getMessage()}."
+                        }
+                    }
+                    if (params.RUN_CK_TILE_GEMM_TESTS){
+                        try{
+                            unstash "perf_gemm_log_gfx942"
+                            unstash "perf_gemm_log_gfx90a"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the GEMM performance logs: ${err.getMessage()}."
                         }
                     }
                     if (params.RUN_FULL_QA){
@@ -958,7 +978,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 tile_example_gemm_basic && \
+                                           make -j64 tile_example_gemm_basic tile_example_gemm_mem_pipeline && \
                                            cd ../ &&
                                            example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
                     }
@@ -977,7 +997,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make -j64 tile_example_gemm_basic && \
+                                           make -j64 tile_example_gemm_basic tile_example_gemm_mem_pipeline && \
                                            cd ../ &&
                                            example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                     }
