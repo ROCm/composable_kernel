@@ -47,6 +47,8 @@ enum class naive_attention_quant_algo
     // ... seqlen is the gemm-k dimension of 2nd gemm
     // but since we group them together, so group-size should be same as unroll-k
     FP8_K_PERTOKEN_V_PERGROUP_TOKEN,
+    // FP8 quant for KVCache, per-token quant
+    FP8_KV_PERTOKEN,
     INT8_KV_PERHEAD, // maybe not performant in real product kernel
 };
 
@@ -60,8 +62,8 @@ struct naive_attention_fwd_args
     void* context_len_ptr; // [batch] used when seqlen kv come from a pointer(each element is a
                            // number, not cumsum)
     void* page_table_ptr;  // [batch, max_pages_per_seq] seqlen_kv is in different block(paged attn)
-    void* kscale_ptr;      // [tokens, nhead] used for kvcache dequant
-    void* vscale_ptr;      // [tokens_per_group, nhead] used for kvcache dequant
+    void* kscale_ptr;      // [nhead, tokens] used for kvcache dequant
+    void* vscale_ptr;      // [nhead, tokens] used for kvcache dequant
     float scale_s;
     int hdim;
     int hdim_v; // could be cross-attn, where V and Q/K hdim are different
@@ -75,6 +77,7 @@ struct naive_attention_fwd_args
     int nhead_ratio_kv; // nhead_q / nhead_kv
     int page_size;      // if paged, the seqlen-kv per each block
     int max_pages_per_seq;
+    int max_kv_tokens; // used as stride to access kv scale ptr
 };
 
 // this is trait for host API
@@ -454,7 +457,8 @@ struct naive_attention_fwd_kernel
             // 1) int8 q data stored in smem(no need to reload)
             // 2) per-token scale q_dequant_scale, to be mul after 1st gemm
         }
-        else if(Traits::quant_algo == naive_attention_quant_algo::FP8_K_PERTOKEN_V_PERGROUP_TOKEN)
+        else if(Traits::quant_algo == naive_attention_quant_algo::FP8_K_PERTOKEN_V_PERGROUP_TOKEN ||
+                Traits::quant_algo == naive_attention_quant_algo::FP8_KV_PERTOKEN)
         {
             if(std::is_same_v<QType, fp16_t> || std::is_same_v<QType, bf16_t>)
             {
@@ -504,8 +508,11 @@ struct naive_attention_fwd_kernel
                         {
                             return reinterpret_cast<int8_t*>(smem)[i_dq];
                         }
-                        else if constexpr(Traits::quant_algo == naive_attention_quant_algo::
-                                                                    FP8_K_PERTOKEN_V_PERGROUP_TOKEN)
+                        else if constexpr(Traits::quant_algo ==
+                                              naive_attention_quant_algo::
+                                                  FP8_K_PERTOKEN_V_PERGROUP_TOKEN ||
+                                          Traits::quant_algo ==
+                                              naive_attention_quant_algo::FP8_KV_PERTOKEN)
                         {
                             return reinterpret_cast<fp8_t*>(smem)[i_dq];
                         }
@@ -525,7 +532,8 @@ struct naive_attention_fwd_kernel
                     s_softmax *= q_dequant_scale; // post scale the per-token factor
                 }
                 else if constexpr(Traits::quant_algo ==
-                                  naive_attention_quant_algo::FP8_K_PERTOKEN_V_PERGROUP_TOKEN)
+                                      naive_attention_quant_algo::FP8_K_PERTOKEN_V_PERGROUP_TOKEN ||
+                                  Traits::quant_algo == naive_attention_quant_algo::FP8_KV_PERTOKEN)
                 {
                     float k_per_token_scale = type_convert<float>(kscale_addr.load(i_sk, i_hk, 0));
                     s_softmax *= q_dequant_scale;
@@ -593,7 +601,6 @@ struct naive_attention_fwd_kernel
                 {
                     // smooth-quant
                     // find absmax
-#if 0
                     float p_max = wave_reduce(p_compute, f_absmax_f32);
                     p_max = cross_wave_reduce(p_max, f_absmax_f32, reinterpret_cast<float*>(smem));
 
@@ -602,12 +609,32 @@ struct naive_attention_fwd_kernel
 
                     // devide by scale
                     p_compute = p_compute / p_dequant_scale;
-#else
-                    // p, after softmax, always has 1 as max(refer to previous softmax equation)
-                    // so p_max is always 1, p_dequant_scale always 1/240
-                    p_dequant_scale = 1.0 / 240.0;
-                    p_compute *= 240.0;
-#endif
+
+                    // fp32->i8
+                    fp8_t quantized_p = type_convert<fp8_t>(p_compute);
+                    __syncthreads();
+                    reinterpret_cast<fp8_t*>(smem)[threadIdx.x] = quantized_p;
+                    __syncthreads();
+                    // after above process, we have 2 data
+                    // 1) fp8_t p data stored in smem(no need to reload)
+                    // 2) per-token scale p_dequant_scale, to be mul after 2nd gemm
+                }
+                else if(Traits::quant_algo == naive_attention_quant_algo::FP8_KV_PERTOKEN)
+                {
+                    // forward apply the v scale to p_compute, this is compute friendly
+                    auto v_scale = type_convert<float>(vscale_addr.load(i_sk, i_hk, 0));
+                    p_compute *= v_scale;
+
+                    // smooth-quant
+                    // find absmax
+                    float p_max = wave_reduce(p_compute, f_absmax_f32);
+                    p_max = cross_wave_reduce(p_max, f_absmax_f32, reinterpret_cast<float*>(smem));
+
+                    // per-token scale
+                    p_dequant_scale = p_max / 240.0;
+
+                    // devide by scale
+                    p_compute = p_compute / p_dequant_scale;
 
                     // fp32->i8
                     fp8_t quantized_p = type_convert<fp8_t>(p_compute);
@@ -674,7 +701,8 @@ struct naive_attention_fwd_kernel
                         type_convert<AccType>(type_convert<float>(o_acc_local) * p_dequant_scale);
                 }
                 else if constexpr(Traits::quant_algo ==
-                                  naive_attention_quant_algo::FP8_K_PERTOKEN_V_PERGROUP_TOKEN)
+                                      naive_attention_quant_algo::FP8_K_PERTOKEN_V_PERGROUP_TOKEN ||
+                                  Traits::quant_algo == naive_attention_quant_algo::FP8_KV_PERTOKEN)
                 {
                     // apply pr scale to local acc
                     o_acc_local =
@@ -786,25 +814,25 @@ CK_TILE_HOST float naive_attention_fwd(naive_attention_fwd_traits t,
         CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_LAOYUT_();
     }
     else if(t.q_type == "bf16" && t.k_type == "fp8" && t.v_type == "fp8" && t.o_type == "bf16" &&
-            t.quant_algo == 1)
+            t.quant_algo == 2)
     {
         using q_type_             = bf16_t;
         using k_type_             = fp8_t;
         using v_type_             = fp8_t;
         using o_type_             = bf16_t;
         using acc_type_           = float; // NOTE!
-        constexpr int quant_algo_ = 1;
+        constexpr int quant_algo_ = 2;
         CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_LAOYUT_();
     }
     else if(t.q_type == "fp16" && t.k_type == "fp8" && t.v_type == "fp8" && t.o_type == "fp16" &&
-            t.quant_algo == 1)
+            t.quant_algo == 2)
     {
         using q_type_             = fp16_t;
         using k_type_             = fp8_t;
         using v_type_             = fp8_t;
         using o_type_             = fp16_t;
         using acc_type_           = float; // NOTE!
-        constexpr int quant_algo_ = 1;
+        constexpr int quant_algo_ = 2;
         CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_LAOYUT_();
     }
     return r;
