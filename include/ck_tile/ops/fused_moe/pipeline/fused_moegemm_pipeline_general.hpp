@@ -348,22 +348,28 @@ struct FusedMoeGemmPipeline_General
         while(iCounter1 > 0)
         {
             clear_tile(o_acc);
-            block_sync_lds();
+            block_sync_lds_direct_load();
             gemm_1(o_acc, y, d);
-            block_sync_lds();
+
             move_tile_window(d_global_to_dram_window, {kN1, 0});
             d = load_tile(d_global_to_dram_window);
+
             // move out window and save data
+            tile_elementwise_inout([&weight](auto& x) { x = x * type_convert<float>(weight); },
+                                   o_acc);
             auto o = cast_tile<ODataType>(o_acc);
-            store_tile(o_window_, o);
-            move_tile_window(o_window_, {kN1, 0});
+            store_tile(o_alds_win, o);
+            block_sync_lds();
+            save_o();
+
+            move_tile_window(o_window_, {0, kN1});
 
             iCounter1--;
         }
         // tail
         {
             clear_tile(o_acc);
-            block_sync_lds();
+            block_sync_lds_direct_load();
             gemm_1(o_acc, y, d);
 
             // block_sync_lds();

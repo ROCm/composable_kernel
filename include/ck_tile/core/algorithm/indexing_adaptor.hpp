@@ -81,7 +81,7 @@ struct indexing_adaptor
 #if Using_Gather
         pre_up_index_  = idx_up[number<0>{}];
         pre_low_index_ = idx_low(number<0>{});
-#if 0
+#if 1
         if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
         {
             printf("\n first index from  %d to  %d  \n", idx_up[number<0>{}], idx_low(number<0>{}));
@@ -93,8 +93,8 @@ struct indexing_adaptor
     template <typename LowIdxDiff, typename UpIdxDiff, typename LowIdx, typename UpIdx>
     CK_TILE_HOST_DEVICE void update_lower_index(LowIdxDiff& idx_diff_low,
                                                 const UpIdxDiff& idx_diff_up,
-                                                LowIdx& /*idx_low*/,
-                                                const UpIdx& /*idx_up*/) const
+                                                LowIdx& idx_low,
+                                                const UpIdx& idx_up) const
     {
         // TODO: nonthing changed here
         static_assert(LowIdxDiff::size() == 1 && UpIdxDiff::size() == 1 && LowIdx::size() == 1 &&
@@ -109,14 +109,16 @@ struct indexing_adaptor
 
         pre_up_index_  = up_index;
         pre_low_index_ = low_index;
-#if 0
+#if 1
         if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
         {
-            printf("\n index form %d to %d, diff  from  %d to  %d  \n",
+            printf("\n index form %d to %d, idx_diff_low  %d, idx_diff_up: %d, idx_low: %d, idx_up: %d \n",
                    up_index,
                    low_index,
+                   idx_diff_low(number<0>{}),
                    idx_diff_up[number<0>{}],
-                   idx_diff_low(number<0>{}));
+                   idx_low(number<0>{}),
+                   idx_up.at(number<0>{}));
         }
 #endif
 #endif
