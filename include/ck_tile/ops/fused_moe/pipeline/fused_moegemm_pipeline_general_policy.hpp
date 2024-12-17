@@ -24,7 +24,7 @@ struct FusedMoeGemmPipelineGeneralPolicy
     CK_TILE_HOST_DEVICE static constexpr index_t GetAsyncCopyDwords()
     {
         // TODO: always 1 dword
-        return 1;
+        return 2;
     }
 
     template <typename Problem>
@@ -196,7 +196,7 @@ struct FusedMoeGemmPipelineGeneralPolicy
     {
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<1, 2, 16>, sequence<4, 8>>,
+                                       tuple<sequence<1, 1, 32>, sequence<2, 16>>,
                                        tuple<sequence<0, 1>, sequence<1, 2>>,
                                        tuple<sequence<0, 0>, sequence<2, 0>>,
                                        sequence<1, 2>,

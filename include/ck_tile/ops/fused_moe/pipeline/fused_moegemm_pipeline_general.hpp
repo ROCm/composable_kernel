@@ -323,7 +323,7 @@ struct FusedMoeGemmPipeline_General
                              Policy::template MakeGlobalTileDistribution_O<Problem>());
 
         auto save_o = [&]() {
-            //if(blockIdx.x == 0 && (blockIdx.y == 0 || blockIdx.y == 1) && blockIdx.z == 0)
+            // if(blockIdx.x == 0 && (blockIdx.y == 0 || blockIdx.y == 1) && blockIdx.z == 0)
             {
                 if(threadIdx.x < 64)
                 {
@@ -339,6 +339,8 @@ struct FusedMoeGemmPipeline_General
                         });
                     });
                     update_tile(o_window_, o0);
+                    // restore pos
+                    move_tile_window(o_olds_win, {-32 * (BlockShape::Repeat_K1 - 1), 0});
                 }
             }
         };
