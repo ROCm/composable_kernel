@@ -1,9 +1,9 @@
 #!/bin/sh
 EXE="$(find . -name tile_example_gemm_basic -type f | head -n 1)"
 VALID=0
-a_layouts=("R" "C")
+a_layouts=("R")
 b_layouts=("R" "C")
-c_layouts=("R" "C")
+c_layouts=("R")
 
 m_values=(64 512 1024 2048)
 n_values=(64 512 1024 2048)
