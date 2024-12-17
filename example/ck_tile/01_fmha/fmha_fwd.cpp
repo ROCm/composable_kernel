@@ -235,7 +235,7 @@ int override_num_splits_if_necessary(int batch,
     if(num_splits < 1 && p_drop == 0.0f)
     {
         return num_splits_heuristic(
-            batch * nhead * num_m_blocks, props.multiProcessorCount * 2, 32);
+            batch * nhead * num_m_blocks, props.multiProcessorCount * 2, 16);
     }
 
     return num_splits;

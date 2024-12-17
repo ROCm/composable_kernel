@@ -829,7 +829,7 @@ Int num_splits_heuristic(Int batch_nhead_mblocks, Int num_SMs, Int max_splits)
     std::vector<float> efficiency;
     efficiency.reserve(max_splits);
 
-    for(Int num_splits = 1; num_splits <= max_splits; num_splits++)
+    for(Int num_splits = 1; num_splits <= max_splits; num_splits *= 2)
     {
         float n_blocks = float(batch_nhead_mblocks * num_splits) / num_SMs;
         float eff      = n_blocks / std::ceil(n_blocks);
