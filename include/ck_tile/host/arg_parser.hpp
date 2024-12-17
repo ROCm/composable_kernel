@@ -19,7 +19,6 @@ struct ValidNumber
 {
     static bool isNumber(std::string s)
     {
-        // This is the DFA we have designed above
         std::unordered_map<std::string, int> dfa[8] = {{{"digit", 1}, {"sign", 2}, {"dot", 3}},
                                                        {{"digit", 1}, {"dot", 4}, {"exponent", 5}},
                                                        {{"digit", 1}, {"dot", 3}},
