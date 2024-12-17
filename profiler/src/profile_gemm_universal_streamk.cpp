@@ -196,5 +196,3 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
 }
 
 REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_gemm_universal_streamk);
-
-
