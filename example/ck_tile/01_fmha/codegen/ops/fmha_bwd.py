@@ -554,184 +554,200 @@ float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config&
 
     if (t.uses_bwd_v3 == true){{
         if ((t.is_group_mode == false) && (t.bias_type == bias_enum::no_bias) && (t.has_dbias == false) && (t.has_dropout == false) &&
-                    (a.seqlen_q == a.seqlen_k) && (a.seqlen_k % 128 == 0) && (a.hdim_q == 128) && (a.hdim_v == 128) && (t.is_deterministic == false) &&
-                    (a.stride_q == a.stride_o /*i_perm == o_perm*/)) {{
-            if(t.data_type.compare("fp16") == 0){{
-                if(t.mask_type == mask_enum::no_mask){{
-                    if((t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc > a.stride_dq_acc /*dq_acc only support BHSD*/)){{
-                        if((t.is_v3_spec == true) && (a.nhead_q == a.nhead_k /*MQA/GQA not supported yet*/)){{
-                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
-                            using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::fp16_t, false, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_fp16_spec_a32";
-                            bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_fp16_spec_a32, bwd_v3_name, io_perm, 32, 128);
-                            return r;
+                    (a.seqlen_q == a.seqlen_k) && (t.is_deterministic == false) && (a.stride_q == a.stride_o /*i_perm == o_perm*/)) {{
+            if((a.hdim_q == 128) && (a.hdim_v == 128) && (a.seqlen_k % 128 == 0)){{
+                if(t.data_type.compare("fp16") == 0){{
+                    if(t.mask_type == mask_enum::no_mask){{
+                        if((t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc > a.stride_dq_acc /*dq_acc only support BHSD*/)){{
+                            if((t.is_v3_spec == true) && (a.nhead_q == a.nhead_k /*MQA/GQA not supported yet*/)){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
+                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::fp16_t, false, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_fp16_spec_a32";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_fp16_spec_a32, bwd_v3_name, io_perm, 32, 128);
+                                return r;
+                            }}
+                            else if((t.is_v3_spec == false) && (a.nhead_q % a.nhead_k == 0)){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
+                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::fp16_t, false, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_fp16_a32";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_fp16_a32, bwd_v3_name, io_perm, 16, 192);
+                                return r;
+                            }}
                         }}
-                        else if((t.is_v3_spec == false) && (a.nhead_q % a.nhead_k == 0)){{
+                        else if((t.is_v3_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
                             using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
-                            using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::fp16_t, false, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_fp16_a32";
+                            const std::string bwd_v3_name = "bwd_v3_fp16_a16";
                             bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_fp16_a32, bwd_v3_name, io_perm, 16, 192);
+                            r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_fp16_a16, bwd_v3_name, io_perm, 16, 192);
                             return r;
                         }}
                     }}
-                    else if((t.is_v3_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
-                        using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
-                        const std::string bwd_v3_name = "bwd_v3_fp16_a16";
-                        bool io_perm = a.nhead_stride_q > a.stride_q;
-                        r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_fp16_a16, bwd_v3_name, io_perm, 16, 192);
-                        return r;
+                    else if((t.mask_type != mask_enum::no_mask) && ((a.window_size_left == -1) && (a.window_size_right == 0))){{
+                        if((t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc > a.stride_dq_acc /*dq_acc only support BHSD*/)){{
+                            if((t.is_v3_spec == true) && (a.nhead_q == a.nhead_k /*MQA/GQA not supported yet*/)){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
+                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::fp16_t, false, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_fp16_spec_causal_a32";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_fp16_spec_causal_a32, bwd_v3_name, io_perm, 32, 128);
+                                return r;
+                            }}
+                            else if((t.is_v3_spec == false) && (a.nhead_q % a.nhead_k == 0)){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
+                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::fp16_t, false, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_fp16_causal_a32";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_fp16_causal_a32, bwd_v3_name, io_perm, 16, 192);
+                                return r;
+                            }}
+                        }}
+                        else if((t.is_v3_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
+                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
+                            const std::string bwd_v3_name = "bwd_v3_fp16_causal_a16";
+                            bool io_perm = a.nhead_stride_q > a.stride_q;
+                            r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_fp16_causal_a16, bwd_v3_name, io_perm, 16, 192);
+                            return r;
+                        }}
                     }}
                 }}
-                else if((t.mask_type != mask_enum::no_mask) && ((a.window_size_left == -1) && (a.window_size_right == 0))){{
-                    if((t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc > a.stride_dq_acc /*dq_acc only support BHSD*/)){{
-                        if((t.is_v3_spec == true) && (a.nhead_q == a.nhead_k /*MQA/GQA not supported yet*/)){{
-                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
-                            using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::fp16_t, false, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_fp16_spec_causal_a32";
-                            bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_fp16_spec_causal_a32, bwd_v3_name, io_perm, 32, 128);
-                            return r;
+                else if(t.data_type.compare("bf16") == 0){{
+                    if(t.mask_type == mask_enum::no_mask){{
+                        if((t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc > a.stride_dq_acc /*dq_acc only support BHSD*/)){{
+                            if((t.is_v3_spec == true) && (a.nhead_q == a.nhead_k /*MQA/GQA not supported yet*/)){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_bf16_spec_a32";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_spec_a32, bwd_v3_name, io_perm, 32, 128);
+                                return r;
+                            }}
+                            else if((t.is_v3_spec == false) && (a.nhead_q % a.nhead_k == 0)){{
+                                if(t.how_v3_bf16_cvt == 0){{
+                                    using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
+                                    const std::string bwd_v3_name = "bwd_v3_bf16_a32_rtne";
+                                    bool io_perm = a.nhead_stride_q > a.stride_q;
+                                    r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_a32_rtne, bwd_v3_name, io_perm, 16, 192);
+                                    return r;
+                                }}
+                                else if(t.how_v3_bf16_cvt == 1){{
+                                    using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
+                                    const std::string bwd_v3_name = "bwd_v3_bf16_a32_rtna";
+                                    bool io_perm = a.nhead_stride_q > a.stride_q;
+                                    r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_a32_rtna, bwd_v3_name, io_perm, 16, 192);
+                                    return r;
+                                }}
+                                else if(t.how_v3_bf16_cvt == 2){{
+                                    using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
+                                    const std::string bwd_v3_name = "bwd_v3_bf16_a32_rtz";
+                                    bool io_perm = a.nhead_stride_q > a.stride_q;
+                                    r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_a32_rtz, bwd_v3_name, io_perm, 16, 192);
+                                    return r;
+                                }}
+                            }}
                         }}
-                        else if((t.is_v3_spec == false) && (a.nhead_q % a.nhead_k == 0)){{
-                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
-                            using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::fp16_t, false, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_fp16_causal_a32";
-                            bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_fp16_causal_a32, bwd_v3_name, io_perm, 16, 192);
-                            return r;
+                        else if((t.is_v3_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
+                            if(t.how_v3_bf16_cvt == 0){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_bf16_a16_rtne";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_a16_rtne, bwd_v3_name, io_perm, 16, 192);
+                                return r;
+                            }}
+                            else if(t.how_v3_bf16_cvt == 1){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_bf16_a16_rtna";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_a16_rtna, bwd_v3_name, io_perm, 16, 192);
+                                return r;
+                            }}
+                            else if(t.how_v3_bf16_cvt == 2){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_bf16_a16_rtz";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_a16_rtz, bwd_v3_name, io_perm, 16, 192);
+                                return r;
+                            }}
                         }}
                     }}
-                    else if((t.is_v3_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
-                        using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
-                        const std::string bwd_v3_name = "bwd_v3_fp16_causal_a16";
-                        bool io_perm = a.nhead_stride_q > a.stride_q;
-                        r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_fp16_causal_a16, bwd_v3_name, io_perm, 16, 192);
-                        return r;
+                    else if((t.mask_type != mask_enum::no_mask) && ((a.window_size_left == -1) && (a.window_size_right == 0))){{
+                        if((t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc > a.stride_dq_acc /*dq_acc only support BHSD*/)){{
+                            if((t.is_v3_spec == true) && (a.nhead_q == a.nhead_k /*MQA/GQA not supported yet*/)){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_bf16_spec_causal_a32";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_spec_causal_a32, bwd_v3_name, io_perm, 32, 128);
+                                return r;
+                            }}
+                            else if((t.is_v3_spec == false) && (a.nhead_q % a.nhead_k == 0)){{
+                                if(t.how_v3_bf16_cvt == 0){{
+                                    using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
+                                    const std::string bwd_v3_name = "bwd_v3_bf16_causal_a32_rtne";
+                                    bool io_perm = a.nhead_stride_q > a.stride_q;
+                                    r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_causal_a32_rtne, bwd_v3_name, io_perm, 16, 192);
+                                    return r;
+                                }}
+                                else if(t.how_v3_bf16_cvt == 1){{
+                                    using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
+                                    const std::string bwd_v3_name = "bwd_v3_bf16_causal_a32_rtna";
+                                    bool io_perm = a.nhead_stride_q > a.stride_q;
+                                    r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_causal_a32_rtna, bwd_v3_name, io_perm, 16, 192);
+                                    return r;
+                                }}
+                                else if(t.how_v3_bf16_cvt == 2){{
+                                    using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
+                                    const std::string bwd_v3_name = "bwd_v3_bf16_causal_a32_rtz";
+                                    bool io_perm = a.nhead_stride_q > a.stride_q;
+                                    r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_causal_a32_rtz, bwd_v3_name, io_perm, 16, 192);
+                                    return r;
+                                }}
+                            }}
+                        }}
+                        else if((t.is_v3_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
+                            if(t.how_v3_bf16_cvt == 0){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_bf16_causal_a16_rtne";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_causal_a16_rtne, bwd_v3_name, io_perm, 16, 192);
+                                return r;
+                            }}
+                            else if(t.how_v3_bf16_cvt == 1){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_bf16_causal_a16_rtna";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_causal_a16_rtna, bwd_v3_name, io_perm, 16, 192);
+                                return r;
+                            }}
+                            else if(t.how_v3_bf16_cvt == 2){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_bf16_causal_a16_rtz";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_causal_a16_rtz, bwd_v3_name, io_perm, 16, 192);
+                                return r;
+                            }}
+                        }}
                     }}
                 }}
             }}
-            else if(t.data_type.compare("bf16") == 0){{
-                if(t.mask_type == mask_enum::no_mask){{
-                    if((t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc > a.stride_dq_acc /*dq_acc only support BHSD*/)){{
-                        if((t.is_v3_spec == true) && (a.nhead_q == a.nhead_k /*MQA/GQA not supported yet*/)){{
-                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                            using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_bf16_spec_a32";
-                            bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_spec_a32, bwd_v3_name, io_perm, 32, 128);
-                            return r;
-                        }}
-                        else if((t.is_v3_spec == false) && (a.nhead_q % a.nhead_k == 0)){{
-                            if(t.how_v3_bf16_cvt == 0){{
-                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
-                                const std::string bwd_v3_name = "bwd_v3_bf16_a32_rtne";
+            else if((a.hdim_q == 64) && (a.hdim_v == 64) && (a.seqlen_k % 64 == 0)){{
+                if(t.data_type.compare("bf16") == 0){{
+                    if(t.mask_type == mask_enum::no_mask){{
+                        if((t.is_v3_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
+                            if(t.how_v3_bf16_cvt == 1){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<64, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_hd64_bf16_a16_rtna";
                                 bool io_perm = a.nhead_stride_q > a.stride_q;
-                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_a32_rtne, bwd_v3_name, io_perm, 16, 192);
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_hd64_bf16_a16_rtna, bwd_v3_name, io_perm, 32, 192);
                                 return r;
                             }}
-                            else if(t.how_v3_bf16_cvt == 1){{
-                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
-                                const std::string bwd_v3_name = "bwd_v3_bf16_a32_rtna";
-                                bool io_perm = a.nhead_stride_q > a.stride_q;
-                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_a32_rtna, bwd_v3_name, io_perm, 16, 192);
-                                return r;
-                            }}
-                            else if(t.how_v3_bf16_cvt == 2){{
-                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
-                                const std::string bwd_v3_name = "bwd_v3_bf16_a32_rtz";
-                                bool io_perm = a.nhead_stride_q > a.stride_q;
-                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_a32_rtz, bwd_v3_name, io_perm, 16, 192);
-                                return r;
-                            }}
-                        }}
-                    }}
-                    else if((t.is_v3_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
-                        if(t.how_v3_bf16_cvt == 0){{
-                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_bf16_a16_rtne";
-                            bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_a16_rtne, bwd_v3_name, io_perm, 16, 192);
-                            return r;
-                        }}
-                        else if(t.how_v3_bf16_cvt == 1){{
-                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_bf16_a16_rtna";
-                            bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_a16_rtna, bwd_v3_name, io_perm, 16, 192);
-                            return r;
-                        }}
-                        else if(t.how_v3_bf16_cvt == 2){{
-                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_bf16_a16_rtz";
-                            bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_a16_rtz, bwd_v3_name, io_perm, 16, 192);
-                            return r;
-                        }}
-                    }}
-                }}
-                else if((t.mask_type != mask_enum::no_mask) && ((a.window_size_left == -1) && (a.window_size_right == 0))){{
-                    if((t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc > a.stride_dq_acc /*dq_acc only support BHSD*/)){{
-                        if((t.is_v3_spec == true) && (a.nhead_q == a.nhead_k /*MQA/GQA not supported yet*/)){{
-                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                            using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_bf16_spec_causal_a32";
-                            bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_spec_causal_a32, bwd_v3_name, io_perm, 32, 128);
-                            return r;
-                        }}
-                        else if((t.is_v3_spec == false) && (a.nhead_q % a.nhead_k == 0)){{
-                            if(t.how_v3_bf16_cvt == 0){{
-                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
-                                const std::string bwd_v3_name = "bwd_v3_bf16_causal_a32_rtne";
-                                bool io_perm = a.nhead_stride_q > a.stride_q;
-                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_causal_a32_rtne, bwd_v3_name, io_perm, 16, 192);
-                                return r;
-                            }}
-                            else if(t.how_v3_bf16_cvt == 1){{
-                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
-                                const std::string bwd_v3_name = "bwd_v3_bf16_causal_a32_rtna";
-                                bool io_perm = a.nhead_stride_q > a.stride_q;
-                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_causal_a32_rtna, bwd_v3_name, io_perm, 16, 192);
-                                return r;
-                            }}
-                            else if(t.how_v3_bf16_cvt == 2){{
-                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
-                                const std::string bwd_v3_name = "bwd_v3_bf16_causal_a32_rtz";
-                                bool io_perm = a.nhead_stride_q > a.stride_q;
-                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_causal_a32_rtz, bwd_v3_name, io_perm, 16, 192);
-                                return r;
-                            }}
-                        }}
-                    }}
-                    else if((t.is_v3_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
-                        if(t.how_v3_bf16_cvt == 0){{
-                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_bf16_causal_a16_rtne";
-                            bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_causal_a16_rtne, bwd_v3_name, io_perm, 16, 192);
-                            return r;
-                        }}
-                        else if(t.how_v3_bf16_cvt == 1){{
-                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_bf16_causal_a16_rtna";
-                            bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_causal_a16_rtna, bwd_v3_name, io_perm, 16, 192);
-                            return r;
-                        }}
-                        else if(t.how_v3_bf16_cvt == 2){{
-                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                            const std::string bwd_v3_name = "bwd_v3_bf16_causal_a16_rtz";
-                            bool io_perm = a.nhead_stride_q > a.stride_q;
-                            r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_causal_a16_rtz, bwd_v3_name, io_perm, 16, 192);
-                            return r;
                         }}
                     }}
                 }}
