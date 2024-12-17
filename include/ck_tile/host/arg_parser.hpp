@@ -12,14 +12,64 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <cassert>
 
 namespace ck_tile {
+struct ValidNumber
+{
+    static bool isNumber(std::string s)
+    {
+        // This is the DFA we have designed above
+        std::unordered_map<std::string, int> dfa[8] = {{{"digit", 1}, {"sign", 2}, {"dot", 3}},
+                                                       {{"digit", 1}, {"dot", 4}, {"exponent", 5}},
+                                                       {{"digit", 1}, {"dot", 3}},
+                                                       {{"digit", 4}},
+                                                       {{"digit", 4}, {"exponent", 5}},
+                                                       {{"sign", 6}, {"digit", 7}},
+                                                       {{"digit", 7}},
+                                                       {{"digit", 7}}};
+        int curr_state                              = 0;
+        std::string group;
+        for(char c : s)
+        {
+            if(std::isdigit(c))
+            {
+                group = "digit";
+            }
+            else if(c == '+' || c == '-')
+            {
+                group = "sign";
+            }
+            else if(c == 'e' || c == 'E')
+            {
+                group = "exponent";
+            }
+            else if(c == '.')
+            {
+                group = "dot";
+            }
+            else
+            {
+                return false;
+            }
+            if(dfa[curr_state].find(group) == dfa[curr_state].end())
+            {
+                return false;
+            }
+            curr_state = dfa[curr_state][group];
+        }
+        return curr_state == 1 || curr_state == 4 || curr_state == 7;
+    }
+};
 /*
- * a host side utility, arg parser for
- *  -[key0]=[value0] -[key1]=[value1] ...
+ * a host side utility, arg parser for, either
+ * -[key0] = [value0, value1, value2]
+ * or
+ * -[key0]=[value0] -[key1]=[value1] ...
  */
 class ArgParser
 {
+
     public:
     class Arg
     {
@@ -148,18 +198,21 @@ class ArgParser
 
     int get_int(const std::string& name) const
     {
+        assert(("The param contians invalid number", ValidNumber::isNumber(get_str(name)) == true));
         int value = atoi(input_map.at(name).value.c_str());
         return value;
     }
 
     uint32_t get_uint32(const std::string& name) const
     {
+        assert(("The param contians invalid number", ValidNumber::isNumber(get_str(name))));
         uint32_t value = strtoul(input_map.at(name).value.c_str(), nullptr, 10);
         return value;
     }
 
     uint64_t get_uint64(const std::string& name) const
     {
+        assert(("The param contians invalid number", ValidNumber::isNumber(get_str(name))));
         uint64_t value = strtoull(input_map.at(name).value.c_str(), nullptr, 10);
         return value;
     }
@@ -177,6 +230,7 @@ class ArgParser
 
     float get_float(const std::string& name) const
     {
+        assert(("The param contians invalid number", ValidNumber::isNumber(get_str(name))));
         double value = atof(input_map.at(name).value.c_str());
         return static_cast<float>(value);
     }
@@ -185,6 +239,46 @@ class ArgParser
     {
         double value = atof(input_map.at(name).value.c_str());
         return value;
+    }
+
+    std::vector<std::string> get_string_vec(const std::string& str,
+                                            const std::string& delimiter = ",") const
+    {
+        if(get_str(str).empty())
+        {
+            return {};
+        }
+        std::string s = get_str(str);
+        std::vector<std::string> tokens;
+        size_t pos = 0;
+        std::string token;
+        while((pos = s.find(delimiter)) != std::string::npos)
+        {
+            token = s.substr(0, pos);
+            tokens.push_back(token);
+            s.erase(0, pos + delimiter.length());
+        }
+        tokens.push_back(s);
+
+        return tokens;
+    }
+
+    std::vector<int> get_int_vec(const std::string& str, const std::string& delimiter = ",") const
+    {
+        if(get_str(str).empty())
+        {
+            return {};
+        }
+        const std::vector<std::string> args = this->get_string_vec(str, delimiter);
+        std::vector<int> tokens;
+        tokens.reserve(static_cast<int>(args.size()));
+        for(const std::string& token : args)
+        {
+            assert(("The param contians invalid number", ValidNumber::isNumber(token)));
+            int value = atoi(token.c_str());
+            tokens.push_back(value);
+        }
+        return tokens;
     }
 
     private:

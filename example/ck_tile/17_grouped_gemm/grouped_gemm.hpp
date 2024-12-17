@@ -34,7 +34,20 @@ using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("a_layout", "R", "A tensor data layout - Row by default")
+    arg_parser
+        .insert("Ms", "", "The Ms data size, might be greater than 1 - it is empty by default.")
+        .insert("Ns", "", "The Ns data size, might be greater than 1 - it is empty by default.")
+        .insert("Ks", "", "The Ks data size, might be greater than 1 - it is empty by default.")
+        .insert("stride_As",
+                "",
+                "The stride As data size, might be greater than 1 - it is empty by default.")
+        .insert("stride_Bs",
+                "",
+                "The stride Bs data size, might be greater than 1 - it is empty by default.")
+        .insert("stride_Cs",
+                "",
+                "The stride Cs data size, might be greater than 1 - it is empty by default.")
+        .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "R", "B tensor data layout - Row by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("validate", "1", "0. No validation, 1. Validation on CPU")

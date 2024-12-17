@@ -53,26 +53,43 @@ int run_grouped_gemm_example_with_layouts(int argc,
         return -1;
     };
 
+    auto valid_params_size = [&](const auto& Ms,
+                                 const auto& Ns,
+                                 const auto& Ks,
+                                 const auto& s_As,
+                                 const auto& s_Bs,
+                                 const auto& s_Ks,
+                                 int group_count) {
+        return !(Ms.empty() || Ns.empty() || Ks.empty() || s_As.empty() || s_Bs.empty() ||
+                 s_Ks.empty()) &&
+               (Ms.size() == Ns.size() == Ks.size() == s_As.empty() == s_Bs.empty() ==
+                s_Ks.empty() == group_count);
+    };
+
     const int group_count = arg_parser.get_int("group_count");
     const int repeat      = arg_parser.get_int("repeat");
     const int warmup      = arg_parser.get_int("warmup");
 
-    std::vector<ck_tile::index_t> Ms;
-    std::vector<ck_tile::index_t> Ns;
-    std::vector<ck_tile::index_t> Ks;
-    std::vector<ck_tile::index_t> stride_As;
-    std::vector<ck_tile::index_t> stride_Bs;
-    std::vector<ck_tile::index_t> stride_Cs;
+    std::vector<ck_tile::index_t> Ms        = arg_parser.get_int_vec("Ms");
+    std::vector<ck_tile::index_t> Ns        = arg_parser.get_int_vec("Ns");
+    std::vector<ck_tile::index_t> Ks        = arg_parser.get_int_vec("Ks");
+    std::vector<ck_tile::index_t> stride_As = arg_parser.get_int_vec("stride_As");
+    std::vector<ck_tile::index_t> stride_Bs = arg_parser.get_int_vec("stride_Bs");
+    std::vector<ck_tile::index_t> stride_Cs = arg_parser.get_int_vec("stride_Cs");
 
-    for(int i = 0; i < group_count; i++)
+    if(!valid_params_size(Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs, group_count))
     {
-        Ms.push_back(256 + 256 * i);
-        Ns.push_back(128 + 128 * i);
-        Ks.push_back(128 + 64 * i);
+        std::cout << "The input size data is empty; default values will be used." << std::endl;
+        for(int i = 0; i < group_count; i++)
+        {
+            Ms.push_back(256 + 256 * i);
+            Ns.push_back(128 + 128 * i);
+            Ks.push_back(128 + 64 * i);
 
-        stride_As.push_back(Ks[i]);
-        stride_Bs.push_back(Ks[i]);
-        stride_Cs.push_back(Ns[i]);
+            stride_As.push_back(Ks[i]);
+            stride_Bs.push_back(Ks[i]);
+            stride_Cs.push_back(Ns[i]);
+        }
     }
 
     std::vector<ck_tile::HostTensor<ADataType>> a_m_k_tensors;
