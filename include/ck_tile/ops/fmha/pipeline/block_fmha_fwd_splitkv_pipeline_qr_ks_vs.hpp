@@ -96,6 +96,10 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             {
                 return 1;
             }
+            else if constexpr(kQKHeaddim <= 512) 
+            {
+                return 1;
+            }
         }
     }();
 
