@@ -632,12 +632,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
     auto [rotary_cos_host, rotary_sin_host] = generate_rotary_cos_sin<KDataType>(
         std::max(shape_seqlen_q, shape_seqlen_k), rotary_dim, seed);
 
+    // lse_acc_host & o_acc_host are only used when 1 < num_spilts
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
-        1 < num_splits || use_kvcache
+        1 < num_splits
             ? std::array<ck_tile::index_t, 4>{shape_batch, nhead, num_splits, shape_seqlen_q}
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     ck_tile::HostTensor<OaccDataType> o_acc_host(
-        1 < num_splits || use_kvcache ? std::array<ck_tile::index_t, 5>{shape_batch,
+        1 < num_splits ? std::array<ck_tile::index_t, 5>{shape_batch,
                                                                         nhead,
                                                                         num_splits,
                                                                         shape_seqlen_q,
@@ -1043,9 +1044,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
             else if constexpr(std::is_same_v<fmha_fwd_splitkv_args, std::decay_t<decltype(args)>>)
             {
-                args.lse_acc_ptr = lse_acc_buf.GetDeviceBuffer();
-                args.o_acc_ptr   = o_acc_buf.GetDeviceBuffer();
-
+                // lse_acc_buf & o_acc_buf are only used when 1 < num_spilts
                 args.block_table_ptr =
                     (0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr);
                 args.batch_stride_block_table = batch_stride_block_table;
@@ -1057,13 +1056,30 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
                 args.num_splits = num_splits;
 
-                args.stride_o_acc         = stride_o_acc;
-                args.nhead_stride_lse_acc = nhead_stride_lse_acc;
-                args.nhead_stride_o_acc   = nhead_stride_o_acc;
-                args.batch_stride_lse_acc = batch_stride_lse_acc;
-                args.batch_stride_o_acc   = batch_stride_o_acc;
-                args.split_stride_lse_acc = split_stride_lse_acc;
-                args.split_stride_o_acc   = split_stride_o_acc;
+                if (1 < num_splits) {
+                    args.lse_acc_ptr = lse_acc_buf.GetDeviceBuffer();
+                    args.o_acc_ptr   = o_acc_buf.GetDeviceBuffer();
+
+                    args.stride_o_acc         = stride_o_acc;
+                    args.nhead_stride_lse_acc = nhead_stride_lse_acc;
+                    args.nhead_stride_o_acc   = nhead_stride_o_acc;
+                    args.batch_stride_lse_acc = batch_stride_lse_acc;
+                    args.batch_stride_o_acc   = batch_stride_o_acc;
+                    args.split_stride_lse_acc = split_stride_lse_acc;
+                    args.split_stride_o_acc   = split_stride_o_acc;
+                } else {
+                    // following attribues are ignored by fmha_fwd_splitkv()
+                    args.lse_acc_ptr = nullptr;
+                    args.o_acc_ptr   = nullptr;
+
+                    args.stride_o_acc         = 0;
+                    args.nhead_stride_lse_acc = 0;
+                    args.nhead_stride_o_acc   = 0;
+                    args.batch_stride_lse_acc = 0;
+                    args.batch_stride_o_acc   = 0;
+                    args.split_stride_lse_acc = 0;
+                    args.split_stride_o_acc   = 0;
+                }
             }
         }
     };
