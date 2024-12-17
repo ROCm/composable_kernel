@@ -284,6 +284,13 @@ struct AllocateAndTransferFunctor
         // Transfer data to device
         device_mem.ToDevice(host_tensor.data());
 
+        int worldSize = arg_parser.get_int("gpu_nums");
+        setupConnection(device_id,
+                        static_cast<int>(host_gpu),
+                        static_cast<int>(worldSize),
+                        device_mem.GetDeviceBuffer(),
+                        host_tensor.get_element_space_size_in_bytes());
+
         int n_warmup = arg_parser.get_int("warmup");
         int n_repeat = arg_parser.get_int("repeat");
 
