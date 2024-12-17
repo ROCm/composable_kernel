@@ -8,7 +8,6 @@
 
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/literals.hpp"
-#include "ck_tile/core/utility/amd_address_space.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
@@ -32,13 +31,18 @@ struct GroupedGemmHostArgs
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GroupedGemmKernel
 {
+    using Hargs                              = GroupedGemmHostArgs;
     using TilePartitioner                    = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline                       = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline                   = remove_cvref_t<EpiloguePipeline_>;
     using ALayout                            = remove_cvref_t<typename GemmPipeline::ALayout>;
     using BLayout                            = remove_cvref_t<typename GemmPipeline::BLayout>;
     using CLayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using Block2ETileMap                     = OffsettedBlockToCTileMap<TilePartitioner>;
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+
+    // Block2CTileMap configuration parameter.
+    static constexpr index_t B2E_M01 = 8;
 
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -47,12 +51,19 @@ struct GroupedGemmKernel
     struct GemmTransKernelArg
     {
         GroupedGemmHostArgs group_karg;
+        Block2ETileMap block_2_ctile_map_;
         ck_tile::index_t block_start;
         ck_tile::index_t block_end;
 
         GemmTransKernelArg() = default;
-        GemmTransKernelArg(GroupedGemmHostArgs&& karg, index_t bl_start, index_t bl_end)
-            : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
+        GemmTransKernelArg(GroupedGemmHostArgs&& karg,
+                           Block2ETileMap block_2_ctile_map_karg,
+                           index_t bl_start,
+                           index_t bl_end)
+            : group_karg{karg},
+              block_2_ctile_map_{block_2_ctile_map_karg},
+              block_start{bl_start},
+              block_end{bl_end}
         {
         }
     };
@@ -63,8 +74,6 @@ struct GroupedGemmKernel
     }
 
     __host__ static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
-
-    using Hargs = GroupedGemmHostArgs;
 
     __host__ static constexpr auto GridSize(const std::vector<Hargs>& gemm_descs)
     {
@@ -100,12 +109,14 @@ struct GroupedGemmKernel
             const index_t stride_c = gemm_descs[i].stride_C;
 
             const auto dim3             = TilePartitioner::GridSize(M, N);
-            const index_t grid_size_grp = dim3.x * 1 * 1;
+            const index_t grid_size_grp = dim3.x;
 
             const index_t block_start = grid_size;
             const index_t block_end   = grid_size + grid_size_grp;
 
             grid_size += grid_size_grp;
+
+            auto grouped_block_2_ctile_map = Block2ETileMap(B2E_M01, M, N);
 
             auto karg = GroupedGemmHostArgs{type_convert<const ADataType*>(gemm_descs[i].a_ptr),
                                             type_convert<const BDataType*>(gemm_descs[i].b_ptr),
@@ -117,7 +128,8 @@ struct GroupedGemmKernel
                                             stride_b,
                                             stride_c};
 
-            gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
+            gemm_kernel_args_.emplace_back(
+                std::move(karg), std::move(grouped_block_2_ctile_map), block_start, block_end);
         }
 
         return gemm_kernel_args_;
@@ -128,9 +140,12 @@ struct GroupedGemmKernel
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    CK_TILE_DEVICE void Run(const Hargs& kargs, const index_t block_start) const
+    CK_TILE_DEVICE void Run(const Hargs& kargs, const Block2ETileMap& block_2_tile_map) const
     {
-        const auto [i_m, i_n] = TilePartitioner{}(block_start, kargs.N);
+        const auto [i_M, i_N] = block_2_tile_map.CalculateBottomIndex(ck_tile::get_block_1d_id());
+        index_t i_m           = __builtin_amdgcn_readfirstlane(i_M * TilePartitioner::MPerBlock);
+        index_t i_n           = __builtin_amdgcn_readfirstlane(i_N * TilePartitioner::NPerBlock);
+
         // options
         const ADataType* a_start = static_cast<const ADataType*>(kargs.a_ptr);
         const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr);
@@ -303,7 +318,7 @@ struct GroupedGemmKernel
             group_id = index_t((left + right) / 2);
         }
 
-        Run(gemm_desc_ptr[group_id].group_karg, gemm_desc_ptr[group_id].block_start);
+        Run(gemm_desc_ptr[group_id].group_karg, gemm_desc_ptr[group_id].block_2_ctile_map_);
     }
 };
 

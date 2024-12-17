@@ -62,12 +62,10 @@ struct GemmTile1DPartitioner
         return integer_divide_ceil(K, KPerBlock);
     }
 
-    CK_TILE_DEVICE auto operator()(index_t blockOffset, index_t NBlockSize)
+    CK_TILE_DEVICE auto operator()()
     {
-        index_t iM = __builtin_amdgcn_readfirstlane((blockIdx.x - blockOffset) /
-                                                    GetNBlock(NBlockSize) * MPerBlock);
-        index_t iN = __builtin_amdgcn_readfirstlane((blockIdx.x - blockOffset) %
-                                                    GetNBlock(NBlockSize) * NPerBlock);
+        index_t iM = __builtin_amdgcn_readfirstlane(blockIdx.x * MPerBlock);
+        index_t iN = __builtin_amdgcn_readfirstlane(blockIdx.x * NPerBlock);
         return make_tuple(iM, iN);
     }
 };
