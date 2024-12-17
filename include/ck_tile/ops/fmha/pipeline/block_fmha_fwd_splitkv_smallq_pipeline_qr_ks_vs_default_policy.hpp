@@ -99,91 +99,72 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackP()
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackS()
     {
-        // TODO: this is for 3d layout
-        using PDataType = remove_cvref_t<typename Problem::PDataType>;
-        return static_cast<index_t>(16 / sizeof(PDataType));
+        using SDataType = remove_cvref_t<typename Problem::SaccDataType>;
+        return static_cast<index_t>(16 / sizeof(SDataType));
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakePLdsBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeSLdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPack     = GetSmemKPackP<Problem>();
+        constexpr index_t kKPack     = GetSmemKPackS<Problem>();
 
-        constexpr auto p_lds_block_desc_0 = make_naive_tensor_descriptor(
+        constexpr auto s_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
             make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
             number<8>{},
             number<1>{});
 
-        constexpr auto p_lds_block_desc = transform_tensor_descriptor(
-            p_lds_block_desc_0,
+        constexpr auto s_lds_block_desc = transform_tensor_descriptor(
+            s_lds_block_desc_0,
             make_tuple(
                 make_pass_through_transform(number<kMPerBlock>{}),
                 make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
-        return p_lds_block_desc;
+        return s_lds_block_desc;
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeM4LdsBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeS2DramTileDistribution()
     {
+        using BlockGemm = remove_cvref_t<decltype(GetKVBlockGemm<Problem>())>;
+
+        constexpr auto config   = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG                = remove_cvref_t<decltype(config.template at<0>())>;
+        constexpr index_t MWarp = config.template at<1>();
+        constexpr index_t NWarp = config.template at<2>();
+
+        static_assert(MWarp == 1, "Check failed!");
+
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kTileK     = Problem::BlockFmhaShape::kN0;
 
-        constexpr auto m4_lds_block_desc_0 =
-            make_naive_tensor_descriptor(make_tuple(number<kKPerBlock>{}, number<kMPerBlock>{}),
-                                         make_tuple(number<kMPerBlock>{}, number<1>{}));
+        // K2 is equal to Impl::kABKPerLane * kKIterPerWarpGemm
+        constexpr index_t K3 = WG::kK / WG::WarpGemmAttribute::Impl::kABKLane;
+        constexpr index_t K2 = WG::WarpGemmAttribute::Impl::kABKLane;
+        constexpr index_t K1 = kKPerBlock / (K2 * K3);
+        constexpr index_t K0 = kTileK / kKPerBlock;
+        constexpr index_t M2 = WG::WarpGemmAttribute::Impl::kAMLane;
+        constexpr index_t M1 = MWarp;
+        constexpr index_t M0 = kMPerBlock / (M2 * M1);
 
-        return transform_tensor_descriptor(
-            m4_lds_block_desc_0,
-            make_tuple(make_pass_through_transform(number<kKPerBlock>{}),
-                       make_pass_through_transform(number<kMPerBlock>{})),
-            make_tuple(sequence<0>{}, sequence<1>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
-    }
+        constexpr auto s2_block_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2, K3>>,
+                                       tuple<sequence<1, 0>, sequence<2, 1>>,
+                                       tuple<sequence<1, 0>, sequence<2, 2>>,
+                                       sequence<1, 2, 2, 2>,
+                                       sequence<0, 0, 1, 3>>{};
 
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeM4TileDistribution()
-    {
-        // constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr auto s2_block_dstr = make_static_tile_distribution(s2_block_dstr_encoding);
 
-        // constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        // constexpr index_t kKPerBlock = 4;
-
-        constexpr index_t MThreadPerWarp = 16;
-        constexpr index_t NThreadPerWarp = 4;
-
-        constexpr index_t MWarps = 1;
-        constexpr index_t NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
-
-        constexpr index_t MPerThread = 1;
-        constexpr index_t NPerThread = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
-
-        return make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<NWarps, NThreadPerWarp>,
-                tuple<sequence<MWarps, MThreadPerWarp, MPerThread>, sequence<NPerThread>>,
-                tuple<sequence<1, 0>, sequence<0, 1>>,
-                tuple<sequence<0, 0>, sequence<1, 1>>,
-                sequence<1, 2>,
-                sequence<2, 0>>{});
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeMLdsBlockDescriptor()
-    {
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-
-        constexpr auto m_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kMPerBlock>{}), make_tuple(number<1>{}), number<8>{}, number<1>{});
-
-        return m_lds_block_desc_0;
+        return s2_block_dstr;
     }
 
     template <typename Problem>
@@ -208,74 +189,17 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeP()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeS()
     {
-        return MakePLdsBlockDescriptor<Problem>().get_element_space_size() *
-               sizeof(typename Problem::PDataType);
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeM()
-    {
-        return MakeMLdsBlockDescriptor<Problem>().get_element_space_size() *
-               sizeof(typename Problem::SMPLComputeDataType);
+        return MakeSLdsBlockDescriptor<Problem>().get_element_space_size() *
+               sizeof(typename Problem::SaccDataType);
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        constexpr index_t Gemm0NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
-        return GetSmemSizeQ<Problem>() + GetSmemSizeK<Problem>() + GetSmemSizeV<Problem>() +
-               GetSmemSizeP<Problem>() + Gemm0NWarps * GetSmemSizeM<Problem>();
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetKVBlockGemm()
-    {
-        using GemmProblem =
-            BlockGemmProblem<typename Problem::PDataType,
-                             typename Problem::VDataType,
-                             typename Problem::OaccDataType,
-                             Problem::kNumGemm1Warps * get_warp_size(),
-                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                                    Problem::BlockFmhaShape::kN1,
-                                                    Problem::BlockFmhaShape::kK1>,
-                                           typename Problem::BlockFmhaShape::Gemm1BlockWarps,
-                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
-
-        auto warp_gemm = [&]() {
-            if constexpr(std::is_same_v<typename Problem::KDataType, fp8_t> &&
-                         std::is_same_v<typename Problem::VDataType, fp8_t> &&
-                         std::is_same_v<typename Problem::OaccDataType, float>)
-            {
-                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
-                // return
-                // WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
-                //         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
-                //         Problem::PDataType, typename Problem::VDataType>>>{};
-            }
-            else
-            {
-                return WarpGemmMfmaDispatcher<
-                    typename Problem::PDataType,
-                    typename Problem::VDataType,
-                    typename Problem::OaccDataType,
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                    true>{};
-            }
-        }();
-
-        using WarpGemm = remove_cvref_t<decltype(warp_gemm)>;
-
-        using BlockGemmPolicy =
-            BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::PDataType,
-                                                  typename Problem::VDataType,
-                                                  typename Problem::OaccDataType,
-                                                  typename Problem::BlockFmhaShape::Gemm1BlockWarps,
-                                                  WarpGemm>;
-        return BlockGemmASmemBSmemCRegV1<GemmProblem, BlockGemmPolicy>{};
+        return GetSmemSizeQ<Problem>() + GetSmemSizeK<Problem>() +
+               max(GetSmemSizeV<Problem>(), GetSmemSizeS<Problem>());
     }
 };
 

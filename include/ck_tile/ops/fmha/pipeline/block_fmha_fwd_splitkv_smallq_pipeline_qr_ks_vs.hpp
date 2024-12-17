@@ -186,45 +186,19 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
         auto v_lds_window = make_tile_window(
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
-        // P tile in LDS
-        auto p_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<PDataType*>(reinterpret_cast<char*>(smem_ptr) +
+        // S tile in LDS
+        auto s_lds = make_tensor_view<address_space_enum::lds>(
+            reinterpret_cast<SaccDataType*>(reinterpret_cast<char*>(smem_ptr) +
                                          Policy::template GetSmemSizeQ<Problem>() +
-                                         Policy::template GetSmemSizeK<Problem>() +
-                                         Policy::template GetSmemSizeV<Problem>()),
-            Policy::template MakePLdsBlockDescriptor<Problem>());
-        auto p_lds_window = make_tile_window(
-            p_lds, Policy::template MakePLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
-
-        // M tile in LDS
-        auto m_lds_ptr = reinterpret_cast<SMPLComputeDataType*>(
-            reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>() +
-            Policy::template GetSmemSizeK<Problem>() + Policy::template GetSmemSizeV<Problem>() +
-            Policy::template GetSmemSizeP<Problem>());
-        auto m_lds = make_tensor_view<address_space_enum::lds>(
-            m_lds_ptr, Policy::template MakeMLdsBlockDescriptor<Problem>());
-        auto m_lds_window = make_tile_window(
-            m_lds, Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(), {0});
-
-        // M tile in LDS (for reduction)
-        constexpr index_t Gemm0NWarps = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
-        array<decltype(m_lds_window), Gemm0NWarps> m_lds_windows;
-        for(int i_warp = 0; i_warp < Gemm0NWarps; ++i_warp)
-        {
-            auto lds = make_tensor_view<address_space_enum::lds>(
-                m_lds_ptr + i_warp * kM0, Policy::template MakeMLdsBlockDescriptor<Problem>());
-
-            m_lds_windows[i_warp] = make_tile_window(
-                lds, Policy::template MakeMLdsBlockDescriptor<Problem>().get_lengths(), {0});
-        }
-
-        auto m4_lds = make_tensor_view<address_space_enum::lds>(
-            m_lds_ptr, Policy::template MakeM4LdsBlockDescriptor<Problem>());
-        auto m4_lds_window =
-            make_tile_window(m4_lds,
-                             Policy::template MakeM4LdsBlockDescriptor<Problem>().get_lengths(),
+                                         Policy::template GetSmemSizeK<Problem>()),
+            Policy::template MakeSLdsBlockDescriptor<Problem>());
+        auto s_write_lds_window = make_tile_window(
+            s_lds, Policy::template MakeSLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+        auto s_read_lds_window =
+            make_tile_window(s_lds,
+                             Policy::template MakeSLdsBlockDescriptor<Problem>().get_lengths(),
                              {0, 0},
-                             Policy::template MakeM4TileDistribution<Problem>());
+                             Policy::template MakeS2DramTileDistribution<Problem>());
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
@@ -246,18 +220,19 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
         const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
 
+        using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
+
+        auto o_acc = OaccBlockTileType{};
+
         // infer Sacc, S, P, M, L, Oacc type
-        using SBlockTileType = decltype(cast_tile<SMPLComputeDataType>(s_acc));
+        using SBlockTileType = decltype(cast_tile<SMPLComputeDataType>(o_acc));
 
         using MLBlockTileType = decltype(block_tile_reduce<SMPLComputeDataType>(
             SBlockTileType{}, sequence<1>{}, f_max, SMPLComputeDataType{0}));
 
-        using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
-
-        // init Oacc, M, L
-        auto o_acc = OaccBlockTileType{};
-        auto m     = MLBlockTileType{};
-        auto l     = MLBlockTileType{};
+        // init M, L
+        auto m = MLBlockTileType{};
+        auto l = MLBlockTileType{};
 
         clear_tile(o_acc);
         set_tile(m, -numeric<SMPLComputeDataType>::infinity());
@@ -539,40 +514,25 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
             __builtin_amdgcn_sched_barrier(0);
 
             const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
+
+            // shuffle through LDS so that the tile layout is consistent with required by Gemm1
+            store_tile(s_write_lds_window, s);
+            block_sync_lds();
+            auto s_new = load_tile(s_read_lds_window);
+
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
-                s,
+                s_new,
                 sequence<1>{},
                 f_max,
                 -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
             block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
-
-            __builtin_amdgcn_s_barrier();
-            store_tile(m_lds_windows(get_warp_id()), m_local);
-            block_sync_lds();
-
-            auto m_local4        = load_tile(m4_lds_window);
-            auto m_local4_reduce = block_tile_reduce<SMPLComputeDataType>(
-                m_local4,
-                sequence<1>{},
-                f_max,
-                -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
-
-            // copy back to m_local
-            {
-                constexpr auto m_spans = decltype(m_local)::get_distributed_spans();
-                sweep_tile_span(m_spans[number<0>{}], [&](auto idx0) {
-                    constexpr auto i_idx = make_tuple(idx0);
-
-                    m_local(i_idx) = m_local4_reduce[i_idx];
-                });
-            }
 
             const auto m_old = m; // m{j-1}
             tile_elementwise_inout(
                 [](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); }, m, m_old, m_local); // m{j}
 
             auto p_compute = make_static_distributed_tensor<SMPLComputeDataType>(
-                s.get_tile_distribution()); // Pcompute{j}
+                s_new.get_tile_distribution()); // Pcompute{j}
 
             static const auto get_validated_m = [](SMPLComputeDataType raw_m) {
                 /// NOTICE: bias might be materialized mask including -inf values, need
@@ -602,14 +562,14 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                     if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                                  BiasEnum == BlockAttentionBiasEnum::ALIBI)
                     {
-                        p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        p_compute(i_j_idx) = exp2(s_new[i_j_idx] - get_validated_m(m[i_idx]));
                     }
                     else
                     {
-                        p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+                        p_compute(i_j_idx) = exp2(scale_s * s_new[i_j_idx] - row_max);
                     }
 #else
-                    p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
+                    p_compute(i_j_idx)     = exp(s_new[i_j_idx] - get_validated_m(m[i_idx]));
 #endif
                 });
             });
@@ -619,27 +579,8 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
 
-            __builtin_amdgcn_s_barrier();
-            store_tile(m_lds_windows(get_warp_id()), rowsum_p);
-            block_sync_lds();
-
-            auto rowsum_p4        = load_tile(m4_lds_window);
-            auto rowsum_p4_reduce = block_tile_reduce<SMPLComputeDataType>(
-                rowsum_p4, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
-
-            // copy back to rowsum_p
-            {
-                constexpr auto m_spans = decltype(rowsum_p)::get_distributed_spans();
-                sweep_tile_span(m_spans[number<0>{}], [&](auto idx0) {
-                    constexpr auto i_idx = make_tuple(idx0);
-
-                    rowsum_p(i_idx) = rowsum_p4_reduce[i_idx];
-                });
-            }
-
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
-            store_tile(p_lds_window, p);
 
             // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
@@ -699,9 +640,8 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
                     block_sync_lds();
 
                     gemm_1(o_acc,
-                           get_slice_tile(p_lds_window,
-                                          sequence<0, i_k1 * kK1>{},
-                                          sequence<kM0, (i_k1 + 1) * kK1>{}),
+                           get_slice_tile(
+                               p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
                            v_lds_window);
                     block_sync_lds();
 
@@ -728,9 +668,8 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
             {
                 block_sync_lds();
                 gemm_1(o_acc,
-                       get_slice_tile(p_lds_window,
-                                      sequence<0, (k1_loops - 1) * kK1>{},
-                                      sequence<kM0, k1_loops * kK1>{}),
+                       get_slice_tile(
+                           p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, k1_loops * kK1>{}),
                        v_lds_window);
                 block_sync_lds();
             }
