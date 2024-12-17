@@ -8,6 +8,7 @@
 #include <map>
 #include <queue>
 #include <mutex>
+#include "unistd.h"
 
 namespace ck {
 namespace memory {
@@ -15,15 +16,27 @@ namespace memory {
     class MemPool
     {
     public:
-        MemPool() = default;
+        MemPool() : 
+            enableLogging_(ck::EnvIsEnabled(CK_ENV(CK_LOGGING))),
+            pid_(getpid())
+        {
+            if (enableLogging_)
+                std::cout << "[ MemPool ] Created memory pool for process " << pid_ << std::endl;
+        }
 
         ~MemPool()
         {
+            if (enableLogging_)
+                std::cout << "[ MemPool ] Deleting pool for process " << pid_ << "..."<< std::endl;
+
             std::lock_guard<std::mutex> lock(mutex_);
             for (auto& [size, q] : memory_pool_)
             {
                 clearMemoryPoolQueue(q);
             }
+
+            if (enableLogging_)
+                std::cout << "[ MemPool ] Deleted pool for process " << pid_ << std::endl;
         }
 
         void* allocate(std::size_t sizeInBytes)
@@ -78,10 +91,21 @@ namespace memory {
         std::mutex mutex_; // Mutex to protect access to the memory pool.
         std::map<size_t, std::queue<void*>> memory_pool_{};
         size_t memPoolSizeInBytes_{0};
+        bool enableLogging_{false};
+        int pid_{-1};
+    };
+
+    class PinnedHostMemoryAllocatorBase
+    {
+    protected:
+        static MemPool& get_memory_pool() {
+            static MemPool memory_pool;
+            return memory_pool;
+        }
     };
 
     template <typename T>
-    class PinnedHostMemoryAllocator
+    class PinnedHostMemoryAllocator : public PinnedHostMemoryAllocatorBase
     { 
     public:
         using value_type = T;
@@ -123,11 +147,6 @@ namespace memory {
         template<typename U>
         void destroy(U* p) noexcept {
             p->~U();
-        }
-    private:
-        static MemPool& get_memory_pool() {
-            static MemPool memory_pool;
-            return memory_pool;
         }
     };
 
