@@ -62,8 +62,8 @@ struct naive_attention_fwd_args
     void* context_len_ptr; // [batch] used when seqlen kv come from a pointer(each element is a
                            // number, not cumsum)
     void* page_table_ptr;  // [batch, max_pages_per_seq] seqlen_kv is in different block(paged attn)
-    void* kscale_ptr;      // [nhead, tokens] used for kvcache dequant
-    void* vscale_ptr;      // [nhead, tokens] used for kvcache dequant
+    void* kscale_ptr;      // [nhead, max_kv_tokens] used for kvcache dequant
+    void* vscale_ptr;      // [nhead, max_kv_tokens] used for kvcache dequant
     float scale_s;
     int hdim;
     int hdim_v; // could be cross-attn, where V and Q/K hdim are different
@@ -419,9 +419,9 @@ struct naive_attention_fwd_kernel
         int sk_loops          = (seqlen_kv + wg_size - 1) / wg_size;
         float q_dequant_scale = .0f;
         kvscale_addresser<KVScaleType, KScaleLayout> kscale_addr{
-            seqlen_kv, args.nhead_kv, args.hdim, args.kscale_ptr};
+            args.max_kv_tokens, args.nhead_kv, args.hdim, args.kscale_ptr};
         kvscale_addresser<KVScaleType, VScaleLayout> vscale_addr{
-            seqlen_kv / v_per_token_quant_group_size, args.nhead_kv, args.hdim_v, args.vscale_ptr};
+            args.max_kv_tokens, args.nhead_kv, args.hdim_v, args.vscale_ptr};
 
         if constexpr(Traits::quant_algo == naive_attention_quant_algo::INT8_KV_PERHEAD)
         {
