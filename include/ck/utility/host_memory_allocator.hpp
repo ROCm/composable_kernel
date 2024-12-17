@@ -47,6 +47,7 @@ namespace memory {
             {
                 void* p = memory_pool_[sizeInBytes].front();
                 memory_pool_[sizeInBytes].pop();
+                memPoolSizeInBytes_ -= sizeInBytes;
                 return p;
             }
             void* p;
@@ -65,6 +66,11 @@ namespace memory {
                 // If the memory pool size exceeds the maximum size, free the memory.
                 if (memPoolSizeInBytes_ > maxMemoryPoolSizeInBytes_)
                 {
+                    if (enableLogging_)
+                    {
+                        std::cout << "[ MemPool ] Clearing pool queue for size " << sizeInBytes << std::endl;
+                    }
+                    memPoolSizeInBytes_ -= sizeInBytes * q.size();
                     clearMemoryPoolQueue(q);
                 }
             }
@@ -84,6 +90,8 @@ namespace memory {
             {
                 void* p = q.front();
                 q.pop();
+                // This performs an implicit hipDeviceSynchronize().
+                // Does this create a deadlock situation when grouped GEMM is used in distributed training with NCCL? 
                 hip_check_error(hipHostFree(p));
             }
         }
