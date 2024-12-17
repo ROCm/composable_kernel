@@ -90,6 +90,10 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
     using F8 = ck::f8_t;
 #endif
 
+#if defined(CK_USE_GFX94)
+    using BF16 = ck::bf16_t;
+#endif
+
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
 
@@ -165,6 +169,24 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
         return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
 #endif
+#if defined(CK_USE_GFX94)
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        return profile(BF16{}, BF16{}, F32{}, BF16{}, Col{}, Row{}, Row{});
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        return profile(BF16{}, BF16{}, F32{}, BF16{}, Col{}, Col{}, Row{});
+    }
+#endif
     else
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;
@@ -174,3 +196,5 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
 }
 
 REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_gemm_universal_streamk);
+
+
