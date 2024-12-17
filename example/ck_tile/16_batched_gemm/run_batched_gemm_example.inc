@@ -188,52 +188,23 @@ int run_batched_gemm_example_with_layouts(int argc,
         c_m_n_gpu_ref.SetZero();
         c_m_n_gpu_buf_ref.SetZero();
 
-        //// TEST
         ADataType* d_A;
         BDataType* d_B;
         CDataType* d_C;
 
-        hipError_t errA = hipMalloc(&d_A, batch_count * M * K * sizeof(ADataType));
-        hipError_t errB = hipMalloc(&d_B, batch_count * N * K * sizeof(BDataType));
-        hipError_t errC = hipMalloc(&d_C, batch_count * M * N * sizeof(CDataType));
-        if(errA != hipSuccess)
-        {
-            std::cerr << "Error allocating device memory for A: " << hipGetErrorString(errA)
-                      << std::endl;
-            return EXIT_FAILURE; // Early exit on error
-        }
+        ck_tile::hip_check_error(hipMalloc(&d_A, batch_count * M * K * sizeof(ADataType)));
+        ck_tile::hip_check_error(hipMalloc(&d_B, batch_count * N * K * sizeof(BDataType)));
+        ck_tile::hip_check_error(hipMalloc(&d_C, batch_count * M * N * sizeof(CDataType)));
 
-        if(errB != hipSuccess)
-        {
-            std::cerr << "Error allocating device memory for B: " << hipGetErrorString(errB)
-                      << std::endl;
-            return EXIT_FAILURE; // Early exit on error
-        }
+        ck_tile::hip_check_error(hipMemcpy(d_A,
+                                           a_m_k_dev_buf.GetDeviceBuffer(),
+                                           batch_count * M * K * sizeof(ADataType),
+                                           hipMemcpyHostToDevice));
 
-        if(errC != hipSuccess)
-        {
-            std::cerr << "Error allocating device memory for C: " << hipGetErrorString(errC)
-                      << std::endl;
-            return EXIT_FAILURE; // Early exit on error
-        }
-
-        errA = hipMemcpy(d_A,
-                         a_m_k_dev_buf.GetDeviceBuffer(),
-                         batch_count * M * K * sizeof(ADataType),
-                         hipMemcpyHostToDevice);
-        if(errA != hipSuccess)
-        {
-            std::cerr << "Error copying A to device: " << hipGetErrorString(errA) << std::endl;
-        }
-
-        errB = hipMemcpy(d_B,
-                         b_k_n_dev_buf.GetDeviceBuffer(),
-                         batch_count * N * K * sizeof(BDataType),
-                         hipMemcpyHostToDevice);
-        if(errB != hipSuccess)
-        {
-            std::cerr << "Error copying B to device: " << hipGetErrorString(errB) << std::endl;
-        }
+        ck_tile::hip_check_error(hipMemcpy(d_B,
+                                           b_k_n_dev_buf.GetDeviceBuffer(),
+                                           batch_count * N * K * sizeof(BDataType),
+                                           hipMemcpyHostToDevice));
 
         ck_tile::reference_batched_gemm_gpu<ADataType,
                                             BDataType,
@@ -255,34 +226,14 @@ int run_batched_gemm_example_with_layouts(int argc,
                                                      batch_stride_C,
                                                      batch_count);
 
-        errC = hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
-                         d_C,
-                         batch_count * M * N * sizeof(CDataType),
-                         hipMemcpyDeviceToHost);
-        if(errC != hipSuccess)
-        {
-            std::cerr << "Error copying C to device: " << hipGetErrorString(errC) << std::endl;
-        }
+        ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
+                                           d_C,
+                                           batch_count * M * N * sizeof(CDataType),
+                                           hipMemcpyDeviceToHost));
 
-        errA = hipFree(d_A);
-        if(errA != hipSuccess)
-        {
-            std::cerr << "Error free the A memory: " << hipGetErrorString(errA) << std::endl;
-        }
-
-        errB = hipFree(d_B);
-        if(errB != hipSuccess)
-        {
-            std::cerr << "Error free the B memory: " << hipGetErrorString(errB) << std::endl;
-        }
-
-        errC = hipFree(d_C);
-        if(errC != hipSuccess)
-        {
-            std::cerr << "Error free the C memory: " << hipGetErrorString(errC) << std::endl;
-        }
-
-        //// TEST
+        ck_tile::hip_check_error(hipFree(d_A));
+        ck_tile::hip_check_error(hipFree(d_B));
+        ck_tile::hip_check_error(hipFree(d_C));
 
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
         pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_gpu_ref);
