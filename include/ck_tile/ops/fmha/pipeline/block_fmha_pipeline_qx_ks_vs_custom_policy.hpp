@@ -127,7 +127,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
 
 /// NOTICE: we no-longer use this policy.
 template <>
-struct [[deprecated]] BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
+struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
 {
     static constexpr bool QLoadOnce = false;
 
