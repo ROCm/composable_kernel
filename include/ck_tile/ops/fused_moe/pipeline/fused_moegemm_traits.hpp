@@ -22,7 +22,8 @@ template <bool IsGateOnly_,
           FusedMoeGemmWeightPermuteEnum PermuteEnum_ =
               FusedMoeGemmWeightPermuteEnum::b_nr_kr_waveflatten,
           bool PadHiddenSize_       = false,
-          bool PadIntermediateSize_ = false>
+          bool PadIntermediateSize_ = false,
+          bool PipeInterleave_      = true>
 struct FusedMoeGemmTraits
 {
     // Gate+Up or Gate only
@@ -32,6 +33,7 @@ struct FusedMoeGemmTraits
     static constexpr FusedMoeGemmWeightPermuteEnum PermuteEnum = PermuteEnum_;
     static constexpr bool PadHiddenSize                        = PadHiddenSize_;
     static constexpr bool PadIntermediateSize                  = PadIntermediateSize_;
+    static constexpr bool PipeInterleave                       = PipeInterleave_;
 };
 
 // Note: this need to be a bit mask

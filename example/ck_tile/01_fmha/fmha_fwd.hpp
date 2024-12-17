@@ -16,11 +16,35 @@
 #include <utility>
 #include <variant>
 
+struct FmhaFwdFp16
+{
+};
+
+struct FmhaFwdBf16
+{
+};
+
+struct FmhaFwdFp8
+{
+};
+
+struct FmhaFwdBf8
+{
+};
+
+struct FmhaFwdFp8Fp16
+{
+};
+
+struct FmhaFwdFp8Bf16
+{
+};
+
 template <typename DataType>
 struct FmhaFwdTypeConfig;
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::half_t>
+struct FmhaFwdTypeConfig<FmhaFwdFp16>
 {
     using QDataType             = ck_tile::half_t;
     using KDataType             = ck_tile::half_t;
@@ -36,7 +60,7 @@ struct FmhaFwdTypeConfig<ck_tile::half_t>
 };
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::bf16_t>
+struct FmhaFwdTypeConfig<FmhaFwdBf16>
 {
     using QDataType             = ck_tile::bf16_t;
     using KDataType             = ck_tile::bf16_t;
@@ -52,7 +76,7 @@ struct FmhaFwdTypeConfig<ck_tile::bf16_t>
 };
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::fp8_t>
+struct FmhaFwdTypeConfig<FmhaFwdFp8>
 {
     using QDataType             = ck_tile::fp8_t;
     using KDataType             = ck_tile::fp8_t;
@@ -68,7 +92,7 @@ struct FmhaFwdTypeConfig<ck_tile::fp8_t>
 };
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::bf8_t>
+struct FmhaFwdTypeConfig<FmhaFwdBf8>
 {
     using QDataType             = ck_tile::bf8_t;
     using KDataType             = ck_tile::bf8_t;
