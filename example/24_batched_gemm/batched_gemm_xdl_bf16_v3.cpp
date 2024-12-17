@@ -78,14 +78,14 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmMultiD
     2,              // ABlockTransferSrcVectorDim
     8,              // ABlockTransferSrcScalarPerVector
     8,              // ABlockTransferDstScalarPerVector_AK1
-    1,              // ABlockLdsExtraM
+    0,              // ABlockLdsExtraM
     S<4, 64, 1>,    // BBlockTransferThreadClusterLengths_BK0_N_BK1
     S<1, 0, 2>,     // BBlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,     // BBlockTransferSrcAccessOrder
     2,              // BBlockTransferSrcVectorDim
     8,              // BBlockTransferSrcScalarPerVector
     8,              // BBlockTransferDstScalarPerVector_BK1
-    1,              // BBlockLdsExtraN
+    0,              // BBlockLdsExtraN
     1,              // CShuffleMXdlPerWavePerShuffle
     1,              // CShuffleNXdlPerWavePerShuffle
     S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
