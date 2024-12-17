@@ -8,7 +8,6 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
-#include "ck_tile/ops/gemm/problem/gemm_problem.hpp"
 
 template <typename DataType>
 struct BatchedGemmTypeConfig;
@@ -57,4 +56,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-float batched_gemm(BatchedGemmHostArgs args, const ck_tile::stream_config& s);
+float batched_gemm(ck_tile::BatchedGemmHostArgs args, const ck_tile::stream_config& s);

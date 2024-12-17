@@ -8,7 +8,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/gemm/problem/gemm_problem.hpp"
 
 template <typename DataType>
 struct GemmBasicTypeConfig;

@@ -12,6 +12,82 @@
 
 namespace ck_tile {
 
+struct GemmProblem
+{
+    CK_TILE_HOST GemmProblem() = default;
+    CK_TILE_HOST GemmProblem(
+        index_t M_, index_t N_, index_t K_, index_t stride_A_, index_t stride_B_, index_t stride_C_)
+        : M(M_), N(N_), K(K_), stride_A(stride_A_), stride_B(stride_B_), stride_C(stride_C_)
+    {
+    }
+
+    index_t M;
+    index_t N;
+    index_t K;
+    index_t stride_A;
+    index_t stride_B;
+    index_t stride_C;
+};
+
+struct GemmHostArgs : public GemmProblem
+{
+    CK_TILE_HOST GemmHostArgs() = default;
+    CK_TILE_HOST GemmHostArgs(const void* a_ptr_,
+                              const void* b_ptr_,
+                              void* c_ptr_,
+                              index_t k_batch_,
+                              index_t M_,
+                              index_t N_,
+                              index_t K_,
+                              index_t stride_A_,
+                              index_t stride_B_,
+                              index_t stride_C_)
+        : GemmProblem(M_, N_, K_, stride_A_, stride_B_, stride_C_),
+          a_ptr(a_ptr_),
+          b_ptr(b_ptr_),
+          c_ptr(c_ptr_),
+          k_batch(k_batch_)
+    {
+    }
+
+    const void* a_ptr;
+    const void* b_ptr;
+    void* c_ptr;
+    index_t k_batch;
+};
+
+struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs
+{
+    CK_TILE_HOST BatchedGemmHostArgs() = default;
+    CK_TILE_HOST BatchedGemmHostArgs(const void* a_ptr_,
+                                     const void* b_ptr_,
+                                     void* c_ptr_,
+                                     ck_tile::index_t k_batch_,
+                                     ck_tile::index_t M_,
+                                     ck_tile::index_t N_,
+                                     ck_tile::index_t K_,
+                                     ck_tile::index_t stride_A_,
+                                     ck_tile::index_t stride_B_,
+                                     ck_tile::index_t stride_C_,
+                                     ck_tile::index_t batch_stride_A_,
+                                     ck_tile::index_t batch_stride_B_,
+                                     ck_tile::index_t batch_stride_C_,
+                                     ck_tile::index_t batch_count_)
+        : GemmHostArgs(
+              a_ptr_, b_ptr_, c_ptr_, k_batch_, M_, N_, K_, stride_A_, stride_B_, stride_C_),
+          batch_stride_A(batch_stride_A_),
+          batch_stride_B(batch_stride_B_),
+          batch_stride_C(batch_stride_C_),
+          batch_count(batch_count_)
+    {
+    }
+
+    ck_tile::index_t batch_stride_A;
+    ck_tile::index_t batch_stride_B;
+    ck_tile::index_t batch_stride_C;
+    ck_tile::index_t batch_count;
+};
+
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GemmKernel
 {
@@ -147,7 +223,7 @@ struct GemmKernel
                                             CDataType* c_ptr,
                                             const GemmKernelArgs& kargs) const
     {
-        auto&& a_tensor_view = [&]() {
+        const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
@@ -168,7 +244,7 @@ struct GemmKernel
             }
         }();
 
-        auto&& b_tensor_view = [&]() {
+        const auto& b_tensor_view = [&]() {
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
@@ -189,7 +265,7 @@ struct GemmKernel
             }
         }();
 
-        auto&& c_tensor_view = [&]() {
+        const auto& c_tensor_view = [&]() {
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
@@ -214,10 +290,10 @@ struct GemmKernel
     }
 
     template <typename TensorView>
-    CK_TILE_DEVICE auto MakeGemmPadViews(TensorView&& views) const
+    CK_TILE_DEVICE auto MakeGemmPadViews(const TensorView& views) const
     {
-        auto&& a_pad_view = [&]() {
-            auto&& a_tensor_view = views.at(I0);
+        const auto& a_pad_view = [&]() {
+            const auto& a_tensor_view = views.at(I0);
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
                 return pad_tensor_view(
@@ -234,8 +310,8 @@ struct GemmKernel
             }
         }();
 
-        auto&& b_pad_view = [&]() {
-            auto&& b_tensor_view = views.at(I1);
+        const auto& b_pad_view = [&]() {
+            const auto& b_tensor_view = views.at(I1);
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
             {
                 return pad_tensor_view(
@@ -252,8 +328,8 @@ struct GemmKernel
             }
         }();
 
-        auto&& c_pad_view = [&]() {
-            auto&& c_tensor_view = views.at(I2);
+        const auto& c_pad_view = [&]() {
+            const auto& c_tensor_view = views.at(I2);
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
                 return pad_tensor_view(
@@ -275,22 +351,22 @@ struct GemmKernel
 
     template <typename PadView>
     CK_TILE_DEVICE auto
-    MakeGemmTileWindows(PadView&& views, const index_t i_m, const index_t i_n) const
+    MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n) const
     {
-        auto&& a_pad_view     = views.at(I0);
-        auto&& a_block_window = make_tile_window(
+        const auto& a_pad_view     = views.at(I0);
+        const auto& a_block_window = make_tile_window(
             a_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
             {i_m, 0});
 
-        auto&& b_pad_view     = views.at(I1);
-        auto&& b_block_window = make_tile_window(
+        const auto& b_pad_view     = views.at(I1);
+        const auto& b_block_window = make_tile_window(
             b_pad_view,
             make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
             {i_n, 0});
 
-        auto&& c_pad_view     = views.at(I2);
-        auto&& c_block_window = make_tile_window(
+        const auto& c_pad_view     = views.at(I2);
+        const auto& c_block_window = make_tile_window(
             c_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
             {i_m, i_n});
@@ -299,15 +375,14 @@ struct GemmKernel
     }
 
     /**
-     * Create tensor views, pad views, tile windows.
-     * Runs GEMM cooperatively by whole workgroup with CShuffle or Default 2D Epilogue
+     * @brief Runs single GEMM problem cooperatively by whole workgroup.
      *
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
      * @param c_ptr output C pointer
      * @param kargs GEMM kernel arguments
-     * @param block_idx_m M block index
-     * @param block_idx_n N block index
+     * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
+     * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      */
     CK_TILE_DEVICE void RunGemm(const ADataType* a_ptr,
                                 const BDataType* b_ptr,
@@ -317,9 +392,10 @@ struct GemmKernel
                                 const index_t block_idx_n) const
     {
         // Create Gemm tensor views, pad views and tile windows
-        auto&& gemm_tensor_views_tuple = MakeGemmTensorViews(a_ptr, b_ptr, c_ptr, kargs);
-        auto&& gemm_pad_views          = MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto&& gemm_tile_windows = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+        const auto& gemm_tensor_views_tuple = MakeGemmTensorViews(a_ptr, b_ptr, c_ptr, kargs);
+        const auto& gemm_pad_views          = MakeGemmPadViews(gemm_tensor_views_tuple);
+        const auto& gemm_tile_windows =
+            MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
@@ -327,13 +403,13 @@ struct GemmKernel
         const index_t num_loop = TilePartitioner::GetLoopNum(kargs.K);
 
         // Run GEMM cooperatively by whole workgroup.
-        auto&& a_block_window = gemm_tile_windows.at(I0);
-        auto&& b_block_window = gemm_tile_windows.at(I1);
-        auto&& c_block_tile =
+        const auto& a_block_window = gemm_tile_windows.at(I0);
+        const auto& b_block_window = gemm_tile_windows.at(I1);
+        auto c_block_tile =
             GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr);
 
-        // Run CShuffle or Default 2D Epilogue
-        auto&& c_block_window = gemm_tile_windows.at(I2);
+        // Run Epilogue Pipeline
+        auto c_block_window = gemm_tile_windows.at(I2);
         EpiloguePipeline{}(c_block_window, c_block_tile);
     }
 
