@@ -182,8 +182,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
 
-    //Added By Emin
-    
+    // Added By Emin
 
     // Added By Emin
 
