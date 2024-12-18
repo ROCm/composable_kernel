@@ -11,18 +11,24 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 
+enum struct GemmPipelineType
+{
+    Mem,
+    Comp
+};
 template <typename Tuple>
-class TestCkTileGemmMemPipeline : public ::testing::Test
+class TestCkTileGemmPipeline : public ::testing::Test
 {
     protected:
-    using ALayout                   = std::tuple_element_t<0, Tuple>;
-    using BLayout                   = std::tuple_element_t<1, Tuple>;
-    using CLayout                   = std::tuple_element_t<2, Tuple>;
-    using ADataType                 = std::tuple_element_t<3, Tuple>;
-    using BDataType                 = std::tuple_element_t<4, Tuple>;
-    using AccDataType               = std::tuple_element_t<5, Tuple>;
-    using CDataType                 = std::tuple_element_t<6, Tuple>;
-    static constexpr auto Scheduler = std::tuple_element_t<7, Tuple>::value;
+    using ALayout                      = std::tuple_element_t<0, Tuple>;
+    using BLayout                      = std::tuple_element_t<1, Tuple>;
+    using CLayout                      = std::tuple_element_t<2, Tuple>;
+    using ADataType                    = std::tuple_element_t<3, Tuple>;
+    using BDataType                    = std::tuple_element_t<4, Tuple>;
+    using AccDataType                  = std::tuple_element_t<5, Tuple>;
+    using CDataType                    = std::tuple_element_t<6, Tuple>;
+    static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
+    static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
     // TODO: expose tile size through test t-param ?
 
     struct gemm_args
@@ -74,8 +80,13 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
 
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
 
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
+        using BaseGemmPipeline = std::conditional_t<
+            PipelineType == GemmPipelineType::Mem,
+            ck_tile::BaseGemmPipelineAgBgCrMem<
+                ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>,
+            ck_tile::BaseGemmPipelineAgBgCrCompV3<
+                ck_tile::
+                    GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>>;
 
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
@@ -85,15 +96,26 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
 
-            using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<
-                ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                      BDataType,
-                                                      AccDataType,
-                                                      GemmShape,
-                                                      Traits,
-                                                      Scheduler,
-                                                      has_hot_loop_v,
-                                                      tail_number_v>>;
+            using GemmPipeline =
+                std::conditional_t<PipelineType == GemmPipelineType::Mem,
+                                   ck_tile::GemmPipelineAgBgCrMem<
+                                       ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                             BDataType,
+                                                                             AccDataType,
+                                                                             GemmShape,
+                                                                             Traits,
+                                                                             Scheduler,
+                                                                             has_hot_loop_v,
+                                                                             tail_number_v>>,
+                                   ck_tile::GemmPipelineAgBgCrCompV3<
+                                       ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                             BDataType,
+                                                                             AccDataType,
+                                                                             GemmShape,
+                                                                             Traits,
+                                                                             Scheduler,
+                                                                             has_hot_loop_v,
+                                                                             tail_number_v>>>;
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKargs(args.p_a,
                                            args.p_b,
