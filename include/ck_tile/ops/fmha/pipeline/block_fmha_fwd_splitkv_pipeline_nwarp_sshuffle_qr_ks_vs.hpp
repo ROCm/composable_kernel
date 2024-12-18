@@ -100,7 +100,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         }
     }();
 
-    static constexpr const char* name = "qr_smallq";
+    static constexpr const char* name = "qr_nwarp_sshuffle";
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
