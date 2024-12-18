@@ -20,7 +20,7 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                           int n_warmup,
                           int n_repeat)
 {
-    batched_gemm_kargs args;
+    ck_tile::BatchedGemmHostArgs args;
     args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
     args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
     args.c_ptr          = c_m_n_dev_buf.GetDeviceBuffer();

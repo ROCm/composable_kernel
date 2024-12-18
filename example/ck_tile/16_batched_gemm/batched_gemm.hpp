@@ -29,10 +29,6 @@ using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
 using CDataType   = Types::CDataType;
 
-struct batched_gemm_kargs : public ck_tile::BatchedGemmHostArgs
-{
-};
-
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -60,4 +56,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-float batched_gemm(batched_gemm_kargs args, const ck_tile::stream_config& s);
+float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stream_config& s);
