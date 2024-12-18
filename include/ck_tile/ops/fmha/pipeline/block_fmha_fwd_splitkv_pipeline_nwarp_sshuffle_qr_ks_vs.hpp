@@ -5,15 +5,15 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_smallq_pipeline_qr_ks_vs_default_policy.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_pipeline_nwarp_sshuffle_qr_ks_vs_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
 
 // This pipeline is qkv all located in LDS
 template <typename Problem_,
-          typename Policy_ = BlockFmhaFwdSplitKVSmallQPipelineQRKSVSDefaultPolicy>
-struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
+          typename Policy_ = BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy>
+struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
 {
     using Problem             = remove_cvref_t<Problem_>;
     using Policy              = remove_cvref_t<Policy_>;
@@ -189,8 +189,8 @@ struct BlockFmhaFwdSplitKVSmallQPipelineQRKSVS
         // S tile in LDS
         auto s_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<SaccDataType*>(reinterpret_cast<char*>(smem_ptr) +
-                                         Policy::template GetSmemSizeQ<Problem>() +
-                                         Policy::template GetSmemSizeK<Problem>()),
+                                            Policy::template GetSmemSizeQ<Problem>() +
+                                            Policy::template GetSmemSizeK<Problem>()),
             Policy::template MakeSLdsBlockDescriptor<Problem>());
         auto s_write_lds_window = make_tile_window(
             s_lds, Policy::template MakeSLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});

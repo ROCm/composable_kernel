@@ -39,7 +39,7 @@ K0_MAX_SUBMAX_MAP = {
 
 FMHA_FWD_SPLITKV_PIPELINE_MAP = {
     "qr" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVS",
-    "qr_smallq" : "ck_tile::BlockFmhaFwdSplitKVSmallQPipelineQRKSVS",
+    "qr_nwarp_sshuffle" : "ck_tile::BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS",
     "qr_async" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVSAsync",
 }
 
@@ -312,7 +312,7 @@ class FmhaFwdSplitKVApiTrait:
         if self.pipeline_tag == 'qr_async':
             if self.spad == 't' : return 'true' # always support
             else :                return 'true'
-        elif self.pipeline_tag in ['qr', 'qr_smallq']:
+        elif self.pipeline_tag in ['qr', 'qr_nwarp_sshuffle']:
             if self.spad == 't' : return f'true /*a.seqlen_q % {self.bm0} != 0*/'  # TODO: order of get_pipelines() matters! (ugly)
             else :                return f'a.seqlen_q % {self.bm0} == 0'
         else: assert False
@@ -323,7 +323,7 @@ class FmhaFwdSplitKVApiTrait:
         if self.pipeline_tag == 'qr_async':
             if self.skpad == 't' : return f'a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0'
             else :                 return f'a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0'
-        elif self.pipeline_tag in ['qr', 'qr_smallq']:
+        elif self.pipeline_tag in ['qr', 'qr_nwarp_sshuffle']:
             if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :                return f'a.seqlen_k % {self.bn0} == 0'
         else: assert False
@@ -334,7 +334,7 @@ class FmhaFwdSplitKVApiTrait:
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dpad == 't': return f'a.hdim_q % {vec} == 0'
             else :               assert False
-        elif self.pipeline_tag in ['qr', 'qr_smallq']:
+        elif self.pipeline_tag in ['qr', 'qr_nwarp_sshuffle']:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dpad == 't': return f'true /*a.hdim_q % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :               return f'a.hdim_q % {bk0submax} == 0'
@@ -346,7 +346,7 @@ class FmhaFwdSplitKVApiTrait:
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dvpad == 't': return f'a.hdim_v % {vec} == 0'
             else :                assert False
-        elif self.pipeline_tag in ['qr', 'qr_smallq']:
+        elif self.pipeline_tag in ['qr', 'qr_nwarp_sshuffle']:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dvpad == 't': return f'true /*a.hdim_v % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :                return f'a.hdim_v % {bk0submax} == 0'
@@ -639,11 +639,11 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                 # TODO: use async pipeline when compiler is more stable 
                 if hdim == 256 or hdim in [32, 64, 128]:         ### [32, 64, 96, 128]:
                 # if True:
-                    pipelines.append(Pipeline('qr_smallq', 'row', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr_smallq', 'col', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_nwarp_sshuffle', 'row', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_nwarp_sshuffle', 'col', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
 
-                    pipelines.append(Pipeline('qr_smallq', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr_smallq', 'col', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_nwarp_sshuffle', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr_nwarp_sshuffle', 'col', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
                 else:
                     pipelines.append(Pipeline('qr_async', 'row', 't', 'f', 't', 't', bias, 't', squant, pagedkv, mask))
                     pipelines.append(Pipeline('qr_async', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
