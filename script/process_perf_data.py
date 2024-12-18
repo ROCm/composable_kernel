@@ -149,7 +149,7 @@ def parse_logfile(logfile):
                 lst=line.split()
                 line_dict=dict(zip(lst[1:],lst))
                 res.append(line_dict['TFlops,'])
-    elif 'perf_gemm' in logfile:
+    elif 'perf_gemm_basic' in logfile or 'perf_gemm_mem_pipeline' in logfile:
         for line in open(logfile):
             if 'TFlops' in line:
                 lst=line.split()
