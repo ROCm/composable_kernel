@@ -339,10 +339,10 @@ def cmake_build(Map conf=[:]){
     }
     if (params.RUN_CK_TILE_GEMM_TESTS){
         try{
-            archiveArtifacts "perf_gemm_basic_*.log"
-            archiveArtifacts "perf_gemm_mem_pipeline_*.log"
-            stash includes: "perf_gemm_**_gfx942.log", name: "perf_gemm_log_gfx942"
-            stash includes: "perf_gemm_**_gfx90a.log", name: "perf_gemm_log_gfx90a"
+            archiveArtifacts "perf_tile_gemm_basic_*.log"
+            archiveArtifacts "perf_tile_gemm_mem_pipeline_*.log"
+            stash includes: "perf_tile_gemm_**_gfx942.log", name: "perf_tile_gemm_log_gfx942"
+            stash includes: "perf_tile_gemm_**_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
         }
         catch(Exception err){
             echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
