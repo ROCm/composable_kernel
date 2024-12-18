@@ -21,7 +21,6 @@ using ck::utils::cast_to_float;
 
 TEST(FP4, NumericLimits)
 {
-    // constants given for negative zero nan mode
     EXPECT_EQ(ck::NumericLimits<f4_t>::Min(), f4_t{0x2});
     EXPECT_EQ(ck::NumericLimits<f4_t>::Max(), f4_t{0x7});
     EXPECT_EQ(ck::NumericLimits<f4_t>::Lowest(), f4_t{0xF});

@@ -12,6 +12,8 @@ using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
 using f4_t    = unsigned _BitInt(4);
+using f6_t    = _BitInt(6);          // e2m3 format
+using bf6_t   = unsigned _BitInt(6); // e3m2 format
 
 struct e8m0_bexp_t
 {
@@ -60,7 +62,8 @@ inline constexpr bool is_native_type()
     return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
            is_same<T, bhalf_t>::value || is_same<T, int32_t>::value || is_same<T, int8_t>::value ||
            is_same<T, uint8_t>::value || is_same<T, f8_fnuz_t>::value ||
-           is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value || is_same<T, f4_t>::value;
+           is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value || is_same<T, f4_t>::value ||
+           is_same<T, f6_t>::value || is_same<T, bf6_t>::value;
 }
 
 // vector_type
@@ -2077,6 +2080,65 @@ struct NumericLimits<f4_t>
 };
 
 template <>
+struct NumericLimits<f6_t>
+{
+    static constexpr uint8_t binary_min_normal    = 0x08; // 0b001000
+    static constexpr uint8_t binary_max_normal    = 0x1F; // 0b011111
+    static constexpr uint8_t binary_lowest_normal = 0x3F; // 0b111111
+    static constexpr uint8_t binary_min_subnorm   = 0x01; // 0b000001
+    static constexpr uint8_t binary_max_subnorm   = 0x07; // 0b000111
+
+    static constexpr float data_max_normal_number    = 7.5;
+    static constexpr float data_min_subnormal_number = 0.125;
+
+    __host__ __device__ static constexpr f6_t Min() { return f6_t(binary_min_normal & 0b111111); }
+    __host__ __device__ static constexpr f6_t Max() { return f6_t(binary_max_normal & 0b111111); }
+    __host__ __device__ static constexpr f6_t Lowest()
+    {
+        return f6_t(binary_lowest_normal & 0b111111);
+    }
+    __host__ __device__ static constexpr f6_t MinSubnorm()
+    {
+        return f6_t(binary_min_subnorm & 0b111111);
+    }
+    __host__ __device__ static constexpr f6_t MaxSubnorm()
+    {
+        return f6_t(binary_max_subnorm & 0b111111);
+    }
+
+    __host__ __device__ static constexpr float DataMaxNorm() { return data_max_normal_number; }
+    __host__ __device__ static constexpr float DataMinSubnorm()
+    {
+        return data_min_subnormal_number;
+    }
+};
+
+template <>
+struct NumericLimits<bf6_t>
+{
+    static constexpr uint8_t binary_min_normal    = 0x08; // 0b001000
+    static constexpr uint8_t binary_max_normal    = 0x1F; // 0b011111
+    static constexpr uint8_t binary_lowest_normal = 0x3F; // 0b111111
+    static constexpr uint8_t binary_min_subnorm   = 0x01; // 0b000001
+    static constexpr uint8_t binary_max_subnorm   = 0x03; // 0b000011
+
+    static constexpr float data_max_normal_number    = 28;
+    static constexpr float data_min_subnormal_number = 0.0625;
+
+    __host__ __device__ static constexpr bf6_t Min() { return bf6_t(binary_min_normal); }
+    __host__ __device__ static constexpr bf6_t Max() { return bf6_t(binary_max_normal); }
+    __host__ __device__ static constexpr bf6_t Lowest() { return bf6_t(binary_lowest_normal); }
+    __host__ __device__ static constexpr bf6_t MinSubnorm() { return bf6_t(binary_min_subnorm); }
+    __host__ __device__ static constexpr bf6_t MaxSubnorm() { return bf6_t(binary_max_subnorm); }
+
+    __host__ __device__ static constexpr float DataMaxNorm() { return data_max_normal_number; }
+    __host__ __device__ static constexpr float DataMinSubnorm()
+    {
+        return data_min_subnormal_number;
+    }
+};
+
+template <>
 struct NumericLimits<e8m0_bexp_t>
 {
     static constexpr e8m0_bexp_t binary_min  = 0x00; // 0b00000000
@@ -2215,6 +2277,64 @@ struct NumericUtils<f4_t>
     static constexpr uint8_t data_max_negative_subnormal_mask = 0b1001;
 
     static constexpr bool has_inf = false;
+
+    using bitwise_type = uint8_t;
+};
+
+template <>
+struct NumericUtils<f6_t>
+{
+    static constexpr int exp           = 2;
+    static constexpr int mant          = 3;
+    static constexpr int bias          = 1;
+    static constexpr uint32_t sr_shift = 12;
+
+    static constexpr int unbiased_exp_min = 0;
+    static constexpr int unbiased_exp_max = 2;
+    static constexpr int biased_exp_min   = 1;
+    static constexpr int biased_exp_max   = 3;
+
+    static constexpr uint8_t positive_zero_mask = 0b000000;
+    static constexpr uint8_t negative_zero_mask = 0b100000;
+
+    static constexpr uint8_t data_max_positive_normal_mask = 0b011111;
+    static constexpr uint8_t data_max_negative_normal_mask = 0b111111;
+
+    static constexpr uint8_t data_max_positive_subnormal_mask = 0b000111;
+    static constexpr uint8_t data_max_negative_subnormal_mask = 0b100111;
+
+    static constexpr bool has_inf  = false;
+    static constexpr bool has_nan  = false;
+    static constexpr bool has_zero = true;
+
+    using bitwise_type = uint8_t;
+};
+
+template <>
+struct NumericUtils<bf6_t>
+{
+    static constexpr int exp           = 3;
+    static constexpr int mant          = 2;
+    static constexpr int bias          = 3;
+    static constexpr uint32_t sr_shift = 11;
+
+    static constexpr int unbiased_exp_min = -2;
+    static constexpr int unbiased_exp_max = 4;
+    static constexpr int biased_exp_min   = 1;
+    static constexpr int biased_exp_max   = 7;
+
+    static constexpr uint8_t positive_zero_mask = 0b000000;
+    static constexpr uint8_t negative_zero_mask = 0b100000;
+
+    static constexpr uint8_t data_max_positive_normal_mask = 0b011111;
+    static constexpr uint8_t data_max_negative_normal_mask = 0b111111;
+
+    static constexpr uint8_t data_max_positive_subnormal_mask = 0b000011;
+    static constexpr uint8_t data_max_negative_subnormal_mask = 0b100011;
+
+    static constexpr bool has_inf  = false;
+    static constexpr bool has_nan  = false;
+    static constexpr bool has_zero = true;
 
     using bitwise_type = uint8_t;
 };
