@@ -4,6 +4,9 @@
 #pragma once
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/ops/cross_gpu_reduce/kernel/cross_gpu_connect.hpp"
+
+__constant__ mscclpp::DeviceHandle<mscclpp::SmChannel> constMasterSmChannel;
 
 namespace ck_tile {
 template <typename CrossReducePartitioner, typename ReduceSendPipeline_>
@@ -15,15 +18,14 @@ struct ReduceSendKernel
     struct ReduceSendKargs
     {
         const void* reduce_ptr;
-        const void* send_ptr;
         index_t M;
         index_t N;
     };
 
     CK_TILE_HOST static constexpr ReduceSendKargs
-    MakeKargs(const void* reduce_ptr, const void* send_ptr, index_t M, index_t N)
+    MakeKargs(const void* reduce_ptr, index_t M, index_t N)
     {
-        return ReduceSendKargs{reduce_ptr, send_ptr, M, N};
+        return ReduceSendKargs{reduce_ptr, M, N};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()

@@ -4,6 +4,9 @@
 #pragma once
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/ops/cross_gpu_reduce/kernel/cross_gpu_connect.hpp"
+
+__constant__ DeviceHandle<mscclpp::SmChannel> constSlaveSmChannels[8]; // For SmChannel
 
 namespace ck_tile {
 template <typename CrossReducePartitioner, typename ReduceReceivePipeline_>
@@ -17,19 +20,17 @@ struct ReduceReceiveKernel
     struct ReduceReceiveKargs
     {
         const void* reduce_ptr;
-        const void* receive_ptr;
         const void* output_ptr;
         index_t M;
         index_t N;
     };
 
     CK_TILE_HOST static constexpr ReduceReceiveKargs MakeKargs(const void* reduce_ptr,
-                                                               const void* receive_ptr,
                                                                const void* output_ptr,
                                                                index_t M,
                                                                index_t N)
     {
-        return ReduceReceiveKargs{reduce_ptr, receive_ptr, output_ptr, M, N};
+        return ReduceReceiveKargs{reduce_ptr, output_ptr, M, N};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -44,8 +45,9 @@ struct ReduceReceiveKernel
 
     CK_TILE_DEVICE void operator()(ReduceReceiveKargs kargs) const
     {
-        const auto i_M                 = CrossReducePartitioner{}();
-        const DataType* reduce_start = static_cast<const DataType*>(kargs.reduce_ptr);
+        auto channel = *constSlaveSmChannels[0];
+        const auto [i_m, i_n] = CrossReducePartitioner{}();
+        const DataType* reduce_start = static_cast<const DataType*>(reduce_ptr);
         auto transfer_tensor_view      = [&]() {
             return make_naive_tensor_view<address_space_enum::global>(
                 reduce_start,
@@ -58,7 +60,13 @@ struct ReduceReceiveKernel
             make_tile_window(transfer_tensor_view,
                              make_tuple(number<ReduceReceivePipeline::Block_M>{},
                                         number<ReduceReceivePipeline::Block_N>{}),
-                             {i_M, 0});
+                             {i_m, i_n});
+        
+        uint32_t numThreads = static_cast<uint32_t>(CrossReducePartitioner::NumThreads(kargs.M, kargs.N));
+        uint32_t threadId = static_cast<uint32_t>(i_m + i_n * (kargs.M + ReduceReceivePipeline::Block_M - 1) / ReduceReceivePipeline::Block_M);
+        uint64_t totalBytes = static_cast<uint64_t>(ReduceReceivePipeline::Block_M * ReduceReceivePipeline::Block_N * sizeof(DataType));
+        channel.get(0, totalBytes, threadId, numThreads);
+        
 
         const ODataType* output_start = static_cast<const ODataType*>(kargs.output_ptr);
         auto output_tensor_view       = [&]() {
@@ -73,7 +81,7 @@ struct ReduceReceiveKernel
             make_tile_window(output_tensor_view,
                              make_tuple(number<ReduceReceivePipeline::Block_M>{},
                                         number<ReduceReceivePipeline::Block_N>{}),
-                             {i_M, 0});
+                             {i_m, i_n});
 
         __shared__ char smem_ptr[ReduceReceivePipeline::GetSmemSize()];
 

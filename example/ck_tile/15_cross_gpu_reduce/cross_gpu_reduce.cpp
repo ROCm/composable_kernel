@@ -6,142 +6,13 @@
 #include <iostream>
 #include <string>
 #include <thread>
-#include <future>
 #include <vector>
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wsuggest-destructor-override"
-#pragma clang diagnostic ignored "-Wold-style-cast"
-#pragma clang diagnostic ignored "-Wshadow-field-in-constructor"
-#pragma clang diagnostic ignored "-Wdocumentation"
-#pragma clang diagnostic ignored "-Winconsistent-missing-destructor-override"
-#pragma clang diagnostic ignored "-Wcast-align"
-#pragma clang diagnostic ignored "-Wglobal-constructors"
-#pragma clang diagnostic ignored "-Wdeprecated-copy-with-user-provided-dtor"
-
-#include <mscclpp/core.hpp>
-#include <mscclpp/gpu_utils.hpp>
-#include <mscclpp/sm_channel.hpp>
-#include <mscclpp/semaphore.hpp>
-
-#pragma clang diagnostic pop
 
 #include "cross_gpu_reduce.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/cross_gpu_reduce.hpp"
 
-template <class T>
-using DeviceHandle = mscclpp::DeviceHandle<T>;
-extern __constant__ DeviceHandle<mscclpp::SmChannel> constSlaveSmChannels[8]; // For SmChannel
-
-extern __constant__ DeviceHandle<mscclpp::SmChannel> constMasterSmChannel;
-
-void setupConnection(int rank, int slaveRank, int worldSize, void* dst_data, size_t dataSize)
-{
-    // Initialize MSCCL++ Communicator
-    auto bootstrap = std::make_shared<mscclpp::TcpBootstrap>(rank, worldSize);
-
-    mscclpp::Communicator comm(bootstrap);
-    mscclpp::Transport transport = mscclpp::Transport::CudaIpc;
-
-    // We'll register our local memory. For the slave, this might be the destination buffer.
-    // For senders, this might be the source buffer or a local buffer we expose to the slave.
-    mscclpp::RegisteredMemory localMemory = comm.registerMemory(dst_data, dataSize, transport);
-
-    if(rank == slaveRank)
-    {
-        std::vector<mscclpp::NonblockingFuture<std::shared_ptr<mscclpp::Connection>>>
-            connectionFutures;
-        std::vector<mscclpp::NonblockingFuture<mscclpp::RegisteredMemory>> remoteMemFutures;
-        std::vector<std::shared_ptr<mscclpp::SmDevice2DeviceSemaphore>> slave_semaphore_list(
-            worldSize);
-        for(size_t senderRank = 0; senderRank < static_cast<size_t>(worldSize); ++senderRank)
-        {
-            if(senderRank == static_cast<size_t>(rank))
-                continue;
-            connectionFutures.push_back(comm.connectOnSetup(senderRank, 0, transport));
-            comm.sendMemoryOnSetup(localMemory, senderRank, 0);
-            remoteMemFutures.push_back(comm.recvMemoryOnSetup(senderRank, 0));
-        }
-        comm.setup();
-        // Now retrieve all completed futures
-        std::vector<std::shared_ptr<mscclpp::Connection>> connections;
-        connections.reserve(connectionFutures.size());
-        for(auto& cf : connectionFutures)
-        {
-            connections.push_back(cf.get());
-        }
-
-        std::vector<mscclpp::RegisteredMemory> remoteMemories;
-        remoteMemories.reserve(remoteMemFutures.size());
-        for(auto& rmf : remoteMemFutures)
-        {
-            remoteMemories.push_back(rmf.get());
-        }
-
-        // Create semaphores and channels
-        // One semaphore per connection
-        std::vector<std::shared_ptr<mscclpp::SmDevice2DeviceSemaphore>> slaveSemaphores;
-        slaveSemaphores.reserve(connections.size());
-        for(auto& conn : connections)
-        {
-            slaveSemaphores.push_back(
-                std::make_shared<mscclpp::SmDevice2DeviceSemaphore>(comm, conn));
-        }
-
-        // Create channels
-        std::vector<DeviceHandle<mscclpp::SmChannel>> SmChannels;
-        SmChannels.reserve(slaveSemaphores.size());
-        for(size_t i = 0; i < slaveSemaphores.size(); ++i)
-        {
-            SmChannels.push_back(mscclpp::deviceHandle(
-                mscclpp::SmChannel(slaveSemaphores[i],
-                                   remoteMemories[i], // Remote buffer from the sender
-                                   dst_data           // Local buffer (this slave's buffer)
-                                   )));
-        }
-        hipError_t error_slave =
-            hipMemcpyToSymbol(constSlaveSmChannels,
-                              SmChannels.data(),
-                              sizeof(DeviceHandle<mscclpp::SmChannel>) * SmChannels.size());
-        if(error_slave != hipSuccess)
-        {
-            std::cerr << "Error locating data to constant memory" << std::endl;
-            return;
-        }
-    }
-    else
-    {
-        // This is a sender:
-        // We only connect to the slave, send our memory handle, and receive the slave's memory
-        // handle.
-        mscclpp::NonblockingFuture<std::shared_ptr<mscclpp::Connection>> connectionFuture =
-            comm.connectOnSetup(slaveRank, 0, transport);
-        // Send our memory to the slave
-        comm.sendMemoryOnSetup(localMemory, slaveRank, 0);
-
-        // Receive slave's memory
-        mscclpp::NonblockingFuture<mscclpp::RegisteredMemory> remoteMemoryFuture =
-            comm.recvMemoryOnSetup(slaveRank, 0);
-        comm.setup();
-        std::shared_ptr<mscclpp::Connection> connection = connectionFuture.get();
-        mscclpp::RegisteredMemory remoteMemory          = remoteMemoryFuture.get();
-
-        auto senderSemaphore =
-            std::make_shared<mscclpp::SmDevice2DeviceSemaphore>(comm, connection);
-
-        auto senderChannel = mscclpp::SmChannel(senderSemaphore, localMemory, remoteMemory.data());
-        DeviceHandle<mscclpp::SmChannel> senderSmChannel = mscclpp::deviceHandle(senderChannel);
-
-        hipError_t error_master = hipMemcpyToSymbol(
-            constMasterSmChannel, &senderSmChannel, sizeof(DeviceHandle<mscclpp::SmChannel>));
-        if(error_master != hipSuccess)
-        {
-            std::cerr << "Error locating data to constant memory" << std::endl;
-            return;
-        }
-    }
-}
 
 template <typename InputType, typename OutputType>
 struct AllocateAndTransferFunctor
@@ -151,9 +22,8 @@ struct AllocateAndTransferFunctor
                           ck_tile::index_t host_gpu,
                           int device_id,
                           const ck_tile::ArgParser& arg_parser,
-                          const ck_tile::stream_config& s,
-                          std::promise<const void*>& host_receive_ptr_promise,
-                          std::future<const void*>& host_receive_ptr_future)
+                          const ck_tile::stream_config& s
+                        )
     {
         ck_tile::index_t M = arg_parser.get_int("M");
         ck_tile::index_t N = arg_parser.get_int("N");
@@ -218,7 +88,6 @@ struct AllocateAndTransferFunctor
             // initialize the receive data buffer and global memory location.
             ck_tile::HostTensor<InputType> receive_host({M, N});
             ck_tile::DeviceMem receive_buf(receive_host.get_element_space_size_in_bytes());
-            args_receive.p_receive = receive_buf.GetDeviceBuffer();
             // initialize the output data buffer.
             std::string output_type = arg_parser.get_str("output_type");
             if(output_type.compare("float") == 0)
@@ -226,9 +95,7 @@ struct AllocateAndTransferFunctor
                 ck_tile::HostTensor<OutputType> output_host({M, N});
                 ck_tile::DeviceMem output_buf(output_host.get_element_space_size_in_bytes());
                 args_receive.p_output = output_buf.GetDeviceBuffer();
-                host_receive_ptr_promise.set_value(args_receive.p_receive);
                 auto kargs_slave       = SlaveKernel::MakeKargs(args_receive.p_reduce,
-                                                          args_receive.p_receive,
                                                           args_receive.p_output,
                                                           args_receive.M,
                                                           args_receive.N);
@@ -246,10 +113,8 @@ struct AllocateAndTransferFunctor
         }
         else
         {
-            const void* send_location_ptr = host_receive_ptr_future.get();
-            args_send.p_send              = send_location_ptr;
             auto kargs_master             = MasterKernel::MakeKargs(
-                args_send.p_reduce, args_send.p_send, args_send.M, args_send.N);
+                args_send.p_reduce, args_send.M, args_send.N);
             const dim3 grids_master = MasterKernel::GridSize(M, N);
             ave_time                = ck_tile::launch_kernel(
                 s,
@@ -268,9 +133,7 @@ struct AllocateAndTransferFunctor
                     ck_tile::HostTensor<InputType>& host_tensor,
                     ck_tile::DeviceMem& device_mem,
                     ck_tile::index_t host_gpu,
-                    const ck_tile::ArgParser& arg_parser,
-                    std::promise<const void*>& host_receive_ptr_promise,
-                    std::future<const void*>& host_receive_ptr_future)
+                    const ck_tile::ArgParser& arg_parser)
     {
         hipError_t hip_err_set_device = hipSetDevice(device_id);
         if(hip_err_set_device != hipSuccess)
@@ -298,9 +161,7 @@ struct AllocateAndTransferFunctor
                         host_gpu,
                         device_id,
                         arg_parser,
-                        ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
-                        host_receive_ptr_promise,
-                        host_receive_ptr_future);
+                        ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
     }
 };
 
@@ -438,8 +299,6 @@ bool run_cross_gpu_reduce(ck_tile::ArgParser arg_parser)
         }
     }
 
-    std::promise<const void*> host_receive_ptr_promise;
-    std::future<const void*> host_receive_ptr_future = host_receive_ptr_promise.get_future();
 
     for(int i = 0; i < gpu_nums; ++i)
     {
@@ -448,9 +307,7 @@ bool run_cross_gpu_reduce(ck_tile::ArgParser arg_parser)
                              std::ref(transfer_tensor_host_list[i]),
                              std::ref(transfer_bufs[i]),
                              host_gpu,
-                             arg_parser,
-                             std::ref(host_receive_ptr_promise),
-                             std::ref(host_receive_ptr_future));
+                             arg_parser);
     }
 
     // Wait for all threads to complete

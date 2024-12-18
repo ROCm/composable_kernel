@@ -8,7 +8,6 @@
 struct transfer_receive_basic_args
 {
     const void* p_reduce;
-    const void* p_receive;
     const void* p_output;
     ck_tile::index_t host_gpu;
     ck_tile::index_t device_id;
@@ -19,7 +18,6 @@ struct transfer_receive_basic_args
 struct transfer_send_basic_args
 {
     const void* p_reduce;
-    const void* p_send;
     ck_tile::index_t host_gpu;
     ck_tile::index_t device_id;
     ck_tile::index_t M;
