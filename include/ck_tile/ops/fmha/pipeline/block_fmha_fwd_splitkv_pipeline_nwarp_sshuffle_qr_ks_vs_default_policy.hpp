@@ -25,6 +25,21 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
                                                            /* NumPrefetchV = */ 1>;
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentQ()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
+
+        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::QDataType);
+
+        // this should align with MakeOriginQDramTileDistribution()
+        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
+        static_assert(0 < ElemPerThread);
+        return min(ElemPerThread, MaxVectorSize);
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentOacc()
     {
         using OaccDataType = remove_cvref_t<typename Problem::OaccDataType>;
@@ -35,16 +50,15 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOriginQDramTileDistribution()
     {
-        using QDataType = remove_cvref_t<typename Problem::QDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
 
+        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::QDataType);
+
         constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
         static_assert(0 < ElemPerThread);
-        constexpr index_t kMaxVecLoad =
-            min(ElemPerThread, static_cast<index_t>(16 / sizeof(QDataType)));
+        constexpr index_t kMaxVecLoad = min(ElemPerThread, MaxVectorSize);
 
         constexpr index_t KPerThread     = kMaxVecLoad;
         constexpr index_t KThreads       = kKPerBlock / KPerThread;
