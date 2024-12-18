@@ -16,11 +16,11 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_warmup,
                   int n_repeat)
 {
-    gemm_basic_args args;
-    args.p_a      = a_m_k_dev_buf.GetDeviceBuffer();
-    args.p_b      = b_k_n_dev_buf.GetDeviceBuffer();
-    args.p_c      = c_m_n_dev_buf.GetDeviceBuffer();
-    args.kbatch   = kbatch;
+    ck_tile::GemmHostArgs args;
+    args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
+    args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
+    args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
+    args.k_batch  = kbatch;
     args.M        = M;
     args.N        = N;
     args.K        = K;
