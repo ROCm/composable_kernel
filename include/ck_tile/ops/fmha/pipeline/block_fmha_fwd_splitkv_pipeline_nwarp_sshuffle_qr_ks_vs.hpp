@@ -208,7 +208,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
                              q_dram_block_window_tmp.get_window_lengths(),
                              q_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakeOriginQDramTileDistribution<Problem>());
+                             Policy::template MakeQDramTileDistribution<Problem>());
 
         // load Q here, will store Q into LDS to maximize throughput
         auto origin_q = load_tile(q_dram_window);
@@ -320,7 +320,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             q_lds,
             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
             {0, 0},
-            Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
+            Policy::template MakeQRegTileDistribution<Problem, decltype(gemm_0)>());
         block_sync_lds();
         auto q = load_tile(q_lds_window_for_load);
         __builtin_amdgcn_sched_barrier(0);

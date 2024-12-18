@@ -33,7 +33,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
 
         constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::QDataType);
 
-        // this should align with MakeOriginQDramTileDistribution()
+        // this should align with MakeQDramTileDistribution()
         constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
         static_assert(0 < ElemPerThread);
         return min(ElemPerThread, MaxVectorSize);
@@ -48,7 +48,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOriginQDramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
@@ -74,6 +74,12 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
                                        tuple<sequence<1>, sequence<2, 0>>,
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
+    }
+
+    template <typename Problem, typename BlockGemm>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQRegTileDistribution()
+    {
+        return BasePolicy::template MakeQDramTileDistribution<Problem, BlockGemm>();
     }
 
     template <typename Problem>
