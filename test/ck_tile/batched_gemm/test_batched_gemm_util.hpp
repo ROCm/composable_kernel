@@ -11,7 +11,6 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
-#include "ck_tile/ops/gemm/problem/gemm_problem.hpp"
 
 template <typename Tuple>
 class TestCkTileBatchedGemm : public ::testing::Test
