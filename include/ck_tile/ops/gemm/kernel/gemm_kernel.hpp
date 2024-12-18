@@ -56,38 +56,6 @@ struct GemmHostArgs : public GemmProblem
     index_t k_batch;
 };
 
-struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs
-{
-    CK_TILE_HOST BatchedGemmHostArgs() = default;
-    CK_TILE_HOST BatchedGemmHostArgs(const void* a_ptr_,
-                                     const void* b_ptr_,
-                                     void* c_ptr_,
-                                     ck_tile::index_t k_batch_,
-                                     ck_tile::index_t M_,
-                                     ck_tile::index_t N_,
-                                     ck_tile::index_t K_,
-                                     ck_tile::index_t stride_A_,
-                                     ck_tile::index_t stride_B_,
-                                     ck_tile::index_t stride_C_,
-                                     ck_tile::index_t batch_stride_A_,
-                                     ck_tile::index_t batch_stride_B_,
-                                     ck_tile::index_t batch_stride_C_,
-                                     ck_tile::index_t batch_count_)
-        : GemmHostArgs(
-              a_ptr_, b_ptr_, c_ptr_, k_batch_, M_, N_, K_, stride_A_, stride_B_, stride_C_),
-          batch_stride_A(batch_stride_A_),
-          batch_stride_B(batch_stride_B_),
-          batch_stride_C(batch_stride_C_),
-          batch_count(batch_count_)
-    {
-    }
-
-    ck_tile::index_t batch_stride_A;
-    ck_tile::index_t batch_stride_B;
-    ck_tile::index_t batch_stride_C;
-    ck_tile::index_t batch_count;
-};
-
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GemmKernel
 {
@@ -127,18 +95,30 @@ struct GemmKernel
         index_t stride_C;
     };
 
-    CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(const void* a_ptr,
-                                                                const void* b_ptr,
-                                                                void* c_ptr,
-                                                                index_t M,
-                                                                index_t N,
-                                                                index_t K,
-                                                                index_t stride_A,
-                                                                index_t stride_B,
-                                                                index_t stride_C)
+    CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(GemmHostArgs& hostArgs)
     {
-        return GemmKernelArgs{a_ptr, b_ptr, c_ptr, M, N, K, stride_A, stride_B, stride_C};
+        return GemmKernelArgs{hostArgs.a_ptr,
+                              hostArgs.b_ptr,
+                              hostArgs.c_ptr,
+                              hostArgs.M,
+                              hostArgs.N,
+                              hostArgs.K,
+                              hostArgs.stride_A,
+                              hostArgs.stride_B,
+                              hostArgs.stride_C};
     }
+    // CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(const void* a_ptr,
+    //                                                             const void* b_ptr,
+    //                                                             void* c_ptr,
+    //                                                             index_t M,
+    //                                                             index_t N,
+    //                                                             index_t K,
+    //                                                             index_t stride_A,
+    //                                                             index_t stride_B,
+    //                                                             index_t stride_C)
+    // {
+    //     return GemmKernelArgs{a_ptr, b_ptr, c_ptr, M, N, K, stride_A, stride_B, stride_C};
+    // }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
@@ -365,8 +345,8 @@ struct GemmKernel
             make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
             {i_n, 0});
 
-        const auto& c_pad_view     = views.at(I2);
-        const auto& c_block_window = make_tile_window(
+        const auto& c_pad_view = views.at(I2);
+        auto c_block_window    = make_tile_window(
             c_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
             {i_m, i_n});
@@ -394,8 +374,7 @@ struct GemmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple = MakeGemmTensorViews(a_ptr, b_ptr, c_ptr, kargs);
         const auto& gemm_pad_views          = MakeGemmPadViews(gemm_tensor_views_tuple);
-        const auto& gemm_tile_windows =
-            MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+        auto gemm_tile_windows = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
@@ -405,11 +384,11 @@ struct GemmKernel
         // Run GEMM cooperatively by whole workgroup.
         const auto& a_block_window = gemm_tile_windows.at(I0);
         const auto& b_block_window = gemm_tile_windows.at(I1);
-        auto c_block_tile =
+        const auto& c_block_tile =
             GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr);
 
         // Run Epilogue Pipeline
-        auto c_block_window = gemm_tile_windows.at(I2);
+        auto& c_block_window = gemm_tile_windows.at(I2);
         EpiloguePipeline{}(c_block_window, c_block_tile);
     }
 

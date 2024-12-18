@@ -56,4 +56,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-float batched_gemm(ck_tile::BatchedGemmHostArgs args, const ck_tile::stream_config& s);
+float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stream_config& s);

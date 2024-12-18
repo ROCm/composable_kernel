@@ -7,6 +7,38 @@
 
 namespace ck_tile {
 
+struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs
+{
+    CK_TILE_HOST BatchedGemmHostArgs() = default;
+    CK_TILE_HOST BatchedGemmHostArgs(const void* a_ptr_,
+                                     const void* b_ptr_,
+                                     void* c_ptr_,
+                                     ck_tile::index_t k_batch_,
+                                     ck_tile::index_t M_,
+                                     ck_tile::index_t N_,
+                                     ck_tile::index_t K_,
+                                     ck_tile::index_t stride_A_,
+                                     ck_tile::index_t stride_B_,
+                                     ck_tile::index_t stride_C_,
+                                     ck_tile::index_t batch_stride_A_,
+                                     ck_tile::index_t batch_stride_B_,
+                                     ck_tile::index_t batch_stride_C_,
+                                     ck_tile::index_t batch_count_)
+        : GemmHostArgs(
+              a_ptr_, b_ptr_, c_ptr_, k_batch_, M_, N_, K_, stride_A_, stride_B_, stride_C_),
+          batch_stride_A(batch_stride_A_),
+          batch_stride_B(batch_stride_B_),
+          batch_stride_C(batch_stride_C_),
+          batch_count(batch_count_)
+    {
+    }
+
+    ck_tile::index_t batch_stride_A;
+    ck_tile::index_t batch_stride_B;
+    ck_tile::index_t batch_stride_C;
+    ck_tile::index_t batch_count;
+};
+
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>
 {
@@ -42,25 +74,22 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     __host__ static constexpr auto BlockSize() { return dim3(Base::KernelBlockSize); }
 
-    CK_TILE_HOST static constexpr BatchedGemmKernelArgs MakeKernelArgs(const void* a_ptr,
-                                                                       const void* b_ptr,
-                                                                       void* c_ptr,
-                                                                       index_t M,
-                                                                       index_t N,
-                                                                       index_t K,
-                                                                       index_t stride_A,
-                                                                       index_t stride_B,
-                                                                       index_t stride_C,
-                                                                       index_t batch_stride_A,
-                                                                       index_t batch_stride_B,
-                                                                       index_t batch_stride_C,
-                                                                       index_t batch_count)
+    CK_TILE_HOST static constexpr BatchedGemmKernelArgs
+    MakeKernelArgs(const BatchedGemmHostArgs& hostArgs)
     {
-        return BatchedGemmKernelArgs{{a_ptr, b_ptr, c_ptr, M, N, K, stride_A, stride_B, stride_C},
-                                     batch_stride_A,
-                                     batch_stride_B,
-                                     batch_stride_C,
-                                     batch_count};
+        return BatchedGemmKernelArgs{{hostArgs.a_ptr,
+                                      hostArgs.b_ptr,
+                                      hostArgs.c_ptr,
+                                      hostArgs.M,
+                                      hostArgs.N,
+                                      hostArgs.K,
+                                      hostArgs.stride_A,
+                                      hostArgs.stride_B,
+                                      hostArgs.stride_C},
+                                     hostArgs.batch_stride_A,
+                                     hostArgs.batch_stride_B,
+                                     hostArgs.batch_stride_C,
+                                     hostArgs.batch_count};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
