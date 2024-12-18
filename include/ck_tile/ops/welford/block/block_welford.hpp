@@ -37,23 +37,20 @@ struct BlockWelford
         constexpr auto spans = XDistributedTensor_::get_distributed_spans();
 
         sweep_tile_span(spans[I1], [&](auto dstr_idx_i1) {
-            if(cur_count_ < max_count_)
-            {
-                ++cur_count_;
-
                 sweep_tile_span(spans[I0], [&](auto dstr_idx_i0) {
                     constexpr auto in_dstr_idx  = make_tuple(dstr_idx_i0, dstr_idx_i1);
                     constexpr auto out_dstr_idx = make_tuple(dstr_idx_i0);
 
                     auto x = ck_tile::type_convert<ComputeDataType>(x_tensor[in_dstr_idx]);
-
-                    welford_update(mean_tensor(out_dstr_idx),
-                                   var_tensor(out_dstr_idx),
-                                   x,
-                                   cur_count_,
-                                   constant<kFastFDiv>{});
+                    mean_tensor(out_dstr_idx) += x;
+                    var_tensor(out_dstr_idx) += x * x;
+                    
+                    // welford_update(mean_tensor(out_dstr_idx),
+                    //                var_tensor(out_dstr_idx),
+                    //                x,
+                    //                cur_count_,
+                    //                constant<kFastFDiv>{});
                 });
-            }
         });
     }
 
@@ -125,7 +122,7 @@ struct BlockWelfordSync
         static_for<0, thread_buf_size, 1>{}([&](auto i) {
             auto v_local_mean  = mean_tensor.get_thread_buffer()[i];
             auto v_local_var   = var_tensor.get_thread_buffer()[i];
-            auto v_local_count = original_count;
+            // auto v_local_count = original_count;
 
             // cross-lane reduce for replication
             // only reduce on R dimension correspond to lane
@@ -154,15 +151,13 @@ struct BlockWelfordSync
                         // pull data from remote lane
                         const auto v_remote_mean  = warp_shuffle(v_local_mean, src_lane);
                         const auto v_remote_var   = warp_shuffle(v_local_var, src_lane);
-                        const auto v_remote_count = warp_shuffle(v_local_count, src_lane);
-
+                        // const auto v_remote_count = warp_shuffle(v_local_count, src_lane);
+                        
                         // welford merge
                         welford_merge(v_local_mean,
                                       v_local_var,
-                                      v_local_count,
                                       v_remote_mean,
                                       v_remote_var,
-                                      v_remote_count,
                                       constant<kFastFDiv>{});
                     });
                 }
@@ -171,7 +166,7 @@ struct BlockWelfordSync
             mean_tensor.get_thread_buffer()(i) = v_local_mean;
             var_tensor.get_thread_buffer()(i)  = v_local_var;
 
-            count = v_local_count;
+            // count = v_local_count;
         });
     }
 };
@@ -296,7 +291,7 @@ struct BlockWelfordCrossWarpSync
             auto v_local       = all_scratch[i_0 * num_reduce_warps];
             auto v_local_mean  = bit_cast<DataType>(v_local[0]);
             auto v_local_var   = bit_cast<DataType>(v_local[1]);
-            auto v_local_count = bit_cast<int>(v_local[2]);
+            // auto v_local_count = bit_cast<int>(v_local[2]);
 
             // further reduce mean/var
             static_for<0, num_reduce_warps - 1, 1>{}([&](auto i_1_n1) {
@@ -304,21 +299,19 @@ struct BlockWelfordCrossWarpSync
                 const fp32x4_t v_remote   = all_scratch[i_0 * num_reduce_warps + i_1];
                 const auto v_remote_mean  = bit_cast<DataType>(v_remote[0]);
                 const auto v_remote_var   = bit_cast<DataType>(v_remote[1]);
-                const auto v_remote_count = bit_cast<int>(v_remote[2]);
+                // const auto v_remote_count = bit_cast<int>(v_remote[2]);
 
                 welford_merge(v_local_mean,
                               v_local_var,
-                              v_local_count,
                               v_remote_mean,
                               v_remote_var,
-                              v_remote_count,
                               constant<kFastFDiv>{});
             });
 
             mean_tensor.get_thread_buffer()(i_0) = v_local_mean;
             var_tensor.get_thread_buffer()(i_0)  = v_local_var;
 
-            count = v_local_count;
+            // count = v_local_count;
         });
     }
 };

@@ -280,9 +280,11 @@ struct FillMonotonicSeq
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
+        T init = init_value_;
         std::generate(first, last, [=, n = init_value_]() mutable {
             auto tmp = n;
             n += step_;
+            if (n >= 1024) {init += step_; n = init; }
             return tmp;
         });
     }

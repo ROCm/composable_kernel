@@ -93,8 +93,7 @@ struct Layernorm2dFwdPipelineOnePass
         auto x_resi = load_tile(x_residual_window);
 
         int cur_count = 0;
-        int max_count =
-            block_tile_welford_calculate_max_count<typename Problem::BlockShape>(row_size);
+        int max_count = 0;
         auto block_welford      = Policy::template GetBlockWelford<Problem>();
         auto block_welford_sync = Policy::template GetBlockWelfordSync<Problem>();
         auto block_welford_cross_warp_sync =
@@ -121,8 +120,15 @@ struct Layernorm2dFwdPipelineOnePass
         auto [mean, var] = block_welford(acc, cur_count, max_count);
         block_welford_sync(mean, var, cur_count);
         block_welford_cross_warp_sync(mean, var, cur_count, smem);
-        block_tile_welford_post_scale_var(var, cur_count, constant<kFastFDiv>{});
+        // block_tile_welford_post_scale_var(var, max_count, constant<kFastFDiv>{});
+        // block_tile_welford_post_scale_var(mean, row_size, constant<kFastFDiv>{});
+        // block_tile_welford_post_scale_var(var, row_size, constant<kFastFDiv>{});
+        // var = var - mean * mean;
 
+        sweep_tile(mean, [&](auto idx) {
+            mean(idx) = mean(idx) / type_convert<MeanDataType>(row_size);
+            var(idx) = var(idx) / type_convert<MeanDataType>(row_size) - mean(idx) * mean(idx);
+        });
         // compute inv-std
         auto inv_std = tile_elementwise_in(
             [&](const auto& v_) {
@@ -153,7 +159,6 @@ struct Layernorm2dFwdPipelineOnePass
             const auto beta_  = type_convert<ComputeDataType>(beta[j_idx]);
 
             auto ln_ = (acc[idx] - mean_[i_idx]) * inv_std[i_idx] * gamma_ + beta_;
-
             ln(idx) = ln_;
         });
 
