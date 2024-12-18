@@ -45,5 +45,8 @@ our implementation of different device operators.
 **[ops/epilogue]**  
 epilogue part of our kernel. We may extend this epilogue part to let users to build their own cutomized epilogues.
 
+**[ref]**  
+reference implementation of cpu or gpu. This folder is supposed to include a specific header on demand.
+
 ## examples
 currently we put all ck_tile related example under [/example/ck_tile](/example/ck_tile/) folder. Please check each example's subfolder.
