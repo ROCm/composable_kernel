@@ -115,7 +115,7 @@
 #cmakedefine CK_USE_GFX94 @CK_USE_GFX94@
 #endif
 
-#ifndef DCK_USE_OCP_FP8
+#ifndef CK_USE_OCP_FP8
 #cmakedefine CK_USE_OCP_FP8 @CK_USE_OCP_FP8@
 #endif
 
