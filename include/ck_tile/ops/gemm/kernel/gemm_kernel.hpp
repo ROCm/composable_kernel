@@ -95,7 +95,7 @@ struct GemmKernel
         index_t stride_C;
     };
 
-    CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(GemmHostArgs& hostArgs)
+    CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(const GemmHostArgs& hostArgs)
     {
         return GemmKernelArgs{hostArgs.a_ptr,
                               hostArgs.b_ptr,
