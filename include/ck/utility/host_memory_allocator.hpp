@@ -5,12 +5,17 @@
 
 #include <hip/hip_runtime.h>
 #include "ck/host_utility/hip_check_error.hpp"
+#include "ck/utility/env.hpp"
 #include <map>
 #include <queue>
 #include <mutex>
 #include <cstddef>
 #include <limits>
+#include <type_traits>
 #include "unistd.h"
+
+CK_DECLARE_ENV_VAR_BOOL(CK_USE_DYNAMIC_MEM_POOL)
+CK_DECLARE_ENV_VAR_BOOL(CK_PREFER_NEW_PINNED_MEM_ALLOCATION)
 
 namespace ck {
 namespace memory {
@@ -296,7 +301,15 @@ namespace memory {
             return static_cast<T*>(memory_pool.allocate(sizeInBytes));
         }
 
-        void deallocate(T* p, std::size_t n) {
+        void deallocate(T* p, std::size_t n) 
+        {    
+            if constexpr (std::is_destructible_v<T>) 
+            {
+                for (size_t i = 0; i < n; ++i) {
+                    p[i].~T();
+                }
+            }
+
             auto& memory_pool = get_memory_pool();
             const size_t sizeInBytes = n * sizeof(T);
             memory_pool.deallocate(p, sizeInBytes);
