@@ -5,9 +5,12 @@
 
 #include "ck_tile/host.hpp"
 
+constexpr int MaxSendGPUNum = 7;
+
 struct transfer_receive_basic_args
 {
     const void* p_reduce;
+    std::array<const void*, MaxSendGPUNum> p_receive_list;
     const void* p_output;
     ck_tile::index_t host_gpu;
     ck_tile::index_t device_id;

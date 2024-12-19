@@ -40,7 +40,7 @@ struct ReduceSendKernel
 
     CK_TILE_DEVICE void operator()(ReduceSendKargs kargs) const
     {
-        const auto i_M               = CrossReducePartitioner{}();
+        const auto [i_m, i_n]              = CrossReducePartitioner{}();
         const DataType* reduce_start = static_cast<const DataType*>(kargs.reduce_ptr);
         auto transfer_tensor_view    = [&]() {
             return make_naive_tensor_view<address_space_enum::global>(
@@ -54,7 +54,7 @@ struct ReduceSendKernel
             make_tile_window(transfer_tensor_view,
                              make_tuple(number<ReduceSendPipeline::Block_M>{},
                                         number<ReduceSendPipeline::Block_N>{}),
-                             {i_M, 0});
+                             {i_m, i_n});
 
         __shared__ char smem_ptr[ReduceSendPipeline::GetSmemSize()];
 

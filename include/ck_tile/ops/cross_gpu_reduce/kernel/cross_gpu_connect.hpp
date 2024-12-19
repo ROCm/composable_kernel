@@ -5,6 +5,8 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 
+#include <vector>
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wsuggest-destructor-override"
 #pragma clang diagnostic ignored "-Wold-style-cast"
@@ -26,7 +28,12 @@ extern __constant__ DeviceHandle<mscclpp::SmChannel> constSlaveSmChannels[8]; //
 
 extern __constant__ DeviceHandle<mscclpp::SmChannel> constMasterSmChannel;
 
-void setupConnection(int rank, int slaveRank, int worldSize, void* dst_data, size_t dataSize)
+void setupConnection(int rank,
+                     int slaveRank,
+                     int worldSize,
+                     void* dst_data,
+                     std::vector<ck_tile::DeviceMem>& receive_mem_vector,
+                     size_t dataSize)
 {
     // Initialize MSCCL++ Communicator
     auto bootstrap = std::make_shared<mscclpp::TcpBootstrap>(rank, worldSize);
@@ -87,7 +94,7 @@ void setupConnection(int rank, int slaveRank, int worldSize, void* dst_data, siz
             SmChannels.push_back(mscclpp::deviceHandle(
                 mscclpp::SmChannel(slaveSemaphores[i],
                                    remoteMemories[i], // Remote buffer from the sender
-                                   dst_data           // Local buffer (this slave's buffer)
+                                   receive_mem_vector[i].GetDeviceBuffer()           // Local buffer (this slave's buffer)
                                    )));
         }
         hipError_t error_slave =

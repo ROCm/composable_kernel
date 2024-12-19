@@ -19,6 +19,7 @@ struct AllocateAndTransferFunctor
 {
     // Invoke the memory transfer between GPUs based on whether it is host gpu or slave gpu.
     float invoke_transfer(ck_tile::DeviceMem& transfer_buf,
+                          std::vector<ck_tile::DeviceMem>& receive_mem_bufs,
                           ck_tile::index_t host_gpu,
                           int device_id,
                           const ck_tile::ArgParser& arg_parser,
@@ -86,8 +87,11 @@ struct AllocateAndTransferFunctor
         if(static_cast<ck_tile::index_t>(device_id) == host_gpu)
         {
             // initialize the receive data buffer and global memory location.
-            ck_tile::HostTensor<InputType> receive_host({M, N});
-            ck_tile::DeviceMem receive_buf(receive_host.get_element_space_size_in_bytes());
+            std::array<const void*, MaxSendGPUNum> p_receive_list;
+            for(size_t i = 0; i < receive_mem_bufs.size(); ++i) {
+                p_receive_list[i] = receive_mem_bufs[i].GetDeviceBuffer();
+            }
+            args_receive.p_receive_list = p_receive_list;
             // initialize the output data buffer.
             std::string output_type = arg_parser.get_str("output_type");
             if(output_type.compare("float") == 0)
@@ -96,6 +100,7 @@ struct AllocateAndTransferFunctor
                 ck_tile::DeviceMem output_buf(output_host.get_element_space_size_in_bytes());
                 args_receive.p_output = output_buf.GetDeviceBuffer();
                 auto kargs_slave       = SlaveKernel::MakeKargs(args_receive.p_reduce,
+                                                          args_receive.p_receive_list,
                                                           args_receive.p_output,
                                                           args_receive.M,
                                                           args_receive.N);
@@ -132,6 +137,7 @@ struct AllocateAndTransferFunctor
     void operator()(int device_id,
                     ck_tile::HostTensor<InputType>& host_tensor,
                     ck_tile::DeviceMem& device_mem,
+                    std::vector<ck_tile::DeviceMem>& receive_mem,
                     ck_tile::index_t host_gpu,
                     const ck_tile::ArgParser& arg_parser)
     {
@@ -141,6 +147,11 @@ struct AllocateAndTransferFunctor
             std::cerr << "Error setting device " << device_id << ": "
                       << hipGetErrorString(hip_err_set_device) << std::endl;
             return;
+        }
+        if(device_id == host_gpu){
+            for(size_t i = 0; i < receive_mem.size(); ++i) {
+                receive_mem[i].Realloc(host_tensor.get_element_space_size_in_bytes());
+            }
         }
         // Allocate device memory
         device_mem.Realloc(host_tensor.get_element_space_size_in_bytes());
@@ -152,12 +163,14 @@ struct AllocateAndTransferFunctor
                         static_cast<int>(host_gpu),
                         static_cast<int>(worldSize),
                         device_mem.GetDeviceBuffer(),
+                        receive_mem,
                         host_tensor.get_element_space_size_in_bytes());
 
         int n_warmup = arg_parser.get_int("warmup");
         int n_repeat = arg_parser.get_int("repeat");
 
         invoke_transfer(device_mem,
+                        receive_mem,
                         host_gpu,
                         device_id,
                         arg_parser,
@@ -221,6 +234,7 @@ bool run_cross_gpu_reduce(ck_tile::ArgParser arg_parser)
     std::vector<ck_tile::HostTensor<InputType>> transfer_tensor_host_list;
     transfer_tensor_host_list.reserve(gpu_nums);
     std::vector<ck_tile::DeviceMem> transfer_bufs(gpu_nums);
+    std::vector<ck_tile::DeviceMem> slave_receive_bufs(gpu_nums - 1);
     std::vector<std::thread> threads;
 
     AllocateAndTransferFunctor<InputType, OutputType> allocateAndTransfer;
@@ -306,6 +320,7 @@ bool run_cross_gpu_reduce(ck_tile::ArgParser arg_parser)
                              device_list[i],
                              std::ref(transfer_tensor_host_list[i]),
                              std::ref(transfer_bufs[i]),
+                             std::ref(slave_receive_bufs),
                              host_gpu,
                              arg_parser);
     }

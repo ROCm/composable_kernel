@@ -20,17 +20,20 @@ struct ReduceReceiveKernel
     struct ReduceReceiveKargs
     {
         const void* reduce_ptr;
+        std::array<const void*, MaxSendGPUNum> receive_ptr_list;
         const void* output_ptr;
         index_t M;
         index_t N;
     };
 
-    CK_TILE_HOST static constexpr ReduceReceiveKargs MakeKargs(const void* reduce_ptr,
-                                                               const void* output_ptr,
-                                                               index_t M,
-                                                               index_t N)
+    CK_TILE_HOST static constexpr ReduceReceiveKargs
+    MakeKargs(const void* reduce_ptr,
+              std::array<const void*, MaxSendGPUNum> receive_ptr_list,
+              const void* output_ptr,
+              index_t M,
+              index_t N)
     {
-        return ReduceReceiveKargs{reduce_ptr, output_ptr, M, N};
+        return ReduceReceiveKargs{reduce_ptr, receive_ptr_list, output_ptr, M, N};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -45,10 +48,10 @@ struct ReduceReceiveKernel
 
     CK_TILE_DEVICE void operator()(ReduceReceiveKargs kargs) const
     {
-        auto channel = *constSlaveSmChannels[0];
-        const auto [i_m, i_n] = CrossReducePartitioner{}();
-        const DataType* reduce_start = static_cast<const DataType*>(reduce_ptr);
-        auto transfer_tensor_view      = [&]() {
+        auto channel                 = constSlaveSmChannels[0];
+        const auto [i_m, i_n]        = CrossReducePartitioner{}();
+        const DataType* reduce_start = static_cast<const DataType*>(kargs.reduce_ptr);
+        auto transfer_tensor_view    = [&]() {
             return make_naive_tensor_view<address_space_enum::global>(
                 reduce_start,
                 make_tuple(kargs.M, kargs.N),
@@ -61,12 +64,32 @@ struct ReduceReceiveKernel
                              make_tuple(number<ReduceReceivePipeline::Block_M>{},
                                         number<ReduceReceivePipeline::Block_N>{}),
                              {i_m, i_n});
-        
-        uint32_t numThreads = static_cast<uint32_t>(CrossReducePartitioner::NumThreads(kargs.M, kargs.N));
-        uint32_t threadId = static_cast<uint32_t>(i_m + i_n * (kargs.M + ReduceReceivePipeline::Block_M - 1) / ReduceReceivePipeline::Block_M);
-        uint64_t totalBytes = static_cast<uint64_t>(ReduceReceivePipeline::Block_M * ReduceReceivePipeline::Block_N * sizeof(DataType));
+
+        uint32_t numThreads =
+            static_cast<uint32_t>(CrossReducePartitioner::NumThreads(kargs.M, kargs.N));
+        uint32_t threadId =
+            static_cast<uint32_t>(i_m + i_n * (kargs.M + ReduceReceivePipeline::Block_M - 1) /
+                                            ReduceReceivePipeline::Block_M);
+        uint64_t totalBytes = static_cast<uint64_t>(
+            ReduceReceivePipeline::Block_M * ReduceReceivePipeline::Block_N * sizeof(DataType));
         channel.get(0, totalBytes, threadId, numThreads);
-        
+
+        // After the channel get, start the memory block preparation for the receiving window
+        const DataType* receive_start =
+            static_cast<const DataType*>(kargs.receive_ptr_list[0]);
+        auto receive_tensor_view = [&]() {
+            return make_naive_tensor_view<address_space_enum::global>(
+                receive_start,
+                make_tuple(kargs.M, kargs.N),
+                make_tuple(kargs.N, 1),
+                number<ReduceReceivePipeline::Vector_N>{},
+                number<1>{});
+        }();
+        auto receive_block_window =
+            make_tile_window(receive_tensor_view,
+                             make_tuple(number<ReduceReceivePipeline::Block_M>{},
+                                        number<ReduceReceivePipeline::Block_N>{}),
+                             {i_m, i_n});
 
         const ODataType* output_start = static_cast<const ODataType*>(kargs.output_ptr);
         auto output_tensor_view       = [&]() {
@@ -85,7 +108,8 @@ struct ReduceReceiveKernel
 
         __shared__ char smem_ptr[ReduceReceivePipeline::GetSmemSize()];
 
-        ReduceReceivePipeline{}(transfer_block_window, output_block_window, smem_ptr);
+        ReduceReceivePipeline{}(
+            transfer_block_window, receive_block_window, output_block_window, smem_ptr);
         return;
     }
 };

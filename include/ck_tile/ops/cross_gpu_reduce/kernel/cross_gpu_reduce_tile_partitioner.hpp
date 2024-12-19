@@ -14,7 +14,7 @@ struct CrossReducePartitioner
     static constexpr index_t kM = CrossReduceShape::Block_M;
     static constexpr index_t kN = CrossReduceShape::Block_N;
 
-    CK_TILE_HOST static constexpr auto NumThreads(index_t M, index_t N){
+    CK_TILE_HOST_DEVICE static constexpr auto NumThreads(index_t M, index_t N){
         index_t GridDimX = (M + kM - 1) / kM;
         index_t GridDimY = (N + kN - 1) / kN;
         return GridDimX * GridDimY;
