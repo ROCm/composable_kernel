@@ -119,7 +119,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackS()
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemNPackS()
     {
         using SDataType = remove_cvref_t<typename Problem::SaccDataType>;
         return static_cast<index_t>(16 / sizeof(SDataType));
@@ -129,20 +129,20 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeSLdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPack     = GetSmemKPackS<Problem>();
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kNPack     = GetSmemNPackS<Problem>();
 
         constexpr auto s_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
-            make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
-            number<8>{},
+            make_tuple(number<kNPerBlock / kNPack>{}, number<kMPerBlock>{}, number<kNPack>{}),
+            make_tuple(number<(kMPerBlock + 1) * kNPack>{}, number<kNPack>{}, number<1>{}),
+            number<kNPack>{},
             number<1>{});
 
         constexpr auto s_lds_block_desc = transform_tensor_descriptor(
             s_lds_block_desc_0,
             make_tuple(
                 make_pass_through_transform(number<kMPerBlock>{}),
-                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+                make_merge_transform(make_tuple(number<kNPerBlock / kNPack>{}, number<kNPack>{}))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
