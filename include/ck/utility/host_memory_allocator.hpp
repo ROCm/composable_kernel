@@ -15,7 +15,7 @@
 #include "unistd.h"
 
 CK_DECLARE_ENV_VAR_BOOL(CK_USE_DYNAMIC_MEM_POOL)
-CK_DECLARE_ENV_VAR_BOOL(CK_PREFER_NEW_PINNED_MEM_ALLOCATION)
+CK_DECLARE_ENV_VAR_BOOL(CK_PREFER_RECYCLED_PINNED_MEM)
 
 namespace ck {
 namespace memory {
@@ -44,7 +44,6 @@ namespace memory {
             if (enableLogging_)
                 std::cout << "[ DynamicMemPool ] Deleting pool for process " << pid_ << "..."<< std::endl;
 
-            std::lock_guard<std::mutex> lock(mutex_);
             for (auto& [size, q] : memory_pool_)
             {
                 clearMemoryPoolQueue(q);
@@ -150,7 +149,7 @@ namespace memory {
             enableLogging_(ck::EnvIsEnabled(CK_ENV(CK_LOGGING))),
             pid_(getpid()),
             offsetInBytes_(0),
-            preferNewAllocation_(ck::EnvIsEnabled(CK_ENV(CK_PREFER_NEW_PINNED_MEM_ALLOCATION)))
+            preferRecycledMem_(ck::EnvIsEnabled(CK_ENV(CK_PREFER_RECYCLED_PINNED_MEM)))
         {
             hip_check_error(hipHostMalloc(&pinnedMemoryBaseAddress_, memoryPoolSizeInBytes_));
             if (enableLogging_)
@@ -172,7 +171,7 @@ namespace memory {
         {
             std::lock_guard<std::mutex> lock(mutex_);
 
-            if (preferNewAllocation_ && offsetInBytes_ + sizeInBytes < memoryPoolSizeInBytes_)
+            if (!preferRecycledMem_ && offsetInBytes_ + sizeInBytes < memoryPoolSizeInBytes_)
             {
                 return allocateNewMemory(sizeInBytes);
             }
@@ -226,7 +225,7 @@ namespace memory {
         bool enableLogging_;
         int pid_;
         int offsetInBytes_;
-        bool preferNewAllocation_;
+        bool preferRecycledMem_;
 
         void* allocateNewMemory(size_t sizeInBytes)
         {
