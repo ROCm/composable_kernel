@@ -9,11 +9,20 @@
 namespace ck_tile {
 
 // This pipeline is qkv all located in LDS
-using BlockFmhaFwdSplitKVPipelineQRKSVSDefaultPolicy =
-    BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
-                                        /* AsyncCopyK = */ false,
-                                        /* AsyncCopyV = */ false,
-                                        /* NumPrefetchK = */ 1,
-                                        /* NumPrefetchV = */ 1>;
+struct BlockFmhaFwdSplitKVPipelineQRKSVSDefaultPolicy
+    : BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
+                                          /* AsyncCopyK = */ false,
+                                          /* AsyncCopyV = */ false,
+                                          /* NumPrefetchK = */ 1,
+                                          /* NumPrefetchV = */ 1>
+{
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentOacc()
+    {
+        using OaccDataType = remove_cvref_t<typename Problem::OaccDataType>;
+
+        return static_cast<index_t>(16 / sizeof(OaccDataType));
+    }
+};
 
 } // namespace ck_tile

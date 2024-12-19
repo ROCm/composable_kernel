@@ -3,6 +3,7 @@
 
 #include "fmha_fwd.hpp"
 #include "ck_tile/host.hpp"
+#include "ck_tile/ref/naive_attention.hpp"
 #include "mask.hpp"
 #include "rotary.hpp"
 #include "utils.hpp"
@@ -41,7 +42,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("v", "1", "weather do CPU validation or not")
+    arg_parser.insert("v", "1", "0:no validation, 2:cpu validation, 2:gpu validation(experimental)")
         .insert("mode", "0", "kernel mode. 0:batch, 1:group")
         .insert("b", "2", "batch size")
         .insert("h", "8", "num of head, for q")
@@ -62,7 +63,7 @@ auto create_args(int argc, char* argv[])
                 "-1 to choose s_knew in [1, s] randomly.")
         .insert("s_kpad",
                 "-1",
-                "seqlen_k stride between 2 tokens, currently used in group-mode only\n"
+                "seqlen_k stride between 2 batches, currently used in group-mode only\n"
                 "for kv-cache case, each batch [1,s,h,d]/[1,h,s,d] can have a stride\n"
                 "along seqlen, instead of packed. same as xformer kv_padding")
         .insert("d", "128", "head dim for q, k")
@@ -142,7 +143,7 @@ auto create_args(int argc, char* argv[])
 }
 
 // different threshold for different dtype
-template <typename DataType>
+template <typename DataTypeConfig>
 auto get_elimit(std::string /*init_method*/)
 {
     double rtol = 1e-3;
@@ -151,7 +152,7 @@ auto get_elimit(std::string /*init_method*/)
 }
 
 template <>
-auto get_elimit<ck_tile::bf16_t>(std::string /*init_method*/)
+auto get_elimit<FmhaFwdBf16>(std::string /*init_method*/)
 {
     double rtol = 1e-2;
     double atol = 1e-2;
@@ -159,7 +160,7 @@ auto get_elimit<ck_tile::bf16_t>(std::string /*init_method*/)
 }
 
 template <>
-auto get_elimit<ck_tile::fp8_t>(std::string init_method)
+auto get_elimit<FmhaFwdFp8>(std::string init_method)
 {
     if(init_method == "ui" || init_method == "ni")
     {
@@ -261,7 +262,7 @@ int override_num_splits_if_necessary(
     return num_splits;
 }
 
-template <typename DataType>
+template <typename DataTypeConfig>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     std::string data_type    = arg_parser.get_str("prec");
@@ -294,7 +295,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 #if !CK_TILE_FMHA_FWD_APPENDKV_API
     if(seqlen_knew != 0)
     {
-        std::cerr << "kvcache is not supported. ignoring the 's_knew' option" << std::endl;
+        std::cerr << "fmha_fwd_appendkv() is not enabled. ignoring the 's_knew' option"
+                  << std::endl;
         seqlen_knew = 0;
     }
 #endif
@@ -304,8 +306,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     ck_tile::index_t rotary_dim = arg_parser.get_int("rotary_dim");
-    if constexpr(!(std::is_same_v<DataType, ck_tile::fp16_t> ||
-                   std::is_same_v<DataType, ck_tile::bf16_t>))
+    if constexpr(!(std::is_same_v<DataTypeConfig, FmhaFwdFp16> ||
+                   std::is_same_v<DataTypeConfig, FmhaFwdBf16>))
     {
         if(0 < rotary_dim)
         {
@@ -321,6 +323,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         rotary_dim = 0;
     }
 #endif
+    // to use fmha_fwd_appendkv(), make sure it's in batch mode
+    const bool need_append_kvcache = (0 < seqlen_knew || 0 < rotary_dim);
+    if(need_append_kvcache && mode == mode_enum::group)
+    {
+        std::cerr << "fmha_fwd_appendkv() will be invoked. ignoring the 'mode' option" << std::endl;
+        mode = mode_enum::batch;
+    }
     if(!(rotary_dim <= hdim_q))
     {
         std::cerr << "rotary_dim should be less than or equal to head dim for q" << std::endl;
@@ -356,22 +365,26 @@ bool run(const ck_tile::ArgParser& arg_parser)
                   << std::endl;
         use_cache_batch_idx = false;
     }
+#else
+    if(use_cache_batch_idx)
+    {
+        if(0 < page_block_size)
+        {
+            std::cerr << "paged-kvcache does not support cache_batch_idx. ignoring the "
+                         "'cache_batch_idx' option"
+                      << std::endl;
+            use_cache_batch_idx = false;
+        }
+        else if(mode == mode_enum::group)
+        {
+            std::cerr << "group mode will not use cache_batch_idx. ignoring the "
+                         "'cache_batch_idx' option"
+                      << std::endl;
+            use_cache_batch_idx = false;
+        }
+    }
 #endif
-    if(0 < page_block_size && use_cache_batch_idx)
-    {
-        std::cerr << "paged-kvcache does not support cache_batch_idx. ignoring the "
-                     "'cache_batch_idx' option"
-                  << std::endl;
-        use_cache_batch_idx = false;
-    }
-    // the input tensor layout for kvcache is same as batch mode
-    const bool need_append_kvcache = (0 < seqlen_knew || 0 < rotary_dim);
     const bool use_kvcache = (need_append_kvcache || use_cache_batch_idx || 0 < page_block_size);
-    if(use_kvcache && mode != mode_enum::batch)
-    {
-        std::cerr << "kvcache enabled. ignoring the 'mode' option" << std::endl;
-        mode = mode_enum::batch;
-    }
 
     auto [seqlen_qs, seqlen_ks, seqlen_kpads] =
         decode_seqlen(mode,
@@ -380,7 +393,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                       arg_parser.get_str("s_k"),
                       arg_parser.get_str("s_kpad"),
                       /*seqlen_k_min=*/0 < seqlen_knew ? seqlen_knew : 0,
-                      use_kvcache);
+                      need_append_kvcache);
     // compute kvcache seqlen_k (before appending knew/vnew)
     auto cache_seqlen_ks = seqlen_ks;
     std::transform(cache_seqlen_ks.begin(),
@@ -416,25 +429,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
             return atoi(squant_str.c_str()) != 0 ? true : false;
     }();
 
-    float range_q = arg_parser.get_float("range_q");
-    float range_k = arg_parser.get_float("range_k");
-    float range_v = arg_parser.get_float("range_v");
-    float range_p = arg_parser.get_float("range_p");
-    float range_o = arg_parser.get_float("range_o");
-
-    float dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<DataType>::max());
-
-    float scale_p = 1.f;
-    float scale_o = 1.f;
-
-    if(squant)
-    {
-        scale_s = scale_s * (range_q / dtype_max) * (range_k / dtype_max);
-        scale_p = dtype_max / range_p;
-        // scale_p = [max(fp8_t)/range_o] * [range_p/max(fp8_t)] * [range_v/max(fp8_t)]
-        scale_o = range_p * range_v / range_o / dtype_max;
-    }
-
     std::string vlayout = arg_parser.get_str("vlayout");
     bool lse            = arg_parser.get_bool("lse");
 
@@ -454,7 +448,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     bool s_randval = false;
-    if(p_drop > 0.0f && do_validation)
+    if(p_drop > 0.0f && do_validation != 0)
     {
         s_randval = true;
     }
@@ -487,7 +481,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const auto seqstart_k_host              = to_seqstarts(seqlen_ks);
     const auto seqstart_k_with_padding_host = to_seqstarts(seqlen_kpads);
 
-    using TypeConfig = FmhaFwdTypeConfig<DataType>;
+    using TypeConfig = FmhaFwdTypeConfig<DataTypeConfig>;
 
     using QDataType             = typename TypeConfig::QDataType;
     using KDataType             = typename TypeConfig::KDataType;
@@ -500,6 +494,28 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using PDataType             = typename TypeConfig::PDataType;
     using OaccDataType          = typename TypeConfig::OaccDataType;
     using ODataType             = typename TypeConfig::ODataType;
+
+    float range_q = arg_parser.get_float("range_q");
+    float range_k = arg_parser.get_float("range_k");
+    float range_v = arg_parser.get_float("range_v");
+    float range_p = arg_parser.get_float("range_p");
+    float range_o = arg_parser.get_float("range_o");
+
+    float q_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::max());
+    float k_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::max());
+    float v_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::max());
+    float p_dtype_max = v_dtype_max; // assume p and v is the same type
+    float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
+
+    float scale_p = 1.f;
+    float scale_o = 1.f;
+
+    if(squant)
+    {
+        scale_s = scale_s * (range_q / q_dtype_max) * (range_k / k_dtype_max);
+        scale_p = p_dtype_max / range_p;
+        scale_o = (o_dtype_max / range_o) * (range_p / p_dtype_max) * (range_v / v_dtype_max);
+    }
 
     // accumulation numbers for performance evaluation
     std::size_t flop = 0, num_byte = 0;
@@ -557,33 +573,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 #endif
 
-    struct
-    {
-        auto operator()(bool permute,
-                        ck_tile::index_t b /*batch*/,
-                        ck_tile::index_t h /*nhead*/,
-                        ck_tile::index_t s /*seqlen*/,
-                        ck_tile::index_t d /*hdim*/)
-        {
-            if(permute)
-                return std::array<ck_tile::index_t, 4>{b, h, s, d};
-            else
-                return std::array<ck_tile::index_t, 4>{b, s, h, d};
-        }
-
-        auto operator()(bool permute,
-                        ck_tile::index_t ns /*num_splits*/,
-                        ck_tile::index_t b /*batch*/,
-                        ck_tile::index_t h /*nhead*/,
-                        ck_tile::index_t s /*seqlen*/,
-                        ck_tile::index_t d /*hdim*/)
-        {
-            if(permute)
-                return std::array<ck_tile::index_t, 5>{ns, b, h, s, d};
-            else
-                return std::array<ck_tile::index_t, 5>{ns, b, s, h, d};
-        }
-    } get_lengths;
+    static const auto get_lengths = [](bool permute,
+                                       ck_tile::index_t b /*batch*/,
+                                       ck_tile::index_t h /*nhead*/,
+                                       ck_tile::index_t s /*seqlen*/,
+                                       ck_tile::index_t d /*hdim*/) {
+        if(permute)
+            return std::array<ck_tile::index_t, 4>{b, h, s, d};
+        else
+            return std::array<ck_tile::index_t, 4>{b, s, h, d};
+    };
 
     bool is_v_rowmajor = vlayout == std::string("r");
 
@@ -635,12 +634,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
         1 < num_splits || use_kvcache
-            ? std::array<ck_tile::index_t, 4>{num_splits, shape_batch, nhead, shape_seqlen_q}
+            ? std::array<ck_tile::index_t, 4>{shape_batch, nhead, num_splits, shape_seqlen_q}
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     ck_tile::HostTensor<OaccDataType> o_acc_host(
-        1 < num_splits || use_kvcache
-            ? get_lengths(o_perm, num_splits, shape_batch, nhead, shape_seqlen_q, hdim_v)
-            : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
+        1 < num_splits || use_kvcache ? std::array<ck_tile::index_t, 5>{shape_batch,
+                                                                        nhead,
+                                                                        num_splits,
+                                                                        shape_seqlen_q,
+                                                                        hdim_v}
+                                      : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
     // batch mode of lse data layout is [batch, nhead, seqlen_q]
     // group mode of lse data layout is [nhead, total_seqlen_q]
@@ -711,14 +713,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     else if(init_method == "ufq" || init_method == "uf:q" ||
             init_method == "3") // suitable for fp8 quantization
     {
-        ck_tile::FillUniformDistribution<QDataType>{-dtype_max, dtype_max, seed}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{-dtype_max, dtype_max, seed}(k_host);
-        ck_tile::FillUniformDistribution<KDataType>{-dtype_max, dtype_max, seed}(knew_host);
-        ck_tile::FillUniformDistribution<VDataType>{-dtype_max, dtype_max, seed}(v_host);
-        ck_tile::FillUniformDistribution<VDataType>{-dtype_max, dtype_max, seed}(vnew_host);
+        ck_tile::FillUniformDistribution<QDataType>{-q_dtype_max, q_dtype_max, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{-k_dtype_max, k_dtype_max, seed}(k_host);
+        ck_tile::FillUniformDistribution<KDataType>{-k_dtype_max, k_dtype_max, seed}(knew_host);
+        ck_tile::FillUniformDistribution<VDataType>{-v_dtype_max, v_dtype_max, seed}(v_host);
+        ck_tile::FillUniformDistribution<VDataType>{-v_dtype_max, v_dtype_max, seed}(vnew_host);
 
         // bias_fp8 = qscale_bias * bias_fp32
-        float qscale_bias = (dtype_max / range_q) * (dtype_max / range_k);
+        float qscale_bias = (q_dtype_max / range_q) * (k_dtype_max / range_k);
         // Assume bias is in [-1.f, 1.f] in original fp32
         ck_tile::FillUniformDistribution<BiasDataType>{-qscale_bias, qscale_bias, seed}(bias_host);
     }
@@ -755,8 +757,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
-    ck_tile::DeviceMem seqlen_k_buf(
-        use_kvcache || 0 <= seqlen_kpads[0] ? seqlen_ks.size() * sizeof(int32_t) : 0);
+    ck_tile::DeviceMem seqlen_k_buf((mode == mode_enum::batch && use_kvcache) ||
+                                            0 <= seqlen_kpads[0]
+                                        ? seqlen_ks.size() * sizeof(int32_t)
+                                        : 0);
     ck_tile::DeviceMem cache_seqlen_k_buf(
         need_append_kvcache ? cache_seqlen_ks.size() * sizeof(int32_t) : 0);
     ck_tile::DeviceMem rotary_cos_buf(rotary_cos_host.get_element_space_size_in_bytes());
@@ -777,7 +781,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqlen_kpads[0] < 0 ? seqstart_k_host.data()
                                             : seqstart_k_with_padding_host.data());
-    seqlen_k_buf.ToDevice(use_kvcache || 0 <= seqlen_kpads[0] ? seqlen_ks.data() : nullptr);
+    seqlen_k_buf.ToDevice((mode == mode_enum::batch && use_kvcache) || 0 <= seqlen_kpads[0]
+                              ? seqlen_ks.data()
+                              : nullptr);
     cache_seqlen_k_buf.ToDevice(need_append_kvcache ? cache_seqlen_ks.data() : nullptr);
     rotary_cos_buf.ToDevice(rotary_cos_host.data());
     rotary_sin_buf.ToDevice(rotary_sin_host.data());
@@ -880,7 +886,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }();
         const ck_tile::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
         const ck_tile::index_t stride_randval = (max_seqlen_k);
-        const ck_tile::index_t stride_o_acc   = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck_tile::index_t stride_o_acc   = (hdim_v);
         const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
@@ -906,8 +912,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
-        const ck_tile::index_t nhead_stride_lse_acc = shape_seqlen_q;
-        const ck_tile::index_t nhead_stride_o_acc   = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_lse_acc = (num_splits * shape_seqlen_q);
+        const ck_tile::index_t nhead_stride_o_acc   = (num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q = (nhead * shape_seqlen_q * hdim_q);
@@ -922,13 +928,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
-        const ck_tile::index_t batch_stride_lse_acc = (nhead * shape_seqlen_q);
-        const ck_tile::index_t batch_stride_o_acc   = (nhead * shape_seqlen_q * hdim_v);
-        const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
+        const ck_tile::index_t batch_stride_lse_acc = (nhead * num_splits * shape_seqlen_q);
+        const ck_tile::index_t batch_stride_o_acc = (nhead * num_splits * shape_seqlen_q * hdim_v);
+        const ck_tile::index_t batch_stride_o     = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
         // setup split_stride_* arguments (only used in split-kv kernel)
-        const ck_tile::index_t split_stride_lse_acc = (shape_batch * nhead * shape_seqlen_q);
-        const ck_tile::index_t split_stride_o_acc = (shape_batch * nhead * shape_seqlen_q * hdim_v);
+        const ck_tile::index_t split_stride_lse_acc = (shape_seqlen_q);
+        const ck_tile::index_t split_stride_o_acc   = (shape_seqlen_q * hdim_v);
 
         args.q_ptr = q_buf.GetDeviceBuffer();
         args.k_ptr = k_buf.GetDeviceBuffer();
@@ -990,8 +996,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 (mode == mode_enum::group ? seqstart_q.GetDeviceBuffer() : nullptr);
             args.seqstart_k_ptr =
                 (mode == mode_enum::group ? seqstart_k.GetDeviceBuffer() : nullptr);
-            args.seqlen_k_ptr =
-                (use_kvcache || 0 <= k_paddings_[0] ? seqlen_k_buf.GetDeviceBuffer() : nullptr);
+            args.seqlen_k_ptr = ((mode == mode_enum::batch && use_kvcache) || 0 <= k_paddings_[0]
+                                     ? seqlen_k_buf.GetDeviceBuffer()
+                                     : nullptr);
 
             args.seqlen_k     = shape_seqlen_k; // unused in group mode (or kvcache enabled)
             args.max_seqlen_q = max_seqlen_q;
@@ -1043,6 +1050,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                     (0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr);
                 args.batch_stride_block_table = batch_stride_block_table;
                 args.page_block_size          = page_block_size;
+                args.is_gappy = false; // use 'false' for flash-attention integration
 
                 args.cache_batch_idx =
                     (use_cache_batch_idx ? cache_batch_idx_buf.GetDeviceBuffer() : nullptr);
@@ -1114,10 +1122,60 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) << gb_per_sec
               << " GB/s" << std::flush;
 
-    if(!do_validation)
+    if(do_validation == 0)
     {
         std::cout << std::flush << std::endl;
         return true;
+    }
+    if(do_validation == 2)
+    {
+        // NOTE: use gpu to do validation
+        ck_tile::naive_attention_fwd_traits naive_t;
+        naive_t.q_type    = data_type;
+        naive_t.k_type    = data_type;
+        naive_t.v_type    = data_type;
+        naive_t.o_type    = data_type;
+        naive_t.q_layout  = i_perm == 1 ? "bhsd" : "bshd";
+        naive_t.k_layout  = i_perm == 1 ? "bhsd" : "bshd";
+        naive_t.v_layout  = i_perm == 1 ? "bhsd" : "bshd";
+        naive_t.o_layout  = o_perm == 1 ? "bhsd" : "bshd";
+        naive_t.variation = 0; // TODO?
+
+        ck_tile::DeviceMem o_naive_buf(o_host.get_element_space_size_in_bytes());
+
+        ck_tile::naive_attention_fwd_args naive_a;
+        naive_a.q_ptr           = q_buf.GetDeviceBuffer();
+        naive_a.k_ptr           = k_buf.GetDeviceBuffer();
+        naive_a.v_ptr           = v_buf.GetDeviceBuffer();
+        naive_a.o_ptr           = o_naive_buf.GetDeviceBuffer();
+        naive_a.scale_s         = scale_s;
+        naive_a.context_len_ptr = nullptr; // used when seqlen kv come from a pointer
+        naive_a.page_table_ptr =
+            nullptr; // [batch, num_blocks] seqlen_kv is in different block(paged attn)
+        naive_a.hdim           = hdim_q;
+        naive_a.hdim_v         = hdim_v; // could be cross-attn, where V and Q/K hdim are different
+        naive_a.batch_q        = batch;
+        naive_a.batch_kv       = batch;
+        naive_a.batch_ratio_kv = 1; // batch_q / batch_kv
+        naive_a.seqlen_q       = seqlen_qs[0];
+        naive_a.seqlen_kv = seqlen_ks[0]; // if context_len_ptr is not nullptr, ignore this field
+        naive_a.nhead_q   = nhead;
+        naive_a.nhead_kv  = nhead_k;
+        naive_a.nhead_ratio_kv = naive_a.nhead_q / naive_a.nhead_kv; // nhead_q / nhead_kv
+        naive_a.page_size      = 0; // if paged, the seqlen-kv for each block
+
+        ck_tile::stream_config naive_s{};
+
+        naive_attention_fwd(naive_t, naive_a, naive_s);
+
+        auto o_naive_ref = o_naive_buf.ToHost<ODataType>();
+        o_buf.FromDevice(o_host.data()); // TODO: ugly
+
+        auto [rtol_, atol_] = get_elimit<DataTypeConfig>(init_method);
+        bool pass_          = ck_tile::check_err(
+            o_host, o_naive_ref, std::string("OUT Error: Incorrect results!"), rtol_, atol_);
+        std::cout << ", valid:" << (pass_ ? "y" : "n") << std::flush << std::endl;
+        return pass_;
     }
 
     o_buf.FromDevice(o_host.data());
@@ -1125,14 +1183,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     randval_buf.FromDevice(randval_host.data());
 
     auto p_compute_element_func = [&]() {
-        if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
+        if constexpr(std::is_same_v<DataTypeConfig, ck_tile::fp8_t>)
             return ck_tile::scales{scale_p};
         else
             return ck_tile::identity{};
     }();
 
     auto oacc_element_func = [&]() {
-        if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
+        if constexpr(std::is_same_v<DataTypeConfig, ck_tile::fp8_t>)
             return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
                                      ck_tile::scales{scale_o});
         else
@@ -1182,7 +1240,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             decltype(q_host_ref) q_host_ref_ro(q_host_ref.get_lengths());
 
-            auto [rotary_cos_slice, rotary_sin_slice] = 
+            auto [rotary_cos_slice, rotary_sin_slice] =
                 slice_rotary_cos_sin(rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], real_seqlen_q);
 
             ck_tile::reference_batched_rotary_position_embedding(
@@ -1198,13 +1256,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 k_host_ref.ForEach([&](auto& self, auto i) {
                     self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[0] / nr, i[1] % page_block_size, i[2]);
                 });
-            } else {     
+            } else {
                 k_host_ref.ForEach([&](auto& self, auto i) {
                     self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[1] % page_block_size, i[0] / nr, i[2]);
                 });
             }
         } else
-#endif 
+#endif
         {
             if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[0] / nr, i[1] + key_offset, i[2]); });
             else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[1] + key_offset, i[0] / nr, i[2]); });
@@ -1225,7 +1283,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             {
                 knew_host_ref_ro.emplace(knew_host_ref.get_lengths());
 
-                auto [rotary_cos_slice, rotary_sin_slice] = 
+                auto [rotary_cos_slice, rotary_sin_slice] =
                     slice_rotary_cos_sin(rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], seqlen_knew);
 
                 ck_tile::reference_batched_rotary_position_embedding(
@@ -1247,19 +1305,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(0 < page_block_size) {
             if(is_v_rowmajor) {
                 if(i_perm) {
-                    v_host_ref.ForEach([&](auto& self, auto i) { 
-                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[2] % page_block_size, i[1]); 
+                    v_host_ref.ForEach([&](auto& self, auto i) {
+                        self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[2] % page_block_size, i[1]);
                     });
                 } else {
-                    v_host_ref.ForEach([&](auto& self, auto i) { 
+                    v_host_ref.ForEach([&](auto& self, auto i) {
                         self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[2] % page_block_size, i[0] / nr, i[1]);
                     });
                 }
             }
-            else 
+            else
             {
-                if(i_perm) { 
-                    v_host_ref.ForEach([&](auto& self, auto i) { 
+                if(i_perm) {
+                    v_host_ref.ForEach([&](auto& self, auto i) {
                         self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[1], i[2] % page_block_size);
                     });
                 } else {
@@ -1454,7 +1512,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[1] + query_offset, idx[0], idx[2]); });
         // clang-format on
 
-        auto [rtol, atol] = get_elimit<DataType>(init_method);
+        auto [rtol, atol] = get_elimit<DataTypeConfig>(init_method);
         bool cur_pass     = ck_tile::check_err(
             o_host_result, o_host_ref, std::string("OUT Error: Incorrect results!"), rtol, atol);
         pass &= cur_pass;
@@ -1511,15 +1569,15 @@ int main(int argc, char* argv[])
     const std::string data_type = arg_parser.get_str("prec");
     if(data_type == "fp16")
     {
-        return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
+        return run<FmhaFwdFp16>(arg_parser) ? 0 : -2;
     }
     else if(data_type == "bf16")
     {
-        return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
+        return run<FmhaFwdBf16>(arg_parser) ? 0 : -2;
     }
     else if(data_type == "fp8")
     {
-        return run<ck_tile::fp8_t>(arg_parser) ? 0 : -2;
+        return run<FmhaFwdFp8>(arg_parser) ? 0 : -2;
     }
 
     return -3;

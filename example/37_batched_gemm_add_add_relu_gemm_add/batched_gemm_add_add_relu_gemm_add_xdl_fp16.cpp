@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 /*
 Computes C_m_o = Relu(A0[m, k] * B0[n, k] + D00[m, n] + D01[mn]) * B1[n, o] + D1[m, o]
@@ -60,14 +60,14 @@ struct AddAddRelu
     {
         const ck::half_t x = c + d0 + d1;
 
-        ck::tensor_operation::element_wise::Relu{}.template operator()<ck::half_t>(e, x);
+        ck::tensor_operation::element_wise::Relu{}.operator()(e, x);
     }
     __host__ __device__ void
     operator()(float& e, const float& c, const ck::half_t& d0, const ck::half_t& d1) const
     {
         const float x = c + (d0 + d1);
 
-        ck::tensor_operation::element_wise::Relu{}.template operator()<float>(e, x);
+        ck::tensor_operation::element_wise::Relu{}.operator()(e, x);
     }
 };
 
@@ -377,7 +377,7 @@ int main(int argc, char* argv[])
         break;
     default:
         a0_g_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{1});
-        b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+        b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<B0DataType, 1>{});
         d00_g_m_n.GenerateTensorValue(GeneratorTensor_1<D00DataType>{1});
         d01_g_m_n.GenerateTensorValue(GeneratorTensor_1<D01DataType>{1});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});

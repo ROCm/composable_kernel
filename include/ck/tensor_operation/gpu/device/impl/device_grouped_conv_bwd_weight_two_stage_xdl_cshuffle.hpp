@@ -60,12 +60,12 @@ __global__ void
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
     const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
 
-    const long_index_t a_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
-    const long_index_t b_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
-    const long_index_t e_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
+    const long_index_t a_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
+    const long_index_t b_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
+    const long_index_t e_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -111,18 +111,17 @@ __global__ void
             [[maybe_unused]] const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             [[maybe_unused]] const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // offset base pointer for each work-group
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
     const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
 
-    const long_index_t a_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
-    const long_index_t b_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
-    const long_index_t e_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
+    const long_index_t a_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
+    const long_index_t b_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
+    const long_index_t e_batch_offset = amd_wave_read_first_lane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
 
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy

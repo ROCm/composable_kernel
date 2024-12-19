@@ -18,16 +18,16 @@ struct FmhaFwdSplitKVTilePartitioner
     static constexpr ck_tile::index_t kN1 = BlockFmhaShape::kN1;
     static constexpr ck_tile::index_t kK1 = BlockFmhaShape::kK1;
 
-    __host__ static constexpr auto GridSize(ck_tile::index_t batch_size,
-                                            ck_tile::index_t nhead,
-                                            ck_tile::index_t max_seqlen_q,
-                                            ck_tile::index_t hdim_v,
-                                            ck_tile::index_t num_splits)
+    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size,
+                                                ck_tile::index_t nhead,
+                                                ck_tile::index_t max_seqlen_q,
+                                                ck_tile::index_t hdim_v,
+                                                ck_tile::index_t num_splits)
     {
         // TODO: this may need tuning
         return dim3(ck_tile::integer_divide_ceil(max_seqlen_q, kM0) *
-                        ck_tile::integer_divide_ceil(hdim_v, kN1),
-                    nhead * num_splits,
+                        ck_tile::integer_divide_ceil(hdim_v, kN1) * num_splits,
+                    nhead,
                     batch_size);
     }
 
@@ -42,8 +42,9 @@ struct FmhaFwdSplitKVTilePartitioner
             return ck_tile::make_tuple(quotient, modulus);
         };
 
-        const auto [i_tile_m, i_tile_n] = f(blockIdx.x, num_tile_n1);
-        const auto [i_nhead, i_split]   = f(blockIdx.y, num_splits);
+        const auto [mn, i_split]        = f(blockIdx.x, num_splits);
+        const auto [i_tile_m, i_tile_n] = f(mn, num_tile_n1);
+        const index_t i_nhead           = blockIdx.y;
         const index_t i_batch           = blockIdx.z;
 
         return ck_tile::make_tuple(i_tile_m, i_tile_n, i_split, i_nhead, i_batch);
