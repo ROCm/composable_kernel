@@ -588,11 +588,11 @@ class FmhaFwdSplitKVCombineKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {                #   M0  N0   K0  N1   K1   hdim  
-            '32'  : FmhaFwdTileSize(16, 64,  16, 32,  32,  32,   1, 2, 1,  1, 2, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '64'  : FmhaFwdTileSize(16, 64,  32, 64,  32,  64,   1, 4, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16,  -1),
-        ### '96'  : FmhaFwdTileSize(16, 128, 32, 128, 32,  96,   1, 4, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '128' : FmhaFwdTileSize(16, 128, 32, 128, 32,  128,  1, 4, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '256' : FmhaFwdTileSize(16, 128, 32, 256, 32,  256,  1, 4, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '32'  : FmhaFwdTileSize(32, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '64'  : FmhaFwdTileSize(64, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+        ### '96'  : FmhaFwdTileSize(64, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '128' : FmhaFwdTileSize(64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '256' : FmhaFwdTileSize(64, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
@@ -639,11 +639,11 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                 # TODO: use async pipeline when compiler is more stable 
                 if hdim == 256 or hdim in [32, 64, 128]:         ### [32, 64, 96, 128]:
                 # if True:
-                    pipelines.append(Pipeline('qr_nwarp_sshuffle', 'row', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr_nwarp_sshuffle', 'col', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
 
-                    pipelines.append(Pipeline('qr_nwarp_sshuffle', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr_nwarp_sshuffle', 'col', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
                 else:
                     pipelines.append(Pipeline('qr_async', 'row', 't', 'f', 't', 't', bias, 't', squant, pagedkv, mask))
                     pipelines.append(Pipeline('qr_async', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
