@@ -265,7 +265,6 @@ struct BlockFmhaPipelineQSKSVS
                              bias_dram_block_window_tmp.get_window_lengths(),
                              {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
                              Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
-        // Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
