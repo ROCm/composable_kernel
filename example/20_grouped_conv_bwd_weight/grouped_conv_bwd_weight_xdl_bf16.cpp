@@ -48,16 +48,16 @@ using DeviceConvBwdWeightInstance =
         16,                   // NPerXdl
         1,                    // MXdlPerWave
         1,                    // NXdlPerWave
-        S<4, 16, 1>,          // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<2, 0, 1>,           // ABlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,           // ABlockTransferSrcAccessOrder
+        S<1, 4, 16, 4>,       // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<0, 3, 1, 2>,        // ABlockTransferThreadClusterArrangeOrder
+        S<0, 2, 1, 3>,        // ABlockTransferSrcAccessOrder
         1,                    // ABlockTransferSrcVectorDim
         1,                    // ABlockTransferSrcScalarPerVector
         4,                    // ABlockTransferDstScalarPerVector_K1
         false,                // ABlockLdsAddExtraM
-        S<4, 16, 1>,          // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<2, 0, 1>,           // BBlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,           // BBlockTransferSrcAccessOrder
+        S<1, 4, 16, 4>,       // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<0, 3, 1, 2>,        // BBlockTransferThreadClusterArrangeOrder
+        S<0, 2, 1, 3>,        // BBlockTransferSrcAccessOrder
         1,                    // BBlockTransferSrcVectorDim
         1,                    // BBlockTransferSrcScalarPerVector
         4,                    // BBlockTransferDstScalarPerVector_K1

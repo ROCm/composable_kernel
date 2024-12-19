@@ -315,59 +315,92 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
             batch);
     }
 
+    template <typename SeqType>
+    constexpr static auto
+    ShuffleSequenceAndTransformFrom4DTo3D() noexcept(noexcept(SeqType{}.Size() == 4))
+        -> decltype(auto)
+    {
+        // Remove first element and,
+        // Convert 4d->3d sequence.
+        constexpr auto _I0  = SeqType{}.At(I1);
+        constexpr auto _I1  = SeqType{}.At(I2);
+        constexpr auto _I2  = SeqType{}.At(I0);
+        constexpr auto _Seq = S<_I0, _I1, _I2>();
+        return _Seq;
+    }
+
+    template <typename SeqType>
+    constexpr static auto
+    TransformSequenceFrom4DTo3dAndReduceByOne() noexcept(noexcept(SeqType{}.Size() == 4))
+        -> decltype(auto)
+    {
+        // Skip first element and
+        // Convert 4d->3d and take away one from seq.
+        constexpr index_t one = 1;
+        constexpr auto _I0    = SeqType{}.At(I1) - one;
+        constexpr auto _I1    = SeqType{}.At(I2) - one;
+        constexpr auto _I2    = SeqType{}.At(I3) - one;
+        constexpr auto _Seq   = S<_I0, _I1, _I2>();
+        return _Seq;
+    }
+
     using ABCGridDescs = decltype(GetABCGridDesc<NDimSpatial>());
 
     using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
-    using GridwiseGemm =
-        GridwiseGemm_xdl_cshuffle_v3<tensor_layout::gemm::RowMajor,
-                                     tensor_layout::gemm::ColumnMajor,
-                                     tensor_layout::gemm::RowMajor,
-                                     ADataType,
-                                     BDataType,
-                                     AccDataType,
-                                     CDataType,
-                                     CDataType,
-                                     AElementwiseOperation,
-                                     BElementwiseOperation,
-                                     CElementwiseOperation,
-                                     GemmSpec,
-                                     BlockSize,
-                                     MPerBlock,
-                                     NPerBlock,
-                                     K0PerBlock,
-                                     K1,
-                                     K1,
-                                     MPerXdl,
-                                     NPerXdl,
-                                     MXdlPerWave,
-                                     NXdlPerWave,
-                                     ABlockTransferThreadClusterLengths_K0_M_K1,
-                                     ABlockTransferThreadClusterArrangeOrder,
-                                     ABlockTransferSrcAccessOrder,
-                                     ABlockTransferSrcVectorDim,
-                                     ABlockTransferSrcScalarPerVector,
-                                     ABlockTransferDstScalarPerVector_K1,
-                                     false,
-                                     ABlockLdsAddExtraM,
-                                     BBlockTransferThreadClusterLengths_K0_N_K1,
-                                     BBlockTransferThreadClusterArrangeOrder,
-                                     BBlockTransferSrcAccessOrder,
-                                     BBlockTransferSrcVectorDim,
-                                     BBlockTransferSrcScalarPerVector,
-                                     BBlockTransferDstScalarPerVector_K1,
-                                     false,
-                                     BBlockLdsAddExtraN,
-                                     CShuffleMXdlPerWavePerShuffle,
-                                     CShuffleNXdlPerWavePerShuffle,
-                                     CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                                     CBlockTransferScalarPerVector_NWaveNPerXdl,
-                                     BlkGemmPipeSched,
-                                     BlkGemmPipelineVer,
-                                     ComputeTypeA,
-                                     ComputeTypeB>;
+    using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<
+        tensor_layout::gemm::RowMajor,
+        tensor_layout::gemm::ColumnMajor,
+        tensor_layout::gemm::RowMajor,
+        ADataType,
+        BDataType,
+        AccDataType,
+        CDataType,
+        CDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        GemmSpec,
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        K0PerBlock,
+        K1,
+        K1,
+        MPerXdl,
+        NPerXdl,
+        MXdlPerWave,
+        NXdlPerWave,
+        decltype(ShuffleSequenceAndTransformFrom4DTo3D<
+                 ABlockTransferThreadClusterLengths_K0_M_K1>()),
+        decltype(TransformSequenceFrom4DTo3dAndReduceByOne<
+                 ABlockTransferThreadClusterArrangeOrder>()),
+        decltype(TransformSequenceFrom4DTo3dAndReduceByOne<ABlockTransferSrcAccessOrder>()),
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_K1,
+        false,
+        ABlockLdsAddExtraM,
+        decltype(ShuffleSequenceAndTransformFrom4DTo3D<
+                 BBlockTransferThreadClusterLengths_K0_N_K1>()),
+        decltype(TransformSequenceFrom4DTo3dAndReduceByOne<
+                 BBlockTransferThreadClusterArrangeOrder>()),
+        decltype(TransformSequenceFrom4DTo3dAndReduceByOne<BBlockTransferSrcAccessOrder>()),
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_K1,
+        false,
+        BBlockLdsAddExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CBlockTransferScalarPerVector_NWaveNPerXdl,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ComputeTypeA,
+        ComputeTypeB>;
 
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
