@@ -38,7 +38,7 @@ example/ck_tile/03_gemm/script/smoke_test_mem_pipeline.sh
 # run performance benchmarks
 export gemm_basic_log="perf_tile_gemm_basic_$GPU_arch.log"
 print_log_header $gemm_basic_log $env_type $branch $host_name
-example/ck_tile/03_gemm/script/benchmark_basic.sh 2>&1 | tee -a $gemm_baisc_log
+example/ck_tile/03_gemm/script/benchmark_basic.sh 2>&1 | tee -a $gemm_basic_log
 
 export gemm_mem_pipeline_log="perf_tile_gemm_mem_pipeline_$GPU_arch.log"
 print_log_header $gemm_mem_pipeline_log $env_type $branch $host_name
