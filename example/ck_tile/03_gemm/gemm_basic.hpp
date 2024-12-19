@@ -51,20 +51,6 @@ using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
 using CDataType   = Types::CDataType;
 
-struct gemm_basic_args
-{
-    const void* p_a;
-    const void* p_b;
-    void* p_c;
-    ck_tile::index_t kbatch;
-    ck_tile::index_t M;
-    ck_tile::index_t N;
-    ck_tile::index_t K;
-    ck_tile::index_t stride_A;
-    ck_tile::index_t stride_B;
-    ck_tile::index_t stride_C;
-};
-
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -89,4 +75,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-float gemm_calc(gemm_basic_args args, const ck_tile::stream_config& s);
+float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
