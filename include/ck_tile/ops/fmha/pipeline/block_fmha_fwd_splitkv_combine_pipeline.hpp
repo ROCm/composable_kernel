@@ -337,8 +337,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
         __builtin_amdgcn_sched_barrier(0);
         block_sync_lds();
-        for(index_t repeat = 0; repeat < kNumWarps; ++repeat)
-        {
+        static_for<0, kNumWarps, 1>{}([&](auto repeat) {
             auto o_acc_in = load_tile(o_acc_4_lds_window);
 
             {
@@ -352,7 +351,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
             }
 
             move_tile_window(o_acc_4_lds_window, {kM0, 0});
-        }
+        });
 
         o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
 

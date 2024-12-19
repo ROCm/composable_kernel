@@ -338,7 +338,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             k_dram_block_window,
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
 
-        // laod the first tile of the first iteration and store to LDS
+        // load the first tile of the first iteration and store to LDS
         auto k_block_tile = load_tile(k_dram_window);
         // moving k_dram_window is an in-page-block operation, so there is
         // no need to invoke k_page_block_navigator.move_tile_window() here.
