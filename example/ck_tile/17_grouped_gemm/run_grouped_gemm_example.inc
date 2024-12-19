@@ -53,7 +53,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         return -1;
     };
 
-    auto valid_input_data = [&](int group_count, auto... args) {
+    auto valid_input_data = [&](int group_count, const auto&... args) {
         return !(args.empty() || ...) && group_count == (args.size() == ...);
     };
 
