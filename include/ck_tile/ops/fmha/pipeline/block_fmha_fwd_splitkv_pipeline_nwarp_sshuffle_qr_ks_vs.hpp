@@ -170,9 +170,9 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
 
         // K tile in LDS
-        KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>()));
-        auto k_lds           = make_tensor_view<address_space_enum::lds>(
+        KDataType* k_lds_ptr =
+            static_cast<KDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
+        auto k_lds = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsBlockDescriptor<Problem>());
         auto k_lds_window =
             make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0>{}), {0, 0});
@@ -180,8 +180,8 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<VDataType*>(static_cast<char*>(smem_ptr) +
-                                         Policy::template GetSmemSizeQ<Problem>() +
-                                         Policy::template GetSmemSizeK<Problem>()),
+                                         max(Policy::template GetSmemSizeQ<Problem>(),
+                                             Policy::template GetSmemSizeK<Problem>())),
             Policy::template MakeVLdsBlockDescriptor<Problem>());
         auto v_lds_window = make_tile_window(
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
@@ -189,8 +189,8 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         // S tile in LDS
         auto s_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<SaccDataType*>(reinterpret_cast<char*>(smem_ptr) +
-                                            Policy::template GetSmemSizeQ<Problem>() +
-                                            Policy::template GetSmemSizeK<Problem>()),
+                                            max(Policy::template GetSmemSizeQ<Problem>(),
+                                                Policy::template GetSmemSizeK<Problem>())),
             Policy::template MakeSLdsBlockDescriptor<Problem>());
         auto s_write_lds_window = make_tile_window(
             s_lds, Policy::template MakeSLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});

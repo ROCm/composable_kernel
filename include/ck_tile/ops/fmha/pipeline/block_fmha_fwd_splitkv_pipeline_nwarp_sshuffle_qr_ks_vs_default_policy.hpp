@@ -218,7 +218,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return GetSmemSizeQ<Problem>() + GetSmemSizeK<Problem>() +
+        return max(GetSmemSizeQ<Problem>(), GetSmemSizeK<Problem>()) +
                max(GetSmemSizeV<Problem>(), GetSmemSizeS<Problem>());
     }
 };
