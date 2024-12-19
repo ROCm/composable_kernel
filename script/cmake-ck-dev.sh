@@ -25,7 +25,3 @@ cmake                                                                           
 -D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
 $REST_ARGS                                                                                        \
 ${MY_PROJECT_SOURCE}
-
-
-# -D CMAKE_PREFIX_PATH=/opt/rocm                                                                    \
-# -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc     
