@@ -150,7 +150,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeS2DramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeSRegTileDistribution()
     {
         using BlockGemm = remove_cvref_t<decltype(GetKVBlockGemm<Problem>())>;
 

@@ -198,7 +198,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             make_tile_window(s_lds,
                              Policy::template MakeSLdsBlockDescriptor<Problem>().get_lengths(),
                              {0, 0},
-                             Policy::template MakeS2DramTileDistribution<Problem>());
+                             Policy::template MakeSRegTileDistribution<Problem>());
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
