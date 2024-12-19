@@ -36,7 +36,7 @@ auto create_args(int argc, char* argv[])
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("Ms", "", "M dimensions - empty by default.")
         .insert("Ns", "", "N dimensions - empty by default.")
-        .insert("Cs", "", "C dimensions - empty by default.")
+        .insert("Ks", "", "K dimensions - empty by default.")
         .insert("stride_As", "", "Tensor A strides - it is empty by default.")
         .insert("stride_Bs", "", "Tensor B strides - it is empty by default.")
         .insert("stride_Cs", "", "Tensor C strides - it is empty by default.")

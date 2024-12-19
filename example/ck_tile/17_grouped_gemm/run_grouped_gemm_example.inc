@@ -63,22 +63,22 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
     std::vector<ck_tile::index_t> Ms        = arg_parser.get_int_vec("Ms");
     std::vector<ck_tile::index_t> Ns        = arg_parser.get_int_vec("Ns");
-    std::vector<ck_tile::index_t> Cs        = arg_parser.get_int_vec("Cs");
+    std::vector<ck_tile::index_t> Ks        = arg_parser.get_int_vec("Ks");
     std::vector<ck_tile::index_t> stride_As = arg_parser.get_int_vec("stride_As");
     std::vector<ck_tile::index_t> stride_Bs = arg_parser.get_int_vec("stride_Bs");
     std::vector<ck_tile::index_t> stride_Cs = arg_parser.get_int_vec("stride_Cs");
 
-    if(!valid_input_data(group_count, Ms, Ns, Cs, stride_As, stride_Bs, stride_Cs))
+    if(!valid_input_data(group_count, Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs))
     {
         std::cout << "Please check the input data. Default values will be used." << std::endl;
         for(int i = 0; i < group_count; i++)
         {
             Ms.push_back(256 + 256 * i);
             Ns.push_back(128 + 128 * i);
-            Cs.push_back(128 + 64 * i);
+            Ks.push_back(128 + 64 * i);
 
-            stride_As.push_back(Cs[i]);
-            stride_Bs.push_back(Cs[i]);
+            stride_As.push_back(Ks[i]);
+            stride_Bs.push_back(Ks[i]);
             stride_Cs.push_back(Ns[i]);
         }
     }
@@ -106,7 +106,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     {
         const ck_tile::index_t M = Ms[i];
         const ck_tile::index_t N = Ns[i];
-        const ck_tile::index_t K = Cs[i];
+        const ck_tile::index_t K = Ks[i];
 
         stride_As[i] = f_get_default_stride(M, N, stride_As[i], a_layout);
         stride_Bs[i] = f_get_default_stride(K, N, stride_Bs[i], b_layout);
