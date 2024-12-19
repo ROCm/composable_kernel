@@ -12,7 +12,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <cassert>
 
 namespace ck_tile {
 /*
@@ -224,7 +223,6 @@ class ArgParser
         tokens.reserve(static_cast<int>(args.size()));
         for(const std::string& token : args)
         {
-            assert(("The param contians invalid number", ValidNumber::isNumber(token)));
             int value = atoi(token.c_str());
             tokens.push_back(value);
         }

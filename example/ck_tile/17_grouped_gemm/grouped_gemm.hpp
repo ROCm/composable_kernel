@@ -34,12 +34,12 @@ using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("Ms", "", "The Ms dimensions - empty by default.")
-        .insert("Ns", "", "The Ns dimensions - empty by default.")
-        .insert("Cs", "", "The Ks dimensions - empty by default.")
-        .insert("stride_As", "", "Tensor A stride - it is empty by default.")
-        .insert("stride_Bs", "", "Tensor B stride - it is empty by default.")
-        .insert("stride_Cs", "", "Tensor C stride - it is empty by default.")
+    arg_parser.insert("Ms", "", "M dimensions - empty by default.")
+        .insert("Ns", "", "N dimensions - empty by default.")
+        .insert("Cs", "", "C dimensions - empty by default.")
+        .insert("stride_As", "", "Tensor A strides - it is empty by default.")
+        .insert("stride_Bs", "", "Tensor B strides - it is empty by default.")
+        .insert("stride_Cs", "", "Tensor C strides - it is empty by default.")
         .insert("a_layout", "R", "A tensor data layout - Row by default.")
         .insert("b_layout", "R", "B tensor data layout - Row by default.")
         .insert("c_layout", "R", "C tensor data layout - Row by default.")
