@@ -169,7 +169,6 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
         return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
 #endif
-#if defined(CK_USE_GFX94)
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Row{}, Row{});
@@ -186,7 +185,6 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
     {
         return profile(BF16{}, BF16{}, F32{}, BF16{}, Col{}, Col{}, Row{});
     }
-#endif
     else
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;
