@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ck/utility/data_type.hpp"
-#include "ck/utility/e8m0_utils.hpp"
 #include "ck/utility/f8_utils.hpp"
 #include "ck/utility/mxf4_utils.hpp"
 #include "ck/utility/random_gen.hpp"
@@ -1339,18 +1338,6 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
 
     return float_values.float32_array;
 #endif
-}
-
-template <>
-inline __host__ __device__ float type_convert<float, e8m0_bexp_t>(e8m0_bexp_t scale)
-{
-    return utils::cast_to_float(scale);
-}
-
-template <>
-inline __host__ __device__ e8m0_bexp_t type_convert<e8m0_bexp_t, float>(float scale)
-{
-    return utils::cast_from_float(scale);
 }
 
 template <typename Y, typename X, std::size_t NumElems>

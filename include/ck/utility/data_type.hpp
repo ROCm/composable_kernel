@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/amd_ck_fp8.hpp"
+#include "ck/utility/e8m0.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
 
 namespace ck {
@@ -14,17 +15,6 @@ using int4_t  = _BitInt(4);
 using f4_t    = unsigned _BitInt(4);
 using f6_t    = _BitInt(6);          // e2m3 format
 using bf6_t   = unsigned _BitInt(6); // e3m2 format
-
-struct e8m0_bexp_t
-{
-    // E8M0 scale is biased
-    using type = uint8_t;
-    type data;
-    constexpr e8m0_bexp_t() : data{type{}} {}
-    constexpr e8m0_bexp_t(type init) : data{init} {}
-
-    bool operator==(const e8m0_bexp_t& other) const { return (data == other.data); }
-};
 
 struct f4x2_pk_t
 {

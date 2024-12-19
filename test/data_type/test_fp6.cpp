@@ -13,9 +13,6 @@ using ck::scaled_type_convert;
 using ck::type_convert;
 using ck::vector_type;
 
-using ck::utils::cast_from_float;
-using ck::utils::cast_to_float;
-
 TEST(FP6, NumericLimits)
 {
     EXPECT_EQ(ck::NumericLimits<f6_t>::Min(), f6_t(0b001000));
