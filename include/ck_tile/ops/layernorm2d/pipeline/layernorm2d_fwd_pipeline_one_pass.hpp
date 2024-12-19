@@ -92,8 +92,8 @@ struct Layernorm2dFwdPipelineOnePass
         auto x      = load_tile(x_window);
         auto x_resi = load_tile(x_residual_window);
 
-        int cur_count = 0;
-        int max_count = 0;
+        int cur_count           = 0;
+        int max_count           = 0;
         auto block_welford      = Policy::template GetBlockWelford<Problem>();
         auto block_welford_sync = Policy::template GetBlockWelfordSync<Problem>();
         auto block_welford_cross_warp_sync =
@@ -124,11 +124,13 @@ struct Layernorm2dFwdPipelineOnePass
         // block_tile_welford_post_scale_var(mean, row_size, constant<kFastFDiv>{});
         // block_tile_welford_post_scale_var(var, row_size, constant<kFastFDiv>{});
         // var = var - mean * mean;
-
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++20-extensions"
         sweep_tile(mean, [&](auto idx) {
             mean(idx) = mean(idx) / type_convert<MeanDataType>(row_size);
-            var(idx) = var(idx) / type_convert<MeanDataType>(row_size) - mean(idx) * mean(idx);
+            var(idx)  = var(idx) / type_convert<MeanDataType>(row_size) - mean(idx) * mean(idx);
         });
+#pragma clang diagnostic pop
         // compute inv-std
         auto inv_std = tile_elementwise_in(
             [&](const auto& v_) {
@@ -159,7 +161,7 @@ struct Layernorm2dFwdPipelineOnePass
             const auto beta_  = type_convert<ComputeDataType>(beta[j_idx]);
 
             auto ln_ = (acc[idx] - mean_[i_idx]) * inv_std[i_idx] * gamma_ + beta_;
-            ln(idx) = ln_;
+            ln(idx)  = ln_;
         });
 
         if constexpr(kFusedQuant == Layernorm2dFusedQuantEnum::DYNAMIC_QUANT ||

@@ -284,7 +284,11 @@ struct FillMonotonicSeq
         std::generate(first, last, [=, n = init_value_]() mutable {
             auto tmp = n;
             n += step_;
-            if (n >= 1024) {init += step_; n = init; }
+            if(n >= 1024)
+            {
+                init += step_;
+                n = init;
+            }
             return tmp;
         });
     }
