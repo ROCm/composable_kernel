@@ -14,10 +14,10 @@ set(hsa-runtime64_DIR /opt/rocm/lib/cmake/hsa-runtime64)
 find_package(ROCM REQUIRED PATHS /opt/rocm)
 find_package(hip REQUIRED PATHS /opt/rocm)
 
+set(CK_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 include_directories(
-    ${PROJECT_SOURCE_DIR}/../include/ck
-    ${PROJECT_SOURCE_DIR}/../include/ck/utility
-    ${PROJECT_SOURCE_DIR}/../include/ck/host_utility
+    ${CK_ROOT}/include
     /opt/rocm/include
 )
 

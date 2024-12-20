@@ -4,8 +4,8 @@
 #include <map>
 #include <queue>
 #include "gtest/gtest.h"
-#include "/workspaces/composable_kernel/include/ck/ck.hpp"
-#include "/workspaces/composable_kernel/include/ck/utility/host_memory_allocator.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/host_memory_allocator.hpp"
 
 using namespace ck::memory;
 
