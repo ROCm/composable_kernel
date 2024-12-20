@@ -839,6 +839,9 @@ struct WarpGemmAttributeMfmaImpl_i32_32x32x16_i8
     static constexpr index_t kN = 32;
     static constexpr index_t kK = 16;
 
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
     static constexpr index_t kAMLane     = 32;
     static constexpr index_t kBNLane     = 32;
     static constexpr index_t kABKLane    = 2;
