@@ -221,12 +221,12 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     // TODO make A/B datatype different
     using ABDataType = InDataType;
 
-    static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
-    static constexpr auto I3 = Number<3>{};
-    static constexpr auto I4 = Number<4>{};
-    static constexpr auto I5 = Number<5>{};
+    static inline constexpr auto I0 = Number<0>{};
+    static inline constexpr auto I1 = Number<1>{};
+    static inline constexpr auto I2 = Number<2>{};
+    static inline constexpr auto I3 = Number<3>{};
+    static inline constexpr auto I4 = Number<4>{};
+    static inline constexpr auto I5 = Number<5>{};
 
     static constexpr GemmSpecialization GemmSpec = GemmSpecialization::Default;
     static constexpr auto K1Number               = Number<K1>{};
@@ -241,7 +241,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                                        ConvBackwardWeightSpecialization>{};
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
-    static auto GetABCGridDesc()
+    static auto GetABCGridDesc() -> decltype(auto)
     {
         const ck::index_t dim   = 1;
         const ck::index_t batch = 1;
@@ -266,7 +266,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     }
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
-    static auto GetABCGridDesc()
+    static auto GetABCGridDesc() -> decltype(auto)
     {
         const ck::index_t dim   = 1;
         const ck::index_t batch = 1;
@@ -291,7 +291,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     }
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
-    static auto GetABCGridDesc()
+    static auto GetABCGridDesc() -> decltype(auto)
     {
         const ck::index_t dim   = 1;
         const ck::index_t batch = 1;
@@ -316,7 +316,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     }
 
     template <typename SeqType>
-    constexpr static auto
+    [[nodiscard, gnu::always_inline]] inline constexpr static auto
     ShuffleSequenceAndTransformFrom4DTo3D() noexcept(noexcept(SeqType{}.Size() == 4))
         -> decltype(auto)
     {
@@ -325,12 +325,12 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         constexpr auto _I0  = SeqType{}.At(I1);
         constexpr auto _I1  = SeqType{}.At(I2);
         constexpr auto _I2  = SeqType{}.At(I0);
-        constexpr auto _Seq = S<_I0, _I1, _I2>();
+        constexpr auto _Seq = Sequence<_I0, _I1, _I2>();
         return _Seq;
     }
 
     template <typename SeqType>
-    constexpr static auto
+    [[nodiscard, gnu::always_inline]] inline constexpr static auto
     TransformSequenceFrom4DTo3dAndReduceByOne() noexcept(noexcept(SeqType{}.Size() == 4))
         -> decltype(auto)
     {
@@ -340,7 +340,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         constexpr auto _I0    = SeqType{}.At(I1) - one;
         constexpr auto _I1    = SeqType{}.At(I2) - one;
         constexpr auto _I2    = SeqType{}.At(I3) - one;
-        constexpr auto _Seq   = S<_I0, _I1, _I2>();
+        constexpr auto _Seq   = Sequence<_I0, _I1, _I2>();
         return _Seq;
     }
 
