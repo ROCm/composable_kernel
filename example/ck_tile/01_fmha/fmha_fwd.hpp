@@ -709,7 +709,6 @@ std::string fmha_fwd_splitkv_get_name_();
 template <ck_tile::index_t HDim_,
           typename DataType_,
           bool kIsGroupMode_,
-          ck_tile::index_t kM0_,
           ck_tile::index_t kN1_,
           bool kStoreLse_,
           bool kDoFp8StaticQuant_,
@@ -720,7 +719,6 @@ struct fmha_fwd_splitkv_combine_traits_
     static constexpr ck_tile::index_t HDim  = HDim_;
     using DataType                          = ck_tile::remove_cvref_t<DataType_>;
     static constexpr bool kIsGroupMode      = kIsGroupMode_;
-    static constexpr ck_tile::index_t kM0   = kM0_;
     static constexpr ck_tile::index_t kN1   = kN1_;
     static constexpr bool kStoreLse         = kStoreLse_;
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
