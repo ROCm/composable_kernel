@@ -337,7 +337,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
         __builtin_amdgcn_sched_barrier(0);
         block_sync_lds();
-        static_for<0, kNumWarps, 1>{}([&](auto repeat) {
+        static_for<0, kNumWarps, 1>{}([&](auto) {
             auto o_acc_in = load_tile(o_acc_4_lds_window);
 
             {
