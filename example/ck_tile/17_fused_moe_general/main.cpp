@@ -501,7 +501,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         auto c_dev = c_buf.ToHost<ADataType>();
         std::cout << std::endl;
         // std::cout << c_dev << std::endl;
-        std::cout << o_dev << std::endl;
+        // std::cout << o_dev << std::endl;
         // int count = 0;
         // std::cout << "[";
         // for(int i = 0; i < tokens; i++)

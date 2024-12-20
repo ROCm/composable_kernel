@@ -21,17 +21,11 @@ namespace ck_tile {
 
 struct FusedMoeGemmPipelineGeneralPolicy
 {
-    CK_TILE_HOST_DEVICE static constexpr index_t GetAsyncCopyDwords()
-    {
-        // TODO: always 1 dword
-        return 2;
-    }
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignment_A()
     {
         // using async
-        constexpr index_t copy_bytes = 4 * GetAsyncCopyDwords();
+        constexpr index_t copy_bytes = 8;
         constexpr index_t data_bytes = sizeof(typename Problem::ADataType);
         static_assert(copy_bytes % data_bytes == 0);
         return copy_bytes / data_bytes;
@@ -196,7 +190,7 @@ struct FusedMoeGemmPipelineGeneralPolicy
     {
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<1, 1, 32>, sequence<2, 16>>,
+                                       tuple<sequence<1, 2, 16>, sequence<4, 8>>,
                                        tuple<sequence<0, 1>, sequence<1, 2>>,
                                        tuple<sequence<0, 0>, sequence<2, 0>>,
                                        sequence<1, 2>,

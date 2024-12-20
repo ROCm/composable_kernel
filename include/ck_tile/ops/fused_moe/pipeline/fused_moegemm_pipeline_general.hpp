@@ -274,7 +274,6 @@ struct FusedMoeGemmPipeline_General
             }
         }
 #endif
-        ignore = w;
         // y data
         auto bridge_llds_win =
             make_tile_window(bridge_lds_view,
@@ -339,9 +338,6 @@ struct FusedMoeGemmPipeline_General
                                                     type_convert<float>(o1.get_thread_buffer()[i]));
                         });
                     });
-                    // tile_elementwise_inout([&weight](auto& x) { x = x *
-                    // type_convert<float>(weight); },
-                    //                o0);
                     auto o = cast_tile<ODataType>(o0);
                     update_tile(o_window_, o);
                     // restore pos
