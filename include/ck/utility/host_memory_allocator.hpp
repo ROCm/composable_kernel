@@ -191,7 +191,7 @@ namespace memory {
             {
                 std::cerr << "[ StaticMemPool ] Memory pool exausted." << std::endl;
             }
-            throw std::runtime_error("Memory pool exausted");
+            throw std::runtime_error("[ StaticMemPool ] Memory pool exausted.");
         }
 
         void deallocate(void* p, std::size_t sizeInBytes) override

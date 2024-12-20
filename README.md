@@ -144,6 +144,18 @@ Running tests
     bin/test_grouped_gemm_splitk
 ```
 
+### Build and running unit tests
+
+At the root directory, run
+
+```bash
+cmake -S test/utility/ -B build_test -DCMAKE_VERBOSE_MAKEFILE=ON
+```
+
+```bash
+cmake --build build_test
+```
+
 ## Optional post-install steps
 
 * Build examples and tests:
