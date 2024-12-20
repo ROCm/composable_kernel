@@ -55,7 +55,7 @@ using DeviceConvBwdWeightInstance =
         S<0, 2, 1, 3>,        // ABlockTransferSrcAccessOrder
         1,                    // ABlockTransferSrcVectorDim
         1,                    // ABlockTransferSrcScalarPerVector
-        4,                    // ABlockTranstest/grouped_convnd_bwd_weight/test_grouped_convnd_bwd_weight_interface_xdl.cppferDstScalarPerVector_K1
+        4,                    // ABlockTranstest
         false,                // ABlockLdsAddExtraM
         S<1, 4, 16, 4>,       // BBlockTransferThreadClusterLengths_K0_N_K1
         S<0, 3, 1, 2>,        // BBlockTransferThreadClusterArrangeOrder
