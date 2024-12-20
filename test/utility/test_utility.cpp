@@ -9,7 +9,64 @@
 
 using namespace ck::memory;
 
-TEST(UtilityTests, PinnedHostMemoryAllocator_recycle_pinned_host_memory) 
+namespace 
+{
+
+  class TestMemoryAllocator : public PinnedHostMemoryAllocator<std::byte>
+  {
+  public:
+    TestMemoryAllocator() : PinnedHostMemoryAllocator()
+    {
+    }
+  protected:
+    IMemPool* get_memory_pool() override {
+        static StaticMemPool pool(maxMemoryPoolSizeInBytes_);
+        throw std::runtime_error("Static memory pool should not be used.");
+        return &pool;
+    }
+  private:
+    static constexpr size_t maxMemoryPoolSizeInBytes_ = 10;
+  };
+}
+
+TEST(UtilityTests, StaticMemoryPool_test_memory_allocation) 
+{
+    const size_t size1 = 8;
+    const size_t size2 = 2;
+    std::byte *ptr1, *ptr2;
+    StaticMemPool pool(size1 + size2);
+    ptr1 = static_cast<std::byte*>(pool.allocate(size1));
+    ptr2 = static_cast<std::byte*>(pool.allocate(size2));
+    EXPECT_TRUE(ptr1 != nullptr);
+    EXPECT_TRUE(ptr2 != nullptr);
+
+    pool.deallocate(ptr1, size1);
+    pool.deallocate(ptr2, size2);
+
+    std::byte* ptr3 = static_cast<std::byte*>(pool.allocate(size2));
+    std::byte* ptr4 = static_cast<std::byte*>(pool.allocate(size1));
+    EXPECT_TRUE(ptr3 != nullptr);
+    EXPECT_TRUE(ptr4 != nullptr);
+    EXPECT_TRUE(ptr3 != ptr4);
+    EXPECT_TRUE(ptr3 == ptr2);
+    EXPECT_TRUE(ptr4 == ptr1);
+
+    pool.deallocate(ptr3, size2);
+    pool.deallocate(ptr4, size1);
+
+    const size_t size3 = 6;
+    const size_t size4 = 4;
+    std::byte* ptr5 = static_cast<std::byte*>(pool.allocate(size3));
+    std::byte* ptr6 = static_cast<std::byte*>(pool.allocate(size4));
+
+    EXPECT_TRUE(ptr5 != nullptr);
+    EXPECT_TRUE(ptr6 != nullptr);
+
+    pool.deallocate(ptr5, size3);
+    pool.deallocate(ptr6, size4);
+}
+
+TEST(UtilityTests, PinnedHostMemoryAllocator_new_memory_is_allocated) 
 {
     const size_t vSize = 10;
     int* ptr1;

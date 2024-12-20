@@ -8,6 +8,7 @@
 #include "ck/utility/env.hpp"
 #include <map>
 #include <queue>
+#include <stack>
 #include <mutex>
 #include <cstddef>
 #include <limits>
@@ -31,9 +32,10 @@ namespace memory {
     class DynamicMemPool : public IMemPool
     {
     public:
-        DynamicMemPool() : 
+        DynamicMemPool(size_t maxPoolSizeInBytes = defaultMaxMemoryPoolSizeInBytes_) : 
             enableLogging_(ck::EnvIsEnabled(CK_ENV(CK_LOGGING))),
-            pid_(getpid())
+            pid_(getpid()),
+            maxPoolSizeInBytes_(maxPoolSizeInBytes)
         {
             if (enableLogging_)
                 std::cout << "[ DynamicMemPool ] Created memory pool for process " << pid_ << std::endl;
@@ -97,7 +99,7 @@ namespace memory {
                 q.push(p);
                 memPoolSizeInBytes_ += sizeInBytes;
                 // If the memory pool size exceeds the maximum size, free the memory.
-                if (memPoolSizeInBytes_ > maxMemoryPoolSizeInBytes_)
+                if (memPoolSizeInBytes_ > maxPoolSizeInBytes_)
                 {
                     if (enableLogging_)
                     {
@@ -123,7 +125,7 @@ namespace memory {
             }
         }
     private:
-        constexpr static size_t maxMemoryPoolSizeInBytes_ = 100 * 1024 * 1024; // 100MB
+        constexpr static size_t defaultMaxMemoryPoolSizeInBytes_ = 100 * 1024 * 1024; // 100MB
 
         static void clearMemoryPoolQueue(std::queue<void*>& q)
         {
@@ -140,27 +142,30 @@ namespace memory {
         size_t memPoolSizeInBytes_{0};
         bool enableLogging_{false};
         int pid_{-1};
+        size_t maxPoolSizeInBytes_;
     };
 
     class StaticMemPool : public IMemPool
     {
     public:
-        StaticMemPool() : 
+        StaticMemPool(size_t poolSizeInBytes = defaultMaxMemoryPoolSizeInBytes_) : 
             enableLogging_(ck::EnvIsEnabled(CK_ENV(CK_LOGGING))),
             pid_(getpid()),
             offsetInBytes_(0),
-            preferRecycledMem_(ck::EnvIsEnabled(CK_ENV(CK_PREFER_RECYCLED_PINNED_MEM)))
+            preferRecycledMem_(ck::EnvIsEnabled(CK_ENV(CK_PREFER_RECYCLED_PINNED_MEM))),
+            memoryPoolSizeInBytes_(poolSizeInBytes)
         {
-            hip_check_error(hipHostMalloc(&pinnedMemoryBaseAddress_, memoryPoolSizeInBytes_));
-            if (enableLogging_)
-            {
-                std::cout << "[ StaticMemPool ] Created memory pool with " << memoryPoolSizeInBytes_ << " bytes for process " << pid_ << std::endl;
-            }   
+            allocateNewPinnedMemoryBlock(); 
         }
 
         ~StaticMemPool() override
         {
-            hip_check_error(hipHostFree(pinnedMemoryBaseAddress_));
+            // Loop through all the pinned memory blocks and free them.
+            while (!pinnedMemoryBaseAddress_.empty())
+            {
+                hip_check_error(hipHostFree(pinnedMemoryBaseAddress_.top()));
+                pinnedMemoryBaseAddress_.pop();
+            }
             if (enableLogging_) 
             {
                 std::cout << "[ StaticMemPool ] Deleted pool for process " << pid_ << std::endl;
@@ -171,7 +176,7 @@ namespace memory {
         {
             std::lock_guard<std::mutex> lock(mutex_);
 
-            if (!preferRecycledMem_ && offsetInBytes_ + sizeInBytes < memoryPoolSizeInBytes_)
+            if (!preferRecycledMem_ && offsetInBytes_ + sizeInBytes - 1 < memoryPoolSizeInBytes_)
             {
                 return allocateNewMemory(sizeInBytes);
             }
@@ -182,16 +187,15 @@ namespace memory {
                 return ptr;
             }
 
-            if (offsetInBytes_ + sizeInBytes < memoryPoolSizeInBytes_)
+            if (offsetInBytes_ + sizeInBytes - 1 < memoryPoolSizeInBytes_)
             {
                 return allocateNewMemory(sizeInBytes);
             }
 
-            if (enableLogging_)
-            {
-                std::cerr << "[ StaticMemPool ] Memory pool exausted." << std::endl;
-            }
-            throw std::runtime_error("[ StaticMemPool ] Memory pool exausted.");
+            // Memory became too fragmented, reserve a new block.
+            // This should not happen very often.
+            allocateNewPinnedMemoryBlock();
+            return allocateNewMemory(sizeInBytes);
         }
 
         void deallocate(void* p, std::size_t sizeInBytes) override
@@ -200,42 +204,57 @@ namespace memory {
 
             if (memory_pool_.find(sizeInBytes) != memory_pool_.end())
             {
-                if (enableLogging_)
-                {
-                    std::cout << "[ StaticMemPool ] Deallocate: Adding memory to pool for size " << sizeInBytes << std::endl;
-                }
                 auto& q = memory_pool_[sizeInBytes];
                 q.push(p);
-            }
-            else {
                 if (enableLogging_)
                 {
-                    std::cout << "[ StaticMemPool ] Deallocate: Creating new pool queue for size " << sizeInBytes << std::endl;
+                    std::cout << "[ StaticMemPool ] Deallocate: Added memory to back to pool for size " << sizeInBytes << 
+                    ", pool has now " << q.size() << " elements." << std::endl;
                 }
+            }
+            else {
                 std::queue<void*> q;
                 q.push(p);
                 memory_pool_.insert(std::make_pair(sizeInBytes, std::move(q)));
+                if (enableLogging_)
+                {
+                    std::cout << "[ StaticMemPool ] Deallocate: Created new pool for size " << sizeInBytes << std::endl;
+                }
             }
         }
     private:
-        constexpr static size_t memoryPoolSizeInBytes_ = 10 * 1024 * 1024; // 10MB
+        constexpr static size_t defaultMaxMemoryPoolSizeInBytes_ = 10 * 1024 * 1024; // 10MB
         std::mutex mutex_; // Mutex to protect access to the memory pool.
         std::map<size_t, std::queue<void*>> memory_pool_{};
-        std::byte* pinnedMemoryBaseAddress_;
+        std::stack<std::byte*> pinnedMemoryBaseAddress_;
         bool enableLogging_;
         int pid_;
         int offsetInBytes_;
         bool preferRecycledMem_;
+        size_t memoryPoolSizeInBytes_;
+
+        void allocateNewPinnedMemoryBlock()
+        {
+            std::byte* pinnedMemoryBaseAddress;
+            hip_check_error(hipHostMalloc(&pinnedMemoryBaseAddress, memoryPoolSizeInBytes_));
+            pinnedMemoryBaseAddress_.push(pinnedMemoryBaseAddress);
+            offsetInBytes_ = 0;
+            if (enableLogging_)
+            {
+                std::cout << "[ StaticMemPool ] Allocation: created new pinned memory block of " << memoryPoolSizeInBytes_ << " bytes." << std::endl;
+            }
+        }
 
         void* allocateNewMemory(size_t sizeInBytes)
         {
             // Return new memory from the preallocated block
-            void* p = pinnedMemoryBaseAddress_ + offsetInBytes_;
+            void* p = pinnedMemoryBaseAddress_.top() + offsetInBytes_;
             offsetInBytes_ += sizeInBytes;
             if (enableLogging_)
             {
                 const auto pct = 100.0f * static_cast<float>(offsetInBytes_) / memoryPoolSizeInBytes_;
-                std::cout << "[ StaticMemPool ] Allocation: return new memory, pinned host memory usage: " << pct << "%." << std::endl;
+                std::cout << "[ StaticMemPool ] Allocation: return new memory of " << sizeInBytes << 
+                    " bytes, pinned host memory usage: " << pct << "%." << std::endl;
             }
             return p;
         }
@@ -255,27 +274,31 @@ namespace memory {
             }
             
             // Try to find memory from the queue that is nearest in size.
-            std::pair<size_t, std::queue<void*>> nearest_queue = {std::numeric_limits<size_t>::max(), std::queue<void*>()};
+            size_t nearest_queue_size = std::numeric_limits<size_t>::max();
             for (auto& [size, q] : memory_pool_)
             {
-                if (size > sizeInBytes && !q.empty() && size < nearest_queue.first)
+                if (size > sizeInBytes && !q.empty() && size < nearest_queue_size)
                 {
-                    nearest_queue = {size, q};
+                    nearest_queue_size = size;
                 }
             }
 
-            if (nearest_queue.first != std::numeric_limits<size_t>::max())
+            if (nearest_queue_size != std::numeric_limits<size_t>::max())
             {
+                auto& nearest_queue = memory_pool_[nearest_queue_size];
+                void* p = nearest_queue.front();
+                nearest_queue.pop();
                 if (enableLogging_)
                 {
-                    std::cout << "[ StaticMemPool ] Allocation: reusing memory from pool for size " << nearest_queue.first << 
-                        " to allocate " << sizeInBytes << "bytes" <<std::endl;
+                    std::cout << "[ StaticMemPool ] Allocation: reusing memory from pool for size " << nearest_queue_size << 
+                        " to allocate " << sizeInBytes << " bytes, pool has " << nearest_queue.size() << " elements." <<
+                        std::endl;
                 }
-                void* p = nearest_queue.second.front();
-                nearest_queue.second.pop();
                 return p;
             }
 
+            std::cerr << "[ StaticMemPool ] WARNING: Could not find memory from pool to allocate " << sizeInBytes << 
+                " bytes." << std::endl;
             return nullptr;
         }
     };
@@ -283,7 +306,7 @@ namespace memory {
     class PinnedHostMemoryAllocatorBase
     {
     protected:
-        static IMemPool* get_memory_pool() {
+        virtual IMemPool* get_memory_pool() {
             static DynamicMemPool dynamic_memory_pool;
             static StaticMemPool static_memory_pool;
             static bool use_dynamic_mem_pool = ck::EnvIsEnabled(CK_ENV(CK_USE_DYNAMIC_MEM_POOL));
@@ -342,6 +365,10 @@ namespace memory {
         template<typename U>
         void destroy(U* p) noexcept {
             p->~U();
+        }
+    protected:
+        IMemPool* get_memory_pool() override {
+            return PinnedHostMemoryAllocatorBase::get_memory_pool();
         }
     };
 
