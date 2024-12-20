@@ -85,6 +85,7 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
 
     using F32 = float;
     using F16 = ck::half_t;
+    using BF16 = ck::bhalf_t;
 
 #if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
     using F8 = ck::f8_t;
