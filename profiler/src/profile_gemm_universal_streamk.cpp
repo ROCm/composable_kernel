@@ -83,8 +83,8 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
         rotating = std::stoull(argv[18]) * 1024 * 1024;
     }
 
-    using F32 = float;
-    using F16 = ck::half_t;
+    using F32  = float;
+    using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
 
 #if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
