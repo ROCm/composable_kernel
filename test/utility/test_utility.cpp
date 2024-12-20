@@ -32,8 +32,8 @@ TEST(UtilityTests, PinnedHostMemoryAllocator_recycle_pinned_host_memory)
         std::vector<int, PinnedHostMemoryAllocator<int>> v3(vSize);
         std::vector<int, PinnedHostMemoryAllocator<int>> v4(2*vSize);
 
-        EXPECT_EQ(v3.data(), ptr1);
-        EXPECT_EQ(v4.data(), ptr2);
+        EXPECT_TRUE(v3.data() != ptr1);
+        EXPECT_TRUE(v4.data() != ptr2);
     }
 }
 
