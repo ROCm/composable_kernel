@@ -18,6 +18,7 @@ using OutElementOp = PassThrough;
 
 template <ck::index_t NDimSpatial>
 using DeviceConvBwdWeightInstance =
+    // clang-format off
     ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<
         NDimSpatial,
         ck::tuple_element_t<NDimSpatial - 1,
@@ -54,23 +55,24 @@ using DeviceConvBwdWeightInstance =
         S<0, 2, 1, 3>,        // ABlockTransferSrcAccessOrder
         1,                    // ABlockTransferSrcVectorDim
         1,                    // ABlockTransferSrcScalarPerVector
-        4, // ABlockTranstest/grouped_convnd_bwd_weight/test_grouped_convnd_bwd_weight_interface_xdl.cppferDstScalarPerVector_K1
-        false,          // ABlockLdsAddExtraM
-        S<1, 4, 16, 4>, // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<0, 3, 1, 2>,  // BBlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1, 3>,  // BBlockTransferSrcAccessOrder
-        1,              // BBlockTransferSrcVectorDim
-        1,              // BBlockTransferSrcScalarPerVector
-        4,              // BBlockTransferDstScalarPerVector_K1
-        false,          // BBlockLdsAddExtraN
-        1,              // CShuffleMXdlPerWavePerShuffle
-        1,              // CShuffleNXdlPerWavePerShuffle
-        S<1, 8, 1, 8>,  // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        2,              // CBlockTransferScalarPerVector_NWaveNPerXdl
+        4,                    // ABlockTranstest/grouped_convnd_bwd_weight/test_grouped_convnd_bwd_weight_interface_xdl.cppferDstScalarPerVector_K1
+        false,                // ABlockLdsAddExtraM
+        S<1, 4, 16, 4>,       // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<0, 3, 1, 2>,        // BBlockTransferThreadClusterArrangeOrder
+        S<0, 2, 1, 3>,        // BBlockTransferSrcAccessOrder
+        1,                    // BBlockTransferSrcVectorDim
+        1,                    // BBlockTransferSrcScalarPerVector
+        4,                    // BBlockTransferDstScalarPerVector_K1
+        false,                // BBlockLdsAddExtraN
+        1,                    // CShuffleMXdlPerWavePerShuffle
+        1,                    // CShuffleNXdlPerWavePerShuffle
+        S<1, 8, 1, 8>,        // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        2,                    // CBlockTransferScalarPerVector_NWaveNPerXdl
         ck::BlockGemmPipelineScheduler::Intrawave, // BlkGemmPipeSched
         ck::BlockGemmPipelineVersion::v1,          // BlkGemmPipelineVer
         ComputeTypeA,                              // ComputeTypeA
         ComputeTypeB>;                             // ComputeTypeB
+// clang-format on
 
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,

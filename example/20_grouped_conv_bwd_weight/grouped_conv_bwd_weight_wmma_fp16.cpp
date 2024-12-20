@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -16,6 +16,7 @@ using OutElementOp = PassThrough;
 
 template <ck::index_t NDimSpatial>
 using DeviceConvBwdWeightInstance =
+    // clang-format off
     ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Wmma_CShuffle<
         NDimSpatial,
         ck::tensor_layout::convolution::GNDHWC,
@@ -52,11 +53,11 @@ using DeviceConvBwdWeightInstance =
         1,                    // BBlockTransferSrcScalarPerVector
         8,                    // BBlockTransferDstScalarPerVector_BK1
         true,                 // BBlockLdsExtraN
-        4,
-        2,
-        S<1, 32, 1, 8>,
-        1>;
-
+        4,                    // CShuffleMXdlPerWavePerShuffle
+        2,                    // CShuffleNXdlPerWavePerShuffle
+        S<1, 32, 1, 8>,       // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        1>;                   // CBlockTransferScalarPerVector_NWaveNPerXdl
+// clang-format on
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
                                                                                      InDataType,
