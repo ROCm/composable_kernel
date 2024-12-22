@@ -67,9 +67,10 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     using KernelArgs = BatchedGemmKernelArgs;
 
-    __host__ static constexpr auto GridSize(index_t M, index_t N, index_t batch_count)
+    __host__ static constexpr auto
+    GridSize(index_t M, index_t N, index_t KBatch, index_t batch_count)
     {
-        return TilePartitioner::GridSize(M, N, batch_count);
+        return TilePartitioner::GridSize(M, N, KBatch * batch_count);
     }
 
     __host__ static constexpr auto BlockSize() { return dim3(Base::KernelBlockSize); }
@@ -85,7 +86,8 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
                                       hostArgs.K,
                                       hostArgs.stride_A,
                                       hostArgs.stride_B,
-                                      hostArgs.stride_C},
+                                      hostArgs.stride_C,
+                                      hostArgs.k_batch},
                                      hostArgs.batch_stride_A,
                                      hostArgs.batch_stride_B,
                                      hostArgs.batch_stride_C,
@@ -100,22 +102,38 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     CK_TILE_DEVICE void operator()(BatchedGemmKernelArgs kargs) const
     {
         const auto [i_m, i_n] = TilePartitioner{}();
-        const auto i_batch    = __builtin_amdgcn_readfirstlane(blockIdx.z);
+        const auto i_batch    = __builtin_amdgcn_readfirstlane(blockIdx.z / kargs.KBatch);
+        const auto i_k        = __builtin_amdgcn_readfirstlane(blockIdx.z - i_batch * kargs.KBatch);
+
+        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, i_k);
 
         //  options
         const auto batch_stride_A = __builtin_amdgcn_readfirstlane(kargs.batch_stride_A);
         const auto batch_offset_A = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_A);
-        const ADataType* a_ptr    = static_cast<const ADataType*>(kargs.a_ptr) + batch_offset_A;
+        const ADataType* a_ptr    = static_cast<const ADataType*>(kargs.a_ptr) + batch_offset_A +
+                                 splitk_batch_offset.a_k_split_offset;
 
         const auto batch_stride_B = __builtin_amdgcn_readfirstlane(kargs.batch_stride_B);
         const auto batch_offset_B = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_B);
-        const BDataType* b_ptr    = static_cast<const BDataType*>(kargs.b_ptr) + batch_offset_B;
+        const BDataType* b_ptr    = static_cast<const BDataType*>(kargs.b_ptr) + batch_offset_B +
+                                 splitk_batch_offset.b_k_split_offset;
 
         const auto batch_stride_C = __builtin_amdgcn_readfirstlane(kargs.batch_stride_C);
         const auto batch_offset_C = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_C);
         CDataType* c_ptr          = static_cast<CDataType*>(kargs.c_ptr) + batch_offset_C;
 
-        this->RunGemm(a_ptr, b_ptr, c_ptr, kargs, i_m, i_n);
+        // allocate LDS
+        __shared__ char smem_ptr[GetSmemSize()];
+
+        if(kargs.KBatch == 1)
+        {
+            this->RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        }
+        else
+        {
+            this->template RunGemm<memory_operation_enum::atomic_add>(
+                a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        }
     }
 };
 

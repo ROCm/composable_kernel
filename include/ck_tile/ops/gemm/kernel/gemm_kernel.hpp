@@ -117,7 +117,8 @@ struct GemmKernel
 
     struct SplitKBatchOffset
     {
-        __device__ SplitKBatchOffset(const GemmKernelArgs& kargs)
+        __device__ SplitKBatchOffset(const GemmKernelArgs& kargs,
+                                     const std::size_t k_id = blockIdx.z)
         {
             constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
             const index_t K_t   = kargs.KBatch * K1;
@@ -125,23 +126,23 @@ struct GemmKernel
 
             if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * KRead;
+                a_k_split_offset = k_id * KRead;
             }
             else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * KRead * kargs.stride_A;
+                a_k_split_offset = k_id * KRead * kargs.stride_A;
             }
 
             if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * KRead * kargs.stride_B;
+                b_k_split_offset = k_id * KRead * kargs.stride_B;
             }
             else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * KRead;
+                b_k_split_offset = k_id * KRead;
             }
 
-            if(blockIdx.z < static_cast<uint32_t>(kargs.KBatch - 1))
+            if(k_id < static_cast<uint32_t>(kargs.KBatch - 1))
             {
                 splitted_k = KRead;
             }
@@ -243,11 +244,11 @@ struct GemmKernel
     }
 
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
-    CK_TILE_DEVICE auto MakeGemmTensorViews(const ADataType* a_ptr,
-                                            const BDataType* b_ptr,
-                                            CDataType* c_ptr,
-                                            const GemmKernelArgs& kargs,
-                                            const SplitKBatchOffset& splitk_batch_offset) const
+    CK_TILE_DEVICE static auto MakeGemmTensorViews(const ADataType* a_ptr,
+                                                   const BDataType* b_ptr,
+                                                   CDataType* c_ptr,
+                                                   const GemmKernelArgs& kargs,
+                                                   const SplitKBatchOffset& splitk_batch_offset)
     {
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -316,7 +317,7 @@ struct GemmKernel
     }
 
     template <typename TensorView>
-    CK_TILE_DEVICE auto MakeGemmPadViews(const TensorView& views) const
+    CK_TILE_DEVICE static auto MakeGemmPadViews(const TensorView& views)
     {
         const auto& a_pad_view = [&]() {
             const auto& a_tensor_view = views.at(I0);
@@ -376,8 +377,8 @@ struct GemmKernel
     }
 
     template <typename PadView>
-    CK_TILE_DEVICE auto
-    MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n) const
+    CK_TILE_DEVICE static auto
+    MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
     {
         const auto& a_pad_view     = views.at(I0);
         const auto& a_block_window = make_tile_window(
@@ -413,14 +414,14 @@ struct GemmKernel
      * @tparam DstInMemOp Destination memory operation (default: set).
      */
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
-    CK_TILE_DEVICE void RunGemm(const ADataType* a_ptr,
-                                const BDataType* b_ptr,
-                                CDataType* c_ptr,
-                                void* smem_ptr,
-                                const GemmKernelArgs& kargs,
-                                const SplitKBatchOffset& splitk_batch_offset,
-                                const index_t block_idx_m,
-                                const index_t block_idx_n) const
+    CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
+                                       const BDataType* b_ptr,
+                                       CDataType* c_ptr,
+                                       void* smem_ptr,
+                                       const GemmKernelArgs& kargs,
+                                       const SplitKBatchOffset& splitk_batch_offset,
+                                       const index_t block_idx_m,
+                                       const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
