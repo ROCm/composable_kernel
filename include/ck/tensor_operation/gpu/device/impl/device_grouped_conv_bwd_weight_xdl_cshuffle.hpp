@@ -241,7 +241,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                                        ConvBackwardWeightSpecialization>{};
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
-    static auto GetABCGridDesc() -> decltype(auto)
+    static auto GetABCGridDesc()
     {
         const ck::index_t dim   = 1;
         const ck::index_t batch = 1;
@@ -266,7 +266,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     }
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
-    static auto GetABCGridDesc() -> decltype(auto)
+    static auto GetABCGridDesc()
     {
         const ck::index_t dim   = 1;
         const ck::index_t batch = 1;
@@ -291,7 +291,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     }
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
-    static auto GetABCGridDesc() -> decltype(auto)
+    static auto GetABCGridDesc()
     {
         const ck::index_t dim   = 1;
         const ck::index_t batch = 1;
@@ -318,7 +318,6 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     template <typename SeqType>
     [[nodiscard, gnu::always_inline]] inline constexpr static auto
     ShuffleSequenceAndTransformFrom4DTo3D() noexcept(noexcept(SeqType{}.Size() == 4))
-        -> decltype(auto)
     {
         // Remove first element and,
         // Convert 4d->3d sequence.
@@ -332,7 +331,6 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     template <typename SeqType>
     [[nodiscard, gnu::always_inline]] inline constexpr static auto
     TransformSequenceFrom4DTo3dAndReduceByOne() noexcept(noexcept(SeqType{}.Size() == 4))
-        -> decltype(auto)
     {
         // Skip first element and
         // Convert 4d->3d and take away one from seq.
