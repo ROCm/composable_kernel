@@ -13,7 +13,7 @@ template <typename AccDataType_,
           typename ODataType_,
           bool kPadM_,
           bool kPadN_,
-          bool UseRawStore_ = true>
+          bool UseRawStore_ = false>
 struct Default2DEpilogueProblem
 {
     using AccDataType                 = remove_cvref_t<AccDataType_>;
