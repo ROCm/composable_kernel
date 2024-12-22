@@ -74,7 +74,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
                 ck_tile::
                     GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>>;
 
-        const ck_tile::index_t k_grain     = args.kbatch * K_Tile;
+        const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
         const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
@@ -309,9 +309,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
         args.K        = K;
         args.stride_A = stride_A;
         args.stride_B = stride_B;
-        args.stride_C = stride_C
+        args.stride_C = stride_C;
 
-            invoke_gemm<PadM, PadN, PadK>(args, ck_tile::stream_config{nullptr, false});
+        invoke_gemm<PadM, PadN, PadK>(args, ck_tile::stream_config{nullptr, false});
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool pass = true;
