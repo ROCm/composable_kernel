@@ -71,7 +71,8 @@ struct FmhaFwdKernel
         using bfs = typename FmhaPipeline::BlockFmhaShape;
         using g0br = typename bfs::Gemm0BlockWarps;
         using g1br = typename bfs::Gemm1BlockWarps;
-        using gwt = typename bfs::Gemm0WarpTile;
+        using g0wt = typename bfs::Gemm0WarpTile;
+        using g1wt = typename bfs::Gemm1WarpTile;
         #define _SS_  std::string
         #define _TS_  std::to_string
         auto pn = [&] () {
@@ -88,7 +89,8 @@ struct FmhaFwdKernel
                     _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kQKHeaddim) + "_" +
             "r" + _TS_(g0br::at(ck_tile::number<0>{})) + "x" + _TS_(g0br::at(ck_tile::number<1>{})) + "x" + _TS_(g0br::at(ck_tile::number<2>{})) + "_" +
             "r" + _TS_(g1br::at(ck_tile::number<0>{})) + "x" + _TS_(g1br::at(ck_tile::number<1>{})) + "x" + _TS_(g1br::at(ck_tile::number<2>{})) + "_" +
-            "w" + _TS_(gwt::at(ck_tile::number<0>{})) + "x" + _TS_(gwt::at(ck_tile::number<1>{})) + "x" + _TS_(gwt::at(ck_tile::number<2>{})) + "_" +
+            "w" + _TS_(g0wt::at(ck_tile::number<0>{})) + "x" + _TS_(g0wt::at(ck_tile::number<1>{})) + "x" + _TS_(g0wt::at(ck_tile::number<2>{})) + "_" +
+            "w" + _TS_(g1wt::at(ck_tile::number<0>{})) + "x" + _TS_(g1wt::at(ck_tile::number<1>{})) + "x" + _TS_(g1wt::at(ck_tile::number<2>{})) + "_" +
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) +
             (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
@@ -998,14 +1000,14 @@ struct FmhaFwdKernel
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kSubQKHeaddim>{}),
-                    sequence<false, kPadHeadDimQ>{});
+                    sequence<kPadSeqLenQ, kPadHeadDimQ>{});
             }
             else
             {
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0>{}),
-                    sequence<false, kPadHeadDimQ>{});
+                    sequence<kPadSeqLenQ, kPadHeadDimQ>{});
             }
         }();
         const auto k_dram = [&]() {
@@ -1019,7 +1021,7 @@ struct FmhaFwdKernel
             return pad_tensor_view(
                 k_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
-                sequence<false, kPadHeadDimQ>{});
+                sequence<kPadSeqLenK, kPadHeadDimQ>{});
         }();
         const auto v_dram = [&]() {
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
@@ -1041,7 +1043,7 @@ struct FmhaFwdKernel
                 return pad_tensor_view(
                     v_dram_transposed,
                     make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
-                    sequence<kPadHeadDimV, false>{});
+                    sequence<kPadHeadDimV, kPadSeqLenK>{});
             }
             else
             {
@@ -1055,7 +1057,7 @@ struct FmhaFwdKernel
                 return pad_tensor_view(
                     v_dram_naive,
                     make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
-                    sequence<false, kPadSeqLenK>{});
+                    sequence<kPadHeadDimV, kPadSeqLenK>{});
             }
         }();
 
@@ -1097,8 +1099,9 @@ struct FmhaFwdKernel
                         number<FmhaPipeline::kAlignmentBias>{},
                         number<1>{});
 
-                    return pad_tensor_view(
-                        bias_dram_naive, bias_dram_window_lengths, sequence<false, kPadSeqLenK>{});
+                    return pad_tensor_view(bias_dram_naive,
+                                           bias_dram_window_lengths,
+                                           sequence<kPadSeqLenQ, kPadSeqLenK>{});
                 }();
 
                 return make_tile_window(bias_dram, bias_dram_window_lengths, {i_m0, 0});
