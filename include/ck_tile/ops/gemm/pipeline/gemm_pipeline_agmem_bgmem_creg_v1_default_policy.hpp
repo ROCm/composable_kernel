@@ -116,8 +116,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
-        index_t smem_size             = 0;
-        smem_size += smem_size_a + smem_size_b;
+        constexpr index_t smem_size   = smem_size_a + smem_size_b;
 
         return smem_size;
     }

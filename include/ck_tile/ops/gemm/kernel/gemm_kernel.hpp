@@ -416,6 +416,7 @@ struct GemmKernel
     CK_TILE_DEVICE void RunGemm(const ADataType* a_ptr,
                                 const BDataType* b_ptr,
                                 CDataType* c_ptr,
+                                void* smem_ptr,
                                 const GemmKernelArgs& kargs,
                                 const SplitKBatchOffset& splitk_batch_offset,
                                 const index_t block_idx_m,
@@ -427,9 +428,6 @@ struct GemmKernel
         ;
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
-
-        // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
 
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
 
@@ -444,16 +442,14 @@ struct GemmKernel
 
         constexpr bool is_output_c_reg_transposed =
             EpiloguePipeline::IsOutputTransposed() != GemmPipeline::IsTransposeC();
-        if constexpr((GemmPipeline::VectorSizeC % 2 == 0 &&
+        if constexpr((DstInMemOp == memory_operation_enum::set) || (sizeof(CDataType) > 2) ||
+                     (GemmPipeline::VectorSizeC % 2 == 0 &&
                       std::is_same_v<CLayout, tensor_layout::gemm::RowMajor> &&
-                      is_output_c_reg_transposed) ||
-                     !(std::is_same_v<CDataType, fp16_t> || std::is_same_v<CDataType, bf16_t>))
+                      is_output_c_reg_transposed))
         {
             EpiloguePipeline{}
-                .template operator()<decltype(c_block_window),
-                                     decltype(c_block_tile),
-                                     memory_operation_enum::atomic_add>(c_block_window,
-                                                                        c_block_tile);
+                .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+                    c_block_window, c_block_tile);
         }
     }
 
@@ -468,14 +464,17 @@ struct GemmKernel
             static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
         CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
 
+        // allocate LDS
+        __shared__ char smem_ptr[GetSmemSize()];
+
         if(kargs.KBatch == 1)
         {
-            RunGemm(a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset, i_m, i_n);
+            RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
         }
         else
         {
             RunGemm<memory_operation_enum::atomic_add>(
-                a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset, i_m, i_n);
+                a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
         }
     }
 };
