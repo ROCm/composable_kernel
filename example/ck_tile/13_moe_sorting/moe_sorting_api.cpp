@@ -73,21 +73,12 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         case(6): {
             MOE_SORTING_DISPATCH(6);
         }
-        // case(7): {
-        //     MOE_SORTING_DISPATCH(7);
-        // }
         case(8): {
             MOE_SORTING_DISPATCH(8);
         }
-        // case(9): {
-        //     MOE_SORTING_DISPATCH(9);
-        // }
         case(10): {
             MOE_SORTING_DISPATCH(10);
         }
-        // case(11): {
-        //     MOE_SORTING_DISPATCH(11);
-        // }
         default: {
             MOE_SORTING_DISPATCH(4);
         }

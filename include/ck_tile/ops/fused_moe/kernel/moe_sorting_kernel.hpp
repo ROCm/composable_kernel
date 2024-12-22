@@ -389,7 +389,6 @@ struct MoeSortingKernel
 #if CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
             uint32_t curr_token_id, curr_topk_id;
             topk_mdiv.divmod(i, curr_token_id, curr_topk_id);
-            // (void)curr_token_id; (void)curr_topk_id;
             p_sorted_token_ids[rank_post_pad] = MOE_SORTING_MOCK_ID(curr_token_id, curr_topk_id);
 #else
             p_sorted_token_ids[rank_post_pad] = topk_mdiv.div(i);
@@ -422,7 +421,6 @@ struct MoeSortingKernel
             const index_t prefill_token = topk_mdiv.div(numel);
             // TODO: only support expert-tile like 8, 16, 32
             static constexpr index_t experts_per_wave = warpSize / Problem::ExpertTile;
-            // if(tid < num_experts)
             {
                 index_t eid = tid / experts_per_wave;
                 index_t expert_offset =
