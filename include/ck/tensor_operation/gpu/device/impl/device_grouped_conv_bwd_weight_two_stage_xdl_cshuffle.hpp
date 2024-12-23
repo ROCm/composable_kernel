@@ -1558,7 +1558,13 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             }
         }
 
-        if(!(arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0 &&
+        const bool is_w_pad_zero = arg.input_left_pads_[NDimSpatial - 1] == 0 &&
+                                   arg.input_right_pads_[NDimSpatial - 1] == 0;
+        const auto X = arg.filter_spatial_lengths_[NDimSpatial - 1];
+
+        if(!((arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0 ||
+              (arg.Conv_G_ == 1 && (arg.Conv_C_ * X) % BBlockTransferSrcScalarPerVector == 0 &&
+               is_w_pad_zero)) &&
              arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0))
         {
             if(!(arg.Conv_K_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideA_ == 1))
