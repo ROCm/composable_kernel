@@ -312,12 +312,6 @@ struct FusedMoeGemmPipelineGeneralPolicy
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
-        // constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-        //     make_tuple(number<Block_M>{}, number<Block_K>{}),
-        //     make_tuple(number<Block_K>{},  number<1>{}),
-        //     number<8>{},
-        //     number<1>{});
-
         return a_lds_block_desc;
     }
 

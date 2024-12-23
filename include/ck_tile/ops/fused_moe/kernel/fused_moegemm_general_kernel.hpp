@@ -292,8 +292,13 @@ struct FusedMoeGemmGlKernel
                 number<Pipeline::kAlignmentG>{},
                 number<1>{});
 
-            const auto g_window_ = make_tile_window(
+            const auto g_view_1_ = pad_tensor_view(
                 g_view_,
+                make_tuple(number<BlockShape::Block_N0>{}, number<BlockShape::Block_K0>{}),
+                sequence<PadIntermediateSize, PadHiddenSize>{});
+
+            const auto g_window_ = make_tile_window(
+                g_view_1_,
                 make_tuple(number<BlockShape::Block_N0>{}, number<BlockShape::Block_K0>{}),
                 {idx_n0, 0});
 
@@ -328,8 +333,13 @@ struct FusedMoeGemmGlKernel
                 number<Pipeline::kAlignmentD>{},
                 number<1>{});
 
-            const auto d_window_ = make_tile_window(
+            const auto d_view_1_ = pad_tensor_view(
                 d_view_,
+                make_tuple(number<BlockShape::Block_N1>{}, number<BlockShape::Block_K1>{}),
+                sequence<PadHiddenSize, PadIntermediateSize>{});
+
+            const auto d_window_ = make_tile_window(
+                d_view_1_,
                 make_tuple(number<BlockShape::Block_N1>{}, number<BlockShape::Block_K1>{}),
                 {0, idx_n0});
             return d_window_;

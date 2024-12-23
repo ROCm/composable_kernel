@@ -71,9 +71,7 @@ struct FusedMoeGemmPipeline_General
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeA()
     {
         // matrix a or tokens smem
-        constexpr index_t smem_mat_a =
-            BlockShape::Block_M0 * BlockShape::Block_K0 * sizeof(ADataType);
-        return smem_mat_a;
+        return Policy::template GetSmemSize_A<Problem>();
     }
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -131,11 +129,8 @@ struct FusedMoeGemmPipeline_General
                                    CK_TILE_LDS_ADDR void* smem,
                                    index_t hidden_size,
                                    index_t /*intermediate_size*/,
-                                   CWindow& c_window_)
+                                   CWindow& /*c_window_*/)
     {
-        ignore                             = c_window_;
-        ignore                             = hidden_size;
-        ignore                             = w_window_;
         CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
         CK_TILE_LDS_ADDR GDataType* smem_1 = reinterpret_cast<CK_TILE_LDS_ADDR GDataType*>(
             smem_0 + GetSmemSizeA() / sizeof(ADataType));
@@ -234,11 +229,11 @@ struct FusedMoeGemmPipeline_General
 #if 0
         PrintMem(y_pre, "Y_pre", 0);
 #endif
-        if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
-        {
-            block_sync_lds();
-            store_tile(c_window_, y_pre);
-        }
+        // if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+        // {
+        //     block_sync_lds();
+        //     store_tile(c_window_, y_pre);
+        // }
         // save to lds
         auto bridge_lds_view = make_tensor_view<address_space_enum::lds>(
             smem_0, Policy::template MakeBridgeLdsBlockDesc<Problem>());

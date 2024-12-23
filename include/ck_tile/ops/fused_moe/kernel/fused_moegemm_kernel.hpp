@@ -391,7 +391,7 @@ struct FusedMoeGemmKernel
                     number<Pipeline::kAlignmentO>{},
                     number<1>{});
 
-                // gather is here
+                // scatter is here
                 auto o_scatter_view_ = transform_tensor_view(
                     o_view_,
                     make_tuple(make_indexing_transform(kargs.num_tokens, token_id),
