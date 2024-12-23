@@ -924,7 +924,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemm_S
         }
 #endif
 
-// Emin @Added
+
 #ifdef CK_ENABLE_BF16
         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, bhalf_t> &&
                      is_same_v<CDataType, bhalf_t>)
@@ -1027,7 +1027,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemm_S
             }
         }
 #endif
-        // EMin @Added
+
 
 #if(defined(CK_ENABLE_FP8))
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&

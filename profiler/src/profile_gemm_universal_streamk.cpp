@@ -91,9 +91,7 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
     using F8 = ck::f8_t;
 #endif
 
-#if defined(CK_USE_GFX94)
-    using BF16 = ck::bf16_t;
-#endif
+
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
