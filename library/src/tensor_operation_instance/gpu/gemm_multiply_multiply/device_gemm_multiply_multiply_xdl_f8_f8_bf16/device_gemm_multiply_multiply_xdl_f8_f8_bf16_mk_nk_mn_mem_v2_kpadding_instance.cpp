@@ -21,10 +21,12 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_kpadding_i
                                                           PassThrough,
                                                           MultiplyMultiply>>>& instances)
 {
-    add_device_operation_instances(
-        instances,
-        device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_instances<Interwave,
-                                                                            GemmKPadding>{});
+    // add_device_operation_instances(
+    //     instances,
+    //     device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_instances<Interwave,
+    //                                                                         GemmKPadding>{});
+    (void)instances;
+
 }
 
 } // namespace instance

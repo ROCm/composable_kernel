@@ -21,10 +21,12 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_mfma16x16_kp
                                                           PassThrough,
                                                           MultiplyMultiply>>>& instances)
 {
-    add_device_operation_instances(
-        instances,
-        device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_mfma16x16_instances_part2<
-            GemmKPadding>{});
+    // add_device_operation_instances(
+    //     instances,
+    //     device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_mfma16x16_instances_part2<
+    //         GemmKPadding>{});
+    (void)instances;
+
 }
 
 } // namespace instance
