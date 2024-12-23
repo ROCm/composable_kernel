@@ -17,3 +17,4 @@ $EXE -t=71 -e=11 -k=11
 $EXE -t=1 -e=1 -k=1
 $EXE -t=99 -e=2 -k=1
 $EXE -t=333 -e=99 -k=13
+$EXE -t=128 -e=32 -k=5 -moe_buf_size=262144
