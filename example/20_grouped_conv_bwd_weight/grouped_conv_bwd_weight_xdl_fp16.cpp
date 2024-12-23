@@ -54,9 +54,9 @@ using DeviceConvBwdWeightInstance =
         8,                    // ABlockTransferSrcScalarPerVector
         2,                    // ABlockTransferDstScalarPerVector_K1
         false,                // ABlockLdsAddExtraM
-        S<1, 4, 16, 4>,       // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<0, 3, 1, 2>,        // ABlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1, 3>,        // ABlockTransferSrcAccessOrder
+        S<1, 4, 16, 4>,       // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<0, 3, 1, 2>,        // BBlockTransferThreadClusterArrangeOrder
+        S<0, 2, 1, 3>,        // BBlockTransferSrcAccessOrder
         2,                    // BBlockTransferSrcVectorDim
         8,                    // BBlockTransferSrcScalarPerVector
         2,                    // BBlockTransferDstScalarPerVector_K1
