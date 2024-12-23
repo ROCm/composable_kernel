@@ -4,7 +4,7 @@
 #pragma once
 
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
-    defined(__gfx942__)
+    defined(__gfx942__) || defined(__gfx950__)
 #define __gfx9__
 #endif
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
