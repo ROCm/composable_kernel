@@ -37,22 +37,23 @@ struct BlockWelford
         constexpr auto spans = XDistributedTensor_::get_distributed_spans();
 
         sweep_tile_span(spans[I1], [&](auto dstr_idx_i1) {
-            sweep_tile_span(spans[I0], [&](auto dstr_idx_i0) {
-                constexpr auto in_dstr_idx  = make_tuple(dstr_idx_i0, dstr_idx_i1);
-                constexpr auto out_dstr_idx = make_tuple(dstr_idx_i0);
+            if (cur_count_ < max_count_) {
+                ++cur_count_;
+                sweep_tile_span(spans[I0], [&](auto dstr_idx_i0) {
+                    constexpr auto in_dstr_idx  = make_tuple(dstr_idx_i0, dstr_idx_i1);
+                    constexpr auto out_dstr_idx = make_tuple(dstr_idx_i0);
 
-                auto x = ck_tile::type_convert<ComputeDataType>(x_tensor[in_dstr_idx]);
-                mean_tensor(out_dstr_idx) += x;
-                var_tensor(out_dstr_idx) += x * x;
+                    auto x = ck_tile::type_convert<ComputeDataType>(x_tensor[in_dstr_idx]);
+                        mean_tensor(out_dstr_idx) += x;
+                        var_tensor(out_dstr_idx) += x * x;
 
-                // welford_update(mean_tensor(out_dstr_idx),
-                //                var_tensor(out_dstr_idx),
-                //                x,
-                //                cur_count_,
-                //                constant<kFastFDiv>{});
-                (void)cur_count_;
-                (void)max_count_;
-            });
+                    // welford_update(mean_tensor(out_dstr_idx),
+                    //                var_tensor(out_dstr_idx),
+                    //                x,
+                    //                cur_count_,
+                    //                constant<kFastFDiv>{});
+                });
+            }
         });
     }
 
@@ -242,15 +243,15 @@ struct BlockWelfordCrossWarpSync
         using Dstr     = typename MeanDistributedTensor_::StaticTileDistribution;
         // using DstrEncode       = typename Dstr::DstrEncode;
         // using DstrEncodeDetail = typename DstrEncode::detail;
-
+        (void)count;
         static_assert(std::is_same_v<Dstr, typename VarDistributedTensor_::StaticTileDistribution>,
                       "wrong!");
 
         constexpr index_t thread_buf_size = MeanDistributedTensor_::get_thread_buffer_size();
         static_assert(thread_buf_size == VarDistributedTensor_::get_thread_buffer_size());
 
-        // Note: we always pack everything into fp32x4
-        fp32x4_t* smem_ptr              = reinterpret_cast<fp32x4_t*>(smem);
+        // Note: we always pack everything into fp32x2
+        fp32x2_t* smem_ptr              = reinterpret_cast<fp32x2_t*>(smem);
         const index_t lane_id           = get_lane_id();
         const index_t warp_id           = get_warp_id();
         constexpr auto num_reduce_warps = GetReduceWarps<MeanDistributedTensor_>();
@@ -265,10 +266,10 @@ struct BlockWelfordCrossWarpSync
         if(lane_id == 0)
         {
             static_for<0, thread_buf_size, 1>{}([&](auto i) {
-                fp32x4_t local_scratch_;
+                fp32x2_t local_scratch_;
                 local_scratch_[0] = bit_cast<float>(mean_tensor.get_thread_buffer()[i]);
                 local_scratch_[1] = bit_cast<float>(var_tensor.get_thread_buffer()[i]);
-                local_scratch_[2] = bit_cast<float>(count);
+                // local_scratch_[2] = bit_cast<float>(count);
 
                 smem_ptr[smem_offset + i * num_warps] = local_scratch_;
             });
@@ -278,7 +279,7 @@ struct BlockWelfordCrossWarpSync
         // load from smem. here we let everythread to do compute :)
         index_t local_warp_id = warp_id / num_reduce_warps;
         index_t local_smem_os = local_warp_id * num_reduce_warps;
-        fp32x4_t all_scratch[thread_buf_size * num_reduce_warps];
+        fp32x2_t all_scratch[thread_buf_size * num_reduce_warps];
         static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
             static_for<0, num_reduce_warps, 1>{}([&](auto i_1) {
                 all_scratch[i_0 * num_reduce_warps + i_1] =
@@ -299,7 +300,7 @@ struct BlockWelfordCrossWarpSync
             // further reduce mean/var
             static_for<0, num_reduce_warps - 1, 1>{}([&](auto i_1_n1) {
                 constexpr auto i_1       = number<i_1_n1 + 1>{};
-                const fp32x4_t v_remote  = all_scratch[i_0 * num_reduce_warps + i_1];
+                const fp32x2_t v_remote  = all_scratch[i_0 * num_reduce_warps + i_1];
                 const auto v_remote_mean = bit_cast<DataType>(v_remote[0]);
                 const auto v_remote_var  = bit_cast<DataType>(v_remote[1]);
                 // const auto v_remote_count = bit_cast<int>(v_remote[2]);

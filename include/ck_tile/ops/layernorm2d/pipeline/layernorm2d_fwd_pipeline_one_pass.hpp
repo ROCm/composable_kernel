@@ -93,7 +93,8 @@ struct Layernorm2dFwdPipelineOnePass
         auto x_resi = load_tile(x_residual_window);
 
         int cur_count           = 0;
-        int max_count           = 0;
+        int max_count = 
+            block_tile_welford_calculate_max_count<typename Problem::BlockShape>(row_size);
         auto block_welford      = Policy::template GetBlockWelford<Problem>();
         auto block_welford_sync = Policy::template GetBlockWelfordSync<Problem>();
         auto block_welford_cross_warp_sync =
