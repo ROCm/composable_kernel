@@ -363,10 +363,10 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             return false;
         }
 
-        if(ScaleBlockM % MPerBlock != 0 || ScaleBlockN % NPerBlock != 0 || ScaleBlockK != KPerBlock)
-        {
-            return false;
-        }
+        // if(ScaleBlockM % MPerBlock != 0 || ScaleBlockN % NPerBlock != 0 || ScaleBlockK != KPerBlock)
+        // {
+        //     return false;
+        // }
 
         if((arg.K % AK1 != 0 || arg.K % BK1 != 0) && !(GemmSpec == GemmSpecialization::MKPadding ||
                                                        GemmSpec == GemmSpecialization::NKPadding ||

@@ -26,6 +26,7 @@ using S = ck::Sequence<Is...>;
 
 using BF16 = ck::bhalf_t;
 using FP8  = ck::f8_t;
+using F16  = ck::half_t;
 using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
@@ -55,7 +56,7 @@ using CDEElementOp = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
-static constexpr ck::index_t Scale_Block_M = 128;
+static constexpr ck::index_t Scale_Block_M = 1;
 static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
 
@@ -67,8 +68,8 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_
           256, Scale_Block_M, Scale_Block_N, Scale_Block_K,
           128, 128,
           128, 16, 16,
-          16,   16,
-          4,    4,
+          32,   32,
+          2,    2,
           S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
           S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
           1,    2,  S<1, 32, 1, 8>,  S<8, 8, 1>,
@@ -186,6 +187,18 @@ int main(int argc, char* argv[])
         b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        break;
+    case 5:
+        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        break;
+    case 6:
+        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a1_m_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
