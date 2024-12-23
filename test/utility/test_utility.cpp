@@ -3,30 +3,170 @@
 #include <vector>
 #include <map>
 #include <queue>
+#include <fstream>
+#include <regex>
+#include <filesystem>
 #include "gtest/gtest.h"
 #include "ck/ck.hpp"
 #include "ck/utility/host_memory_allocator.hpp"
 
 using namespace ck::memory;
 
-namespace 
-{
+namespace {
 
-  class TestMemoryAllocator : public PinnedHostMemoryAllocator<std::byte>
-  {
-  public:
-    TestMemoryAllocator() : PinnedHostMemoryAllocator()
+    enum class MemActionType
     {
+        Allocate,
+        Deallocate
+    };
+
+    struct MemAction
+    {
+        MemActionType type_;
+        size_t size_;
+        size_t index_;
+    };
+
+    std::vector<MemAction> getMemActions(const std::string filename)
+    {
+        std::vector<MemAction> actions;      
+        std::ifstream file(filename);
+        std::string line;
+        std::cout << "Reading file: " << filename << std::endl;
+        EXPECT_TRUE(file.is_open());
+
+        size_t index = 1;
+        while (std::getline(file, line))
+        {
+            std::regex allocation_regex(R"(Allocation: (\d+) bytes)");
+            std::regex deallocation_regex(R"(De-allocation: (\d+) bytes)");
+            std::smatch match;
+            if (std::regex_search(line, match, allocation_regex) && match.size() > 1) 
+            {
+                actions.push_back({MemActionType::Allocate, std::stoul(match.str(1)), index++});
+            } 
+            else if (std::regex_search(line, match, deallocation_regex) && match.size() > 1) 
+            {
+                actions.push_back({MemActionType::Deallocate, std::stoul(match.str(1)), index++});
+            }
+            else 
+            {
+                std::cerr << "Could not parse line: " << line << std::endl;
+            }
+        }
+        return actions;
     }
-  protected:
-    IMemPool* get_memory_pool() override {
-        static StaticMemPool pool(maxMemoryPoolSizeInBytes_);
-        throw std::runtime_error("Static memory pool should not be used.");
-        return &pool;
+
+}
+
+// Do not run automatically as this test requires test data and takes about a minute to run.
+TEST(UtilityTests, DISABLED_StaticMemoryPool_stress_test) 
+{
+    std::filesystem::path currentDir = std::filesystem::current_path();
+    std::filesystem::path dataPath = currentDir / "test_data" / "actions.log";
+    const std::vector<MemAction> actions = getMemActions(dataPath.string());
+    EXPECT_GT(actions.size(), 1);
+    EXPECT_EQ(actions.size() % 2, 0);
+    std::cout << "Running stress test for number of actions: " << actions.size() << std::endl;
+    StaticMemPool pool;
+    std::map<size_t, std::queue<void*>> allocated_ptrs;
+    for (const MemAction& action : actions) 
+    {
+        if (action.type_ == MemActionType::Allocate) {
+            allocated_ptrs[action.size_].push(pool.allocate(action.size_));
+        } 
+        else 
+        {
+            pool.deallocate(allocated_ptrs[action.size_].front(), action.size_);
+            allocated_ptrs[action.size_].pop();
+        }
     }
-  private:
-    static constexpr size_t maxMemoryPoolSizeInBytes_ = 10;
-  };
+
+    for (auto& [size, q] : allocated_ptrs)
+    {
+        EXPECT_EQ(q.size(), 0);
+    }
+
+    EXPECT_EQ(pool.memoryPoolSizeInBytes(), 10 * 1024 * 1024);
+    EXPECT_EQ(pool.numberOfPinnedMemoryBlocks(), 1);
+    EXPECT_EQ(pool.currentOffsetInBytes(), pool.memoryPoolSizeInBytes());
+
+    EXPECT_GT(pool.memoryPool().size(), 0);
+    for (const auto& [size, q] : pool.memoryPool())
+    {
+        EXPECT_GT(q.size(), 0);
+    }
+}
+
+TEST(UtilityTests, StaticMemoryPool_memory_has_correct_content)
+{
+    StaticMemPool pool(10);
+
+    const size_t size1 = 4;
+    const size_t size2 = 6;
+    std::byte* ptr1 = static_cast<std::byte*>(pool.allocate(size1));
+    std::byte* ptr2 = static_cast<std::byte*>(pool.allocate(size2));
+
+    std::memcpy(ptr1, "abcd", size1);
+    std::memcpy(ptr2, "efghij", size2);
+
+    EXPECT_EQ(static_cast<const char>(ptr1[0]), 'a');
+    EXPECT_EQ(static_cast<const char>(ptr1[1]), 'b');
+    EXPECT_EQ(static_cast<const char>(ptr1[2]), 'c');
+    EXPECT_EQ(static_cast<const char>(ptr1[3]), 'd');
+
+    EXPECT_EQ(static_cast<const char>(ptr2[0]), 'e');
+    EXPECT_EQ(static_cast<const char>(ptr2[1]), 'f');
+    EXPECT_EQ(static_cast<const char>(ptr2[2]), 'g');
+    EXPECT_EQ(static_cast<const char>(ptr2[3]), 'h');
+    EXPECT_EQ(static_cast<const char>(ptr2[4]), 'i');
+    EXPECT_EQ(static_cast<const char>(ptr2[5]), 'j');
+
+    pool.deallocate(ptr1, size1);
+    pool.deallocate(ptr2, size2);
+
+    const size_t size3 = 3;
+    std::byte* ptr3 = static_cast<std::byte*>(pool.allocate(size3));
+
+    std::memcpy(ptr3, "klm", size1);
+    EXPECT_EQ(static_cast<const char>(ptr3[0]), 'k');
+    EXPECT_EQ(static_cast<const char>(ptr3[1]), 'l');
+    EXPECT_EQ(static_cast<const char>(ptr3[2]), 'm');
+} 
+
+TEST(UtilityTests, StaticMemoryPool_repeated_memory_allocation) 
+{
+    const size_t size168 = 168;
+    const size_t size368 = 368;
+    const size_t size8 = 8;
+    const size_t pool_size = 2*size8 + size168 + size368 + 1;
+    StaticMemPool pool(pool_size);
+
+    auto* ptr168 = pool.allocate(size168);
+    pool.deallocate(ptr168, size168);
+
+    auto* ptr368 = pool.allocate(size368);
+    pool.deallocate(ptr368, size368);
+
+    auto* ptr8 = pool.allocate(size8);
+    pool.deallocate(ptr8, size8); 
+
+    auto* ptr8_2 = pool.allocate(size8);
+    pool.deallocate(ptr8_2, size8); 
+  
+    ptr8 = pool.allocate(size8);
+    ptr8_2 = pool.allocate(size8);
+
+    pool.deallocate(ptr8, size8); 
+    pool.deallocate(ptr8_2, size8); 
+    
+    ptr368 = pool.allocate(size368);
+    pool.deallocate(ptr368, size368);
+
+    ptr168 = pool.allocate(size168);
+    pool.deallocate(ptr168, size168);
+
+    EXPECT_EQ(pool.numberOfPinnedMemoryBlocks(), 1);
 }
 
 TEST(UtilityTests, StaticMemoryPool_test_memory_allocation) 
@@ -64,6 +204,8 @@ TEST(UtilityTests, StaticMemoryPool_test_memory_allocation)
 
     pool.deallocate(ptr5, size3);
     pool.deallocate(ptr6, size4);
+
+    EXPECT_EQ(pool.numberOfPinnedMemoryBlocks(), 2);
 }
 
 TEST(UtilityTests, PinnedHostMemoryAllocator_new_memory_is_allocated) 
