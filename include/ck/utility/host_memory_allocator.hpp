@@ -193,7 +193,7 @@ namespace memory {
             }
 
             // Memory became too fragmented, reserve a new block.
-            // This should not happen very often.
+            // This should not happen very often, practically never.
             allocateNewPinnedMemoryBlock();
             return allocateNewMemory(sizeInBytes);
         }
@@ -204,24 +204,45 @@ namespace memory {
 
             if (memory_pool_.find(sizeInBytes) != memory_pool_.end())
             {
-                auto& q = memory_pool_[sizeInBytes];
-                q.push(p);
+                memory_pool_[sizeInBytes].push(p);
                 if (enableLogging_)
                 {
                     std::cout << "[ StaticMemPool ] Deallocate: Added memory to back to pool for size " << sizeInBytes << 
-                    ", pool has now " << q.size() << " elements." << std::endl;
+                        ", pool has now " << memory_pool_[sizeInBytes].size() << " elements." << std::endl;
                 }
             }
             else {
                 std::queue<void*> q;
                 q.push(p);
-                memory_pool_.insert(std::make_pair(sizeInBytes, std::move(q)));
+                memory_pool_[sizeInBytes] = std::move(q);
                 if (enableLogging_)
                 {
-                    std::cout << "[ StaticMemPool ] Deallocate: Created new pool for size " << sizeInBytes << std::endl;
+                    std::cout << "[ StaticMemPool ] Deallocate: Created new pool for size " << sizeInBytes << 
+                        ", pool has now " << memory_pool_[sizeInBytes].size() << " elements." << std::endl;
                 }
             }
         }
+
+        size_t currentOffsetInBytes() const
+        {
+            return offsetInBytes_;
+        }
+
+        size_t numberOfPinnedMemoryBlocks() const
+        {
+            return pinnedMemoryBaseAddress_.size();
+        }
+
+        size_t memoryPoolSizeInBytes() const
+        {
+            return memoryPoolSizeInBytes_;
+        }
+
+        const std::map<size_t, std::queue<void*>>& memoryPool() const
+        {
+            return memory_pool_;
+        }
+
     private:
         constexpr static size_t defaultMaxMemoryPoolSizeInBytes_ = 10 * 1024 * 1024; // 10MB
         std::mutex mutex_; // Mutex to protect access to the memory pool.
@@ -241,7 +262,7 @@ namespace memory {
             offsetInBytes_ = 0;
             if (enableLogging_)
             {
-                std::cout << "[ StaticMemPool ] Allocation: created new pinned memory block of " << memoryPoolSizeInBytes_ << " bytes." << std::endl;
+                std::cout << "[ StaticMemPool ] Allocation: Created new pinned memory block of " << memoryPoolSizeInBytes_ << " bytes." << std::endl;
             }
         }
 
@@ -253,7 +274,7 @@ namespace memory {
             if (enableLogging_)
             {
                 const auto pct = 100.0f * static_cast<float>(offsetInBytes_) / memoryPoolSizeInBytes_;
-                std::cout << "[ StaticMemPool ] Allocation: return new memory of " << sizeInBytes << 
+                std::cout << "[ StaticMemPool ] Allocation: Return new memory of " << sizeInBytes << 
                     " bytes, pinned host memory usage: " << pct << "%." << std::endl;
             }
             return p;
@@ -264,12 +285,13 @@ namespace memory {
             if (memory_pool_.find(sizeInBytes) != memory_pool_.end() && !memory_pool_[sizeInBytes].empty())
             {
                 // If there is a memory pool for the requested size, return memory from the pool.
-                if (enableLogging_)
-                {
-                    std::cout << "[ StaticMemPool ] Allocation: reusing memory from pool for size " << sizeInBytes << std::endl;
-                }
                 void* p = memory_pool_[sizeInBytes].front();
                 memory_pool_[sizeInBytes].pop();
+                if (enableLogging_)
+                {
+                    std::cout << "[ StaticMemPool ] Allocation: Reusing memory from pool for size " << sizeInBytes << 
+                        ", pool has now " << memory_pool_[sizeInBytes].size() << " elements." << std::endl;
+                }
                 return p;
             }
             
@@ -285,13 +307,12 @@ namespace memory {
 
             if (nearest_queue_size != std::numeric_limits<size_t>::max())
             {
-                auto& nearest_queue = memory_pool_[nearest_queue_size];
-                void* p = nearest_queue.front();
-                nearest_queue.pop();
+                void* p = memory_pool_[nearest_queue_size].front();
+                memory_pool_[nearest_queue_size].pop();
                 if (enableLogging_)
                 {
-                    std::cout << "[ StaticMemPool ] Allocation: reusing memory from pool for size " << nearest_queue_size << 
-                        " to allocate " << sizeInBytes << " bytes, pool has " << nearest_queue.size() << " elements." <<
+                    std::cout << "[ StaticMemPool ] Allocation: Reusing memory from pool for size " << nearest_queue_size << 
+                        " to allocate " << sizeInBytes << " bytes, pool has " << memory_pool_[nearest_queue_size].size() << " elements." <<
                         std::endl;
                 }
                 return p;
@@ -305,8 +326,8 @@ namespace memory {
 
     class PinnedHostMemoryAllocatorBase
     {
-    protected:
-        virtual IMemPool* get_memory_pool() {
+    public:
+        IMemPool* get_memory_pool() {
             static DynamicMemPool dynamic_memory_pool;
             static StaticMemPool static_memory_pool;
             static bool use_dynamic_mem_pool = ck::EnvIsEnabled(CK_ENV(CK_USE_DYNAMIC_MEM_POOL));
@@ -365,10 +386,6 @@ namespace memory {
         template<typename U>
         void destroy(U* p) noexcept {
             p->~U();
-        }
-    protected:
-        IMemPool* get_memory_pool() override {
-            return PinnedHostMemoryAllocatorBase::get_memory_pool();
         }
     };
 
