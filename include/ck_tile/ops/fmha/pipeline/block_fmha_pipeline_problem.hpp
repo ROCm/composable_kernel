@@ -102,7 +102,7 @@ struct BlockFmhaFwdSplitKVPipelineProblem
     static constexpr bool kStoreLSE         = Traits::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
     static constexpr bool kIsPagedKV        = Traits::kIsPagedKV;
-    static constexpr bool kHasUnevenSplits  = kIsGroupMode || Traits::kHasUnevenSplits;
+    static constexpr bool kHasUnevenSplits  = Traits::kHasUnevenSplits;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
 };
 
