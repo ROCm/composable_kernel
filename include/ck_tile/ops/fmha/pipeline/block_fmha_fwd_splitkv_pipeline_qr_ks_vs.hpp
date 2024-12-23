@@ -402,27 +402,31 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
             move_tile_window(bias_dram_window, {0, kN0});
 
-            /// TODO: only check in first/last iteration without increasing code size
+            // only check in first/last iterations
             if constexpr(kHasUnevenSplits)
             {
-                const auto k_origin = k_page_block_navigator.to_global_window_origin(
-                    i_page_block_k, k_dram_block_window.get_window_origin());
-                set_tile_if(
-                    s_acc,
-                    -numeric<SMPLComputeDataType>::infinity(),
-                    [&,
-                     physical_seqlen_k_start_ = physical_seqlen_k_start,
-                     physical_seqlen_k_end_   = physical_seqlen_k_end](auto tile_idx) {
-                        const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                        if constexpr(kIsPagedKV)
-                        {
-                            return col < physical_seqlen_k_start_ || physical_seqlen_k_end_ <= col;
-                        }
-                        else
-                        {
-                            return physical_seqlen_k_end_ <= col;
-                        }
-                    });
+                if(1 < num_splits && (i_total_loops == 0 || i_total_loops == num_total_loop - 1))
+                {
+                    const auto k_origin = k_page_block_navigator.to_global_window_origin(
+                        i_page_block_k, k_dram_block_window.get_window_origin());
+                    set_tile_if(s_acc,
+                                -numeric<SMPLComputeDataType>::infinity(),
+                                [&,
+                                 physical_seqlen_k_start_ = physical_seqlen_k_start,
+                                 physical_seqlen_k_end_   = physical_seqlen_k_end](auto tile_idx) {
+                                    const auto col =
+                                        k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                    if constexpr(kIsPagedKV)
+                                    {
+                                        return col < physical_seqlen_k_start_ ||
+                                               physical_seqlen_k_end_ <= col;
+                                    }
+                                    else
+                                    {
+                                        return physical_seqlen_k_end_ <= col;
+                                    }
+                                });
+                }
             }
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
