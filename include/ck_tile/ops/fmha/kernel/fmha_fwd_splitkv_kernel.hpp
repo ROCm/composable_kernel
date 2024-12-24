@@ -689,10 +689,15 @@ struct FmhaFwdSplitKVKernel
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
+                // We assume that page-block size is always divisible by vector size. So we can use
+                // vector load on seqlen_k direction. However, the seqlen_k may not be divisible by
+                // vector size as well. So we will have to override data points which are located
+                // outside [0, seqlen_k) to 0.0 in pipeline.
                 return pad_tensor_view(
                     v_dram_naive,
                     make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
-                    sequence<false, kPadSeqLenK>{});
+                    sequence < false,
+                    !kIsPagedKV && kPadSeqLenK > {});
             }
         };
         const auto v_dram = [&]() {
@@ -758,9 +763,14 @@ struct FmhaFwdSplitKVKernel
                     num_blocks,
                     kargs.page_block_size,
                     v_dram,
-                    make_v_dram(nullptr,
-                                (kv_l2p_offset + kargs.seqlen_k) -
-                                    (num_blocks - 1) * kargs.page_block_size));
+                    make_v_dram(nullptr, [&] {
+                        if constexpr(std::is_same_v<VLayout,
+                                                    ck_tile::tensor_layout::gemm::RowMajor>)
+                            return (kv_l2p_offset + kargs.seqlen_k) -
+                                   (num_blocks - 1) * kargs.page_block_size;
+                        else
+                            return kargs.page_block_size;
+                    }()));
             }
             else
             {
