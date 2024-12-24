@@ -8,9 +8,11 @@ namespace ck_tile {
 template <typename TilePartitioner_, typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdSplitKVCombineKernel
 {
-    using TilePartitioner                = remove_cvref_t<TilePartitioner_>;
-    using FmhaPipeline                   = remove_cvref_t<FmhaPipeline_>;
-    using EpiloguePipeline               = remove_cvref_t<EpiloguePipeline_>;
+    using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
+    using FmhaPipeline     = remove_cvref_t<FmhaPipeline_>;
+    using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
+
+    static constexpr index_t kNumWarps   = FmhaPipeline::kNumWarps;
     static constexpr index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
@@ -50,8 +52,7 @@ struct FmhaFwdSplitKVCombineKernel
         return
             _SS_("fmha_fwd_splitkv_combine_d") + _TS_(FmhaPipeline::kHeadDimV) + "_" + _SS_(t2s<ODataType>::name) +
             "_" + (kIsGroupMode ? "group" : "batch") + "_"
-            "b" + _TS_(FmhaPipeline::kM0) + "x" +
-                    _TS_(FmhaPipeline::kN1) + "_" +
+            "b" + _TS_(FmhaPipeline::kN1) + "_" +
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) +
             _SS_(FmhaPipeline::name) +
             (pn.empty() ? "" : "_" + pn) +
@@ -339,37 +340,56 @@ struct FmhaFwdSplitKVCombineKernel
                 number<FmhaPipeline::kAlignmentOacc>{},
                 number<1>{});
 
+            // read 4 * (kM0, kN1) o_acc tiles simultaneously by 4 warps
             const auto o_acc_dram_view = pad_tensor_view(
                 o_acc_dram_naive,
-                make_tuple(number<1>{}, number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                sequence<false, kPadSeqLenQ, kPadHeadDimV>{});
+                make_tuple(
+                    number<kNumWarps>{}, number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+                sequence<true, kPadSeqLenQ, kPadHeadDimV>{});
 
+            const index_t padded_num_splits =
+                o_acc_dram_view.get_tensor_descriptor().get_lengths()[number<0>{}];
             const index_t padded_seqlen_q =
                 o_acc_dram_view.get_tensor_descriptor().get_lengths()[number<1>{}];
             const index_t padded_hdim_v =
                 o_acc_dram_view.get_tensor_descriptor().get_lengths()[number<2>{}];
 
-            return transform_tensor_view(
+            const index_t num_m_tiles = integer_divide_floor(padded_seqlen_q, FmhaPipeline::kM0);
+
+            // transform tensor view by following steps, given shape: (padded_num_splits,
+            // padded_seqlen_q, padded_hdim_v)
+            //     1. unmerge to (padded_num_splits, num_m_tiles, kM0, padded_hdim_v)
+            //     2. transpose to (num_m_tiles, padded_num_splits, kM0, padded_hdim_v)
+            //     3. merge to (num_m_tiles * padded_num_splits * kM0, padded_hdim_v)
+            auto transposed = transform_tensor_view(
                 o_acc_dram_view,
-                make_tuple(make_merge_transform(make_tuple(kargs.num_splits, padded_seqlen_q)),
+                make_tuple(make_pass_through_transform(padded_num_splits),
+                           make_unmerge_transform(make_tuple(num_m_tiles, FmhaPipeline::kM0)),
                            make_pass_through_transform(padded_hdim_v)),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                make_tuple(sequence<1>{}, sequence<0, 2>{}, sequence<3>{}));
+
+            return transform_tensor_view(
+                transposed,
+                make_tuple(make_merge_transform(
+                               make_tuple(num_m_tiles, padded_num_splits, FmhaPipeline::kM0)),
+                           make_pass_through_transform(padded_hdim_v)),
+                make_tuple(sequence<0, 1, 2>{}, sequence<3>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }();
 
         auto lse_acc_dram_window = make_tile_window(
             lse_acc_dram,
-            [&]() {
-                return make_tuple(number<FmhaPipeline::kMaxSplits>{}, number<FmhaPipeline::kM0>{});
-            }(),
+            make_tuple(number<FmhaPipeline::kMaxSplits>{}, number<FmhaPipeline::kM0>{}),
             {0, i_m0});
+
+        const index_t padded_num_splits =
+            integer_divide_ceil(kargs.num_splits, kNumWarps) * kNumWarps;
 
         auto o_acc_dram_window = make_tile_window(
             o_acc_dram,
-            [&]() {
-                return make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{});
-            }(),
-            {i_m0, i_n1});
+            make_tuple(number<kNumWarps * FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+            {i_tile_m * padded_num_splits * FmhaPipeline::kM0, i_n1});
 
         // LSE DRAM window
         auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
@@ -410,7 +430,6 @@ struct FmhaFwdSplitKVCombineKernel
                     identity{},                                          // lse_element_func
                     composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
                     kargs.num_splits,
-                    kargs.seqlen_q,
                     smem_ptr);
             }
             else
@@ -419,7 +438,6 @@ struct FmhaFwdSplitKVCombineKernel
                                       o_acc_dram_window,
                                       lse_dram_window,
                                       kargs.num_splits,
-                                      kargs.seqlen_q,
                                       smem_ptr);
             }
         }();

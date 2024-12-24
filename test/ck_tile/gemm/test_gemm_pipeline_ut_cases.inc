@@ -3,7 +3,7 @@
 
 #pragma once
 
-TYPED_TEST(TestCkTileGemmMemPipeline, SmallM)
+TYPED_TEST(TestCkTileGemmPipeline, SmallM)
 {
     std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 1024;
@@ -13,7 +13,7 @@ TYPED_TEST(TestCkTileGemmMemPipeline, SmallM)
         this->Run(M, N, K);
 }
 
-TYPED_TEST(TestCkTileGemmMemPipeline, MidLargeM)
+TYPED_TEST(TestCkTileGemmPipeline, MidLargeM)
 {
     std::vector<int> Ms{127, 255, 312, 799, 1573};
     constexpr int N = 1024;
@@ -23,7 +23,7 @@ TYPED_TEST(TestCkTileGemmMemPipeline, MidLargeM)
         this->Run(M, N, K);
 }
 
-TYPED_TEST(TestCkTileGemmMemPipeline, PaddK)
+TYPED_TEST(TestCkTileGemmPipeline, PaddK)
 {
     std::vector<int> Ms{127};
     constexpr int N = 1024;
@@ -33,7 +33,7 @@ TYPED_TEST(TestCkTileGemmMemPipeline, PaddK)
         this->Run(M, N, K);
 }
 
-TYPED_TEST(TestCkTileGemmMemPipeline, Regular)
+TYPED_TEST(TestCkTileGemmPipeline, Regular)
 {
     std::vector<int> Ms{512};
     constexpr int N = 1024;
@@ -43,7 +43,7 @@ TYPED_TEST(TestCkTileGemmMemPipeline, Regular)
         this->Run(M, N, K);
 }
 
-TYPED_TEST(TestCkTileGemmMemPipeline, NotSupportedArgument)
+TYPED_TEST(TestCkTileGemmPipeline, NotSupportedArgument)
 {
     constexpr int M = 512;
     constexpr int N = 1025;
