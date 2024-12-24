@@ -119,32 +119,20 @@ struct naive_attention_fwd_kernel
     static constexpr int v_per_token_quant_group_size = 64;
 
     // TODO: hardcode
-    // using KVScaleType = float;
     using SoftmaxType      = float; // always using float to do softmax compute
     using QuantComputeType = float; // used for quant/dequant scale compute
     using QCompute         = KType; // src A of gemm1, same type as K
     using PType            = VType; // src A of gemm2, same type as V
-    // using PType       = float;
-    using OAccType = float; // always float
+    using OAccType         = float; // always float, in case int8 FA
 
     using p_vec_type                = ext_vector_t<PType, 16 / sizeof(PType)>;
     static constexpr int p_vec_elem = vector_traits<p_vec_type>::vector_size;
 
-    template <typename T_>
-    struct scale_max
-    {
-        static constexpr float value = 1; /* dummy code */
-    };
-    template <>
-    struct scale_max<int8_t>
-    {
-        static constexpr float value = 127.0;
-    };
-    template <>
-    struct scale_max<fp8_t>
-    {
-        static constexpr float value = 240.0;
-    };
+    // clang-format off
+    template <typename T_> struct scale_max { static constexpr float value = 1; /* dummy code */ };
+    template <> struct scale_max<int8_t> { static constexpr float value = 127.0; };
+    template <> struct scale_max<fp8_t> { static constexpr float value = 240.0; };
+    // clang-format on
 
     __host__ __device__ naive_attention_fwd_kernel() {}
 
@@ -472,7 +460,7 @@ struct naive_attention_fwd_kernel
             // 1) int8 q data stored in smem(no need to reload)
             // 2) per-token scale q_dequant_scale, to be mul after 1st gemm
         }
-        else if(Traits::quant_algo == naive_attention_quant_algo::KV_8BIT_PERTOKEN)
+        else if constexpr(Traits::quant_algo == naive_attention_quant_algo::KV_8BIT_PERTOKEN)
         {
             if(std::is_same_v<QType, fp16_t> || std::is_same_v<QType, bf16_t>)
             {
@@ -550,7 +538,7 @@ struct naive_attention_fwd_kernel
             }
 
             // s->p
-            QuantComputeType p_dequant_scale = 0.; // used for i8 quant
+            QuantComputeType p_dequant_scale = 1.;
             {
                 // softmax, find max
                 SoftmaxType old_max = row_max;
@@ -685,20 +673,6 @@ struct naive_attention_fwd_kernel
                         return type_convert<OAccType>(o_acc_local);
                     }
                 }();
-#if 0
-                if constexpr(Traits::quant_algo == naive_attention_quant_algo::KV_8BIT_PERHEAD)
-                {
-                    // apply pr scale to local acc
-                    o_acc_local =
-                        type_convert<AccType>(type_convert<QuantComputeType>(o_acc_local) * p_dequant_scale);
-                }
-                else if constexpr(Traits::quant_algo == naive_attention_quant_algo::KV_8BIT_PERTOKEN)
-                {
-                    // apply pr scale to local acc
-                    o_acc_local =
-                        type_convert<AccType>(type_convert<QuantComputeType>(o_acc_local) * p_dequant_scale);
-                }
-#endif
                 o_acc += post_scale_o_acc_local;
             }
         }
@@ -706,7 +680,7 @@ struct naive_attention_fwd_kernel
         // post scale o_acc
         {
             SoftmaxType tmp = l == 0.f ? 0.f : 1.f / l; // in case masking
-            o_acc           = type_convert<AccType>(type_convert<SoftmaxType>(o_acc) * tmp);
+            o_acc           = type_convert<OAccType>(type_convert<SoftmaxType>(o_acc) * tmp);
         }
 
         // store O
