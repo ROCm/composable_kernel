@@ -228,15 +228,13 @@ struct FusedMoeGemmGlKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         // allocate LDS
-        // __shared__ char smem_ptr[GetSmemSize()];
+        __shared__ CK_TILE_LDS_ADDR char smem[GetSmemSize()];
         IndexDataType num_sorted_tiles = __builtin_amdgcn_readfirstlane(
             *reinterpret_cast<const IndexDataType*>(kargs.num_sorted_tiles_ptr));
         constexpr index_t hidden_radio_0 = IsGateOnly ? 1 : 2;
 
         index_t expert_stride_0 = kargs.intermediate_size * hidden_radio_0 * kargs.hidden_size;
         index_t expert_stride_1 = kargs.intermediate_size * kargs.hidden_size;
-
-        __shared__ CK_TILE_LDS_ADDR ADataType smem[GetSmemSize()];
 
         // note this is in unit of tile, need multiple tile size to get the index(block_m and
         // block_n)

@@ -94,14 +94,21 @@ struct FusedMoeGemmPipelineGeneralPolicy
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize_A()
     {
         constexpr auto a_lds_desc = MakeLdsBlockDesc_A<Problem>();
-        return a_lds_desc.get_element_space_size();
+        return a_lds_desc.get_element_space_size() * sizeof(typename Problem::ADataType);
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize_G()
+    {
+        constexpr auto g_lds_desc = MakeLdsBlockDesc_G<Problem>();
+        return g_lds_desc.get_element_space_size() * sizeof(typename Problem::GDataType);
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize_Bridge()
     {
         constexpr auto bridge_lds_desc = MakeBridgeLdsBlockDesc<Problem>();
-        return bridge_lds_desc.get_element_space_size();
+        return bridge_lds_desc.get_element_space_size() * sizeof(typename Problem::YDataType);
     }
 
     template <typename Problem>
