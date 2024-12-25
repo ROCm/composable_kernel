@@ -1368,8 +1368,10 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
 
         constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-        auto a_thread_offset =
-            get_thread_local_1d_id() % MPerXdl + (get_thread_local_1d_id() / 64) % MWaves * MPerXdl;
+        // auto a_thread_offset =
+        //     get_thread_local_1d_id() % MPerXdl + (get_thread_local_1d_id() / 64) % MWaves * MPerXdl;
+
+        auto a_thread_offset = get_thread_local_1d_id() % MPerXdl + (get_thread_local_1d_id() / 128) * MPerXdl;
         
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<AScaleType,
