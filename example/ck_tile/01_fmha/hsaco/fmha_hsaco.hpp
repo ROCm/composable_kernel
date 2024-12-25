@@ -24,3 +24,8 @@ extern unsigned char bwd_fp16_causal_a32[];
 extern unsigned char bwd_fp16_spec_a32[];
 extern unsigned char bwd_fp16_spec_causal_a32[];
 extern unsigned char bwd_hd64_bf16_a16_rtna[];
+extern unsigned char bwd_hd64_bf16_a16_rtne[];
+extern unsigned char bwd_hd64_bf16_a16_rtz[];
+extern unsigned char bwd_hd64_bf16_causal_a16_rtna[];
+extern unsigned char bwd_hd64_bf16_causal_a16_rtne[];
+extern unsigned char bwd_hd64_bf16_causal_a16_rtz[];

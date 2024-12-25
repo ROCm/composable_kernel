@@ -741,11 +741,50 @@ float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config&
                 if(t.data_type.compare("bf16") == 0){{
                     if(t.mask_type == mask_enum::no_mask){{
                         if((t.is_v3_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
-                            if(t.how_v3_bf16_cvt == 1){{
+                            if(t.how_v3_bf16_cvt == 0){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<64, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_hd64_bf16_a16_rtne";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_hd64_bf16_a16_rtne, bwd_v3_name, io_perm, 32, 192);
+                                return r;
+                            }}
+                            else if(t.how_v3_bf16_cvt == 1){{
                                 using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<64, ck_tile::bf16_t, false, false, false>;
                                 const std::string bwd_v3_name = "bwd_v3_hd64_bf16_a16_rtna";
                                 bool io_perm = a.nhead_stride_q > a.stride_q;
                                 r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_hd64_bf16_a16_rtna, bwd_v3_name, io_perm, 32, 192);
+                                return r;
+                            }}
+                            else if(t.how_v3_bf16_cvt == 2){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<64, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_hd64_bf16_a16_rtz";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_hd64_bf16_a16_rtz, bwd_v3_name, io_perm, 32, 192);
+                                return r;
+                            }}
+                        }}
+                    }}
+                    else if((t.mask_type != mask_enum::no_mask) && ((a.window_size_left == -1) && (a.window_size_right == 0))){{
+                        if((t.is_v3_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
+                            if(t.how_v3_bf16_cvt == 0){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<64, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_hd64_bf16_causal_a16_rtne";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_hd64_bf16_causal_a16_rtne, bwd_v3_name, io_perm, 32, 192);
+                                return r;
+                            }}
+                            else if(t.how_v3_bf16_cvt == 1){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<64, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_hd64_bf16_causal_a16_rtna";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_hd64_bf16_causal_a16_rtna, bwd_v3_name, io_perm, 32, 192);
+                                return r;
+                            }}
+                            else if(t.how_v3_bf16_cvt == 2){{
+                                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<64, ck_tile::bf16_t, false, false, false>;
+                                const std::string bwd_v3_name = "bwd_v3_hd64_bf16_causal_a16_rtz";
+                                bool io_perm = a.nhead_stride_q > a.stride_q;
+                                r = fmha_bwd_v3_xqa_<dot_do_o_trait_>(s, a, bwd_hd64_bf16_causal_a16_rtz, bwd_v3_name, io_perm, 32, 192);
                                 return r;
                             }}
                         }}
