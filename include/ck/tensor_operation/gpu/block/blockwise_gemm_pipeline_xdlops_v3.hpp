@@ -305,11 +305,11 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
-        // Local prefill 1
+        // // Local prefill 1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
-        b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
+        // b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
-        // Global prefetch 2
+        // // Global prefetch 2
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
 
@@ -330,14 +330,14 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                    make_tuple(m0, I0, k0, I0),
                                    a_thread_buf);
             });
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
-                b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                   make_tuple(n0, I0, I0, Number<k0 * BMmaKStride>{}),
-                                   b_block_buf,
-                                   b_thread_desc_,
-                                   make_tuple(n0, I0, k0, I0),
-                                   b_thread_buf);
-            });
+            // static_for<0, NRepeat, 1>{}([&](auto n0) {
+            //     b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+            //                        make_tuple(n0, I0, I0, Number<k0 * BMmaKStride>{}),
+            //                        b_block_buf,
+            //                        b_thread_desc_,
+            //                        make_tuple(n0, I0, k0, I0),
+            //                        b_thread_buf);
+            // });
         });
 
         __builtin_amdgcn_sched_barrier(0);
@@ -351,7 +351,7 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                 block_sync_lds();
 
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
-                b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
+                // b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
                 a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
                 b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
@@ -400,14 +400,14 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                            make_tuple(m0, I0, k0, I0),
                                            a_thread_buf);
                     });
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
-                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                           make_tuple(n0, I0, I0, Number<k0 * BMmaKStride>{}),
-                                           b_block_buf,
-                                           b_thread_desc_,
-                                           make_tuple(n0, I0, k0, I0),
-                                           b_thread_buf);
-                    });
+                    // static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    //     b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                    //                        make_tuple(n0, I0, I0, Number<k0 * BMmaKStride>{}),
+                    //                        b_block_buf,
+                    //                        b_thread_desc_,
+                    //                        make_tuple(n0, I0, k0, I0),
+                    //                        b_thread_buf);
+                    // });
                 });
 
                 HotLoopScheduler();
@@ -455,7 +455,7 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
     protected:
     using Base::a_thread_copy_;
     using Base::a_thread_desc_;
-    using Base::b_thread_copy_;
+    // using Base::b_thread_copy_;
     using Base::b_thread_desc_;
     using Base::c_thread_desc_;
 };
