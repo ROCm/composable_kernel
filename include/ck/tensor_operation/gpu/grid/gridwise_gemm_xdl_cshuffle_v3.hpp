@@ -1550,30 +1550,35 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             static_assert(num_access == sfc_c_global.GetNumOfAccess(), "wrong!");
 
+            constexpr auto KPerInnerLoop = blockwise_gemm_pipeline.KPerInnerLoop;
+
             static_for<0, CShuffleMXdlPerWavePerShuffle, 1>{}([&](auto m0) {
                 static_for<0, CShuffleNXdlPerWavePerShuffle, 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        vector_type<ComputeTypeA, KPack> a_thread_vec;
-                        vector_type<ComputeTypeB, KPack> b_thread_vec;
+                        static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
+                            vector_type<ComputeTypeA, KPack> a_thread_vec;
+                            vector_type<ComputeTypeB, KPack> b_thread_vec;
 
-                        static_for<0, KPack, 1>{}([&](auto ik) {
-                            a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                a_thread_buf[Number<a_thread_desc.CalculateOffset(
-                                    make_tuple(m0, I0, k0, ik))>{}];
-                            b_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                b_thread_buf[Number<b_thread_desc.CalculateOffset(
-                                    make_tuple(n0, I0, k0, ik))>{}];
+                            static_for<0, KPack, 1>{}([&](auto ik) {
+                                a_thread_vec.template AsType<ComputeTypeA>()(ik) =
+                                    a_thread_buf[Number<a_thread_desc.CalculateOffset(
+                                        make_tuple(m0, I0, k0, k_ + ik))>{}];
+                                b_thread_vec.template AsType<ComputeTypeA>()(ik) =
+                                    b_thread_buf[Number<b_thread_desc.CalculateOffset(
+                                        make_tuple(n0, I0, k0, k_ + ik))>{}];
+                            });
+
+                            using mfma_input_type =
+                                typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
+
+                            constexpr index_t c_offset =
+                                c_thread_desc.CalculateOffset(make_tuple(m0, n0, 0));
+
+                            xdlops_gemm.Run(
+                                a_thread_vec.template AsType<mfma_input_type>(),
+                                b_thread_vec.template AsType<mfma_input_type>(),
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                         });
-
-                        using mfma_input_type =
-                            typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
-
-                        constexpr index_t c_offset =
-                            c_thread_desc.CalculateOffset(make_tuple(m0, n0, 0));
-
-                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                        b_thread_vec.template AsType<mfma_input_type>(),
-                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                     });
                 });
             });
@@ -1592,29 +1597,31 @@ struct GridwiseGemm_xdl_cshuffle_v3
                     static_for<0, CShuffleMXdlPerWavePerShuffle, 1>{}([&](auto m0) {
                         static_for<0, CShuffleNXdlPerWavePerShuffle, 1>{}([&](auto n0) {
                             static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                vector_type<ComputeTypeA, KPack> a_thread_vec;
-                                vector_type<ComputeTypeB, KPack> b_thread_vec;
+                                static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
+                                    vector_type<ComputeTypeA, KPack> a_thread_vec;
+                                    vector_type<ComputeTypeB, KPack> b_thread_vec;
 
-                                static_for<0, KPack, 1>{}([&](auto ik) {
-                                    a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                        a_thread_buf[Number<a_thread_desc.CalculateOffset(
-                                            make_tuple(shuffle_m0 + m0, I0, k0, ik))>{}];
-                                    b_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                        b_thread_buf[Number<b_thread_desc.CalculateOffset(
-                                            make_tuple(shuffle_n0 + n0, I0, k0, ik))>{}];
+                                    static_for<0, KPack, 1>{}([&](auto ik) {
+                                        a_thread_vec.template AsType<ComputeTypeA>()(ik) =
+                                            a_thread_buf[Number<a_thread_desc.CalculateOffset(
+                                                make_tuple(shuffle_m0 + m0, I0, k0, k_ + ik))>{}];
+                                        b_thread_vec.template AsType<ComputeTypeA>()(ik) =
+                                            b_thread_buf[Number<b_thread_desc.CalculateOffset(
+                                                make_tuple(shuffle_n0 + n0, I0, k0, k_ + ik))>{}];
+                                    });
+
+                                    using mfma_input_type =
+                                        typename vector_type<ComputeTypeA,
+                                                             xdlops_gemm.K1PerXdlops>::type;
+
+                                    constexpr index_t c_offset = c_thread_desc.CalculateOffset(
+                                        make_tuple(shuffle_m0 + m0, shuffle_n0 + n0, 0));
+
+                                    xdlops_gemm.Run(
+                                        a_thread_vec.template AsType<mfma_input_type>(),
+                                        b_thread_vec.template AsType<mfma_input_type>(),
+                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                                 });
-
-                                using mfma_input_type =
-                                    typename vector_type<ComputeTypeA,
-                                                         xdlops_gemm.K1PerXdlops>::type;
-
-                                constexpr index_t c_offset = c_thread_desc.CalculateOffset(
-                                    make_tuple(shuffle_m0 + m0, shuffle_n0 + n0, 0));
-
-                                xdlops_gemm.Run(
-                                    a_thread_vec.template AsType<mfma_input_type>(),
-                                    b_thread_vec.template AsType<mfma_input_type>(),
-                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                             });
                         });
                     });
@@ -2025,31 +2032,35 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                            CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
 
             static_assert(num_access == sfc_c_global.GetNumOfAccess(), "wrong!");
+            constexpr auto KPerInnerLoop = blockwise_gemm_pipeline.KPerInnerLoop;
 
             static_for<0, CShuffleMXdlPerWavePerShuffle, 1>{}([&](auto m0) {
                 static_for<0, CShuffleNXdlPerWavePerShuffle, 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        vector_type<ComputeTypeA, KPack> a_thread_vec;
-                        vector_type<ComputeTypeB, KPack> b_thread_vec;
+                        static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
+                            vector_type<ComputeTypeA, KPack> a_thread_vec;
+                            vector_type<ComputeTypeB, KPack> b_thread_vec;
 
-                        static_for<0, KPack, 1>{}([&](auto ik) {
-                            a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                a_thread_buf[Number<a_thread_desc.CalculateOffset(
-                                    make_tuple(m0, I0, k0, ik))>{}];
-                            b_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                b_thread_buf[Number<b_thread_desc.CalculateOffset(
-                                    make_tuple(n0, I0, k0, ik))>{}];
+                            static_for<0, KPack, 1>{}([&](auto ik) {
+                                a_thread_vec.template AsType<ComputeTypeA>()(ik) =
+                                    a_thread_buf[Number<a_thread_desc.CalculateOffset(
+                                        make_tuple(m0, I0, k0, k_ + ik))>{}];
+                                b_thread_vec.template AsType<ComputeTypeA>()(ik) =
+                                    b_thread_buf[Number<b_thread_desc.CalculateOffset(
+                                        make_tuple(n0, I0, k0, k_ + ik))>{}];
+                            });
+
+                            using mfma_input_type =
+                                typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
+
+                            constexpr index_t c_offset =
+                                c_thread_desc.CalculateOffset(make_tuple(m0, n0, 0));
+
+                            xdlops_gemm.Run(
+                                a_thread_vec.template AsType<mfma_input_type>(),
+                                b_thread_vec.template AsType<mfma_input_type>(),
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                         });
-
-                        using mfma_input_type =
-                            typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
-
-                        constexpr index_t c_offset =
-                            c_thread_desc.CalculateOffset(make_tuple(m0, n0, 0));
-
-                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                        b_thread_vec.template AsType<mfma_input_type>(),
-                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                     });
                 });
             });
@@ -2068,29 +2079,31 @@ struct GridwiseGemm_xdl_cshuffle_v3
                     static_for<0, CShuffleMXdlPerWavePerShuffle, 1>{}([&](auto m0) {
                         static_for<0, CShuffleNXdlPerWavePerShuffle, 1>{}([&](auto n0) {
                             static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                vector_type<ComputeTypeA, KPack> a_thread_vec;
-                                vector_type<ComputeTypeB, KPack> b_thread_vec;
+                                static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
+                                    vector_type<ComputeTypeA, KPack> a_thread_vec;
+                                    vector_type<ComputeTypeB, KPack> b_thread_vec;
 
-                                static_for<0, KPack, 1>{}([&](auto ik) {
-                                    a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                        a_thread_buf[Number<a_thread_desc.CalculateOffset(
-                                            make_tuple(shuffle_m0 + m0, I0, k0, ik))>{}];
-                                    b_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                        b_thread_buf[Number<b_thread_desc.CalculateOffset(
-                                            make_tuple(shuffle_n0 + n0, I0, k0, ik))>{}];
+                                    static_for<0, KPack, 1>{}([&](auto ik) {
+                                        a_thread_vec.template AsType<ComputeTypeA>()(ik) =
+                                            a_thread_buf[Number<a_thread_desc.CalculateOffset(
+                                                make_tuple(shuffle_m0 + m0, I0, k0, k_ + ik))>{}];
+                                        b_thread_vec.template AsType<ComputeTypeA>()(ik) =
+                                            b_thread_buf[Number<b_thread_desc.CalculateOffset(
+                                                make_tuple(shuffle_n0 + n0, I0, k0, k_ + ik))>{}];
+                                    });
+
+                                    using mfma_input_type =
+                                        typename vector_type<ComputeTypeA,
+                                                             xdlops_gemm.K1PerXdlops>::type;
+
+                                    constexpr index_t c_offset = c_thread_desc.CalculateOffset(
+                                        make_tuple(shuffle_m0 + m0, shuffle_n0 + n0, 0));
+
+                                    xdlops_gemm.Run(
+                                        a_thread_vec.template AsType<mfma_input_type>(),
+                                        b_thread_vec.template AsType<mfma_input_type>(),
+                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                                 });
-
-                                using mfma_input_type =
-                                    typename vector_type<ComputeTypeA,
-                                                         xdlops_gemm.K1PerXdlops>::type;
-
-                                constexpr index_t c_offset = c_thread_desc.CalculateOffset(
-                                    make_tuple(shuffle_m0 + m0, shuffle_n0 + n0, 0));
-
-                                xdlops_gemm.Run(
-                                    a_thread_vec.template AsType<mfma_input_type>(),
-                                    b_thread_vec.template AsType<mfma_input_type>(),
-                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                             });
                         });
                     });
