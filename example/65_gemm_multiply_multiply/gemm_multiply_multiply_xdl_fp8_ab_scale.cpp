@@ -53,7 +53,7 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = PassThrough;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 static constexpr ck::index_t Scale_Block_M = 1;
 static constexpr ck::index_t Scale_Block_N = 128;
