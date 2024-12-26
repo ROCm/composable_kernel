@@ -7,11 +7,12 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
 namespace custom_std {
-    template<typename T>
-    struct type_identity {
-        using type = T;
-    };
-}
+template <typename T>
+struct type_identity
+{
+    using type = T;
+};
+} // namespace custom_std
 
 namespace ck_tile {
 
@@ -492,16 +493,19 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         }
     }
 
-    
-    template<typename Problem>
-    static auto GetBlockGemmType() {
-        if constexpr (Problem::kBlockMethod == 0){
+    template <typename Problem>
+    static auto GetBlockGemmType()
+    {
+        if constexpr(Problem::kBlockMethod == 0)
+        {
             return custom_std::type_identity<decltype(GetBlockGemmUniversal<Problem>())>{};
-        } else {
+        }
+        else
+        {
             return custom_std::type_identity<decltype(GetBlockGemmGlobalRegister<Problem>())>{};
         }
     }
-    
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemmUniversal()
     {
@@ -582,22 +586,21 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
             constexpr auto I1         = number<1>{};
             constexpr auto I2         = number<2>{};
 
-            using AccDataType = float;
-            using BlockWarps  = typename Problem::BlockGemmShape::BlockWarps;
-            using WarpTile    = typename Problem::BlockGemmShape::WarpTile;
-            using WarpGemm    = WarpGemmMfmaDispatcher<typename Problem::ADataType,
+            using AccDataType     = float;
+            using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
+            using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
+            using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
                                                     typename Problem::BDataType,
                                                     AccDataType,
                                                     WarpTile::at(I0),
                                                     WarpTile::at(I1),
                                                     WarpTile::at(I2),
                                                     TransposeC>;
-            using BlockGemmPolicy =
-                BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
-                                                      typename Problem::BDataType,
-                                                      typename Problem::CDataType,
-                                                      BlockWarps,
-                                                      WarpGemm>;
+            using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
+                                                                        typename Problem::BDataType,
+                                                                        typename Problem::CDataType,
+                                                                        BlockWarps,
+                                                                        WarpGemm>;
 
             if constexpr(Problem::kBlockPolicyMethod == 2)
             {

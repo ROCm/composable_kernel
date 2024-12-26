@@ -28,7 +28,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     constexpr int kBlockPerCu = 1;
 
-
     // This part comes from the Codegen
     constexpr ck_tile::index_t M_Tile = 128;
     constexpr ck_tile::index_t N_Tile = 128;
@@ -81,8 +80,15 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         ck_tile::Default2DEpilogue<
             ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
 
-    using CodegenGemmTraits =
-        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, kBlockDefaultPolicy, kBlockMethod, kBlockPolicyMethod>;
+    using CodegenGemmTraits      = ck_tile::TileGemmTraits<kPadM,
+                                                      kPadN,
+                                                      kPadK,
+                                                      ALayout,
+                                                      BLayout,
+                                                      CLayout,
+                                                      kBlockDefaultPolicy,
+                                                      kBlockMethod,
+                                                      kBlockPolicyMethod>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
     using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;

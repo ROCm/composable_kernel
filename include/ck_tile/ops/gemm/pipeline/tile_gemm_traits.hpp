@@ -23,8 +23,8 @@ struct TileGemmTraits
     static constexpr bool kPadK = kPadK_;
 
     static constexpr bool kBlockDefaultPolicy = kBlockDefaultPolicy_;
-    static constexpr int kBlockMethod     = kBlockMethod_;
-    static constexpr int kBlockPolicyMethod = kBlockPolicyMethod_;
+    static constexpr int kBlockMethod         = kBlockMethod_;
+    static constexpr int kBlockPolicyMethod   = kBlockPolicyMethod_;
 
     static constexpr int _VectorSize = 16;
 

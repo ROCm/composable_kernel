@@ -62,7 +62,8 @@ struct BlockGemmARegBRegCRegV1
         return b_block_dstr;
     }
 
-    CK_TILE_DEVICE static constexpr auto MakeCBlockDistribution() {
+    CK_TILE_DEVICE static constexpr auto MakeCBlockDistribution()
+    {
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
             tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
@@ -75,7 +76,7 @@ struct BlockGemmARegBRegCRegV1
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
         return c_block_dstr;
     }
-    
+
     template <typename CBlockTensor, typename ABlockTensor, typename BBlockTensor>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
                                    const ABlockTensor& a_block_tensor,
@@ -85,7 +86,7 @@ struct BlockGemmARegBRegCRegV1
                           std::is_same_v<BDataType, remove_cv_t<typename BBlockTensor::DataType>> &&
                           std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
                       "wrong!");
-        
+
         constexpr auto a_block_dstr_encode = MakeABlockDistribution();
         constexpr auto b_block_dstr_encode = MakeBBlockDistribution();
         constexpr auto c_block_dstr_encode = MakeCBlockDistribution();
@@ -106,7 +107,7 @@ struct BlockGemmARegBRegCRegV1
                            remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
                                                        .get_static_tile_distribution_encoding())>>,
             "C distribution is wrong!");
-        
+
         using AWarpDstr = typename WG::AWarpDstr;
         using BWarpDstr = typename WG::BWarpDstr;
         using CWarpDstr = typename WG::CWarpDstr;
@@ -170,7 +171,7 @@ struct BlockGemmARegBRegCRegV1
                                    const BBlockTensor& b_block_tensor) const
     {
         constexpr auto c_block_dstr_encode = MakeCBlockDistribution();
-        auto c_block_tensor = make_static_tile_distribution(c_block_dstr_encode);
+        auto c_block_tensor                = make_static_tile_distribution(c_block_dstr_encode);
         operator()(c_block_tensor, a_block_tensor, b_block_tensor);
         return c_block_tensor;
     }

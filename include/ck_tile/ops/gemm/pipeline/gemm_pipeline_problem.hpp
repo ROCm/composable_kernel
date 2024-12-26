@@ -34,8 +34,8 @@ struct GemmPipelineProblemBase
     static constexpr bool kPadK = GemmTraits::kPadK;
 
     static constexpr bool kBlockDefaultPolicy = GemmTraits::kBlockDefaultPolicy;
-    static constexpr int kBlockPolicyMethod = GemmTraits::kBlockPolicyMethod;
-    static constexpr int kBlockMethod     = GemmTraits::kBlockMethod;
+    static constexpr int kBlockPolicyMethod   = GemmTraits::kBlockPolicyMethod;
+    static constexpr int kBlockMethod         = GemmTraits::kBlockMethod;
 
     static constexpr auto Scheduler = GemmPipelineScheduler::Default;
 
