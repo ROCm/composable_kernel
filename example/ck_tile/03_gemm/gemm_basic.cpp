@@ -28,6 +28,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     constexpr int kBlockPerCu = 1;
 
+
     // This part comes from the Codegen
     constexpr ck_tile::index_t M_Tile = 128;
     constexpr ck_tile::index_t N_Tile = 128;
@@ -40,6 +41,18 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
+
+    // Whether the GemmPolicy is default or custom
+    constexpr bool kBlockDefaultPolicy = true;
+    // kBlockMethod decides which kind of the BlockGEMM Method the GEMM should use.
+    // 0: BlockUniversalGemmAsBsCr
+    // 1: BlockGemmARegBRegCRegV1
+    constexpr int kBlockMethod = 0;
+    // kBlockPolicyMethod decides which kind of the BlockGEMM Method the GEMM should use.
+    // 0: Default BlockGemmARegBRegCRegV1 Policy
+    // 1: Default BlockGemmARegBRegCRegV2 Policy
+    // 2: BlockGemmASmemBSmemCRegV1CustomPolicy
+    constexpr int kBlockPolicyMethod = 1;
 
     // Whether doing the CShuffle (transpose before the global memory), depending on the output
     // layout.
@@ -69,7 +82,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
             ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
 
     using CodegenGemmTraits =
-        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, kBlockDefaultPolicy, kBlockMethod, kBlockPolicyMethod>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
     using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;

@@ -103,7 +103,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
-    using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
+    using BlockGemm = typename decltype(Policy::template GetBlockGemmType<Problem>())::type;
     using I0        = number<0>;
     using I1        = number<1>;
     using I2        = number<2>;

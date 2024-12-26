@@ -12,12 +12,19 @@ template <bool kPadM_,
           bool kPadK_,
           typename ALayout_,
           typename BLayout_,
-          typename CLayout_>
+          typename CLayout_,
+          bool kBlockDefaultPolicy_,
+          int kBlockMethod_,
+          int kBlockPolicyMethod_>
 struct TileGemmTraits
 {
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
     static constexpr bool kPadK = kPadK_;
+
+    static constexpr bool kBlockDefaultPolicy = kBlockDefaultPolicy_;
+    static constexpr int kBlockMethod     = kBlockMethod_;
+    static constexpr int kBlockPolicyMethod = kBlockPolicyMethod_;
 
     static constexpr int _VectorSize = 16;
 

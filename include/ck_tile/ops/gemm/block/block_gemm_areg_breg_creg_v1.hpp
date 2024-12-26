@@ -8,7 +8,7 @@
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2_default_policy.hpp"
 
 namespace ck_tile {
-template <typename Problem_, typename Policy_ = BlockGemmARegBRegCRegV2DefaultPolicy>
+template <typename Problem_, typename Policy_ = BlockGemmARegBRegCRegV1DefaultPolicy>
 struct BlockGemmARegBRegCRegV1
 {
     using Problem        = remove_cvref_t<Problem_>;
