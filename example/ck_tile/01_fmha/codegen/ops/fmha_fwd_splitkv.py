@@ -96,9 +96,7 @@ using fmha_epilogue =
                                            {F_spad}, {F_dvpad}>>;
 
 using fmha_kernel =
-    ck_tile::FmhaFwdSplitKVKernel<ck_tile::FmhaFwdSplitKVTilePartitioner<fmha_shape>,
-                  fmha_pipeline,
-                  fmha_epilogue>;
+    ck_tile::FmhaFwdSplitKVKernel<fmha_pipeline, fmha_epilogue>;
 
 static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
@@ -176,11 +174,7 @@ using fmha_epilogue =
                                            false, false>>;
 
 using fmha_kernel =
-    ck_tile::FmhaFwdSplitKVCombineKernel<
-        ck_tile::FmhaFwdSplitKVCombineTilePartitioner<
-            fmha_pipeline_problem::kM0, fmha_pipeline_problem::kN1>,
-        fmha_pipeline,
-        fmha_epilogue>;
+    ck_tile::FmhaFwdSplitKVCombineKernel<fmha_pipeline, fmha_epilogue>;
 
 static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
