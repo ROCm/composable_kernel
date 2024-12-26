@@ -81,8 +81,7 @@ struct FusedMoeGemmPipeline_General
         // shuffle C matrix
         constexpr index_t smem_bridge = Policy::template GetSmemSize_Bridge<Problem>();
 
-        constexpr index_t smem_mat_o =
-            BlockShape::Block_N1 * BlockShape::Block_K1 * sizeof(float);
+        constexpr index_t smem_mat_o = BlockShape::Block_N1 * BlockShape::Block_K1 * sizeof(float);
 
         return max(smem_mat_a + smem_mat_d, smem_bridge, smem_mat_o);
         // return Policy::template GetSmemSize<Problem>();
@@ -237,7 +236,7 @@ struct FusedMoeGemmPipeline_General
         // }
         // save to lds
         CK_TILE_LDS_ADDR ADataType* smem_y = reinterpret_cast<CK_TILE_LDS_ADDR YDataType*>(smem);
-        auto bridge_lds_view = make_tensor_view<address_space_enum::lds>(
+        auto bridge_lds_view               = make_tensor_view<address_space_enum::lds>(
             smem_y, Policy::template MakeBridgeLdsBlockDesc<Problem>());
         auto bridge_slds_win =
             make_tile_window(bridge_lds_view,
@@ -304,20 +303,17 @@ struct FusedMoeGemmPipeline_General
 #endif
         // add to LDS
         CK_TILE_LDS_ADDR float* smem_o = reinterpret_cast<CK_TILE_LDS_ADDR float*>(smem);
-        auto o_lds_view =
-            make_naive_tensor_view<address_space_enum::lds, memory_operation_enum::set>(
-                smem_o,
-                make_tuple(number<128>{}, number<32>{}),
-                make_tuple(32, 1),
-                number<8>{},
-                number<1>{});
-        auto o_alds_win =
-            make_tile_window(o_lds_view, make_tuple(number<128>{}, number<32>{}), {0, 0});
-        auto o_olds_win =
-            make_tile_window(o_lds_view,
-                             make_tuple(number<32>{}, number<32>{}),
-                             {0, 0},
-                             Policy::template MakeGlobalTileDistribution_O<Problem>());
+        auto o_lds_view                = make_tensor_view<address_space_enum::lds>(
+            smem_o, Policy::template MakeLdsBlockDesc_O<Problem>());
+        auto o_alds_win = make_tile_window(
+            o_lds_view,
+            make_tuple(number<BlockShape::Block_K1>{}, number<BlockShape::Block_N1>{}),
+            {0, 0});
+        auto o_olds_win = make_tile_window(
+            o_lds_view,
+            make_tuple(number<BlockShape::Block_M1>{}, number<BlockShape::Block_N1>{}),
+            {0, 0},
+            Policy::template MakeGlobalTileDistribution_O<Problem>());
 
         auto save_o = [&]() {
             // if(blockIdx.x == 0 && (blockIdx.y == 0 || blockIdx.y == 1) && blockIdx.z == 0)
@@ -338,7 +334,8 @@ struct FusedMoeGemmPipeline_General
                     auto o = cast_tile<ODataType>(o0);
                     update_tile(o_window_, o);
                     // restore pos
-                    move_tile_window(o_olds_win, {-32 * (BlockShape::Repeat_K1 - 1), 0});
+                    move_tile_window(o_olds_win,
+                                     {-BlockShape::Block_M1 * (BlockShape::Repeat_K1 - 1), 0});
                 }
             }
         };

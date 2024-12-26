@@ -134,7 +134,7 @@ struct FusedMoeGemmPipelineGeneralPolicy
             constexpr index_t M_wav = NumWarps / K_wav;
             static_assert(MPerBlock % M_wav == 0, "this tile size is too small please check");
             constexpr index_t M_rep = MPerBlock / M_wav;
-
+            static_assert(M_rep <= 2);
             return make_static_tile_distribution(
                 tile_distribution_encoding<
                     sequence<1>,
@@ -152,6 +152,7 @@ struct FusedMoeGemmPipelineGeneralPolicy
             static_assert(MPerBlock % (M_lan * M_wav) == 0,
                           "this tile size is too small please check");
             constexpr index_t M_rep = MPerBlock / (M_lan * M_wav);
+            static_assert(M_rep <= 2);
             return make_static_tile_distribution(
                 tile_distribution_encoding<
                     sequence<1>,
@@ -352,6 +353,20 @@ struct FusedMoeGemmPipelineGeneralPolicy
         //     number<1>{});
 
         return d_lds_block_desc;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDesc_O()
+    {
+        constexpr index_t Block_N1 = Problem::BlockShape::Block_N1;
+        constexpr index_t Block_K1 = Problem::BlockShape::Block_N1;
+
+        constexpr auto desc =
+            make_naive_tensor_descriptor(make_tuple(number<Block_K1>{}, number<Block_N1>{}),
+                                         make_tuple(number<Block_N1>{}, number<1>{}),
+                                         number<4>{},
+                                         number<1>{});
+        return desc;
     }
 
     template <typename Problem>
