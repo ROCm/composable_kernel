@@ -26,7 +26,6 @@ using S = ck::Sequence<Is...>;
 
 using BF16 = ck::bhalf_t;
 using FP8  = ck::f8_t;
-using F16  = ck::half_t;
 using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
@@ -68,11 +67,11 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_
           256, Scale_Block_M, Scale_Block_N, Scale_Block_K,
           128, 128,
           128, 16, 16,
-          32,   32,
-          2,    2,
+          16,   16,
+          4,    4,
           S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
           S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-          1,    2,  S<1, 32, 1, 8>,  S<8, 8, 1>,
+          1,    2,  S<1, 32, 1, 8>,  S<8>,
           ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
 // clang-format on
 
@@ -83,9 +82,9 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
 
     // GEMM shape
-    ck::index_t M = 3840;
-    ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t M = 128;
+    ck::index_t N = 1024;
+    ck::index_t K = 1024;
 
     ck::index_t StrideA = K;
     ck::index_t StrideB = K;
@@ -101,7 +100,7 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 10)
+    else if(argc == 7)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -111,9 +110,9 @@ int main(int argc, char* argv[])
         N = std::stoi(argv[5]);
         K = std::stoi(argv[6]);
 
-        StrideA = std::stoi(argv[7]);
-        StrideB = std::stoi(argv[8]);
-        StrideE = std::stoi(argv[9]);
+        StrideA = K;
+        StrideB = K;
+        StrideE = N;
     }
     else
     {
@@ -185,20 +184,10 @@ int main(int argc, char* argv[])
     case 4:
         a0_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
         b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        // a1_m_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
-        b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
-        break;
-    case 5:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
-        b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
-        break;
-    case 6:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        a1_m_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
-        b1_k_n.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
+        // b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
