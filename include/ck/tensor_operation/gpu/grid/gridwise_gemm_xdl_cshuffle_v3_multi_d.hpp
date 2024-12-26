@@ -1394,7 +1394,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                                 1,
                                                 BThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
-                                                BlockwiseGemmPipe::GlobalBufferNum>(
+                                                2>(
                 b_grid_desc_bpreshuffled,
                 make_multi_index(n_block_data_idx_on_grid, 0, 0),
                 b_element_op,
