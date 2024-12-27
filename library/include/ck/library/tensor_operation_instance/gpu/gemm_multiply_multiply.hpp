@@ -492,7 +492,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
 #endif
 #ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
-                is_same_v<CDataType, half_t>)
+                     is_same_v<CDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<CLayout, Row>)

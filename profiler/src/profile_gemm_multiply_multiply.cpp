@@ -28,7 +28,7 @@ enum struct GemmDataType
     F16_F16_F16_F8, // 6
     F8_F8_BF16,     // 7
     INT8_INT8_F16,  // 8
-    F8_F8_F16,     // 9
+    F8_F8_F16,      // 9
 };
 
 #define OP_NAME "gemm_multiply_multiply"
