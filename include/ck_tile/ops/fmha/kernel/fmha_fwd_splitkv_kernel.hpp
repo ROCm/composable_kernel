@@ -488,11 +488,9 @@ struct FmhaFwdSplitKVKernel
                     batch_size);
     }
 
-    CK_TILE_DEVICE static constexpr auto GetTileIndex(ck_tile::index_t /*seqlen_q*/,
-                                                      ck_tile::index_t hdim_v,
-                                                      ck_tile::index_t num_splits)
+    CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
     {
-        const index_t num_tile_n1 = ck_tile::integer_divide_ceil(hdim_v, FmhaPipeline::kN1);
+        const index_t num_tile_n1 = ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
 
         const auto f = [](index_t dividend, index_t divisor) {
             index_t quotient = dividend / divisor;
@@ -500,7 +498,7 @@ struct FmhaFwdSplitKVKernel
             return ck_tile::make_tuple(quotient, modulus);
         };
 
-        const auto [mn, i_split]        = f(blockIdx.x, num_splits);
+        const auto [mn, i_split]        = f(blockIdx.x, kargs.num_splits);
         const auto [i_tile_m, i_tile_n] = f(mn, num_tile_n1);
         const index_t i_nhead           = blockIdx.y;
         const index_t i_batch           = blockIdx.z;
@@ -521,8 +519,7 @@ struct FmhaFwdSplitKVKernel
         __shared__ char smem_ptr[GetSmemSize()];
 
         // divide problem
-        const auto [i_tile_m, i_tile_n, i_split, i_nhead, i_batch] =
-            GetTileIndex(kargs.seqlen_q, kargs.hdim_v, kargs.num_splits);
+        const auto [i_tile_m, i_tile_n, i_split, i_nhead, i_batch] = GetTileIndex(kargs);
 
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
         const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);

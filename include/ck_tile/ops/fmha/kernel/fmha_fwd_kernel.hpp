@@ -888,15 +888,18 @@ struct FmhaFwdKernel
         }
     }
 
-    CK_TILE_DEVICE static constexpr auto GetTileIndex(ck_tile::index_t /*seqlen_q*/,
-                                                      ck_tile::index_t hdim_v,
-                                                      bool has_padded_seqlen_k = false)
+    CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
     {
-        // has_padded_seqlen_k is determined by checking (seqlen_k_ptr != nullptr)
+        bool has_padded_seqlen_k = false;
+
+        if constexpr(kIsGroupMode)
+            has_padded_seqlen_k = (kargs.seqlen_k_ptr != nullptr);
+
         if(has_padded_seqlen_k)
         {
             // const index_t num_tile_m0 = seqlen_q / kM0;
-            const index_t num_tile_n1 = ck_tile::integer_divide_ceil(hdim_v, FmhaPipeline::kN1);
+            const index_t num_tile_n1 =
+                ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
 
             const index_t i_block = blockIdx.z;
             const index_t i_nhead = blockIdx.x;
@@ -915,7 +918,8 @@ struct FmhaFwdKernel
         else
         {
             // const index_t num_tile_m0 = seqlen_q / kM0;
-            const index_t num_tile_n1 = ck_tile::integer_divide_ceil(hdim_v, FmhaPipeline::kN1);
+            const index_t num_tile_n1 =
+                ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
 
             const index_t i_block = blockIdx.x;
             const index_t i_nhead = blockIdx.y;
@@ -946,12 +950,7 @@ struct FmhaFwdKernel
         __shared__ char smem_ptr[GetSmemSize()];
 
         // divide problem
-        const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = [&]() {
-            if constexpr(kIsGroupMode)
-                return GetTileIndex(kargs.seqlen_q, kargs.hdim_v, kargs.seqlen_k_ptr != nullptr);
-            else
-                return GetTileIndex(kargs.seqlen_q, kargs.hdim_v, false);
-        }();
+        const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
 
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
         const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);

@@ -245,7 +245,7 @@ struct FmhaFwdAppendKVKernel
                     batch_size);
     }
 
-    CK_TILE_DEVICE static constexpr auto GetTileIndex()
+    CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& /* kargs */)
     {
         const index_t i_tile  = blockIdx.x;
         const index_t i_nhead = blockIdx.y;
@@ -259,7 +259,7 @@ struct FmhaFwdAppendKVKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         // divide problem
-        const auto [i_tile, i_nhead, i_batch] = GetTileIndex();
+        const auto [i_tile, i_nhead, i_batch] = GetTileIndex(kargs);
 
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kM0);
         const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kN0);
