@@ -66,32 +66,36 @@ struct MultiplyMultiply
 void preShuffleBuffer(const FP8* src, int N, int K, FP8* dst) {
     const int NRepeat = 1;
     const int KRepeat = 4;
+    const int NWave = 4;
     const int KLane = 2;
-    const int NLane = 128;
+    const int NLane = 32;
     const int KPack = 16;
-    int N0 = N / (NRepeat * NLane);
+    int N0 = N / (NRepeat * NLane * NWave);
     int K0 = K / (KRepeat * KLane * KPack);
 
     int tempn, tempk;
     for (int n = 0; n < N; ++n) {
         for (int k = 0; k < K; ++k) {
-            int n0 = n / (NRepeat * NLane);
+            int n0 = n / (NRepeat * NLane * NWave);
             int k0 = k / (KRepeat * KLane * KPack);
-            tempn = n % (NRepeat * NLane);
+            tempn = n % (NRepeat * NLane * NWave);
             tempk = k % (KRepeat * KLane * KPack);
-            int n1 = tempn / NLane;
+            int n1 = tempn / (NLane * NWave);
             int k1 = tempk / (KLane * KPack);
-            int n2 = n1 % NLane;
+            tempn = tempn % (NLane * NWave);
             tempk = tempk % (KLane * KPack);
+            int n2 = tempn / NLane;
             int k2 = tempk / KPack;
+            int n3 = tempn % NLane;
             int k3 = tempk % KPack;
 
-            int outputIndex = n0 * KPack * NLane * KLane * KRepeat * NRepeat * K0
-                            + k0 * KPack * NLane * KLane * KRepeat * NRepeat
-                            + n1 * KPack * NLane * KLane * KRepeat
-                            + k1 * KPack * NLane * KLane
+            int outputIndex = n0 * KPack * NLane * KLane * NWave * KRepeat * NRepeat * K0
+                            + k0 * KPack * NLane * KLane * NWave * KRepeat * NRepeat
+                            + n1 * KPack * NLane * KLane * NWave * KRepeat
+                            + k1 * KPack * NLane * KLane * NWave
+                            + n2 * KPack * NLane * KLane
                             + k2 * KPack * NLane
-                            + n2 * KPack
+                            + n3 * KPack
                             + k3;
 
             dst[outputIndex] = src[n * K + k];
@@ -269,7 +273,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 20, 50});
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 0, 1});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =

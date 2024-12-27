@@ -357,7 +357,7 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                         make_tuple(m0, I0, k0, ik))>{}];
                                         
                                 // if(threadIdx.x==0) {
-                                //     printf("%f, %f; ", type_convert<float>(a_thread_vec.template AsType<ComputeDataType>()(ik)), ype_convert<float>(b_thread_vec.template AsType<ComputeDataType>()(ik)));
+                                //     printf("%f, %f; ", type_convert<float>(a_thread_vec.template AsType<ComputeDataType>()(ik)), type_convert<float>(b_thread_vec.template AsType<ComputeDataType>()(ik)));
                                 // }
                             });
                             
@@ -451,12 +451,59 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         // tail
         if constexpr(TailNum == TailNumber::Full)
         {
+            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf1);
+
+            b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, Number<1>{});
+
+
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         vector_type<ComputeDataType, KPack> a_thread_vec;
                         vector_type<ComputeDataType, KPack> b_thread_vec = 
                             b_blockwise_copy.template GetSrcThreadScratchIdx<Sequence<0, k0, 0>, Number<0>{}>();
+                        static_for<0, KPack, 1>{}([&](auto ik) {
+                            a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                    make_tuple(m0, I0, k0, ik))>{}];
+                        });
+                        
+                        using mfma_input_type =
+                            typename vector_type<ComputeDataType,
+                                                    xdlops_gemm.K1PerXdlops>::type;
+
+                        constexpr index_t c_offset =
+                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                        xdlops_gemm.Run(
+                            a_thread_vec.template AsType<mfma_input_type>(),
+                            b_thread_vec.template AsType<mfma_input_type>(),
+                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    });
+                });
+            });
+
+            block_sync_lds();
+
+            static_for<0, KRepeat, 1>{}([&](auto k0) {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                        make_tuple(m0, I0, I0, Number<k0 * AMmaKStride>{}),
+                                        a_block_buf1,
+                                        a_thread_desc_,
+                                        make_tuple(m0, I0, k0, I0),
+                                        a_thread_buf);
+                });
+            });
+
+            __builtin_amdgcn_sched_barrier(0);
+
+            static_for<0, KRepeat, 1>{}([&](auto k0) {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        vector_type<ComputeDataType, KPack> a_thread_vec;
+                        vector_type<ComputeDataType, KPack> b_thread_vec = 
+                            b_blockwise_copy.template GetSrcThreadScratchIdx<Sequence<0, k0, 0>, Number<1>{}>();
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeDataType>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
