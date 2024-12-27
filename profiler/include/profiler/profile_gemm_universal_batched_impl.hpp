@@ -48,6 +48,7 @@ bool profile_gemm_universal_batched_impl(int do_verification,
                                          int StrideB,
                                          int StrideC,
                                          int BatchCount,
+                                         int KBatch,
                                          int n_warmup,
                                          int n_iter,
                                          uint64_t rotating = 0)
@@ -147,89 +148,100 @@ bool profile_gemm_universal_batched_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    float best_kbatch     = 0;
 
     // profile device op instances
     for(auto& op_ptr : op_ptrs)
     {
-        std::unique_ptr<tensor_operation::device::BaseArgument> argument_ptr;
-        // false branch for multi d dl kernel
+        std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38};
 
-        argument_ptr =
-            op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                        static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                        {},
-                                        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                        M,
-                                        N,
-                                        K,
-                                        BatchCount,
-                                        StrideA,
-                                        StrideB,
-                                        {},
-                                        StrideC,
-                                        BatchStrideA,
-                                        BatchStrideB,
-                                        {},
-                                        BatchStrideC,
-                                        ck::tensor_operation::element_wise::PassThrough{},
-                                        ck::tensor_operation::element_wise::PassThrough{},
-                                        ck::tensor_operation::element_wise::PassThrough{});
-
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(KBatch > 0)
         {
-            // re-init C to zero before profiling next kernel
-            c_device_buf.SetZero();
+            kbatch_list = {KBatch};
+        }
 
-            std::string op_name = op_ptr->GetTypeString();
+        for(std::size_t i = 0; i < kbatch_list.size(); i++)
+        {
+            auto kbatch_curr = kbatch_list[i];
 
-            float ave_time = invoker_ptr->Run(
-                argument_ptr.get(),
-                StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter, true, rotating_count});
+            auto argument_ptr =
+                op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                                            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                                            {},
+                                            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                            M,
+                                            N,
+                                            K,
+                                            BatchCount,
+                                            StrideA,
+                                            StrideB,
+                                            {},
+                                            StrideC,
+                                            BatchStrideA,
+                                            BatchStrideB,
+                                            {},
+                                            BatchStrideC,
+                                            ck::tensor_operation::element_wise::PassThrough{},
+                                            ck::tensor_operation::element_wise::PassThrough{},
+                                            ck::tensor_operation::element_wise::PassThrough{},
+                                            kbatch_curr);
 
-            std::size_t flop = std::size_t(2) * BatchCount * M * N * K;
+            auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-            std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
-                                     sizeof(CDataType) * M * N) *
-                                    BatchCount;
-
-            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-            float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-            std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                      << " GB/s, " << op_name << std::endl;
-
-            if(tflops > best_tflops)
+            if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-                best_op_name    = op_name;
-                best_tflops     = tflops;
-                best_ave_time   = ave_time;
-                best_gb_per_sec = gb_per_sec;
-            }
+                std::string op_name = op_ptr->GetTypeString();
 
-            if(do_verification)
-            {
-                c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
+                float ave_time = invoker_ptr->Run(
+                    argument_ptr.get(),
+                    StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter, true, rotating_count});
 
-                pass = pass & ck::utils::check_err(c_g_m_n_device_result, c_g_m_n_host_result);
+                std::size_t flop = std::size_t(2) * BatchCount * M * N * K;
 
-                if(do_log)
+                std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+                                         sizeof(CDataType) * M * N) *
+                                        BatchCount;
+
+                float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+                float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+                std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                          << " GB/s, " << op_name << ", KBatch " << kbatch_curr << std::endl;
+
+                if(tflops > best_tflops)
                 {
-                    LogRangeAsType<float>(std::cout << "a : ", a_g_m_k.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "b: ", b_g_k_n.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_host: ", c_g_m_n_host_result.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "c_device: ", c_g_m_n_device_result.mData, ",")
-                        << std::endl;
+                    best_op_name    = op_name;
+                    best_tflops     = tflops;
+                    best_ave_time   = ave_time;
+                    best_gb_per_sec = gb_per_sec;
+                    best_kbatch     = kbatch_curr;
+                }
+
+                if(do_verification)
+                {
+                    c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
+
+                    pass = pass & ck::utils::check_err(c_g_m_n_device_result, c_g_m_n_host_result);
+
+                    if(do_log)
+                    {
+                        LogRangeAsType<float>(std::cout << "a : ", a_g_m_k.mData, ",") << std::endl;
+                        LogRangeAsType<float>(std::cout << "b: ", b_g_k_n.mData, ",") << std::endl;
+                        LogRangeAsType<float>(
+                            std::cout << "c_host: ", c_g_m_n_host_result.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(
+                            std::cout << "c_device: ", c_g_m_n_device_result.mData, ",")
+                            << std::endl;
+                    }
                 }
             }
-        }
-        else
-        {
-            std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
+            else
+            {
+                std::cout << op_ptr->GetTypeString() << " does not support this problem"
+                          << std::endl;
+            }
         }
     }
 
@@ -270,8 +282,8 @@ bool profile_gemm_universal_batched_impl(int do_verification,
 
     std::cout << " B = " << BatchCount << " M = " << M << " N = " << N << " K = " << K
               << " StrideA = " << StrideA << " StrideB = " << StrideB << " StrideC = " << StrideC
-              << ": " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
-              << " GB/s, " << best_op_name << std::endl;
+              << " KBatch = " << best_kbatch << ": " << best_ave_time << " ms, " << best_tflops
+              << " TFlops, " << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
 
     return pass;
 }
