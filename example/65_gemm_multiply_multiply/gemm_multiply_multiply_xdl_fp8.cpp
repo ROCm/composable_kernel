@@ -63,36 +63,38 @@ struct MultiplyMultiply
     }
 };
 
-void reshapeBuffer(char* buffer, int N, int K, char* output) {
-    const int KRepeat = 2;
-    const int NRepeat = 3;
-    const int KLane = 4;
-    const int NLane = 5;
-    const int KPack = 6;
+void preShuffleBuffer(const FP8* src, int N, int K, FP8* dst) {
+    const int NRepeat = 1;
+    const int KRepeat = 4;
+    const int KLane = 2;
+    const int NLane = 128;
+    const int KPack = 16;
     int N0 = N / (NRepeat * NLane);
     int K0 = K / (KRepeat * KLane * KPack);
 
+    int tempn, tempk;
     for (int n = 0; n < N; ++n) {
         for (int k = 0; k < K; ++k) {
             int n0 = n / (NRepeat * NLane);
             int k0 = k / (KRepeat * KLane * KPack);
-            int nRel = n % (NRepeat * NLane);
-            int kRel = k % (KRepeat * KLane * KPack);
+            tempn = n % (NRepeat * NLane);
+            tempk = k % (KRepeat * KLane * KPack);
+            int n1 = tempn / NLane;
+            int k1 = tempk / (KLane * KPack);
+            int n2 = n1 % NLane;
+            tempk = tempk % (KLane * KPack);
+            int k2 = tempk / KPack;
+            int k3 = tempk % KPack;
 
-            int nIndex = nRel / NLane;
-            int kIndex = kRel / (KLane * KPack);
-            int nLaneIndex = nRel % NLane;
-            int kLaneIndex = (kRel % (KLane * KPack)) / KPack;
-            int kPackIndex = kRel % KPack;
+            int outputIndex = n0 * KPack * NLane * KLane * KRepeat * NRepeat * K0
+                            + k0 * KPack * NLane * KLane * KRepeat * NRepeat
+                            + n1 * KPack * NLane * KLane * KRepeat
+                            + k1 * KPack * NLane * KLane
+                            + k2 * KPack * NLane
+                            + n2 * KPack
+                            + k3;
 
-            int outputIndex = (n0 * K0 + k0) * KRepeat * NRepeat * KLane * NLane * KPack
-                              + nIndex * KRepeat * KLane * KPack
-                              + kIndex * KLane * KPack
-                              + nLaneIndex * KPack
-                              + kLaneIndex * KPack
-                              + kPackIndex;
-
-            output[outputIndex] = buffer[n * K + k];
+            dst[outputIndex] = src[n * K + k];
         }
     }
 }
@@ -191,6 +193,7 @@ int main(int argc, char* argv[])
 
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, A0Layout{}));
     Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
+    Tensor<B0DataType> b0_preshuffled(f_host_tensor_descriptor(K, N, StrideB, B0Layout{})); //use laout only for size
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
@@ -217,15 +220,15 @@ int main(int argc, char* argv[])
         d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-0.5, 0.5});
         d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{-0.5, 0.5});
     }
-
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_k_n.mDesc.GetElementSpaceSize());
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
+    preShuffleBuffer(b0_k_n.mData.data(), N, K, b0_preshuffled.mData.data());
     a0_device_buf.ToDevice(a0_m_k.mData.data());
-    b0_device_buf.ToDevice(b0_k_n.mData.data());
+    b0_device_buf.ToDevice(b0_preshuffled.mData.data());
     d0_device_buf.ToDevice(d0_m_n.mData.data());
     d1_device_buf.ToDevice(d1_m_n.mData.data());
     e_device_buf.ToDevice(e_m_n_device_result.mData.data());

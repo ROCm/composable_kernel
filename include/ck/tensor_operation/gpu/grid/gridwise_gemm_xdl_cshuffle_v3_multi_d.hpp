@@ -40,6 +40,7 @@ __global__ void
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+    __shared__ char p_shared1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
@@ -49,42 +50,7 @@ __global__ void
         karg.p_ds_grid,
         karg.p_c_grid,
         p_shared,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op);
-#else
-    ignore = karg;
-#endif // end of if (defined(__gfx9__))
-}
-
-template <typename GridwiseGemm,
-          bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Full>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
-#endif
-    // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_v3_multi_d_2lds(typename GridwiseGemm::Argument karg)
-{
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
-    // Pass two lds pointer is the key to tell compiler that ds_read/write
-    // operate on different lds chunk at same time without order dependecy
-    __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
-
-    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_ds_grid,
-        karg.p_c_grid,
-        p_shared_0,
-        p_shared_1,
+        p_shared1,
         karg,
         karg.a_element_op,
         karg.b_element_op,
@@ -1256,6 +1222,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                DsGridPointer& p_ds_grid,
                                CDataType* p_c_grid,
                                void* p_shared,
+                               void* p_shared1,
                                const Problem& problem,
                                AElementwiseOperation a_element_op,
                                BElementwiseOperation b_element_op,
@@ -1268,6 +1235,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             p_ds_grid,
             p_c_grid,
             p_shared,
+            p_shared1,
             problem,
             a_element_op,
             b_element_op,
@@ -1284,6 +1252,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                DsGridPointer& p_ds_grid,
                                CDataType* p_c_grid,
                                void* p_shared,
+                               void* p_shared1,
                                const Problem& problem,
                                AElementwiseOperation a_element_op,
                                BElementwiseOperation b_element_op,
@@ -1409,6 +1378,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<LDSTypeA*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+        auto a_block_buf1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<LDSTypeA*>(p_shared1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<LDSTypeB*>(p_shared) +
@@ -1432,6 +1403,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                                                          a_blockwise_copy,
                                                                          a_grid_buf,
                                                                          a_block_buf,
+                                                                         a_block_buf1,
                                                                          a_block_slice_copy_step,
                                                                          b_grid_desc_bpreshuffled,
                                                                          b_block_desc_bk0_n_bk1,

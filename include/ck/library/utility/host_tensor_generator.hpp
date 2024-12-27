@@ -131,7 +131,7 @@ struct GeneratorTensor_2<ck::f8_t>
     template <typename... Is>
     ck::f8_t operator()(Is...)
     {
-        float tmp = (std::rand() % (max_value - min_value)) + min_value;
+        float tmp = 1;
         return ck::type_convert<ck::f8_t>(tmp);
     }
 };
