@@ -234,13 +234,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                 }
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-                    constexpr index_t instance_lds_size =
-                        MPerBlock * KPerBlock * sizeof(ADataType) +
-                        NPerBlock * KPerBlock * sizeof(BDataType);
-                    return ((MPerBlock * NPerBlock / BlockSize <= 128) &&
-                            (instance_lds_size <= 32768))
-                               ? 2
-                               : 1;
+                    return (MPerBlock * NPerBlock / BlockSize <= 128) ? 2 : 1;
                 }
                 else
                 {
