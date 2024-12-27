@@ -741,6 +741,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
 
         return str.str();
     }
+    REGISTER_EXTRA_PRINTING_METHODS
 };
 
 } // namespace device

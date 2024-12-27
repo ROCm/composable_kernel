@@ -477,6 +477,9 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                        b_thread_buf_tail);
                 });
             });
+
+            HotLoopScheduler();
+            __builtin_amdgcn_sched_barrier(0);
         }
     }
 
@@ -691,6 +694,9 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                        b_thread_buf);
                 });
             });
+
+            HotLoopScheduler();
+            __builtin_amdgcn_sched_barrier(0);
 
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
