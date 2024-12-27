@@ -270,11 +270,12 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
 
                 std::string op_name = op_ptr->GetTypeString();
 
-                hipStream_t stream;
-                hip_check_error(hipStreamCreate(&stream));
+                // timer of develop branch should only apply to empty hipstream
+                // hipStream_t stream;
+                // hip_check_error(hipStreamCreate(&stream));
 
                 float ave_time = invoker_ptr->Run(argument_ptr.get(),
-                                                  StreamConfig{stream,
+                                                  StreamConfig{nullptr,
                                                                time_kernel,
                                                                0,
                                                                n_warmup,
