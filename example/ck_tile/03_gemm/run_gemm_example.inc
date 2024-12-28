@@ -64,9 +64,9 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
-    ck_tile::index_t batch_size = arg_parser.get_int("b");
-    int n_warmup                = arg_parser.get_int("warmup");
-    int n_repeat                = arg_parser.get_int("repeat");
+    ck_tile::index_t kbatch = arg_parser.get_int("split_k");
+    int n_warmup            = arg_parser.get_int("warmup");
+    int n_repeat            = arg_parser.get_int("repeat");
 
     using namespace ck_tile::literals;
 
@@ -133,7 +133,7 @@ int run_gemm_example_with_layouts(int argc,
                                            stride_A,
                                            stride_B,
                                            stride_C,
-                                           batch_size,
+                                           kbatch,
                                            n_warmup,
                                            n_repeat);
 
