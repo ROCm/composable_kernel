@@ -17,6 +17,7 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                           ck_tile::index_t batch_stride_B,
                           ck_tile::index_t batch_stride_C,
                           ck_tile::index_t batch_count,
+                          ck_tile::index_t kbatch,
                           int n_warmup,
                           int n_repeat)
 {
@@ -24,6 +25,7 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
     args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
     args.c_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
+    args.k_batch        = kbatch;
     args.M              = M;
     args.N              = N;
     args.K              = K;
@@ -79,6 +81,7 @@ int run_batched_gemm_example_with_layouts(int argc,
     ck_tile::index_t batch_stride_B = arg_parser.get_int("batch_stride_b");
     ck_tile::index_t batch_stride_C = arg_parser.get_int("batch_stride_c");
     ck_tile::index_t batch_count    = arg_parser.get_int("batch_count");
+    ck_tile::index_t kbatch         = arg_parser.get_int("split_k");
 
     int n_warmup = arg_parser.get_int("warmup");
     int n_repeat = arg_parser.get_int("repeat");
@@ -159,6 +162,7 @@ int run_batched_gemm_example_with_layouts(int argc,
                                                    batch_stride_B,
                                                    batch_stride_C,
                                                    batch_count,
+                                                   kbatch,
                                                    n_warmup,
                                                    n_repeat);
 

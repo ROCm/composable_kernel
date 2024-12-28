@@ -93,7 +93,7 @@ class TestCkTileBatchedGemm : public ::testing::Test
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.batch_count);
+        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch, args.batch_count);
         constexpr dim3 blocks = Kernel::BlockSize();
 
         if(s.log_level_ > 0)
@@ -186,6 +186,7 @@ class TestCkTileBatchedGemm : public ::testing::Test
         args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
         args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
         args.c_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
+        args.k_batch        = 1;
         args.M              = M;
         args.N              = N;
         args.K              = K;
