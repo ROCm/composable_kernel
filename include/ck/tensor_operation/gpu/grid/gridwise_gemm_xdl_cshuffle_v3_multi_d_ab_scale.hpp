@@ -1213,8 +1213,9 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
 
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
             make_tuple(math::integer_divide_ceil(problem.M, ScaleBlockM),
+                       16, 
                        math::integer_divide_ceil(problem.K, ScaleBlockK)),
-            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK), 1));
+            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK),0, 1));
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
             make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
                        math::integer_divide_ceil(problem.K, ScaleBlockK)),
@@ -1357,34 +1358,36 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
 
-        const index_t ScaleSliceSizeM = MXdlPerWave;
-        const index_t ScaleSliceSizeN = 1;
-        const index_t ScaleSliceSizeK = 1;
+        static constexpr auto xdlops_gemm =
+            XdlopsGemm<ComputeTypeA, MPerXdl, NPerXdl, KPack, ComputeTypeA, false>{};
+
+        const index_t ScaleSliceSizeM  = MXdlPerWave;
+        const index_t RegSizePerXdlops = xdlops_gemm.GetRegSizePerXdlops();
+        const index_t ScaleSliceSizeN  = 1;
+        const index_t ScaleSliceSizeK  = 1;
 
         constexpr auto a_scale_thread_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<ScaleSliceSizeM>{}, Number<ScaleSliceSizeK>{}));
+            make_tuple(Number<ScaleSliceSizeM>{}, Number<RegSizePerXdlops>{}, Number<ScaleSliceSizeK>{}));
 
         constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
 
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-        // auto a_thread_offset =
-        //     get_thread_local_1d_id() % MPerXdl + (get_thread_local_1d_id() / 64) % MWaves * MPerXdl;
 
-        auto a_thread_offset = get_thread_local_1d_id() % MPerXdl + (get_thread_local_1d_id() / 128) * MPerXdl;
-        
+        auto a_thread_offset =
+            get_thread_local_1d_id() / 128 * 32 + get_thread_local_1d_id() % 64 / 32 * 4;
+
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<AScaleType,
                                              AScaleType,
                                              decltype(a_scale_grid_desc_am_ak),
                                              decltype(a_scale_thread_desc),
-                                             Sequence<1, ScaleSliceSizeK>,
-                                             Sequence<0, 1>,
+                                             Sequence<1, 1, ScaleSliceSizeK>,
+                                             Sequence<0, 1, 2>,
                                              1,
                                              1,
                                              1,
                                              false>(
-                a_scale_grid_desc_am_ak, make_multi_index(block_m_id * MPerBlock / ScaleBlockM + a_thread_offset, 0));
+                a_scale_grid_desc_am_ak, make_multi_index(block_m_id * MPerBlock / ScaleBlockM + a_thread_offset,0, 0));
 
         auto b_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<BScaleType,
@@ -1400,7 +1403,10 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                 b_scale_grid_desc_bn_ak, make_multi_index(block_n_id * NPerBlock / ScaleBlockN, 0));
 
         constexpr auto a_scale_thread_slice_copy_step =
-            make_tuple(make_multi_index(MWaves * MPerXdl, 0), make_multi_index(-MPerBlock, 1));
+            make_tuple(make_multi_index(MPerXdl, 0, 0),
+                       make_multi_index(4, 0, 0),
+                       make_multi_index(1, 0, 0),
+                       make_multi_index(-MPerBlock, 0, 1));
         constexpr auto b_scale_thread_slice_copy_step = make_multi_index(0, 1);
 
         const index_t num_k_block_per_scale = ScaleBlockK / KPerBlock;
