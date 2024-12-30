@@ -98,7 +98,7 @@ function(add_instance_library INSTANCE_NAME)
     #      message("removing gemm_universal_streamk_bf16 instance ${source} ")
     #      list(REMOVE_ITEM ARGN "${source}")
     # endif()
-    endforeach()
+    # endforeach()
     endif()
     #only continue if there are some source files left on the list
     if(ARGN)
