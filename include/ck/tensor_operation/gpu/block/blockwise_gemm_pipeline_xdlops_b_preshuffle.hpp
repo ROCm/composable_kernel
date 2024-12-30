@@ -137,7 +137,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
     using Base::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
 
     using Base::a_block_desc_m0_m1_m2_k;
-    using Base::b_block_desc_n0_n1_n2_k;
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
@@ -271,10 +270,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
               typename ABlockBuffer,
               typename ABlockTransferStep,
               typename BGridDesc,
-              typename BBlockDesc,
               typename BBlockTransfer,
               typename BGridBuffer,
-              typename BBlockBuffer,
               typename BBlockTransferStep,
               typename CThreadBuffer>
     __device__ void Run(const AGridDesc& a_grid_desc,
@@ -285,10 +282,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
                         ABlockBuffer& a_block_buf1,
                         const ABlockTransferStep& a_block_copy_step,
                         const BGridDesc& b_grid_desc,
-                        const BBlockDesc& b_block_desc,
                         BBlockTransfer& b_blockwise_copy,
                         const BGridBuffer& b_grid_buf,
-                        BBlockBuffer& b_block_buf,
                         const BBlockTransferStep& b_block_copy_step,
                         CThreadBuffer& c_thread_buf,
                         index_t num_loop) const
@@ -296,8 +291,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
         __builtin_amdgcn_sched_barrier(0);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
             a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
-            b_thread_desc_.GetElementSpaceSize());
 
         // Global prefetch 1
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
