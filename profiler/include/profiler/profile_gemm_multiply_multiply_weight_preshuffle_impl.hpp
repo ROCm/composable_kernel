@@ -24,6 +24,51 @@
 namespace ck {
 namespace profiler {
 
+template <typename InOutDataType>
+void preShuffleBuffer(const InOutDataType* src,
+                      InOutDataType* dst,
+                      int N,
+                      int K,
+                      int NRepeat,
+                      int KRepeat,
+                      int NWave,
+                      int KLane,
+                      int NLane,
+                      int KPack)
+{
+    int K0 = K / (KRepeat * KLane * KPack);
+    // K -> src: K0 KLane KRepeat KPack  -> dst: K0 KRpeat KLane KPack, move klane inner to make all
+    // lanes contiguous N -> N0 NRepeat NWave NLane  // todo : is NRepeat outer or inner? now it's 1
+    int tempn, tempk;
+    for(int n = 0; n < N; ++n)
+    {
+        for(int k = 0; k < K; ++k)
+        {
+            int n0 = n / (NRepeat * NLane * NWave);
+            int k0 = k / (KRepeat * KLane * KPack);
+            tempn  = n % (NRepeat * NLane * NWave);
+            tempk  = k % (KRepeat * KLane * KPack);
+
+            int n1 = tempn / (NLane * NWave);
+            int k1 = tempk / (KRepeat * KPack); // Klane
+            tempn  = tempn % (NLane * NWave);
+            tempk  = tempk % (KRepeat * KPack);
+            int n2 = tempn / NLane;
+            int k2 = tempk / KPack; // KRepeat
+            int n3 = tempn % NLane;
+            int k3 = tempk % KPack; // Kpack
+
+            int outputIndex = n0 * KPack * NLane * KLane * NWave * KRepeat * K0 * NRepeat +
+                              n1 * KPack * NLane * KLane * NWave * KRepeat * K0 +
+                              k0 * KPack * NLane * KLane * NWave * KRepeat +
+                              k2 * KPack * NLane * KLane * NWave + n2 * KPack * NLane * KLane +
+                              k1 * KPack * NLane + n3 * KPack + k3;
+
+            dst[outputIndex] = src[n * K + k];
+        }
+    }
+}
+
 template <typename ADataType,
           typename BDataType,
           typename ComputeDataType,
@@ -71,6 +116,8 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<BDataType> b_preshuffled(
+        f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
@@ -125,22 +172,21 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     DeviceMem c_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
     d0_device_buf.ToDevice(d0_m_n.mData.data());
     d1_device_buf.ToDevice(d1_m_n.mData.data());
 
-    using DeviceOp =
-        ck::tensor_operation::device::DeviceGemmMultipleDSplitK<ALayout,
-                                                                BLayout,
-                                                                ck::Tuple<D0Layout, D1Layout>,
-                                                                ELayout,
-                                                                ADataType,
-                                                                BDataType,
-                                                                ck::Tuple<D0DataType, D1DataType>,
-                                                                EDataType,
-                                                                AElementOp,
-                                                                BElementOp,
-                                                                CElementOp>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleDSplitKBPreShuffle<
+        ALayout,
+        BLayout,
+        ck::Tuple<D0Layout, D1Layout>,
+        ELayout,
+        ADataType,
+        BDataType,
+        ck::Tuple<D0DataType, D1DataType>,
+        EDataType,
+        AElementOp,
+        BElementOp,
+        CElementOp>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -188,8 +234,20 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        // TODO: Shuffle the weight
-        // ...
+        auto preshuffle_params = op_ptr->GetPreShuffleParameters();
+
+        preShuffleBuffer(b_k_n.mData.data(),
+                         b_preshuffled.mData.data(),
+                         N,
+                         K,
+                         preshuffle_params[0],
+                         preshuffle_params[1],
+                         preshuffle_params[2],
+                         preshuffle_params[3],
+                         preshuffle_params[4],
+                         preshuffle_params[5]);
+
+        b_device_buf.ToDevice(b_preshuffled.mData.data());
 
         std::vector<int> kbatch_list = {1, 2, 4, 8, 16};
 
@@ -224,12 +282,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-
-                // re-init C to zero before profiling next kernel
-                c_device_buf.SetZero();
-
-                invoker_ptr->Run(argument_ptr.get(),
-                                 StreamConfig{nullptr, false, 0, n_warmup, n_iter});
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
 
                 if(do_verification)
                 {

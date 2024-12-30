@@ -20,7 +20,7 @@ namespace instance {
 #if 0
 #if(defined(CK_ENABLE_F16) || defined(CK_ENABLE_FP8))
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_default_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
                                                           Col,
                                                           Tuple<Row, Col>,
                                                           Row,
@@ -33,7 +33,7 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_m
                                                           MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_padding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
                                                           Col,
                                                           Tuple<Row, Col>,
                                                           Row,
@@ -46,7 +46,7 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_m
                                                           MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_default_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
                                                           Col,
                                                           Tuple<Row, Col>,
                                                           Row,
@@ -59,7 +59,7 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_m
                                                           MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_padding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
                                                           Col,
                                                           Tuple<Row, Col>,
                                                           Row,
@@ -72,7 +72,7 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_m
                                                           MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_default_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
                                                           Col,
                                                           Tuple<Row, Col>,
                                                           Row,
@@ -85,7 +85,7 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_m
                                                           MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_padding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
                                                           Col,
                                                           Tuple<Row, Col>,
                                                           Row,
@@ -101,82 +101,88 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_m
 
 #if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_bf16_mk_mfma_mn_p1_default_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                          Col,
-                                                          Tuple<Row, Col>,
-                                                          Row,
-                                                          F8,
-                                                          F8,
-                                                          Tuple<F32, F32>,
-                                                          BF16,
-                                                          PassThrough,
-                                                          PassThrough,
-                                                          MultiplyMultiply>>>& instances);
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
+                                                                     Col,
+                                                                     Tuple<Row, Col>,
+                                                                     Row,
+                                                                     F8,
+                                                                     F8,
+                                                                     Tuple<F32, F32>,
+                                                                     BF16,
+                                                                     PassThrough,
+                                                                     PassThrough,
+                                                                     MultiplyMultiply>>>&
+        instances);
 
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_bf16_mk_mfma_mn_p1_padding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                          Col,
-                                                          Tuple<Row, Col>,
-                                                          Row,
-                                                          F8,
-                                                          F8,
-                                                          Tuple<F32, F32>,
-                                                          BF16,
-                                                          PassThrough,
-                                                          PassThrough,
-                                                          MultiplyMultiply>>>& instances);
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
+                                                                     Col,
+                                                                     Tuple<Row, Col>,
+                                                                     Row,
+                                                                     F8,
+                                                                     F8,
+                                                                     Tuple<F32, F32>,
+                                                                     BF16,
+                                                                     PassThrough,
+                                                                     PassThrough,
+                                                                     MultiplyMultiply>>>&
+        instances);
 
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_bf16_mk_mfma_mn_p2_default_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                          Col,
-                                                          Tuple<Row, Col>,
-                                                          Row,
-                                                          F8,
-                                                          F8,
-                                                          Tuple<F32, F32>,
-                                                          BF16,
-                                                          PassThrough,
-                                                          PassThrough,
-                                                          MultiplyMultiply>>>& instances);
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
+                                                                     Col,
+                                                                     Tuple<Row, Col>,
+                                                                     Row,
+                                                                     F8,
+                                                                     F8,
+                                                                     Tuple<F32, F32>,
+                                                                     BF16,
+                                                                     PassThrough,
+                                                                     PassThrough,
+                                                                     MultiplyMultiply>>>&
+        instances);
 
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_bf16_mk_mfma_mn_p2_padding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                          Col,
-                                                          Tuple<Row, Col>,
-                                                          Row,
-                                                          F8,
-                                                          F8,
-                                                          Tuple<F32, F32>,
-                                                          BF16,
-                                                          PassThrough,
-                                                          PassThrough,
-                                                          MultiplyMultiply>>>& instances);
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
+                                                                     Col,
+                                                                     Tuple<Row, Col>,
+                                                                     Row,
+                                                                     F8,
+                                                                     F8,
+                                                                     Tuple<F32, F32>,
+                                                                     BF16,
+                                                                     PassThrough,
+                                                                     PassThrough,
+                                                                     MultiplyMultiply>>>&
+        instances);
 
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_bf16_mk_mfma_mn_p3_default_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                          Col,
-                                                          Tuple<Row, Col>,
-                                                          Row,
-                                                          F8,
-                                                          F8,
-                                                          Tuple<F32, F32>,
-                                                          BF16,
-                                                          PassThrough,
-                                                          PassThrough,
-                                                          MultiplyMultiply>>>& instances);
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
+                                                                     Col,
+                                                                     Tuple<Row, Col>,
+                                                                     Row,
+                                                                     F8,
+                                                                     F8,
+                                                                     Tuple<F32, F32>,
+                                                                     BF16,
+                                                                     PassThrough,
+                                                                     PassThrough,
+                                                                     MultiplyMultiply>>>&
+        instances);
 
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_bf16_mk_mfma_mn_p3_padding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                          Col,
-                                                          Tuple<Row, Col>,
-                                                          Row,
-                                                          F8,
-                                                          F8,
-                                                          Tuple<F32, F32>,
-                                                          BF16,
-                                                          PassThrough,
-                                                          PassThrough,
-                                                          MultiplyMultiply>>>& instances);
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
+                                                                     Col,
+                                                                     Tuple<Row, Col>,
+                                                                     Row,
+                                                                     F8,
+                                                                     F8,
+                                                                     Tuple<F32, F32>,
+                                                                     BF16,
+                                                                     PassThrough,
+                                                                     PassThrough,
+                                                                     MultiplyMultiply>>>&
+        instances);
 #endif
 
 template <typename ADataType,
@@ -185,31 +191,32 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMultipleDSplitK<
-    ALayout,
-    BLayout,
-    Tuple<Row, Col>,
-    CLayout,
-    ADataType,
-    BDataType,
-    Tuple<F32, F32>,
-    CDataType,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::MultiplyMultiply>>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceGemmMultipleDSplitKBPreShuffle<
+        ALayout,
+        BLayout,
+        Tuple<Row, Col>,
+        CLayout,
+        ADataType,
+        BDataType,
+        Tuple<F32, F32>,
+        CDataType,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::MultiplyMultiply>>
 {
     using DeviceOp =
-        DeviceGemmMultipleDSplitK<ALayout,
-                                  BLayout,
-                                  Tuple<Row, Col>,
-                                  CLayout,
-                                  ADataType,
-                                  BDataType,
-                                  Tuple<F32, F32>,
-                                  CDataType,
-                                  ck::tensor_operation::element_wise::PassThrough,
-                                  ck::tensor_operation::element_wise::PassThrough,
-                                  ck::tensor_operation::element_wise::MultiplyMultiply>;
+        DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
+                                             BLayout,
+                                             Tuple<Row, Col>,
+                                             CLayout,
+                                             ADataType,
+                                             BDataType,
+                                             Tuple<F32, F32>,
+                                             CDataType,
+                                             ck::tensor_operation::element_wise::PassThrough,
+                                             ck::tensor_operation::element_wise::PassThrough,
+                                             ck::tensor_operation::element_wise::MultiplyMultiply>;
 
     static auto GetInstances()
     {

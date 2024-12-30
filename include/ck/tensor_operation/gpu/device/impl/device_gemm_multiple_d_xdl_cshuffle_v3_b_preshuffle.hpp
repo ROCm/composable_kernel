@@ -10,9 +10,10 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle_v3.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle.hpp"
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
 
@@ -69,55 +70,17 @@ template <typename ALayout,
           typename LDSTypeA                           = ComputeTypeA,
           typename LDSTypeB                           = ComputeTypeB>
 struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
-    : public DeviceGemmMultiD_Xdl_CShuffle_V3<
-          ALayout,
-          BLayout,
-          DsLayout,
-          CLayout,
-          ADataType,
-          BDataType,
-          DsDataType,
-          CDataType,
-          GemmAccDataType,
-          CShuffleDataType,
-          AElementwiseOperation,
-          BElementwiseOperation,
-          CElementwiseOperation,
-          GemmSpec,
-          BlockSize,
-          MPerBlock,
-          NPerBlock,
-          KPerBlock,
-          AK1,
-          BK1,
-          MPerXDL,
-          NPerXDL,
-          MXdlPerWave,
-          NXdlPerWave,
-          ABlockTransferThreadClusterLengths_AK0_M_AK1,
-          ABlockTransferThreadClusterArrangeOrder,
-          ABlockTransferSrcAccessOrder,
-          ABlockTransferSrcVectorDim,
-          ABlockTransferSrcScalarPerVector,
-          ABlockTransferDstScalarPerVector_AK1,
-          ABlockLdsExtraM,
-          BBlockTransferThreadClusterLengths_BK0_N_BK1,
-          BBlockTransferThreadClusterArrangeOrder,
-          BBlockTransferSrcAccessOrder,
-          BBlockTransferSrcVectorDim,
-          BBlockTransferSrcScalarPerVector,
-          BBlockTransferDstScalarPerVector_BK1,
-          BBlockLdsExtraN,
-          CShuffleMXdlPerWavePerShuffle,
-          CShuffleNXdlPerWavePerShuffle,
-          CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          CDEShuffleBlockTransferScalarPerVectors,
-          BlkGemmPipeSched,
-          BlkGemmPipelineVer,
-          ComputeTypeA,
-          ComputeTypeB,
-          LDSTypeA,
-          LDSTypeB>
+    : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
+                                                  BLayout,
+                                                  DsLayout,
+                                                  CLayout,
+                                                  ADataType,
+                                                  BDataType,
+                                                  DsDataType,
+                                                  CDataType,
+                                                  AElementwiseOperation,
+                                                  BElementwiseOperation,
+                                                  CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
@@ -175,6 +138,18 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
         LDSTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
+
+    std::array<int, 6> GetPreShuffleParameters() override
+    {
+        std::array<int, 6> preshuffle_params{NXdlPerWave,
+                                             GridwiseGemm::KRepeat,
+                                             GridwiseGemm::NWave,
+                                             GridwiseGemm::KLane,
+                                             GridwiseGemm::NLane,
+                                             GridwiseGemm::KPack};
+
+        return preshuffle_params;
+    }
 
     // Invoker
     struct Invoker : public BaseInvoker
@@ -278,21 +253,49 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                 {
                     if(arg.KBatch > 1)
                     {
-                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
-                            GridwiseGemm,
-                            true,
-                            InMemoryDataOperationEnum::AtomicAdd,
-                            minimum_occupancy>;
-                        Run(kernel);
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
+                                GridwiseGemm,
+                                true,
+                                InMemoryDataOperationEnum::AtomicAdd,
+                                minimum_occupancy,
+                                TailNumber::Odd>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
+                                GridwiseGemm,
+                                true,
+                                InMemoryDataOperationEnum::AtomicAdd,
+                                minimum_occupancy,
+                                TailNumber::Even>;
+                            Run(kernel);
+                        }
                     }
                     else
                     {
-                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
-                            GridwiseGemm,
-                            true,
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy>;
-                        Run(kernel);
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
+                                GridwiseGemm,
+                                true,
+                                InMemoryDataOperationEnum::Set,
+                                minimum_occupancy,
+                                TailNumber::Odd>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
+                                GridwiseGemm,
+                                true,
+                                InMemoryDataOperationEnum::Set,
+                                minimum_occupancy,
+                                TailNumber::Even>;
+                            Run(kernel);
+                        }
                     }
                 }
                 else
@@ -435,6 +438,57 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                                           a_element_op,
                                           b_element_op,
                                           c_element_op);
+    }
+
+    // polymorphic
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
+    {
+        return std::make_unique<Invoker>(Invoker{});
+    }
+
+    // polymorphic
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        std::map<BlockGemmPipelineScheduler, std::string> BlkGemmPipelineSchedulerToString{
+            {BlockGemmPipelineScheduler::Intrawave, "Intrawave"},
+            {BlockGemmPipelineScheduler::Interwave, "Interwave"}};
+
+        std::map<BlockGemmPipelineVersion, std::string> BlkGemmPipelineVersionToString{
+            {BlockGemmPipelineVersion::v1, "v1"},
+            {BlockGemmPipelineVersion::v2, "v2"},
+            {BlockGemmPipelineVersion::v3, "v3"},
+            {BlockGemmPipelineVersion::v4, "v4"},
+            {BlockGemmPipelineVersion::v5, "v5"}};
+
+        // clang-format off
+        str << "DeviceGemmXdlUniversal"
+            << "<"
+            << getGemmSpecializationString(GemmSpec) << ", "
+            << std::string(ALayout::name)[0]
+            << std::string(BLayout::name)[0]
+            << std::string(CLayout::name)[0]
+            << ">"
+            << " BlkSize: "
+            << BlockSize << ", "
+            << "BlkTile: "
+            << MPerBlock<<"x"<<NPerBlock<<"x"<<KPerBlock << ", "
+            << "WaveTile: "
+            << MPerXDL<<"x"<<NPerXDL << ", "
+            << "WaveMap: "
+            << MXdlPerWave<<"x" << NXdlPerWave<<", "
+            << "VmemReadVec: "
+            << ABlockTransferSrcScalarPerVector<<"x"<<BBlockTransferSrcScalarPerVector<<", "
+            << "BlkGemmPipelineScheduler: "
+            << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
+            << "BlkGemmPipelineVersion: "
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
+            << "BlkGemmPipelinePrefetchStages: "
+            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
+        // clang-format on
+
+        return str.str();
     }
 };
 
