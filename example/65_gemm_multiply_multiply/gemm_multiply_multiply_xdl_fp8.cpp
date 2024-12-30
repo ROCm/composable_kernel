@@ -57,14 +57,16 @@ struct MultiplyMultiply
     operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
 
     template <>
-    __host__ __device__ constexpr void operator()<F16, float, float, float>(
-        F16& e, const float& c, const float& d0, const float& d1) const
+    __host__ __device__ constexpr void operator()<F16, float, float, float>(F16& e,
+                                                                            const float& c,
+                                                                            const float& d0,
+                                                                            const float& d1) const
     {
         const float x0_f = c * d0 * d1;
 
         e = ck::type_convert<F16>(x0_f);
     }
-    
+
     template <>
     __host__ __device__ constexpr void operator()<ck::half_t, int, float, float>(
         ck::half_t& e, const int& c, const float& d0, const float& d1) const
@@ -74,44 +76,43 @@ struct MultiplyMultiply
 
         e = ck::type_convert<ck::half_t>(x0_f);
     }
-
 };
 
-void preShuffleBuffer(const FP8* src, int N, int K, FP8* dst) {
-    const int NRepeat = 1;
-    const int KRepeat = 8;
-    const int NWave = 4;
-    const int KLane = 2;
-    const int NLane = 32;
-    const int KPack = 16;
-    int K0 = K / (KRepeat * KLane * KPack);
-    // K -> src: K0 KLane KRepeat KPack  -> dst: K0 KRpeat KLane KPack, move klane inner to make all lanes contiguous
-    // N -> N0 NRepeat NWave NLane  // todo : is NRepeat outer or inner? now it's 1 
+void preShuffleBuffer(const FP8* src, int N, int K, FP8* dst)
+{
+    const int NRepeat = 4;
+    const int KRepeat = 4;
+    const int NWave   = 2;
+    const int KLane   = 2;
+    const int NLane   = 32;
+    const int KPack   = 16;
+    int K0            = K / (KRepeat * KLane * KPack);
+    // K -> src: K0 KLane KRepeat KPack  -> dst: K0 KRpeat KLane KPack, move klane inner to make all
+    // lanes contiguous N -> N0 NRepeat NWave NLane  // todo : is NRepeat outer or inner? now it's 1
     int tempn, tempk;
-    for (int n = 0; n < N; ++n) {
-        for (int k = 0; k < K; ++k) {
+    for(int n = 0; n < N; ++n)
+    {
+        for(int k = 0; k < K; ++k)
+        {
             int n0 = n / (NRepeat * NLane * NWave);
             int k0 = k / (KRepeat * KLane * KPack);
-            tempn = n % (NRepeat * NLane * NWave);
-            tempk = k % (KRepeat * KLane * KPack);
-            
+            tempn  = n % (NRepeat * NLane * NWave);
+            tempk  = k % (KRepeat * KLane * KPack);
+
             int n1 = tempn / (NLane * NWave);
             int k1 = tempk / (KRepeat * KPack); // Klane
-            tempn = tempn % (NLane * NWave);
-            tempk = tempk % (KRepeat * KPack);
+            tempn  = tempn % (NLane * NWave);
+            tempk  = tempk % (KRepeat * KPack);
             int n2 = tempn / NLane;
-            int k2 = tempk / KPack;  // KRepeat
-            int n3 = tempn % NLane; 
-            int k3 = tempk % KPack;  // Kpack
+            int k2 = tempk / KPack; // KRepeat
+            int n3 = tempn % NLane;
+            int k3 = tempk % KPack; // Kpack
 
-            int outputIndex = n0 * KPack * NLane * KLane * NWave * KRepeat * NRepeat * K0
-                            + k0 * KPack * NLane * KLane * NWave * KRepeat * NRepeat
-                            + n1 * KPack * NLane * KLane * NWave * KRepeat
-                            + k2 * KPack * NLane * KLane * NWave //switch k1, k2
-                            + n2 * KPack * NLane * KLane
-                            + k1 * KPack * NLane
-                            + n3 * KPack
-                            + k3;
+            int outputIndex = n0 * KPack * NLane * KLane * NWave * KRepeat * NRepeat * K0 +
+                              k0 * KPack * NLane * KLane * NWave * KRepeat * NRepeat +
+                              n1 * KPack * NLane * KLane * NWave * KRepeat +
+                              k2 * KPack * NLane * KLane * NWave // switch k1, k2
+                              + n2 * KPack * NLane * KLane + k1 * KPack * NLane + n3 * KPack + k3;
 
             dst[outputIndex] = src[n * K + k];
         }
@@ -136,7 +137,16 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
         // kernel 1: 256->32x128x128 
         // <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    128,  16,  16,  32,   32,    1,    1,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 32, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, FP8>;
         // <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    256,  16,  16,  32,   32,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<16, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
-        <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    256,  16,  16,  32,   32,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<16, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
+        <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
+               AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,
+               256,   256,    128,
+               16,   16,
+               32,   32, 
+               4,    4,
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+               1,    1,   S<1, 32, 1, 8>, S<8, 8, 1>,
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
         // kernel 2: 128->32x128x128
         //  <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   128,   32,   128,    128,  16,  16,  32,   32,    1,    2,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 16, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, FP8>;
 
@@ -213,7 +223,8 @@ int main(int argc, char* argv[])
 
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, A0Layout{}));
     Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
-    Tensor<B0DataType> b0_preshuffled(f_host_tensor_descriptor(K, N, StrideB, B0Layout{})); //use laout only for size
+    Tensor<B0DataType> b0_preshuffled(
+        f_host_tensor_descriptor(K, N, StrideB, B0Layout{})); // use laout only for size
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));

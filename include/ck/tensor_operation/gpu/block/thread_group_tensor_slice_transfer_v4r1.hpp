@@ -112,7 +112,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1
     template <typename SeqIdx, index_t ThreadScratchId = 0>
     __device__ constexpr auto GetSrcThreadScratchIdx()
     {
-       return threadwise_transfer_.template GetSrcThreadScratchIdx<SeqIdx, ThreadScratchId>();
+        return threadwise_transfer_.template GetSrcThreadScratchIdx<SeqIdx, ThreadScratchId>();
     }
 
     template <typename SrcBuffer, index_t ThreadScratchId = 0>

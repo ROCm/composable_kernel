@@ -67,55 +67,57 @@ template <typename ALayout,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ComputeTypeA,
-          typename LDSTypeB                           = ComputeTypeB>                                                                           
-struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle : public DeviceGemmMultiD_Xdl_CShuffle_V3<ALayout,
-                                                                                              BLayout,
-                                                                                              DsLayout,
-                                                                                              CLayout,
-                                                                                              ADataType,
-                                                                                              BDataType,
-                                                                                              DsDataType,
-                                                                                              CDataType,
-                                                                                              GemmAccDataType,
-                                                                                              CShuffleDataType,
-                                                                                              AElementwiseOperation,
-                                                                                              BElementwiseOperation,
-                                                                                              CElementwiseOperation,
-                                                                                              GemmSpec,
-                                                                                              BlockSize,
-                                                                                              MPerBlock,
-                                                                                              NPerBlock,
-                                                                                              KPerBlock,
-                                                                                              AK1,
-                                                                                              BK1,
-                                                                                              MPerXDL,
-                                                                                              NPerXDL,
-                                                                                              MXdlPerWave,
-                                                                                              NXdlPerWave,
-                                                                                              ABlockTransferThreadClusterLengths_AK0_M_AK1,
-                                                                                              ABlockTransferThreadClusterArrangeOrder,
-                                                                                              ABlockTransferSrcAccessOrder,
-                                                                                              ABlockTransferSrcVectorDim,
-                                                                                              ABlockTransferSrcScalarPerVector,
-                                                                                              ABlockTransferDstScalarPerVector_AK1,
-                                                                                              ABlockLdsExtraM,
-                                                                                              BBlockTransferThreadClusterLengths_BK0_N_BK1,
-                                                                                              BBlockTransferThreadClusterArrangeOrder,
-                                                                                              BBlockTransferSrcAccessOrder,
-                                                                                              BBlockTransferSrcVectorDim,
-                                                                                              BBlockTransferSrcScalarPerVector,
-                                                                                              BBlockTransferDstScalarPerVector_BK1,
-                                                                                              BBlockLdsExtraN,
-                                                                                              CShuffleMXdlPerWavePerShuffle,
-                                                                                              CShuffleNXdlPerWavePerShuffle,
-                                                                                              CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                                                                                              CDEShuffleBlockTransferScalarPerVectors,
-                                                                                              BlkGemmPipeSched,
-                                                                                              BlkGemmPipelineVer,
-                                                                                              ComputeTypeA,
-                                                                                              ComputeTypeB,
-                                                                                              LDSTypeA,
-                                                                                              LDSTypeB>
+          typename LDSTypeB                           = ComputeTypeB>
+struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
+    : public DeviceGemmMultiD_Xdl_CShuffle_V3<
+          ALayout,
+          BLayout,
+          DsLayout,
+          CLayout,
+          ADataType,
+          BDataType,
+          DsDataType,
+          CDataType,
+          GemmAccDataType,
+          CShuffleDataType,
+          AElementwiseOperation,
+          BElementwiseOperation,
+          CElementwiseOperation,
+          GemmSpec,
+          BlockSize,
+          MPerBlock,
+          NPerBlock,
+          KPerBlock,
+          AK1,
+          BK1,
+          MPerXDL,
+          NPerXDL,
+          MXdlPerWave,
+          NXdlPerWave,
+          ABlockTransferThreadClusterLengths_AK0_M_AK1,
+          ABlockTransferThreadClusterArrangeOrder,
+          ABlockTransferSrcAccessOrder,
+          ABlockTransferSrcVectorDim,
+          ABlockTransferSrcScalarPerVector,
+          ABlockTransferDstScalarPerVector_AK1,
+          ABlockLdsExtraM,
+          BBlockTransferThreadClusterLengths_BK0_N_BK1,
+          BBlockTransferThreadClusterArrangeOrder,
+          BBlockTransferSrcAccessOrder,
+          BBlockTransferSrcVectorDim,
+          BBlockTransferSrcScalarPerVector,
+          BBlockTransferDstScalarPerVector_BK1,
+          BBlockLdsExtraN,
+          CShuffleMXdlPerWavePerShuffle,
+          CShuffleNXdlPerWavePerShuffle,
+          CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          CDEShuffleBlockTransferScalarPerVectors,
+          BlkGemmPipeSched,
+          BlkGemmPipelineVer,
+          ComputeTypeA,
+          ComputeTypeB,
+          LDSTypeA,
+          LDSTypeB>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
@@ -172,7 +174,6 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle : public DeviceGemmMultiD_Xd
         LDSTypeA,
         LDSTypeB>;
 
-        
     using Argument = typename GridwiseGemm::Argument;
 
     // Invoker
@@ -267,7 +268,9 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle : public DeviceGemmMultiD_Xd
             constexpr index_t minimum_occupancy =
                 BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
 
-            // static_assert(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3 && has_main_k_block_loop, "only impl BlockGemmPipelineVersion::v3 and has mainloop right now");
+            // static_assert(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3 &&
+            // has_main_k_block_loop, "only impl BlockGemmPipelineVersion::v3 and has mainloop right
+            // now");
             if(has_main_k_block_loop)
             {
                 // Tail number always full
@@ -284,11 +287,11 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle : public DeviceGemmMultiD_Xd
                     }
                     else
                     {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<GridwiseGemm,
-                                                                true,
-                                                                InMemoryDataOperationEnum::Set,
-                                                                minimum_occupancy>;
+                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
+                            GridwiseGemm,
+                            true,
+                            InMemoryDataOperationEnum::Set,
+                            minimum_occupancy>;
                         Run(kernel);
                     }
                 }
@@ -298,7 +301,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle : public DeviceGemmMultiD_Xd
                 }
             }
             else
-            {                    
+            {
                 if(arg.KBatch > 1)
                 {
                     const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
@@ -310,11 +313,11 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle : public DeviceGemmMultiD_Xd
                 }
                 else
                 {
-                    const auto kernel =
-                        kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<GridwiseGemm,
-                                                            false,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy>;
+                    const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
+                        GridwiseGemm,
+                        false,
+                        InMemoryDataOperationEnum::Set,
+                        minimum_occupancy>;
                     Run(kernel);
                 }
             }
