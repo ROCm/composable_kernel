@@ -339,7 +339,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
-            static_for<0, Number<16>{}, 1>{}([&](auto i0) {
+            static_for<0, Number<xdlops_gemm.GetRegSizePerXdlops()>{}, 1>{}([&](auto i0) {
                 a_scale_thread_copy.Run(a_scale_grid_desc,
                                         a_scale_grid_buf,
                                         a_scale_thread_desc,
@@ -479,7 +479,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                     });
                 });
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    static_for<0, Number<16>{}, 1>{}([&](auto i0) {
+                    static_for<0, Number<xdlops_gemm.GetRegSizePerXdlops()>{}, 1>{}([&](auto i0) {
                         a_scale_thread_copy.Run(a_scale_grid_desc,
                                                 a_scale_grid_buf,
                                                 a_scale_thread_desc,
