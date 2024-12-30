@@ -9,9 +9,15 @@ namespace device {
 namespace instance {
 
 void add_device_gemm_xdl_universal_streamk_bf16_bf16_bf16_mk_kn_mn_mem_v2_kpadding_instances(
-    std::vector<std::unique_ptr<
-        DeviceGemm_Streamk_V2<Row, Row, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
-        instances)
+    std::vector<std::unique_ptr<DeviceGemm_Streamk_V2<Row,
+                                                      Row,
+                                                      Row,
+                                                      BF16,
+                                                      BF16,
+                                                      BF16,
+                                                      PassThrough,
+                                                      PassThrough,
+                                                      PassThrough>>>& instances)
 {
     add_device_operation_instances(
         instances,
