@@ -444,6 +444,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
         }
     }
 
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return TransposeC; }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
