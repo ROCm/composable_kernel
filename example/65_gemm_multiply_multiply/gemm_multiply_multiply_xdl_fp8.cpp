@@ -25,6 +25,11 @@ template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
+using F32 = float;
+
+// using I8  = int8_t;
+// using I32 = int;
+using F16 = ck::half_t;
 using FP8 = ck::f8_t;
 using F32 = float;
 
@@ -54,25 +59,139 @@ struct MultiplyMultiply
     operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
 
     template <>
-    __host__ __device__ constexpr void operator()<ck::half_t, float, float, float>(
-        ck::half_t& e, const float& c, const float& d0, const float& d1) const
+    __host__ __device__ constexpr void operator()<F16, float, float, float>(
+        F16& e, const float& c, const float& d0, const float& d1) const
     {
         const float x0_f = c * d0 * d1;
 
+        e = ck::type_convert<F16>(x0_f);
+    }
+    
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, int, float, float>(
+        ck::half_t& e, const int& c, const float& d0, const float& d1) const
+    {
+        const float x0_f =
+            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
+
         e = ck::type_convert<ck::half_t>(x0_f);
     }
+
 };
+
+// struct MultiplyMultiply
+// {
+//     template <typename E, typename C, typename D0, typename D1>
+//     __host__ __device__ constexpr void
+//     operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+
+//     template <>
+//     __host__ __device__ constexpr void operator()<ck::half_t, float, float, float>(
+//         ck::half_t& e, const float& c, const float& d0, const float& d1) const
+//     {
+//         const float x0_f = c * d0 * d1;
+
+//         e = ck::type_convert<ck::half_t>(x0_f);
+//     }
+
+//     template <>
+//     __host__ __device__ constexpr void operator()<ck::half_t, int, float, float>(
+//         ck::half_t& e, const int& c, const float& d0, const float& d1) const
+//     {
+//         const float x0_f =
+//             ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
+
+//         e = ck::type_convert<ck::half_t>(x0_f);
+//     }
+
+//     template <>
+//     __host__ __device__ constexpr void operator()<ck::bhalf_t, int, float, float>(
+//         ck::bhalf_t& e, const int& c, const float& d0, const float& d1) const
+//     {
+//         const float x0_f =
+//             ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
+
+//         e = ck::type_convert<ck::bhalf_t>(x0_f);
+//     }
+// };
+// void reinit2(FP8* dst, int N, int K) {
+//     for (int n = 0; n < N; ++n) {
+//         int kinit = 0;
+//         for (int k = 0; k < K; k+=1) {
+//             // dst[n * K + k] = n;
+//             if(k>0 && k%128==0){
+//                 kinit += 1;
+//             }
+//             dst[n * K + k] = k % 128 + kinit;//rand() % 5 - 2;
+//         }
+//     }
+// }
+// void reinit(FP8* dst, int N, int K) {
+//     for (int n = 0; n < N; ++n) {
+//         for (int k = 0; k < K; k+=1) {
+//             dst[n * K + k] = ck::type_convert<FP8>(float(1));
+//         }
+//     }
+// }
+
+void dump(FP8* dst, int N, int K) {
+    for (int n = 0; n < N; ++n) {
+        for (int k = 0; k < K; ++k) {
+            printf("%.1f,", ck::type_convert<float>(dst[n * K + k]));
+        }
+        printf("\n");
+    }
+}
+// void preShuffleBuffer(const FP8* src, int N, int K, FP8* dst) {
+//     const int NRepeat = 1;
+//     const int KRepeat = 8;
+//     const int NWave = 4;
+//     const int KLane = 2;
+//     const int NLane = 32;
+//     const int KPack = 16;
+//     int K0 = K / (KRepeat * KLane * KPack);
+
+//     int tempn, tempk;
+//     for (int n = 0; n < N; ++n) {
+//         for (int k = 0; k < K; ++k) {
+//             int n0 = n / (NRepeat * NLane * NWave);
+//             int k0 = k / (KRepeat * KLane * KPack);
+//             tempn = n % (NRepeat * NLane * NWave);
+//             tempk = k % (KRepeat * KLane * KPack);
+//             int n1 = tempn / (NLane * NWave);
+//             int k1 = tempk / (KLane * KPack);
+//             tempn = tempn % (NLane * NWave);
+//             tempk = tempk % (KLane * KPack);
+//             int n2 = tempn / NLane;
+//             int k2 = tempk / KPack;
+//             int n3 = tempn % NLane;
+//             int k3 = tempk % KPack;
+
+//             int outputIndex = n0 * KPack * NLane * KLane * NWave * KRepeat * NRepeat * K0
+//                             + k0 * KPack * NLane * KLane * NWave * KRepeat * NRepeat
+//                             + n1 * KPack * NLane * KLane * NWave * KRepeat
+//                             + k1 * KPack * NLane * KLane * NWave
+//                             + n2 * KPack * NLane * KLane
+//                             + k2 * KPack * NLane
+//                             + n3 * KPack
+//                             + k3;
+
+//             dst[outputIndex] = src[n * K + k];
+//         }
+//     }
+// }
+
 
 void preShuffleBuffer(const FP8* src, int N, int K, FP8* dst) {
     const int NRepeat = 1;
-    const int KRepeat = 4;
+    const int KRepeat = 8;
     const int NWave = 4;
     const int KLane = 2;
     const int NLane = 32;
     const int KPack = 16;
-    int N0 = N / (NRepeat * NLane * NWave);
     int K0 = K / (KRepeat * KLane * KPack);
-
+    // K -> src: K0 KLane KRepeat KPack  -> dst: K0 KRpeat KLane KPack, move klane inner to make all lanes contiguous
+    // N -> N0 NRepeat NWave NLane  // todo : is NRepeat outer or inner? now it's 1 
     int tempn, tempk;
     for (int n = 0; n < N; ++n) {
         for (int k = 0; k < K; ++k) {
@@ -80,21 +199,22 @@ void preShuffleBuffer(const FP8* src, int N, int K, FP8* dst) {
             int k0 = k / (KRepeat * KLane * KPack);
             tempn = n % (NRepeat * NLane * NWave);
             tempk = k % (KRepeat * KLane * KPack);
+            
             int n1 = tempn / (NLane * NWave);
-            int k1 = tempk / (KLane * KPack);
+            int k1 = tempk / (KRepeat * KPack); // Klane
             tempn = tempn % (NLane * NWave);
-            tempk = tempk % (KLane * KPack);
+            tempk = tempk % (KRepeat * KPack);
             int n2 = tempn / NLane;
-            int k2 = tempk / KPack;
-            int n3 = tempn % NLane;
-            int k3 = tempk % KPack;
+            int k2 = tempk / KPack;  // KRepeat
+            int n3 = tempn % NLane; 
+            int k3 = tempk % KPack;  // Kpack
 
             int outputIndex = n0 * KPack * NLane * KLane * NWave * KRepeat * NRepeat * K0
                             + k0 * KPack * NLane * KLane * NWave * KRepeat * NRepeat
                             + n1 * KPack * NLane * KLane * NWave * KRepeat
-                            + k1 * KPack * NLane * KLane * NWave
+                            + k2 * KPack * NLane * KLane * NWave //switch k1, k2
                             + n2 * KPack * NLane * KLane
-                            + k2 * KPack * NLane
+                            + k1 * KPack * NLane
                             + n3 * KPack
                             + k3;
 
@@ -102,7 +222,6 @@ void preShuffleBuffer(const FP8* src, int N, int K, FP8* dst) {
         }
     }
 }
-
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using AElementOp   = PassThrough;
@@ -120,6 +239,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
 ///###### RCR
         // kernel 1: 256->32x128x128 
         // <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    128,  16,  16,  32,   32,    1,    1,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 32, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, FP8>;
+        // <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    256,  16,  16,  32,   32,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<16, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    256,  16,  16,  32,   32,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<16, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
         // kernel 2: 128->32x128x128
         //  <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   128,   32,   128,    128,  16,  16,  32,   32,    1,    2,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 16, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, FP8>;
@@ -215,8 +335,8 @@ int main(int argc, char* argv[])
     case 1:
         a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 2});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{0, 2});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{0, 2});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
@@ -229,9 +349,12 @@ int main(int argc, char* argv[])
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
-
+    // reinit2(a0_m_k.mData.data(), M, K);
+    // reinit2(b0_k_n.mData.data(), N, K);
     preShuffleBuffer(b0_k_n.mData.data(), N, K, b0_preshuffled.mData.data());
+    // dump(b0_preshuffled.mData.data(), N, K);
     a0_device_buf.ToDevice(a0_m_k.mData.data());
+    // b0_device_buf.ToDevice(b0_preshuffled.mData.data());
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
     d0_device_buf.ToDevice(d0_m_n.mData.data());
     d1_device_buf.ToDevice(d1_m_n.mData.data());
@@ -273,7 +396,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 0, 1});
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =
@@ -288,7 +411,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        invoker.Run(argument, StreamConfig{nullptr, false});
+        invoker.Run(argument, StreamConfig{nullptr, false, 0, 1, 1});
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 

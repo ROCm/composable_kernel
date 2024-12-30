@@ -328,7 +328,6 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                    a_thread_buf);
             });
         });
-
         __builtin_amdgcn_sched_barrier(0);
 
         // main body
@@ -355,15 +354,8 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                 a_thread_vec.template AsType<ComputeDataType>()(ik) =
                                     a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                         make_tuple(m0, I0, k0, ik))>{}];
-                                        
-                                // if(threadIdx.x==0) {
-                                //     printf("%f, %f; ", type_convert<float>(a_thread_vec.template AsType<ComputeDataType>()(ik)), type_convert<float>(b_thread_vec.template AsType<ComputeDataType>()(ik)));
-                                // }
                             });
                             
-                            // if(threadIdx.x==0) {
-                            //     printf("\n");
-                            // }
                             using mfma_input_type =
                                 typename vector_type<ComputeDataType,
                                                      xdlops_gemm.K1PerXdlops>::type;
@@ -442,19 +434,16 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                            a_thread_buf);
                     });
                 });
-
                 HotLoopScheduler();
                 __builtin_amdgcn_sched_barrier(0);
                 i += 2;
-            } while(i < (num_loop - 1));
+            } while(i < (num_loop - 2));
         }
         // tail
         if constexpr(TailNum == TailNumber::Full)
         {
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf1);
-
             b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, Number<1>{});
-
 
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {

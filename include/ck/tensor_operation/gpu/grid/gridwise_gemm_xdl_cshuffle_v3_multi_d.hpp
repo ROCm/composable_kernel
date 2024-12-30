@@ -130,10 +130,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     static constexpr auto AK1Number = Number<AK1Value>{};
     static constexpr auto BK1Number = Number<BK1Value>{};
     static constexpr auto BlockSizeNumber = Number<BlockSize>{};
-    static constexpr index_t NLane = 128;
+    static constexpr index_t NLane = 32;
+    static constexpr index_t NWave = 4;
     static constexpr index_t KLane = 2;
-    static constexpr index_t KRepeat = 4;
-    static_assert(NLane * KLane == BlockSize);
+    static constexpr index_t KRepeat = 8;
+    static_assert(NLane * NWave * KLane == BlockSize);
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
@@ -173,11 +174,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
     __host__ __device__ static auto CalculateBN0Shuffled(index_t N)
     {
-        return math::integer_least_multiple(N, NLane);
+        return math::integer_divide_ceil(N, NLane * NWave);
     }
     __host__ __device__ static auto CalculateBK0Shuffled(index_t K, index_t KBatch)
     {
-        return math::integer_least_multiple(K, KLane * KPack * KBatch);
+        return math::integer_divide_ceil(K, KLane * KPack * KBatch);
     }
 
     __host__ __device__ static auto CalculateKPadded(index_t K)
@@ -1296,8 +1297,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
 
         const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_n_id * NPerBlock) / NLane;
-
+            __builtin_amdgcn_readfirstlane(block_n_id * (NPerBlock / NLane / NWave)) ;
+            
         // lds max alignment
         constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
 
