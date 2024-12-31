@@ -19,7 +19,7 @@ we need to design the pipeline such that all waves along gemm-N dim (gemm-m only
     +----+----+----+----+
 */
 template <typename Problem_, typename Policy_ = FusedMoeGemmPipelineFlatmmPolicy>
-struct FusedMoeGemmPipeline_FlatmmUk
+struct FusedMoeGemmPipeline_FlatmmUk_int8
 {
     using Problem = remove_cvref_t<Problem_>;
     using Policy  = remove_cvref_t<Policy_>;
@@ -177,7 +177,10 @@ struct FusedMoeGemmPipeline_FlatmmUk
             reinterpret_cast<const IndexDataType*>(kargs.sorted_expert_ids_ptr)[sorted_tile_id]);
         index_t expert_stride_0 = shared_intermediate_size_0 * kargs.hidden_size;
         index_t expert_stride_1 = shared_intermediate_size_1 * kargs.hidden_size;
-
+        /////////////
+        index_t a_scale_expert_stride_0 = kargs.hidden_size;
+        index_t g_scale_expert_stride_0 = shared_intermediate_size_0;
+        index_t d_scale_expert_stride_1 = kargs.hidden_size;
         // nr*kr*w
         index_t interm_idx_nr0 = __builtin_amdgcn_readfirstlane(
             intermediate_tile_id *
@@ -190,16 +193,30 @@ struct FusedMoeGemmPipeline_FlatmmUk
         auto row_coords_a = GetRowCoords_A(sorted_tile_id * BlockShape::Block_M0);
         auto row_ids_a    = GetRowID(
             row_coords_a, reinterpret_cast<const IndexDataType*>(kargs.sorted_token_ids_ptr));
+        auto token_id = row_ids_a & 0xffffff;
+            //addr in fact
         auto a_coords = generate_tuple(
             [&](auto i) {
-                return row_ids_a[i] * kargs.stride_token +
+                return (token_id) * kargs.stride_token +
                        threadIdx.x % (BlockShape::Block_K0 / kAlignmentA) * kAlignmentA;
             },
             number<row_ids_a.size()>{});
         auto a_res =
             make_wave_buffer_resource(reinterpret_cast<const ADataType*>(kargs.a_ptr),
                                       kargs.num_tokens * kargs.stride_token * sizeof(ADataType));
+        //////aq
+        auto aq_win = [&]() {
+            const AScaleDataType* aq_ptr = reinterpret_cast<const AScaleDataType*>(kargs.a_scale_ptr);
+            auto aq_view_ = make_naive_tensor_view<address_space_enum::global>(
+                aq_ptr,
+                make_tuple(kargs.num_tokens * kargs.topk),
+                number<1>{});
 
+            return aq_view_;
+        }();
+
+        auto aq_res    = aq_win.get_buffer_view().cached_buf_res_;
+        ////////
         auto g_win = [&]() {
             const GDataType* g_ptr = reinterpret_cast<const GDataType*>(kargs.g_ptr) +
                                      static_cast<long_index_t>(expert_id) * expert_stride_0 +
@@ -225,7 +242,22 @@ struct FusedMoeGemmPipeline_FlatmmUk
         auto g_res    = g_win.get_bottom_tensor_view().get_buffer_view().cached_buf_res_;
         auto g_coords = generate_tuple([&](auto i) { return g_win.cached_coords_[i].get_offset(); },
                                        number<decltype(g_win)::NumAccess_NonLinear>{});
+        //////gq
+        auto gq_win = [&]() {
+            const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr) + 
+                                    static_cast<long_index_t>(expert_id) * g_scale_expert_stride_0 + 
+                                    intermediate_tile_id * BlockShape::Block_N0;
+           // const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr);//remember to add expert id for inline
+            auto g_view_ = make_naive_tensor_view<address_space_enum::global>(
+                g_ptr,
+                make_tuple(shared_intermediate_size_1),
+                number<1>{});
 
+            return g_view_;
+        }();
+
+        auto gq_res    = gq_win.get_buffer_view().cached_buf_res_;
+        ////
         const auto d_win = [&]() {
             const DDataType* d_ptr = reinterpret_cast<const DDataType*>(kargs.d_ptr) +
                                      static_cast<long_index_t>(expert_id) * expert_stride_1 +
@@ -250,6 +282,20 @@ struct FusedMoeGemmPipeline_FlatmmUk
             return d_window_;
         }();
         auto d_res = d_win.get_bottom_tensor_view().get_buffer_view().cached_buf_res_;
+        //////gq
+        auto dq_win = [&]() {
+         //   const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.d_scale_ptr) + static_cast<long_index_t>(expert_id) * d_scale_expert_stride_0;
+            const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.d_scale_ptr)//remember to add expert_id as expert_idx
+            auto g_view_ = make_naive_tensor_view<address_space_enum::global>(
+                g_ptr,
+                make_tuple(kargs.hidden_size),
+                number<1>{});
+
+            return g_view_;
+        }();
+
+        auto dq_res    = dq_win.get_buffer_view().cached_buf_res_;
+        ////
 
         // TODO: load D order is N0.K0...127, N64.K0...127, N0.K128...255, N64.K128...255
         //      block-k=512, block-n=128
@@ -258,24 +304,23 @@ struct FusedMoeGemmPipeline_FlatmmUk
         //          y   p          y     y         p     p       y
         //          1              2     0(imm)
         auto d_coords = [&]() {
-            constexpr index_t Nr_          = 2;
+            constexpr index_t Nr_          = 4;
             constexpr index_t Nw_          = 4;
-            constexpr index_t Kr0_         = 4;
+            constexpr index_t Kr0_         = 2;//no more need in int8, method changed, this will be handed in res_s
             constexpr index_t Kr1_         = 4;
             constexpr index_t Kl_          = 4;
             constexpr index_t Nl_          = 16;
-            constexpr index_t Kv_          = 8;
+            constexpr index_t Kv_          = 16;
             constexpr index_t W_           = Kl_ * Nl_ * Kv_;
-            constexpr index_t num_offsets_ = Nr_ * Kr0_;
+            //constexpr index_t num_offsets_ = Nr_ * Kr0_;
+            constexpr index_t num_offsets_ = Nr_ ;
             index_t base_os_               = (threadIdx.x % 64) * Kv_ + (threadIdx.x / 64) *
                                                               shared_intermediate_size_1 *
                                                               Nl_; // Kr0_ * Kr1_ * W_;
             return generate_tuple(
                 [&](auto i) {
                     constexpr auto i_nr_  = number<i % Nr_>{};
-                    constexpr auto i_kr0_ = number<i / Nr_>{};
-
-                    return i_nr_ * shared_intermediate_size_1 * Nw_ * Nl_ + i_kr0_ * Kr1_ * W_ +
+                    return i_nr_ * shared_intermediate_size_1 * Nw_ * Nl_ +
                            base_os_;
                 },
                 number<num_offsets_>{});
@@ -283,13 +328,13 @@ struct FusedMoeGemmPipeline_FlatmmUk
 
         auto o_coords = generate_tuple(
             [&](auto i) {
-                return row_ids_a[i] * kargs.stride_token +
+                return token_id * kargs.stride_token +
                        threadIdx.x % (BlockShape::Block_N1 / kAlignmentO) * kAlignmentO;
             },
             number<row_ids_a.size()>{});
 
         auto o_flags =
-            generate_tuple([&](auto i) { return cmp_lt_to_exec(row_ids_a[i], kargs.num_tokens); },
+            generate_tuple([&](auto i) { return cmp_lt_to_exec(token_id, kargs.num_tokens); },
                            number<row_ids_a.size()>{});
 
         auto bridge_sst_win = [&]() {
@@ -310,7 +355,12 @@ struct FusedMoeGemmPipeline_FlatmmUk
             row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr));
 
         auto uk_0  = Policy::template GetUK_0<Problem>();
-        auto acc_0= uk_0(a_res,
+        auto acc_0= uk_0(
+                        row_ids_a,//fake token id, 2D index for X scale
+                        aq_res,
+                        gq_res,
+                        dq_res,                        
+                        a_res,
                           a_coords,
                           g_res,
                           g_coords,
@@ -320,22 +370,22 @@ struct FusedMoeGemmPipeline_FlatmmUk
                           BlockShape::Block_Kr0 *
                               BlockShape::Block_W0); // tile offset for B matrix each unroll
 
-        sweep_tile(
-            acc_0,
-            [&](auto idx0, auto idx1) {
-                fp32x2_t v_{acc_0(idx0), acc_0(idx1)};
-                typename Problem::GateActivation{}(v_, v_);
-                acc_0(idx0) = v_.x;
-                acc_0(idx1) = v_.y;
-            },
-            sequence<1, 2>{});
+        // sweep_tile(
+        //     acc_0,
+        //     [&](auto idx0, auto idx1) {
+        //         fp32x2_t v_{acc_0(idx0), acc_0(idx1)};
+        //         typename Problem::GateActivation{}(v_, v_);
+        //         acc_0(idx0) = v_.x;
+        //         acc_0(idx1) = v_.y;
+        //     },
+        //     sequence<1, 2>{});
 
-        auto y_pre = cast_tile<YDataType>(acc_0);
+        // auto y_pre = cast_tile<YDataType>(acc_0);
 
-        block_sync_lds();
+        // block_sync_lds();
 
-        store_tile(bridge_sst_win, y_pre);
-        block_sync_lds();
+        // store_tile(bridge_sst_win, y_pre);
+        // block_sync_lds();
 
         auto uk_1 = Policy::template GetUK_1<Problem>();
         uk_1(d_res,
@@ -346,7 +396,8 @@ struct FusedMoeGemmPipeline_FlatmmUk
              smem,
              kargs.hidden_size, // total n number
              w_scale,
-             BlockShape::Block_Nr1 * kr_1 * BlockShape::Block_W1, // along N
+             shared_intermediate_size_1 * Block_N1 - kr_1 * BlockShape::Block_W1, // along N
+             kr_1 * BlockShape::Block_W1,
              BlockShape::Block_N1);                               // along N
     }
 };
