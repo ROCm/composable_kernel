@@ -178,9 +178,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     {
         return math::integer_divide_ceil(N, NLane * NWave);
     }
-    __host__ __device__ static auto CalculateBK0Shuffled(index_t K, index_t KBatch)
+    __host__ __device__ static auto CalculateBK0Shuffled(index_t K)
     {
-        return math::integer_divide_ceil(K, KLane * KPack * KBatch);
+        return math::integer_divide_ceil(K, KLane * KPack);
     }
 
     __host__ __device__ static auto CalculateKPadded(index_t K)
@@ -539,7 +539,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)},
               BN0Shuffled{CalculateBN0Shuffled(N_)},
-              BK0Shuffled{CalculateBK0Shuffled(K_, KBatch_)}
+              BK0Shuffled{CalculateBK0Shuffled(K_)}
         {
         }
 
@@ -649,8 +649,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                // KPack * NLane * KLane * NWave * KRepeat * NRepeat *  K0*N0
-                b_k_split_offset = k_id * karg.KRead * NLane * NWave * NXdlPerWave;
+                // KPack * NLane * KLane * NWave * KRepeat * K0* NRepeat *  N0
+                b_k_split_offset = k_id * karg.KRead * NLane * NWave;
             }
 
             if(k_id < karg.KBatch - 1)

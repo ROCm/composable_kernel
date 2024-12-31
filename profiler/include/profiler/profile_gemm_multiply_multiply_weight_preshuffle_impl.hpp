@@ -249,7 +249,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
         b_device_buf.ToDevice(b_preshuffled.mData.data());
 
-        std::vector<int> kbatch_list = {1, 2, 4, 8, 16};
+        std::vector<int> kbatch_list = {1, 2, 4, 8};
 
         if(KBatch > 0)
         {
@@ -282,6 +282,8 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
+                c_device_buf.SetZero();
+
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
 
                 if(do_verification)

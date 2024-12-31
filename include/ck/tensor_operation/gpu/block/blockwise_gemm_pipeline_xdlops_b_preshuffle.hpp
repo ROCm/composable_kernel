@@ -164,13 +164,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
             HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16
                 ? HotLoopInstList::A_LDS_Read_Inst_Num
                 : HotLoopInstList::A_LDS_Read_Inst_Num / 2;
-        constexpr auto num_ds_read_inst_b =
-            HotLoopInstList::B_LDS_Read_Width * sizeof(BDataType) == 16
-                ? HotLoopInstList::B_LDS_Read_Inst_Num
-                : HotLoopInstList::B_LDS_Read_Inst_Num / 2;
 
         constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
-        constexpr auto num_ds_write_inst_b = HotLoopInstList::B_LDS_Write_Inst_Num;
 
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
@@ -180,29 +175,17 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
         constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
         constexpr auto ds_read_a_issue_cycle =
             HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16 ? 8 : 4;
-        constexpr auto ds_read_b_issue_cycle =
-            HotLoopInstList::B_LDS_Read_Width * sizeof(BDataType) == 16 ? 8 : 4;
         constexpr auto ds_read_a_mfma_rate =
             (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
-        constexpr auto ds_read_b_mfma_rate =
-            (mfma_cycle - 4 + 2 * ds_read_b_issue_cycle - 1) / (2 * ds_read_b_issue_cycle);
 
         constexpr auto num_dsread_a_mfma =
             (num_ds_read_inst_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
-        constexpr auto num_dsread_b_mfma =
-            (num_ds_read_inst_b + ds_read_b_mfma_rate - 1) / ds_read_b_mfma_rate;
 
         // stage 1
-        // Separate this part?
-        // constexpr auto num_mfma_per_ds_read = sizeof(ComputeDataType) / sizeof(ADataType) >
-        //                                               sizeof(ComputeDataType) / sizeof(BDataType)
-        //                                           ? sizeof(ComputeDataType) / sizeof(ADataType)
-        //                                           : sizeof(ComputeDataType) / sizeof(BDataType);
-        constexpr auto num_mfma_stage1 = num_mfma_inst - (num_dsread_a_mfma + num_dsread_b_mfma);
+        constexpr auto num_mfma_stage1 = num_mfma_inst - num_dsread_a_mfma;
         constexpr auto num_mfma_per_issue =
             num_mfma_stage1 / (num_buffer_load_inst_a + num_buffer_load_inst_b);
         constexpr auto num_dswrite_per_issue_a = num_ds_write_inst_a / num_buffer_load_inst_a;
-        constexpr auto num_dswrite_per_issue_b = num_ds_write_inst_b / num_buffer_load_inst_b;
 
         static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
             ignore = i;
@@ -215,16 +198,11 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
             __builtin_amdgcn_sched_group_barrier(
                 0x008, num_mfma_per_issue - num_dswrite_per_issue_a, 0); // MFMA
         });
+
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
             ignore = i;
-            static_for<0, num_dswrite_per_issue_b, 1>{}([&](auto idswrite) {
-                ignore = idswrite;
-                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            });
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(
-                0x008, num_mfma_per_issue - num_dswrite_per_issue_b, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);                  // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_issue, 0); // MFMA
         });
 
         // stage 2
@@ -239,22 +217,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
                 __builtin_amdgcn_sched_group_barrier(0x100,
                                                      num_ds_read_inst_a - (num_dsread_a_mfma - 1) *
                                                                               ds_read_a_mfma_rate,
-                                                     0); // DS read
-            }
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-        });
-
-        static_for<0, num_dsread_b_mfma, 1>{}([&](auto i) {
-            if constexpr((num_ds_read_inst_b - (i + 1) * ds_read_b_mfma_rate) >=
-                         ds_read_b_mfma_rate)
-            {
-                __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0); // DS read
-            }
-            else
-            {
-                __builtin_amdgcn_sched_group_barrier(0x100,
-                                                     num_ds_read_inst_b - (num_dsread_b_mfma - 1) *
-                                                                              ds_read_b_mfma_rate,
                                                      0); // DS read
             }
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
