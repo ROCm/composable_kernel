@@ -37,6 +37,7 @@ struct Layernorm2dFwdPipelineOnePass
     static constexpr bool kPadM              = false; // TODO - BlockLayernorm2dFwdProblem::kPadM
     static constexpr bool kPadN              = Problem::Traits::kPadN;
     static constexpr bool kFastFDiv          = Problem::Traits::kFastFDiv;
+    static constexpr bool kWelford           = Problem::Traits::kWelford;
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
@@ -92,13 +93,12 @@ struct Layernorm2dFwdPipelineOnePass
         auto x      = load_tile(x_window);
         auto x_resi = load_tile(x_residual_window);
 
-        int cur_count           = 0;
-        int max_count = 
+        int cur_count = 0;
+        int max_count =
             block_tile_welford_calculate_max_count<typename Problem::BlockShape>(row_size);
-        auto block_welford      = Policy::template GetBlockWelford<Problem>();
-        auto block_welford_sync = Policy::template GetBlockWelfordSync<Problem>();
-        auto block_welford_cross_warp_sync =
-            Policy::template GetBlockWelfordCrossWarpSync<Problem>();
+        auto block_merge                 = Policy::template GetBlockMerge<Problem>();
+        auto block_merge_sync            = Policy::template GetBlockMergeSync<Problem>();
+        auto block_merge_cross_warp_sync = Policy::template GetBlockMergeCrossWarpSync<Problem>();
 
         // load gamma/beta (TODO: support no gamma/beta?)
         const auto gamma = load_tile(gamma_window);
@@ -117,21 +117,26 @@ struct Layernorm2dFwdPipelineOnePass
                 store_tile(y_residual_window, cast_tile<YResidualDataType>(acc));
         }
 
+        auto [mean, var] = block_merge(acc, cur_count, max_count);
         // compute welford each-thread->cross-lane->cross-warp
-        auto [mean, var] = block_welford(acc, cur_count, max_count);
-        block_welford_sync(mean, var, cur_count);
-        block_welford_cross_warp_sync(mean, var, cur_count, smem);
-        // block_tile_welford_post_scale_var(var, max_count, constant<kFastFDiv>{});
-        // block_tile_welford_post_scale_var(mean, row_size, constant<kFastFDiv>{});
-        // block_tile_welford_post_scale_var(var, row_size, constant<kFastFDiv>{});
-        // var = var - mean * mean;
+        if(kWelford)
+        {
+            block_merge_sync(mean, var, cur_count);
+            block_merge_cross_warp_sync(mean, var, cur_count, smem);
+            block_tile_welford_post_scale_var(var, cur_count, constant<kFastFDiv>{});
+        }
+        else
+        {
+            block_merge_sync(mean, var, cur_count);
+            block_merge_cross_warp_sync(mean, var, cur_count, smem);
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc++20-extensions"
-        sweep_tile(mean, [&](auto idx) {
-            mean(idx) = mean(idx) / type_convert<MeanDataType>(row_size);
-            var(idx)  = var(idx) / type_convert<MeanDataType>(row_size) - mean(idx) * mean(idx);
-        });
+            sweep_tile(mean, [&](auto idx) {
+                mean(idx) = mean(idx) / type_convert<MeanDataType>(row_size);
+                var(idx)  = var(idx) / type_convert<MeanDataType>(row_size) - mean(idx) * mean(idx);
+            });
 #pragma clang diagnostic pop
+        }
         // compute inv-std
         auto inv_std = tile_elementwise_in(
             [&](const auto& v_) {

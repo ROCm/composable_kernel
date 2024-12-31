@@ -54,12 +54,4 @@ CK_TILE_DEVICE static void welford_merge(T& mean_a,
     count_a = count;
 }
 
-template <typename T, bool kFastFDiv = false>
-CK_TILE_DEVICE static void
-welford_merge(T& mean_a, T& var_a, T mean_b, T var_b, bool_constant<kFastFDiv> = {})
-{
-    mean_a += mean_b;
-    var_a += var_b;
-}
-
 } // namespace ck_tile
