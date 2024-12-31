@@ -54,6 +54,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
     static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+    static constexpr auto I4 = Number<4>{};
+    static constexpr auto I8 = Number<8>{};
 
     __device__ constexpr ThreadwiseTensorSliceTransfer_v3r1(
         const SrcDesc& src_desc,
@@ -206,55 +210,21 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             constexpr index_t elem_op_vec_len = get_elem_op_vec_len();
 
             using src_elem_op_vec_t = typename vector_type<SrcData, elem_op_vec_len>::type;
+            using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
 
-            // Special vector size cases
-            constexpr auto I3 = Number<3>{};
-            constexpr auto I5 = Number<5>{};
-            constexpr auto I7 = Number<7>{};
-            if constexpr(SrcScalarPerVector == I3)
+            if constexpr(SrcScalarPerVector != I1 && SrcScalarPerVector % I2 == I1)
             {
-                using src_vector_4      = vector_type_maker_t<SrcData, Number<4>{}>;
-                using src_vector_type_4 = typename src_vector_4::type;
-
-                src_vector_4 src_vector_container = src_vector_4{
-                    src_buf.template Get<src_vector_type_4>(src_coord_.GetOffset(), true)};
-
+                // Special vector size cases
+                static_assert(SrcScalarPerVector < I8, "Not supported");
                 static_assert(elem_op_vec_len == 1);
-                using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
+                // 4 vector size for 3, 8 vector size for 5, 6, 7
+                using VectorLoadSize =
+                    std::conditional_t < SrcScalarPerVector<I4, Number<4>, Number<8>>;
+                using src_irregular_vector_type = vector_type_maker_t<SrcData, VectorLoadSize{}>;
+                using src_irregular_vector_t    = typename src_irregular_vector_type::type;
 
-                static_for<0, SrcScalarPerVector, 1>{}([&](auto idx) {
-                    // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                                    src_vector_container.template AsType<src_elem_op_vec_t>()[idx]);
-                });
-            }
-            else if constexpr(SrcScalarPerVector == I5)
-            {
-                using src_vector_8      = vector_type_maker_t<SrcData, Number<8>{}>;
-                using src_vector_type_8 = typename src_vector_8::type;
-
-                src_vector_8 src_vector_container = src_vector_8{
-                    src_buf.template Get<src_vector_type_8>(src_coord_.GetOffset(), true)};
-
-                static_assert(elem_op_vec_len == 1);
-                using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
-
-                static_for<0, SrcScalarPerVector, 1>{}([&](auto idx) {
-                    // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                                    src_vector_container.template AsType<src_elem_op_vec_t>()[idx]);
-                });
-            }
-            else if constexpr(SrcScalarPerVector == I7)
-            {
-                using src_vector_8      = vector_type_maker_t<SrcData, Number<8>{}>;
-                using src_vector_type_8 = typename src_vector_8::type;
-
-                src_vector_8 src_vector_container = src_vector_8{
-                    src_buf.template Get<src_vector_type_8>(src_coord_.GetOffset(), true)};
-
-                static_assert(elem_op_vec_len == 1);
-                using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
+                src_irregular_vector_type src_vector_container = src_irregular_vector_type{
+                    src_buf.template Get<src_irregular_vector_t>(src_coord_.GetOffset(), true)};
 
                 static_for<0, SrcScalarPerVector, 1>{}([&](auto idx) {
                     // apply the src elementwise op and convert to DstData under the hood if needed
@@ -266,8 +236,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             {
                 auto src_vector_container = src_vector_type{
                     src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), true)};
-
-                using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
 
                 static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto idx) {
                     // apply the src elementwise op and convert to DstData under the hood if needed
