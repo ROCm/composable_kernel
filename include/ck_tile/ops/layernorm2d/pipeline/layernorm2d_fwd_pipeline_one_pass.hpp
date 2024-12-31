@@ -117,18 +117,16 @@ struct Layernorm2dFwdPipelineOnePass
                 store_tile(y_residual_window, cast_tile<YResidualDataType>(acc));
         }
 
+        // compute reduce each-thread->cross-lane->cross-warp
         auto [mean, var] = block_merge(acc, cur_count, max_count);
-        // compute welford each-thread->cross-lane->cross-warp
+        block_merge_sync(mean, var, cur_count);
+        block_merge_cross_warp_sync(mean, var, cur_count, smem);
         if(kWelford)
         {
-            block_merge_sync(mean, var, cur_count);
-            block_merge_cross_warp_sync(mean, var, cur_count, smem);
             block_tile_welford_post_scale_var(var, cur_count, constant<kFastFDiv>{});
         }
         else
         {
-            block_merge_sync(mean, var, cur_count);
-            block_merge_cross_warp_sync(mean, var, cur_count, smem);
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc++20-extensions"
             sweep_tile(mean, [&](auto idx) {

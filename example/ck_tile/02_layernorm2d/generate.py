@@ -567,10 +567,13 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
                     h_.F_kFusedQuant = fused_quant
                     # disable welford update for 8bit and 16 bit smallN
                     if not h_.F_kTwoPass_:
-                        if args.disable_16b_welford:
+                        #disable 16 bit when set args disable_16b_welford
+                        if args.disable_16b_welford and prec_i in types_16bit:
                             h_.F_kWelford_ = False
+                        #disable 8bit by default
                         elif prec_i in types_8bit or prec_o in types_8bit:
                             h_.F_kWelford_ = False
+                        #disable 16bit small N
                         elif prec_i in types_16bit and hs_key == '64':
                             h_.F_kWelford_ = False
                     current_hs.append(h_) # + "\n"
