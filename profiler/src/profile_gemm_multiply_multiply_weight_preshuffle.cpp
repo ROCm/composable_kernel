@@ -74,8 +74,8 @@ int profile_gemm_multiply_multiply_weight_preshuffle(int argc, char* argv[])
 
     using F32  = float;
     using BF16 = ck::bhalf_t;
-    // using F16  = ck::half_t;
-    using F8 = ck::f8_t;
+    using F16  = ck::half_t;
+    using F8   = ck::f8_t;
     // using I8   = int8_t;
     // using I32  = int;
 
@@ -146,19 +146,12 @@ int profile_gemm_multiply_multiply_weight_preshuffle(int argc, char* argv[])
 
         return pass ? 0 : 1;
     };
-#if 0
     if(data_type == GemmDataType::F8_F8_F16 && layout == GemmMatrixLayout::MK_MFMA_MN)
     {
         return profile(
             F8{}, F8{}, F8{}, F32{}, F32{}, F32{}, F16{}, Row{}, Col{}, Row{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_MFMA_MN)
-    {
-        return profile(
-            F8{}, F8{}, F8{}, F32{}, F32{}, F32{}, BF16{}, Row{}, Col{}, Row{}, Col{}, Row{});
-    }
-#endif
-    if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_MFMA_MN)
     {
         return profile(
             F8{}, F8{}, F8{}, F32{}, F32{}, F32{}, BF16{}, Row{}, Col{}, Row{}, Col{}, Row{});

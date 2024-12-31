@@ -24,12 +24,10 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
-using F32 = float;
-
-using F16 = ck::half_t;
-using FP8 = ck::f8_t;
-using F32 = float;
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
+using FP8  = ck::f8_t;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -41,7 +39,7 @@ using CShuffleDataType = F32;
 using D0DataType       = F32;
 using D1DataType       = F32;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
-using EDataType        = F16;
+using EDataType        = BF16;
 
 using A0Layout = Row;
 using B0Layout = Col;
@@ -68,6 +66,17 @@ struct MultiplyMultiply
     }
 
     template <>
+    __host__ __device__ constexpr void operator()<BF16, float, float, float>(BF16& e,
+                                                                             const float& c,
+                                                                             const float& d0,
+                                                                             const float& d1) const
+    {
+        const float x0_f = c * d0 * d1;
+
+        e = ck::type_convert<BF16>(x0_f);
+    }
+
+    template <>
     __host__ __device__ constexpr void operator()<ck::half_t, int, float, float>(
         ck::half_t& e, const int& c, const float& d0, const float& d1) const
     {
@@ -75,6 +84,16 @@ struct MultiplyMultiply
             ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
 
         e = ck::type_convert<ck::half_t>(x0_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::bhalf_t, int, float, float>(
+        ck::bhalf_t& e, const int& c, const float& d0, const float& d1) const
+    {
+        const float x0_f =
+            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
+
+        e = ck::type_convert<ck::bhalf_t>(x0_f);
     }
 };
 
@@ -160,10 +179,10 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
         // <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    256,  16,  16,  32,   32,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<16, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,
-               32,   256,    128,
+               256,   256,    128,
                16,   16,
                32,   32, 
-               1,    2,
+               8,    2,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
                1,    1,   S<1, 32, 1, 8>, S<8, 8, 1>,
@@ -275,8 +294,8 @@ int main(int argc, char* argv[])
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-0.5, 0.5});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{-0.5, 0.5});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_k_n.mDesc.GetElementSpaceSize());

@@ -17,21 +17,50 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-#if 0
 #if(defined(CK_ENABLE_F16) || defined(CK_ENABLE_FP8))
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_default_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
-                                                          Col,
-                                                          Tuple<Row, Col>,
-                                                          Row,
-                                                          F8,
-                                                          F8,
-                                                          Tuple<F32, F32>,
-                                                          F16,
-                                                          PassThrough,
-                                                          PassThrough,
-                                                          MultiplyMultiply>>>& instances);
+                                                                     Col,
+                                                                     Tuple<Row, Col>,
+                                                                     Row,
+                                                                     F8,
+                                                                     F8,
+                                                                     Tuple<F32, F32>,
+                                                                     F16,
+                                                                     PassThrough,
+                                                                     PassThrough,
+                                                                     MultiplyMultiply>>>&
+        instances);
 
+void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
+                                                                     Col,
+                                                                     Tuple<Row, Col>,
+                                                                     Row,
+                                                                     F8,
+                                                                     F8,
+                                                                     Tuple<F32, F32>,
+                                                                     F16,
+                                                                     PassThrough,
+                                                                     PassThrough,
+                                                                     MultiplyMultiply>>>&
+        instances);
+
+void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
+                                                                     Col,
+                                                                     Tuple<Row, Col>,
+                                                                     Row,
+                                                                     F8,
+                                                                     F8,
+                                                                     Tuple<F32, F32>,
+                                                                     F16,
+                                                                     PassThrough,
+                                                                     PassThrough,
+                                                                     MultiplyMultiply>>>&
+        instances);
+
+#if 0
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_padding_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
                                                           Col,
@@ -45,33 +74,8 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_m
                                                           PassThrough,
                                                           MultiplyMultiply>>>& instances);
 
-void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_default_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
-                                                          Col,
-                                                          Tuple<Row, Col>,
-                                                          Row,
-                                                          F8,
-                                                          F8,
-                                                          Tuple<F32, F32>,
-                                                          F16,
-                                                          PassThrough,
-                                                          PassThrough,
-                                                          MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_padding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
-                                                          Col,
-                                                          Tuple<Row, Col>,
-                                                          Row,
-                                                          F8,
-                                                          F8,
-                                                          Tuple<F32, F32>,
-                                                          F16,
-                                                          PassThrough,
-                                                          PassThrough,
-                                                          MultiplyMultiply>>>& instances);
-
-void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_default_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
                                                           Col,
                                                           Tuple<Row, Col>,
@@ -223,31 +227,29 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 // TODO: Add MFMA layout into tensor layout
-#if 0
-#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_F16) || defined(CK_ENABLE_FP8))
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<CDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<CLayout, Row>)
             {
-                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_comp_default_instances(
+                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_default_instances(
                     op_ptrs);
-                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_comp_kpadding_instances(
+                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_default_instances(
                     op_ptrs);
-
-                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_mem_v1_default_instances(
+                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_default_instances(
                     op_ptrs);
-                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_mem_v1_kpadding_instances(
+#if 0
+                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_padding_instances(
                     op_ptrs);
-
-                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_mem_v2_default_instances(
+                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_padding_instances(
                     op_ptrs);
-                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_mem_v2_kpadding_instances(
+                add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_padding_instances(
                     op_ptrs);
+#endif
             }
         }
-#endif
 #endif
 
 #if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
