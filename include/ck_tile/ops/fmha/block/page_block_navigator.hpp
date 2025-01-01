@@ -144,11 +144,15 @@ struct PageBlockNavigator
         const WindowOrigin local_window_origin = to_local_window_origin(global_window_origin);
 
         const index_t new_block_index = get_block_index(global_window_origin);
-        /// TODO: only update necessary attributes
-        tile_window.bottom_tensor_view_.desc_ =
-            (is_last_block(new_block_index) ? last_view : complete_view).get_tensor_descriptor();
-        tile_window.set_window_origin(local_window_origin);
-        tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(new_block_index));
+        if(block_index != new_block_index)
+        {
+            /// TODO: only update necessary attributes
+            tile_window.bottom_tensor_view_.desc_ =
+                (is_last_block(new_block_index) ? last_view : complete_view)
+                    .get_tensor_descriptor();
+            tile_window.set_window_origin(local_window_origin);
+            tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(new_block_index));
+        }
 
         return new_block_index;
     }
