@@ -12,6 +12,7 @@
 #include "mask.hpp"
 #include "rotary.hpp"
 
+#include <array>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -422,91 +423,93 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
         // create group mode kernel arguments
         if constexpr(Kernel::kIsGroupMode)
         {
-            return Kernel::MakeKargs(args.q_ptr,
-                                     args.k_ptr,
-                                     args.v_ptr,
-                                     args.bias_ptr,
-                                     args.lse_acc_ptr,
-                                     args.o_acc_ptr,
-                                     args.batch,
-                                     args.seqstart_q_ptr,
-                                     args.seqstart_k_ptr,
-                                     args.seqlen_k_ptr,
-                                     args.hdim_q,
-                                     args.hdim_v,
-                                     args.nhead_q,
-                                     args.nhead_q / args.nhead_k,
-                                     args.num_splits,
-                                     args.block_table_ptr,
-                                     args.batch_stride_block_table,
-                                     args.page_block_size,
-                                     args.is_gappy,
-                                     args.scale_s,
-                                     args.scale_p,
-                                     args.stride_q,
-                                     args.stride_k,
-                                     args.stride_v,
-                                     args.stride_bias,
-                                     args.stride_o_acc,
-                                     args.nhead_stride_q,
-                                     args.nhead_stride_k,
-                                     args.nhead_stride_v,
-                                     args.nhead_stride_bias,
-                                     args.nhead_stride_lse_acc,
-                                     args.nhead_stride_o_acc,
-                                     args.batch_stride_k, // only used for paged-kvcache
-                                     args.batch_stride_v, // only used for paged-kvcache
-                                     args.split_stride_lse_acc,
-                                     args.split_stride_o_acc,
-                                     args.window_size_left,
-                                     args.window_size_right,
-                                     args.mask_type);
+            return Kernel::MakeKargs(
+                args.q_ptr,
+                args.k_ptr,
+                args.v_ptr,
+                args.bias_ptr,
+                (1 < args.num_splits ? args.lse_acc_ptr : args.lse_ptr),
+                (1 < args.num_splits ? args.o_acc_ptr : args.o_ptr),
+                args.batch,
+                args.seqstart_q_ptr,
+                args.seqstart_k_ptr,
+                args.seqlen_k_ptr,
+                args.hdim_q,
+                args.hdim_v,
+                args.nhead_q,
+                args.nhead_q / args.nhead_k,
+                args.num_splits,
+                args.block_table_ptr,
+                args.batch_stride_block_table,
+                args.page_block_size,
+                args.is_gappy,
+                args.scale_s,
+                args.scale_p,
+                args.stride_q,
+                args.stride_k,
+                args.stride_v,
+                args.stride_bias,
+                (1 < args.num_splits ? args.stride_o_acc : args.stride_o),
+                args.nhead_stride_q,
+                args.nhead_stride_k,
+                args.nhead_stride_v,
+                args.nhead_stride_bias,
+                (1 < args.num_splits ? args.nhead_stride_lse_acc : args.nhead_stride_lse),
+                (1 < args.num_splits ? args.nhead_stride_o_acc : args.nhead_stride_o),
+                args.batch_stride_k, // only used for paged-kvcache
+                args.batch_stride_v, // only used for paged-kvcache
+                (1 < args.num_splits ? args.split_stride_lse_acc : 0),
+                (1 < args.num_splits ? args.split_stride_o_acc : 0),
+                args.window_size_left,
+                args.window_size_right,
+                args.mask_type);
         }
         else
         { // create batch mode kernel arguments
-            return Kernel::MakeKargs(args.q_ptr,
-                                     args.k_ptr,
-                                     args.v_ptr,
-                                     args.bias_ptr,
-                                     args.lse_acc_ptr,
-                                     args.o_acc_ptr,
-                                     args.batch,
-                                     args.seqlen_q,
-                                     args.seqlen_k,
-                                     args.seqlen_k_ptr,
-                                     args.hdim_q,
-                                     args.hdim_v,
-                                     args.nhead_q,
-                                     args.nhead_q / args.nhead_k,
-                                     args.num_splits,
-                                     args.block_table_ptr,
-                                     args.batch_stride_block_table,
-                                     args.page_block_size,
-                                     args.cache_batch_idx,
-                                     args.scale_s,
-                                     args.scale_p,
-                                     args.stride_q,
-                                     args.stride_k,
-                                     args.stride_v,
-                                     args.stride_bias,
-                                     args.stride_o_acc,
-                                     args.nhead_stride_q,
-                                     args.nhead_stride_k,
-                                     args.nhead_stride_v,
-                                     args.nhead_stride_bias,
-                                     args.nhead_stride_lse_acc,
-                                     args.nhead_stride_o_acc,
-                                     args.batch_stride_q,
-                                     args.batch_stride_k,
-                                     args.batch_stride_v,
-                                     args.batch_stride_bias,
-                                     args.batch_stride_lse_acc,
-                                     args.batch_stride_o_acc,
-                                     args.split_stride_lse_acc,
-                                     args.split_stride_o_acc,
-                                     args.window_size_left,
-                                     args.window_size_right,
-                                     args.mask_type);
+            return Kernel::MakeKargs(
+                args.q_ptr,
+                args.k_ptr,
+                args.v_ptr,
+                args.bias_ptr,
+                (1 < args.num_splits ? args.lse_acc_ptr : args.lse_ptr),
+                (1 < args.num_splits ? args.o_acc_ptr : args.o_ptr),
+                args.batch,
+                args.seqlen_q,
+                args.seqlen_k,
+                args.seqlen_k_ptr,
+                args.hdim_q,
+                args.hdim_v,
+                args.nhead_q,
+                args.nhead_q / args.nhead_k,
+                args.num_splits,
+                args.block_table_ptr,
+                args.batch_stride_block_table,
+                args.page_block_size,
+                args.cache_batch_idx,
+                args.scale_s,
+                args.scale_p,
+                args.stride_q,
+                args.stride_k,
+                args.stride_v,
+                args.stride_bias,
+                (1 < args.num_splits ? args.stride_o_acc : args.stride_o),
+                args.nhead_stride_q,
+                args.nhead_stride_k,
+                args.nhead_stride_v,
+                args.nhead_stride_bias,
+                (1 < args.num_splits ? args.nhead_stride_lse_acc : args.nhead_stride_lse),
+                (1 < args.num_splits ? args.nhead_stride_o_acc : args.nhead_stride_o),
+                args.batch_stride_q,
+                args.batch_stride_k,
+                args.batch_stride_v,
+                args.batch_stride_bias,
+                (1 < args.num_splits ? args.batch_stride_lse_acc : args.batch_stride_lse),
+                (1 < args.num_splits ? args.batch_stride_o_acc : args.batch_stride_o),
+                (1 < args.num_splits ? args.split_stride_lse_acc : 0),
+                (1 < args.num_splits ? args.split_stride_o_acc : 0),
+                args.window_size_left,
+                args.window_size_right,
+                args.mask_type);
         }
     }();
 
@@ -821,3 +824,40 @@ struct fmha_fwd_appendkv_traits
 float fmha_fwd_appendkv(fmha_fwd_appendkv_traits,
                         fmha_fwd_appendkv_args,
                         const ck_tile::stream_config&);
+
+template <typename Int = int>
+Int num_splits_heuristic(Int batch_nhead_mblocks, Int num_SMs, Int max_splits)
+{
+    // If we have enough to almost fill the SMs, then just use 1 split
+    if(batch_nhead_mblocks >= 0.8f * num_SMs)
+    {
+        return 1;
+    }
+
+    max_splits = std::min({max_splits, num_SMs});
+
+    constexpr std::array<Int, 5> num_splits_array = {1, 2, 4, 8, 16};
+
+    float max_efficiency = 0.f;
+    std::array<float, num_splits_array.size()> efficiency;
+
+    for(size_t idx = 0; idx < num_splits_array.size() && num_splits_array[idx] <= max_splits; ++idx)
+    {
+        float n_blocks = float(batch_nhead_mblocks * num_splits_array[idx]) / num_SMs;
+        float eff      = n_blocks / std::ceil(n_blocks);
+
+        if(eff > max_efficiency)
+        {
+            max_efficiency = eff;
+        }
+        efficiency[idx] = eff;
+    }
+    for(size_t idx = 0; idx < num_splits_array.size() && num_splits_array[idx] <= max_splits; ++idx)
+    {
+        if(efficiency[idx] >= 0.85 * max_efficiency)
+        {
+            return num_splits_array[idx];
+        }
+    }
+    return 1;
+}
