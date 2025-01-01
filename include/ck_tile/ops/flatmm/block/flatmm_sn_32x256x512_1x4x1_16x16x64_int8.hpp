@@ -92,6 +92,7 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
                CK_TILE_LDS_ADDR void* smem,
                index_t n, // loop along n dim
                const ScaleTensor& scale_,
+               index_t tile_offset_dq,
                index_t tile_offset_b, // stride b is fixed to blockKr * blockW, but still can adjust
                index_t tile_offset_half_b, //splited load alone K in to 2 part
                index_t tile_offset_o)
@@ -102,6 +103,7 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
         const index_t tile_stride_b_bytes = tile_offset_b * sizeof(BDataType);
         const index_t tile_offset_half_b_bytes = tile_offset_half_b * sizeof(BDataType);
         const index_t tile_stride_o_bytes = tile_offset_o * sizeof(ODataType);
+        const index_t tile_stride_dq_bytes = tile_offset_dq * sizeof(DScaleDataType);
 
         static_assert(ScaleTensor::size() == 2);
         float s0 = scale_[number<0>{}];
@@ -244,6 +246,7 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
                 [s_tile_os_o]"s"(tile_stride_o_bytes),
                 [s_tile_os_b_half]"s"(tile_offset_half_b_bytes),
                 [s_tile_os_b]"s"(tile_stride_b_bytes),
+                [s_tile_os_dq]"s"(tile_stride_dq_bytes),
                 [scale_0]"v"(s0),
                 [scale_1]"v"(s1),
                 [v_nan_lo]"v"(nan_lo),

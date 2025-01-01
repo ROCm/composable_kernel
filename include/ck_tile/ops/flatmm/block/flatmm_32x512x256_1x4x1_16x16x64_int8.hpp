@@ -245,12 +245,13 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
 
     // TODO: need paired with tile_window_linear!
     // TODO: need call init_raw() before call this function!
-    template <typename DQRes,  typename GQRes,typename ARes, typename ACoords, typename BRes, typename BCoords>
+    template <typename DQRes,  typename GQRes, typename SMQRes, typename ARes, typename ACoords, typename BRes, typename BCoords>
     CK_TILE_DEVICE auto
     operator()( index_t row_ids_a_,
                 const DQes& res_aq
                 const DQes& res_dq,
                const GQRes& res_gq,
+               const SMQRes& res_smq,
                 const Res& res_a,
                const ACoords& cached_coords_a,
                const BRes& res_b,
@@ -405,6 +406,10 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
                 [s_res_gq1]"s"(res_gq[1]),
                 [s_res_gq2]"s"(res_gq[2]),
                 [s_res_gq3]"s"(res_gq[3]),
+                [s_res_smq0]"s"(res_smq[0]),
+                [s_res_smq1]"s"(res_smq[1]),
+                [s_res_smq2]"s"(res_smq[2]),
+                [s_res_smq3]"s"(res_smq[3]),
                 [s_res_a0]"s"(res_a[0]),
                 [s_res_a1]"s"(res_a[1]),
                 [s_res_a2]"s"(res_a[2]),

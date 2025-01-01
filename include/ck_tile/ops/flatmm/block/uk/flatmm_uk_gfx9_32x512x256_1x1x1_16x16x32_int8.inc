@@ -12,7 +12,26 @@
  "  v_mul_f32     a[2], v17, a[2] row_newbcast:14        \n" \
  "  v_mul_f32     a[3], v17, a[3] row_newbcast:15       \n"  \
 
-
+"s_mov_b32 s16,    %[s_res_dq0] \n"
+"s_mov_b32 s17,    %[s_res_dq1] \n"
+"s_mov_b32 s18,    %[s_res_dq2] \n"
+"s_mov_b32 s19,    %[s_res_dq3] \n"
+"s_mov_b32 s32,    %[s_res_gq0] \n"
+"s_mov_b32 s33,    %[s_res_gq1] \n"
+"s_mov_b32 s34,    %[s_res_gq2] \n"
+"s_mov_b32 s35,    %[s_res_gq3] \n"
+"s_mov_b32 s36,    %[s_res_smq0] \n"
+"s_mov_b32 s37,    %[s_res_smq1] \n"
+"s_mov_b32 s38,    %[s_res_smq2] \n"
+"s_mov_b32 s39,    %[s_res_smq3] \n"
+"s_mov_b32 s20,    %[s_res_a0] \n"
+"s_mov_b32 s21,    %[s_res_a1] \n"
+"s_mov_b32 s22,    %[s_res_a2] \n"
+"s_mov_b32 s23,    %[s_res_a3] \n"
+"s_mov_b32 s24,    %[s_res_b0] \n"
+"s_mov_b32 s25,    %[s_res_b1] \n"
+"s_mov_b32 s26,    %[s_res_b2] \n"
+"s_mov_b32 s27,    %[s_res_b3] \n"
 
 //////////GQ/DQ/GsmQ_addr///////////////
   //expert weight addr no need
@@ -84,22 +103,6 @@
 "  buffer_load_dword  v20, v8, s[40:43], 0 offen         \n"
 "  buffer_load_dword  v21, v9, s[40:43], 0 offen         \n"
 	
-"s_mov_b32 s16,    %[s_res_dq0] \n"
-"s_mov_b32 s17,    %[s_res_dq1] \n"
-"s_mov_b32 s18,    %[s_res_dq2] \n"
-"s_mov_b32 s19,    %[s_res_dq3] \n"
-"s_mov_b32 s32,    %[s_res_gq0] \n"
-"s_mov_b32 s33,    %[s_res_gq1] \n"
-"s_mov_b32 s34,    %[s_res_gq2] \n"
-"s_mov_b32 s35,    %[s_res_gq3] \n"
-"s_mov_b32 s20,    %[s_res_a0] \n"
-"s_mov_b32 s21,    %[s_res_a1] \n"
-"s_mov_b32 s22,    %[s_res_a2] \n"
-"s_mov_b32 s23,    %[s_res_a3] \n"
-"s_mov_b32 s24,    %[s_res_b0] \n"
-"s_mov_b32 s25,    %[s_res_b1] \n"
-"s_mov_b32 s26,    %[s_res_b2] \n"
-"s_mov_b32 s27,    %[s_res_b3] \n"
 " s_mov_b32 s80, 0 \n"
   //---------------------v26-33 no need
 // "s_nop  4\n"

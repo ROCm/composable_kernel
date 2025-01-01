@@ -180,6 +180,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         /////////////
         index_t a_scale_expert_stride_0 = kargs.hidden_size;
         index_t g_scale_expert_stride_0 = shared_intermediate_size_0;
+        index_t smq_scale_expert_stride_0 = shared_intermediate_size_0;
         index_t d_scale_expert_stride_1 = kargs.hidden_size;
         // nr*kr*w
         index_t interm_idx_nr0 = __builtin_amdgcn_readfirstlane(
@@ -244,12 +245,12 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
                                        number<decltype(g_win)::NumAccess_NonLinear>{});
         //////gq
         auto gq_win = [&]() {
-            const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr) + 
+            const GScaleDataType* gq_ptr = reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr) + 
                                     static_cast<long_index_t>(expert_id) * g_scale_expert_stride_0 + 
                                     intermediate_tile_id * BlockShape::Block_N0;
            // const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr);//remember to add expert id for inline
-            auto g_view_ = make_naive_tensor_view<address_space_enum::global>(
-                g_ptr,
+            auto gq_view_ = make_naive_tensor_view<address_space_enum::global>(
+                gq_ptr,
                 make_tuple(shared_intermediate_size_1),
                 number<1>{});
 
@@ -257,7 +258,22 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         }();
 
         auto gq_res    = gq_win.get_buffer_view().cached_buf_res_;
-        ////
+        ////smQ
+        auto smq_win = [&]() {
+            const YSmoothScaleDataType* smq_ptr = reinterpret_cast<const YSmoothScaleDataType*>(kargs.y_smooth_scale_ptr) + 
+                                    static_cast<long_index_t>(expert_id) * smq_scale_expert_stride_0 + 
+                                    intermediate_tile_id * BlockShape::Block_N0;
+        // const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr);//remember to add expert id for inline
+            auto smq_view_ = make_naive_tensor_view<address_space_enum::global>(
+                smq_ptr,
+                make_tuple(shared_intermediate_size_1),
+                number<1>{});
+
+            return smq_view_;
+        }();
+
+        auto smq_res    = smq_win.get_buffer_view().cached_buf_res_;
+        /////////////////////
         const auto d_win = [&]() {
             const DDataType* d_ptr = reinterpret_cast<const DDataType*>(kargs.d_ptr) +
                                      static_cast<long_index_t>(expert_id) * expert_stride_1 +
@@ -284,8 +300,9 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         auto d_res = d_win.get_bottom_tensor_view().get_buffer_view().cached_buf_res_;
         //////gq
         auto dq_win = [&]() {
-         //   const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.d_scale_ptr) + static_cast<long_index_t>(expert_id) * d_scale_expert_stride_0;
-            const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.d_scale_ptr)//remember to add expert_id as expert_idx
+            const DScaleDataType* g_ptr = reinterpret_cast<const DScaleDataType*>(kargs.d_scale_ptr) + 
+            static_cast<long_index_t>(expert_id) * d_scale_expert_stride_1;
+         //   const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.d_scale_ptr)//remember to add expert_id as expert_idx
             auto g_view_ = make_naive_tensor_view<address_space_enum::global>(
                 g_ptr,
                 make_tuple(kargs.hidden_size),
@@ -368,7 +385,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
                           kargs.hidden_size,
                           BlockShape::Block_K0, // tile offset for B matrix each unroll
                           BlockShape::Block_Kr0 *
-                              BlockShape::Block_W0); // tile offset for B matrix each unroll
+                          BlockShape::Block_W0); // tile offset for B matrix each unroll
 
         // sweep_tile(
         //     acc_0,
@@ -396,6 +413,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
              smem,
              kargs.hidden_size, // total n number
              w_scale,
+             BlockShape::Block_N1,
              shared_intermediate_size_1 * Block_N1 - kr_1 * BlockShape::Block_W1, // along N
              kr_1 * BlockShape::Block_W1,
              BlockShape::Block_N1);                               // along N
