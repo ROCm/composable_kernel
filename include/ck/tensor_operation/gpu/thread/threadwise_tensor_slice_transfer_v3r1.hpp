@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -56,7 +56,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
     static constexpr auto I4 = Number<4>{};
+    static constexpr auto I5 = Number<5>{};
     static constexpr auto I8 = Number<8>{};
 
     __device__ constexpr ThreadwiseTensorSliceTransfer_v3r1(
@@ -212,25 +214,50 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             using src_elem_op_vec_t = typename vector_type<SrcData, elem_op_vec_len>::type;
             using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
 
-            if constexpr(SrcScalarPerVector != I1 && SrcScalarPerVector % I2 == I1)
+            // Special vector size cases
+            if constexpr(SrcScalarPerVector == I3)
             {
-                // Special vector size cases
-                static_assert(SrcScalarPerVector < I8, "Not supported");
                 static_assert(elem_op_vec_len == 1);
-                // 4 vector size for 3, 8 vector size for 5, 6, 7
-                using VectorLoadSize =
-                    std::conditional_t < SrcScalarPerVector<I4, Number<4>, Number<8>>;
-                using src_irregular_vector_type = vector_type_maker_t<SrcData, VectorLoadSize{}>;
-                using src_irregular_vector_t    = typename src_irregular_vector_type::type;
+                using src_vector_v2   = vector_type_maker_t<SrcData, I2>;
+                using src_vector_v2_t = typename src_vector_v2::type;
 
-                src_irregular_vector_type src_vector_container = src_irregular_vector_type{
-                    src_buf.template Get<src_irregular_vector_t>(src_coord_.GetOffset(), true)};
+                src_vector_v2 src_vector_container_v2 = src_vector_v2{
+                    src_buf.template Get<src_vector_v2_t>(src_coord_.GetOffset(), true)};
+                SrcData src_tail =
+                    SrcData{src_buf.template Get<SrcData>(src_coord_.GetOffset() + I2, true)};
 
-                static_for<0, SrcScalarPerVector, 1>{}([&](auto idx) {
+                static_for<0, SrcScalarPerVector - I1, 1>{}([&](auto idx) {
                     // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                                    src_vector_container.template AsType<src_elem_op_vec_t>()[idx]);
+                    src_element_op_(
+                        op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
+                        src_vector_container_v2.template AsType<src_elem_op_vec_t>()[idx]);
                 });
+                // tail
+                src_element_op_(
+                    op_r_v.template AsType<dst_elem_op_vec_t>()(Number<SrcScalarPerVector - I1>{}),
+                    src_tail);
+            }
+            else if constexpr(SrcScalarPerVector == I5)
+            {
+                static_assert(elem_op_vec_len == 1);
+                using src_vector_v4   = vector_type_maker_t<SrcData, I4>;
+                using src_vector_v4_t = typename src_vector_v4::type;
+
+                src_vector_v4 src_vector_container_v4 = src_vector_v4{
+                    src_buf.template Get<src_vector_v4_t>(src_coord_.GetOffset(), true)};
+                SrcData src_tail =
+                    SrcData{src_buf.template Get<SrcData>(src_coord_.GetOffset() + I4, true)};
+
+                static_for<0, SrcScalarPerVector - I1, 1>{}([&](auto idx) {
+                    // apply the src elementwise op and convert to DstData under the hood if needed
+                    src_element_op_(
+                        op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
+                        src_vector_container_v4.template AsType<src_elem_op_vec_t>()[idx]);
+                });
+                // tail
+                src_element_op_(
+                    op_r_v.template AsType<dst_elem_op_vec_t>()(Number<SrcScalarPerVector - I1>{}),
+                    src_tail);
             }
             else
             {
