@@ -36,6 +36,10 @@ struct DeviceGemmV2 : public BaseOperator
                         CElementwiseOperation c_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+
+    virtual bool GetPermuteA()         = 0;
+    virtual bool GetPermuteB()         = 0;
+    virtual ck::index_t GetKPerBlock() = 0;
 };
 
 template <typename ALayout,
