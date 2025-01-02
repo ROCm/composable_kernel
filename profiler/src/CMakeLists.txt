@@ -177,5 +177,4 @@ if(DL_KERNELS)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_weight_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_weight_instance)
 endif()
-
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
