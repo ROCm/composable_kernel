@@ -21,7 +21,7 @@ struct ReduceReceiveKernel
     {
         const void* reduce_ptr;
         std::array<const void*, MaxSendGPUNum> receive_ptr_list;
-        const void* output_ptr;
+        void* output_ptr;
         index_t M;
         index_t N;
     };
@@ -29,7 +29,7 @@ struct ReduceReceiveKernel
     CK_TILE_HOST static constexpr ReduceReceiveKargs
     MakeKargs(const void* reduce_ptr,
               std::array<const void*, MaxSendGPUNum> receive_ptr_list,
-              const void* output_ptr,
+              void* output_ptr,
               index_t M,
               index_t N)
     {
@@ -91,7 +91,7 @@ struct ReduceReceiveKernel
                                         number<ReduceReceivePipeline::Block_N>{}),
                              {i_m, i_n});
 
-        const ODataType* output_start = static_cast<const ODataType*>(kargs.output_ptr);
+        ODataType* output_start = static_cast<ODataType*>(kargs.output_ptr);
         auto output_tensor_view       = [&]() {
             return make_naive_tensor_view<address_space_enum::global>(
                 output_start,
@@ -106,10 +106,8 @@ struct ReduceReceiveKernel
                                         number<ReduceReceivePipeline::Block_N>{}),
                              {i_m, i_n});
 
-        __shared__ char smem_ptr[ReduceReceivePipeline::GetSmemSize()];
-
         ReduceReceivePipeline{}(
-            transfer_block_window, receive_block_window, output_block_window, smem_ptr);
+            transfer_block_window, receive_block_window, output_block_window);
         return;
     }
 };
