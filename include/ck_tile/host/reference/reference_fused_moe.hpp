@@ -75,7 +75,8 @@ void reference_fused_moe(
     ck_tile::index_t hidden_size,
     ck_tile::index_t intermediate_size, // this size is for gate/up
     ck_tile::index_t topk,
-    ck_tile::index_t gate_only)
+    ck_tile::index_t gate_only,
+    ck_tile::index_t fquant)
 {
     assert(sorted_token_ids_host.get_num_of_dimension() == 1);
     assert(sorted_weight_host.get_num_of_dimension() == 1);
@@ -106,22 +107,40 @@ void reference_fused_moe(
             return;
         ck_tile::index_t i_expert = sorted_expert_ids_host.mData[i_tile];
         ck_tile::index_t i_token  = sorted_token_ids_host.mData[i_flatten];
-        if(i_token >= tokens)
+        ck_tile::index_t i_weight_idx;
+        if(fquant == 1)
+        {
+            i_weight_idx = i_token >> 24;
+            i_token = i_token & 0xffffff;
+        }
+        if (i_token >= tokens)
             return;
         ck_tile::index_t i_topk = get_topk_id(i_token, i_expert); // TODO: ugly
-        auto weight             = sorted_weight_host.mData[i_flatten];
+        auto weight             = sorted_weight_host.mData[i_flatten];//top k ratio?
 
-        ck_tile::HostTensor<AccDataType> acc_0({1, intermediate_size_0});
+        ck_tile::HostTensor<float> acc_0({1, intermediate_size_0});
         // first gemm
         for(ck_tile::index_t i_n = 0; i_n < intermediate_size_0; i_n++)
         {
             AccDataType acc = static_cast<AccDataType>(0);
             for(ck_tile::index_t i_k = 0; i_k < hidden_size; i_k++)
             {
-                acc += type_convert<AccDataType>(a_host(i_token, i_k)) *
-                       type_convert<AccDataType>(g_host(i_expert, i_n, i_k));
+                acc += type_convert<float>(a_host(i_token, i_k)) *
+                       type_convert<float>(g_host(i_expert, i_n, i_k));
             }
-            acc_0(0, i_n) = acc;
+            if (fquant == 1)
+            {   //smooth
+                acc_0(0, i_n) = acc * sa_host(i_token, i_weight_idx) * sg_host(i_expert, i_n);
+            } else if( fquant == 2 )
+            {
+                //dynamic
+                acc_0(0, i_n) = acc * sa_host(i_token) * sg_host(i_expert, i_n);
+            }
+            else
+            {
+                //no quant
+                acc_0(0, i_n) = acc;
+            }
             // printf("ie:%2d, it:%3d, in:%d, %f\n", i_expert, i_token, i_n, acc);
         }
 
@@ -158,10 +177,14 @@ void reference_fused_moe(
         {
             AccDataType acc = static_cast<AccDataType>(0);
             for(ck_tile::index_t i_k = 0; i_k < intermediate_size_1; i_k++)
-            {
-                acc += y(0, i_k) * type_convert<AccDataType>(d_host(i_expert, i_n, i_k));
+            {   if (fquant == 1)
+                {
+                    acc += y(0, i_k) * sy_host(i_expert, i_k)* type_convert<float>(d_host(i_expert, i_n, i_k));
+                } else {
+                    acc += y(0, i_k) * type_convert<float>(d_host(i_expert, i_n, i_k));
+                }
             }
-            acc_1(0, i_n) = acc * weight; // multiple weight here
+            acc_1(0, i_n) = acc * type_convert<float>(weight); // multiple weight here
         }
 
         for(ck_tile::index_t i_n = 0; i_n < hidden_size; i_n++)
@@ -177,7 +200,7 @@ void reference_fused_moe(
     auto r = [&](auto i_token) {
         for(ck_tile::index_t i_n = 0; i_n < hidden_size; i_n++)
         {
-            AccDataType acc = type_convert<AccDataType>(0);
+            AccDataType acc = type_convert<float>(0);
             for(ck_tile::index_t i_topk = 0; i_topk < topk; i_topk++)
             {
                 acc += out_topk_tokens(i_token, i_topk, i_n);

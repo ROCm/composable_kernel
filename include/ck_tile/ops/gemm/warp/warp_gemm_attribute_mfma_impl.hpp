@@ -655,7 +655,7 @@ struct WarpGemmAttributeMfmaImpl_i32_16x16x32_i8
         else
         {
 #if defined(__gfx94__)
-            c_vec = __builtin_amdgcn_mfma_i32_16x16x32i8(
+            c_vec = __builtin_amdgcn_mfma_i32_16x16x32_i8(
                 bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
 #elif defined(__gfx908__) || defined(__gfx90a__)
             static_for<0, 8, 1>{}([&](auto k) {

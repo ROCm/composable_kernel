@@ -10,6 +10,7 @@
 #include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_pipeline_flatmm_ex.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_pipeline_flatmm_policy.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_pipeline_flatmm_uk.hpp"
+#include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_pipeline_flatmm_uk_int8.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_pipeline_problem.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_traits.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/moe_sorting_pipeline.hpp"

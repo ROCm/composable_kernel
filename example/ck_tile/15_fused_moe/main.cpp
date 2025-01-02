@@ -97,14 +97,14 @@ auto create_args(int argc, char* argv[])
         .insert("tp", "8", "tensor parallel size")
         .insert("v", "1", "cpu validation or not")
         .insert("kname", "1", "print kernel name or not")
-        .insert("prec_i", "bf16", "input precision")
-        .insert("prec_w", "bf16", "weight precision")
+        .insert("prec_i", "int8", "input precision")
+        .insert("prec_w", "int8", "weight precision")
         .insert("prec_o", "bf16", "output precision")
         .insert("prec_st", "auto", "token scale data type. auto will set to fp32")
         .insert("prec_sw", "auto", "weight scale data type. auto will set to fp32")
         .insert("prec_sq", "auto", "(dynamic) smooth quant data type. auto will set to fp32")
         .insert("prec_kw", "auto", "topk-weight data type. auto will set to fp32")
-        .insert("fquant", "0", "fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant")
+        .insert("fquant", "1", "fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant")
         .insert(
             "gate_only", "1", "w0(gate/up) style, 0:gate+up will double interm size, 1:only gate")
         .insert("api", "0", "benchmark api set: 0:fused-moe(moe-gemm+moe-sorting), 1:moe-gemm")
@@ -218,10 +218,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<GDataType> g_host({experts, shared_intermediate_size_0, hidden_size});
     ck_tile::HostTensor<DDataType> d_host({experts, hidden_size, shared_intermediate_size_1});
     ck_tile::HostTensor<ODataType> o_host({tokens, hidden_size}, {stride, 1});
-    ck_tile::HostTensor<AScaleDataType> sa_host({tokens});
-    ck_tile::HostTensor<GScaleDataType> sg_host({shared_intermediate_size_0});
-    ck_tile::HostTensor<DScaleDataType> sd_host({shared_intermediate_size_1});
-    ck_tile::HostTensor<YSmoothScaleDataType> sy_host({shared_intermediate_size_1}); // smooth-quant
+    if (fused_quant == 1)
+    {
+        ck_tile::HostTensor<AScaleDataType> sa_host({tokens, topk});
+    } else{
+        ck_tile::HostTensor<AScaleDataType> sa_host({tokens});
+    }
+    ck_tile::HostTensor<GScaleDataType> sg_host({experts, shared_intermediate_size_0});
+    ck_tile::HostTensor<DScaleDataType> sd_host({experts, shared_intermediate_size_1});
+    ck_tile::HostTensor<YSmoothScaleDataType> sy_host({experts, shared_intermediate_size_1}); // smooth-quant
     ck_tile::HostTensor<IndexDataType> topk_ids_host({tokens, topk});                // to be sort
     ck_tile::HostTensor<TopkWeightDataType> topk_weight_host({tokens, topk});        // to be sort
 
@@ -440,7 +445,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 hidden_size,
                 shared_intermediate_size_0,
                 topk,
-                gate_only);
+                gate_only,
+                fused_quant);
 
             auto o_dev = o_buf.ToHost<ODataType>();
             // o_dev.savetxt("gpu-out.txt", "float");

@@ -143,7 +143,7 @@ using WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution =
 // int8
 using WarpGemmMfma_i32_16x16x64_int8_int8_CTransposed =
     WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<
-        WarpGemmAttributeMfmaImpl_i32_16x16x32_i8<WGAttrCtlEnum::Default_>，
+        WarpGemmAttributeMfmaImpl_i32_16x16x32_i8<WGAttrCtlEnum::Default_>,
         2>>;
 
 } // namespace ck_tile

@@ -1,17 +1,28 @@
- #  define _DEQUAN_CVT_(a, b, c)                           \
- " v_cvt_f32_i32  a[0], a[0]                   \n"          \
- "  v_cvt_f32_i32  a[1], a[1]                   \n"          \
- "  v_cvt_f32_i32  a[2], a[2]                   \n"         \
- "  v_cvt_f32_i32  a[3], a[3]                   \n"          \
- "  v_mul_f32     a[0], v15, a[0]               \n"          \
- "  v_mul_f32     a[1], v15, a[1]                \n"         \
- "  v_mul_f32     a[2], v15, a[2]                \n"         \
- "  v_mul_f32     a[3], v15, a[3]                \n"         \
- "  v_mul_f32     a[0], v17, a[0] row_newbcast:12       \n"  \
- "  v_mul_f32     a[1], v17, a[1] row_newbcast:13        \n" \
- "  v_mul_f32     a[2], v17, a[2] row_newbcast:14        \n" \
- "  v_mul_f32     a[3], v17, a[3] row_newbcast:15       \n"  \
+#ifndef CK_TILE_FLATMM_UK_MFMA
+#define CK_TILE_FLATMM_UK_MFMA CK_TILE_FLATMM_UK_MFMA_INT8
+#endif
 
+#if CK_TILE_FLATMM_UK_MFMA == CK_TILE_FLATMM_UK_MFMA_INT8
+#   define _UK_MFMA_ "v_mfma_i32_16x16x32_i8"
+#endif
+ #  define _DEQUAN_CVT_(a0,a1,a2,a3, b, c)                           \
+ " v_cvt_f32_i32  a0, a0                   \n"          \
+ "  v_cvt_f32_i32  a1, a1                   \n"          \
+ "  v_cvt_f32_i32  a2, a2                  \n"         \
+ "  v_cvt_f32_i32  a3, a3                  \n"          \
+ "  v_mul_f32     a0, v15, a0              \n"          \
+ "  v_mul_f32     a1, v15, a1                \n"         \
+ "  v_mul_f32     a2, v15, a2                \n"         \
+ "  v_mul_f32     a3, v15, a3                \n"         \
+ "  v_mul_f32     a0, v17, a0 row_newbcast:12       \n"  \
+ "  v_mul_f32     a1, v17, a1 row_newbcast:13        \n" \
+ "  v_mul_f32     a2, v17, a2 row_newbcast:14        \n" \
+ "  v_mul_f32     a3, v17, a3 row_newbcast:15       \n"  \
+";-------------------------------\n"
+"s_mov_b32 s28,    %[s_res_aq0] \n"
+"s_mov_b32 s29,    %[s_res_aq1] \n"
+"s_mov_b32 s30,    %[s_res_aq2] \n"
+"s_mov_b32 s31,    %[s_res_aq3] \n"
 "s_mov_b32 s16,    %[s_res_dq0] \n"
 "s_mov_b32 s17,    %[s_res_dq1] \n"
 "s_mov_b32 s18,    %[s_res_dq2] \n"
@@ -32,19 +43,7 @@
 "s_mov_b32 s25,    %[s_res_b1] \n"
 "s_mov_b32 s26,    %[s_res_b2] \n"
 "s_mov_b32 s27,    %[s_res_b3] \n"
-
-//////////GQ/DQ/GsmQ_addr///////////////
-  //expert weight addr no need
-
-//  s_mul_i32     s60, s3, 32                             // 00000000056C: 923CA003    s3 s_tg_idy
-//  s_mul_i32     s60, 4, s60                             // 000000000570: 923C3C84
-//  s_add_u32     s40, s60, s40                           // 000000000574: 8028283C   s40  sw_ptr
-//  s_addc_u32    s41, 0, s41                             // 000000000578: 82292980   s41  sw_ptr
-//  v_and_b32     v54, 15, v0                             // 00000000057C: 266C008F
-//  v_lshlrev_b32  v8, 2, v54                             // 000000000580: 24106C82    v8/9 w addr
-//  v_add_u32     v9, 64, v8                              // 000000000584: 681210C0
-
-  //GQDQ addr function kkkkkkkkkkkkkk
+";---------------------------------------------- \n"
 "  v_lshrrev_b32  v54, 4, v0                             \n"
 "  v_lshlrev_b32  v55, 2, v54                            \n"
 "  v_and_b32     v54, 15, v0                             \n"
@@ -55,21 +54,17 @@
 "  v_add_u32     v55, v54, v55                           \n"
 "  v_lshlrev_b32  v10, 2, v55                            \n"
 "  v_add_u32     v11, 0x00000400, v10                    \n"
-"  s_mul_i32     s60, %[s_wave_id], 16                             \n"
+"  s_mul_i32     s60, %[s_wave_id], 16                        \n"
 "  s_mul_i32     s60, s60, 4                             \n"
 "  v_add_u32     v10, s60, v10                           \n"
 "  v_add_u32     v11, s60, v11                           \n"
 "  v_mov_b32     v5, v10                                 \n"
-
-//////////////////////////////
+";---------------------------------------------- \n"
 "  s_mov_b32     s57, 0x00000100                         \n"
 "  s_mov_b32     s58, 0x00001000                         \n"
 "  s_mov_b32     s79, 0x00000400                         \n"
 "  s_mov_b32     s59, 0x00000200                         \n"
-  ////////
-//"  s_mul_i32     s60, s70, 0x00000100                    \n"
-//"  s_sub_u32     s56, s60, 0x00001000                    \n"
-  ///////////////
+";---------------------------------------------- \n"
 "  s_mov_b32     s78, 0x00001000                         \n"
 "  s_mov_b32     s52, 0x07060302                         \n"
 "  s_mov_b32     s53, 0x00000400                         \n"
@@ -82,7 +77,7 @@
 "  v_mov_b32     v52, 0x7fff0000                         \n"
 "  v_mov_b32     v53, 0x00007fff                         \n"
 "  s_waitcnt     0x0000                                  \n"
-  ///XQ ADDR， fake token id
+";---------------------------------------------- \n"
 "  v_mov_b32     %[v_token_id], %[v_token_id]                         \n"
 "  v_lshrrev_b32  v54, 24, %[v_token_id]                            \n"
 "  v_mul_i32_i24  v54, s66, v54                          \n"
@@ -104,8 +99,7 @@
 "  buffer_load_dword  v21, v9, s[40:43], 0 offen         \n"
 	
 " s_mov_b32 s80, 0 \n"
-  //---------------------v26-33 no need
-// "s_nop  4\n"
+";---------------------------------------------- \n"
 "; -- prefetch A0\n"
 "s_add_u32     m0, 0, %[s_m0_init]                        \n"
 "buffer_load_dword   %[v_os_a0], s[20:23], 0 offen lds    \n"
@@ -183,18 +177,17 @@
   
 "  s_waitcnt     vmcnt(40)         \n"  
 "  s_barrier                     \n"  
-///////////////////////////////
-"ds_read_b128  v[192:195], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_0]\n"    // 1024: N stride, 64 K stride
-"ds_read_b128  v[196:199], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_1]\n"
-"ds_read_b128  v[200:203], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_2]\n"
-"ds_read_b128  v[204:207], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_3]\n"
-"ds_read_b128  v[208:211], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_4]\n"
-"ds_read_b128  v[212:215], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_5]\n"
-"ds_read_b128  v[216:219], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_6]\n"
-"ds_read_b128  v[220:223], %[v_os_slda] offset:0*%[smem_sz] + %[sld_os_7]\n"
-////////////////////////////
-
-"label_start:
+";---------------------------------------------- \n"
+"ds_read_b128  v[192:195], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_0]\n"    // 1024: N stride, 64 K stride
+"ds_read_b128  v[196:199], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_1]\n"
+"ds_read_b128  v[200:203], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_2]\n"
+"ds_read_b128  v[204:207], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_3]\n"
+"ds_read_b128  v[208:211], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_4]\n"
+"ds_read_b128  v[212:215], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_5]\n"
+"ds_read_b128  v[216:219], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_6]\n"
+"ds_read_b128  v[220:223], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_7]\n"
+";---------------------------------------------- \n"
+" label_start: \n"
 "  s_waitcnt     vmcnt(24) & lgkmcnt(0)                  \n"
 "  s_barrier                                             \n"
   _UK_MFMA_ "  v[128:131], acc[0:1], v[192:193], v[128:131]  \n"
@@ -400,7 +393,7 @@
 "  s_waitcnt     vmcnt(24) & lgkmcnt(0)                  \n"
 "  s_barrier                                             \n"
   _UK_MFMA_ "  v[128:131], acc[128:129], v[224:225], v[128:131]  \n"
-  _UK_MFMA_ "  v[128:131], acc[130:131], v[226:227], v[128:131]  \n"
+  _UK_MFMA_ "  v[128:131], acc[130:131], v[226:227], v[128:131]  \n" 
 "  buffer_load_dwordx4  acc[0:3], %[v_os_b0], s[24:27], 0 offen \n"
   _UK_MFMA_ "  v[128:131], acc[132:133], v[228:229], v[128:131]  \n"
   _UK_MFMA_ "  v[128:131], acc[134:135], v[230:231], v[128:131]  \n"
@@ -461,49 +454,49 @@
 "  buffer_load_dwordx4  acc[32:35], %[v_os_b2], s[24:27], 0 offen \n"
   _UK_MFMA_ "  v[144:147], acc[164:165], v[228:229], v[144:147]  \n"
   _UK_MFMA_ "  v[144:147], acc[166:167], v[230:231], v[144:147]  \n"
-"  ds_read_b128  v[192:195], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_0]
+"  ds_read_b128  v[192:195], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_0]  \n"
   _UK_MFMA_ "  v[144:147], acc[168:169], v[232:233], v[144:147]  \n"
   _UK_MFMA_ "  v[144:147], acc[170:171], v[234:235], v[144:147]  \n"
 "  buffer_load_dwordx4  acc[36:39], %[v_os_b2], s[24:27], 0 offen offset:1024 \n"
   _UK_MFMA_ "  v[144:147], acc[172:173], v[236:237], v[144:147]  \n"
   _UK_MFMA_ "  v[144:147], acc[174:175], v[238:239], v[144:147]  \n"
-"  ds_read_b128  v[196:199], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_1]
+"  ds_read_b128  v[196:199], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_1]  \n"
   _UK_MFMA_ "  v[148:151], acc[160:161], v[240:241], v[148:151]  \n"
   _UK_MFMA_ "  v[148:151], acc[162:163], v[242:243], v[148:151]  \n"
 "  buffer_load_dwordx4  acc[40:43], %[v_os_b2], s[24:27], 0 offen offset:2048 \n"
   _UK_MFMA_ "  v[148:151], acc[164:165], v[244:245], v[148:151]  \n"
   _UK_MFMA_ "  v[148:151], acc[166:167], v[246:247], v[148:151]  \n"
-"  ds_read_b128  v[200:203], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_2]
+"  ds_read_b128  v[200:203], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_2]  \n"
   _UK_MFMA_ "  v[148:151], acc[168:169], v[248:249], v[148:151]  \n"
   _UK_MFMA_ "  v[148:151], acc[170:171], v[250:251], v[148:151]  \n"
 "  buffer_load_dwordx4  acc[44:47], %[v_os_b2], s[24:27], 0 offen offset:3072 \n"
   _UK_MFMA_ "  v[148:151], acc[172:173], v[252:253], v[148:151]  \n"
   _UK_MFMA_ "  v[148:151], acc[174:175], v[254:255], v[148:151]  \n"
-"  ds_read_b128  v[204:207], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_3]
+"  ds_read_b128  v[204:207], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_3]  \n"
   _UK_MFMA_ "  v[152:155], acc[176:177], v[224:225], v[152:155]  \n"
   _UK_MFMA_ "  v[152:155], acc[178:179], v[226:227], v[152:155]  \n"
 "  buffer_load_dwordx4  acc[48:51], %[v_os_b3], s[24:27], 0 offen \n"
   _UK_MFMA_ "  v[152:155], acc[180:181], v[228:229], v[152:155]  \n"
   _UK_MFMA_ "  v[152:155], acc[182:183], v[230:231], v[152:155]  \n"
-"  ds_read_b128  v[208:211], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_4]
+"  ds_read_b128  v[208:211], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_4]  \n"
   _UK_MFMA_ "  v[152:155], acc[184:185], v[232:233], v[152:155]  \n"
   _UK_MFMA_ "  v[152:155], acc[186:187], v[234:235], v[152:155]  \n"
 "  buffer_load_dwordx4  acc[52:55], %[v_os_b3], s[24:27], 0 offen offset:1024 \n"
   _UK_MFMA_ "  v[152:155], acc[188:189], v[236:237], v[152:155]  \n"
   _UK_MFMA_ "  v[152:155], acc[190:191], v[238:239], v[152:155]  \n"
-"  ds_read_b128  v[212:215], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_5]
+"  ds_read_b128  v[212:215], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_5]  \n"
   _UK_MFMA_ "  v[156:159], acc[176:177], v[240:241], v[156:159]  \n"
   _UK_MFMA_ "  v[156:159], acc[178:179], v[242:243], v[156:159]  \n"
 "  buffer_load_dwordx4  acc[56:59], %[v_os_b3], s[24:27], 0 offen offset:2048 \n"
   _UK_MFMA_ "  v[156:159], acc[180:181], v[244:245], v[156:159]  \n"
   _UK_MFMA_ "  v[156:159], acc[182:183], v[246:247], v[156:159]  \n"
-"  ds_read_b128  v[216:219], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_6]
+"  ds_read_b128  v[216:219], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_6]  \n"
   _UK_MFMA_ "  v[156:159], acc[184:185], v[248:249], v[156:159]  \n"
   _UK_MFMA_ "  v[156:159], acc[186:187], v[250:251], v[156:159]  \n"
 "  buffer_load_dwordx4  acc[60:63], %[v_os_b3], s[24:27], 0 offen offset:3072 \n"
   _UK_MFMA_ "  v[156:159], acc[188:189], v[252:253], v[156:159]  \n"
   _UK_MFMA_ "  v[156:159], acc[190:191], v[254:255], v[156:159]  \n"
-"  ds_read_b128  v[220:223], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_7]
+"  ds_read_b128  v[220:223], %[v_os_sld] offset:0*%[smem_sz] + %[sld_os_7]  \n"
 "  s_waitcnt     vmcnt(32)                               \n"
   _UK_MFMA_ "  v[160:163], acc[192:193], v[224:225], v[160:163]  \n"
   _UK_MFMA_ "  v[160:163], acc[194:195], v[226:227], v[160:163]  \n"
@@ -601,7 +594,7 @@
 "  s_cbranch_scc0  label_end                            \n"
 "  s_branch     label_start%=                           \n"
 "  label_end :                                          \n"
-//dequant
+";---------------------------------------------- \n"
 "  v_cvt_f32_i32  v128, v128                             \n"
 "  v_cvt_f32_i32  v129, v129                             \n"
 "  v_cvt_f32_i32  v130, v130                             \n"
@@ -794,7 +787,7 @@
 "  v_mul_f32     v189, v17, v189 row_newbcast:13         \n"
 "  v_mul_f32     v190, v17, v190 row_newbcast:14         \n"
 "  v_mul_f32     v191, v17, v191 row_newbcast:15         \n"
-#undef _UK_MFMA_      
-//dequant end
+#undef _UK_MFMA_  
+#undef _DEQUAN_CVT_    
 
 

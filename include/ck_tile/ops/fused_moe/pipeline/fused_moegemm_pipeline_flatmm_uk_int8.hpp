@@ -198,7 +198,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
             //addr in fact
         auto a_coords = generate_tuple(
             [&](auto i) {
-                return (token_id) * kargs.stride_token +
+                return (token_id[i]) * kargs.stride_token +
                        threadIdx.x % (BlockShape::Block_K0 / kAlignmentA) * kAlignmentA;
             },
             number<row_ids_a.size()>{});
@@ -254,7 +254,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
                 make_tuple(shared_intermediate_size_1),
                 number<1>{});
 
-            return g_view_;
+            return gq_view_;
         }();
 
         auto gq_res    = gq_win.get_buffer_view().cached_buf_res_;
@@ -345,7 +345,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
 
         auto o_coords = generate_tuple(
             [&](auto i) {
-                return token_id * kargs.stride_token +
+                return token_id[i] * kargs.stride_token +
                        threadIdx.x % (BlockShape::Block_N1 / kAlignmentO) * kAlignmentO;
             },
             number<row_ids_a.size()>{});
@@ -375,6 +375,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         auto acc_0= uk_0(
                         row_ids_a,//fake token id, 2D index for X scale
                         aq_res,
+                        gq_res,
                         gq_res,
                         dq_res,                        
                         a_res,
