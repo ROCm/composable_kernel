@@ -468,8 +468,8 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
                         inner_str += self.API_INNER_CASE.format(F_if = get_if_str(idx_in_n, len_in_n, False),
                                             F_VEC_COND = _cond, F_instance_func=ins.call_name)
                     #inner_str = inner_str + vec_str
-                n_cnd = f'(a.n <= {n_})' if (i_n < len(blob_per_t) - 1) else ''
-                n_str += self.API_PER_N_CASE.format(F_if = get_if_str(i_n, len(blob_per_t)), F_N_COND=n_cnd, F_inner_dispatch=inner_str)
+                n_cnd = f'(a.n <= {n_})' if isinstance(n_, int) else ''
+                n_str += self.API_PER_N_CASE.format(F_if = get_if_str(i_n, len(blob_per_t), not isinstance(n_, int)), F_N_COND=n_cnd, F_inner_dispatch=inner_str)
             prec_i, prec_o = dtype_.split(',')
             d_str += self.API_PER_DTYPE.format(F_if = get_if_str(i_d, len(t_dtype_dict), False), F_i_type=prec_i, F_o_type=prec_o, F_per_n_case=n_str)
 

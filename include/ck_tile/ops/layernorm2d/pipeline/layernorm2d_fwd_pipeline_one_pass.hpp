@@ -96,10 +96,16 @@ struct Layernorm2dFwdPipelineOnePass
         int cur_count = 0;
         int max_count =
             block_tile_welford_calculate_max_count<typename Problem::BlockShape>(row_size);
-        auto block_merge                 = Policy::template GetBlockMerge<Problem>();
-        auto block_merge_sync            = Policy::template GetBlockMergeSync<Problem>();
-        auto block_merge_cross_warp_sync = Policy::template GetBlockMergeCrossWarpSync<Problem>();
+        auto block_norm_reduce      = Policy::template GetBlockNormReduce<Problem>();
+        auto block_norm_reduce_sync = Policy::template GetBlockNormReduceSync<Problem>();
+        auto block_norm_reduce_cross_warp_sync =
+            Policy::template GetBlockNormReduceCrossWarpSync<Problem>();
 
+        using XTensorType = decltype(cast_tile<ComputeDataType>(x));
+        auto mean         = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
+        auto var          = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
+        clear_tile(mean);
+        clear_tile(var);
         // load gamma/beta (TODO: support no gamma/beta?)
         const auto gamma = load_tile(gamma_window);
         const auto beta  = load_tile(beta_window);
@@ -118,22 +124,19 @@ struct Layernorm2dFwdPipelineOnePass
         }
 
         // compute reduce each-thread->cross-lane->cross-warp
-        auto [mean, var] = block_merge(acc, cur_count, max_count);
-        block_merge_sync(mean, var, cur_count);
-        block_merge_cross_warp_sync(mean, var, cur_count, smem);
+        block_norm_reduce(acc, mean, var, cur_count, max_count);
+        block_norm_reduce_sync(mean, var, cur_count);
+        block_norm_reduce_cross_warp_sync(mean, var, cur_count, smem);
         if(kWelford)
         {
             block_tile_welford_post_scale_var(var, cur_count, constant<kFastFDiv>{});
         }
         else
         {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc++20-extensions"
             sweep_tile(mean, [&](auto idx) {
                 mean(idx) = mean(idx) / type_convert<MeanDataType>(row_size);
                 var(idx)  = var(idx) / type_convert<MeanDataType>(row_size) - mean(idx) * mean(idx);
             });
-#pragma clang diagnostic pop
         }
         // compute inv-std
         auto inv_std = tile_elementwise_in(

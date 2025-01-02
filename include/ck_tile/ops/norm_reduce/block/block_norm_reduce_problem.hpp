@@ -12,7 +12,7 @@ template <typename XDataType_,
           typename BlockShape_,
           bool kFastFDiv_,
           bool kWelford_>
-struct BlockMergeProblem
+struct BlockNormReduceProblem
 {
     using XDataType                 = remove_cvref_t<XDataType_>;
     using ComputeDataType           = remove_cvref_t<ComputeDataType_>;

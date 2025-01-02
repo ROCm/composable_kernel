@@ -104,13 +104,14 @@ struct Layernorm2dFwdPipelineTwoPass
         int max_count =
             (num_n_tile_iteration - 1) * count_per_iter +
             block_tile_welford_calculate_max_count<typename Problem::BlockShape>(last_iter_n);
-        auto block_merge                 = Policy::template GetBlockMerge<Problem>();
-        auto block_merge_sync            = Policy::template GetBlockMergeSync<Problem>();
-        auto block_merge_cross_warp_sync = Policy::template GetBlockMergeCrossWarpSync<Problem>();
+        auto block_norm_reduce      = Policy::template GetBlockNormReduce<Problem>();
+        auto block_norm_reduce_sync = Policy::template GetBlockNormReduceSync<Problem>();
+        auto block_norm_reduce_cross_warp_sync =
+            Policy::template GetBlockNormReduceCrossWarpSync<Problem>();
 
         using XTensorType = decltype(cast_tile<ComputeDataType>(load_tile(x_window)));
-        auto mean         = block_merge.template MakeMeanVarBlockTile<XTensorType>();
-        auto var          = block_merge.template MakeMeanVarBlockTile<XTensorType>();
+        auto mean         = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
+        auto var          = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
 
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
@@ -134,11 +135,11 @@ struct Layernorm2dFwdPipelineTwoPass
                     move_tile_window(y_residual_window, {0, Block_N});
                 }
             }
-            block_merge(acc, mean, var, cur_count, max_count);
+            block_norm_reduce(acc, mean, var, cur_count, max_count);
         }
 
-        block_merge_sync(mean, var, cur_count);
-        block_merge_cross_warp_sync(mean, var, cur_count, smem);
+        block_norm_reduce_sync(mean, var, cur_count);
+        block_norm_reduce_cross_warp_sync(mean, var, cur_count, smem);
         block_tile_welford_post_scale_var(var, cur_count, constant<kFastFDiv>{});
 
         // compute inv-std

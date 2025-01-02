@@ -9,7 +9,7 @@
 namespace ck_tile {
 
 template <typename Problem_, typename Policy_ = void>
-struct BlockMerge
+struct BlockNormReduce
 {
     using Problem                   = remove_cvref_t<Problem_>;
     using XDataType                 = typename Problem::XDataType;
@@ -17,7 +17,7 @@ struct BlockMerge
     static constexpr bool kFastFDiv = Problem::kFastFDiv;
     static constexpr bool kWelford  = Problem::kWelford;
 
-    CK_TILE_DEVICE constexpr BlockMerge() {}
+    CK_TILE_DEVICE constexpr BlockNormReduce() {}
 
     // [CAUSION] - max_count_ is to deal with the padding problem
     // max_count_ is depend on caller, eg: naive and splitN norm_reduce will have different
@@ -98,7 +98,7 @@ struct BlockMerge
 };
 
 template <typename Problem_, typename Policy_ = void>
-struct BlockMergeSync
+struct BlockNormReduceSync
 {
     using Problem                   = remove_cvref_t<Problem_>;
     static constexpr bool kFastFDiv = Problem::kFastFDiv;
@@ -195,7 +195,7 @@ struct BlockMergeSync
 };
 
 template <typename Problem_, typename Policy_ = void>
-struct BlockMergeCrossWarpSync
+struct BlockNormReduceCrossWarpSync
 {
     using Problem                   = remove_cvref_t<Problem_>;
     using BlockShape                = typename Problem::BlockShape;
