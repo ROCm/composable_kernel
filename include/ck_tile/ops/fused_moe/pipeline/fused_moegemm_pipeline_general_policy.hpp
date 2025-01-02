@@ -196,13 +196,22 @@ struct FusedMoeGemmPipelineGeneralPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_O()
     {
+        using S_                   = typename Problem::BlockShape;
+        constexpr int M_Thread_Num = 16;
+        constexpr int M_Rep        = S_::Warp_M1 / M_Thread_Num;
+        static_assert(M_Rep <= 2);
+
+        constexpr int N_Thread_Num = 4;
+        constexpr int NPerThread   = S_::Warp_N1 / N_Thread_Num;
+
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<1, 2, 16>, sequence<4, 8>>,
-                                       tuple<sequence<0, 1>, sequence<1, 2>>,
-                                       tuple<sequence<0, 0>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<1, 1>>{});
+            tile_distribution_encoding<
+                sequence<4>,
+                tuple<sequence<1, M_Rep, M_Thread_Num>, sequence<N_Thread_Num, NPerThread>>,
+                tuple<sequence<0, 1>, sequence<1, 2>>,
+                tuple<sequence<0, 0>, sequence<2, 0>>,
+                sequence<1, 2>,
+                sequence<1, 1>>{});
     }
 
     template <typename Problem>
