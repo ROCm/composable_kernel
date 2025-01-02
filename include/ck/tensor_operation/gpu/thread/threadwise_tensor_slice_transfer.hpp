@@ -1007,6 +1007,13 @@ struct ThreadwiseTensorSliceTransfer_v4
 
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
 
+    static constexpr index_t PackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     __device__ constexpr ThreadwiseTensorSliceTransfer_v4(const Index& src_ref_idx)
         : src_ref_coord_(make_tensor_coordinate(SrcDesc{}, src_ref_idx))
     {
@@ -1015,6 +1022,11 @@ struct ThreadwiseTensorSliceTransfer_v4
 
         static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
                       "wrong! Not divisible");
+
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        {
+            static_assert(SrcScalarPerVector % PackedSize == 0, "pk data N cannot be 1");
+        }
     }
 
     template <typename SrcRefToOriginDisplacement,
@@ -1109,7 +1121,7 @@ struct ThreadwiseTensorSliceTransfer_v4
 
             move_tensor_coordinate(src_desc, src_data_coord, src_ref_to_data_disp_coord_step);
 
-            vector_type_maker_t<SrcData, SrcScalarPerVector> src_tmp_vector;
+            vector_type_maker_t<SrcData, SrcScalarPerVector / PackedSize> src_tmp_vector;
 
             using src_vector_t = typename decltype(src_tmp_vector)::type;
 
@@ -1120,7 +1132,8 @@ struct ThreadwiseTensorSliceTransfer_v4
             if constexpr(SrcBuffer::IsDynamicBuffer())
             {
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
-                    src_buf.template Get<src_vector_t>(src_data_coord.GetOffset(), is_src_valid);
+                    src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize,
+                                                       is_src_valid);
             }
             else if constexpr(SrcBuffer::IsStaticBuffer())
             {
@@ -1133,9 +1146,36 @@ struct ThreadwiseTensorSliceTransfer_v4
                 });
             }
 
-            if constexpr(is_same<remove_cvref_t<SrcData>, f8_t>::value &&
-                         is_same<remove_cvref_t<DstData>, half_t>::value &&
-                         SrcScalarPerVector % 2 == 0)
+            if constexpr(is_same<remove_cvref_t<SrcData>, pk_i4_t>::value)
+            {
+                // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
+                // DstData)
+                vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
+
+                constexpr index_t pack_size = 8;
+
+                static_assert(SrcScalarPerVector % pack_size == 0, "");
+
+                using src_v_t = typename vector_type_maker_t<SrcData, pack_size / PackedSize>::type;
+                using dst_v_t = typename vector_type_maker_t<DstData, pack_size>::type;
+
+                static_for<0, SrcScalarPerVector / pack_size, 1>{}([&](auto i) {
+                    ck::tensor_operation::element_wise::PassThroughPack8{}(
+                        dst_tmp_vector.template AsType<dst_v_t>()(i),
+                        src_tmp_vector.template AsType<src_v_t>()[i]);
+                });
+
+                // copy data from dst_tmp_vector into dst_buf
+                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                    constexpr index_t dst_offset = dst_desc.CalculateOffset(
+                        dst_origin_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
+
+                    dst_buf(Number<dst_offset>{}) = dst_tmp_vector.template AsType<DstData>()[i];
+                });
+            }
+            else if constexpr(is_same<remove_cvref_t<SrcData>, f8_t>::value &&
+                              is_same<remove_cvref_t<DstData>, half_t>::value &&
+                              SrcScalarPerVector % 2 == 0)
             {
                 // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
                 // DstData)
