@@ -141,8 +141,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     static constexpr index_t KRepeat = KPerBlock / KLane / KPack;
     static constexpr index_t NLane   = NPerXdl;
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
-    static_assert(NLane * NWave * KLane == BlockSize);
-    // static_assert(NXdlPerWave == 1, "only 1 validated now, tbd next week");
+    static_assert(NWave * warpSize == BlockSize);
 
     static constexpr auto MakeDsGridPointer()
     {
@@ -176,7 +175,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
     __host__ __device__ static auto CalculateBN0Shuffled(index_t N)
     {
-        return math::integer_divide_ceil(N, NLane * NWave);
+        return math::integer_divide_ceil(N, NLane);
     }
     __host__ __device__ static auto CalculateBK0Shuffled(index_t K)
     {
@@ -322,9 +321,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<BlockSize * KPack>{};
-        return make_naive_tensor_descriptor(make_tuple(N0, K0, NkSwizzleNumber),
-                                            make_tuple(K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
+        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack>{};
+        return make_naive_tensor_descriptor(make_tuple(K0, N0/NWave, NWave, NkSwizzleNumber),
+                                            make_tuple(N0*NkSwizzleNumber, NWave*NkSwizzleNumber,NkSwizzleNumber, I1));
     }
 
     __host__ __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
@@ -649,8 +648,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                // KPack * NLane * KLane * NWave * KRepeat * K0* NRepeat *  N0
-                b_k_split_offset = k_id * karg.KRead * NLane * NWave;
+                // KPack * NLane * KLane * N0 * K0
+                b_k_split_offset = k_id * karg.KRead * karg.N;
             }
 
             if(k_id < karg.KBatch - 1)
@@ -1159,6 +1158,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         }
 
         // check gridwise gemm pipeline
+#if 0
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
         if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
@@ -1168,7 +1168,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                 return false;
             }
         }
-
+#endif
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
     }
@@ -1252,6 +1252,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     {
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
+
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(problem.BN0Shuffled, problem.BK0Shuffled);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
@@ -1294,7 +1295,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
+        // dummy
+        constexpr auto b_block_desc_bk0_n_bk1 = make_naive_tensor_descriptor_packed(
+                make_tuple(I1, I1, I1, I1));
 
         // A matrix blockwise copy
         auto a_blockwise_copy =
@@ -1335,17 +1338,17 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             BElementwiseOperation,
             ck::tensor_operation::element_wise::PassThrough,
             InMemoryDataOperationEnum::Set,
-            Sequence<NXdlPerWave, KRepeat, KPack * BlockSize>,
-            Sequence<1, 1, BlockSize>, // BThreadClusterLengths,
-            Sequence<0, 1, 2>,         // BBlockTransferClusterArrangeOrder,
+            Sequence<KRepeat, NXdlPerWave, NWave, KPack * warpSize>,
+            Sequence<1, 1, NWave, warpSize>, // BThreadClusterLengths,
+            Sequence<0, 1, 2, 3>,            // BBlockTransferClusterArrangeOrder,
             BDataType,
             LDSTypeB,
             decltype(b_grid_desc_bpreshuffled),
             decltype(b_block_desc_bk0_n_bk1),
-            Sequence<0, 1, 2>, // BBlockTransferSrcAccessOrder,
-            Sequence<0, 1, 2>,
-            BBlockTransferSrcVectorDim,
-            2,
+            Sequence<0, 1, 2, 3>, // BBlockTransferSrcAccessOrder,
+            Sequence<0, 1, 2, 3>,
+            3,
+            3,
             BBlockTransferSrcScalarPerVector,
             BBlockTransferDstScalarPerVector_BK1,
             1,
@@ -1353,10 +1356,10 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             BThreadTransferSrcResetCoordinateAfterRun,
             true,
             2>(b_grid_desc_bpreshuffled,
-               make_multi_index(n_block_data_idx_on_grid, 0, 0),
+               make_multi_index(0, n_block_data_idx_on_grid, 0, 0),
                b_element_op,
                b_block_desc_bk0_n_bk1,
-               make_multi_index(0, 0, 0),
+               make_multi_index(0, 0, 0, 0),
                ck::tensor_operation::element_wise::PassThrough{});
 
         // LDS allocation for A and B: be careful of alignment
@@ -1367,7 +1370,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             static_cast<LDSTypeA*>(p_shared1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(0, KRepeat, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(KRepeat, 0, 0, 0);
 
         // Blockwise GEMM pipeline
         static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);

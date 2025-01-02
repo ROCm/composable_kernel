@@ -138,7 +138,7 @@ struct DeviceGemmMultipleDSplitKBPreShuffle : public BaseOperator
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 
-    virtual std::array<int, 6> GetPreShuffleParameters() = 0;
+    virtual int GetPreShuffleParameters() = 0;
 };
 
 } // namespace device

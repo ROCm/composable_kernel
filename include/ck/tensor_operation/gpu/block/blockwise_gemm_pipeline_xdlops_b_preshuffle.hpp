@@ -118,12 +118,14 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
                                                    MRepeat,
                                                    NRepeat,
                                                    KPack>;
+    using Base::A_K1;
     using Base::I0;
     using Base::I1;
     using Base::KRepeat;
     using Base::xdlops_gemm;
     using typename Base::HotLoopInstList;
 
+    using Base::a_block_desc_m0_m1_m2_k;
     using Base::CalculateCThreadOriginDataIndex;
     using Base::CalculateCThreadOriginDataIndex8D;
     using Base::GetCBlockDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
@@ -136,14 +138,36 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
     using Base::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
 
-    using Base::a_block_desc_m0_m1_m2_k;
-
     using Base::AMmaKStride;
     using Base::BMmaKStride;
 
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
+
+    template <typename TileDesc_M0_M1_M2_K>
+    __host__ __device__ static constexpr auto MakeAGemmMmaTileDescriptor(const TileDesc_M0_M1_M2_K&)
+    {
+        constexpr index_t M0 = TileDesc_M0_M1_M2_K{}.GetLength(Number<0>{});
+        constexpr index_t M1 = TileDesc_M0_M1_M2_K{}.GetLength(Number<1>{});
+        constexpr index_t M2 = TileDesc_M0_M1_M2_K{}.GetLength(Number<2>{});
+        constexpr index_t K2 = KPack;
+        constexpr index_t K1 = 64 / NPerXDL;
+        constexpr index_t K0 = KRepeat;
+
+        return transform_tensor_descriptor(
+            TileDesc_M0_M1_M2_K{},
+            make_tuple(
+                make_pass_through_transform(Number<M0>{}),
+                make_pass_through_transform(Number<M1>{}),
+                make_pass_through_transform(Number<M2>{}),
+                make_unmerge_transform(make_tuple(Number<K0>{}, Number<K1>{}, Number<K2>{}))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3, 4, 5>{}));
+    }
+
+    static constexpr auto a_block_desc_m0_m1_m2_k0_k1_k2 =
+        MakeAGemmMmaTileDescriptor(a_block_desc_m0_m1_m2_k);
 
     __host__ __device__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -275,11 +299,11 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
         block_sync_lds();
         static_for<0, KRepeat, 1>{}([&](auto k0) {
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                                   make_tuple(m0, I0, I0, Number<k0 * AMmaKStride>{}),
+                a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                   make_tuple(m0, I0, I0, k0, I0, I0),
                                    a_block_buf0,
                                    a_thread_desc_,
-                                   make_tuple(m0, I0, k0, I0),
+                                   make_tuple(m0, I0, I0, k0, I0, I0),
                                    a_thread_buf);
             });
         });
@@ -305,12 +329,12 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
                             vector_type<ComputeDataType, KPack> a_thread_vec;
                             vector_type<ComputeDataType, KPack> b_thread_vec =
                                 b_blockwise_copy
-                                    .template GetSrcThreadScratchIdx<Sequence<n0, k0, 0>,
+                                    .template GetSrcThreadScratchIdx<Sequence<k0, n0, 0, 0>,
                                                                      Number<0>{}>();
                             static_for<0, KPack, 1>{}([&](auto ik) {
                                 a_thread_vec.template AsType<ComputeDataType>()(ik) =
                                     a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                        make_tuple(m0, I0, k0, ik))>{}];
+                                        make_tuple(m0, I0, I0, k0, I0, ik))>{}];
                             });
 
                             using mfma_input_type =
@@ -332,11 +356,11 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
 
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                                           make_tuple(m0, I0, I0, Number<k0 * AMmaKStride>{}),
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                           make_tuple(m0, I0, I0, k0, I0, I0),
                                            a_block_buf1,
                                            a_thread_desc_,
-                                           make_tuple(m0, I0, k0, I0),
+                                           make_tuple(m0, I0, I0, k0, I0, I0),
                                            a_thread_buf);
                     });
                 });
@@ -357,15 +381,13 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
                             vector_type<ComputeDataType, KPack> a_thread_vec;
                             vector_type<ComputeDataType, KPack> b_thread_vec =
-                                //  b_blockwise_copy.template GetSrcThreadScratchIdx<Sequence<n0,
-                                //  k0, 0>,
                                 b_blockwise_copy
-                                    .template GetSrcThreadScratchIdx<Sequence<n0, k0, 0>,
+                                    .template GetSrcThreadScratchIdx<Sequence<k0, n0, 0, 0>,
                                                                      Number<1>{}>();
                             static_for<0, KPack, 1>{}([&](auto ik) {
                                 a_thread_vec.template AsType<ComputeDataType>()(ik) =
                                     a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                        make_tuple(m0, I0, k0, ik))>{}];
+                                        make_tuple(m0, I0, I0, k0, I0, ik))>{}];
                             });
 
                             using mfma_input_type =
@@ -387,11 +409,11 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
 
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                                           make_tuple(m0, I0, I0, Number<k0 * AMmaKStride>{}),
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                           make_tuple(m0, I0, I0, k0, I0, I0),
                                            a_block_buf0,
                                            a_thread_desc_,
-                                           make_tuple(m0, I0, k0, I0),
+                                           make_tuple(m0, I0, I0, k0, I0, I0),
                                            a_thread_buf);
                     });
                 });
@@ -411,12 +433,12 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         vector_type<ComputeDataType, KPack> a_thread_vec;
                         vector_type<ComputeDataType, KPack> b_thread_vec =
-                            b_blockwise_copy.template GetSrcThreadScratchIdx<Sequence<n0, k0, 0>,
+                            b_blockwise_copy.template GetSrcThreadScratchIdx<Sequence<k0, n0, 0, 0>,
                                                                              Number<0>{}>();
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeDataType>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                    make_tuple(m0, I0, k0, ik))>{}];
+                                    make_tuple(m0, I0, I0, k0, I0, ik))>{}];
                         });
 
                         using mfma_input_type =
@@ -436,11 +458,11 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
 
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                                       make_tuple(m0, I0, I0, Number<k0 * AMmaKStride>{}),
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                       make_tuple(m0, I0, I0, k0, I0, I0),
                                        a_block_buf1,
                                        a_thread_desc_,
-                                       make_tuple(m0, I0, k0, I0),
+                                       make_tuple(m0, I0, I0, k0, I0, I0),
                                        a_thread_buf);
                 });
             });
@@ -452,12 +474,13 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         vector_type<ComputeDataType, KPack> a_thread_vec;
                         vector_type<ComputeDataType, KPack> b_thread_vec =
-                            b_blockwise_copy.template GetSrcThreadScratchIdx<Sequence<n0, k0, 0>,
+                            b_blockwise_copy.template GetSrcThreadScratchIdx<Sequence<k0, n0, 0, 0>,
                                                                              Number<1>{}>();
+
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeDataType>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                    make_tuple(m0, I0, k0, ik))>{}];
+                                    make_tuple(m0, I0, I0, k0, I0, ik))>{}];
                         });
 
                         using mfma_input_type =
@@ -483,12 +506,12 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         vector_type<ComputeDataType, KPack> a_thread_vec;
                         vector_type<ComputeDataType, KPack> b_thread_vec =
-                            b_blockwise_copy.template GetSrcThreadScratchIdx<Sequence<n0, k0, 0>,
+                            b_blockwise_copy.template GetSrcThreadScratchIdx<Sequence<k0, n0, 0, 0>,
                                                                              Number<0>{}>();
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeDataType>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                    make_tuple(m0, I0, k0, ik))>{}];
+                                    make_tuple(m0, I0, I0, k0, I0, ik))>{}];
                         });
 
                         using mfma_input_type =
@@ -507,9 +530,22 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle<BlockGemmPipelineScheduler::Intr
     }
 
     protected:
-    using Base::a_thread_copy_;
-    using Base::a_thread_desc_;
-    using Base::b_thread_desc_;
+    // MRepeat MWave MLane KRepeat KLane KPack
+    // KRepeat -> MRepeat-> Mwave->KLane->MLane->KPack
+    static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<MRepeat>{}, I1, I1, Number<KRepeat>{}, I1, Number<KPack>{}));
+
+    using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<ADataType,
+                                                         ComputeDataType,
+                                                         decltype(a_block_desc_m0_m1_m2_k0_k1_k2),
+                                                         decltype(a_thread_desc_),
+                                                         Sequence<1, 1, 1, 1, 1, KPack>,
+                                                         Sequence<0, 1, 2, 3, 4, 5>,
+                                                         5,
+                                                         A_K1,
+                                                         A_K1>;
+
+    AThreadCopy a_thread_copy_{Base::CalculateAThreadOriginDataIndex6D()};
     using Base::c_thread_desc_;
 };
 

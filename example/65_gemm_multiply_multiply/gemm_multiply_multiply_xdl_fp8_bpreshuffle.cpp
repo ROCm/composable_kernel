@@ -39,7 +39,7 @@ using CShuffleDataType = F32;
 using D0DataType       = F32;
 using D1DataType       = F32;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
-using EDataType        = BF16;
+using EDataType        = F16;
 
 using A0Layout = Row;
 using B0Layout = Col;
@@ -97,63 +97,32 @@ struct MultiplyMultiply
     }
 };
 
-void preShuffleBuffer(const FP8* src,
-                      FP8* dst,
-                      int N,
-                      int K,
-                      int NRepeat,
-                      int KRepeat,
-                      int NWave,
-                      int KLane,
-                      int NLane,
-                      int KPack)
+void preShuffleBuffer(const FP8* src, FP8* dst, int N, int K, int NXdl)
 {
-    int K0 = K / (KRepeat * KLane * KPack);
-    // K -> src: K0 KLane KRepeat KPack  -> dst: K0 KRpeat KLane KPack, move klane inner to make all
-    // lanes contiguous N -> N0 NRepeat NWave NLane  // todo : is NRepeat outer or inner? now it's 1
-    int tempn, tempk;
+    int KPack = 16;
+    int NLane = NXdl;
+    int KLane = 64 / NLane;
+
+    int N0 = N / NLane;
+    // K -> K0 KLane KPack
+    // N -> N0 NLane
+    // N, K -> K0 N0 KLane NLane KPack
+    int tempk;
     for(int n = 0; n < N; ++n)
     {
         for(int k = 0; k < K; ++k)
         {
-            int n0 = n / (NRepeat * NLane * NWave);
-            int k0 = k / (KRepeat * KLane * KPack);
-            tempn  = n % (NRepeat * NLane * NWave);
-            tempk  = k % (KRepeat * KLane * KPack);
+            int n0 = n / NLane;
+            int n1 = n % NLane;
 
-            int n1 = tempn / (NLane * NWave);
-            int k1 = tempk / (KRepeat * KPack); // Klane
-            tempn  = tempn % (NLane * NWave);
-            tempk  = tempk % (KRepeat * KPack);
-            int n2 = tempn / NLane;
-            int k2 = tempk / KPack; // KRepeat
-            int n3 = tempn % NLane;
-            int k3 = tempk % KPack; // Kpack
+            int k0 = k / (KLane * KPack);
+            tempk  = k % (KLane * KPack);
+            int k1 = tempk / KPack;
+            int k2 = tempk % KPack;
 
-            int outputIndex = n0 * KPack * NLane * KLane * NWave * KRepeat * K0 * NRepeat +
-                              n1 * KPack * NLane * KLane * NWave * KRepeat * K0 +
-                              k0 * KPack * NLane * KLane * NWave * KRepeat +
-                              k2 * KPack * NLane * KLane * NWave + n2 * KPack * NLane * KLane +
-                              k1 * KPack * NLane + n3 * KPack + k3;
-#if 0
-            int k1 = tempk / (KLane * KPack); //KRepeat
-            int n1 = tempn / (NLane * NWave); //NRepeat
-            tempn  = tempn % (NLane * NWave);
-            tempk  = tempk % (KLane * KPack);
-            int n2 = tempn / NLane; // NWave
-            int k2 = tempk / KPack; // KLane
-            int n3 = tempn % NLane; // NLane
-            int k3 = tempk % KPack; // Kpack
+            int outputIndex = k0 * KPack * NLane * KLane * N0 + n0 * KPack * NLane * KLane +
+                              k1 * KPack * NLane + n1 * KPack + k2;
 
-            int outputIndex = n0 * KPack * NLane * KLane * NWave * NRepeat * KRepeat * K0 +
-                              k0 * KPack * NLane * KLane * NWave * NRepeat * KRepeat +
-                              k1 * KPack * NLane * KLane * NWave * NRepeat +
-                              n1 * KPack * NLane * KLane * NWave +
-                              n2 * KPack * NLane * KLane +
-                              k2 * KPack * NLane +
-                              n3 * KPack +
-                              k3;
-#endif
             dst[outputIndex] = src[n * K + k];
         }
     }
@@ -179,13 +148,13 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
         // <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    256,  16,  16,  32,   32,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<16, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,
-               256,   256,    128,
+               32,   256,    256,
                16,   16,
-               32,   32, 
-               8,    2,
-               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               1,    1,   S<1, 32, 1, 8>, S<8, 8, 1>,
+               32,   32,
+               1,    2,
+               S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+               S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+               1,    1,   S<1, 16, 1, 16>, S<8, 8, 1>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
         // kernel 2: 128->32x128x128
         //  <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   128,   32,   128,    128,  16,  16,  32,   32,    1,    2,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 16, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, FP8>;
@@ -319,18 +288,9 @@ int main(int argc, char* argv[])
     // do GEMM
     auto device_op = DeviceOpInstance{};
 
-    auto preshuffle_params = device_op.GetPreShuffleParameters();
+    int NPerXdl = device_op.GetPreShuffleParameters();
 
-    preShuffleBuffer(b0_k_n.mData.data(),
-                     b0_preshuffled.mData.data(),
-                     N,
-                     K,
-                     preshuffle_params[0],
-                     preshuffle_params[1],
-                     preshuffle_params[2],
-                     preshuffle_params[3],
-                     preshuffle_params[4],
-                     preshuffle_params[5]);
+    preShuffleBuffer(b0_k_n.mData.data(), b0_preshuffled.mData.data(), N, K, NPerXdl);
 
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
 

@@ -29,40 +29,31 @@ void preShuffleBuffer(const InOutDataType* src,
                       InOutDataType* dst,
                       int N,
                       int K,
-                      int NRepeat,
-                      int KRepeat,
-                      int NWave,
-                      int KLane,
-                      int NLane,
-                      int KPack)
+                      int NXdl)
 {
-    int K0 = K / (KRepeat * KLane * KPack);
-    // K -> src: K0 KLane KRepeat KPack  -> dst: K0 KRpeat KLane KPack, move klane inner to make all
-    // lanes contiguous N -> N0 NRepeat NWave NLane  // todo : is NRepeat outer or inner? now it's 1
-    int tempn, tempk;
+    int KPack = 16;
+    int NLane = NXdl;
+    int KLane = 64 / NLane;
+
+    int N0 = N / NLane;
+    // K -> K0 KLane KPack
+    // N -> N0 NLane
+    // N, K -> K0 N0 KLane NLane KPack
+    int tempk;
     for(int n = 0; n < N; ++n)
     {
         for(int k = 0; k < K; ++k)
         {
-            int n0 = n / (NRepeat * NLane * NWave);
-            int k0 = k / (KRepeat * KLane * KPack);
-            tempn  = n % (NRepeat * NLane * NWave);
-            tempk  = k % (KRepeat * KLane * KPack);
+            int n0 = n / NLane;
+            int n1 = n % NLane;
 
-            int n1 = tempn / (NLane * NWave);
-            int k1 = tempk / (KRepeat * KPack); // Klane
-            tempn  = tempn % (NLane * NWave);
-            tempk  = tempk % (KRepeat * KPack);
-            int n2 = tempn / NLane;
-            int k2 = tempk / KPack; // KRepeat
-            int n3 = tempn % NLane;
-            int k3 = tempk % KPack; // Kpack
+            int k0 = k / (KLane * KPack);
+            tempk  = k % (KLane * KPack);
+            int k1 = tempk / KPack;
+            int k2 = tempk % KPack;
 
-            int outputIndex = n0 * KPack * NLane * KLane * NWave * KRepeat * K0 * NRepeat +
-                              n1 * KPack * NLane * KLane * NWave * KRepeat * K0 +
-                              k0 * KPack * NLane * KLane * NWave * KRepeat +
-                              k2 * KPack * NLane * KLane * NWave + n2 * KPack * NLane * KLane +
-                              k1 * KPack * NLane + n3 * KPack + k3;
+            int outputIndex = k0 * KPack * NLane * KLane * N0 + n0 * KPack * NLane * KLane +
+                              k1 * KPack * NLane + n1 * KPack + k2;
 
             dst[outputIndex] = src[n * K + k];
         }
@@ -116,7 +107,9 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<BDataType> b_preshuffled(
+    Tensor<BDataType> b_preshuffled_mfma16(
+        f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
+    Tensor<BDataType> b_preshuffled_mfma32(
         f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
@@ -154,6 +147,9 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
         d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
 
+    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma16.mData.data(), N, K, 16);
+    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma32.mData.data(), N, K, 32);
+
     using PassThrough      = ck::tensor_operation::element_wise::PassThrough;
     using MultiplyMultiply = ck::tensor_operation::element_wise::MultiplyMultiply;
 
@@ -166,12 +162,16 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     const auto c_element_op = CElementOp{};
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf_mfma16(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf_mfma32(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
+    b_device_buf_mfma16.ToDevice(b_preshuffled_mfma16.mData.data());
+    b_device_buf_mfma32.ToDevice(b_preshuffled_mfma32.mData.data());
+
     d0_device_buf.ToDevice(d0_m_n.mData.data());
     d1_device_buf.ToDevice(d1_m_n.mData.data());
 
@@ -234,20 +234,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        auto preshuffle_params = op_ptr->GetPreShuffleParameters();
-
-        preShuffleBuffer(b_k_n.mData.data(),
-                         b_preshuffled.mData.data(),
-                         N,
-                         K,
-                         preshuffle_params[0],
-                         preshuffle_params[1],
-                         preshuffle_params[2],
-                         preshuffle_params[3],
-                         preshuffle_params[4],
-                         preshuffle_params[5]);
-
-        b_device_buf.ToDevice(b_preshuffled.mData.data());
+        int NPerXdl = op_ptr->GetPreShuffleParameters();
 
         std::vector<int> kbatch_list = {1, 2, 4, 8};
 
@@ -262,7 +249,8 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
             auto argument_ptr = op_ptr->MakeArgumentPointer(
                 static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                static_cast<BDataType*>(NPerXdl == 16 ? b_device_buf_mfma16.GetDeviceBuffer()
+                                                      : b_device_buf_mfma32.GetDeviceBuffer()),
                 std::array<const void*, 2>{d0_device_buf.GetDeviceBuffer(),
                                            d1_device_buf.GetDeviceBuffer()},
                 static_cast<EDataType*>(c_device_buf.GetDeviceBuffer()),
@@ -298,8 +286,8 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                                   is_same_v<EDataType, int8_t>))
                     {
                         std::string msg = "Error: Incorrect results!";
-                        double rtol     = 1e-1;
-                        double atol     = 1e-1;
+                        double rtol     = 1e-3;
+                        double atol     = 5e-2;
                         pass            = pass & ck::utils::check_err(
                                           e_m_n_device_result, e_m_n_host_result, msg, rtol, atol);
                     }
