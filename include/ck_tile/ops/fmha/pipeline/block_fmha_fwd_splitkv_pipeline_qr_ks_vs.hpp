@@ -448,6 +448,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                         });
                 }
             }
+
             __builtin_amdgcn_sched_barrier(0);
             // move K tile window
             i_page_block_k = k_page_block_navigator.move_tile_window(
@@ -465,6 +466,12 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             const auto m_old = m; // m{j-1}
             tile_elementwise_inout(
                 [](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); }, m, m_old, m_local); // m{j}
+
+            __builtin_amdgcn_sched_barrier(0);
+            // move V tile window
+            i_page_block_v = v_page_block_navigator.move_tile_window(
+                i_page_block_v, v_dram_block_window, {0, kN0});
+            __builtin_amdgcn_sched_barrier(0);
 
             auto p_compute = make_static_distributed_tensor<SMPLComputeDataType>(
                 s.get_tile_distribution()); // Pcompute{j}
@@ -564,12 +571,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
-
-            __builtin_amdgcn_sched_barrier(0);
-            // move V tile window
-            i_page_block_v = v_page_block_navigator.move_tile_window(
-                i_page_block_v, v_dram_block_window, {0, kN0});
-            __builtin_amdgcn_sched_barrier(0);
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
