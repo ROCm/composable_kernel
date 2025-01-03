@@ -37,6 +37,7 @@ struct Layernorm2dFwdPipelineOnePass
     static constexpr bool kPadM              = false; // TODO - BlockLayernorm2dFwdProblem::kPadM
     static constexpr bool kPadN              = Problem::Traits::kPadN;
     static constexpr bool kFastFDiv          = Problem::Traits::kFastFDiv;
+    static constexpr bool kWelford           = Problem::Traits::kWelford;
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
@@ -95,11 +96,16 @@ struct Layernorm2dFwdPipelineOnePass
         int cur_count = 0;
         int max_count =
             block_tile_welford_calculate_max_count<typename Problem::BlockShape>(row_size);
-        auto block_welford      = Policy::template GetBlockWelford<Problem>();
-        auto block_welford_sync = Policy::template GetBlockWelfordSync<Problem>();
-        auto block_welford_cross_warp_sync =
-            Policy::template GetBlockWelfordCrossWarpSync<Problem>();
+        auto block_norm_reduce      = Policy::template GetBlockNormReduce<Problem>();
+        auto block_norm_reduce_sync = Policy::template GetBlockNormReduceSync<Problem>();
+        auto block_norm_reduce_cross_warp_sync =
+            Policy::template GetBlockNormReduceCrossWarpSync<Problem>();
 
+        using XTensorType = decltype(cast_tile<ComputeDataType>(x));
+        auto mean         = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
+        auto var          = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
+        clear_tile(mean);
+        clear_tile(var);
         // load gamma/beta (TODO: support no gamma/beta?)
         const auto gamma = load_tile(gamma_window);
         const auto beta  = load_tile(beta_window);
@@ -117,12 +123,21 @@ struct Layernorm2dFwdPipelineOnePass
                 store_tile(y_residual_window, cast_tile<YResidualDataType>(acc));
         }
 
-        // compute welford each-thread->cross-lane->cross-warp
-        auto [mean, var] = block_welford(acc, cur_count, max_count);
-        block_welford_sync(mean, var, cur_count);
-        block_welford_cross_warp_sync(mean, var, cur_count, smem);
-        block_tile_welford_post_scale_var(var, cur_count, constant<kFastFDiv>{});
-
+        // compute reduce each-thread->cross-lane->cross-warp
+        block_norm_reduce(acc, mean, var, cur_count, max_count);
+        block_norm_reduce_sync(mean, var, cur_count);
+        block_norm_reduce_cross_warp_sync(mean, var, cur_count, smem);
+        if(kWelford)
+        {
+            block_tile_welford_post_scale_var(var, cur_count, constant<kFastFDiv>{});
+        }
+        else
+        {
+            sweep_tile(mean, [&](auto idx) {
+                mean(idx) = mean(idx) / type_convert<MeanDataType>(row_size);
+                var(idx)  = var(idx) / type_convert<MeanDataType>(row_size) - mean(idx) * mean(idx);
+            });
+        }
         // compute inv-std
         auto inv_std = tile_elementwise_in(
             [&](const auto& v_) {
@@ -153,8 +168,7 @@ struct Layernorm2dFwdPipelineOnePass
             const auto beta_  = type_convert<ComputeDataType>(beta[j_idx]);
 
             auto ln_ = (acc[idx] - mean_[i_idx]) * inv_std[i_idx] * gamma_ + beta_;
-
-            ln(idx) = ln_;
+            ln(idx)  = ln_;
         });
 
         if constexpr(kFusedQuant == Layernorm2dFusedQuantEnum::DYNAMIC_QUANT ||
