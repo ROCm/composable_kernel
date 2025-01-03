@@ -1095,7 +1095,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
             else if constexpr(std::is_same_v<decltype(traits), fmha_fwd_splitkv_traits&>)
             {
-                // #define PRINT(expr) std::cout << "[POYENC] " #expr ": " << (expr) << std::endl
                 return !traits.is_group_mode &&
                        (args.seqlen_q == 1 && args.nhead_q > args.nhead_k &&
                         mask.type == mask_enum::no_mask && bias.type == bias_enum::no_bias);
