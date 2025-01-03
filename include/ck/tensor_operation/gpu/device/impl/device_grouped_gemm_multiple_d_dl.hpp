@@ -672,6 +672,12 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
         if((ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "[ NotSupportedArgument] arg.skipped_group_count_ + arg.gemm_desc_kernel_arg_.size(): " 
+                        << arg.skipped_group_count_ << " + " << arg.gemm_desc_kernel_arg_.size()
+                          << "!= group_count_: " << arg.group_count_ << std::endl;
+            }
             return false;
         }
 
@@ -691,6 +697,15 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
         }
         else
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "[ NotSupportedArgument] Device properties check failed:" << std::endl;
+                std::cout << "[ NotSupportedArgument] Device: " << ck::get_device_name() << std::endl;
+                std::cout << "[ NotSupportedArgument] XDL support: " << std::to_string(ck::is_xdl_supported()) << std::endl;
+                std::cout << "[ NotSupportedArgument] gfx103 support: " <<  std::to_string(ck::is_gfx103_supported()) << std::endl;
+                std::cout << "[ NotSupportedArgument] gfx11 support: " <<  std::to_string(ck::is_gfx11_supported()) << std::endl;
+                std::cout << "[ NotSupportedArgument] gfx12 support: " <<  std::to_string(ck::is_gfx12_supported()) << std::endl;
+            }
             return false;
         }
     }

@@ -820,6 +820,10 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
     {
         if(!ck::is_xdl_supported())
         {
+            if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "[ NotSupportedArgument ] XDL is not supported." << std::endl;
+            }
             return false;
         }
 
@@ -828,8 +832,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "The group count is not equal to sum of skipped groups "
-                             "and kernel args size!"
+                std::cout << "[ NotSupportedArgument ] The group count is not equal to sum of skipped groups "
+                          << "and kernel args size!"
                           << std::endl;
             }
             return false;

@@ -612,12 +612,22 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     {
         if(!ck::is_xdl_supported())
         {
+            if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "[ NotSupportedArgument ] XDL is not supported." << std::endl;
+            }
             return false;
         }
 
         if((ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "[ NotSupportedArgument ] The group count is not equal to sum of skipped groups "
+                          << "and kernel args size!"
+                          << std::endl;
+            }
             return false;
         }
 
@@ -640,6 +650,12 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 supported = supported & (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
                 supported = supported & (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
             }
+        }
+        
+        if (!supported && ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            std::cout << "[ NotSupportedArgument ] If padding is used, vector loads are not supported for dimensions "
+                    << "not divisible by vector load size." << std::endl;
         }
 
         return supported;

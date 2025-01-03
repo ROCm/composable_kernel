@@ -117,6 +117,16 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
              b_grid_desc_k0_n_k1.GetElementSpaceSize() * sizeof(FloatAB) <= TwoGB &&
              c_grid_desc_m_n.GetElementSpaceSize() * sizeof(FloatC) <= TwoGB))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "[ NotSupportedArgument ] Input matrices exceeded 2GB limitation:" << std::endl;
+                std::cout << "[ NotSupportedArgument ] A matrix: " << a_grid_desc_k0_m_k1.GetElementSpaceSize() * sizeof(FloatAB)
+                        << " bytes" << std::endl;
+                std::cout << "[ NotSupportedArgument ] B matrix: " << b_grid_desc_k0_n_k1.GetElementSpaceSize() * sizeof(FloatAB)
+                        << " bytes" << std::endl;
+                std::cout << "[ NotSupportedArgument ] C matrix: " << c_grid_desc_m_n.GetElementSpaceSize() * sizeof(FloatC)
+                        << " bytes" << std::endl;
+            }
             return false;
         }
 
@@ -126,11 +136,26 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
 
-        return (M == c_grid_desc_m_n.GetLength(I0) && N == c_grid_desc_m_n.GetLength(I1) &&
+        const bool validDims = (M == c_grid_desc_m_n.GetLength(I0) && N == c_grid_desc_m_n.GetLength(I1) &&
                 K0 == b_grid_desc_k0_n_k1.GetLength(I0) &&
                 K1 == a_grid_desc_k0_m_k1.GetLength(I2) &&
                 K1 == b_grid_desc_k0_n_k1.GetLength(I2)) &&
                (M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0);
+
+        if (!validDims && ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            std::cout << "[ NotSupportedArgument ] Invalid dimension:" << std::endl;
+            std::cout << "[ NotSupportedArgument ] M: " << M << " N: " << N << " K0: " << K0 << " K1: " << K1 << std::endl;
+            std::cout << "[ NotSupportedArgument ] MPerBlock: " << MPerBlock << " NPerBlock: " << NPerBlock
+                      << " K0PerBlock: " << K0PerBlock << std::endl;
+            std::cout << " [ NotSupportedArgument ] c_grid_desc_m_n (M): " << std::to_string(c_grid_desc_m_n.GetLength(I0)) << std::endl;
+            std::cout << " [ NotSupportedArgument ] c_grid_desc_m_n (N): " << std::to_string(c_grid_desc_m_n.GetLength(I1)) << std::endl;
+            std::cout << " [ NotSupportedArgument ] b_grid_desc_k0_n_k1 (K0): " << std::to_string(b_grid_desc_k0_n_k1.GetLength(I0)) << std::endl;
+            std::cout << " [ NotSupportedArgument ] a_grid_desc_k0_m_k1 (K1): " << std::to_string(a_grid_desc_k0_m_k1.GetLength(I2)) << std::endl;
+            std::cout << " [ NotSupportedArgument ] b_grid_desc_k0_n_k1 (K1): " << std::to_string(b_grid_desc_k0_n_k1.GetLength(I2)) << std::endl;
+        }
+
+        return validDims;
     }
 
     __host__ __device__ static constexpr index_t CalculateGridSize(index_t M, index_t N)

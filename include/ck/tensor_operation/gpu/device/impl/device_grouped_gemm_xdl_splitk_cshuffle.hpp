@@ -524,6 +524,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     {
         if(!ck::is_xdl_supported())
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "[ NotSupportedArgument ] XDL is not supported." << std::endl;
+            }
             return false;
         }
 
@@ -532,8 +536,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "The group count is not equal to sum of skipped groups "
-                             "and kernel args size!"
+                std::cout << "[ NotSupportedArgument ] The group count is not equal to sum of skipped groups "
+                          << "and kernel args size!"
                           << std::endl;
             }
             return false;
@@ -541,6 +545,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
         if(std::is_same_v<EDataType, ck::bhalf_t> && arg.K_BATCH > 1 && !is_bf16_atomic_supported())
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "[ NotSupportedArgument ] When BF16 atomic is not supported, K_BATCH must be unity." << std::endl;
+            }
             return false;
         }
 
