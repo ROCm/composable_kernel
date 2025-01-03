@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -91,7 +91,7 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
 
     if(s.log_level_ > 0)
     {
-        std::cout << "Launching kernel with args:"
+        std::cout << "Launching kernel: " << Kernel::GetName() << " with args:"
                   << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                   << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                   << std::endl;

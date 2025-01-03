@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -43,6 +43,40 @@ struct GroupedGemmKernel
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+
+    // clang-format off
+    template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
+    template <> struct t2s<fp16_t> { static constexpr const char * name = "fp16"; };
+    template <> struct t2s<bf16_t> { static constexpr const char * name = "bf16"; };
+    template <> struct t2s<fp8_t> { static constexpr const char * name = "fp8"; };
+    template <> struct t2s<bf8_t> { static constexpr const char * name = "bf8"; };
+    template <> struct t2s<int8_t> { static constexpr const char * name = "int8"; };
+    // clang-format on
+
+    CK_TILE_HOST static std::string GetName()
+    {
+#define _SS_ std::string
+#define _TS_ std::to_string
+        // clang-format off
+        using P_ = GemmPipeline;
+
+            auto prec_str = [&] () {
+            std::string base_str = _SS_(t2s<ADataType>::name);
+            if (!std::is_same_v<ADataType, BDataType>) {
+                base_str += _SS_("_") + _SS_(t2s<BDataType>::name);
+            }
+            return base_str;
+        }();
+
+        return _SS_("gemm_grouped_") + _SS_(prec_str) + "_" +
+                _TS_(P_::kMPerBlock) + "x" + _TS_(P_::kNPerBlock) + "x" + _TS_(P_::kKPerBlock) + "_" +
+                _TS_(P_::VectorSizeA) + "x" + _TS_(P_::VectorSizeB) + "x" + _TS_(P_::VectorSizeC) + "_" +
+                _TS_(P_::kPadM) + "x" + _TS_(P_::kPadN) + "x" + _TS_(P_::kPadK);
+#undef _SS_
+#undef _TS_
+        // clang-format on
+    }
 
     struct GemmTransKernelArg
     {
