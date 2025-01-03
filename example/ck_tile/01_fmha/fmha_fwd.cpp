@@ -1140,6 +1140,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 args.stride_o /= args.nhead_k;
                 std::swap(args.stride_o, args.nhead_stride_o);
             }
+
+            if constexpr(std::is_same_v<decltype(traits), fmha_fwd_splitkv_traits&>)
+            {
+                // o_acc: (batch_size, (nhead_k x ngroups), num_splits, 1, hdim_v)
+                // -> (batch_size, nhead_k, num_splits, ngroups, hdim_v)
+                args.nhead_stride_o_acc *= ngroups;
+                args.split_stride_o_acc *= ngroups;
+
+                // lse_acc: (batch_size, (nhead_k x ngroups), num_splits, 1)
+                // -> (batch_size, nhead_k, num_splits, ngroups)
+                args.nhead_stride_lse_acc *= ngroups;
+                args.split_stride_lse_acc *= ngroups;
+            }
         }
     };
 
