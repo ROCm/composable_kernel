@@ -384,22 +384,70 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
 #include "uk/flatmm_uk_gfx9_32x512x256_1x1x1_16x16x32_int8.inc"
 #undef CK_TILE_FLATMM_UK_MFMA
             :   [s_loop_cnt]"+s"(loop_cnt),
-                // [v_acc_0]"+v"(v_acc[0]),
-                // [v_acc_1]"+v"(v_acc[1]),
-                // [v_acc_2]"+v"(v_acc[2]),
-                // [v_acc_3]"+v"(v_acc[3]),
-                // [v_acc_4]"+v"(v_acc[4]),
-                // [v_acc_5]"+v"(v_acc[5]),
-                // [v_acc_6]"+v"(v_acc[6]),
-                // [v_acc_7]"+v"(v_acc[7]),
-                // [v_acc_8]"+v"(v_acc[8]),
-                // [v_acc_9]"+v"(v_acc[9]),
-                // [v_acc_10]"+v"(v_acc[10]),
-                // [v_acc_11]"+v"(v_acc[11]),
-                // [v_acc_12]"+v"(v_acc[12]),
-                // [v_acc_13]"+v"(v_acc[13]),
-                // [v_acc_14]"+v"(v_acc[14]),
-                // [v_acc_15]"+v"(v_acc[15]),
+                [c0]"+v"(v_z0),
+                [c1]"+v"(v_z1),
+                [c2]"+v"(v_z2),
+                [c3]"+v"(v_z3),
+                [c4]"+v"(v_z4),
+                [c5]"+v"(v_z5),
+                [c6]"+v"(v_z6),
+                [c7]"+v"(v_z7),
+                [c8]"+v"(v_z8),
+                [c9]"+v"(v_z9),
+                [c10]"+v"(v_z10),
+                [c11]"+v"(v_z11),
+                [c12]"+v"(v_z12),
+                [c13]"+v"(v_z13),
+                [c14]"+v"(v_z14),
+                [c15]"+v"(v_z15),
+                [c16]"+v"(v_z16),
+                [c17]"+v"(v_z17),
+                [c18]"+v"(v_z18),
+                [c19]"+v"(v_z19),
+                [c20]"+v"(v_z20),
+                [c21]"+v"(v_z21),
+                [c22]"+v"(v_z22),
+                [c23]"+v"(v_z23),
+                [c24]"+v"(v_z24),
+                [c25]"+v"(v_z25),
+                [c26]"+v"(v_z26),
+                [c27]"+v"(v_z27),
+                [c28]"+v"(v_z28),
+                [c29]"+v"(v_z29),
+                [c30]"+v"(v_z30),
+                [c31]"+v"(v_z31),
+                [c32]"+v"(v_z32),
+                [c33]"+v"(v_z33),
+                [c34]"+v"(v_z34),
+                [c35]"+v"(v_z35),
+                [c36]"+v"(v_z36),
+                [c37]"+v"(v_z37),
+                [c38]"+v"(v_z38),
+                [c39]"+v"(v_z39),
+                [c40]"+v"(v_z40),
+                [c41]"+v"(v_z41),
+                [c42]"+v"(v_z42),
+                [c43]"+v"(v_z43),
+                [c44]"+v"(v_z44),
+                [c45]"+v"(v_z45),
+                [c46]"+v"(v_z46),
+                [c47]"+v"(v_z47),
+                [c48]"+v"(v_z48),
+                [c49]"+v"(v_z49),
+                [c50]"+v"(v_z50),
+                [c51]"+v"(v_z51),
+                [c52]"+v"(v_z52),
+                [c53]"+v"(v_z53),
+                [c54]"+v"(v_z54),
+                [c55]"+v"(v_z55),
+                [c56]"+v"(v_z56),
+                [c57]"+v"(v_z57),
+                [c58]"+v"(v_z58),
+                [c59]"+v"(v_z59),
+                [c60]"+v"(v_z60),
+                [c61]"+v"(v_z61),
+                [c62]"+v"(v_z62),
+                [c63]"+v"(v_z63),
                 [v_token_id0]"+v"(temp0),
                 [v_token_id1]"+v"(temp1),
                 [s_mem_]"+r"(smem)
@@ -533,81 +581,74 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
         );
         // clang-format on
 #pragma clang diagnostic pop
-        int32x4_t v_acc[16]{0};
-	v_acc[0][0]	=	v_z0;
-	v_acc[0][1]	=	v_z1;
-	v_acc[0][2]	=	v_z2;
-	v_acc[0][3]	=	v_z3;
-	v_acc[1][0]	=	v_z4;
-	v_acc[1][1]	=	v_z5;
-	v_acc[1][2]	=	v_z6;
-	v_acc[1][3]	=	v_z7;
-	v_acc[2][0]	=	v_z8;
-	v_acc[2][1]	=	v_z9;
-	v_acc[2][2]	=	v_z10;
-	v_acc[2][3]	=	v_z11;
-	v_acc[3][0]	=	v_z12;
-	v_acc[3][1]	=	v_z13;
-	v_acc[3][2]	=	v_z14;
-	v_acc[3][3]	=	v_z15;
-	v_acc[4][0]	=	v_z16;
-	v_acc[4][1]	=	v_z17;
-	v_acc[4][2]	=	v_z18;
-	v_acc[4][3]	=	v_z19;
-	v_acc[5][0]	=	v_z20;
-	v_acc[5][1]	=	v_z21;
-	v_acc[5][2]	=	v_z22;
-	v_acc[5][3]	=	v_z23;
-	v_acc[6][0]	=	v_z24;
-	v_acc[6][1]	=	v_z25;
-	v_acc[6][2]	=	v_z26;
-	v_acc[6][3]	=	v_z27;
-	v_acc[7][0]	=	v_z28;
-	v_acc[7][1]	=	v_z29;
-	v_acc[7][2]	=	v_z30;
-	v_acc[7][3]	=	v_z31;
-	v_acc[8][0]	=	v_z32;
-	v_acc[8][1]	=	v_z33;
-	v_acc[8][2]	=	v_z34;
-	v_acc[8][3]	=	v_z35;
-	v_acc[9][0]	=	v_z36;
-	v_acc[9][1]	=	v_z37;
-	v_acc[9][2]	=	v_z38;
-	v_acc[9][3]	=	v_z39;
-	v_acc[10][0]	=	v_z40;
-	v_acc[10][1]	=	v_z41;
-	v_acc[10][2]	=	v_z42;
-	v_acc[10][3]	=	v_z43;
-	v_acc[11][0]	=	v_z44;
-	v_acc[11][1]	=	v_z45;
-	v_acc[11][2]	=	v_z46;
-	v_acc[11][3]	=	v_z47;
-	v_acc[12][0]	=	v_z48;
-	v_acc[12][1]	=	v_z49;
-	v_acc[12][2]	=	v_z50;
-	v_acc[12][3]	=	v_z51;
-	v_acc[13][0]	=	v_z52;
-	v_acc[13][1]	=	v_z53;
-	v_acc[13][2]	=	v_z54;
-	v_acc[13][3]	=	v_z55;
-	v_acc[14][0]	=	v_z56;
-	v_acc[14][1]	=	v_z57;
-	v_acc[14][2]	=	v_z58;
-	v_acc[14][3]	=	v_z59;
-	v_acc[15][0]	=	v_z60;
-	v_acc[15][1]	=	v_z61;
-	v_acc[15][2]	=	v_z62;
-	v_acc[15][3]	=	v_z63;
+        
 			
         // return local scratch
         auto c = MakeCBlockTile();
-        for(auto i = 0; i < 16; i++)
-        {
-            c.get_thread_buffer()[4 * i + 0] = v_acc[i].x;
-            c.get_thread_buffer()[4 * i + 1] = v_acc[i].y;
-            c.get_thread_buffer()[4 * i + 2] = v_acc[i].z;
-            c.get_thread_buffer()[4 * i + 3] = v_acc[i].w;
-        }
+            c.get_thread_buffer()[0] = v_z0;
+            c.get_thread_buffer()[1] = v_z1;
+            c.get_thread_buffer()[2] = v_z2;
+            c.get_thread_buffer()[3] = v_z3;
+            c.get_thread_buffer()[4] = v_z4;
+            c.get_thread_buffer()[5] = v_z5;
+            c.get_thread_buffer()[6] = v_z6;
+            c.get_thread_buffer()[7] = v_z7;
+            c.get_thread_buffer()[8] = v_z8;
+            c.get_thread_buffer()[9] = v_z9;
+            c.get_thread_buffer()[10] = v_z10;
+            c.get_thread_buffer()[11] = v_z11;
+            c.get_thread_buffer()[12] = v_z12;
+            c.get_thread_buffer()[13] = v_z13;
+            c.get_thread_buffer()[14] = v_z14;
+            c.get_thread_buffer()[15] = v_z15;
+            c.get_thread_buffer()[16] = v_z16;
+            c.get_thread_buffer()[17] = v_z17;
+            c.get_thread_buffer()[18] = v_z18;
+            c.get_thread_buffer()[19] = v_z19;
+            c.get_thread_buffer()[20] = v_z20;
+            c.get_thread_buffer()[21] = v_z21;
+            c.get_thread_buffer()[22] = v_z22;
+            c.get_thread_buffer()[23] = v_z23;
+            c.get_thread_buffer()[24] = v_z24;
+            c.get_thread_buffer()[25] = v_z25;
+            c.get_thread_buffer()[26] = v_z26;
+            c.get_thread_buffer()[27] = v_z27;
+            c.get_thread_buffer()[28] = v_z28;
+            c.get_thread_buffer()[29] = v_z29;
+            c.get_thread_buffer()[30] = v_z30;
+            c.get_thread_buffer()[31] = v_z31;
+            c.get_thread_buffer()[32] = v_z32;
+            c.get_thread_buffer()[33] = v_z33;
+            c.get_thread_buffer()[34] = v_z34;
+            c.get_thread_buffer()[35] = v_z35;
+            c.get_thread_buffer()[36] = v_z36;
+            c.get_thread_buffer()[37] = v_z37;
+            c.get_thread_buffer()[38] = v_z38;
+            c.get_thread_buffer()[39] = v_z39;
+            c.get_thread_buffer()[40] = v_z40;
+            c.get_thread_buffer()[41] = v_z41;
+            c.get_thread_buffer()[42] = v_z42;
+            c.get_thread_buffer()[43] = v_z43;
+            c.get_thread_buffer()[44] = v_z44;
+            c.get_thread_buffer()[45] = v_z45;
+            c.get_thread_buffer()[46] = v_z46;
+            c.get_thread_buffer()[47] = v_z47;
+            c.get_thread_buffer()[48] = v_z48;
+            c.get_thread_buffer()[49] = v_z49;
+            c.get_thread_buffer()[50] = v_z50;
+            c.get_thread_buffer()[51] = v_z51;
+            c.get_thread_buffer()[52] = v_z52;
+            c.get_thread_buffer()[53] = v_z53;
+            c.get_thread_buffer()[54] = v_z54;
+            c.get_thread_buffer()[55] = v_z55;
+            c.get_thread_buffer()[56] = v_z56;
+            c.get_thread_buffer()[57] = v_z57;
+            c.get_thread_buffer()[58] = v_z58;
+            c.get_thread_buffer()[59] = v_z59;
+            c.get_thread_buffer()[60] = v_z60;
+            c.get_thread_buffer()[61] = v_z61;
+            c.get_thread_buffer()[62] = v_z62;
+            c.get_thread_buffer()[63] = v_z63;
         return c;
     }
 };
