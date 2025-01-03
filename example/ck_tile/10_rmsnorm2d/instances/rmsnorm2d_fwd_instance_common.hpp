@@ -12,6 +12,8 @@ using S = ck_tile::stream_config;
 using A = rmsnorm2d_fwd_args;
 
 template <typename DataType_,
+          typename XScaleDataType_,
+          typename YScaleDataType_,
           ck_tile::index_t Repeat_M_,         // each thread repeat along M
           ck_tile::index_t Repeat_N_,         // each thread repeat along N
           ck_tile::index_t ThreadPerBlock_M_, // num threads along M
@@ -21,6 +23,8 @@ template <typename DataType_,
           bool kSaveInvRms_,
           bool kTwoPass_>
 using trait_ = rmsnorm2d_fwd_traits_<DataType_,
+                                     XScaleDataType_,
+                                     YScaleDataType_,
                                      Repeat_M_,
                                      Repeat_N_,
                                      ThreadPerBlock_M_,
@@ -33,18 +37,27 @@ using trait_ = rmsnorm2d_fwd_traits_<DataType_,
 template <typename Traits_>
 float rmsnorm2d_fwd_(const S& s, A a)
 {
-    using DataType = typename Traits_::DataType;
+    using DataType       = typename Traits_::DataType;
+    using XScaleDataType = typename Traits_::XScaleDataType;
+    using YScaleDataType = typename Traits_::YScaleDataType;
+
+    using PipelineTraits =
+        ck_tile::Rmsnorm2dFwdTraits<Traits_::kPadN,
+                                    Traits_::kSaveInvRms,
+                                    Traits_::kTwoPass,
+                                    static_cast<ck_tile::Rmsnorm2dFusedAddEnum>(Traits_::kFusedAdd),
+                                    static_cast<ck_tile::Rmsnorm2dFusedQuantEnum>(Traits_::kFusedQuant)>;
 
     using PipelineProblem =
-        ck_tile::Rmsnorm2dFwdPipelineProblem<typename RmsnormTypeConfig<DataType>::XDataType,
-                                             typename RmsnormTypeConfig<DataType>::GammaDataType,
-                                             typename RmsnormTypeConfig<DataType>::ComputeDataType,
-                                             typename RmsnormTypeConfig<DataType>::YDataType,
-                                             typename RmsnormTypeConfig<DataType>::InvRmsDataType,
+        ck_tile::Rmsnorm2dFwdPipelineProblem<typename RmsnormTypeConfig<DataType, XScaleDataType, YScaleDataType>::XDataType,
+                                             typename RmsnormTypeConfig<DataType, XScaleDataType, YScaleDataType>::GammaDataType,
+                                             typename RmsnormTypeConfig<DataType, XScaleDataType, YScaleDataType>::ComputeDataType,
+                                             typename RmsnormTypeConfig<DataType, XScaleDataType, YScaleDataType>::YDataType,
+                                             typename RmsnormTypeConfig<DataType, XScaleDataType, YScaleDataType>::InvRmsDataType,
+                                             typename RmsnormTypeConfig<DataType, XScaleDataType, YScaleDataType>::XScaleDataType,
+                                             typename RmsnormTypeConfig<DataType, XScaleDataType, YScaleDataType>::YScaleDataType,
                                              typename Traits_::Shape,
-                                             Traits_::kPadN,
-                                             Traits_::kSaveInvRms,
-                                             Traits_::kTwoPass>;
+                                             PipelineTraits>;
 
     using OnePassPipeline = ck_tile::Rmsnorm2dFwdPipelineOnePass<PipelineProblem>;
     using TwoPassPipeline = ck_tile::Rmsnorm2dFwdPipelineTwoPass<PipelineProblem>;

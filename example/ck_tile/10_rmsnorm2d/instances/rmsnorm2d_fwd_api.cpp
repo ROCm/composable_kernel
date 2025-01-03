@@ -5,6 +5,8 @@
 #include "rmsnorm2d_fwd.hpp"
 
 template <typename DataType_,
+          typename XScaleDataType_,
+          typename YScaleDataType_,
           ck_tile::index_t Repeat_M_,         // each thread repeat along M
           ck_tile::index_t Repeat_N_,         // each thread repeat along N
           ck_tile::index_t ThreadPerBlock_M_, // num threads along M
@@ -14,6 +16,8 @@ template <typename DataType_,
           bool kSaveInvRms_,
           bool kTwoPass_>
 using trait_ = rmsnorm2d_fwd_traits_<DataType_,
+                                     XScaleDataType_,
+                                     YScaleDataType_,
                                      Repeat_M_,
                                      Repeat_N_,
                                      ThreadPerBlock_M_,
@@ -30,101 +34,101 @@ float rmsnorm2d_fwd_b16_(rmsnorm2d_fwd_traits /*t*/,
 {
     float r = -1;
     // clang-format off
-    //                                            rm  rn  tm   tn  vn  pd    rms     2p
+    //                                                         rm  rn  tm   tn  vn  pd    rms     2p
     if(a.n <= 64) {
-            r = rmsnorm2d_fwd_<trait_<data_type, 1,  1,  4,  64, 1,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  1,  4,  64, 1,  true,  false, false>>(s, a);
     }
     else if(a.n <= 128) {
         if (a.n % 2 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type, 1,  1,  4,  64, 2,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  1,  4,  64, 2,  true,  false, false>>(s, a);
         else
-            r = rmsnorm2d_fwd_<trait_<data_type, 1,  2,  4,  64, 1,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  2,  4,  64, 1,  true,  false, false>>(s, a);
     }
     else if(a.n <= 256) {
         if (a.n % 4 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 1,  4,  64, 4,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  1,  4,  64, 4,  true,  false, false>>(s, a);
         else if (a.n % 2 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 2,  4,  64, 2,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  2,  4,  64, 2,  true,  false, false>>(s, a);
         else
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 4,  4,  64, 1,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  4,  4,  64, 1,  true,  false, false>>(s, a);
     }
     else if(a.n <= 512) {
         if (a.n % 8 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 1,  4,  64, 8,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  1,  4,  64, 8,  true,  false, false>>(s, a);
         else if (a.n % 4 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 2,  4,  64, 4,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  2,  4,  64, 4,  true,  false, false>>(s, a);
         else if (a.n % 2 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 4,  4,  64, 2,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  4,  4,  64, 2,  true,  false, false>>(s, a);
         else
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 8,  4,  64, 1,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  8,  4,  64, 1,  true,  false, false>>(s, a);
     }
     else if(a.n <= 768) {
         if (a.n % 4 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 3,  4,  64, 4,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  3,  4,  64, 4,  true,  false, false>>(s, a);
         else if (a.n % 2 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 6,  4,  64, 2,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  6,  4,  64, 2,  true,  false, false>>(s, a);
         else
-            r = rmsnorm2d_fwd_<trait_<data_type,  1,12,  4,  64, 1,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 12,  4,  64, 1,  true,  false, false>>(s, a);
     }
     else if(a.n <= 1024) {
         if (a.n % 8 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 1, 2,  128, 8,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  1,  2,  128, 8,  true,  false, false>>(s, a);
         else if (a.n % 4 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 2, 2,  128, 4,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  2,  2,  128, 4,  true,  false, false>>(s, a);
         else if (a.n % 2 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 4, 2,  128, 2,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  4,  2,  128, 2,  true,  false, false>>(s, a);
         else
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 4, 1,  256, 1,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1,  4,  1,  256, 1,  true,  false, false>>(s, a);
     }
     else if(a.n <= 1536) {
         if (a.n % 8 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 3, 4,   64, 8,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 3, 4,   64, 8,  true,  false, false>>(s, a);
         else if (a.n % 4 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 3, 2,  128, 4,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 3, 2,  128, 4,  true,  false, false>>(s, a);
         else if (a.n % 2 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 3, 1,  256, 2,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 3, 1,  256, 2,  true,  false, false>>(s, a);
         else
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 6, 1,  256, 1,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 6, 1,  256, 1,  true,  false, false>>(s, a);
     }
     else if(a.n <= 2048) {
         if (a.n % 8 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 1, 1,  256, 8,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 1, 1,  256, 8,  true,  false, false>>(s, a);
         else if (a.n % 4 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 2, 1,  256, 4,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 2, 1,  256, 4,  true,  false, false>>(s, a);
         else if (a.n % 2 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 4, 1,  256, 2,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 4, 1,  256, 2,  true,  false, false>>(s, a);
         else
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 8, 1,  256, 1,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 8, 1,  256, 1,  true,  false, false>>(s, a);
     }
     else if(a.n <= 3072) {
         if (a.n % 8 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 3, 1,  128, 8,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 3, 1,  128, 8,  true,  false, false>>(s, a);
         else if (a.n % 4 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 3, 1,  256, 4,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 3, 1,  256, 4,  true,  false, false>>(s, a);
         else if (a.n % 2 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 6, 1,  256, 2,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 6, 1,  256, 2,  true,  false, false>>(s, a);
         else
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 3, 1, 1024, 1,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 3, 1, 1024, 1,  true,  false, false>>(s, a);
     }
     else if(a.n <= 4096) {
         if (a.n % 8 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 2, 1,  256, 8,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 2, 1,  256, 8,  true,  false, false>>(s, a);
         else if (a.n % 4 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 4, 1,  256, 4,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 4, 1,  256, 4,  true,  false, false>>(s, a);
         else if (a.n % 2 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 2, 1, 1024, 2,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 2, 1, 1024, 2,  true,  false, false>>(s, a);
         else
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 4, 1, 1024, 1,  true,  false, false>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 4, 1, 1024, 1,  true,  false, false>>(s, a);
     }
     else if(a.n > 4096) {
         if (a.n % 8 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 2, 1,  256, 8,  true,  false, true>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 2, 1,  256, 8,  true,  false, true>>(s, a);
         else if (a.n % 4 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 4, 1,  256, 4,  true,  false, true>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 4, 1,  256, 4,  true,  false, true>>(s, a);
         else if (a.n % 2 == 0)
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 2, 1, 1024, 2,  true,  false, true>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 2, 1, 1024, 2,  true,  false, true>>(s, a);
         else
-            r = rmsnorm2d_fwd_<trait_<data_type,  1, 4, 1, 1024, 1,  true,  false, true>>(s, a);
+            r = rmsnorm2d_fwd_<trait_<data_type, float, float,  1, 4, 1, 1024, 1,  true,  false, true>>(s, a);
     }
     return r;
     // clang-format on

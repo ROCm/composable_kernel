@@ -8,27 +8,31 @@
 #include "ck_tile/ops/rmsnorm2d.hpp"
 #include <string>
 
-template <typename DataType>
+template <typename DataType, typename XScaleDataType_, typename YScaleDataType_>
 struct RmsnormTypeConfig;
 
-template <>
-struct RmsnormTypeConfig<ck_tile::half_t>
+template <typename XScaleDataType_, typename YScaleDataType_>
+struct RmsnormTypeConfig<ck_tile::half_t, XScaleDataType_, YScaleDataType_>
 {
     using XDataType       = ck_tile::half_t;
     using YDataType       = ck_tile::half_t;
     using GammaDataType   = ck_tile::half_t;
     using InvRmsDataType  = ck_tile::half_t;
     using ComputeDataType = float;
+    using XScaleDataType  = XScaleDataType_;
+    using YScaleDataType  = YScaleDataType_;
 };
 
-template <>
-struct RmsnormTypeConfig<ck_tile::bf16_t>
+template <typename XScaleDataType_, typename YScaleDataType_>
+struct RmsnormTypeConfig<ck_tile::bf16_t, XScaleDataType_, YScaleDataType_>
 {
     using XDataType       = ck_tile::bf16_t;
     using YDataType       = ck_tile::bf16_t;
     using GammaDataType   = ck_tile::bf16_t;
     using InvRmsDataType  = ck_tile::bf16_t;
     using ComputeDataType = float;
+    using XScaleDataType  = XScaleDataType_;
+    using YScaleDataType  = YScaleDataType_;
 };
 
 // runtime args
@@ -38,6 +42,8 @@ struct rmsnorm2d_fwd_args : public ck_tile::Rmsnorm2dFwdHostArgs
 
 // this is used to pattern-match internl kernel implementation, not to instantiate kernel
 template <typename DataType_,
+          typename XScaleDataType_,
+          typename YScaleDataType_,
           ck_tile::index_t Repeat_M_,         // each thread repeat along M
           ck_tile::index_t Repeat_N_,         // each thread repeat along N
           ck_tile::index_t ThreadPerBlock_M_, // num threads along M
@@ -45,10 +51,14 @@ template <typename DataType_,
           ck_tile::index_t Vector_N_,         // vector size along N
           bool kPadN_,
           bool kSaveInvRms_,
-          bool kTwoPass_>
+          bool kTwoPass_,
+          ck_tile::index_t kFusedAdd_ = 0,
+          ck_tile::index_t kFusedQuant_ = 0>
 struct rmsnorm2d_fwd_traits_
 {
     using DataType = ck_tile::remove_cvref_t<DataType_>;
+    using XScaleDataType = ck_tile::remove_cvref_t<XScaleDataType_>;
+    using YScaleDataType = ck_tile::remove_cvref_t<YScaleDataType_>;
 
     static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= warpSize;
     static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % warpSize == 0);
@@ -102,6 +112,8 @@ struct rmsnorm2d_fwd_traits_
     static constexpr bool kPadN       = kPadN_;
     static constexpr bool kSaveInvRms = kSaveInvRms_;
     static constexpr bool kTwoPass    = kTwoPass_;
+    static constexpr ck_tile::index_t kFusedAdd = kFusedAdd_;
+    static constexpr ck_tile::index_t kFusedQuant = kFusedQuant_;
 };
 
 template <typename Traits_>

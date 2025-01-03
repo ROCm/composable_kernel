@@ -54,7 +54,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     assert(stride >= n);
 
-    using TypeConfig = RmsnormTypeConfig<DataType>;
+    using TypeConfig = RmsnormTypeConfig<DataType, float, float>;
 
     using XDataType     = typename TypeConfig::XDataType;
     using YDataType     = typename TypeConfig::YDataType;
@@ -90,8 +90,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     rmsnorm2d_fwd_traits traits{data_type, SaveRms};
 
     rmsnorm2d_fwd_args args{x_buf.GetDeviceBuffer(),
+                            nullptr,
+                            nullptr,
                             gamma_buf.GetDeviceBuffer(),
                             y_buf.GetDeviceBuffer(),
+                            nullptr,
+                            nullptr,
                             nullptr,
                             epsilon,
                             m,
