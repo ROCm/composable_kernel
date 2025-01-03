@@ -245,9 +245,9 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
 
     // TODO: need paired with tile_window_linear!
     // TODO: need call init_raw() before call this function!
-    template <typename AQRes, typename DQRes,  typename GQRes, typename SMQRes, typename ARes, typename ACoords, typename BRes, typename BCoords>
+    template <typename AToken_id, typename AQRes, typename DQRes,  typename GQRes, typename SMQRes, typename ARes, typename ACoords, typename BRes, typename BCoords>
     CK_TILE_DEVICE auto
-    operator()( index_t row_ids_a_,
+    operator()( const AToken_id& row_ids_a_,
                 const AQRes& res_aq,
                 const DQRes& res_dq,
                const GQRes& res_gq,
@@ -263,6 +263,7 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
     {
         static_assert(ACoords::size() == Block_M * Block_K / BlockSize / 4 /*2x per dword*/); // 8
         static_assert(BCoords::size() == Repeat_N);
+        static_assert(AToken_id::size() == Repeat_M);
 
         auto a_sst = make_tile_window(
             make_tensor_view<address_space_enum::lds>(
@@ -371,6 +372,8 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
         register int v_z62 asm("v190") = 0;
         register int v_z63 asm("v191") = 0;	
 
+        index_t temp0 = static_cast<index_t>(row_ids_a_[number<0>{}]);
+        index_t temp1 = static_cast<index_t>(row_ids_a_[number<1>{}]);
 
         // B nr->kr
 #pragma clang diagnostic push
@@ -397,7 +400,8 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
                 // [v_acc_13]"+v"(v_acc[13]),
                 // [v_acc_14]"+v"(v_acc[14]),
                 // [v_acc_15]"+v"(v_acc[15]),
-                [v_token_id]"+v"(row_ids_a_),
+                [v_token_id0]"+v"(temp0),
+                [v_token_id1]"+v"(temp1),
                 [s_mem_]"+r"(smem)
             :   [s_res_aq0]"s"(res_aq[0]),
                 [s_res_aq1]"s"(res_aq[1]),

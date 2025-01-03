@@ -107,10 +107,9 @@ void reference_fused_moe(
             return;
         ck_tile::index_t i_expert = sorted_expert_ids_host.mData[i_tile];
         ck_tile::index_t i_token  = sorted_token_ids_host.mData[i_flatten];
-        ck_tile::index_t i_weight_idx;
+        ck_tile::index_t i_weight_idx = i_token >> 24;
         if(fquant == 1)
         {
-            i_weight_idx = i_token >> 24;
             i_token = i_token & 0xffffff;
         }
         if (i_token >= tokens)

@@ -204,7 +204,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using ADataType            = typename TypeConfig::ADataType;
     using GDataType            = typename TypeConfig::GDataType;
     using DDataType            = typename TypeConfig::DDataType;
-    using AccDataType          = typename TypeConfig::AccDataType;
+    // using AccDataType          = typename TypeConfig::AccDataType;
     using ODataType            = typename TypeConfig::ODataType;
     using AScaleDataType       = typename TypeConfig::AScaleDataType;
     using GScaleDataType       = typename TypeConfig::GScaleDataType;
@@ -218,12 +218,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<GDataType> g_host({experts, shared_intermediate_size_0, hidden_size});
     ck_tile::HostTensor<DDataType> d_host({experts, hidden_size, shared_intermediate_size_1});
     ck_tile::HostTensor<ODataType> o_host({tokens, hidden_size}, {stride, 1});
-    if (fused_quant == 1)
-    {
+    // if (fused_quant == 1)
+    // {
         ck_tile::HostTensor<AScaleDataType> sa_host({tokens, topk});
-    } else{
-        ck_tile::HostTensor<AScaleDataType> sa_host({tokens});
-    }
+    // } else{
+    //     ck_tile::HostTensor<AScaleDataType> sa_host({tokens});
+    // }
     ck_tile::HostTensor<GScaleDataType> sg_host({experts, shared_intermediate_size_0});
     ck_tile::HostTensor<DScaleDataType> sd_host({experts, shared_intermediate_size_1});
     ck_tile::HostTensor<YSmoothScaleDataType> sy_host({experts, shared_intermediate_size_1}); // smooth-quant
@@ -425,7 +425,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 experts,
                 block_m);
 
-            ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Gelu>(
+            ck_tile::reference_fused_moe<float, ck_tile::element_wise::Gelu>(
                 a_host,
                 g_host,
                 d_host,
@@ -535,7 +535,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(do_validation)
         {
-            ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Gelu>(
+            ck_tile::reference_fused_moe<float, ck_tile::element_wise::Gelu>(
                 a_host,
                 g_host,
                 d_host,
@@ -555,7 +555,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 hidden_size,
                 shared_intermediate_size_0,
                 topk,
-                gate_only);
+                gate_only,
+                1);
 
             auto o_dev = o_buf.ToHost<ODataType>();
             // o_dev.savetxt("gpu-out.txt", "float");
@@ -600,6 +601,13 @@ int main(int argc, char* argv[])
     else if(prec_i == "fp16" && prec_w == "fp16" && prec_o == "fp16" && prec_kw == "fp32")
     {
         return run<ck_tile::fp16_t, ck_tile::fp16_t, ck_tile::fp16_t, float, float, float, float>(
+                   arg_parser)
+                   ? 0
+                   : -2;
+    }
+    else if(prec_i == "int8" && prec_w == "int8" && prec_o == "bf16" && prec_kw == "fp32")
+    {
+        return run<ck_tile::int8_t, ck_tile::int8_t, ck_tile::bf16_t, float, float, float, float>(
                    arg_parser)
                    ? 0
                    : -2;

@@ -804,6 +804,13 @@ struct FusedMoeGemmPipelineFlatmmPolicy
         {
             return Flatmm_32x512x128_1x4x1_16x16x32_FP16{};
         }
+        else if constexpr(std::is_same_v<typename Problem::ADataType, ck_tile::int8_t> &&
+                          std::is_same_v<typename Problem::GDataType, ck_tile::int8_t> &&
+                          S_::Block_M0 == 32 && S_::Block_N0 == 512 && S_::Block_K0 == 256 &&
+                          S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 64)
+        {
+            return Flatmm_32x512x256_1x4x1_16x16x64_int8{};
+        }
     }
 
     template <typename Problem>
@@ -851,6 +858,20 @@ struct FusedMoeGemmPipelineFlatmmPolicy
             // return FlatmmSn_32x128x512_1x4x1_16x16x32_FP16{};
             return FlatmmSn_32x128x512_1x4x1_16x16x32_FP16_itl{};
         }
+        else if constexpr(std::is_same_v<typename Problem::YDataType, ck_tile::int8_t> &&
+                          std::is_same_v<typename Problem::DDataType, ck_tile::int8_t> &&
+                          S_::Block_M1 == 32 && S_::Block_N1 == 256 && S_::Block_K1 == 512 &&
+                          S_::Warp_M0 == 16 && S_::Warp_N0 == 16 && S_::Warp_K0 == 64 &&
+                          T_::PipeInterleave == false)
+        {
+            return FlatmmSn_32x256x512_1x4x1_16x16x64_int8{};
+            // return FlatmmSn_32x128x512_1x4x1_16x16x32_FP16_itl{};
+        } 
+        else
+        {
+            return FlatmmSn_32x256x512_1x4x1_16x16x64_int8{};
+            // return FlatmmSn_32x128x512_1x4x1_16x16x32_FP16_itl{};
+        } 
     }
 };
 } // namespace ck_tile

@@ -5,10 +5,25 @@
 
 #include "fused_moegemm_api_traits.hpp"
 #include "ck_tile/ops/fused_moe.hpp"
+#include "fused_moegemm_api.cpp"
 #include <iostream>
 
 template <ck_tile::index_t... Is>
 using S = ck_tile::sequence<Is...>;
+
+template<typename dtype, typename problem>
+struct PipelineDispatch;
+
+template<typename problem> struct PipelineDispatch<ck_tile::int8_t , problem> {
+    using type = ck_tile::FusedMoeGemmPipeline_FlatmmUk_int8<problem>;
+};
+
+template<typename problem> struct PipelineDispatch<ck_tile::bf16_t, problem> {
+    using type = ck_tile::FusedMoeGemmPipeline_FlatmmUk<problem>;
+};
+template<typename problem> struct PipelineDispatch<ck_tile::fp16_t, problem> {
+    using type = ck_tile::FusedMoeGemmPipeline_FlatmmUk<problem>;
+};
 
 // do not the define of this tepmlate function inside the _api.cpp, otherwise will block make -j
 template <typename Ts_>
@@ -38,8 +53,8 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
                                              f_traits>;
 
     // using f_pipeline    = ck_tile::FusedMoeGemmPipeline_FlatmmEx<f_problem>;
-    using f_pipeline    = ck_tile::FusedMoeGemmPipeline_FlatmmUk_int8<
-    >;
+
+    using f_pipeline = typename PipelineDispatch<typename Ts_::ADataType, f_problem>::type;
     using f_partitioner = ck_tile::FusedMoeGemmTilePartitioner_Linear<f_shape>;
     using f_kernel      = ck_tile::FusedMoeGemmKernel<f_partitioner, f_pipeline, void>;
 

@@ -37,3 +37,4 @@ float fused_moegemm(fused_moegemm_traits t, fused_moegemm_args a, const ck_tile:
     // clang-format on
     return r;
 }
+
