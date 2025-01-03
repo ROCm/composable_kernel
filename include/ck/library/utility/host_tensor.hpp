@@ -53,7 +53,9 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
         else if constexpr(std::is_same_v<RangeType, ck::pk_i4_t>)
         {
             const auto packed_floats = ck::type_convert<ck::float2_t>(v);
-            os << packed_floats[ck::Number<0>{}] << delim << packed_floats[ck::Number<1>{}];
+            const ck::vector_type<float, 2> vector_of_floats{packed_floats};
+            os << vector_of_floats.template AsType<float>()[ck::Number<0>{}] << delim
+               << vector_of_floats.template AsType<float>()[ck::Number<1>{}];
         }
         else
         {
