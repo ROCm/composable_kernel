@@ -4,8 +4,8 @@
 #ifndef CK_AMD_INLINE_ASM_HPP
 #define CK_AMD_INLINE_ASM_HPP
 
-#include "data_type.hpp"
 #include "c_style_pointer_cast.hpp"
+#include "data_type.hpp"
 
 // TODO: deprecate all amd_assembly_outer_product_xxx
 
@@ -21,14 +21,14 @@ inline __device__ int amd_assembly_and_or_b32(int a, int b, int d)
 inline __device__ half2_t amd_assembly_pk_fma_f16(half2_t a, half2_t b, half2_t c)
 {
     half2_t d;
-    asm volatile("v_pk_fma_f16 %0, %1, %2, %3;\n" : "=v"(d) : "v"(a), "v"(b), "v"(c));
+    asm volatile("v_pk_fma_f16 %0, %1, %2, %3" : "=v"(d) : "v"(a), "v"(b), "v"(c));
     return d;
 }
 
 inline __device__ half2_t amd_assembly_pk_add_f16(half2_t a, half2_t b)
 {
     half2_t c;
-    asm volatile("v_pk_add_f16 %0, %1, %2;\n" : "=v"(c) : "v"(a), "v"(b));
+    asm volatile("v_pk_add_f16 %0, %1, %2" : "=v"(c) : "v"(a), "v"(b));
     return c;
 }
 
