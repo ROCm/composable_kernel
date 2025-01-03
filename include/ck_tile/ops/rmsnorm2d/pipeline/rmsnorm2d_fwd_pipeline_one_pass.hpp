@@ -22,12 +22,17 @@ struct Rmsnorm2dFwdPipelineOnePass
     using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
     using InvRmsDataType  = ck_tile::remove_cvref_t<typename Problem::InvRmsDataType>;
 
+    using XResidualDataType = XDataType;
+    using YResidualDataType = XDataType;
+
     static constexpr bool kHasGamma   = !std::is_same_v<GammaDataType, ck_tile::null_type>;
-    static constexpr bool kSaveInvRms = Problem::kSaveInvRms;
+    static constexpr bool kSaveInvRms = Problem::Traits::kSaveInvRms;
 
     static constexpr bool kNeedCrossWarpSync = Problem::kNeedCrossWarpSync;
     static constexpr bool kPadM              = false; // TODO - BlockRmsnorm2dFwdProblem::kPadM
-    static constexpr bool kPadN              = Problem::kPadN;
+    static constexpr bool kPadN              = Problem::Traits::kPadN;
+    static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
+    static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
     static constexpr const char* name = []() {
         if constexpr(kNeedCrossWarpSync)
@@ -41,11 +46,22 @@ struct Rmsnorm2dFwdPipelineOnePass
         return Policy::template GetSmemSize<Problem>();
     }
 
-    template <typename XWindow, typename GammaWindow, typename YWindow, typename InvRmsWindow>
+    template <typename XWindow,
+              typename XResidualWindow,
+              typename GammaWindow,
+              typename YWindow,
+              typename YResidualWindow,
+              typename InvRmsWindow,
+              typename XScaleWindow,
+              typename YScaleWindow>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
+                                   const XResidualWindow& x_residual_window_,
                                    const GammaWindow& gamma_window_,
                                    YWindow& y_window,
+                                   const YResidualWindow& y_residual_window_,
                                    InvRmsWindow& inv_rms_window,
+                                   const XScaleWindow& /*x_scale_window_*/,
+                                   YScaleWindow& /*y_scale_window*/,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
                                    void* smem) const
@@ -54,6 +70,10 @@ struct Rmsnorm2dFwdPipelineOnePass
             make_tile_window(x_window_, Policy::template MakeXBlockTileDistribution<Problem>());
         const auto gamma_window = make_tile_window(
             gamma_window_, Policy::template MakeGammaBlockTileDistribution<Problem>());
+        const auto x_residual_window = make_tile_window(
+            x_residual_window_, Policy::template MakeXBlockTileDistribution<Problem>());
+        auto y_residual_window = make_tile_window(
+            y_residual_window_, Policy::template MakeXBlockTileDistribution<Problem>());
 
         auto reduce_square_sum_func = ReduceOp::SquareAdd{};
         auto reduce_sum_func        = ReduceOp::Add{};
@@ -62,13 +82,30 @@ struct Rmsnorm2dFwdPipelineOnePass
         auto block_reduce2d_cross_warp_sync =
             Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
 
-        const auto x = load_tile(x_window);
+        const auto x      = load_tile(x_window);
+        const auto x_resi = load_tile(x_residual_window);
+
         // load gamma (TODO: support no gamma?)
         const auto gamma = load_tile(gamma_window);
 
+        auto acc = cast_tile<ComputeDataType>(x);
+
+        if constexpr (kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
+                      kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+        {
+            sweep_tile(x_resi, [&](auto idx) {
+                // compute x = x_resi + x
+                acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
+            });
+            if constexpr (kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+            {
+                store_tile(y_residual_window, cast_tile<YResidualDataType>(acc));
+            }
+        }
+
         // compute mean square each-thread->cross-lane->cross-warp
         auto square_sum = block_reduce2d(
-            x, reduce_square_sum_func.GetIdentityValue<ComputeDataType>(), reduce_square_sum_func);
+            acc, reduce_square_sum_func.GetIdentityValue<ComputeDataType>(), reduce_square_sum_func);
         block_reduce2d_sync(square_sum, reduce_sum_func);
         block_reduce2d_cross_warp_sync(square_sum, smem, reduce_sum_func);
 

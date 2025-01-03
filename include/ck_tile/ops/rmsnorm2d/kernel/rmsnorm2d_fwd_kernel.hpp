@@ -1,21 +1,26 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/ops/rmsnorm2d/pipeline/rmsnorm2d_fwd_traits.hpp"
 
 namespace ck_tile {
 
 // host side args
 struct Rmsnorm2dFwdHostArgs
 {
-    const void* p_x;     // [m ,n], input, fp16/bf16
-    const void* p_gamma; // [1, n], gamma, prec same as input
+    const void* p_x;          // [m ,n], input, fp16/bf16
+    const void* p_x_residual; // [m ,n], shortcut input, prec same as input, nullptr if not used
+    const void* p_x_scale;    // [1 ,n], smooth scale input, fp32, nullptr if not used
+    const void* p_gamma;      // [1, n], gamma, prec same as input
 
-    void* p_y;      // [m, n], output, fp16/bf16
-    void* p_invRms; // [m, 1], output inv-rms, prec same as input, nullptr if not used
+    void* p_y;          // [m, n], output, fp16/bf16
+    void* p_y_residual; // [m, n], shortcut output, prec same as input, nullptr if not used
+    void* p_y_scale;    // [m, 1], output a dynamic quant per row, nullptr if not used
+    void* p_invRms;     // [m, 1], output inv-rms, prec same as input, nullptr if not used
 
     float epsilon;
 
@@ -36,15 +41,23 @@ struct Rmsnorm2dFwd
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using YDataType       = remove_cvref_t<typename Problem::YDataType>;
     using InvRmsDataType  = remove_cvref_t<typename Problem::InvRmsDataType>;
+    using XScaleDataType  = remove_cvref_t<typename Problem::XScaleDataType>;
+    using YScaleDataType  = remove_cvref_t<typename Problem::YScaleDataType>;
+
+    // for simplicity, shortcut input/output type is same as X
+    using XResidualDataType = XDataType;
+    using YResidualDataType = XDataType;
 
     static constexpr bool kHasGamma   = !std::is_same_v<GammaDataType, null_type>;
-    static constexpr bool kSaveInvRms = Problem::kSaveInvRms;
+    static constexpr bool kSaveInvRms = Problem::Traits::kSaveInvRms;
 
-    static constexpr index_t Block_M = Problem::BlockShape::Block_M;
-    static constexpr index_t Block_N = Problem::BlockShape::Block_N;
-    static constexpr bool kPadM      = false; // always no need to pad along M
-    static constexpr bool kPadN      = Problem::kPadN;
-    static constexpr bool kTwoPass   = Problem::kTwoPass;
+    static constexpr index_t Block_M  = Problem::BlockShape::Block_M;
+    static constexpr index_t Block_N  = Problem::BlockShape::Block_N;
+    static constexpr bool kPadM       = false; // always no need to pad along M
+    static constexpr bool kPadN       = Problem::Traits::kPadN;
+    static constexpr bool kTwoPass    = Problem::Traits::kTwoPass;
+    static constexpr auto kFusedAdd   = Problem::Traits::kFusedAdd;
+    static constexpr auto kFusedQuant = Problem::Traits::kFusedQuant;
 
     static constexpr index_t ThreadPerWarp_N = Problem::BlockShape::ThreadPerWarp_N;
     static constexpr index_t Vector_N        = Problem::BlockShape::Vector_N;
@@ -56,9 +69,13 @@ struct Rmsnorm2dFwd
     struct Kargs
     {
         const void* p_x;
+        const void* p_x_residual;
+        const void* p_x_scale;
         const void* p_gamma;
 
         void* p_y;
+        void* p_y_residual;
+        void* p_y_scale;
         void* p_invRms;
 
         float epsilon;
@@ -72,8 +89,12 @@ struct Rmsnorm2dFwd
     CK_TILE_HOST static constexpr Kargs MakeKargs(const Hargs& hargs)
     {
         return Kargs{hargs.p_x,
+                     hargs.p_x_residual,
+                     hargs.p_x_scale,
                      hargs.p_gamma,
                      hargs.p_y,
+                     hargs.p_y_residual,
+                     hargs.p_y_scale,
                      hargs.p_invRms,
                      hargs.epsilon,
                      hargs.m,
@@ -139,6 +160,28 @@ struct Rmsnorm2dFwd
             return make_tile_window(
                 tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
         }();
+        
+        const auto x_residual_window = [&]() {
+            if constexpr (kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
+                          kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+            {
+                const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
+                    static_cast<const XResidualDataType*>(kargs.p_x_residual),
+                    make_tuple(kargs.m, kargs.n),
+                    make_tuple(kargs.stride, 1),
+                    number<Vector_N>{},
+                    number<1>{});
+
+                const auto tmp2_ = pad_tensor_view(
+                    tmp_, make_tuple(number<Block_M>{}, make_tuple(number<Block_N>{}), sequence<kPadM, kPadN>{}));
+                return make_tile_window(
+                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
+            }
+            else
+            {
+                return make_null_tile_window(make_tuple(number<Block_M>{}, number<Block_N>{}));
+            }
+        }();
 
         const auto gamma_window = [&]() {
             const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
@@ -168,6 +211,27 @@ struct Rmsnorm2dFwd
                 tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
         }();
 
+        auto y_residual_window = [&]() {
+            if constexpr (kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+            {
+                auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
+                    static_cast<YDataType*>(kargs.p_y_residual),
+                    make_tuple(kargs.m, kargs.n),
+                    make_tuple(kargs.stride, 1),
+                    number<Vector_N>{},
+                    number<1>{});
+
+                auto tmp2_ = pad_tensor_view(
+                    tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<kPadM, kPadN>{});
+                return make_tile_window(
+                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}));
+            }
+            else
+            {
+                return make_null_tile_window(make_tuple(number<Block_M>{}, number<Block_N>{}));
+            }
+        }();
+
         auto inv_rms_window = [&]() {
             if constexpr(kSaveInvRms)
             {
@@ -187,12 +251,58 @@ struct Rmsnorm2dFwd
                 return make_null_tile_window(make_tuple(number<Block_M>{}));
         }();
 
+        auto x_scale_window = [&]() {
+            if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
+            {
+                const auto win_ = [&]() {
+                    const auto tmp_0_ = make_naive_tensor_view_packed<address_space_enum::global>(
+                        static_cast<const XScaleDataType*>(kargs.p_x_scale),
+                        make_tuple(kargs.n),
+                        number<Vector_N>{});
+
+                    return pad_tensor_view(tmp_0_,
+                                           make_tuple(number<Block_N>{}),
+                                           sequence<false>{}); // x_scale no need pad
+                }();
+                return make_tile_window(win_, make_tuple(number<Block_N>{}), {0});
+            }
+            else
+            {
+                return make_null_tile_window(make_tuple(number<Block_N>{}));
+            }
+        }();
+
+        auto y_scale_window = [&]() {
+            if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT ||
+                         kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT)
+            {
+                const auto win_ = [&]() {
+                    const auto tmp_0_ = make_naive_tensor_view_packed<address_space_enum::global>(
+                        static_cast<YScaleDataType*>(kargs.p_y_scale),
+                        make_tuple(kargs.m),
+                        number<1>{});
+
+                    return pad_tensor_view(
+                        tmp_0_, make_tuple(number<Block_M>{}), sequence<kPadM>{});
+                }();
+                return make_tile_window(win_, make_tuple(number<Block_M>{}), {iM});
+            }
+            else
+            {
+                return make_null_tile_window(make_tuple(number<Block_M>{}));
+            }
+        }();
+
         __shared__ char smem[GetSmemSize()];
 
         Pipeline{}(x_window,
+                   x_residual_window,
                    gamma_window,
                    y_window,
+                   y_residual_window,
                    inv_rms_window,
+                   x_scale_window,
+                   y_scale_window,
                    static_cast<const ComputeDataType>(kargs.epsilon),
                    kargs.n,
                    smem);

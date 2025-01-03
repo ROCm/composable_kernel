@@ -12,10 +12,10 @@ template <typename XDataType_,
           typename ComputeDataType_,
           typename YDataType_,
           typename InvRmsDataType_,
+          typename XScaleDataType_,
+          typename YScaleDataType_,
           typename BlockShape_,
-          bool kPadN_,
-          bool kSaveInvRms_,
-          bool kTwoPass_>
+          typename Traits_>
 struct Rmsnorm2dFwdPipelineProblem
 {
     using XDataType       = remove_cvref_t<XDataType_>;
@@ -23,14 +23,14 @@ struct Rmsnorm2dFwdPipelineProblem
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
     using YDataType       = remove_cvref_t<YDataType_>;
     using InvRmsDataType  = remove_cvref_t<InvRmsDataType_>;
+    using XScaleDataType  = remove_cvref_t<XScaleDataType_>;
+    using YScaleDataType  = remove_cvref_t<YScaleDataType_>;
     using BlockShape      = remove_cvref_t<BlockShape_>;
 
     static constexpr bool kNeedCrossLaneSync = BlockShape::ThreadPerWarp_N > 1;
     static constexpr bool kNeedCrossWarpSync = BlockShape::WarpPerBlock_N > 1;
 
-    static constexpr bool kPadN       = kPadN_;
-    static constexpr bool kSaveInvRms = kSaveInvRms_;
-    static constexpr bool kTwoPass    = kTwoPass_;
+    using Traits = remove_cvref_t<Traits_>;
 };
 
 } // namespace ck_tile
