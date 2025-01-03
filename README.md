@@ -130,6 +130,19 @@ Static GEMM operations library
     make -j device_gemm_operations
 ```
 
+Other libs linked statically to the grouped_gemm CK implementation:
+```bash
+    make -j utility
+```
+
+```bash
+    make -j device_contraction_operations
+```
+
+```bash
+    make -j device_reduction_operations
+```
+
 Tests
 ```bash
     make -j test_grouped_gemm
