@@ -1088,16 +1088,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const bool swap_seqlenq_ngroups = [&]() {
             if constexpr(std::is_same_v<decltype(traits), fmha_fwd_traits&>)
             {
-                return !traits.is_group_mode &&
-                       (args.seqlen_q == 1 && args.nhead_q > args.nhead_k &&
-                        mask.type == mask_enum::no_mask && args.p_drop == 0.f &&
-                        bias.type == bias_enum::no_bias);
+                return (!traits.is_group_mode && args.seqlen_q == 1) &&
+                       (args.nhead_q > args.nhead_k && mask.type == mask_enum::no_mask &&
+                        args.p_drop == 0.f && bias.type == bias_enum::no_bias);
             }
             else if constexpr(std::is_same_v<decltype(traits), fmha_fwd_splitkv_traits&>)
             {
-                return !traits.is_group_mode &&
-                       (args.seqlen_q == 1 && args.nhead_q > args.nhead_k &&
-                        mask.type == mask_enum::no_mask && bias.type == bias_enum::no_bias);
+                return (!traits.is_group_mode && args.seqlen_q == 1) &&
+                       (args.nhead_q > args.nhead_k && mask.type == mask_enum::no_mask &&
+                        bias.type == bias_enum::no_bias);
             }
             else
             {
@@ -1114,49 +1113,52 @@ bool run(const ck_tile::ArgParser& arg_parser)
             args.seqlen_q = ngroups;
             args.nhead_q  = args.nhead_k;
 
+            // clang-format off
             if(i_perm)
             {
-                // q: (batch_size, (nhead_k x ngroups), 1, hdim_q) -> (batch_size, nhead_k, ngroups,
-                // hdim_q)
+                // change q shape:
+                //   batch mode: (batch_size, (nhead_k x ngroups), 1, hdim_q) -> (batch_size, nhead_k, ngroups, hdim_q)
                 args.nhead_stride_q *= ngroups;
             }
             else
             {
-                // q: (batch_size, 1, (nhead_k x ngroups), hdim_q) -> (batch_size, ngroups,
-                // nhead_k, hdim_q)
+                // change q shape:
+                //   batch mode: (batch_size, 1, (nhead_k x ngroups), hdim_q) -> (batch_size, ngroups, nhead_k, hdim_q)
                 args.stride_q /= args.nhead_k;
                 std::swap(args.stride_q, args.nhead_stride_q);
             }
 
             if(o_perm)
             {
-                // o: (batch_size, (nhead_k x ngroups), 1, hdim_v) -> (batch_size, nhead_k, ngroups,
-                // hdim_v)
+                // change o shape:
+                //   batch mode: (batch_size, (nhead_k x ngroups), 1, hdim_v) -> (batch_size, nhead_k, ngroups, hdim_v)
                 args.nhead_stride_o *= ngroups;
             }
             else
             {
-                // o: (batch_size, 1, (nhead_k x ngroups), hdim_v) -> (batch_size, ngroups,
-                // nhead_k, hdim_v)
+                // change o shape:
+                //   batch mode: (batch_size, 1, (nhead_k x ngroups), hdim_v) -> (batch_size, ngroups, nhead_k, hdim_v)
                 args.stride_o /= args.nhead_k;
                 std::swap(args.stride_o, args.nhead_stride_o);
             }
 
-            // lse: (batch_size, (nhead_k x ngroups), 1) -> (batch_size, nhead_k, ngroups)
+            // change lse shape:
+            //   batch mode: (batch_size, (nhead_k x ngroups), 1) -> (batch_size, nhead_k, ngroups)
             args.nhead_stride_lse *= ngroups;
 
             if constexpr(std::is_same_v<decltype(traits), fmha_fwd_splitkv_traits&>)
             {
-                // o_acc: (batch_size, (nhead_k x ngroups), num_splits, 1, hdim_v)
-                // -> (batch_size, nhead_k, num_splits, ngroups, hdim_v)
+                // change o_acc shape:
+                //   batch mode: (batch_size, (nhead_k x ngroups), num_splits, 1, hdim_v) -> (batch_size, nhead_k, num_splits, ngroups, hdim_v)
                 args.nhead_stride_o_acc *= ngroups;
                 args.split_stride_o_acc *= ngroups;
 
-                // lse_acc: (batch_size, (nhead_k x ngroups), num_splits, 1)
-                // -> (batch_size, nhead_k, num_splits, ngroups)
+                // change lse_acc shape:
+                //   batch mode: (batch_size, (nhead_k x ngroups), num_splits, 1) -> (batch_size, nhead_k, num_splits, ngroups)
                 args.nhead_stride_lse_acc *= ngroups;
                 args.split_stride_lse_acc *= ngroups;
             }
+            // clang-format on
         }
     };
 
