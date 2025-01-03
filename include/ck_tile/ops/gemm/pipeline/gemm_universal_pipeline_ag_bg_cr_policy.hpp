@@ -12,11 +12,30 @@ namespace ck_tile {
 struct UniversalGemmPipelineAgBgCrPolicy
 {
 
+    template <typename Problem>
+    static auto GetBlockGemmTypeIdentity()
+    {
+        if constexpr(Problem::kBlockMethod == 0)
+        {
+            return custom_std::type_identity<decltype(GetBlockGemmUniversal<Problem>())>{};
+        }
+        else
+        {
+            return custom_std::type_identity<decltype(GetBlockGemmGlobalRegister<Problem>())>{};
+        }
+    }
+
+    template <typename Problem>
+    using BlockGemm = typename decltype(GetBlockGemmTypeIdentity<Problem>())::type;
+
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
 
     static constexpr bool TransposeC = true;
+
+    template <typename Problem>
+    using BlockGemm = typename decltype(GetBlockGemmTypeIdentity<Problem>())::type;
 
     template <typename Problem, typename DataType, index_t MNPerBlock>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorLoadSize()
@@ -441,19 +460,6 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                            tuple<sequence<0, 1>, sequence<0, 2>>,
                                            sequence<1, 2>,
                                            sequence<1, 3>>{});
-        }
-    }
-
-    template <typename Problem>
-    static auto GetBlockGemmType()
-    {
-        if constexpr(Problem::kBlockMethod == 0)
-        {
-            return custom_std::type_identity<decltype(GetBlockGemmUniversal<Problem>())>{};
-        }
-        else
-        {
-            return custom_std::type_identity<decltype(GetBlockGemmGlobalRegister<Problem>())>{};
         }
     }
 

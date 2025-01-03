@@ -165,6 +165,23 @@ struct BlockGemmARegBRegCRegV1
         });
     }
 
+    CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
+    {
+        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
+            tuple<sequence<1, 2>>,
+            tuple<sequence<1, 1>>,
+            sequence<1, 2>,
+            sequence<0, 0>>{};
+
+        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
+        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
+        auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
+        return c_block_tensor;
+    }
+
     // C = A * B
     template <typename ABlockTensor, typename BBlockTensor>
     CK_TILE_DEVICE auto operator()(const ABlockTensor& a_block_tensor,

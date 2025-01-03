@@ -9,17 +9,8 @@
 #include <string>
 #include <tuple>
 
-#include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
 #include "gemm_basic.hpp"
-
-#define CK_TILE_PIPELINE_COMPUTE 1
-#define CK_TILE_PIPELINE_MEMORY 2
-
-#ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE
-#endif
 
 template <typename ALayout, typename BLayout, typename CLayout>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
@@ -61,15 +52,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     // Whether the GemmPolicy is default or custom
     constexpr bool kBlockDefaultPolicy = false;
-    // kBlockMethod decides which kind of the BlockGEMM Method the GEMM should use.
-    // 0: BlockUniversalGemmAsBsCr
-    // 1: BlockGemmARegBRegCRegV1
-    constexpr int kBlockMethod = 0;
-    // kBlockPolicyMethod decides which kind of the BlockGEMM Method the GEMM should use.
-    // 0: Default BlockGemmARegBRegCRegV1 Policy
-    // 1: Default BlockGemmARegBRegCRegV2 Policy
-    // 2: BlockGemmASmemBSmemCRegV1CustomPolicy
-    constexpr int kBlockPolicyMethod = 2;
+    constexpr BlockGemmMethod kBlockGemmMethod = BlockGemmMethod::UniversalGemmAsBsCr;
+    constexpr BlockGemmPolicy kBlockGemmPolicy = BlockGemmPolicy::DefaultPolicyV1;
 
     // ===============================================
 
@@ -89,8 +73,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                            BLayout,
                                            CLayout,
                                            kBlockDefaultPolicy,
-                                           kBlockMethod,
-                                           kBlockPolicyMethod>;
+                                           kBlockGemmMethod,
+                                           kBlockGemmPolicy>;
 
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -110,29 +94,20 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
+        constexpr auto scheduler      = GEMM_PIPELINE_SCHEDULER;
 
-        using UniversalGemmProblem =
-            ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                  BDataType,
-                                                  AccDataType,
-                                                  GemmShape,
-                                                  Traits,
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-                                                  ck_tile::GemmPipelineScheduler::Interwave,
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
-                                                  ck_tile::GemmPipelineScheduler::Intrawave,
-#endif
-                                                  has_hot_loop_v,
-                                                  tail_number_v>;
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                           BDataType,
+                                                                           AccDataType,
+                                                                           GemmShape,
+                                                                           Traits,
+                                                                           scheduler,
+                                                                           has_hot_loop_v,
+                                                                           tail_number_v>;
 
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-        using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
-        using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<
-#endif
-            UniversalGemmProblem>;
-        using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs   = Kernel::MakeKernelArgs(args);
+        using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+        using Kernel       = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        auto kargs         = Kernel::MakeKernelArgs(args);
 
         const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
         constexpr dim3 blocks = Kernel::BlockSize();

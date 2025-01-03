@@ -20,6 +20,21 @@ namespace ck_tile {
 // Default policy class should not be templated, put template on member functions instead
 struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 {
+    template <typename Problem>
+    static auto GetBlockGemmTypeIdentity()
+    {
+        if constexpr(Problem::kBlockMethod == 0)
+        {
+            return custom_std::type_identity<decltype(GetBlockGemmUniversal<Problem>())>{};
+        }
+        else
+        {
+            return custom_std::type_identity<decltype(GetBlockGemmGlobalRegister<Problem>())>{};
+        }
+    }
+
+    template <typename Problem>
+    using BlockGemm = typename decltype(GetBlockGemmTypeIdentity<Problem>())::type;
 
 #if 0
     // 2d
@@ -490,19 +505,6 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
                                            tuple<sequence<0, 1>, sequence<0, 2>>,
                                            sequence<1, 2>,
                                            sequence<1, 3>>{});
-        }
-    }
-
-    template <typename Problem>
-    static auto GetBlockGemmType()
-    {
-        if constexpr(Problem::kBlockMethod == 0)
-        {
-            return custom_std::type_identity<decltype(GetBlockGemmUniversal<Problem>())>{};
-        }
-        else
-        {
-            return custom_std::type_identity<decltype(GetBlockGemmGlobalRegister<Problem>())>{};
         }
     }
 

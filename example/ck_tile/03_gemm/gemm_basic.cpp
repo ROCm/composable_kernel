@@ -9,8 +9,6 @@
 #include <string>
 #include <tuple>
 
-#include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
 #include "gemm_basic.hpp"
 
@@ -46,12 +44,12 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     // kBlockMethod decides which kind of the BlockGEMM Method the GEMM should use.
     // 0: BlockUniversalGemmAsBsCr
     // 1: BlockGemmARegBRegCRegV1
-    constexpr int kBlockMethod = 0;
+    constexpr int kBlockGemmMethod = 0;
     // kBlockPolicyMethod decides which kind of the BlockGEMM Method the GEMM should use.
     // 0: Default BlockGemmARegBRegCRegV1 Policy
     // 1: Default BlockGemmARegBRegCRegV2 Policy
     // 2: BlockGemmASmemBSmemCRegV1CustomPolicy
-    constexpr int kBlockPolicyMethod = 1;
+    constexpr int kBlockGemmPolicy = 1;
 
     // Whether doing the CShuffle (transpose before the global memory), depending on the output
     // layout.
@@ -87,8 +85,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                       BLayout,
                                                       CLayout,
                                                       kBlockDefaultPolicy,
-                                                      kBlockMethod,
-                                                      kBlockPolicyMethod>;
+                                                      kBlockGemmMethod,
+                                                      kBlockGemmPolicy>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
     using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;
