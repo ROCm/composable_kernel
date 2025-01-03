@@ -1084,15 +1084,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return 0.0f;
     }();
 
-    const auto override_decode_traits_args = [&](auto& traits, auto& args) {
+    const auto override_decode_args = [&](const auto& traits, auto& args) {
         const bool swap_seqlenq_ngroups = [&]() {
-            if constexpr(std::is_same_v<decltype(traits), fmha_fwd_traits&>)
+            if constexpr(std::is_same_v<decltype(args), fmha_fwd_args&>)
             {
                 return (!traits.is_group_mode && args.seqlen_q == 1) &&
                        (args.nhead_q > args.nhead_k && mask.type == mask_enum::no_mask &&
                         args.p_drop == 0.f && bias.type == bias_enum::no_bias);
             }
-            else if constexpr(std::is_same_v<decltype(traits), fmha_fwd_splitkv_traits&>)
+            else if constexpr(std::is_same_v<decltype(args), fmha_fwd_splitkv_args&>)
             {
                 return (!traits.is_group_mode && args.seqlen_q == 1) &&
                        (args.nhead_q > args.nhead_k && mask.type == mask_enum::no_mask &&
@@ -1146,7 +1146,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             //   batch mode: (batch_size, (nhead_k x ngroups), 1) -> (batch_size, nhead_k, ngroups)
             args.nhead_stride_lse *= ngroups;
 
-            if constexpr(std::is_same_v<decltype(traits), fmha_fwd_splitkv_traits&>)
+            if constexpr(std::is_same_v<decltype(args), fmha_fwd_splitkv_args&>)
             {
                 // change o_acc shape:
                 //   batch mode: (batch_size, (nhead_k x ngroups), num_splits, 1, hdim_v) -> (batch_size, nhead_k, num_splits, ngroups, hdim_v)
@@ -1172,7 +1172,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             fmha_fwd_splitkv_args fmha_splitkv_args;
             init_args(fmha_splitkv_args);
 
-            override_decode_traits_args(fmha_splitkv_traits, fmha_splitkv_args);
+            override_decode_args(fmha_splitkv_traits, fmha_splitkv_args);
 
             return fmha_fwd_splitkv(fmha_splitkv_traits, fmha_splitkv_args, stream_config);
         }
@@ -1183,7 +1183,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         fmha_fwd_args fmha_args;
         init_args(fmha_args);
 
-        override_decode_traits_args(fmha_traits, fmha_args);
+        override_decode_args(fmha_traits, fmha_args);
 
         return fmha_fwd(fmha_traits, fmha_args, stream_config);
     }();
