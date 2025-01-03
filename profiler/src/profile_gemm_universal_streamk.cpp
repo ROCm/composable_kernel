@@ -83,8 +83,9 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
         rotating = std::stoull(argv[18]) * 1024 * 1024;
     }
 
-    using F32 = float;
-    using F16 = ck::half_t;
+    using F32  = float;
+    using F16  = ck::half_t;
+    using BF16 = ck::bhalf_t;
 
 #if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
     using F8 = ck::f8_t;
@@ -165,6 +166,22 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
         return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
 #endif
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        return profile(BF16{}, BF16{}, F32{}, BF16{}, Col{}, Row{}, Row{});
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        return profile(BF16{}, BF16{}, F32{}, BF16{}, Col{}, Col{}, Row{});
+    }
     else
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;
