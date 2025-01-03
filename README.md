@@ -157,6 +157,33 @@ Running tests
     bin/test_grouped_gemm_splitk
 ```
 
+## Installing the Grouped GEMM assets
+
+If the CK is repo is cloned to target container, follow these steps the install the locally compiled CK library
+
+ * Modify the the generated Makefile such that the absolute path to CMake is removed from the install tasks, i.e., 
+ replace e.g. path `/usr/local/lib/python3.10/dist-packages/cmake/data/bin/cmake` with `@$(CMAKE_COMMAND)`.
+
+ * Ensure that `@$(CMAKE_COMMAND)` points to the CMake path in system, e.g., `/opt/conda/envs/py_3.9/bin/cmake`. 
+ You can see the CMake install path with command `which cmake`.
+
+ * Add a new `install-no-build` task that does not invoke full build and just installs what has been built so far
+ ```makefile
+ # Special rule for the target install without building
+install-no-build:
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Install the project..."
+	@$(CMAKE_COMMAND) -P cmake_install.cmake
+.PHONY : install-no-build
+ ```
+    Note that you need to build the whole CK library once, otherwise the install script fails.
+
+ * Run the `install-no-build` command
+ ```bash
+ make -j install-no-build
+ ```
+
+
+
 ### Build and running unit tests
 
 At the root directory, run
