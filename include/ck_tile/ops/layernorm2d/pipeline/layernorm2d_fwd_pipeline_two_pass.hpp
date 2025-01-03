@@ -36,6 +36,7 @@ struct Layernorm2dFwdPipelineTwoPass
     static constexpr bool kPadM              = false; // TODO - BlockLayernorm2dFwdProblem::kPadM
     static constexpr bool kPadN              = Problem::Traits::kPadN;
     static constexpr bool kFastFDiv          = Problem::Traits::kFastFDiv;
+    static constexpr bool kWelford           = Problem::Traits::kWelford;
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
@@ -77,6 +78,7 @@ struct Layernorm2dFwdPipelineTwoPass
                                    void* smem,
                                    Epilogue) const
     {
+        static_assert(kWelford == true, "2 pass only supports welford merge");
         auto x_window =
             make_tile_window(x_window_, Policy::template MakeXBlockTileDistribution<Problem>());
         auto gamma_window = make_tile_window(
@@ -102,14 +104,14 @@ struct Layernorm2dFwdPipelineTwoPass
         int max_count =
             (num_n_tile_iteration - 1) * count_per_iter +
             block_tile_welford_calculate_max_count<typename Problem::BlockShape>(last_iter_n);
-        auto block_welford      = Policy::template GetBlockWelford<Problem>();
-        auto block_welford_sync = Policy::template GetBlockWelfordSync<Problem>();
-        auto block_welford_cross_warp_sync =
-            Policy::template GetBlockWelfordCrossWarpSync<Problem>();
+        auto block_norm_reduce      = Policy::template GetBlockNormReduce<Problem>();
+        auto block_norm_reduce_sync = Policy::template GetBlockNormReduceSync<Problem>();
+        auto block_norm_reduce_cross_warp_sync =
+            Policy::template GetBlockNormReduceCrossWarpSync<Problem>();
 
         using XTensorType = decltype(cast_tile<ComputeDataType>(load_tile(x_window)));
-        auto mean         = block_welford.template MakeMeanVarBlockTile<XTensorType>();
-        auto var          = block_welford.template MakeMeanVarBlockTile<XTensorType>();
+        auto mean         = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
+        auto var          = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
 
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
@@ -133,11 +135,11 @@ struct Layernorm2dFwdPipelineTwoPass
                     move_tile_window(y_residual_window, {0, Block_N});
                 }
             }
-            block_welford(acc, mean, var, cur_count, max_count);
+            block_norm_reduce(acc, mean, var, cur_count, max_count);
         }
 
-        block_welford_sync(mean, var, cur_count);
-        block_welford_cross_warp_sync(mean, var, cur_count, smem);
+        block_norm_reduce_sync(mean, var, cur_count);
+        block_norm_reduce_cross_warp_sync(mean, var, cur_count, smem);
         block_tile_welford_post_scale_var(var, cur_count, constant<kFastFDiv>{});
 
         // compute inv-std

@@ -27,7 +27,8 @@ $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=7   -n=2734
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=1   -n=3182
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=9   -n=4096
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=3   -n=8192
-#$EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=1   -n=10547
+$EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=3   -n=9120
+$EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=1   -n=10547
 #$EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=3   -n=17134
 done
 done
