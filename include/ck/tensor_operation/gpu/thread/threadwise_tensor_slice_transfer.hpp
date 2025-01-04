@@ -1544,7 +1544,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
     ElementwiseOperation element_op_;
 };
 
-// Specilized for WMMA-Navi3
+// Specialized for gfx11
 // A single Wave32 is composed by double row
 // Data exchange allowed between these two rows
 // This RowLane Dst buf will be filled from two Src buf
@@ -1679,7 +1679,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
     ElementwiseOperation element_op_{};
 };
 
-// Specilized for WMMA-Navi4
+// Specialized for gfx12
 template <typename SrcData,
           typename DstData,
           typename SrcDesc,
