@@ -5,7 +5,7 @@
 
 #include "fused_moegemm_api_traits.hpp"
 #include "ck_tile/ops/fused_moe.hpp"
-#include "fused_moegemm_api.cpp"
+// #include "fused_moegemm_api.cpp"
 #include <iostream>
 
 template <ck_tile::index_t... Is>

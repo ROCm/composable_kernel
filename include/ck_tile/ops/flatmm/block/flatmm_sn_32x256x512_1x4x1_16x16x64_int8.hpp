@@ -78,21 +78,23 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
     // TODO: need paired with tile_window_linear!
     // TODO: need call init_raw() before call this function!
     // template <typename AWindow, typename BWindow, typename OWindow, typename ScaleTensor>
-    template <typename BRes,
+    template <typename DQRes,  
+              typename BRes,
               typename BCoords,
               typename ORes,
               typename OCoords,
-              typename OFlags,
-              typename ScaleTensor>
+              typename OFlags>
+            //   typename ScaleTensor>
     CK_TILE_DEVICE auto
-    operator()(const BRes& res_b,
+    operator()(const DQRes& res_dq,
+               const BRes& res_b,
                const BCoords& cached_coords_b,
                const ORes& res_o,
                const OCoords& cached_coords_o,
                const OFlags& o_flags, // this should be in sgpr
                CK_TILE_LDS_ADDR void* smem,
                index_t n, // loop along n dim
-               const ScaleTensor& scale_,
+            //    const ScaleTensor& scale_,
                index_t tile_offset_dq,
                index_t tile_offset_b, // stride b is fixed to blockKr * blockW, but still can adjust
                index_t tile_offset_half_b, //splited load alone K in to 2 part
@@ -106,11 +108,11 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
         const index_t tile_stride_o_bytes = tile_offset_o * sizeof(ODataType);
         const index_t tile_stride_dq_bytes = tile_offset_dq * sizeof(DScaleDataType);
 
-        static_assert(ScaleTensor::size() == 2);
-        float s0 = scale_[number<0>{}];
-        float s1 = scale_[number<1>{}];
+        // static_assert(ScaleTensor::size() == 2);
+        // float s0 = scale_[number<0>{}];
+        // float s1 = scale_[number<1>{}];
 
-        index_t loop_cnt = n / Block_N;
+        index_t loop_cnt = n ;
 
         // register float v_c0 asm("v64");
         // register float v_c1 asm("v65");
@@ -144,15 +146,15 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
         // register float v_c29 asm("v93");
         // register float v_c30 asm("v94");
         // register float v_c31 asm("v95");
-        int32_t nan_hi = 0x7fff0000;
-        int32_t nan_lo = 0x00007fff;
+        // int32_t nan_hi = 0x7fff0000;
+        // int32_t nan_lo = 0x00007fff;
 
         // in smem, the layout is  M0(2)*K0(128)*M1(16)*K1(4)
         // every threads need 8xK in contiguous register
         // ... and every wave need the same data
-        int lane_id  = threadIdx.x % 64;
-        int sld_y_os = (lane_id % 16) * 4 + (lane_id / 16) * 128;
-        sld_y_os *= 2;
+        // int lane_id  = threadIdx.x % 64;
+        // int sld_y_os = (lane_id % 16) * 4 + (lane_id / 16) * 128;
+        // sld_y_os *= 2;
 
         //                    y     y     p     p      p      y
         // reg before shfl  M0(2)*N0(2)*Nl(4)*Nw(4)*Mw(16)*Nv(4)
@@ -161,15 +163,15 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
         //          M0(2)* N0(2) *  Nl(4) * Nw(4) * (Mw(16)*Nv(4) + 4)
         //             y    y       wave-id  lid/16  lid%16   v
         // sst(v3) = (v0/16*34 + v0%16 * 2 + wid*136) * 4
-        int sfl_sst = (threadIdx.x % 16 * 4) + (threadIdx.x / 16) * (64 + 4);
-        sfl_sst *= 2;
+        // int sfl_sst = (threadIdx.x % 16 * 4) + (threadIdx.x / 16) * (64 + 4);
+        // sfl_sst *= 2;
 
         // from LDS we need load as
         //          M0(2)*    N0(2) *  Nl(4) * Nw(4) * (Mw(16)         *  Nv(4) + 4)
         //        ( 2 issue)    (rem 32-lane)        (4 wave*4issue)   2lane*1ussue(pk2)
         // sld(v4) = v0/2 *34*4  + v0 % 2 *4 + wid*2 *4
-        int sfl_sld = (lane_id % 2) * 2 + (lane_id / 2) * (64 + 4) + (threadIdx.x / 64) * 4;
-        sfl_sld *= 2;
+        // int sfl_sld = (lane_id % 2) * 2 + (lane_id / 2) * (64 + 4) + (threadIdx.x / 64) * 4;
+        // sfl_sld *= 2;
 
         // B nr->kr
         // clang-format off
@@ -214,18 +216,19 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
                 // [c30]"+v"(v_c30),
                 // [c31]"+v"(v_c31)
             :[sld_a_base]"n"(0),
-            [shfl_base]"n"(0),
-            [v_sld_y_os]"v"(sld_y_os),
-            [v_sfl_sld]"v"(sfl_sld),
-            [v_sfl_sst]"v"(sfl_sst),
+            // [shfl_base]"n"(0),
+            // [v_sld_y_os]"v"(sld_y_os),
+            // [v_sfl_sld]"v"(sfl_sld),
+            // [v_sfl_sst]"v"(sfl_sst),
+             [s_res_dq]"s"(res_dq),
             [s_res_o0]"s"(res_o[0]),
                 [s_res_o1]"s"(res_o[1]),
                 //[s_res_o2]"s"(res_o[2]),
                 //[s_res_o3]"s"(res_o[3]),
-                [s_res_b0]"s"(res_b[0]),
-                [s_res_b1]"s"(res_b[1]),
-                [s_res_b2]"s"(res_b[2]),
-                [s_res_b3]"s"(res_b[3]),
+                [s_res_d]"s"(res_b),
+                // [s_res_b1]"s"(res_b[1]),
+                // [s_res_b2]"s"(res_b[2]),
+                // [s_res_b3]"s"(res_b[3]),
                 [v_os_o0]"v"(static_cast<index_t>(cached_coords_o[number<0>{}] * sizeof(ODataType))),
                 [v_os_o1]"v"(static_cast<index_t>(cached_coords_o[number<1>{}] * sizeof(ODataType))),
                 [v_os_o2]"v"(static_cast<index_t>(cached_coords_o[number<2>{}] * sizeof(ODataType))),
@@ -242,10 +245,10 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
                 [s_tile_os_b_half]"s"(tile_offset_half_b_bytes),
                 [s_tile_os_b]"s"(tile_stride_b_bytes),
                 [s_tile_os_dq]"s"(tile_stride_dq_bytes),
-                [scale_0]"v"(s0),
-                [scale_1]"v"(s1),
-                [v_nan_lo]"v"(nan_lo),
-                [v_nan_hi]"v"(nan_hi),
+                // [scale_0]"v"(s0),
+                // [scale_1]"v"(s1),
+                // [v_nan_lo]"v"(nan_lo),
+                // [v_nan_hi]"v"(nan_hi),
                 [s_execflag_0]"s"(o_flags[number<0>{}]),
                 [s_execflag_1]"s"(o_flags[number<1>{}]),
                 [s_execflag_2]"s"(o_flags[number<2>{}]),
@@ -285,21 +288,15 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
           "a236", "a237", "a238", "a239", "a240", "a241", "a242", "a243",
           "a244", "a245", "a246", "a247", "a248", "a249", "a250", "a251",
           "a252", "a253", "a254", "a255", 
-          "s6", "s7", "s8", "s9", "s10", "s11", "s12", "s13", "s14", "s15", 
-          "s16", "s17", "s18", "s19", "s20", "s21", "s22", "s23", "s24", "s25",
-        "s26", "s27", "s28", "s29", "s30", "s31", "s32", "s33", "s34", "s35",
-        "s36", "s37", "s38", "s39", "s40", "s41", "s42", "s43", "s44", "s45",
+          "s6", "s7", "s40", "s41", "s42", "s43", "s44", "s45",
           "s46", "s47", "s48", "s49", "s50", "s51", "s52", "s53", "s54",
           "s55", "s56", "s57", "s58", "s59", "s60", "s61", "s62", "s63",
           "s64", "s65", "s66", "s67", "s68", "s69", "s70", "s71", "s72",
           "s73", "s74", "s75", "s76", "s77", "s78", "s79", "s80",    // s86 as tmp
           "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", 
           "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19",
-          "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28",
-          "v29", "v30", "v31", "v32", "v33", "v34", "v35", "v36", "v37",
-          "v38", "v39", "v40", "v41", "v42", "v43", "v44", "v45", "v46",
-          "v47", "v48", "v49", "v50", "v51", "v52", "v53", "v54", "v55",
-          "v56", "v57", "v58", "v59", "v60", "v61", "v62", "v63", "v64",
+          "v20", "v21", "v22", "v23", "v24", "v25", "v50", "v51", "v52", "v53", "v54", "v55",
+          "v56", "v57", "v64",
           "v65", "v66", "v67", "v68", "v69", "v70", "v71", "v72", "v73",
           "v74", "v75", "v76", "v77", "v78", "v79", "v80", "v81", "v82",
           "v83", "v84", "v85", "v86", "v87", "v88", "v89", "v90", "v91",
@@ -364,18 +361,19 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
                 // [c30]"+v"(v_c30),
                 // [c31]"+v"(v_c31)
             :[sld_a_base]"n"(0),
-            [shfl_base]"n"(0),
-            [v_sld_y_os]"v"(sld_y_os),
-            [v_sfl_sld]"v"(sfl_sld),
-            [v_sfl_sst]"v"(sfl_sst),
+            // [shfl_base]"n"(0),
+            // [v_sld_y_os]"v"(sld_y_os),
+            // [v_sfl_sld]"v"(sfl_sld),
+            // [v_sfl_sst]"v"(sfl_sst),
+             [s_res_dq]"s"(res_dq),
             [s_res_o0]"s"(res_o[0]),
                 [s_res_o1]"s"(res_o[1]),
                 //[s_res_o2]"s"(res_o[2]),
                 //[s_res_o3]"s"(res_o[3]),
-                [s_res_b0]"s"(res_b[0]),
-                [s_res_b1]"s"(res_b[1]),
-                [s_res_b2]"s"(res_b[2]),
-                [s_res_b3]"s"(res_b[3]),
+                [s_res_d]"s"(res_b),
+                // [s_res_b1]"s"(res_b[1]),
+                // [s_res_b2]"s"(res_b[2]),
+                // [s_res_b3]"s"(res_b[3]),
                 [v_os_o0]"v"(static_cast<index_t>(cached_coords_o[number<0>{}] * sizeof(ODataType))),
                 [v_os_o1]"v"(static_cast<index_t>(cached_coords_o[number<1>{}] * sizeof(ODataType))),
                 [v_os_o2]"v"(static_cast<index_t>(cached_coords_o[number<2>{}] * sizeof(ODataType))),
@@ -392,10 +390,10 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
                 [s_tile_os_b_half]"s"(tile_offset_half_b_bytes),
                 [s_tile_os_b]"s"(tile_stride_b_bytes),
                 [s_tile_os_dq]"s"(tile_stride_dq_bytes),
-                [scale_0]"v"(s0),
-                [scale_1]"v"(s1),
-                [v_nan_lo]"v"(nan_lo),
-                [v_nan_hi]"v"(nan_hi),
+                // [scale_0]"v"(s0),
+                // [scale_1]"v"(s1),
+                // [v_nan_lo]"v"(nan_lo),
+                // [v_nan_hi]"v"(nan_hi),
                 [s_execflag_0]"s"(o_flags[number<0>{}]),
                 [s_execflag_1]"s"(o_flags[number<1>{}]),
                 [s_execflag_2]"s"(o_flags[number<2>{}]),
@@ -435,21 +433,15 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
           "a236", "a237", "a238", "a239", "a240", "a241", "a242", "a243",
           "a244", "a245", "a246", "a247", "a248", "a249", "a250", "a251",
           "a252", "a253", "a254", "a255", 
-          "s6", "s7", "s8", "s9", "s10", "s11", "s12", "s13", "s14", "s15", 
-          "s16", "s17", "s18", "s19", "s20", "s21", "s22", "s23", "s24", "s25",
-        "s26", "s27", "s28", "s29", "s30", "s31", "s32", "s33", "s34", "s35",
-        "s36", "s37", "s38", "s39", "s40", "s41", "s42", "s43", "s44", "s45",
+          "s6", "s7", "s40", "s41", "s42", "s43", "s44", "s45",
           "s46", "s47", "s48", "s49", "s50", "s51", "s52", "s53", "s54",
           "s55", "s56", "s57", "s58", "s59", "s60", "s61", "s62", "s63",
           "s64", "s65", "s66", "s67", "s68", "s69", "s70", "s71", "s72",
           "s73", "s74", "s75", "s76", "s77", "s78", "s79", "s80",    // s86 as tmp
           "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", 
           "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19",
-          "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28",
-          "v29", "v30", "v31", "v32", "v33", "v34", "v35", "v36", "v37",
-          "v38", "v39", "v40", "v41", "v42", "v43", "v44", "v45", "v46",
-          "v47", "v48", "v49", "v50", "v51", "v52", "v53", "v54", "v55",
-          "v56", "v57", "v58", "v59", "v60", "v61", "v62", "v63", "v64",
+          "v20", "v21", "v22", "v23", "v24", "v25",  "v50", "v51", "v52", "v53", "v54", "v55",
+          "v56", "v57", "v64",
           "v65", "v66", "v67", "v68", "v69", "v70", "v71", "v72", "v73",
           "v74", "v75", "v76", "v77", "v78", "v79", "v80", "v81", "v82",
           "v83", "v84", "v85", "v86", "v87", "v88", "v89", "v90", "v91",
