@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -177,7 +177,7 @@ bool profile_gemm_universal_impl(int do_verification,
                 }
             }
 
-            if(is_same_v<BDataType, pk_i4_t> && is_same_v<ADataType, half_t>)
+            if constexpr(is_same_v<BDataType, pk_i4_t> && is_same_v<ADataType, half_t>)
             {
                 // vector pk_i4x4 permute
                 for(int i = 0; i < N; i++)
@@ -188,7 +188,7 @@ bool profile_gemm_universal_impl(int do_verification,
 
                         for(int k = 0; k < 4; k++)
                         {
-                            int i4x2         = b_k_n_permute(j + k * 2, i);
+                            int i4x2         = b_k_n_permute(j + k * 2, i).data;
                             input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
                             input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
                         }
