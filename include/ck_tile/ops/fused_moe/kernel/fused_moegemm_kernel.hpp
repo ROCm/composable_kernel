@@ -228,7 +228,8 @@ struct FusedMoeGemmKernel
         int max_num_tokens_padded =
             hargs.topk * hargs.num_tokens + hargs.num_experts * block_m - hargs.topk;
         // printf("xxx max_num_tokens_padded:%d\n", max_num_tokens_padded);
-        return Partitioner::GridSize(max_num_tokens_padded, hargs.intermediate_size);
+        return Partitioner::GridSize(max_num_tokens_padded,
+                                     hargs.intermediate_size / (IsGateOnly ? 1 : 2));
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(BlockSize_); }
@@ -382,7 +383,7 @@ struct FusedMoeGemmKernel
             auto o_window = [&]() {
                 ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr);
                 auto o_view_     = make_naive_tensor_view<address_space_enum::global,
-                                                      memory_operation_enum::atomic_add>(
+                                                          memory_operation_enum::atomic_add>(
                     o_ptr,
                     make_tuple(kargs.num_tokens, kargs.hidden_size),
                     make_tuple(kargs.stride_token, 1),

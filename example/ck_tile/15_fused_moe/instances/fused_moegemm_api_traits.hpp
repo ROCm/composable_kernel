@@ -40,7 +40,7 @@ struct fmoe_ // traits, ugly name, only used for internal
     static constexpr ck_tile::index_t BH_ = BlockTIle_::at(ck_tile::number<2>{}); // block hidden
     static constexpr ck_tile::index_t BD_ = BlockTIle_::at(ck_tile::number<3>{}); // block down
 
-    using BlockTile_0    = ck_tile::sequence<BT_, BI_, BH_>;
+    using BlockTile_0    = ck_tile::sequence<BT_, BI_ / (GateOnly_ ? 1 : 2), BH_>;
     using WarpPerBlock_0 = ck_tile::remove_cvref_t<WarpPerBlock_>;
     using WarpTile_0     = ck_tile::remove_cvref_t<WarpTile_>;
 

@@ -16,26 +16,27 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
 {
     using f_traits = ck_tile::FusedMoeGemmTraits<Ts_::GateOnly, Ts_::FusedQuant == 1, 1 /*atomic*/>;
     using f_shape  = ck_tile::FusedMoeGemmShape<typename Ts_::BlockTile_0,
-                                               typename Ts_::WarpPerBlock_0,
-                                               typename Ts_::WarpTile_0,
-                                               typename Ts_::BlockTile_1,
-                                               typename Ts_::WarpPerBlock_0,
-                                               typename Ts_::WarpTile_0>;
-    using f_problem =
-        ck_tile::FusedMoeGemmPipelineProblem<typename Ts_::ADataType,
-                                             typename Ts_::GDataType,
-                                             typename Ts_::DDataType,
-                                             typename Ts_::AccDataType,
-                                             typename Ts_::ODataType,
-                                             typename Ts_::AScaleDataType,
-                                             typename Ts_::GScaleDataType,
-                                             typename Ts_::DScaleDataType,
-                                             typename Ts_::YSmoothScaleDataType,
-                                             typename Ts_::TopkWeightDataType,
-                                             typename Ts_::IndexDataType,
-                                             ck_tile::element_wise::FastGeluAsm, // TODO: hardcoded
-                                             f_shape,
-                                             f_traits>;
+                                                typename Ts_::WarpPerBlock_0,
+                                                typename Ts_::WarpTile_0,
+                                                typename Ts_::BlockTile_1,
+                                                typename Ts_::WarpPerBlock_0,
+                                                typename Ts_::WarpTile_0>;
+    using f_problem = ck_tile::FusedMoeGemmPipelineProblem<typename Ts_::ADataType,
+                                                           typename Ts_::GDataType,
+                                                           typename Ts_::DDataType,
+                                                           typename Ts_::AccDataType,
+                                                           typename Ts_::ODataType,
+                                                           typename Ts_::AScaleDataType,
+                                                           typename Ts_::GScaleDataType,
+                                                           typename Ts_::DScaleDataType,
+                                                           typename Ts_::YSmoothScaleDataType,
+                                                           typename Ts_::TopkWeightDataType,
+                                                           typename Ts_::IndexDataType,
+                                                           // ck_tile::element_wise::FastGeluAsm, //
+                                                           // TODO: hardcoded
+                                                           ck_tile::element_wise::Silu,
+                                                           f_shape,
+                                                           f_traits>;
 
     // using f_pipeline    = ck_tile::FusedMoeGemmPipeline_FlatmmEx<f_problem>;
     using f_pipeline    = ck_tile::FusedMoeGemmPipeline_FlatmmUk<f_problem>;
