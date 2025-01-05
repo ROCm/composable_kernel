@@ -47,6 +47,8 @@ struct FmhaFwdSplitKVKernel
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
     static constexpr bool kIsPagedKV        = FmhaPipeline::Problem::kIsPagedKV;
+    static constexpr bool kMergeNumHeadGroupsSeqLenQ =
+        FmhaPipeline::Problem::kMergeNumHeadGroupsSeqLenQ;
 
     using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
