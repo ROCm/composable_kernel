@@ -1084,84 +1084,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return 0.0f;
     }();
 
-    const auto override_decode_args = [&](const auto& traits, auto& args) {
-        const bool swap_seqlenq_ngroups = [&]() {
-            if constexpr(std::is_same_v<decltype(args), fmha_fwd_args&>)
-            {
-                return (!traits.is_group_mode && args.seqlen_q == 1) &&
-                       (args.nhead_q > args.nhead_k && mask.type == mask_enum::no_mask &&
-                        args.p_drop == 0.f && bias.type == bias_enum::no_bias);
-            }
-            else if constexpr(std::is_same_v<decltype(args), fmha_fwd_splitkv_args&>)
-            {
-                return (!traits.is_group_mode && args.seqlen_q == 1) &&
-                       (args.nhead_q > args.nhead_k && mask.type == mask_enum::no_mask &&
-                        bias.type == bias_enum::no_bias);
-            }
-            else
-            {
-                static_assert(false, "unsupported trait type");
-            }
-        }();
-
-        // reshape & transpose q/o/lse matrices before launching kernel. in addition, o_acc/lse_acc
-        // for fmha_fwd_splitkv(). note that we only change the stride settings.
-        if(swap_seqlenq_ngroups)
-        {
-            const ck_tile::index_t ngroups = args.nhead_q / args.nhead_k;
-
-            args.seqlen_q = ngroups;
-            args.nhead_q  = args.nhead_k;
-
-            // clang-format off
-            if(i_perm)
-            {
-                // change q shape:
-                //   batch mode: (batch_size, (nhead_k x ngroups), 1, hdim_q) -> (batch_size, nhead_k, ngroups, hdim_q)
-                args.nhead_stride_q *= ngroups;
-            }
-            else
-            {
-                // change q shape:
-                //   batch mode: (batch_size, 1, (nhead_k x ngroups), hdim_q) -> (batch_size, ngroups, nhead_k, hdim_q)
-                args.stride_q /= args.nhead_k;
-                std::swap(args.stride_q, args.nhead_stride_q);
-            }
-
-            if(o_perm)
-            {
-                // change o shape:
-                //   batch mode: (batch_size, (nhead_k x ngroups), 1, hdim_v) -> (batch_size, nhead_k, ngroups, hdim_v)
-                args.nhead_stride_o *= ngroups;
-            }
-            else
-            {
-                // change o shape:
-                //   batch mode: (batch_size, 1, (nhead_k x ngroups), hdim_v) -> (batch_size, ngroups, nhead_k, hdim_v)
-                args.stride_o /= args.nhead_k;
-                std::swap(args.stride_o, args.nhead_stride_o);
-            }
-
-            // change lse shape:
-            //   batch mode: (batch_size, (nhead_k x ngroups), 1) -> (batch_size, nhead_k, ngroups)
-            args.nhead_stride_lse *= ngroups;
-
-            if constexpr(std::is_same_v<decltype(args), fmha_fwd_splitkv_args&>)
-            {
-                // change o_acc shape:
-                //   batch mode: (batch_size, (nhead_k x ngroups), num_splits, 1, hdim_v) -> (batch_size, nhead_k, num_splits, ngroups, hdim_v)
-                args.nhead_stride_o_acc *= ngroups;
-                args.split_stride_o_acc *= ngroups;
-
-                // change lse_acc shape:
-                //   batch mode: (batch_size, (nhead_k x ngroups), num_splits, 1) -> (batch_size, nhead_k, num_splits, ngroups)
-                args.nhead_stride_lse_acc *= ngroups;
-                args.split_stride_lse_acc *= ngroups;
-            }
-            // clang-format on
-        }
-    };
-
     const float fwd_ave_time = [&] {
 #if CK_TILE_FMHA_FWD_SPLITKV_API
         if(1 < num_splits || use_kvcache)
@@ -1172,8 +1094,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
             fmha_fwd_splitkv_args fmha_splitkv_args;
             init_args(fmha_splitkv_args);
 
-            override_decode_args(fmha_splitkv_traits, fmha_splitkv_args);
-
             return fmha_fwd_splitkv(fmha_splitkv_traits, fmha_splitkv_args, stream_config);
         }
 #endif
@@ -1182,8 +1102,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         fmha_fwd_args fmha_args;
         init_args(fmha_args);
-
-        override_decode_args(fmha_traits, fmha_args);
 
         return fmha_fwd(fmha_traits, fmha_args, stream_config);
     }();

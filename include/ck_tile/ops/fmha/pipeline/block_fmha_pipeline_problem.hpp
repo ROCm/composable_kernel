@@ -46,15 +46,16 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kIsGroupMode = kIsGroupMode_;
 
     // attributes from traits
-    static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK       = Traits::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ      = Traits::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
-    static constexpr auto BiasEnum          = Traits::BiasEnum;
-    static constexpr bool kStoreLSE         = Traits::kStoreLSE;
-    static constexpr bool kHasDropout       = Traits::kHasDropout;
-    static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
-    static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
+    static constexpr bool kPadSeqLenQ                = Traits::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK                = Traits::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ               = Traits::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV               = Traits::kPadHeadDimV;
+    static constexpr auto BiasEnum                   = Traits::BiasEnum;
+    static constexpr bool kStoreLSE                  = Traits::kStoreLSE;
+    static constexpr bool kHasDropout                = Traits::kHasDropout;
+    static constexpr bool kDoFp8StaticQuant          = Traits::kDoFp8StaticQuant;
+    static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
+    static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
 };
 
 template <typename QDataType_,
@@ -94,16 +95,17 @@ struct BlockFmhaFwdSplitKVPipelineProblem
     static constexpr bool kIsGroupMode = kIsGroupMode_;
 
     // attributes from traits
-    static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK       = Traits::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ      = Traits::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
-    static constexpr auto BiasEnum          = Traits::BiasEnum;
-    static constexpr bool kStoreLSE         = Traits::kStoreLSE;
-    static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
-    static constexpr bool kIsPagedKV        = Traits::kIsPagedKV;
-    static constexpr bool kHasUnevenSplits  = kIsGroupMode || Traits::kHasUnevenSplits;
-    static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
+    static constexpr bool kPadSeqLenQ                = Traits::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK                = Traits::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ               = Traits::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV               = Traits::kPadHeadDimV;
+    static constexpr auto BiasEnum                   = Traits::BiasEnum;
+    static constexpr bool kStoreLSE                  = Traits::kStoreLSE;
+    static constexpr bool kDoFp8StaticQuant          = Traits::kDoFp8StaticQuant;
+    static constexpr bool kIsPagedKV                 = Traits::kIsPagedKV;
+    static constexpr bool kHasUnevenSplits           = kIsGroupMode || Traits::kHasUnevenSplits;
+    static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
+    static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
 };
 
 // extract tile size attributes to remove dependency on traits
@@ -152,6 +154,7 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr index_t kMaxSplits     = Traits::kMaxSplits;
     static_assert(8 <= kMaxSplits);
+    static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
 
     static constexpr index_t kNumWarps  = 4; // always use 4 warps for each workgroup
     static constexpr index_t kBlockSize = kNumWarps * get_warp_size();

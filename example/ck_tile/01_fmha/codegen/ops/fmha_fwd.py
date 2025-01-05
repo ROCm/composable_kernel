@@ -56,6 +56,7 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_lse},
                                                     {F_dropout},
                                                     {F_squant},
+                                                    /*kMergeNumHeadGroupsSeqLenQ=*/false,
                                                     {F_occupancy}>;
 using fmha_mask_{F_idx} = {F_mask};
 
