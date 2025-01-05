@@ -157,7 +157,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         return w;
     }
 
-    template <typename ROW_COORDS>
+    template <typename ROW_IDS>
     CK_TILE_DEVICE auto GetAScale(const ROW_IDS row_ids_mma,
                                        const AScaleDataType* a_scale_ptr)
     {
@@ -165,9 +165,9 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
 
         array<TopkWeightDataType, n_size> w;
         static_for<0, n_size, 1>{}([&](auto i) {
-            auto row_id = row_idx_mma[i] & 0xffffff;
-            auto itp_k = row_idx_mma[i] >> 24;
-            w.at(i) = sorted_weight_ptr[row_id *kargs.topk+itp_k];
+            auto row_id = row_ids_mma[i] & 0xffffff;
+            auto itp_k = row_ids_mma[i] >> 24;
+            w.at(i) = a_scale_ptr[row_id * 5+itp_k];
         });
 
         return w;
@@ -199,13 +199,14 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         // auto q_is = threadIdx.x & 0x3;
 
         array<index_t, Repeat_N> coords;
-        static_for<0, Repeat_N, 1>{}([&](auto i) { coords.at(i) = base_coord + (threadIdx.x / MLanes) * 4 + 
+        static_for<0, Repeat_N, 1>{}([&](auto i) { coords.at(i) = base_offset + (threadIdx.x / MLanes) * 4 + 
                                                                             (threadIdx.x & 0xffff)/4 * 64  +
-                                                                             q_id + 
+                                                                             threadIdx.x & 0x3 + 
                                                                             i * 256 ; });
         return coords;
     }
     //this calculation shared by G and SMQ
+    template <typename COL_IDS>
     CK_TILE_DEVICE auto GetGQScale(const COL_IDS coords,
                                        const GScaleDataType* g_scale_ptr)
     {
@@ -218,6 +219,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
 
         return g_scale_value;
     }
+    template <typename COL_IDS>
     CK_TILE_DEVICE auto GetSMQScale(const COL_IDS coords,
                                        const YSmoothScaleDataType * y_scale_ptr)
     {
@@ -251,8 +253,6 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         index_t expert_stride_0 = shared_intermediate_size_0 * kargs.hidden_size;
         index_t expert_stride_1 = shared_intermediate_size_1 * kargs.hidden_size;
         /////////////
-        index_t g_scale_expert_stride_0 = shared_intermediate_size_0;
-        index_t smq_scale_expert_stride_0 = shared_intermediate_size_0;
         index_t d_scale_expert_stride_1 = kargs.hidden_size;
         // nr*kr*w
         index_t interm_idx_nr0 = __builtin_amdgcn_readfirstlane(
@@ -283,20 +283,6 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         auto a_res =
             make_wave_buffer_resource(reinterpret_cast<const ADataType*>(kargs.a_ptr),
                                       kargs.num_tokens * kargs.stride_token * sizeof(ADataType));
-        //////aq
-        auto aq_win = [&]() {
-            const AScaleDataType* aq_ptr = reinterpret_cast<const AScaleDataType*>(kargs.a_scale_ptr);
-            auto aq_view_ = make_naive_tensor_view<address_space_enum::global>(
-                aq_ptr,
-                make_tuple(kargs.num_tokens * kargs.topk),
-                make_tuple(1),
-                number<1>{},
-                number<1>{});
-
-            return aq_view_;
-        }();
-
-        auto aq_res    = aq_win.get_buffer_view().cached_buf_res_;
         ////////
         auto g_win = [&]() {
             const GDataType* g_ptr = reinterpret_cast<const GDataType*>(kargs.g_ptr) +
@@ -323,40 +309,6 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         auto g_res    = g_win.get_bottom_tensor_view().get_buffer_view().cached_buf_res_;
         auto g_coords = generate_tuple([&](auto i) { return g_win.cached_coords_[i].get_offset(); },
                                        number<decltype(g_win)::NumAccess_NonLinear>{});
-        //////gq
-        auto gq_win = [&]() {
-            const GScaleDataType* gq_ptr = reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr) + 
-                                    static_cast<long_index_t>(expert_id) * g_scale_expert_stride_0 + 
-                                    intermediate_tile_id * BlockShape::Block_N0;
-           // const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr);//remember to add expert id for inline
-            auto gq_view_ = make_naive_tensor_view<address_space_enum::global>(
-                gq_ptr,
-                make_tuple(shared_intermediate_size_1),
-                make_tuple(1),
-                number<1>{},
-                number<1>{});
-
-            return gq_view_;
-        }();
-
-        auto gq_res    = gq_win.get_buffer_view().cached_buf_res_;
-        ////smQ
-        auto smq_win = [&]() {
-            const YSmoothScaleDataType* smq_ptr = reinterpret_cast<const YSmoothScaleDataType*>(kargs.y_smooth_scale_ptr) + 
-                                    static_cast<long_index_t>(expert_id) * smq_scale_expert_stride_0 + 
-                                    intermediate_tile_id * BlockShape::Block_K1;
-        // const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr);//remember to add expert id for inline
-            auto smq_view_ = make_naive_tensor_view<address_space_enum::global>(
-                smq_ptr,
-                make_tuple(shared_intermediate_size_1),
-                make_tuple(1),
-                number<1>{},
-                number<1>{});
-
-            return smq_view_;
-        }();
-
-        auto smq_res    = smq_win.get_buffer_view().cached_buf_res_;
         /////////////////////
         const auto d_win = [&]() {
             const DDataType* d_ptr = reinterpret_cast<const DDataType*>(kargs.d_ptr) +
@@ -395,7 +347,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
             return dq_view_;
         }();
 
-        auto dq_res    = dq_win.get_buffer_view().cached_buf_res_;
+        auto dq_res = dq_win.get_buffer_view().cached_buf_res_;
         ////
 
         // TODO: load D order is N0.K0...127, N64.K0...127, N0.K128...255, N64.K128...255
@@ -447,16 +399,18 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
             row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr));
         auto a_scale      = GetAScale(
             row_ids_a_mma, reinterpret_cast<const AScaleDataType*>(kargs.a_scale_ptr));
-        auto gqsmq_coords = GetColCoords_GQSMQ(intermediated_tile_id * BlockShape::Block_K1);
+        auto gqsmq_coords = GetColCoords_GQSMQ(intermediate_tile_id * BlockShape::Block_K1);
         auto dq_coords = gqsmq_coords[0];//only one for this tiling
         auto gq_scale = GetGQScale(
-            gqsmq_coords, reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr + static_cast<long_index_t>(expert_id) * shared_intermediate_size_0));
+            gqsmq_coords, (reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr) + static_cast<long_index_t>(expert_id) * shared_intermediate_size_0));
         auto smq_scale = GetSMQScale(
-            gqsmq_coords, reinterpret_cast<const YSmoothScaleDataType*>(kargs.y_smooth_scale_ptr + static_cast<long_index_t>(expert_id) * shared_intermediate_size_0));
+            gqsmq_coords, (reinterpret_cast<const YSmoothScaleDataType*>(kargs.y_smooth_scale_ptr) + static_cast<long_index_t>(expert_id) * shared_intermediate_size_0));
         auto uk_0  = Policy::template GetUK_0<Problem>();
        // auto acc_0= uk_0(
-        uk_0(           a_scale,
-                        gq_scale,                     
+                    uk_0( a_scale,
+                        gq_scale,
+                        d_res,
+                        dq_res,                     
                         a_res,
                         a_coords,
                         g_res,
@@ -485,8 +439,9 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         // block_sync_lds();
 
         auto uk_1 = Policy::template GetUK_1<Problem>();
-        uk_1(dq_res,
-             d_res,
+        uk_1(
+            // dq_res,
+            //  d_res,
              dq_coords,
              d_coords,
              o_res,

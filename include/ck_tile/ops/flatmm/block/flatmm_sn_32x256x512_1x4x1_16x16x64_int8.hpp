@@ -78,8 +78,9 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
     // TODO: need paired with tile_window_linear!
     // TODO: need call init_raw() before call this function!
     // template <typename AWindow, typename BWindow, typename OWindow, typename ScaleTensor>
-    template <typename DQRes,  
-              typename BRes,
+    template <
+            // typename DQRes,  
+            //   typename BRes,
               typename DQCoords,
               typename BCoords,
               typename ORes,
@@ -88,8 +89,9 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
               typename ScaleTensor,
               typename YScaleTensor>
     CK_TILE_DEVICE auto
-    operator()(const DQRes& res_dq,
-               const BRes& res_b,
+    operator()(
+            //     const DQRes& res_dq,
+            //    const BRes& res_b,
                const DQCoords& cached_coords_dq,
                const BCoords& cached_coords_b,
                const ORes& res_o,
@@ -118,38 +120,6 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
 
         index_t loop_cnt = n ;
 
-        // register float v_c0 asm("v64");
-        // register float v_c1 asm("v65");
-        // register float v_c2 asm("v66");
-        // register float v_c3 asm("v67");
-        // register float v_c4 asm("v68");
-        // register float v_c5 asm("v69");
-        // register float v_c6 asm("v70");
-        // register float v_c7 asm("v71");
-        // register float v_c8 asm("v72");
-        // register float v_c9 asm("v73");
-        // register float v_c10 asm("v74");
-        // register float v_c11 asm("v75");
-        // register float v_c12 asm("v76");
-        // register float v_c13 asm("v77");
-        // register float v_c14 asm("v78");
-        // register float v_c15 asm("v79");
-        // register float v_c16 asm("v80");
-        // register float v_c17 asm("v81");
-        // register float v_c18 asm("v82");
-        // register float v_c19 asm("v83");
-        // register float v_c20 asm("v84");
-        // register float v_c21 asm("v85");
-        // register float v_c22 asm("v86");
-        // register float v_c23 asm("v87");
-        // register float v_c24 asm("v88");
-        // register float v_c25 asm("v89");
-        // register float v_c26 asm("v90");
-        // register float v_c27 asm("v91");
-        // register float v_c28 asm("v92");
-        // register float v_c29 asm("v93");
-        // register float v_c30 asm("v94");
-        // register float v_c31 asm("v95");
         // int32_t nan_hi = 0x7fff0000;
         // int32_t nan_lo = 0x00007fff;
 
@@ -187,38 +157,6 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
 #undef CK_TILE_FLATMM_UK_MFMA
             :[smem_]"+r"(smem),
             [s_loop_cnt]"+s"(loop_cnt)
-                // [c0]"+v" (v_c0),
-                // [c1]"+v" (v_c1),
-                // [c2]"+v" (v_c2),
-                // [c3]"+v" (v_c3),
-                // [c4]"+v" (v_c4),
-                // [c5]"+v" (v_c5),
-                // [c6]"+v" (v_c6),
-                // [c7]"+v" (v_c7),
-                // [c8]"+v" (v_c8),
-                // [c9]"+v" (v_c9),
-                // [c10]"+v"(v_c10),
-                // [c11]"+v"(v_c11),
-                // [c12]"+v"(v_c12),
-                // [c13]"+v"(v_c13),
-                // [c14]"+v"(v_c14),
-                // [c15]"+v"(v_c15),
-                // [c16]"+v"(v_c16),
-                // [c17]"+v"(v_c17),
-                // [c18]"+v"(v_c18),
-                // [c19]"+v"(v_c19),
-                // [c20]"+v"(v_c20),
-                // [c21]"+v"(v_c21),
-                // [c22]"+v"(v_c22),
-                // [c23]"+v"(v_c23),
-                // [c24]"+v"(v_c24),
-                // [c25]"+v"(v_c25),
-                // [c26]"+v"(v_c26),
-                // [c27]"+v"(v_c27),
-                // [c28]"+v"(v_c28),
-                // [c29]"+v"(v_c29),
-                // [c30]"+v"(v_c30),
-                // [c31]"+v"(v_c31)
             :[sld_a_base]"n"(0),
             // [shfl_base]"n"(0),
             // [v_sld_y_os]"v"(sld_y_os),
@@ -226,15 +164,10 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
             // [v_sfl_sst]"v"(sfl_sst),
              [smq_scale0]"s"(smq_scale_[0]),
              [smq_scale1]"s"(smq_scale_[1]),
-             [s_res_dq]"s"(res_dq),
              [s_res_o0]"s"(res_o[0]),
                 [s_res_o1]"s"(res_o[1]),
                 //[s_res_o2]"s"(res_o[2]),
                 //[s_res_o3]"s"(res_o[3]),
-                [s_res_d]"s"(res_b),
-                // [s_res_b1]"s"(res_b[1]),
-                // [s_res_b2]"s"(res_b[2]),
-                // [s_res_b3]"s"(res_b[3]),
                 [v_os_dq]"v"(static_cast<index_t>(cached_coords_dq * sizeof(DScaleDataType))),
                 [v_os_o0]"v"(static_cast<index_t>(cached_coords_o[number<0>{}] * sizeof(ODataType))),
                 [v_os_o1]"v"(static_cast<index_t>(cached_coords_o[number<1>{}] * sizeof(ODataType))),
@@ -334,52 +267,10 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
 #undef CK_TILE_FLATMM_UK_MFMA
             :[smem_]"+r"(smem),
             [s_loop_cnt]"+s"(loop_cnt)
-                // [c0]"+v" (v_c0),
-                // [c1]"+v" (v_c1),
-                // [c2]"+v" (v_c2),
-                // [c3]"+v" (v_c3),
-                // [c4]"+v" (v_c4),
-                // [c5]"+v" (v_c5),
-                // [c6]"+v" (v_c6),
-                // [c7]"+v" (v_c7),
-                // [c8]"+v" (v_c8),
-                // [c9]"+v" (v_c9),
-                // [c10]"+v"(v_c10),
-                // [c11]"+v"(v_c11),
-                // [c12]"+v"(v_c12),
-                // [c13]"+v"(v_c13),
-                // [c14]"+v"(v_c14),
-                // [c15]"+v"(v_c15),
-                // [c16]"+v"(v_c16),
-                // [c17]"+v"(v_c17),
-                // [c18]"+v"(v_c18),
-                // [c19]"+v"(v_c19),
-                // [c20]"+v"(v_c20),
-                // [c21]"+v"(v_c21),
-                // [c22]"+v"(v_c22),
-                // [c23]"+v"(v_c23),
-                // [c24]"+v"(v_c24),
-                // [c25]"+v"(v_c25),
-                // [c26]"+v"(v_c26),
-                // [c27]"+v"(v_c27),
-                // [c28]"+v"(v_c28),
-                // [c29]"+v"(v_c29),
-                // [c30]"+v"(v_c30),
-                // [c31]"+v"(v_c31)
             :[sld_a_base]"n"(0),
-            // [shfl_base]"n"(0),
-            // [v_sld_y_os]"v"(sld_y_os),
-            // [v_sfl_sld]"v"(sfl_sld),
-            // [v_sfl_sst]"v"(sfl_sst),
-             [s_res_dq]"s"(res_dq),
              [s_res_o0]"s"(res_o[0]),
              [s_res_o1]"s"(res_o[1]),
-                //[s_res_o2]"s"(res_o[2]),
-                //[s_res_o3]"s"(res_o[3]),
-                [s_res_d]"s"(res_b),
-                // [s_res_b1]"s"(res_b[1]),
-                // [s_res_b2]"s"(res_b[2]),
-                // [s_res_b3]"s"(res_b[3]),
+                [v_os_dq]"v"(static_cast<index_t>(cached_coords_dq * sizeof(DScaleDataType))),
                 [v_os_o0]"v"(static_cast<index_t>(cached_coords_o[number<0>{}] * sizeof(ODataType))),
                 [v_os_o1]"v"(static_cast<index_t>(cached_coords_o[number<1>{}] * sizeof(ODataType))),
                 [v_os_o2]"v"(static_cast<index_t>(cached_coords_o[number<2>{}] * sizeof(ODataType))),
