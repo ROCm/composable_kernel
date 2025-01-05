@@ -69,6 +69,7 @@ using fmha_trait = ck_tile::TileFmhaFwdSplitKVTraits<{F_spad},
                                                      {F_squant},
                                                      {F_pagedkv},
                                                      kHasUnevenSplits,
+                                                     /*kMergeNumHeadGroupsSeqLenQ=*/false,
                                                      {F_occupancy}>;
 
 using fmha_pipeline_problem = ck_tile::BlockFmhaFwdSplitKVPipelineProblem<
@@ -152,6 +153,7 @@ using fmha_trait = ck_tile::TileFmhaFwdSplitKVCombineTraits<{F_spad},
                                                     {F_lse},
                                                     {F_squant},
                                                     kLogMaxSplits,
+                                                    /*kMergeNumHeadGroupsSeqLenQ=*/false,
                                                     {F_occupancy}>;
 
 using fmha_pipeline_problem = ck_tile::BlockFmhaSplitKVCombinePipelineProblem<
