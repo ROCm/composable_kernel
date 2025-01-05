@@ -11,36 +11,28 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 
+enum struct GemmPipelineType
+{
+    Mem,
+    Comp
+};
 template <typename Tuple>
-class TestCkTileGemmMemPipeline : public ::testing::Test
+class TestCkTileGemmPipeline : public ::testing::Test
 {
     protected:
-    using ALayout                   = std::tuple_element_t<0, Tuple>;
-    using BLayout                   = std::tuple_element_t<1, Tuple>;
-    using CLayout                   = std::tuple_element_t<2, Tuple>;
-    using ADataType                 = std::tuple_element_t<3, Tuple>;
-    using BDataType                 = std::tuple_element_t<4, Tuple>;
-    using AccDataType               = std::tuple_element_t<5, Tuple>;
-    using CDataType                 = std::tuple_element_t<6, Tuple>;
-    static constexpr auto Scheduler = std::tuple_element_t<7, Tuple>::value;
+    using ALayout                      = std::tuple_element_t<0, Tuple>;
+    using BLayout                      = std::tuple_element_t<1, Tuple>;
+    using CLayout                      = std::tuple_element_t<2, Tuple>;
+    using ADataType                    = std::tuple_element_t<3, Tuple>;
+    using BDataType                    = std::tuple_element_t<4, Tuple>;
+    using AccDataType                  = std::tuple_element_t<5, Tuple>;
+    using CDataType                    = std::tuple_element_t<6, Tuple>;
+    static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
+    static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
     // TODO: expose tile size through test t-param ?
 
-    struct gemm_args
-    {
-        const void* p_a;
-        const void* p_b;
-        void* p_c;
-        ck_tile::index_t kbatch;
-        ck_tile::index_t M;
-        ck_tile::index_t N;
-        ck_tile::index_t K;
-        ck_tile::index_t stride_A;
-        ck_tile::index_t stride_B;
-        ck_tile::index_t stride_C;
-    };
-
     template <bool PadM, bool PadN, bool PadK>
-    void invoke_gemm(const gemm_args& args, const ck_tile::stream_config& s)
+    void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
         constexpr ck_tile::index_t M_Tile = 128;
@@ -74,10 +66,17 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
 
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
 
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
+        using BaseGemmPipeline = std::conditional_t<
+            PipelineType == GemmPipelineType::Mem,
+            ck_tile::BaseGemmPipelineAgBgCrMem<
+                ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>,
+            ck_tile::BaseGemmPipelineAgBgCrCompV3<
+                ck_tile::
+                    GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>>;
 
-        const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K);
+        const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
+        const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
+        const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
@@ -85,27 +84,30 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
 
-            using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<
-                ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                      BDataType,
-                                                      AccDataType,
-                                                      GemmShape,
-                                                      Traits,
-                                                      Scheduler,
-                                                      has_hot_loop_v,
-                                                      tail_number_v>>;
+            using GemmPipeline =
+                std::conditional_t<PipelineType == GemmPipelineType::Mem,
+                                   ck_tile::GemmPipelineAgBgCrMem<
+                                       ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                             BDataType,
+                                                                             AccDataType,
+                                                                             GemmShape,
+                                                                             Traits,
+                                                                             Scheduler,
+                                                                             has_hot_loop_v,
+                                                                             tail_number_v>>,
+                                   ck_tile::GemmPipelineAgBgCrCompV3<
+                                       ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                             BDataType,
+                                                                             AccDataType,
+                                                                             GemmShape,
+                                                                             Traits,
+                                                                             Scheduler,
+                                                                             has_hot_loop_v,
+                                                                             tail_number_v>>>;
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKargs(args.p_a,
-                                           args.p_b,
-                                           args.p_c,
-                                           args.M,
-                                           args.N,
-                                           args.K,
-                                           args.stride_A,
-                                           args.stride_B,
-                                           args.stride_C);
+            auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids      = Kernel::GridSize(args.M, args.N, args.kbatch);
+            const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
             constexpr dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
@@ -297,11 +299,11 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        gemm_args args;
-        args.p_a      = a_m_k_dev_buf.GetDeviceBuffer();
-        args.p_b      = b_k_n_dev_buf.GetDeviceBuffer();
-        args.p_c      = c_m_n_dev_buf.GetDeviceBuffer();
-        args.kbatch   = kbatch;
+        ck_tile::GemmHostArgs args;
+        args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
+        args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
+        args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
+        args.k_batch  = kbatch;
         args.M        = M;
         args.N        = N;
         args.K        = K;

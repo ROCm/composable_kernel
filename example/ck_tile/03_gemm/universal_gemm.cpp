@@ -22,7 +22,7 @@
 #endif
 
 template <typename ALayout, typename BLayout, typename CLayout>
-float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
+float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
     // Memory friendly for Interwave scheduler
@@ -78,7 +78,9 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 #endif
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
 
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K);
+    const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
+    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
+    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
@@ -106,17 +108,9 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                                                   has_hot_loop_v,
                                                   tail_number_v>>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs   = Kernel::MakeKargs(args.p_a,
-                                       args.p_b,
-                                       args.p_c,
-                                       args.M,
-                                       args.N,
-                                       args.K,
-                                       args.stride_A,
-                                       args.stride_B,
-                                       args.stride_C);
+        auto kargs   = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.kbatch);
+        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
         constexpr dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))

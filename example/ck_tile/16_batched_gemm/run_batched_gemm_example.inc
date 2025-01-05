@@ -17,13 +17,15 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                           ck_tile::index_t batch_stride_B,
                           ck_tile::index_t batch_stride_C,
                           ck_tile::index_t batch_count,
+                          ck_tile::index_t kbatch,
                           int n_warmup,
                           int n_repeat)
 {
-    batched_gemm_kargs args;
+    ck_tile::BatchedGemmHostArgs args;
     args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
     args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
     args.c_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
+    args.k_batch        = kbatch;
     args.M              = M;
     args.N              = N;
     args.K              = K;
@@ -79,6 +81,7 @@ int run_batched_gemm_example_with_layouts(int argc,
     ck_tile::index_t batch_stride_B = arg_parser.get_int("batch_stride_b");
     ck_tile::index_t batch_stride_C = arg_parser.get_int("batch_stride_c");
     ck_tile::index_t batch_count    = arg_parser.get_int("batch_count");
+    ck_tile::index_t kbatch         = arg_parser.get_int("split_k");
 
     int n_warmup = arg_parser.get_int("warmup");
     int n_repeat = arg_parser.get_int("repeat");
@@ -159,6 +162,7 @@ int run_batched_gemm_example_with_layouts(int argc,
                                                    batch_stride_B,
                                                    batch_stride_C,
                                                    batch_count,
+                                                   kbatch,
                                                    n_warmup,
                                                    n_repeat);
 
@@ -188,15 +192,33 @@ int run_batched_gemm_example_with_layouts(int argc,
         c_m_n_gpu_ref.SetZero();
         c_m_n_gpu_buf_ref.SetZero();
 
+        ADataType* d_A;
+        BDataType* d_B;
+        CDataType* d_C;
+
+        ck_tile::hip_check_error(hipMalloc(&d_A, batch_count * M * K * sizeof(ADataType)));
+        ck_tile::hip_check_error(hipMalloc(&d_B, batch_count * N * K * sizeof(BDataType)));
+        ck_tile::hip_check_error(hipMalloc(&d_C, batch_count * M * N * sizeof(CDataType)));
+
+        ck_tile::hip_check_error(hipMemcpy(d_A,
+                                           a_m_k_dev_buf.GetDeviceBuffer(),
+                                           batch_count * M * K * sizeof(ADataType),
+                                           hipMemcpyHostToDevice));
+
+        ck_tile::hip_check_error(hipMemcpy(d_B,
+                                           b_k_n_dev_buf.GetDeviceBuffer(),
+                                           batch_count * N * K * sizeof(BDataType),
+                                           hipMemcpyHostToDevice));
+
         ck_tile::reference_batched_gemm_gpu<ADataType,
                                             BDataType,
                                             AccDataType,
                                             CDataType,
                                             ALayout,
                                             BLayout,
-                                            CLayout>(a_m_k_dev_buf,
-                                                     b_k_n_dev_buf,
-                                                     c_m_n_gpu_buf_ref,
+                                            CLayout>(d_A,
+                                                     d_B,
+                                                     d_C,
                                                      M,
                                                      N,
                                                      K,
@@ -207,6 +229,15 @@ int run_batched_gemm_example_with_layouts(int argc,
                                                      batch_stride_B,
                                                      batch_stride_C,
                                                      batch_count);
+
+        ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
+                                           d_C,
+                                           batch_count * M * N * sizeof(CDataType),
+                                           hipMemcpyDeviceToHost));
+
+        ck_tile::hip_check_error(hipFree(d_A));
+        ck_tile::hip_check_error(hipFree(d_B));
+        ck_tile::hip_check_error(hipFree(d_C));
 
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
         pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_gpu_ref);
