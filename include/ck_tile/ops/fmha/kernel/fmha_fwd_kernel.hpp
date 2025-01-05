@@ -55,6 +55,7 @@ struct FmhaFwdKernel
         FmhaPipeline::Problem::kMergeNumHeadGroupsSeqLenQ;
     using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
+
     static_assert(!kMergeNumHeadGroupsSeqLenQ ||
                   (kMergeNumHeadGroupsSeqLenQ && BiasEnum == BlockAttentionBiasEnum::NO_BIAS &&
                    !kHasMask && !kHasDropout));
