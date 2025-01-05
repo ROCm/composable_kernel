@@ -245,13 +245,10 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
 
     // TODO: need paired with tile_window_linear!
     // TODO: need call init_raw() before call this function!
-    template <typename AToken_id, typename AQRes, typename DQRes,  typename GQRes, typename SMQRes, typename ARes, typename ACoords, typename BRes, typename BCoords>
+    template <typename Ascale, typename GQscale,  typename ARes, typename ACoords, typename BRes, typename BCoords>
     CK_TILE_DEVICE auto
-    operator()( const AToken_id& row_ids_a_,
-                const AQRes& res_aq,
-                const DQRes& res_dq,
-               const GQRes& res_gq,
-               const SMQRes& res_smq,
+    operator()( const Ascale& a_scale_,
+                const GQscale& gq_scale_,
                 const ARes& res_a,
                const ACoords& cached_coords_a,
                const BRes& res_b,
@@ -263,7 +260,6 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
     {
         static_assert(ACoords::size() == Block_M * Block_K / BlockSize / 4 /*2x per dword*/); // 8
         static_assert(BCoords::size() == Repeat_N);
-        static_assert(AToken_id::size() == Repeat_M);
         static_assert(Ascale::size() == Repeat_M);
 
         auto a_sst = make_tile_window(
@@ -372,10 +368,6 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
         register int v_z61 asm("v189") = 0;
         register int v_z62 asm("v190") = 0;
         register int v_z63 asm("v191") = 0;	
-
-        index_t temp0 = static_cast<index_t>(row_ids_a_[number<0>{}]);
-        index_t temp1 = static_cast<index_t>(row_ids_a_[number<1>{}]);
-
         // B nr->kr
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Winline-asm"
@@ -449,13 +441,11 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
                 [c61]"+v"(v_z61),
                 [c62]"+v"(v_z62),
                 [c63]"+v"(v_z63),
-                [v_token_id0]"+v"(temp0),
-                [v_token_id1]"+v"(temp1),
                 [s_mem_]"+r"(smem)
-            :   [s_res_aq]"s"(res_aq),
-                [s_res_dq]"s"(res_dq),
-                [s_res_gq]"s"(res_gq),
-                [s_res_smq]"s"(res_smq),
+            :   [a_scale0]"v"(a_scale_[0]),
+                [a_scale1]"v"(a_scale_[1]),
+                [gq_scale0]"v"(gq_scale_[0]),
+                [gq_scale1]"v"(gq_scale_[1]),
                 [s_res_a]"s"(res_a),
                 // [s_res_a1]"s"(res_a[1]),
                 // [s_res_a2]"s"(res_a[2]),

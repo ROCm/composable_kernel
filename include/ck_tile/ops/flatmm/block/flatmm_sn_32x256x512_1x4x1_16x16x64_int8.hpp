@@ -80,21 +80,25 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
     // template <typename AWindow, typename BWindow, typename OWindow, typename ScaleTensor>
     template <typename DQRes,  
               typename BRes,
+              typename DQCoords,
               typename BCoords,
               typename ORes,
               typename OCoords,
-              typename OFlags>
-            //   typename ScaleTensor>
+              typename OFlags,
+              typename ScaleTensor,
+              typename YScaleTensor>
     CK_TILE_DEVICE auto
     operator()(const DQRes& res_dq,
                const BRes& res_b,
+               const DQCoords& cached_coords_dq,
                const BCoords& cached_coords_b,
                const ORes& res_o,
                const OCoords& cached_coords_o,
                const OFlags& o_flags, // this should be in sgpr
                CK_TILE_LDS_ADDR void* smem,
                index_t n, // loop along n dim
-            //    const ScaleTensor& scale_,
+               const ScaleTensor& scale_,
+               const YScaleTensor& smq_scale_,
                index_t tile_offset_dq,
                index_t tile_offset_b, // stride b is fixed to blockKr * blockW, but still can adjust
                index_t tile_offset_half_b, //splited load alone K in to 2 part
@@ -108,9 +112,9 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
         const index_t tile_stride_o_bytes = tile_offset_o * sizeof(ODataType);
         const index_t tile_stride_dq_bytes = tile_offset_dq * sizeof(DScaleDataType);
 
-        // static_assert(ScaleTensor::size() == 2);
-        // float s0 = scale_[number<0>{}];
-        // float s1 = scale_[number<1>{}];
+        static_assert(ScaleTensor::size() == 2);
+        float s0 = scale_[number<0>{}];
+        float s1 = scale_[number<1>{}];
 
         index_t loop_cnt = n ;
 
@@ -220,8 +224,10 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
             // [v_sld_y_os]"v"(sld_y_os),
             // [v_sfl_sld]"v"(sfl_sld),
             // [v_sfl_sst]"v"(sfl_sst),
+             [smq_scale0]"s"(smq_scale_[0]),
+             [smq_scale1]"s"(smq_scale_[1]),
              [s_res_dq]"s"(res_dq),
-            [s_res_o0]"s"(res_o[0]),
+             [s_res_o0]"s"(res_o[0]),
                 [s_res_o1]"s"(res_o[1]),
                 //[s_res_o2]"s"(res_o[2]),
                 //[s_res_o3]"s"(res_o[3]),
@@ -229,6 +235,7 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
                 // [s_res_b1]"s"(res_b[1]),
                 // [s_res_b2]"s"(res_b[2]),
                 // [s_res_b3]"s"(res_b[3]),
+                [v_os_dq]"v"(static_cast<index_t>(cached_coords_dq * sizeof(DScaleDataType))),
                 [v_os_o0]"v"(static_cast<index_t>(cached_coords_o[number<0>{}] * sizeof(ODataType))),
                 [v_os_o1]"v"(static_cast<index_t>(cached_coords_o[number<1>{}] * sizeof(ODataType))),
                 [v_os_o2]"v"(static_cast<index_t>(cached_coords_o[number<2>{}] * sizeof(ODataType))),
@@ -293,8 +300,7 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
           "s55", "s56", "s57", "s58", "s59", "s60", "s61", "s62", "s63",
           "s64", "s65", "s66", "s67", "s68", "s69", "s70", "s71", "s72",
           "s73", "s74", "s75", "s76", "s77", "s78", "s79", "s80",    // s86 as tmp
-          "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", 
-          "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19",
+          "v1", "v2", "v3", "v4", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19",
           "v20", "v21", "v22", "v23", "v24", "v25", "v50", "v51", "v52", "v53", "v54", "v55",
           "v56", "v57", "v64",
           "v65", "v66", "v67", "v68", "v69", "v70", "v71", "v72", "v73",
@@ -366,8 +372,8 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
             // [v_sfl_sld]"v"(sfl_sld),
             // [v_sfl_sst]"v"(sfl_sst),
              [s_res_dq]"s"(res_dq),
-            [s_res_o0]"s"(res_o[0]),
-                [s_res_o1]"s"(res_o[1]),
+             [s_res_o0]"s"(res_o[0]),
+             [s_res_o1]"s"(res_o[1]),
                 //[s_res_o2]"s"(res_o[2]),
                 //[s_res_o3]"s"(res_o[3]),
                 [s_res_d]"s"(res_b),
@@ -390,8 +396,8 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
                 [s_tile_os_b_half]"s"(tile_offset_half_b_bytes),
                 [s_tile_os_b]"s"(tile_stride_b_bytes),
                 [s_tile_os_dq]"s"(tile_stride_dq_bytes),
-                // [scale_0]"v"(s0),
-                // [scale_1]"v"(s1),
+                [scale_0]"v"(s0),
+                [scale_1]"v"(s1),
                 // [v_nan_lo]"v"(nan_lo),
                 // [v_nan_hi]"v"(nan_hi),
                 [s_execflag_0]"s"(o_flags[number<0>{}]),
@@ -438,8 +444,7 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x
           "s55", "s56", "s57", "s58", "s59", "s60", "s61", "s62", "s63",
           "s64", "s65", "s66", "s67", "s68", "s69", "s70", "s71", "s72",
           "s73", "s74", "s75", "s76", "s77", "s78", "s79", "s80",    // s86 as tmp
-          "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", 
-          "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19",
+          "v1", "v2", "v3", "v4", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19",
           "v20", "v21", "v22", "v23", "v24", "v25",  "v50", "v51", "v52", "v53", "v54", "v55",
           "v56", "v57", "v64",
           "v65", "v66", "v67", "v68", "v69", "v70", "v71", "v72", "v73",

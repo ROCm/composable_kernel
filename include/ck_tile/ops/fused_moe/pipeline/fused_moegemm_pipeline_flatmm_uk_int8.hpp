@@ -186,6 +186,50 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
 
         return coords;
     }
+        // TODO: this row id is before shuffle atomic, need use acc distribution
+    //this calculation shared by G and SMQ
+    CK_TILE_DEVICE auto GetColCoords_GQSMQ(index_t base_offset)
+    {
+        constexpr index_t MLanes   = BlockShape::Warp_M1;
+        constexpr index_t Repeat_N = 2;//different,this load is partitioned along N
+
+        // auto h_id = threadIdx.x / MLanes ;
+        // auto r_id = threadIdx.x & 0xffff;
+        // auto p_id = r_id/4;
+        // auto q_is = threadIdx.x & 0x3;
+
+        array<index_t, Repeat_N> coords;
+        static_for<0, Repeat_N, 1>{}([&](auto i) { coords.at(i) = base_coord + (threadIdx.x / MLanes) * 4 + 
+                                                                            (threadIdx.x & 0xffff)/4 * 64  +
+                                                                             q_id + 
+                                                                            i * 256 ; });
+        return coords;
+    }
+    //this calculation shared by G and SMQ
+    CK_TILE_DEVICE auto GetGQScale(const COL_IDS coords,
+                                       const GScaleDataType* g_scale_ptr)
+    {
+        constexpr index_t n_size = coords.size();
+
+        array<GScaleDataType, n_size> g_scale_value;
+        static_for<0, n_size, 1>{}([&](auto i) {
+            g_scale_value.at(i) = g_scale_ptr[coords[i]];
+        });
+
+        return g_scale_value;
+    }
+    CK_TILE_DEVICE auto GetSMQScale(const COL_IDS coords,
+                                       const YSmoothScaleDataType * y_scale_ptr)
+    {
+        constexpr index_t n_size = coords.size();
+        array<YSmoothScaleDataType, n_size> y_scale_value;
+        static_for<0, n_size, 1>{}([&](auto i) {
+            y_scale_value.at(i) = y_scale_ptr[coords[i]];
+        });
+
+        return  y_scale_value;
+    }
+
 
     template <typename Karg>
     CK_TILE_DEVICE auto operator()(const Karg& kargs,
@@ -230,12 +274,6 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
                 return (row_ids_a[i]) &0xffffff;
             },
             number<row_ids_a.size()>{});
-        // auto token_id_mma = generate_tuple(
-        //     [&](auto i) {
-        //         return (row_ids_a_mma[i]) &0xffffff;
-        //     },
-        //     number<row_ids_a_mma.size()>{});
-            //addr in fact
         auto a_coords = generate_tuple(
             [&](auto i) {
                 return ((row_ids_a[i])&0xffffff) * kargs.stride_token +
@@ -306,7 +344,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         auto smq_win = [&]() {
             const YSmoothScaleDataType* smq_ptr = reinterpret_cast<const YSmoothScaleDataType*>(kargs.y_smooth_scale_ptr) + 
                                     static_cast<long_index_t>(expert_id) * smq_scale_expert_stride_0 + 
-                                    intermediate_tile_id * BlockShape::Block_N0;
+                                    intermediate_tile_id * BlockShape::Block_K1;
         // const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr);//remember to add expert id for inline
             auto smq_view_ = make_naive_tensor_view<address_space_enum::global>(
                 smq_ptr,
@@ -346,15 +384,15 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         auto d_res = d_win.get_bottom_tensor_view().get_buffer_view().cached_buf_res_;
         //////gq
         auto dq_win = [&]() {
-            const DScaleDataType* g_ptr = reinterpret_cast<const DScaleDataType*>(kargs.d_scale_ptr) + 
-            static_cast<long_index_t>(expert_id) * d_scale_expert_stride_1;
+            const DScaleDataType* dq_ptr = reinterpret_cast<const DScaleDataType*>(kargs.d_scale_ptr) + 
+                                            static_cast<long_index_t>(expert_id) * d_scale_expert_stride_1;
          //   const GDataType* g_ptr = reinterpret_cast<const GScaleDataType*>(kargs.d_scale_ptr)//remember to add expert_id as expert_idx
-            auto g_view_ = make_naive_tensor_view_packed<address_space_enum::global>(
-                g_ptr,
+            auto dq_view_ = make_naive_tensor_view_packed<address_space_enum::global>(
+                dq_ptr,
                 make_tuple(kargs.hidden_size),
                 number<1>{});
 
-            return g_view_;
+            return dq_view_;
         }();
 
         auto dq_res    = dq_win.get_buffer_view().cached_buf_res_;
@@ -400,15 +438,6 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
             generate_tuple([&](auto i) { return cmp_lt_to_exec(token_id[i], kargs.num_tokens); },
                            number<row_ids_a.size()>{});
 
-        // auto bridge_sst_win = [&]() {
-        //     constexpr auto desc_ = Policy::template MakeBridgeLdsStoreForUKDesc<Problem>();
-        //     constexpr auto dist_ = Policy::template GetUK_0<Problem>().MakeCBlockDist();
-        //     return make_tile_window_linear(make_tensor_view<address_space_enum::lds>(
-        //                                        reinterpret_cast<YDataType*>(smem), desc_),
-        //                                    desc_.get_lengths(),
-        //                                    {0, 0},
-        //                                    dist_);
-        // }();
         auto o_res =
             make_wave_buffer_resource(reinterpret_cast<const ODataType*>(kargs.o_ptr),
                                       kargs.num_tokens * kargs.stride_token * sizeof(ODataType));
@@ -417,16 +446,17 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         auto w_scale      = GetWeightScale(
             row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr));
         auto a_scale      = GetAScale(
-            row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.a_scale_ptr));
-
+            row_ids_a_mma, reinterpret_cast<const AScaleDataType*>(kargs.a_scale_ptr));
+        auto gqsmq_coords = GetColCoords_GQSMQ(intermediated_tile_id * BlockShape::Block_K1);
+        auto dq_coords = gqsmq_coords[0];//only one for this tiling
+        auto gq_scale = GetGQScale(
+            gqsmq_coords, reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr + static_cast<long_index_t>(expert_id) * shared_intermediate_size_0));
+        auto smq_scale = GetSMQScale(
+            gqsmq_coords, reinterpret_cast<const YSmoothScaleDataType*>(kargs.y_smooth_scale_ptr + static_cast<long_index_t>(expert_id) * shared_intermediate_size_0));
         auto uk_0  = Policy::template GetUK_0<Problem>();
        // auto acc_0= uk_0(
-        uk_0(
-                        row_ids_a_mma,//fake token id, 2D index for X scale
-                        a_scale,
-                        dq_res, 
-                        gq_res,
-                        smq_res,                     
+        uk_0(           a_scale,
+                        gq_scale,                     
                         a_res,
                         a_coords,
                         g_res,
@@ -457,6 +487,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         auto uk_1 = Policy::template GetUK_1<Problem>();
         uk_1(dq_res,
              d_res,
+             dq_coords,
              d_coords,
              o_res,
              o_coords,
@@ -464,6 +495,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
              smem,
              kargs.hidden_size, // total n number
              w_scale,
+             smq_scale,
              BlockShape::Block_N1,
              shared_intermediate_size_1 * BlockShape::Block_N1 - kr_1 * BlockShape::Block_W1, // along N
              kr_1 * BlockShape::Block_W1,
