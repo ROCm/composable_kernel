@@ -48,7 +48,7 @@ using fmha_dtype_{F_idx} = {F_dtype};
 using fmha_mask_{F_idx} = {F_mask};
 
 namespace {{
-template <bool kHasUnevenSplits>
+template <bool kHasUnevenSplits, bool kMergeNumHeadGroupsSeqLenQ = false>
 struct kernel_runner {{
 using fmha_block_tile = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}>;
 
@@ -64,12 +64,12 @@ using fmha_trait = ck_tile::TileFmhaFwdSplitKVTraits<{F_spad},
                                                      {F_dpad},
                                                      {F_dvpad},
                                                      {F_bias},
-                                                     false,
+                                                     /*kHasBiasGrad=*/false,
                                                      {F_lse},
                                                      {F_squant},
                                                      {F_pagedkv},
                                                      kHasUnevenSplits,
-                                                     /*kMergeNumHeadGroupsSeqLenQ=*/false,
+                                                     kMergeNumHeadGroupsSeqLenQ,
                                                      {F_occupancy}>;
 
 using fmha_pipeline_problem = ck_tile::BlockFmhaFwdSplitKVPipelineProblem<
@@ -153,7 +153,6 @@ using fmha_trait = ck_tile::TileFmhaFwdSplitKVCombineTraits<{F_spad},
                                                     {F_lse},
                                                     {F_squant},
                                                     kLogMaxSplits,
-                                                    /*kMergeNumHeadGroupsSeqLenQ=*/false,
                                                     {F_occupancy}>;
 
 using fmha_pipeline_problem = ck_tile::BlockFmhaSplitKVCombinePipelineProblem<

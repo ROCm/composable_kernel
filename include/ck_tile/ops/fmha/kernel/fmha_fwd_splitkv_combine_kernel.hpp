@@ -26,8 +26,6 @@ struct FmhaFwdSplitKVCombineKernel
     static constexpr bool kPadHeadDimV      = FmhaPipeline::kPadHeadDimV;
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
-    static constexpr bool kMergeNumHeadGroupsSeqLenQ =
-        FmhaPipeline::Problem::kMergeNumHeadGroupsSeqLenQ;
 
     // clang-format off
     template <typename T> struct t2s;

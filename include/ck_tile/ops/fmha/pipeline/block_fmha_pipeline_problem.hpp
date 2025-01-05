@@ -154,7 +154,6 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr index_t kMaxSplits     = Traits::kMaxSplits;
     static_assert(8 <= kMaxSplits);
-    static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
 
     static constexpr index_t kNumWarps  = 4; // always use 4 warps for each workgroup
     static constexpr index_t kBlockSize = kNumWarps * get_warp_size();

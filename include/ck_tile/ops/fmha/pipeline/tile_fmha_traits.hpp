@@ -69,8 +69,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kStoreLSE_,
           bool kDoFp8StaticQuant_,
           index_t kLogMaxSplits_,
-          bool kMergeNumHeadGroupsSeqLenQ_ = false,
-          index_t kBlockPerCu_             = -1 /* overwrite occupancy if not -1 */>
+          index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
 struct TileFmhaFwdSplitKVCombineTraits
 {
     static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;
@@ -80,8 +79,7 @@ struct TileFmhaFwdSplitKVCombineTraits
 
     static constexpr index_t kMaxSplits = (1 << kLogMaxSplits_);
     static_assert(kMaxSplits <= get_warp_size() || kMaxSplits % get_warp_size() == 0);
-    static constexpr bool kMergeNumHeadGroupsSeqLenQ = kMergeNumHeadGroupsSeqLenQ_;
-    static constexpr index_t kBlockPerCu             = kBlockPerCu_;
+    static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
