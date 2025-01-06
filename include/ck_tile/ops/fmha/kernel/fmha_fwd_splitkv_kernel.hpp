@@ -568,7 +568,7 @@ struct FmhaFwdSplitKVKernel
 
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier
-            if(kargs.seqlen_q <= i_m0)
+            if(kargs.seqlen_q * (kMergeNumHeadGroupsSeqLenQ ? kargs.nhead_ratio_qk : 1) <= i_m0)
             {
                 return;
             }
