@@ -26,7 +26,10 @@ struct Rmsnorm2dFwdHostArgs
 
     index_t m;
     index_t n;
-    index_t stride; // row_stride
+    index_t x_stride;  // x row_stride
+    index_t xr_stride; // x residule row stride
+    index_t y_stride;  // y row stride
+    index_t yr_stride; // y residule row stride
 };
 
 // TODO: Extract some type to wrapper class
@@ -82,7 +85,10 @@ struct Rmsnorm2dFwd
 
         index_t m;
         index_t n;
-        index_t stride; // row_stride
+        index_t x_stride;  // x row_stride
+        index_t xr_stride; // x residule row stride
+        index_t y_stride;  // y row stride
+        index_t yr_stride; // y residule row stride
     };
     using Hargs = Rmsnorm2dFwdHostArgs;
 
@@ -99,7 +105,10 @@ struct Rmsnorm2dFwd
                      hargs.epsilon,
                      hargs.m,
                      hargs.n,
-                     hargs.stride};
+                     hargs.x_stride,
+                     hargs.xr_stride,
+                     hargs.y_stride,
+                     hargs.yr_stride};
     }
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& hargs)
@@ -151,7 +160,7 @@ struct Rmsnorm2dFwd
             const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<const XDataType*>(kargs.p_x),
                 make_tuple(kargs.m, kargs.n),
-                make_tuple(kargs.stride, 1),
+                make_tuple(kargs.x_stride, 1),
                 number<Vector_N>{},
                 number<1>{});
 
@@ -168,7 +177,7 @@ struct Rmsnorm2dFwd
                 const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                     static_cast<const XResidualDataType*>(kargs.p_x_residual),
                     make_tuple(kargs.m, kargs.n),
-                    make_tuple(kargs.stride, 1),
+                    make_tuple(kargs.xr_stride, 1),
                     number<Vector_N>{},
                     number<1>{});
 
@@ -201,7 +210,7 @@ struct Rmsnorm2dFwd
             auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<YDataType*>(kargs.p_y),
                 make_tuple(kargs.m, kargs.n),
-                make_tuple(kargs.stride, 1),
+                make_tuple(kargs.y_stride, 1),
                 number<Vector_N>{},
                 number<1>{});
 
@@ -217,7 +226,7 @@ struct Rmsnorm2dFwd
                 auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                     static_cast<YDataType*>(kargs.p_y_residual),
                     make_tuple(kargs.m, kargs.n),
-                    make_tuple(kargs.stride, 1),
+                    make_tuple(kargs.yr_stride, 1),
                     number<Vector_N>{},
                     number<1>{});
 

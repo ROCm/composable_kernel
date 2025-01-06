@@ -221,11 +221,11 @@ float rmsnorm2d_fwd_b16_(rmsnorm2d_fwd_traits /*t*/,
 float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t, rmsnorm2d_fwd_args a, const ck_tile::stream_config& s)
 {
 
-    if(t.data_type.compare("fp16") == 0)
+    if ((t.prec_i.compare("fp16") == 0) && (t.prec_o.compare("fp16") == 0) && (t.fused_quant == 0))
     {
         return rmsnorm2d_fwd_b16_<ck_tile::fp16_t>(t, a, s);
     }
-    else if(t.data_type.compare("bf16") == 0)
+    else if ((t.prec_i.compare("bf16") == 0) && (t.prec_o.compare("fp16") == 0) && (t.fused_quant == 0))
     {
         return rmsnorm2d_fwd_b16_<ck_tile::bf16_t>(t, a, s);
     }
