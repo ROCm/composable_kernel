@@ -40,7 +40,7 @@ TEST(BF6, ConvertFP32Nearest)
                 type_convert<float>(bf6_convert_rne(std::numeric_limits<float>::infinity())),
                 0.0f);
     // convert float value less than bf6 subnorm to bf6 and back, check if equal to 0.0
-    float less_than_subnorm = 0.0625f;
+    float less_than_subnorm = 0.03125f;
     ASSERT_NEAR(0.0f, type_convert<float>(bf6_convert_rne(less_than_subnorm)), 0.0f);
     // convert float NaN to bf6 and back, check if clipped to max_bf6
     ASSERT_NEAR(max_bf6,
