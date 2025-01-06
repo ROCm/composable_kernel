@@ -132,10 +132,6 @@ CK_TILE_DEVICE void s_nop(index_t cnt = 0)
     __attribute__((address_space( \
         static_cast<safe_underlying_type_t<address_space_enum>>(address_space_enum::constant))))
 
-#define CK_GENERIC_ADDRESS_SPACE  \
-    __attribute__((address_space( \
-        static_cast<safe_underlying_type_t<address_space_enum>>(address_space_enum::generic))))
-
 template <typename T>
 __device__ T* cast_pointer_to_generic_address_space(T CK_CONSTANT_ADDRESS_SPACE* p)
 {

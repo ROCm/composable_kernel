@@ -13,44 +13,55 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host.hpp"
 
+#include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+
 namespace ck_tile {
 
-struct GroupedGemmHostArgs
+struct GroupedGemmHostArgs : public ck_tile::GemmHostArgs
 {
-    const void* a_ptr;
-    const void* b_ptr;
-    void* c_ptr;
-    index_t M;
-    index_t N;
-    index_t K;
-    index_t stride_A;
-    index_t stride_B;
-    index_t stride_C;
+    CK_TILE_HOST GroupedGemmHostArgs() noexcept = default;
+    CK_TILE_HOST GroupedGemmHostArgs(const void* a_ptr_,
+                                     const void* b_ptr_,
+                                     void* c_ptr_,
+                                     ck_tile::index_t M_,
+                                     ck_tile::index_t N_,
+                                     ck_tile::index_t K_,
+                                     ck_tile::index_t stride_A_,
+                                     ck_tile::index_t stride_B_,
+                                     ck_tile::index_t stride_C_)
+        : GemmHostArgs(a_ptr_, b_ptr_, c_ptr_, 1, M_, N_, K_, stride_A_, stride_B_, stride_C_)
+    {
+    }
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
-struct GroupedGemmKernel
+struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>
 {
-    using TilePartitioner                    = remove_cvref_t<TilePartitioner_>;
-    using GemmPipeline                       = remove_cvref_t<GemmPipeline_>;
-    using EpiloguePipeline                   = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout                            = remove_cvref_t<typename GemmPipeline::ALayout>;
-    using BLayout                            = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using CLayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
-    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+    using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
+    using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
+    using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout          = remove_cvref_t<typename GemmPipeline::ALayout>;
+    using BLayout          = remove_cvref_t<typename GemmPipeline::BLayout>;
+    using CLayout          = remove_cvref_t<typename GemmPipeline::CLayout>;
 
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
+    using Base           = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    using GemmKernelArgs = typename Base::GemmKernelArgs;
+
+    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+    static constexpr index_t KBatch          = 1;
+
     struct GemmTransKernelArg
     {
-        GroupedGemmHostArgs group_karg;
+        GemmKernelArgs group_karg;
         ck_tile::index_t block_start;
         ck_tile::index_t block_end;
 
         GemmTransKernelArg() = default;
-        GemmTransKernelArg(GroupedGemmHostArgs&& karg, index_t bl_start, index_t bl_end)
+        GemmTransKernelArg(GemmKernelArgs&& karg, index_t bl_start, index_t bl_end)
             : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
         {
         }
@@ -106,15 +117,16 @@ struct GroupedGemmKernel
 
             grid_size += grid_size_grp;
 
-            auto karg = GroupedGemmHostArgs{type_convert<const ADataType*>(gemm_descs[i].a_ptr),
-                                            type_convert<const BDataType*>(gemm_descs[i].b_ptr),
-                                            type_convert<CDataType*>(gemm_descs[i].c_ptr),
-                                            M,
-                                            N,
-                                            K,
-                                            stride_a,
-                                            stride_b,
-                                            stride_c};
+            auto karg = GemmKernelArgs{type_convert<const ADataType*>(gemm_descs[i].a_ptr),
+                                       type_convert<const BDataType*>(gemm_descs[i].b_ptr),
+                                       type_convert<CDataType*>(gemm_descs[i].c_ptr),
+                                       M,
+                                       N,
+                                       K,
+                                       stride_a,
+                                       stride_b,
+                                       stride_c,
+                                       /*KBatch*/ KBatch};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }
@@ -132,151 +144,18 @@ struct GroupedGemmKernel
         const auto [i_m, i_n] = InvokeOffsetCallculationFor1DPartitioner<TilePartitioner>{}(
             kargs.block_start, kargs.group_karg.N);
 
+        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs.group_karg, blockIdx.z);
+
         // options
-        const ADataType* a_start = static_cast<const ADataType*>(kargs.group_karg.a_ptr);
-        const BDataType* b_start = static_cast<const BDataType*>(kargs.group_karg.b_ptr);
-
-        // Convert pointers to tensor views
-        auto a_tensor_view = [&]() {
-            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
-            {
-                return make_naive_tensor_view<address_space_enum::global>(
-                    a_start,
-                    make_tuple(kargs.group_karg.M, kargs.group_karg.K),
-                    make_tuple(kargs.group_karg.stride_A, 1),
-                    number<GemmPipeline::VectorSizeA>{},
-                    number<1>{});
-            }
-            else
-            {
-                return make_naive_tensor_view<address_space_enum::global>(
-                    a_start,
-                    make_tuple(kargs.group_karg.M, kargs.group_karg.K),
-                    make_tuple(1, kargs.group_karg.stride_A),
-                    number<1>{},
-                    number<1>{});
-            }
-        }();
-
-        auto b_tensor_view = [&]() {
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
-            {
-                return make_naive_tensor_view<address_space_enum::global>(
-                    b_start,
-                    make_tuple(kargs.group_karg.N, kargs.group_karg.K),
-                    make_tuple(1, kargs.group_karg.stride_B),
-                    number<1>{},
-                    number<1>{});
-            }
-            else
-            {
-                return make_naive_tensor_view<address_space_enum::global>(
-                    b_start,
-                    make_tuple(kargs.group_karg.N, kargs.group_karg.K),
-                    make_tuple(kargs.group_karg.stride_B, 1),
-                    number<GemmPipeline::VectorSizeB>{},
-                    number<1>{});
-            }
-        }();
-
-        auto a_pad_view = [&]() {
-            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
-            {
-                return pad_tensor_view(a_tensor_view,
-                                       make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                  number<TilePartitioner::KPerBlock>{}),
-                                       sequence<false, GemmPipeline::kPadK>{});
-            }
-            else
-            {
-                return pad_tensor_view(a_tensor_view,
-                                       make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                  number<TilePartitioner::KPerBlock>{}),
-                                       sequence<GemmPipeline::kPadM, false>{});
-            }
-        }();
-        // clang-format on
-
-        auto a_block_window = make_tile_window(
-            a_pad_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
-            {i_m, 0});
-
-        auto b_pad_view = [&]() {
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
-            {
-                return pad_tensor_view(b_tensor_view,
-                                       make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                  number<TilePartitioner::KPerBlock>{}),
-                                       sequence<false, GemmPipeline::kPadK>{});
-            }
-            else
-            {
-                return pad_tensor_view(b_tensor_view,
-                                       make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                  number<TilePartitioner::KPerBlock>{}),
-                                       sequence<GemmPipeline::kPadN, false>{});
-            }
-        }();
-
-        auto b_block_window = make_tile_window(
-            b_pad_view,
-            make_tuple(number<TilePartitioner::NPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
-            {i_n, 0});
+        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.group_karg.a_ptr);
+        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.group_karg.b_ptr);
+        CDataType* c_ptr       = static_cast<CDataType*>(kargs.group_karg.c_ptr);
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        const index_t num_loop = TilePartitioner::GetLoopNum(kargs.group_karg.K);
-
-        // Run GEMM cooperatively by whole wokrgroup.
-        auto c_block_tile =
-            GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr);
-
-        CDataType* c_start = static_cast<CDataType*>(kargs.group_karg.c_ptr);
-        auto c_tensor_view = [&]() {
-            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-            {
-                return make_naive_tensor_view<address_space_enum::global>(
-                    c_start,
-                    make_tuple(kargs.group_karg.M, kargs.group_karg.N),
-                    make_tuple(kargs.group_karg.stride_C, 1),
-                    number<GemmPipeline::VectorSizeC>{},
-                    number<1>{});
-            }
-            else
-            {
-                return make_naive_tensor_view<address_space_enum::global>(
-                    c_start,
-                    make_tuple(kargs.group_karg.M, kargs.group_karg.N),
-                    make_tuple(1, kargs.group_karg.stride_C),
-                    number<1>{},
-                    number<1>{});
-            }
-        }();
-
-        auto c_pad_view = [&]() {
-            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-            {
-                return pad_tensor_view(c_tensor_view,
-                                       make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                  number<TilePartitioner::NPerBlock>{}),
-                                       sequence<false, GemmPipeline::kPadN>{});
-            }
-            else
-            {
-                return pad_tensor_view(c_tensor_view,
-                                       make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                  number<TilePartitioner::NPerBlock>{}),
-                                       sequence<GemmPipeline::kPadM, false>{});
-            }
-        }();
-        auto CBlockWindow_pad = make_tile_window(
-            c_pad_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            {i_m, i_n});
-
-        EpiloguePipeline{}(CBlockWindow_pad, c_block_tile);
+        this->RunGemm(
+            a_ptr, b_ptr, c_ptr, smem_ptr, kargs.group_karg, splitk_batch_offset, i_m, i_n);
     }
 
     CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
