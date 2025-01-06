@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
 #include <sstream>
@@ -73,8 +73,8 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                                                        kOutputRank,
                                                                        1,
                                                                        0,
-                                                                       TilePartitioner::kM,
-                                                                       TilePartitioner::kN>>,
+                                                                       TilePartitioner::MPerBlock,
+                                                                       TilePartitioner::NPerBlock>>,
             ck_tile::Default2DEpilogue<
                 ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
 
