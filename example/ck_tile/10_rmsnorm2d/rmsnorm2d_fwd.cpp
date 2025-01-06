@@ -30,6 +30,8 @@ auto create_args(int argc, char* argv[])
         .insert("v", "1", "cpu validation or not")
         .insert("kname", "1", "print kernel name or not")
         .insert("prec", "fp16", "precision")
+        .insert("fadd", "0", "fused-add, 0:no fused add, 1:preadd+store, 2:preadd only")
+        .insert("fquant", "0", "fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant")
         .insert("warmup", "5", "cold iter")
         .insert("repeat", "20", "hot iter");
 
@@ -49,6 +51,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::string data_type = arg_parser.get_str("prec");
     int kname             = arg_parser.get_int("kname");
     int do_validation     = arg_parser.get_int("v");
+    int fused_add         = arg_parser.get_int("fadd");
+    int fused_quant       = arg_parser.get_int("fquant");
     int warmup            = arg_parser.get_int("warmup");
     int repeat            = arg_parser.get_int("repeat");
 
@@ -60,6 +64,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using YDataType     = typename TypeConfig::YDataType;
     using GammaDataType = typename TypeConfig::GammaDataType;
 
+    // TODO: use different types
+    using XScaleDataType = XDataType;
+    using YScaleDataType = YDataType;
+    using XResidualDataType = XDataType;
+    using YResidualDataType = YDataType;
+
     using InvRmsDataType =
         std::conditional_t<SaveRms, typename TypeConfig::InvRmsDataType, ck_tile::null_type>;
 
@@ -68,35 +78,50 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // host verify
     ck_tile::HostTensor<XDataType> x_host({m, n}, {stride, 1});
     ck_tile::HostTensor<GammaDataType> gamma_host({n});
+    ck_tile::HostTensor<XScaleDataType> x_scale_host({n});
+    ck_tile::HostTensor<XScaleDataType> x_scale_host_dev({n});
+
+    ck_tile::HostTensor<XResidualDataType> x_residual_host({m, n}, {stride, 1});
+    ck_tile::HostTensor<YResidualDataType> y_residual_host({m, n}, {stride, 1});
 
     ck_tile::HostTensor<YDataType> y_host_ref({m, n}, {stride, 1});
     ck_tile::HostTensor<YDataType> y_host_dev({m, n}, {stride, 1});
+    ck_tile::HostTensor<YScaleDataType> y_scale_host_ref({m});
+    ck_tile::HostTensor<YScaleDataType> y_scale_host_dev({m});
 
     ck_tile::HostTensor<InvRmsDataType> invRms_host_ref({m});
 
     ck_tile::FillUniformDistribution<XDataType>{-.5f, .5f}(x_host);
+    ck_tile::FillUniformDistribution<XResidualDataType>{-.5f, .5f}(x_residual_host);
+    ck_tile::FillUniformDistribution<XScaleDataType>{-1.f, 1.f}(x_scale_host);
     ck_tile::FillUniformDistribution<GammaDataType>{-.5f, .5f}(gamma_host);
 
     ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem gamma_buf(gamma_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_buf(y_host_dev.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem y_scale_buf(y_scale_host_dev.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem x_scale_buf(x_scale_host_dev.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem x_residual_buf(x_residual_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem y_residual_buf(y_residual_host.get_element_space_size_in_bytes());
 
     x_buf.ToDevice(x_host.data());
     gamma_buf.ToDevice(gamma_host.data());
+    x_residual_buf.ToDevice(x_residual_host.data());
+    x_scale_buf.ToDevice(x_scale_host.data());
 
     std::cout << "[" << data_type << "]"
               << " m:" << m << ", n:" << n << ", stride:" << stride << std::flush;
 
-    rmsnorm2d_fwd_traits traits{data_type, SaveRms};
+    rmsnorm2d_fwd_traits traits{data_type, SaveRms, fused_add, fused_quant};
 
     rmsnorm2d_fwd_args args{x_buf.GetDeviceBuffer(),
-                            nullptr,
-                            nullptr,
+                            fused_add != 0 ? x_residual_buf.GetDeviceBuffer() : nullptr,
+                            fused_quant == 1 ? x_scale_buf.GetDeviceBuffer() : nullptr,
                             gamma_buf.GetDeviceBuffer(),
                             y_buf.GetDeviceBuffer(),
-                            nullptr,
-                            nullptr,
-                            nullptr,
+                            fused_add == 1 ? y_residual_buf.GetDeviceBuffer() : nullptr,
+                            fused_quant != 0 ? y_scale_buf.GetDeviceBuffer() : nullptr,
+                            nullptr, // p_invRms, unsupported yet
                             epsilon,
                             m,
                             n,

@@ -124,6 +124,8 @@ struct rmsnorm2d_fwd_traits
 {
     std::string data_type;
     bool save_rms;
+    int fused_add;      // 0:no-add, 1:pre-add-store, 2:pre-add
+    int fused_quant;    // 0:no-sweep, 1:smooth-dynamic-quant, 2:dynamic-quant
 };
 
 float rmsnorm2d_fwd(rmsnorm2d_fwd_traits, rmsnorm2d_fwd_args, const ck_tile::stream_config&);
