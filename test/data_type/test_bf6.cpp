@@ -41,10 +41,10 @@ TEST(BF6, ConvertFP32Nearest)
                 0.0f);
     // convert float value less than bf6 subnorm to bf6 and back, check if equal to 0.0
     float less_than_subnorm = 0.0625f;
-    ASSERT_NEAR(0.0f, type_convert<float>(f6_convert_rne(less_than_subnorm)), 0.0f);
+    ASSERT_NEAR(0.0f, type_convert<float>(bf6_convert_rne(less_than_subnorm)), 0.0f);
     // convert float NaN to bf6 and back, check if clipped to max_bf6
     ASSERT_NEAR(max_bf6,
-                type_convert<float>(f6_convert_rne(std::numeric_limits<float>::quiet_NaN())),
+                type_convert<float>(bf6_convert_rne(std::numeric_limits<float>::quiet_NaN())),
                 0.0f);
     // positive norm float value to bf6 and back, check if holds
     float pos_float = 0.25f;
@@ -79,7 +79,7 @@ TEST(BF6, ConvertFP32Stochastic)
                 0.0f);
     // convert float NaN to bf6 and back, check if clipped to max_bf6
     ASSERT_NEAR(max_bf6,
-                type_convert<float>(f6_convert_rne(std::numeric_limits<float>::quiet_NaN())),
+                type_convert<float>(bf6_convert_rne(std::numeric_limits<float>::quiet_NaN())),
                 0.0f);
     // positive norm float value to bf6 and back, check if holds
     float pos_float = 0.25f;
