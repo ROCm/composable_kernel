@@ -91,11 +91,11 @@ void setupConnection(int rank,
         SmChannels.reserve(slaveSemaphores.size());
         for(size_t i = 0; i < slaveSemaphores.size(); ++i)
         {
-            SmChannels.push_back(mscclpp::deviceHandle(
-                mscclpp::SmChannel(slaveSemaphores[i],
-                                   remoteMemories[i], // Remote buffer from the sender
-                                   receive_mem_vector[i].GetDeviceBuffer()           // Local buffer (this slave's buffer)
-                                   )));
+            SmChannels.push_back(mscclpp::deviceHandle(mscclpp::SmChannel(
+                slaveSemaphores[i],
+                remoteMemories[i],                      // Remote buffer from the sender
+                receive_mem_vector[i].GetDeviceBuffer() // Local buffer (this slave's buffer)
+                )));
         }
         hipError_t error_slave =
             hipMemcpyToSymbol(constSlaveSmChannels,

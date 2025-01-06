@@ -15,12 +15,13 @@
 #include "gemm_basic.hpp"
 
 template <typename ALayout, typename BLayout, typename CLayout>
-float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
+float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
-    // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadA        = true;
-    constexpr bool kPadB        = true;
-    constexpr bool kPadC        = true;
+    // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
+    constexpr bool kPadM = false;
+    constexpr bool kPadN = false;
+    constexpr bool kPadK = false;
+
     constexpr bool kTilePermute = false;
     // The rank and permutation will also be generate out by the CodeGen part.
     constexpr ck_tile::index_t kOutputRank = 2;
@@ -56,8 +57,8 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         CShuffleEpilogue,
         ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
                                                                    CDataType,
-                                                                   kPadA,
-                                                                   kPadB,
+                                                                   kPadM,
+                                                                   kPadN,
                                                                    kTilePermute,
                                                                    kOutputRank,
                                                                    1,
@@ -65,31 +66,28 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                                                                    TilePartitioner::kM,
                                                                    TilePartitioner::kN>>,
         ck_tile::Default2DEpilogue<
-            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>>;
+            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
 
     using CodegenGemmTraits =
-        ck_tile::TileGemmTraits<kPadA, kPadB, kPadC, ALayout, BLayout, CLayout>;
+        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
-    using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy<ALayout, BLayout, CLayout>;
+    using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;
     using CodegenGemmPipeline =
         ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenGemmPolicy>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
 
-    auto kargs = Kernel::MakeKargs(args.p_a,
-                                   args.p_b,
-                                   args.p_c,
-                                   args.M,
-                                   args.N,
-                                   args.K,
-                                   args.stride_A,
-                                   args.stride_B,
-                                   args.stride_C);
+    auto kargs = Kernel::MakeKernelArgs(args);
 
-    const dim3 grids      = Kernel::GridSize(args.M, args.N, args.kbatch);
+    const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
     constexpr dim3 blocks = Kernel::BlockSize();
+
+    if(!Kernel::IsSupportedArgument(kargs))
+    {
+        throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+    }
 
     if(s.log_level_ > 0)
     {

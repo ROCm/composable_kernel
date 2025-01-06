@@ -70,7 +70,7 @@ struct CrossReduceReceivePipelineScaleUp
         __syncthreads();
 
         sweep_tile(receive_block_tile, [&](auto idx) {
-            acc(idx) =type_convert<DataType>(receive_block_tile(idx)) + acc(idx);
+            acc(idx) = type_convert<DataType>(receive_block_tile(idx)) + acc(idx);
         });
 
         store_tile(const_cast<OutDramBlockWindowTmp&>(output_dram_block_window_tmp), acc);

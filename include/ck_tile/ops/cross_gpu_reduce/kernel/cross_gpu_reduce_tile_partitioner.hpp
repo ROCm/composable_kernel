@@ -14,7 +14,8 @@ struct CrossReducePartitioner
     static constexpr index_t kM = CrossReduceShape::Block_M;
     static constexpr index_t kN = CrossReduceShape::Block_N;
 
-    CK_TILE_HOST_DEVICE static constexpr auto NumThreads(index_t M, index_t N){
+    CK_TILE_HOST_DEVICE static constexpr auto NumThreads(index_t M, index_t N)
+    {
         index_t GridDimX = (M + kM - 1) / kM;
         index_t GridDimY = (N + kN - 1) / kN;
         return GridDimX * GridDimY;
@@ -27,7 +28,8 @@ struct CrossReducePartitioner
         return dim3(GridDimX, GridDimY, 1);
     }
 
-    CK_TILE_DEVICE auto operator()() {
+    CK_TILE_DEVICE auto operator()()
+    {
         const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx.x * kM);
         const index_t iN = __builtin_amdgcn_readfirstlane(blockIdx.y * kN);
         return make_tuple(iM, iN);

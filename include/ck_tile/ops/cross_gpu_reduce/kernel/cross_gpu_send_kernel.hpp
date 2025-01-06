@@ -4,9 +4,6 @@
 #pragma once
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
-#include "ck_tile/ops/cross_gpu_reduce/kernel/cross_gpu_connect.hpp"
-
-__constant__ mscclpp::DeviceHandle<mscclpp::SmChannel> constMasterSmChannel;
 
 namespace ck_tile {
 template <typename CrossReducePartitioner, typename ReduceSendPipeline_>
@@ -17,13 +14,12 @@ struct ReduceSendKernel
 
     struct ReduceSendKargs
     {
-        const void* reduce_ptr;
+        void* reduce_ptr;
         index_t M;
         index_t N;
     };
 
-    CK_TILE_HOST static constexpr ReduceSendKargs
-    MakeKargs(const void* reduce_ptr, index_t M, index_t N)
+    CK_TILE_HOST static constexpr ReduceSendKargs MakeKargs(void* reduce_ptr, index_t M, index_t N)
     {
         return ReduceSendKargs{reduce_ptr, M, N};
     }
@@ -40,7 +36,7 @@ struct ReduceSendKernel
 
     CK_TILE_DEVICE void operator()(ReduceSendKargs kargs) const
     {
-        const auto [i_m, i_n]              = CrossReducePartitioner{}();
+        const auto [i_m, i_n]        = CrossReducePartitioner{}();
         const DataType* reduce_start = static_cast<const DataType*>(kargs.reduce_ptr);
         auto transfer_tensor_view    = [&]() {
             return make_naive_tensor_view<address_space_enum::global>(
@@ -58,7 +54,14 @@ struct ReduceSendKernel
 
         __shared__ char smem_ptr[ReduceSendPipeline::GetSmemSize()];
 
-        ReduceSendPipeline{}(transfer_block_window, kargs.send_ptr, smem_ptr);
+        uint32_t numThreads =
+            static_cast<uint32_t>(CrossReducePartitioner::NumThreads(kargs.M, kargs.N));
+
+        uint32_t threadId = static_cast<uint32_t>(
+            i_m + i_n * (kargs.M + ReduceSendPipeline::Block_M - 1) / ReduceSendPipeline::Block_M);
+
+        kargs.reduce_ptr = smem_ptr;
+        ReduceSendPipeline{}(transfer_block_window, smem_ptr, threadId, numThreads);
 
         return;
     }

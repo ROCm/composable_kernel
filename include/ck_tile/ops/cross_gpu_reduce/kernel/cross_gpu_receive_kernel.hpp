@@ -75,9 +75,8 @@ struct ReduceReceiveKernel
         channel.get(0, totalBytes, threadId, numThreads);
 
         // After the channel get, start the memory block preparation for the receiving window
-        const DataType* receive_start =
-            static_cast<const DataType*>(kargs.receive_ptr_list[0]);
-        auto receive_tensor_view = [&]() {
+        const DataType* receive_start = static_cast<const DataType*>(kargs.receive_ptr_list[0]);
+        auto receive_tensor_view      = [&]() {
             return make_naive_tensor_view<address_space_enum::global>(
                 receive_start,
                 make_tuple(kargs.M, kargs.N),
@@ -92,7 +91,7 @@ struct ReduceReceiveKernel
                              {i_m, i_n});
 
         ODataType* output_start = static_cast<ODataType*>(kargs.output_ptr);
-        auto output_tensor_view       = [&]() {
+        auto output_tensor_view = [&]() {
             return make_naive_tensor_view<address_space_enum::global>(
                 output_start,
                 make_tuple(kargs.M, kargs.N),
@@ -106,8 +105,7 @@ struct ReduceReceiveKernel
                                         number<ReduceReceivePipeline::Block_N>{}),
                              {i_m, i_n});
 
-        ReduceReceivePipeline{}(
-            transfer_block_window, receive_block_window, output_block_window);
+        ReduceReceivePipeline{}(transfer_block_window, receive_block_window, output_block_window);
         return;
     }
 };

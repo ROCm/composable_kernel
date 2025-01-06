@@ -26,23 +26,15 @@ The current CK library is structured into four layers:
 
 ## General information
 
-To build our documentation locally, use the following code:
-
-``` bash
-cd docs
-pip3 install -r sphinx/requirements.txt
-python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
-```
-
-You can find a list of our developers and contributors on our [Contributors](/CONTRIBUTORS.md) page.
-
-```note
-If you use CK, cite us as follows:
-
-* [Realizing Tensor Operators Using Coordinate Transformations and Tile Based Programming](???):
-  This paper will be available on arXiv soon.
-* [CITATION.cff](/CITATION.cff)
-```
+* [CK supported operations](include/ck/README.md)
+* [CK Tile supported operations](include/ck_tile/README.md)
+* [CK wrapper](client_example/25_wrapper/README.md)
+* [CK codegen](codegen/README.md)
+* [CK profiler](profiler/README.md)
+* [Examples (Custom use of CK supported operations)](example/README.md)
+* [Client examples (Use of CK supported operations with instance factory)](client_example/README.md)
+* [Terminology](/TERMINOLOGY.md)
+* [Contributors](/CONTRIBUTORS.md)
 
 CK is released under the **[MIT license](/LICENSE)**.
 
@@ -137,6 +129,14 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
     You can find instructions for running ckProfiler in [profiler](/profiler).
 
+* Build our documentation locally:
+
+    ``` bash
+    cd docs
+    pip3 install -r sphinx/requirements.txt
+    python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+    ```
+
 Note the `-j` option for building with multiple threads in parallel, which speeds up the build significantly.
 However, `-j` launches unlimited number of threads, which can cause the build to run out of memory and
 crash. On average, you should expect each thread to use ~2Gb of RAM.
@@ -154,8 +154,7 @@ Additional cmake flags can be used to significantly speed-up the build:
   other platforms have faster instances, such as `xdl` or `wmma`, available.
 
 * `CK_USE_FP8_ON_UNSUPPORTED_ARCH` (default is OFF) must be set to ON in order to build instances,
-  such as `gemm_universal` and `gemm_multiply_multiply` for fp8 data type for GPU targets which do not
-  have native support for fp8 data type, such as gfx908 or gfx90a. These instances are useful on
+  such as `gemm_universal`, `gemm_universal_streamk` and `gemm_multiply_multiply` for fp8 data type for GPU targets which do not  have native support for fp8 data type, such as gfx908 or gfx90a. These instances are useful on
   architectures like the MI100/MI200 for the functional support only.
 
 ## Using sccache for building

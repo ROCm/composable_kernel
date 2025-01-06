@@ -5,7 +5,6 @@
 
 #include "ck_tile/core.hpp"
 
-
 namespace ck_tile {
 
 struct ReduceReceivePipelineDefaultPolicy
@@ -45,8 +44,7 @@ struct ReduceReceivePipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         constexpr index_t smem_size_host =
-            sizeof(DataType) *
-            MakeLdsBlockDescriptor<ReduceShape>().get_element_space_size();
+            sizeof(DataType) * MakeLdsBlockDescriptor<ReduceShape>().get_element_space_size();
         return smem_size_host * 2;
     }
 };

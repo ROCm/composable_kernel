@@ -44,13 +44,12 @@ FMHA_FWD_KERNEL_BODY="""
 using fmha_dtype_{F_idx} = {F_dtype};
 
 using fmha_block_tile_{F_idx} = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}>;
-using fmha_warp_tile_{F_idx} = ck_tile::sequence<{F_wm}, {F_wn}, {F_wk}>;
 
 using fmha_shape_{F_idx} = ck_tile::TileFmhaShape<fmha_block_tile_{F_idx},
                                       ck_tile::sequence<{F_rm0}, {F_rn0}, {F_rk0}>,
-                                      fmha_warp_tile_{F_idx},
+                                      ck_tile::sequence<{F_wm0}, {F_wn0}, {F_wk0}>,
                                       ck_tile::sequence<{F_rm1}, {F_rn1}, {F_rk1}>,
-                                      fmha_warp_tile_{F_idx},
+                                      ck_tile::sequence<{F_wm1}, {F_wn1}, {F_wk1}>,
                                       {F_vlayout}>;
 
 using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
@@ -282,7 +281,7 @@ class FmhaFwdApiPool:
                                    F_squant=BOOL_MAP[trait.squant], F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0max=trait.bk0max,
-                                   F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
+                                   F_hdim=hdim, F_dtype=FWD_DTYPE_MAP[dtype])
                 if_j = 'if' if j == 0 else 'else if'
                 per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
             if_i = 'if' if i == 0 else 'else if'
@@ -301,20 +300,24 @@ class FmhaFwdTileSize:
     F_bk1       : int  # tile size along kv gemm unroll
     F_bk0max    : int  # total length of K0, used for pipeline that need load Q at once (or repeately load Q as a whole tile)
     F_rm0       : int  # number of warps for gemm0 along q seqlen
-    F_rn0       : int  # number of warps for gemm0 along k seqlen 
+    F_rn0       : int  # number of warps for gemm0 along k seqlen
     F_rk0       : int  # number of warps for gemm0 along head dim q (not used)
     F_rm1       : int  # number of warps for gemm1 along q seqlen
     F_rn1       : int  # number of warps for gemm1 along head dim v
     F_rk1       : int  # number of warps for gemm1 along k seqlen (not used)
-    F_wm        : int  # warp size along m (warp size)
-    F_wn        : int  # warp size along n
-    F_wk        : int  # warp size along k
+    F_wm0       : int  # gemm0 warp size along m
+    F_wn0       : int  # gemm0 warp size along n
+    F_wk0       : int  # gemm0 warp size along k
+    F_wm1       : int  # gemm1 warp size along m
+    F_wn1       : int  # gemm1 warp size along n
+    F_wk1       : int  # gemm1 warp size along k
     F_occupancy : int  # occupancy, -1 will let pipeline decide the occupancy, other value will overwrite occupancy
     @property
     def name(self) -> str:
         return f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bn1}x{self.F_bk1}x{self.F_bk0max}" +\
         f"_r{self.F_rm0}x{self.F_rn0}x{self.F_rk0}_r{self.F_rm1}x{self.F_rn1}x{self.F_rk1}" +\
-        f"_w{self.F_wm}x{self.F_wn}x{self.F_wk}" + ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
+        f"_w{self.F_wm0}x{self.F_wn0}x{self.F_wk0}_w{self.F_wm1}x{self.F_wn1}x{self.F_wk1}" +\
+        ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
 
 @dataclass
 class FmhaFwdKernel:
@@ -339,7 +342,7 @@ class FmhaFwdKernel:
             FMHA_FWD_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
                 F_hdim          = self.F_hdim,
-                F_dtype         = DTYPE_MAP[self.F_dtype],
+                F_dtype         = FWD_DTYPE_MAP[self.F_dtype],
                 F_bm0           = self.F_tile.F_bm0,
                 F_bn0           = self.F_tile.F_bn0,
                 F_bk0           = self.F_tile.F_bk0,
@@ -352,9 +355,12 @@ class FmhaFwdKernel:
                 F_rm1           = self.F_tile.F_rm1,
                 F_rn1           = self.F_tile.F_rn1,
                 F_rk1           = self.F_tile.F_rk1,
-                F_wm            = self.F_tile.F_wm,
-                F_wn            = self.F_tile.F_wn,
-                F_wk            = self.F_tile.F_wk,
+                F_wm0           = self.F_tile.F_wm0,
+                F_wn0           = self.F_tile.F_wn0,
+                F_wk0           = self.F_tile.F_wk0,
+                F_wm1           = self.F_tile.F_wm1,
+                F_wn1           = self.F_tile.F_wn1,
+                F_wk1           = self.F_tile.F_wk1,
                 F_vlayout       = LAYOUT_MAP[self.F_pipeline.F_vlayout],
                 F_spad          = BOOL_MAP[self.F_pipeline.F_spad],
                 F_skpad         = BOOL_MAP[self.F_pipeline.F_skpad],
@@ -409,17 +415,17 @@ class FmhaFwdKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1,  2, 1, 1,  32, 32, 16, -1),
-            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1,  4, 1, 1,  32, 32, 16, -1),
-            ## '96'  : FmhaFwdTileSize(128, 128, 32, 128, 32, 96,   4, 1, 1,  4, 1, 1,  32, 32, 16, -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16, -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16, -1),
+            '32'  : FmhaFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+        ### '96'  : FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     2, 1, 1,  2, 1, 1,  32, 32, 32, -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 32, -1)
+            '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
         }
     else:
         return None
@@ -462,6 +468,9 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
             # no need lse/dropout kernels
             for mask, bias in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
                 pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, 'f', 'f', squant, mask))
+        elif dtype in ['fp8fp16', 'fp8bf16']:
+            # TODO
+            None
         else:
             assert False
         return pipelines
@@ -469,7 +478,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
-    for dtype in DTYPE_MAP.keys():
+    for dtype in FWD_DTYPE_MAP.keys():
         d = get_fmha_fwd_tile_dict_from_dtype(dtype)
         if d == None:
             continue

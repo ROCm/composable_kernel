@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -62,9 +62,9 @@ struct ReferenceGemm : public device::BaseOperator
             auto f_mk_kn_mn = [&](auto m, auto n) {
                 const int K = arg.a_m_k_.mDesc.GetLengths()[1];
 
-                AccDataType v_acc = 0;
-                ComputeTypeA v_a  = 0;
-                ComputeTypeB v_b  = 0;
+                AccDataType v_acc{0};
+                ComputeTypeA v_a{0};
+                ComputeTypeB v_b{0};
 
                 for(int k = 0; k < K; ++k)
                 {
@@ -93,7 +93,7 @@ struct ReferenceGemm : public device::BaseOperator
                         ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                 }
 
-                CDataType v_c = 0;
+                CDataType v_c{0};
 
                 arg.c_element_op_(v_c, v_acc);
 

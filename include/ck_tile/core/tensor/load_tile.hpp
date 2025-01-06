@@ -22,28 +22,32 @@ template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
           index_t NumCoord,
+          index_t i_access           = -1,
           bool oob_conditional_check = true>
 CK_TILE_DEVICE auto load_tile(const tile_window_with_static_distribution<BottomTensorView_,
                                                                          WindowLengths_,
                                                                          TileDistribution_,
                                                                          NumCoord>& tile_window,
+                              number<i_access>                     = {},
                               bool_constant<oob_conditional_check> = {})
 {
-    return tile_window.load(number<-1>{}, bool_constant<oob_conditional_check>{});
+    return tile_window.load(number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
           typename LinearBottomDims_,
+          index_t i_access           = -1,
           bool oob_conditional_check = true>
 CK_TILE_DEVICE auto load_tile(const tile_window_linear<BottomTensorView_,
                                                        WindowLengths_,
                                                        TileDistribution_,
                                                        LinearBottomDims_>& tile_window,
+                              number<i_access>                     = {},
                               bool_constant<oob_conditional_check> = {})
 {
-    return tile_window.load(number<-1>{}, bool_constant<oob_conditional_check>{});
+    return tile_window.load(number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 template <typename DistributedTensor_,
@@ -51,15 +55,35 @@ template <typename DistributedTensor_,
           typename WindowLengths_,
           typename TileDistribution_,
           index_t NumCoord,
+          index_t i_access           = -1,
           bool oob_conditional_check = true>
 CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
                               const tile_window_with_static_distribution<BottomTensorView_,
                                                                          WindowLengths_,
                                                                          TileDistribution_,
                                                                          NumCoord>& tile_window,
+                              number<i_access>                     = {},
                               bool_constant<oob_conditional_check> = {})
 {
-    return tile_window.load(dst_tile, bool_constant<oob_conditional_check>{});
+    return tile_window.load(dst_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
+}
+
+template <typename DistributedTensor_,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          typename LinearBottomDims_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true>
+CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
+                              const tile_window_linear<BottomTensorView_,
+                                                       WindowLengths_,
+                                                       TileDistribution_,
+                                                       LinearBottomDims_>& tile_window,
+                              number<i_access>                     = {},
+                              bool_constant<oob_conditional_check> = {})
+{
+    return tile_window.load(dst_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 /**
@@ -76,6 +100,7 @@ template <typename T,
           typename WindowLengths_,
           typename TileDistribution_,
           index_t NumCoord,
+          index_t i_access           = -1,
           bool oob_conditional_check = true,
           bool pre_nop               = false>
 CK_TILE_DEVICE auto load_tile_raw(T& tile,
@@ -83,11 +108,12 @@ CK_TILE_DEVICE auto load_tile_raw(T& tile,
                                                                              WindowLengths_,
                                                                              TileDistribution_,
                                                                              NumCoord>& tile_window,
+                                  number<i_access>                     = {},
                                   bool_constant<oob_conditional_check> = {},
                                   bool_constant<pre_nop>               = {})
 {
     tile_window.load_raw(
-        tile, number<-1>{}, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
+        tile, number<i_access>{}, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
 }
 
 template <typename T,
@@ -95,6 +121,7 @@ template <typename T,
           typename WindowLengths_,
           typename TileDistribution_,
           typename LinearBottomDims_,
+          index_t i_access           = -1,
           bool oob_conditional_check = true,
           bool pre_nop               = false>
 CK_TILE_DEVICE auto load_tile_raw(T& tile,
@@ -102,11 +129,12 @@ CK_TILE_DEVICE auto load_tile_raw(T& tile,
                                                            WindowLengths_,
                                                            TileDistribution_,
                                                            LinearBottomDims_>& tile_window,
+                                  number<i_access>                     = {},
                                   bool_constant<oob_conditional_check> = {},
                                   bool_constant<pre_nop>               = {})
 {
     tile_window.load_raw(
-        tile, number<-1>{}, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
+        tile, number<i_access>{}, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
 }
 
 template <typename LdsTileWindow_,
@@ -114,6 +142,7 @@ template <typename LdsTileWindow_,
           typename WindowLengths_,
           typename TileDistribution_,
           index_t NumCoord,
+          index_t i_access           = -1,
           bool oob_conditional_check = true,
           bool pre_nop               = false>
 CK_TILE_DEVICE auto
@@ -122,11 +151,14 @@ async_load_tile_raw(LdsTileWindow_&& lds_tile,
                                                                WindowLengths_,
                                                                TileDistribution_,
                                                                NumCoord>& tile_window,
+                    number<i_access>                     = {},
                     bool_constant<oob_conditional_check> = {},
                     bool_constant<pre_nop>               = {})
 {
-    return tile_window.async_load_raw(
-        lds_tile, number<-1>{}, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
+    return tile_window.async_load_raw(lds_tile,
+                                      number<i_access>{},
+                                      bool_constant<oob_conditional_check>{},
+                                      bool_constant<pre_nop>{});
 }
 
 template <typename LdsTileWindow_,
@@ -134,6 +166,7 @@ template <typename LdsTileWindow_,
           typename WindowLengths_,
           typename TileDistribution_,
           typename LinearBottomDims_,
+          index_t i_access           = -1,
           bool oob_conditional_check = true,
           bool pre_nop               = false>
 CK_TILE_DEVICE auto async_load_tile_raw(LdsTileWindow_&& lds_tile,
@@ -141,11 +174,14 @@ CK_TILE_DEVICE auto async_load_tile_raw(LdsTileWindow_&& lds_tile,
                                                                  WindowLengths_,
                                                                  TileDistribution_,
                                                                  LinearBottomDims_>& tile_window,
+                                        number<i_access>                     = {},
                                         bool_constant<oob_conditional_check> = {},
                                         bool_constant<pre_nop>               = {})
 {
-    return tile_window.async_load_raw(
-        lds_tile, number<-1>{}, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
+    return tile_window.async_load_raw(lds_tile,
+                                      number<i_access>{},
+                                      bool_constant<oob_conditional_check>{},
+                                      bool_constant<pre_nop>{});
 }
 
 CK_TILE_DEVICE auto async_load_fence(index_t cnt = 0)

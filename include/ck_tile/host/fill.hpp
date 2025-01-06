@@ -13,6 +13,7 @@
 #include <unordered_set>
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/joinable_thread.hpp"
 
 namespace ck_tile {
 
@@ -22,13 +23,44 @@ struct FillUniformDistribution
     float a_{-5.f};
     float b_{5.f};
     std::optional<uint32_t> seed_{11939};
+    // ATTENTION: threaded does not guarantee the distribution between thread
+    bool threaded = false;
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
-        std::uniform_real_distribution<float> dis(a_, b_);
-        std::generate(first, last, [&dis, &gen]() { return ck_tile::type_convert<T>(dis(gen)); });
+        if(threaded)
+        {
+            uint32_t num_thread  = std::thread::hardware_concurrency();
+            auto total           = static_cast<std::size_t>(std::distance(first, last));
+            auto work_per_thread = static_cast<std::size_t>((total + num_thread - 1) / num_thread);
+
+            std::vector<joinable_thread> threads(num_thread);
+            for(std::size_t it = 0; it < num_thread; ++it)
+            {
+                std::size_t iw_begin = it * work_per_thread;
+                std::size_t iw_end   = std::min((it + 1) * work_per_thread, total);
+                auto thread_f        = [this, total, iw_begin, iw_end, &first] {
+                    if(iw_begin > total || iw_end > total)
+                        return;
+                    // need to make each thread unique, add an offset to current seed
+                    std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
+                                                              : std::random_device{}());
+                    std::uniform_real_distribution<float> dis(a_, b_);
+                    std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
+                        return ck_tile::type_convert<T>(dis(gen));
+                    });
+                };
+                threads[it] = joinable_thread(thread_f);
+            }
+        }
+        else
+        {
+            std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
+            std::uniform_real_distribution<float> dis(a_, b_);
+            std::generate(
+                first, last, [&dis, &gen]() { return ck_tile::type_convert<T>(dis(gen)); });
+        }
     }
 
     template <typename ForwardRange>
@@ -115,13 +147,44 @@ struct FillNormalDistribution
     float mean_{0.f};
     float variance_{1.f};
     std::optional<uint32_t> seed_{11939};
+    // ATTENTION: threaded does not guarantee the distribution between thread
+    bool threaded = false;
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
-        std::normal_distribution<float> dis(mean_, std::sqrt(variance_));
-        std::generate(first, last, [&dis, &gen]() { return ck_tile::type_convert<T>(dis(gen)); });
+        if(threaded)
+        {
+            uint32_t num_thread  = std::thread::hardware_concurrency();
+            auto total           = static_cast<std::size_t>(std::distance(first, last));
+            auto work_per_thread = static_cast<std::size_t>((total + num_thread - 1) / num_thread);
+
+            std::vector<joinable_thread> threads(num_thread);
+            for(std::size_t it = 0; it < num_thread; ++it)
+            {
+                std::size_t iw_begin = it * work_per_thread;
+                std::size_t iw_end   = std::min((it + 1) * work_per_thread, total);
+                auto thread_f        = [this, total, iw_begin, iw_end, &first] {
+                    if(iw_begin > total || iw_end > total)
+                        return;
+                    // need to make each thread unique, add an offset to current seed
+                    std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
+                                                              : std::random_device{}());
+                    std::normal_distribution<float> dis(mean_, std::sqrt(variance_));
+                    std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
+                        return ck_tile::type_convert<T>(dis(gen));
+                    });
+                };
+                threads[it] = joinable_thread(thread_f);
+            }
+        }
+        else
+        {
+            std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
+            std::normal_distribution<float> dis(mean_, std::sqrt(variance_));
+            std::generate(
+                first, last, [&dis, &gen]() { return ck_tile::type_convert<T>(dis(gen)); });
+        }
     }
 
     template <typename ForwardRange>
@@ -229,6 +292,44 @@ struct FillMonotonicSeq
         -> std::void_t<decltype(std::declval<const FillMonotonicSeq&>()(
             std::begin(std::forward<ForwardRange>(range)),
             std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
+
+template <typename T, bool IsAscending = true>
+struct FillStepRange
+{
+    float start_value_{0};
+    float end_value_{3};
+    float step_{1};
+
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        std::generate(first, last, [=, n = start_value_]() mutable {
+            auto tmp = n;
+            n += step_;
+            if constexpr(IsAscending)
+            {
+                if(n > end_value_)
+                    n = start_value_;
+            }
+            else
+            {
+                if(n < end_value_)
+                    n = start_value_;
+            }
+
+            return type_convert<T>(tmp);
+        });
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const -> std::void_t<
+        decltype(std::declval<const FillStepRange&>()(std::begin(std::forward<ForwardRange>(range)),
+                                                      std::end(std::forward<ForwardRange>(range))))>
     {
         (*this)(std::begin(std::forward<ForwardRange>(range)),
                 std::end(std::forward<ForwardRange>(range)));
