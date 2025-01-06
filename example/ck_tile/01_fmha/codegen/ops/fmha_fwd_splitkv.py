@@ -96,9 +96,7 @@ using fmha_epilogue =
                                            {F_spad}, {F_dvpad}>>;
 
 using fmha_kernel =
-    ck_tile::FmhaFwdSplitKVKernel<ck_tile::FmhaFwdSplitKVTilePartitioner<fmha_shape>,
-                  fmha_pipeline,
-                  fmha_epilogue>;
+    ck_tile::FmhaFwdSplitKVKernel<fmha_pipeline, fmha_epilogue>;
 
 static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
@@ -176,11 +174,7 @@ using fmha_epilogue =
                                            false, false>>;
 
 using fmha_kernel =
-    ck_tile::FmhaFwdSplitKVCombineKernel<
-        ck_tile::FmhaFwdSplitKVCombineTilePartitioner<
-            fmha_pipeline_problem::kM0, fmha_pipeline_problem::kN1>,
-        fmha_pipeline,
-        fmha_epilogue>;
+    ck_tile::FmhaFwdSplitKVCombineKernel<fmha_pipeline, fmha_epilogue>;
 
 static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
@@ -261,7 +255,7 @@ FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F
                 static_assert({F_bn1} % 32 == 0);
 
                 if (t.has_lse) {{
-                    if constexpr (std::is_same_v<{F_dtype}, ck_tile::fp8_t>) {{
+                    if constexpr (std::is_same_v<{F_dtype}, FmhaFwdFp8>) {{
                         return -1;
                     }} else {{
                         using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, /*F_bn1=*/32, true, {F_squant}, {F_spad}, {F_dvpad}>;
@@ -614,7 +608,7 @@ def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[d
     }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-            '64'  : FmhaFwdSplitKVCombineTileSize(32,   -1),
+            '64'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
             '128' : FmhaFwdSplitKVCombineTileSize(32,  -1),
             '256' : FmhaFwdSplitKVCombineTileSize(32,  -1),
         }

@@ -53,6 +53,8 @@ struct GemmPipelineAGmemBGmemCRegV1
         return Policy::template GetSmemSize<Problem>();
     }
 
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return Policy::IsTransposeC(); }
+
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,
               typename AElementFunction,

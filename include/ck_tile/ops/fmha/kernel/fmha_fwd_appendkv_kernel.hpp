@@ -10,10 +10,9 @@
 
 namespace ck_tile {
 
-template <typename TilePartitioner_, typename FmhaPipeline_>
+template <typename FmhaPipeline_>
 struct FmhaFwdAppendKVKernel
 {
-    using TilePartitioner                         = ck_tile::remove_cvref_t<TilePartitioner_>;
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
     static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
@@ -234,12 +233,25 @@ struct FmhaFwdAppendKVKernel
         return kargs;
     }
 
-    __host__ static constexpr auto GridSize(ck_tile::index_t batch_size,
-                                            ck_tile::index_t nhead,
-                                            ck_tile::index_t seqlen_q,
-                                            ck_tile::index_t seqlen_knew)
+    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size,
+                                                ck_tile::index_t nhead,
+                                                ck_tile::index_t seqlen_q,
+                                                ck_tile::index_t seqlen_knew)
     {
-        return TilePartitioner::GridSize(batch_size, nhead, seqlen_q, seqlen_knew);
+        // TODO: this may need tuning
+        return dim3(std::max(ck_tile::integer_divide_ceil(seqlen_q, FmhaPipeline::kM0),
+                             ck_tile::integer_divide_ceil(seqlen_knew, FmhaPipeline::kN0)),
+                    nhead,
+                    batch_size);
+    }
+
+    CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& /* kargs */)
+    {
+        const index_t i_tile  = blockIdx.x;
+        const index_t i_nhead = blockIdx.y;
+        const index_t i_batch = blockIdx.z;
+
+        return ck_tile::make_tuple(i_tile, i_nhead, i_batch);
     }
 
     __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
@@ -247,7 +259,7 @@ struct FmhaFwdAppendKVKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         // divide problem
-        const auto [i_tile, i_nhead, i_batch] = TilePartitioner{}();
+        const auto [i_tile, i_nhead, i_batch] = GetTileIndex(kargs);
 
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kM0);
         const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kN0);
