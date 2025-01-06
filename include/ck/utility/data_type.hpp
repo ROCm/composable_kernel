@@ -1914,7 +1914,7 @@ using uint8x8_t  = typename vector_type<uint8_t, 8>::type;
 using uint8x16_t = typename vector_type<uint8_t, 16>::type;
 using uint8x32_t = typename vector_type<uint8_t, 32>::type;
 using uint8x64_t = typename vector_type<uint8_t, 64>::type;
-  
+
 // pack int4
 using pk_i4x2_t = typename vector_type<pk_i4_t, 2>::type;
 using pk_i4x4_t = typename vector_type<pk_i4_t, 4>::type;
