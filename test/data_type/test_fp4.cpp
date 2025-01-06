@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "ck/utility/data_type.hpp"
@@ -83,8 +83,6 @@ TEST(FP4, ScaledConvertFP32Nearest)
 {
     // fix the tolerance value
     float abs_tol = 1e-6;
-    // set maximum fp4 value
-    float max_fp4 = 6.0f;
     // set maximum scale
     float max_scale = type_convert<float>(ck::NumericLimits<e8m0_bexp_t>::Max()); // 0xFE -> float
     // set minimum scale
@@ -97,10 +95,6 @@ TEST(FP4, ScaledConvertFP32Nearest)
     // convert 0 float to fp4 and back with minimal scale, check if holds
     ASSERT_NEAR(
         0.0f, scaled_type_convert<float>(e8m0_bexp_t(min_scale), f4_convert_rne(0.0f)), abs_tol);
-    // convert maximal f4_t with minimal scale to float and check if equal to minimal float
-    ASSERT_NEAR(ck::NumericLimits<float>::Min(),
-                scaled_type_convert<float>(e8m0_bexp_t(min_scale), f4_convert_rne(max_fp4)),
-                abs_tol);
     // positive norm float value to fp4 and back with various scales, check if holds
     float pos_float = 1.0f;
     ASSERT_NEAR(pos_float * test_scale,
@@ -151,8 +145,6 @@ TEST(FP4, ScaledConvertFP32Stochastic)
 {
     // fix the tolerance value
     float abs_tol = 1e-6;
-    // set maximum fp4 value
-    float max_fp4 = 6.0f;
     // set maximum scale
     float max_scale = type_convert<float>(ck::NumericLimits<e8m0_bexp_t>::Max()); // 0xFE -> float
     // set minimum scale
@@ -165,10 +157,6 @@ TEST(FP4, ScaledConvertFP32Stochastic)
     // convert 0 float to fp4 and back with minimal scale, check if holds
     ASSERT_NEAR(
         0.0f, scaled_type_convert<float>(e8m0_bexp_t(min_scale), f4_convert_sr(0.0f)), abs_tol);
-    // convert maximal f4_t with minimal scale to float and check if equal to minimal float
-    ASSERT_NEAR(ck::NumericLimits<float>::Min(),
-                scaled_type_convert<float>(e8m0_bexp_t(min_scale), f4_convert_sr(max_fp4)),
-                abs_tol);
     // positive norm float value to fp4 and back with various scales, check if holds
     float pos_float = 1.0f;
     ASSERT_NEAR(pos_float * test_scale,

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/f8_utils.hpp"
 #include "ck/utility/mxf4_utils.hpp"
+#include "ck/utility/mxf6_utils.hpp"
 #include "ck/utility/random_gen.hpp"
 #include "ck/utility/array.hpp"
 
@@ -1338,6 +1339,147 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
 
     return float_values.float32_array;
 #endif
+}
+
+/**
+ * @brief Converts a float to a 6-bit float type (f6_t) using round-to-nearest-even.
+ *
+ * Divides the input by the specified scale, then saturates and converts it
+ * to the 6-bit floating-point format (f6_t).
+ *
+ * @param x     The input float value.
+ * @param scale A scaling factor applied to `x` before conversion.
+ * @return      The converted f6_t value.
+ */
+inline __host__ __device__ f6_t f6_convert_rne(float x, float scale = 1.0f)
+{
+    // currently there is no native conversion instruction
+    return utils::sat_convert_to_type<f6_t>(x / scale);
+}
+
+/**
+ * @brief Converts a float to the 6-bit floating-point type (f6_t) using stochastic rounding.
+ *
+ * Divides the input by the specified scale, then performs saturation and conversion
+ * to f6_t based on a pseudo-randomly generated seed.
+ *
+ * @param x     The input float value.
+ * @param scale A scaling factor applied to `x` before conversion.
+ * @return      The converted f6_t value.
+ */
+inline __host__ __device__ f6_t f6_convert_sr(float x, float scale = 1.0f)
+{
+    constexpr int seed = 1254739;
+    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    // currently there is no native conversion instruction
+    return utils::sat_convert_to_type_sr<f6_t>(x / scale, rng);
+}
+
+/**
+ * @brief Specializes the type conversion template for converting a float into the 6-bit float type
+ * (f6_t).
+ *
+ * Depending on the CK_USE_SR_F4_CONVERSION flag,
+ * the conversion uses stochastic rounding
+ * or round-to-nearest-even.
+ *
+ * @param x Input float value to be converted.
+ * @return  The converted f6_t value.
+ */
+template <>
+inline __host__ __device__ f6_t type_convert<f6_t, float>(float x)
+{
+#if CK_USE_SR_F4_CONVERSION
+    return f6_convert_sr(x);
+#else
+    return f6_convert_rne(x);
+#endif
+}
+
+/**
+ * @brief Specializes the type conversion template for converting the 6-bit float type (f6_t) to
+ * float.
+ *
+ * Interprets an f6_t value as a float using the default scale factor of 1.
+ *
+ * @param x The 6-bit float (f6_t) value to be converted.
+ * @return  The corresponding float representation.
+ */
+template <>
+inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
+{
+    // currently there is no native conversion instruction
+    return utils::to_float<f6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
+}
+
+/**
+ * @brief Converts a float to the 6-bit BF6 type using round-to-nearest-even.
+ *
+ * Divides the input by the specified scale, then saturates and converts
+ * it to a 6-bit BF6 floating-point format.
+ *
+ * @param x     The float value to be converted.
+ * @param scale The scaling factor applied to the input before conversion.
+ * @return      The converted bf6_t value.
+ */
+inline __host__ __device__ bf6_t bf6_convert_rne(float x, float scale = 1.0f)
+{
+    // currently there is no native conversion instruction
+    return utils::sat_convert_to_type<bf6_t>(x / scale);
+}
+
+/**
+ * @brief Converts a float to the 6-bit BF6 type using stochastic rounding.
+ *
+ * Divides the input by the specified scale,
+ * and converts the result to a 6-bit BF6 floating-point
+ * format with stochastic rounding.
+ *
+ * @param x     The float value to be converted.
+ * @param scale The scaling factor applied to the input before conversion.
+ * @return      The converted bf6_t value.
+ */
+inline __host__ __device__ bf6_t bf6_convert_sr(float x, float scale = 1.0f)
+{
+    constexpr int seed = 1254739;
+    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    // currently there is no native conversion instruction
+    return utils::sat_convert_to_type_sr<bf6_t>(x / scale, rng);
+}
+
+/**
+ * @brief Specializes float-to-bf6_t conversion.
+ *
+ * Uses stochastic rounding if CK_USE_SR_F4_CONVERSION is defined,
+ * otherwise uses round-to-nearest-even.
+ *
+ * @param x Input float value to convert.
+ * @return Converted bf6_t value.
+ */
+template <>
+inline __host__ __device__ bf6_t type_convert<bf6_t, float>(float x)
+{
+#if CK_USE_SR_F4_CONVERSION
+    return bf6_convert_sr(x);
+#else
+    return bf6_convert_rne(x);
+#endif
+}
+
+/**
+ * @brief Specializes the type conversion template for converting a bf6_t value to float.
+ *
+ * Interprets the bf6_t value using the default scale factor of 1 and returns
+ * its floating-point representation.
+ *
+ * @param x The bf6_t value to convert.
+ * @return  The float representation of the given bf6_t value.
+ */
+template <>
+inline __host__ __device__ float type_convert<float, bf6_t>(bf6_t x)
+{
+    // currently there is no native conversion instruction
+    return utils::to_float<bf6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
 }
 
 template <typename Y, typename X, std::size_t NumElems>

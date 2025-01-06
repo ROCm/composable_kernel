@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -2287,6 +2287,8 @@ struct NumericUtils<f6_t>
     static constexpr uint8_t positive_zero_mask = 0b000000;
     static constexpr uint8_t negative_zero_mask = 0b100000;
 
+    static constexpr uint8_t set_sign_mask = 0b011111;
+
     static constexpr uint8_t data_max_positive_normal_mask = 0b011111;
     static constexpr uint8_t data_max_negative_normal_mask = 0b111111;
 
@@ -2315,6 +2317,8 @@ struct NumericUtils<bf6_t>
 
     static constexpr uint8_t positive_zero_mask = 0b000000;
     static constexpr uint8_t negative_zero_mask = 0b100000;
+
+    static constexpr uint8_t set_sign_mask = 0b011111;
 
     static constexpr uint8_t data_max_positive_normal_mask = 0b011111;
     static constexpr uint8_t data_max_negative_normal_mask = 0b111111;

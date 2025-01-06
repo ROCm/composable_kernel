@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include "ck/utility/type_convert.hpp"
@@ -280,6 +283,78 @@ inline __host__ __device__ f4x32_t scaled_type_convert<f4x32_t, float32_t>(e8m0_
     return f4_convert_sr(x, type_convert<float>(scale));
 #else
     return f4_convert_rne(x, type_convert<float>(scale));
+#endif
+}
+
+/**
+ * @brief Converts a 6-bit floating-point value (f6_t) to a 32-bit float,
+ *        applying the specified scaling factor.
+ *
+ * @param scale The exponent scale factor (e8m0_bexp_t) used for f6_t.
+ * @param x     The f6_t value to be converted.
+ * @return      The converted 32-bit float representation of the input.
+ */
+template <>
+inline __host__ __device__ float scaled_type_convert<float, f6_t>(e8m0_bexp_t scale, f6_t x)
+{
+    // currently there is no native conversion instruction
+    return utils::to_float<f6_t>(scale, x);
+}
+
+/**
+ * @brief Converts a 6-bit floating-point value (bf6_t) to a 32-bit float,
+ *        applying the specified scaling factor.
+ *
+ * @param scale The exponent scale factor (e8m0_bexp_t) used for bf6_t.
+ * @param x     The bf6_t value to be converted.
+ * @return      The converted 32-bit float representation of the input.
+ */
+template <>
+inline __host__ __device__ float scaled_type_convert<float, bf6_t>(e8m0_bexp_t scale, bf6_t x)
+{
+    // currently there is no native conversion instruction
+    return utils::to_float<bf6_t>(scale, x);
+}
+
+/**
+ * @brief Converts a 32-bit float to a 6-bit floating-point value (f6_t), applying the specified
+ * scale.
+ *
+ * Depending on whether CK_USE_SR_F6_CONVERSION is defined, it uses either stochastic rounding
+ * (f6_convert_sr) or round-to-nearest-even (f6_convert_rne).
+ *
+ * @param scale The exponent scale factor (e8m0_bexp_t) used for f6_t.
+ * @param x     The float value to convert.
+ * @return      The converted 6-bit floating-point value (f6_t).
+ */
+template <>
+inline __host__ __device__ f6_t scaled_type_convert<f6_t, float>(e8m0_bexp_t scale, float x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return f6_convert_sr(x, type_convert<float>(scale));
+#else
+    return f6_convert_rne(x, type_convert<float>(scale));
+#endif
+}
+
+/**
+ * @brief Converts a 32-bit float to a 6-bit floating-point value (bf6_t), applying the specified
+ * scale.
+ *
+ * Depending on whether CK_USE_SR_F6_CONVERSION is defined, it uses either stochastic rounding
+ * (bf6_convert_sr) or round-to-nearest-even (bf6_convert_rne).
+ *
+ * @param scale The exponent scale factor (e8m0_bexp_t) used for bf6_t.
+ * @param x     The float value to convert.
+ * @return      The converted 6-bit floating-point value (bf6_t).
+ */
+template <>
+inline __host__ __device__ bf6_t scaled_type_convert<bf6_t, float>(e8m0_bexp_t scale, float x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return bf6_convert_sr(x, type_convert<float>(scale));
+#else
+    return bf6_convert_rne(x, type_convert<float>(scale));
 #endif
 }
 

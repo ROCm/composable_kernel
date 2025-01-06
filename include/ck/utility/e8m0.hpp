@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -54,6 +54,8 @@ struct e8m0_bexp_t
         // strict IEEE compliance for NaN
         return data == other.data && data != nan_mask;
     }
+
+    __host__ __device__ constexpr bool is_nan() const { return data == nan_mask; }
 };
 
 namespace utils {
