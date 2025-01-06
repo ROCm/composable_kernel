@@ -400,21 +400,16 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
         }
     }();
 
-    const ck_tile::index_t nhead =
-        (FmhaKernel::kMergeNumHeadGroupsSeqLenQ ? args.nhead_k : args.nhead_q);
-    const ck_tile::index_t max_seqlen_q =
-        args.max_seqlen_q *
-        (FmhaKernel::kMergeNumHeadGroupsSeqLenQ ? args.nhead_q / args.nhead_k : 1);
-
     if constexpr(FmhaKernel::kIsGroupMode)
     {
         dim3 grids = FmhaKernel::GridSize(
-            args.batch, nhead, max_seqlen_q, args.hdim_v, args.seqlen_k_ptr != nullptr);
+            args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, args.seqlen_k_ptr != nullptr);
         return ck_tile::make_tuple(kargs, grids);
     }
     else
     {
-        dim3 grids = FmhaKernel::GridSize(args.batch, nhead, max_seqlen_q, args.hdim_v, false);
+        dim3 grids =
+            FmhaKernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, false);
         return ck_tile::make_tuple(kargs, grids);
     }
 }
