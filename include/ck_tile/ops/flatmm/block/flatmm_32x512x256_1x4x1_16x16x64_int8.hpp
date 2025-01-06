@@ -295,6 +295,11 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
         const auto [m0_init_value, size_per_issue] = get_async_store_smem_info(a_sst);
         constexpr auto smem_buf_size =
             MakeLdsLoadDesc_A().get_element_space_size() * sizeof(ADataType);
+
+        // if(threadIdx.x%64 == 0 ){
+        //     printf("wave id:%d, m0_init_value:%d, size_per_issue:%d\n",
+        //     int(threadIdx.x/64),int(m0_init_value), int(size_per_issue));
+        // }
         static_assert(a_sld.get_num_of_access() == 8);
         constexpr auto sld_os = generate_tuple(
             [&](auto i_access) {
@@ -533,9 +538,8 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
           "s55", "s56", "s57", "s58", "s59", "s60", "s61", "s62", "s63",
           "s64", "s65", "s66", "s67", "s68", "s69", "s70", "s71", "s72",
           "s73", "s74", "s75", "s76", "s77", "s78", "s79", "s80",    // s86 as tmp
-          "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", 
-          "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19",
-          "v20", "v21", "v22", "v23", "v24", "v25", "v50", "v51", "v52", "v53", "v54", "v55",
+          "v1", "v2", "v3", "v4", "v5", "v12", "v13", "v21", "v22", "v23",
+          "v24", "v25", "v50", "v51", "v52", "v53", "v54", "v55",
           "v56", "v57",  "v64",
           "v65", "v66", "v67", "v68", "v69", "v70", "v71", "v72", "v73",
           "v74", "v75", "v76", "v77", "v78", "v79", "v80", "v81", "v82",

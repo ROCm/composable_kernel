@@ -276,10 +276,10 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
             number<row_ids_a.size()>{});
         auto a_coords = generate_tuple(
             [&](auto i) {
-                return ((row_ids_a[i])&0xffffff) * kargs.stride_token +
+                return (token_id[i]) * kargs.stride_token +
                        threadIdx.x % (BlockShape::Block_K0 / kAlignmentA) * kAlignmentA;
             },
-            number<row_ids_a.size()>{});
+            number<token_id.size()>{});
         auto a_res =
             make_wave_buffer_resource(reinterpret_cast<const ADataType*>(kargs.a_ptr),
                                       kargs.num_tokens * kargs.stride_token * sizeof(ADataType));
@@ -407,7 +407,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
             gqsmq_coords, (reinterpret_cast<const YSmoothScaleDataType*>(kargs.y_smooth_scale_ptr) + static_cast<long_index_t>(expert_id) * shared_intermediate_size_0));
         auto uk_0  = Policy::template GetUK_0<Problem>();
        // auto acc_0= uk_0(
-                    uk_0( a_scale,
+                    uk_0(a_scale,
                         gq_scale,
                         d_res,
                         dq_res,                     
@@ -420,7 +420,12 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
                           BlockShape::Block_K0, // tile offset for B matrix each unroll
                           BlockShape::Block_Kr0 *
                           BlockShape::Block_W0); // tile offset for B matrix each unroll
+        if(hipBlockIdx_x == 0 && hipBlockIdx_y == 0 && hipBlockIdx_z == 0 &&
+    hipThreadIdx_x  == 5)
+{
+    printf("\ngemm0 done\n");
 
+}
         // sweep_tile(
         //     acc_0,
         //     [&](auto idx0, auto idx1) {

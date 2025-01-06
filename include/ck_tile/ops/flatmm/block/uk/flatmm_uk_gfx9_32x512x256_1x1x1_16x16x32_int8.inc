@@ -29,6 +29,8 @@
 "s_mov_b32 s27,    %[s_res_b3] \n"
 "s_mov_b32 s16,    %[s_res_dq0] \n"
 "s_mov_b32 s17,    %[s_res_dq1] \n"
+"s_mov_b32 s18,    %[s_res_dq2] \n"
+"s_mov_b32 s19,    %[s_res_dq3] \n"
 "s_mov_b32 s12,    %[s_res_d0] \n"
 "s_mov_b32 s13,    %[s_res_d1] \n"
 "s_mov_b32 s14,    %[s_res_d2] \n"
@@ -582,5 +584,6 @@ _DEQUAN_CVT_("%[c60]","%[c61]","%[c62]","%[c63]","%[a_scale1]"," %[gq_scale1]","
 
 #undef _UK_MFMA_  
 #undef _DEQUAN_CVT_    
+
 
 
