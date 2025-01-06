@@ -39,7 +39,11 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename DataType, bool SaveRms>
+template <typename InDataType,
+          typename OutDataType,
+          typename XScaleDataType,
+          typename YScaleDataType,
+          bool SaveRms>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     ck_tile::index_t m      = arg_parser.get_int("m");
@@ -58,17 +62,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     assert(stride >= n);
 
-    using TypeConfig = RmsnormTypeConfig<DataType, float, float>;
+    using TypeConfig = RmsnormTypeConfig<InDataType, OutDataType, XScaleDataType, YScaleDataType>;
 
     using XDataType     = typename TypeConfig::XDataType;
     using YDataType     = typename TypeConfig::YDataType;
     using GammaDataType = typename TypeConfig::GammaDataType;
-
-    // TODO: use different types
-    using XScaleDataType = XDataType;
-    using YScaleDataType = YDataType;
     using XResidualDataType = XDataType;
-    using YResidualDataType = YDataType;
+    using YResidualDataType = XDataType;
 
     using InvRmsDataType =
         std::conditional_t<SaveRms, typename TypeConfig::InvRmsDataType, ck_tile::null_type>;
@@ -150,7 +150,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         y_buf.FromDevice(y_host_dev.data());
 
-        auto [rtol, atol] = get_elimit<DataType>();
+        auto [rtol, atol] = get_elimit<XDataType>();
         if(stride == n)
         {
             pass = ck_tile::check_err(
@@ -189,19 +189,19 @@ int main(int argc, char* argv[])
     int save_rms                = arg_parser.get_int("save_rms");
     if(data_type == "fp16" && save_rms)
     {
-        return run<ck_tile::half_t, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::half_t, ck_tile::half_t, float, float, true>(arg_parser) ? 0 : -2;
     }
     else if(data_type == "fp16" && !save_rms)
     {
-        return run<ck_tile::half_t, false>(arg_parser) ? 0 : -2;
+        return run<ck_tile::half_t, ck_tile::half_t, float, float, false>(arg_parser) ? 0 : -2;
     }
     else if(data_type == "bf16" && save_rms)
     {
-        return run<ck_tile::bf16_t, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true>(arg_parser) ? 0 : -2;
     }
     else if(data_type == "bf16" && !save_rms)
     {
-        return run<ck_tile::bf16_t, true>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true>(arg_parser) ? 0 : -2;
     }
 
     return -3;
