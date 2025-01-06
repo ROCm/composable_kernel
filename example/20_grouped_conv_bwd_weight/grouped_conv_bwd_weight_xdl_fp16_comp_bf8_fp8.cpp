@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -41,32 +41,32 @@ using DeviceConvBwdWeightInstance =
         WeiElementOp,         // WeiElementwiseOperation
         OutElementOp,         // OutElementwiseOperation
         ConvBwdWeightDefault, // ConvolutionBackwardWeightSpecialization
-        64,                   // BlockSize
-        16,                   // MPerBlock
-        16,                   // NPerBlock
+        256,                  // BlockSize
+        128,                  // MPerBlock
+        128,                  // NPerBlock
         32,                   // K0PerBlock
         8,                    // K1
-        16,                   // MPerXdl
-        16,                   // NPerXdl
-        1,                    // MXdlPerWave
-        1,                    // NXdlPerWave
+        32,                   // MPerXdl
+        32,                   // NPerXdl
+        2,                    // MXdlPerWave
+        2,                    // NXdlPerWave
         S<1, 4, 16, 4>,       // ABlockTransferThreadClusterLengths_K0_M_K1
         S<0, 3, 1, 2>,        // ABlockTransferThreadClusterArrangeOrder
         S<0, 2, 1, 3>,        // ABlockTransferSrcAccessOrder
-        1,                    // ABlockTransferSrcVectorDim
+        2,                    // ABlockTransferSrcVectorDim
         1,                    // ABlockTransferSrcScalarPerVector
-        4,                    // ABlockTransferDstScalarPerVector_K1
-        false,                // ABlockLdsAddExtraM
+        1,                    // ABlockTransferDstScalarPerVector_K1
+        true,                 // ABlockLdsAddExtraM
         S<1, 4, 16, 4>,       // BBlockTransferThreadClusterLengths_K0_N_K1
         S<0, 3, 1, 2>,        // BBlockTransferThreadClusterArrangeOrder
         S<0, 2, 1, 3>,        // BBlockTransferSrcAccessOrder
-        1,                    // BBlockTransferSrcVectorDim
+        2,                    // BBlockTransferSrcVectorDim
         1,                    // BBlockTransferSrcScalarPerVector
-        4,                    // BBlockTransferDstScalarPerVector_K1
-        false,                // BBlockLdsAddExtraN
+        1,                    // BBlockTransferDstScalarPerVector_K1
+        true,                 // BBlockLdsAddExtraN
         1,                    // CShuffleMXdlPerWavePerShuffle
         1,                    // CShuffleNXdlPerWavePerShuffle
-        S<1, 8, 1, 8>,        // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        S<1, 32, 1, 4>,       // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         2,                    // CBlockTransferScalarPerVector_NWaveNPerXdl
         ck::BlockGemmPipelineScheduler::Intrawave, // BlkGemmPipeSched
         ck::BlockGemmPipelineVersion::v1,          // BlkGemmPipelineVer

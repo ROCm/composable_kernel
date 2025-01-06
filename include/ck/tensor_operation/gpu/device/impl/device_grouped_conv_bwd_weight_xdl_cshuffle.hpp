@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,7 +16,6 @@
 #include "ck/tensor_operation/operator_transform/transform_conv_bwd_weight_to_gemm.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_bwd_weight_to_gemm_v2.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_bwd_weight_v3.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
@@ -221,12 +220,12 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     // TODO make A/B datatype different
     using ABDataType = InDataType;
 
-    static inline constexpr auto I0 = Number<0>{};
-    static inline constexpr auto I1 = Number<1>{};
-    static inline constexpr auto I2 = Number<2>{};
-    static inline constexpr auto I3 = Number<3>{};
-    static inline constexpr auto I4 = Number<4>{};
-    static inline constexpr auto I5 = Number<5>{};
+    static inline auto I0 = Number<0>{};
+    static inline auto I1 = Number<1>{};
+    static inline auto I2 = Number<2>{};
+    static inline auto I3 = Number<3>{};
+    static inline auto I4 = Number<4>{};
+    static inline auto I5 = Number<5>{};
 
     static constexpr GemmSpecialization GemmSpec = GemmSpecialization::Default;
     static constexpr auto K1Number               = Number<K1>{};
@@ -1235,21 +1234,10 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
             }
         }
 
-        if(!(arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0 &&
-             arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0))
-        {
-            if(!(arg.Conv_K_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideA_ == 1))
-            {
-                return false;
-            }
-            if(!(arg.Conv_C_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideB_ == 1))
-            {
-                return false;
-            }
-        }
-
         // vector load A/B matrix from global memory
-        if(!(ABlockTransferSrcVectorDim == 1 && BBlockTransferSrcVectorDim == 1))
+        if(!(ABlockTransferSrcVectorDim == 2 && BBlockTransferSrcVectorDim == 2 &&
+             arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0 &&
+             arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0))
         {
             return false;
         }

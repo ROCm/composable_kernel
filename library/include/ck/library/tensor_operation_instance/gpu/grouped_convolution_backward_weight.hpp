@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -329,13 +329,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                              is_same_v<OutDataType, float> && is_same_v<ComputeTypeA, float> &&
                              is_same_v<ComputeTypeB, float>)
                 {
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_default_pipev2_instances(
+                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_default_pipev1_instances(
                         op_ptrs);
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_default_pipev5_instances(
-                        op_ptrs);
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_pad0_pipev2_instances(
-                        op_ptrs);
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_pad0_pipev5_instances(
+                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_pad0_pipev1_instances(
                         op_ptrs);
                 }
 #endif
@@ -344,13 +340,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                              is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
                              is_same_v<ComputeTypeB, half_t>)
                 {
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_default_pipev2_instances(
+                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_default_pipev1_instances(
                         op_ptrs);
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_default_pipev5_instances(
-                        op_ptrs);
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_pad0_pipev2_instances(
-                        op_ptrs);
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_pad0_pipev2_instances(
+                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_pad0_pipev1_instances(
                         op_ptrs);
                 }
 #endif
@@ -360,13 +352,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                              is_same_v<ComputeTypeA, ck::bhalf_t> &&
                              is_same_v<ComputeTypeB, ck::bhalf_t>)
                 {
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_default_pipev2_instances(
+                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_default_pipev1_instances(
                         op_ptrs);
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_default_pipev5_instances(
-                        op_ptrs);
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_pad0_pipev2_instances(
-                        op_ptrs);
-                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_pad0_pipev5_instances(
+                    add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_pad0_pipev1_instances(
                         op_ptrs);
                 }
 #endif

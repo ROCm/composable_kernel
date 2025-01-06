@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_instance.hpp"
@@ -10,7 +10,7 @@ namespace device {
 namespace instance {
 
 // Compilation parameters for in[g, n, hi, wi, c] * wei[g, k, y, x, c] = out[g, n, ho, wo, k]
-void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_default_pipev5_instances(
+void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_default_pipev1_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            GNHWC,
                                                            GKYXC,
@@ -30,7 +30,7 @@ void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_default_pipe
                                        GNHWK,
                                        ConvBwdWeightDefault,
                                        BlockGemmPipelineScheduler::Intrawave,
-                                       BlockGemmPipelineVersion::v5>{});
+                                       BlockGemmPipelineVersion::v1>{});
 }
 } // namespace instance
 } // namespace device
