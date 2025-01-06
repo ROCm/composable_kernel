@@ -24,6 +24,17 @@ using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
 
+// custom data type - pack int4 data
+struct pk_i4_t
+{
+    using type = int8_t;
+    type data;
+    __host__ __device__ constexpr pk_i4_t() : data{type{}} {}
+    __host__ __device__ constexpr pk_i4_t(type init) : data{init} {}
+
+    __host__ __device__ constexpr operator float() const { return static_cast<int8_t>(data); }
+};
+
 inline constexpr auto next_pow2(uint32_t x)
 {
     // Precondition: x > 1.
@@ -176,6 +187,13 @@ struct scalar_type<int4_t>
     static constexpr index_t vector_size = 1;
 };
 #endif
+
+template <>
+struct scalar_type<pk_i4_t>
+{
+    using type                           = pk_i4_t;
+    static constexpr index_t vector_size = 1;
+};
 
 template <>
 struct scalar_type<f8_fnuz_t>
@@ -1056,6 +1074,12 @@ struct nnvb_data_t_selector<bf8_ocp_t>
     using type = bf8_ocp_t::data_type;
 };
 
+template <>
+struct nnvb_data_t_selector<pk_i4_t>
+{
+    using type = pk_i4_t::type;
+};
+
 template <typename T, index_t N>
 struct non_native_vector_base<
     T,
@@ -1171,6 +1195,14 @@ template <index_t N>
 struct scalar_type<non_native_vector_base<bf8_ocp_t, N>>
 {
     using type = typename non_native_vector_base<bf8_ocp_t, N>::data_t;
+
+    static constexpr index_t vector_size = N;
+};
+
+template <index_t N>
+struct scalar_type<non_native_vector_base<pk_i4_t, N>>
+{
+    using type = typename non_native_vector_base<pk_i4_t, N>::data_t;
 
     static constexpr index_t vector_size = N;
 };
@@ -1882,6 +1914,11 @@ using uint8x8_t  = typename vector_type<uint8_t, 8>::type;
 using uint8x16_t = typename vector_type<uint8_t, 16>::type;
 using uint8x32_t = typename vector_type<uint8_t, 32>::type;
 using uint8x64_t = typename vector_type<uint8_t, 64>::type;
+  
+// pack int4
+using pk_i4x2_t = typename vector_type<pk_i4_t, 2>::type;
+using pk_i4x4_t = typename vector_type<pk_i4_t, 4>::type;
+using pk_i4x8_t = typename vector_type<pk_i4_t, 8>::type;
 
 #ifdef CK_CODE_GEN_RTC
 template <typename T>

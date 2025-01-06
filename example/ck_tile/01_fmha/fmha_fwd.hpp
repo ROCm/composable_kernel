@@ -16,11 +16,35 @@
 #include <utility>
 #include <variant>
 
+struct FmhaFwdFp16
+{
+};
+
+struct FmhaFwdBf16
+{
+};
+
+struct FmhaFwdFp8
+{
+};
+
+struct FmhaFwdBf8
+{
+};
+
+struct FmhaFwdFp8Fp16
+{
+};
+
+struct FmhaFwdFp8Bf16
+{
+};
+
 template <typename DataType>
 struct FmhaFwdTypeConfig;
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::half_t>
+struct FmhaFwdTypeConfig<FmhaFwdFp16>
 {
     using QDataType             = ck_tile::half_t;
     using KDataType             = ck_tile::half_t;
@@ -36,7 +60,7 @@ struct FmhaFwdTypeConfig<ck_tile::half_t>
 };
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::bf16_t>
+struct FmhaFwdTypeConfig<FmhaFwdBf16>
 {
     using QDataType             = ck_tile::bf16_t;
     using KDataType             = ck_tile::bf16_t;
@@ -52,7 +76,7 @@ struct FmhaFwdTypeConfig<ck_tile::bf16_t>
 };
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::fp8_t>
+struct FmhaFwdTypeConfig<FmhaFwdFp8>
 {
     using QDataType             = ck_tile::fp8_t;
     using KDataType             = ck_tile::fp8_t;
@@ -68,7 +92,7 @@ struct FmhaFwdTypeConfig<ck_tile::fp8_t>
 };
 
 template <>
-struct FmhaFwdTypeConfig<ck_tile::bf8_t>
+struct FmhaFwdTypeConfig<FmhaFwdBf8>
 {
     using QDataType             = ck_tile::bf8_t;
     using KDataType             = ck_tile::bf8_t;
@@ -376,8 +400,18 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
         }
     }();
 
-    dim3 grids = FmhaKernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v);
-    return ck_tile::make_tuple(kargs, grids);
+    if constexpr(FmhaKernel::kIsGroupMode)
+    {
+        dim3 grids = FmhaKernel::GridSize(
+            args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, args.seqlen_k_ptr != nullptr);
+        return ck_tile::make_tuple(kargs, grids);
+    }
+    else
+    {
+        dim3 grids =
+            FmhaKernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, false);
+        return ck_tile::make_tuple(kargs, grids);
+    }
 }
 
 template <typename Kernel>
@@ -685,7 +719,6 @@ std::string fmha_fwd_splitkv_get_name_();
 template <ck_tile::index_t HDim_,
           typename DataType_,
           bool kIsGroupMode_,
-          ck_tile::index_t kM0_,
           ck_tile::index_t kN1_,
           bool kStoreLse_,
           bool kDoFp8StaticQuant_,
@@ -696,7 +729,6 @@ struct fmha_fwd_splitkv_combine_traits_
     static constexpr ck_tile::index_t HDim  = HDim_;
     using DataType                          = ck_tile::remove_cvref_t<DataType_>;
     static constexpr bool kIsGroupMode      = kIsGroupMode_;
-    static constexpr ck_tile::index_t kM0   = kM0_;
     static constexpr ck_tile::index_t kN1   = kN1_;
     static constexpr bool kStoreLse         = kStoreLse_;
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;

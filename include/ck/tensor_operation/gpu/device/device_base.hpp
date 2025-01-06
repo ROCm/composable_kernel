@@ -6,12 +6,44 @@
 #ifndef CK_CODE_GEN_RTC
 #include <string>
 #include <sstream>
+#include <regex>
+#include <optional>
 #include "ck/stream_config.hpp"
 #endif
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
+
+#ifndef CK_CODE_GEN_RTC
+#define GET_OBJECT_NAME_IMLP                                                  \
+    std::optional<std::string> GetObjectName() const override                 \
+    {                                                                         \
+        std::string str = __PRETTY_FUNCTION__;                                \
+        static std::regex obj_name_expr{"<std::string> (.*)::GetObjectName"}; \
+        std::smatch match;                                                    \
+        if(!std::regex_search(str, match, obj_name_expr))                     \
+        {                                                                     \
+            return str;                                                       \
+        }                                                                     \
+        return std::string(match[1]) + ';';                                   \
+    }
+
+#define GET_TEMPLATE_INFO_IMPL                                  \
+    std::optional<std::string> GetTemplateInfo() const override \
+    {                                                           \
+        std::string str = __PRETTY_FUNCTION__;                  \
+        static std::regex template_expr{"\\[(.*)\\]"};          \
+        std::smatch match;                                      \
+        if(!std::regex_search(str, match, template_expr))       \
+        {                                                       \
+            return std::nullopt;                                \
+        }                                                       \
+        return std::string(match[1]);                           \
+    }
+
+#define REGISTER_EXTRA_PRINTING_METHODS GET_OBJECT_NAME_IMLP GET_TEMPLATE_INFO_IMPL
+#endif
 
 #ifndef CK_CODE_GEN_RTC
 struct BaseArgument
@@ -50,6 +82,10 @@ struct BaseOperator
     virtual std::string GetTypeString() const { return ""; }
 
     virtual std::string GetTypeIdName() const { return typeid(*this).name(); }
+
+    virtual std::optional<std::string> GetObjectName() const { return std::nullopt; }
+
+    virtual std::optional<std::string> GetTemplateInfo() const { return std::nullopt; }
 
     virtual std::string GetTypeIdHashCode() const
     {
