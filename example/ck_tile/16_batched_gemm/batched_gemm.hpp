@@ -49,7 +49,8 @@ auto create_args(int argc, char* argv[])
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer");
+        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
+        .insert("split_k", "1", "splitK value");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
