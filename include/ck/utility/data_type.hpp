@@ -1883,23 +1883,9 @@ using uint8x16_t = typename vector_type<uint8_t, 16>::type;
 using uint8x32_t = typename vector_type<uint8_t, 32>::type;
 using uint8x64_t = typename vector_type<uint8_t, 64>::type;
 
+#ifdef CK_CODE_GEN_RTC
 template <typename T>
 struct NumericLimits;
-
-#ifndef CK_CODE_GEN_RTC
-template <typename T>
-struct NumericLimits
-{
-    __host__ __device__ static constexpr T Min() { return std::numeric_limits<T>::min(); }
-    __host__ __device__ static constexpr T Max() { return std::numeric_limits<T>::max(); }
-    __host__ __device__ static constexpr T Lowest() { return std::numeric_limits<T>::lowest(); }
-    __host__ __device__ static constexpr T QuietNaN()
-    {
-        return std::numeric_limits<T>::quiet_NaN();
-    }
-    __host__ __device__ static constexpr T Infinity() { return std::numeric_limits<T>::infinity(); }
-};
-#endif
 
 template <>
 struct NumericLimits<int32_t>
@@ -2110,6 +2096,141 @@ struct NumericLimits<bf8_ocp_t>
         return bit_cast<bf8_ocp_t>(binary_qnan);
     }
 };
+#else
+template <typename T>
+struct NumericLimits
+{
+    __host__ __device__ static constexpr T Min() { return std::numeric_limits<T>::min(); }
+    __host__ __device__ static constexpr T Max() { return std::numeric_limits<T>::max(); }
+    __host__ __device__ static constexpr T Lowest() { return std::numeric_limits<T>::lowest(); }
+    __host__ __device__ static constexpr T QuietNaN()
+    {
+        return std::numeric_limits<T>::quiet_NaN();
+    }
+    __host__ __device__ static constexpr T Infinity() { return std::numeric_limits<T>::infinity(); }
+};
+
+template <>
+struct NumericLimits<half_t>
+{
+    static constexpr unsigned short binary_min    = 0x0400;
+    static constexpr unsigned short binary_max    = 0x7BFF;
+    static constexpr unsigned short binary_lowest = 0xFBFF;
+    static constexpr unsigned short binary_qnan   = 0x7FFF;
+
+    __host__ __device__ static constexpr half_t Min() { return bit_cast<half_t>(binary_min); }
+
+    __host__ __device__ static constexpr half_t Max() { return bit_cast<half_t>(binary_max); }
+
+    __host__ __device__ static constexpr half_t Lowest() { return bit_cast<half_t>(binary_lowest); }
+
+    __host__ __device__ static constexpr half_t QuietNaN() { return bit_cast<half_t>(binary_qnan); }
+};
+
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+template <>
+struct NumericLimits<int4_t>
+{
+    __host__ __device__ static constexpr int4_t Min() { return int4_t(-8); }
+
+    __host__ __device__ static constexpr int4_t Max() { return int4_t(7); }
+
+    __host__ __device__ static constexpr int4_t Lowest() { return int4_t(-8); }
+};
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+
+template <>
+struct NumericLimits<f8_fnuz_t>
+{
+    // negative zero nan mode with exp bias = 8
+    static constexpr uint8_t binary_min    = 0x08; // 0b00001000
+    static constexpr uint8_t binary_max    = 0x7F; // 0b01111111
+    static constexpr uint8_t binary_lowest = 0xFF; // 0b11111111
+    static constexpr uint8_t binary_qnan   = 0x80; // 0b10000000
+    // ieee mode with exp bias = 7
+    // static constexpr uint8_t binary_min    = 0x08; // 0b00001000
+    // static constexpr uint8_t binary_max    = 0x77; // 0b01110111
+    // static constexpr uint8_t binary_lowest = 0xF7; // 0b11110111
+    // static constexpr uint8_t binary_qnan   = 0x79; // any sign, exp=1111, mant!=0
+
+    __host__ __device__ static constexpr f8_fnuz_t Min() { return f8_fnuz_t(binary_min); }
+
+    __host__ __device__ static constexpr f8_fnuz_t Max() { return f8_fnuz_t(binary_max); }
+
+    __host__ __device__ static constexpr f8_fnuz_t Lowest() { return f8_fnuz_t(binary_lowest); }
+
+    __host__ __device__ static constexpr f8_fnuz_t QuietNaN() { return f8_fnuz_t(binary_qnan); }
+};
+
+template <>
+struct NumericLimits<bf8_fnuz_t>
+{
+    // negative zero nan mode with exp bias = 16
+    static constexpr uint8_t binary_min    = 0x04; // 0b00000100
+    static constexpr uint8_t binary_max    = 0x7F; // 0b01111111
+    static constexpr uint8_t binary_lowest = 0xFF; // 0b11111111
+    static constexpr uint8_t binary_qnan   = 0x80; // 0b10000000
+    // ieee mode with exp bias = 15
+    // static constexpr uint8_t binary_min    = 0x04; // 0b00000100
+    // static constexpr uint8_t binary_max    = 0x7B; // 0b01111011
+    // static constexpr uint8_t binary_lowest = 0xFB; // 0b11111011
+    // static constexpr uint8_t binary_qnan   = 0x79; // any sign, exp=1111, mant!=
+
+    __host__ __device__ static constexpr bf8_fnuz_t Min() { return bf8_fnuz_t(binary_min); }
+
+    __host__ __device__ static constexpr bf8_fnuz_t Max() { return bf8_fnuz_t(binary_max); }
+
+    __host__ __device__ static constexpr bf8_fnuz_t Lowest() { return bf8_fnuz_t(binary_lowest); }
+
+    __host__ __device__ static constexpr bf8_fnuz_t QuietNaN() { return bf8_fnuz_t(binary_qnan); }
+};
+
+template <>
+struct NumericLimits<f8_ocp_t>
+{
+    static constexpr uint8_t binary_min    = 0x08; // 0b00001000 = 2^-6
+    static constexpr uint8_t binary_max    = 0x7E; // 0b01111110 = 448
+    static constexpr uint8_t binary_lowest = 0xFE; // 0b11111110 = -448
+    static constexpr uint8_t binary_qnan   = 0x7F; // 0b01111111
+
+    __host__ __device__ static constexpr f8_ocp_t Min() { return bit_cast<f8_ocp_t>(binary_min); }
+
+    __host__ __device__ static constexpr f8_ocp_t Max() { return bit_cast<f8_ocp_t>(binary_max); }
+
+    __host__ __device__ static constexpr f8_ocp_t Lowest()
+    {
+        return bit_cast<f8_ocp_t>(binary_lowest);
+    }
+
+    __host__ __device__ static constexpr f8_ocp_t QuietNaN()
+    {
+        return bit_cast<f8_ocp_t>(binary_qnan);
+    }
+};
+
+template <>
+struct NumericLimits<bf8_ocp_t>
+{
+    static constexpr uint8_t binary_min    = 0x04; // 0b00000100 = 2^-14
+    static constexpr uint8_t binary_max    = 0x7B; // 0b01111011 = 57344
+    static constexpr uint8_t binary_lowest = 0xFB; // 0b11111011 = -57344
+    static constexpr uint8_t binary_qnan   = 0x7D; // 0b01111101
+
+    __host__ __device__ static constexpr bf8_ocp_t Min() { return bit_cast<bf8_ocp_t>(binary_min); }
+
+    __host__ __device__ static constexpr bf8_ocp_t Max() { return bit_cast<bf8_ocp_t>(binary_max); }
+
+    __host__ __device__ static constexpr bf8_ocp_t Lowest()
+    {
+        return bit_cast<bf8_ocp_t>(binary_lowest);
+    }
+
+    __host__ __device__ static constexpr bf8_ocp_t QuietNaN()
+    {
+        return bit_cast<bf8_ocp_t>(binary_qnan);
+    }
+};
+#endif
 
 template <typename T>
 struct NumericUtils
