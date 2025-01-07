@@ -7,7 +7,7 @@
 
 namespace ck_tile {
 
-enum class Layernorm2dBiasEnum
+enum class Layernorm2dXBiasEnum
 {
     NO_BIAS = 0,
     // add bias before fused add
@@ -15,9 +15,9 @@ enum class Layernorm2dBiasEnum
 };
 
 // clang-format off
-template<Layernorm2dBiasEnum> struct Layernorm2dBiasEnumName;
-template<> struct Layernorm2dBiasEnumName<Layernorm2dBiasEnum::NO_BIAS> { static constexpr const char * name = "no"; };
-template<> struct Layernorm2dBiasEnumName<Layernorm2dBiasEnum::ADD_BIAS> { static constexpr const char * name = "bias"; };
+template<Layernorm2dXBiasEnum> struct Layernorm2dXBiasEnumName;
+template<> struct Layernorm2dXBiasEnumName<Layernorm2dXBiasEnum::NO_BIAS> { static constexpr const char * name = "no"; };
+template<> struct Layernorm2dXBiasEnumName<Layernorm2dXBiasEnum::ADD_BIAS> { static constexpr const char * name = "xbias"; };
 // clang-format on
 
 enum class Layernorm2dFusedAddEnum
@@ -55,7 +55,7 @@ template <bool kPadN_,
           bool kFastFDiv_,
           bool kWelford_,
           bool kTwoPass_,
-          Layernorm2dBiasEnum kBias_,
+          Layernorm2dXBiasEnum kXbias_,
           Layernorm2dFusedAddEnum kFusedAdd_,
           Layernorm2dFusedQuantEnum kFusedQuant_>
 struct Layernorm2dFwdTraits
@@ -65,7 +65,7 @@ struct Layernorm2dFwdTraits
     static constexpr bool kFastFDiv                        = kFastFDiv_;
     static constexpr bool kWelford                         = kWelford_;
     static constexpr bool kTwoPass                         = kTwoPass_;
-    static constexpr Layernorm2dBiasEnum kBias             = kBias_;
+    static constexpr Layernorm2dXBiasEnum kXbias           = kXbias_;
     static constexpr Layernorm2dFusedAddEnum kFusedAdd     = kFusedAdd_;
     static constexpr Layernorm2dFusedQuantEnum kFusedQuant = kFusedQuant_;
 };

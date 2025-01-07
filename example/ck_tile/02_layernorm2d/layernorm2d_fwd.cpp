@@ -41,7 +41,7 @@ auto create_args(int argc, char* argv[])
         .insert("prec_sy",
                 "auto",
                 "output quant scale type, set auto will use fp32. used when fquant=1 or 2")
-        .insert("bias", "0", "add bias, 0:no add, 1:add bias before fadd")
+        .insert("xbias", "0", "add bias, 0:no add, 1:add bias before fadd")
         .insert("fadd", "0", "fused-add, 0:no fused add, 1:preadd+store, 2:preadd only")
         .insert("fquant", "0", "fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant")
         .insert("warmup", "5", "cold iter")
@@ -94,7 +94,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int do_validation = arg_parser.get_int("v");
     int warmup        = arg_parser.get_int("warmup");
     int repeat        = arg_parser.get_int("repeat");
-    int bias          = arg_parser.get_int("bias");
+    int xbias         = arg_parser.get_int("xbias");
     int fused_add     = arg_parser.get_int("fadd");
     int fused_quant   = arg_parser.get_int("fquant");
     if(fused_quant == 1 && prec_o != "int8")
@@ -186,7 +186,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << ", yr_stride:" << yr_stride << std::flush;
 
     layernorm2d_fwd_traits traits{
-        prec_i, prec_o, prec_sx, prec_sy, SaveMeanVar, bias, fused_add, fused_quant};
+        prec_i, prec_o, prec_sx, prec_sy, SaveMeanVar, xbias, fused_add, fused_quant};
 
     layernorm2d_fwd_args args{x_buf.GetDeviceBuffer(),
                               fused_add != 0 ? x_residual_buf.GetDeviceBuffer() : nullptr,
@@ -230,7 +230,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(do_validation)
     {
         // reference
-        if(bias != 0)
+        if(xbias != 0)
         {
             // add bias before fadd
             int M = x_host.mDesc.get_lengths()[0];

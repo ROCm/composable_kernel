@@ -59,7 +59,7 @@ struct layernorm2d_fwd_traits
     std::string prec_sy; // y-scale, used for [M*1] output for next layer
 
     bool save_mean_var; //
-    int bias;           // 0:no-bias, 1:add bias
+    int xbias;          // 0:no-bias, 1:add bias
     int fused_add;      // 0:no-add, 1:pre-add-store, 2:pre-add
     int fused_quant;    // 0:no-sweep, 1:smooth-dynamic-quant, 2:dynamic-quant
 };

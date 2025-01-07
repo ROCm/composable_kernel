@@ -69,7 +69,7 @@ struct Layernorm2dFwd
     static constexpr bool kPadM       = false; // always no need to pad along M
     static constexpr bool kPadN       = Problem::Traits::kPadN;
     static constexpr bool kTwoPass    = Problem::Traits::kTwoPass;
-    static constexpr auto kBias       = Problem::Traits::kBias;
+    static constexpr auto kXbias      = Problem::Traits::kXbias;
     static constexpr auto kFusedAdd   = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant = Problem::Traits::kFusedQuant;
 
@@ -157,7 +157,7 @@ struct Layernorm2dFwd
         using S_ = typename Problem::BlockShape;
         auto surfix = [&] () {
             std::string n;
-            if (kBias != Layernorm2dBiasEnum::NO_BIAS) n += _SS_("_") + Layernorm2dBiasEnumName<kBias>::name;
+            if (kXbias != Layernorm2dXBiasEnum::NO_BIAS) n += _SS_("_") + Layernorm2dXBiasEnumName<kXbias>::name;
             if (kFusedAdd != Layernorm2dFusedAddEnum::NO_ADD) n += _SS_("_") + Layernorm2dFusedAddEnumName<kFusedAdd>::name;
             if (kFusedQuant != Layernorm2dFusedQuantEnum::NO_SWEEP) n += _SS_("_") + Layernorm2dFusedQuantEnumName<kFusedQuant>::name;
             if (kPadN) n += "_pn";
@@ -235,7 +235,7 @@ struct Layernorm2dFwd
         }();
 
         const auto x_bias_window = [&]() {
-            if constexpr(kBias == Layernorm2dBiasEnum::ADD_BIAS)
+            if constexpr(kXbias == Layernorm2dXBiasEnum::ADD_BIAS)
             {
                 const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                     static_cast<const XBiasDataType*>(kargs.p_x_bias),

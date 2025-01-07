@@ -39,7 +39,7 @@ struct Layernorm2dFwdPipelineOnePass
     static constexpr bool kPadN              = Problem::Traits::kPadN;
     static constexpr bool kFastFDiv          = Problem::Traits::kFastFDiv;
     static constexpr bool kWelford           = Problem::Traits::kWelford;
-    static constexpr auto kBias              = Problem::Traits::kBias;
+    static constexpr auto kXbias             = Problem::Traits::kXbias;
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
@@ -119,7 +119,7 @@ struct Layernorm2dFwdPipelineOnePass
 
         auto acc = cast_tile<ComputeDataType>(x);
 
-        if constexpr(kBias == Layernorm2dBiasEnum::ADD_BIAS)
+        if constexpr(kXbias == Layernorm2dXBiasEnum::ADD_BIAS)
         {
             sweep_tile(x, [&](auto idx) {
                 // compute x = bias + x
