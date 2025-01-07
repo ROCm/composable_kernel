@@ -62,8 +62,11 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     static constexpr auto I6  = Number<6>{};
     static constexpr auto I7  = Number<7>{};
     static constexpr auto I8  = Number<8>{};
+    static constexpr auto I10 = Number<10>{};
     static constexpr auto I12 = Number<12>{};
     static constexpr auto I13 = Number<13>{};
+    static constexpr auto I14 = Number<14>{};
+    static constexpr auto I16 = Number<16>{};
 
     static constexpr index_t PackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
@@ -208,9 +211,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, is_src_valid);
 
-            using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
-            using src_vector_t    = typename src_vector_type::type;
-
             using dst_vector_type = vector_type_maker_t<DstData, SrcScalarPerVector>;
             using dst_vector_t    = typename dst_vector_type::type;
             dst_vector_type op_r_v;
@@ -244,126 +244,63 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             using src_elem_op_vec_t = typename vector_type<SrcData, elem_op_vec_len>::type;
             using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
 
-            // Special vector size cases
-            if constexpr(SrcScalarPerVector == I3)
-            {
-                static_assert(elem_op_vec_len == 1 && PackedSize == 1);
-                using src_vector_v2   = vector_type_maker_t<SrcData, I2>;
-                using src_vector_v2_t = typename src_vector_v2::type;
+            using VectorSizeLookupTable    = Tuple<Sequence<>,
+                                                Sequence<I1>,
+                                                Sequence<I2>,
+                                                Sequence<I2, I1>,
+                                                Sequence<I4>,
+                                                Sequence<I4, I1>,
+                                                Sequence<I4, I2>,
+                                                Sequence<I4, I2, I1>,
+                                                Sequence<I8>,
+                                                Sequence<I8, I1>,
+                                                Sequence<I8, I2>,
+                                                Sequence<I8, I2, I1>,
+                                                Sequence<I8, I4>,
+                                                Sequence<I8, I4, I1>,
+                                                Sequence<I8, I4, I2>,
+                                                Sequence<I8, I4, I2, I1>,
+                                                Sequence<I16>>;
+            using VectorOffsetsLookupTable = Tuple<Sequence<>,
+                                                   Sequence<I0>,
+                                                   Sequence<I0>,
+                                                   Sequence<I0, I2>,
+                                                   Sequence<I0>,
+                                                   Sequence<I0, I4>,
+                                                   Sequence<I0, I4>,
+                                                   Sequence<I0, I4, I6>,
+                                                   Sequence<I0>,
+                                                   Sequence<I0, I8>,
+                                                   Sequence<I0, I8>,
+                                                   Sequence<I0, I8, I10>,
+                                                   Sequence<I0, I8>,
+                                                   Sequence<I0, I8, I12>,
+                                                   Sequence<I0, I8, I12>,
+                                                   Sequence<I0, I8, I12, I14>,
+                                                   Sequence<I0>>;
 
-                src_vector_v2 src_vector_container_v2 = src_vector_v2{
-                    src_buf.template Get<src_vector_v2_t>(src_coord_.GetOffset(), true)};
-                SrcData src_tail =
-                    SrcData{src_buf.template Get<SrcData>(src_coord_.GetOffset() + I2, true)};
+            static_for<0, VectorSizeLookupTable{}.At(SrcScalarPerVector).Size(), 1>{}(
+                [&](auto v_idx) {
+                    constexpr auto VectorLoadSize =
+                        VectorSizeLookupTable{}.At(SrcScalarPerVector).At(v_idx);
+                    constexpr auto LoadOffset =
+                        VectorOffsetsLookupTable{}.At(SrcScalarPerVector).At(v_idx);
 
-                static_for<0, SrcScalarPerVector - I1, 1>{}([&](auto idx) {
-                    // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(
-                        op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                        src_vector_container_v2.template AsType<src_elem_op_vec_t>()[idx]);
+                    using src_vector_container   = vector_type_maker_t<SrcData, VectorLoadSize>;
+                    using src_vector_container_t = typename src_vector_container::type;
+
+                    src_vector_container src_vector =
+                        src_vector_container{src_buf.template Get<src_vector_container_t>(
+                            src_coord_.GetOffset() / PackedSize + LoadOffset, true)};
+
+                    static_for<0, VectorLoadSize / elem_op_vec_len, 1>{}([&](auto idx) {
+                        // apply the src elementwise op and convert to DstData under the hood if
+                        // needed
+                        src_element_op_(
+                            op_r_v.template AsType<dst_elem_op_vec_t>()(idx + LoadOffset),
+                            src_vector.template AsType<src_elem_op_vec_t>()[idx]);
+                    });
                 });
-                // tail
-                src_element_op_(
-                    op_r_v.template AsType<dst_elem_op_vec_t>()(Number<SrcScalarPerVector - I1>{}),
-                    src_tail);
-            }
-            else if constexpr(SrcScalarPerVector == I5)
-            {
-                static_assert(elem_op_vec_len == 1 && PackedSize == 1);
-                using src_vector_v4   = vector_type_maker_t<SrcData, I4>;
-                using src_vector_v4_t = typename src_vector_v4::type;
-
-                src_vector_v4 src_vector_container_v4 = src_vector_v4{
-                    src_buf.template Get<src_vector_v4_t>(src_coord_.GetOffset(), true)};
-                SrcData src_tail =
-                    SrcData{src_buf.template Get<SrcData>(src_coord_.GetOffset() + I4, true)};
-
-                static_for<0, SrcScalarPerVector - I1, 1>{}([&](auto idx) {
-                    // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(
-                        op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                        src_vector_container_v4.template AsType<src_elem_op_vec_t>()[idx]);
-                });
-                // tail
-                src_element_op_(
-                    op_r_v.template AsType<dst_elem_op_vec_t>()(Number<SrcScalarPerVector - I1>{}),
-                    src_tail);
-            }
-            else if constexpr(SrcScalarPerVector == I7)
-            {
-                static_assert(elem_op_vec_len == 1 && PackedSize == 1);
-                using src_vector_v4   = vector_type_maker_t<SrcData, I4>;
-                using src_vector_v4_t = typename src_vector_v4::type;
-                using src_vector_v2   = vector_type_maker_t<SrcData, I2>;
-                using src_vector_v2_t = typename src_vector_v2::type;
-
-                src_vector_v4 src_vector_container_v4 = src_vector_v4{
-                    src_buf.template Get<src_vector_v4_t>(src_coord_.GetOffset(), true)};
-                src_vector_v2 src_vector_container_v2 = src_vector_v2{
-                    src_buf.template Get<src_vector_v2_t>(src_coord_.GetOffset() + I4, true)};
-                SrcData src_tail =
-                    SrcData{src_buf.template Get<SrcData>(src_coord_.GetOffset() + I6, true)};
-
-                static_for<0, I4, 1>{}([&](auto idx) {
-                    // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(
-                        op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                        src_vector_container_v4.template AsType<src_elem_op_vec_t>()[idx]);
-                });
-                static_for<I4, SrcScalarPerVector - I1, 1>{}([&](auto idx) {
-                    // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(
-                        op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                        src_vector_container_v2.template AsType<src_elem_op_vec_t>()[idx - I4]);
-                });
-                // tail
-                src_element_op_(
-                    op_r_v.template AsType<dst_elem_op_vec_t>()(Number<SrcScalarPerVector - I1>{}),
-                    src_tail);
-            }
-            else if constexpr(SrcScalarPerVector == I13)
-            {
-                static_assert(elem_op_vec_len == 1 && PackedSize == 1);
-                using src_vector_v8   = vector_type_maker_t<SrcData, I8>;
-                using src_vector_v8_t = typename src_vector_v8::type;
-                using src_vector_v4   = vector_type_maker_t<SrcData, I4>;
-                using src_vector_v4_t = typename src_vector_v4::type;
-
-                src_vector_v8 src_vector_container_v8 = src_vector_v8{
-                    src_buf.template Get<src_vector_v8_t>(src_coord_.GetOffset(), true)};
-                src_vector_v4 src_vector_container_v4 = src_vector_v4{
-                    src_buf.template Get<src_vector_v4_t>(src_coord_.GetOffset() + I8, true)};
-                SrcData src_tail =
-                    SrcData{src_buf.template Get<SrcData>(src_coord_.GetOffset() + I12, true)};
-
-                static_for<0, I8, 1>{}([&](auto idx) {
-                    // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(
-                        op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                        src_vector_container_v8.template AsType<src_elem_op_vec_t>()[idx]);
-                });
-                static_for<I8, SrcScalarPerVector - I1, 1>{}([&](auto idx) {
-                    // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(
-                        op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                        src_vector_container_v4.template AsType<src_elem_op_vec_t>()[idx - I8]);
-                });
-                // tail
-                src_element_op_(
-                    op_r_v.template AsType<dst_elem_op_vec_t>()(Number<SrcScalarPerVector - I1>{}),
-                    src_tail);
-            }
-            else
-            {
-                auto src_vector_container = src_vector_type{
-                    src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize, true)};
-
-                static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto idx) {
-                    // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                                    src_vector_container.template AsType<src_elem_op_vec_t>()[idx]);
-                });
-            }
 
             // copy data from src_vector_container into src_thread_scratch_
             src_thread_scratch_tuple_(thread_scratch_id)

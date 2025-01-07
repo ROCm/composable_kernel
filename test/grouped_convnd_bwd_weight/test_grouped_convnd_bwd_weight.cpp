@@ -43,14 +43,6 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 return true;
             }
         }
-        if constexpr(std::is_same_v<InLayout, NHWGC> || std::is_same_v<InLayout, NDHWGC>)
-        {
-            // To avoid accuracy error (due to accumulation on bf16)
-            if(split_k != 1)
-            {
-                return true;
-            }
-        }
         if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
             // on gfx11 only support for 3d is implemented
