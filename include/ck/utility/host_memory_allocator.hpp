@@ -128,7 +128,9 @@ namespace memory {
                     std::cout << "[ DynamicMemPool ] Creating new pool queue for size " << sizeInBytes << std::endl;
                 }
 #endif
-                memory_pool_[sizeInBytes].push(p);
+                std::queue<void*> q;
+                q.push(p);
+                memory_pool_.insert({sizeInBytes, std::move(q)});
                 memPoolSizeInBytes_ += sizeInBytes;
             }
 #ifdef ENABLE_MEM_POOL_LOGGING
@@ -230,7 +232,7 @@ namespace memory {
             else {
                 std::queue<void*> q;
                 q.push(p);
-                memory_pool_[sizeInBytes] = std::move(q);
+                memory_pool_.insert({sizeInBytes, std::move(q)});
 #ifdef ENABLE_MEM_POOL_LOGGING
                 if (enableLogging_)
                 {
