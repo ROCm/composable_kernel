@@ -219,21 +219,25 @@ namespace memory {
             if (memory_pool_.find(sizeInBytes) != memory_pool_.end())
             {
                 memory_pool_[sizeInBytes].push(p);
+#ifdef ENABLE_MEM_POOL_LOGGING
                 if (enableLogging_)
                 {
                     std::cout << "[ StaticMemPool ] Deallocate: Added memory to back to pool for size " << sizeInBytes << 
                         ", pool has now " << memory_pool_[sizeInBytes].size() << " elements." << std::endl;
                 }
+#endif
             }
             else {
                 std::queue<void*> q;
                 q.push(p);
                 memory_pool_[sizeInBytes] = std::move(q);
+#ifdef ENABLE_MEM_POOL_LOGGING
                 if (enableLogging_)
                 {
                     std::cout << "[ StaticMemPool ] Deallocate: Created new pool for size " << sizeInBytes << 
                         ", pool has now " << memory_pool_[sizeInBytes].size() << " elements." << std::endl;
                 }
+#endif
             }
         }
 
@@ -285,12 +289,14 @@ namespace memory {
             // Return new memory from the preallocated block
             void* p = pinnedMemoryBaseAddress_.top() + offsetInBytes_;
             offsetInBytes_ += sizeInBytes;
+#ifdef ENABLE_MEM_POOL_LOGGING
             if (enableLogging_)
             {
                 const auto pct = 100.0f * static_cast<float>(offsetInBytes_) / memoryPoolSizeInBytes_;
                 std::cout << "[ StaticMemPool ] Allocation: Return new memory of " << sizeInBytes << 
                     " bytes, pinned host memory usage: " << pct << "%." << std::endl;
             }
+#endif
             return p;
         }
 
@@ -301,11 +307,13 @@ namespace memory {
                 // If there is a memory pool for the requested size, return memory from the pool.
                 void* p = memory_pool_[sizeInBytes].front();
                 memory_pool_[sizeInBytes].pop();
+#ifdef ENABLE_MEM_POOL_LOGGING
                 if (enableLogging_)
                 {
                     std::cout << "[ StaticMemPool ] Allocation: Reusing memory from pool for size " << sizeInBytes << 
                         ", pool has now " << memory_pool_[sizeInBytes].size() << " elements." << std::endl;
                 }
+#endif
                 return p;
             }
             
@@ -323,12 +331,14 @@ namespace memory {
             {
                 void* p = memory_pool_[nearest_queue_size].front();
                 memory_pool_[nearest_queue_size].pop();
+#ifdef ENABLE_MEM_POOL_LOGGING
                 if (enableLogging_)
                 {
                     std::cout << "[ StaticMemPool ] Allocation: Reusing memory from pool for size " << nearest_queue_size << 
                         " to allocate " << sizeInBytes << " bytes, pool has " << memory_pool_[nearest_queue_size].size() << " elements." <<
                         std::endl;
                 }
+#endif
                 return p;
             }
 
