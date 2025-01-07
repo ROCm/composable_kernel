@@ -29,6 +29,7 @@ struct static_distributed_tensor
         remove_cvref_t<decltype(StaticTileDistribution{}.get_ys_to_d_descriptor())>;
 
     static constexpr index_t kThreadElementSpaceSize = ThreadTensorDesc{}.get_element_space_size();
+    static_assert(0 < kThreadElementSpaceSize, "Make sure tile distribution is valid");
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_dimension()
     {
@@ -186,5 +187,45 @@ set_tile_if(static_distributed_tensor<DataType, StaticTileDistribution>& out_ten
         });
     });
 }
+
+// this function used inside span loop over
+template <typename YLengths, index_t XUnpacks>
+CK_TILE_HOST_DEVICE constexpr auto get_y_unpacks_from_x_unpacks(YLengths, number<XUnpacks>)
+{
+    constexpr auto y_size  = reduce_on_sequence(YLengths{}, multiplies{}, number<1>{});
+    constexpr auto y_packs = number<XUnpacks>{};
+    static_assert(y_size % y_packs == 0);
+    constexpr auto y_slice_size = y_size / y_packs;
+
+    constexpr auto slice_info = slice_sequence(YLengths{}, number<y_slice_size>{});
+    constexpr auto unpacks    = slice_info[number<1>{}];
+    return unpacks;
+}
+
+namespace detail {
+
+// check if 2 static_distributed_tensor has same data type and size of element
+// but only difference in distribution
+template <typename X, typename Y>
+struct is_similiar_distributed_tensor
+{
+    static constexpr bool value = false;
+};
+
+template <typename TypeX, typename DistX, typename TypeY, typename DistY>
+struct is_similiar_distributed_tensor<static_distributed_tensor<TypeX, DistX>,
+                                      static_distributed_tensor<TypeY, DistY>>
+{
+    using Tx                    = static_distributed_tensor<TypeX, DistX>;
+    using Ty                    = static_distributed_tensor<TypeY, DistY>;
+    static constexpr bool value = std::is_same_v<typename Tx::DataType, typename Ty::DataType> &&
+                                  Tx::get_thread_buffer_size() == Ty::get_thread_buffer_size();
+};
+
+template <typename X, typename Y>
+inline constexpr bool is_similiar_distributed_tensor_v =
+    is_similiar_distributed_tensor<X, Y>::value;
+
+} // namespace detail
 
 } // namespace ck_tile

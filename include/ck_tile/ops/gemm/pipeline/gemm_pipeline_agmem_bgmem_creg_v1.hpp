@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,27 +19,27 @@ struct GemmPipelineAGmemBGmemCRegV1
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
+    using ALayout = remove_cvref_t<typename Problem::ALayout>;
+    using BLayout = remove_cvref_t<typename Problem::BLayout>;
+    using CLayout = remove_cvref_t<typename Problem::CLayout>;
+
+    static constexpr index_t BlockSize = Problem::kBlockSize;
 
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t AlignmentA = Problem::AlignmentA;
-    static constexpr index_t AlignmentB = Problem::AlignmentB;
-    static constexpr index_t AlignmentC = Problem::AlignmentC;
+    static constexpr index_t VectorSizeA = Problem::VectorSizeA;
+    static constexpr index_t VectorSizeB = Problem::VectorSizeB;
+    static constexpr index_t VectorSizeC = Problem::VectorSizeC;
 
-    static constexpr bool kPadA = Problem::kPadA;
-    static constexpr bool kPadB = Problem::kPadB;
-    static constexpr bool kPadC = Problem::kPadC;
+    static constexpr bool kPadM = Problem::kPadM;
+    static constexpr bool kPadN = Problem::kPadN;
+    static constexpr bool kPadK = Problem::kPadK;
 
-    using LayoutA = remove_cvref_t<typename Problem::LayoutA>;
-    using LayoutB = remove_cvref_t<typename Problem::LayoutB>;
-    using LayoutC = remove_cvref_t<typename Problem::LayoutC>;
-
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     {
-        return ck_tile::integer_divide_ceil(
+        return integer_divide_ceil(
                    sizeof(ADataType) *
                        Policy::template MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
                    16) *
@@ -48,10 +48,12 @@ struct GemmPipelineAGmemBGmemCRegV1
                    Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
     }
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
     }
+
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return Policy::IsTransposeC(); }
 
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,
@@ -101,11 +103,8 @@ struct GemmPipelineAGmemBGmemCRegV1
                              Policy::template MakeADramTileDistribution<Problem>());
 
         // A LDS tile window for store
-        auto a_copy_lds_window =
-            make_tile_window(a_lds_block,
-                             make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                             {0, 0},
-                             a_copy_dram_window.get_tile_distribution());
+        auto a_copy_lds_window = make_tile_window(
+            a_lds_block, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
 
         // B DRAM tile window for load
         auto b_copy_dram_window =
@@ -115,11 +114,8 @@ struct GemmPipelineAGmemBGmemCRegV1
                              Policy::template MakeBDramTileDistribution<Problem>());
 
         // B LDS tile window for store
-        auto b_copy_lds_window =
-            make_tile_window(b_lds_block,
-                             make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
-                             {0, 0},
-                             b_copy_dram_window.get_tile_distribution());
+        auto b_copy_lds_window = make_tile_window(
+            b_lds_block, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0});
 
         // A LDS tile for block GEMM
         auto a_lds_gemm_window = make_tile_window(
@@ -130,7 +126,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             b_lds_block, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0});
 
         // Block GEMM
-        constexpr auto block_gemm = Policy::template GetBlockGemm<Problem>();
+        auto block_gemm = Policy::template GetBlockGemm<Problem>();
 
         // Acc register tile
         auto c_block_tile = decltype(block_gemm(a_lds_gemm_window, b_lds_gemm_window)){};
@@ -149,12 +145,32 @@ struct GemmPipelineAGmemBGmemCRegV1
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
             // LDS write 0
-            const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
-            store_tile(a_copy_lds_window, a_block_tile_tmp);
+            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>)
+            {
+                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                    Policy::template MakeShuffledARegBlockDescriptor<Problem>());
+                shuffle_tile(a_shuffle_tmp, a_block_tile);
+                const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_shuffle_tmp);
+                store_tile(a_copy_lds_window, a_block_tile_tmp);
+            }
+            else
+            {
+                store_tile(a_copy_lds_window, tile_elementwise_in(a_element_func, a_block_tile));
+            }
 
             // LDS write 0
-            const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
-            store_tile(b_copy_lds_window, b_block_tile_tmp);
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+            {
+                auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                    Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
+                shuffle_tile(b_shuffle_tmp, b_block_tile);
+                const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_shuffle_tmp);
+                store_tile(b_copy_lds_window, b_block_tile_tmp);
+            }
+            else
+            {
+                store_tile(b_copy_lds_window, tile_elementwise_in(b_element_func, b_block_tile));
+            }
         }
 
         index_t iCounter = num_loop - 1;
@@ -180,8 +196,19 @@ struct GemmPipelineAGmemBGmemCRegV1
             store_tile(a_copy_lds_window, a_block_tile_tmp);
 
             // LDS write i + 1
-            const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
-            store_tile(b_copy_lds_window, b_block_tile_tmp);
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+            {
+                auto b_shuffle_tmp_loop = make_static_distributed_tensor<BDataType>(
+                    Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
+                shuffle_tile(b_shuffle_tmp_loop, b_block_tile);
+                store_tile(b_copy_lds_window,
+                           tile_elementwise_in(b_element_func, b_shuffle_tmp_loop));
+            }
+            else
+            {
+                const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
+                store_tile(b_copy_lds_window, b_block_tile_tmp);
+            }
 
             iCounter--;
         }
