@@ -64,10 +64,9 @@ struct GemmTile1DPartitioner
         return integer_divide_ceil(K, KPerBlock);
     }
 
-    template <typename TType>
     CK_TILE_DEVICE auto constexpr
     operator()(index_t blockIdx, index_t NBlockSize) noexcept(noexcept(GetNBlock(NBlockSize) != 0))
-        -> const tuple<TType, TType>
+        -> const tuple<index_t, index_t>
     {
         const index_t NBlock = GetNBlock(NBlockSize);
 
@@ -78,9 +77,8 @@ struct GemmTile1DPartitioner
     }
 
     private:
-    template <typename TType>
-    CK_TILE_DEVICE auto modulo(const TType input, const TType ceil) noexcept(noexcept(ceil != 0))
-        -> std::enable_if_t<std::numeric_limits<TType>::is_integer, TType>
+    CK_TILE_DEVICE auto constexpr modulo(index_t input, index_t ceil) noexcept(noexcept(ceil != 0))
+        -> index_t
     {
         return input >= ceil ? input - (input / ceil) * ceil : input;
     }
@@ -89,16 +87,15 @@ struct GemmTile1DPartitioner
 template <typename PartitionerFn>
 struct InvokeOffsetCallculationFor1DPartitioner
 {
-    template <typename TType>
-    CK_TILE_DEVICE constexpr auto operator()(TType block_start, TType NBlockSize)
-        -> const std::enable_if_t<std::numeric_limits<TType>::is_integer, tuple<TType, TType>>
+    CK_TILE_DEVICE constexpr auto operator()(index_t block_start, index_t NBlockSize)
+        -> const tuple<index_t, index_t>
     {
         const auto [iM, iN]       = PartitionerFn{}(blockIdx.x - block_start, NBlockSize);
         const auto iM_to_img_corr = iM * PartitionerFn::MPerBlock;
         const auto iN_to_img_corr = iN * PartitionerFn::NPerBlock;
 
-        const TType i_m = __builtin_amdgcn_readfirstlane(iM_to_img_corr);
-        const TType i_n = __builtin_amdgcn_readfirstlane(iN_to_img_corr);
+        const index_t i_m = __builtin_amdgcn_readfirstlane(iM_to_img_corr);
+        const index_t i_n = __builtin_amdgcn_readfirstlane(iN_to_img_corr);
 
         return make_tuple(i_m, i_n);
     }
