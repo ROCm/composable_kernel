@@ -1,9 +1,10 @@
 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <ck_tile/core.hpp>
 #include "rmsnorm2d_fwd.hpp"
+#include <ck_tile/ops/epilogue.hpp>
 #include <iostream>
 
 #pragma once
@@ -121,10 +122,11 @@ using trait_ = rmsnorm2d_fwd_traits_<XDataType_,
 template <typename Traits_>
 float rmsnorm2d_fwd_(const S& s, A a)
 {
-    using XDataType      = typename Traits_::XDataType;
-    using YDataType      = typename Traits_::YDataType;
-    using XScaleDataType = typename Traits_::XScaleDataType;
-    using YScaleDataType = typename Traits_::YScaleDataType;
+    using XDataType       = typename Traits_::XDataType;
+    using YDataType       = typename Traits_::YDataType;
+    using XScaleDataType  = typename Traits_::XScaleDataType;
+    using YScaleDataType  = typename Traits_::YScaleDataType;
+    using ComputeDataType = typename RmsnormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::ComputeDataType;
 
     using PipelineTraits =
         ck_tile::Rmsnorm2dFwdTraits<Traits_::kPadN,
@@ -148,7 +150,18 @@ float rmsnorm2d_fwd_(const S& s, A a)
     using TwoPassPipeline = ck_tile::Rmsnorm2dFwdPipelineTwoPass<PipelineProblem>;
     using Pipeline        = std::conditional_t<Traits_::kTwoPass, TwoPassPipeline, OnePassPipeline>;
 
-    using Kernel = ck_tile::Rmsnorm2dFwd<Pipeline>;
+    using Default2DEpilogueProblem = ck_tile::Default2DEpilogueProblem<ComputeDataType, YDataType, false, Traits_::kPadN, false>;
+    using Default2DEpilogue = ck_tile::Default2DEpilogue<Default2DEpilogueProblem>;
+
+    static constexpr bool UseSmoothInputScale = Traits_::kFusedQuant == 1;
+    using DynamicQuantEpilogueProblem = ck_tile::DynamicQuantEpilogueProblem<ComputeDataType, XScaleDataType, YScaleDataType, YDataType, typename Traits_::Shape,
+            ck_tile::DynamicQuantEpilogueTraits<false, Traits_::kPadN, UseSmoothInputScale, false,  true/*max3*/>>;
+
+    using DynamicQuantEpilogue = ck_tile::DynamicQuantEpilogue<DynamicQuantEpilogueProblem>;
+
+    using Epilogue = std::conditional_t<Traits_::kFusedQuant == 1, DynamicQuantEpilogue,  Default2DEpilogue>;
+
+    using Kernel = ck_tile::Rmsnorm2dFwd<Pipeline, Epilogue>;
 
     const dim3 grids                       = Kernel::GridSize(a);
     constexpr dim3 blocks                  = Kernel::BlockSize();

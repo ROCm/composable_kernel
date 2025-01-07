@@ -33,10 +33,11 @@ struct Rmsnorm2dFwdHostArgs
 };
 
 // TODO: Extract some type to wrapper class
-template <typename Pipeline_>
+template <typename Pipeline_, typename Epilogue_>
 struct Rmsnorm2dFwd
 {
     using Pipeline = remove_cvref_t<Pipeline_>;
+    using Epilogue = remove_cvref_t<Epilogue_>;
     using Problem  = typename Pipeline::Problem;
 
     using XDataType       = remove_cvref_t<typename Problem::XDataType>;
@@ -314,7 +315,8 @@ struct Rmsnorm2dFwd
                    y_scale_window,
                    static_cast<const ComputeDataType>(kargs.epsilon),
                    kargs.n,
-                   smem);
+                   smem,
+                   Epilogue{});
     }
 };
 

@@ -53,18 +53,20 @@ struct Rmsnorm2dFwdPipelineOnePass
               typename YResidualWindow,
               typename InvRmsWindow,
               typename XScaleWindow,
-              typename YScaleWindow>
+              typename YScaleWindow,
+              typename Epilogue>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
                                    const XResidualWindow& x_residual_window_,
                                    const GammaWindow& gamma_window_,
-                                   YWindow& y_window,
+                                   YWindow& y_window_,
                                    const YResidualWindow& y_residual_window_,
                                    InvRmsWindow& inv_rms_window,
-                                   const XScaleWindow& /*x_scale_window_*/,
-                                   YScaleWindow& /*y_scale_window*/,
+                                   const XScaleWindow& x_scale_window_,
+                                   YScaleWindow& y_scale_window_,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
-                                   void* smem) const
+                                   void* smem,
+                                   Epilogue) const
     {
         const auto x_window =
             make_tile_window(x_window_, Policy::template MakeXBlockTileDistribution<Problem>());
@@ -132,7 +134,16 @@ struct Rmsnorm2dFwdPipelineOnePass
 
             y(idx) = type_convert<YDataType>(y_);
         });
-        store_tile(y_window, y);
+
+        if constexpr (kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT ||
+                      kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
+        {
+            Epilogue{}(y_window_, x_scale_window_, y_scale_window_, y, smem);
+        }
+        else
+        {
+            Epilogue{}(y_window_, y);
+        }
     }
 };
 } // namespace ck_tile
