@@ -10,13 +10,13 @@ float invoke_gemm(int n_warmup,
                   const std::vector<grouped_gemm_kargs>& args)
 {
 
-    ck_tile::DeviceMem gemm_workspace;
+    DeviceMem gemm_workspace;
     gemm_workspace.Realloc(get_workspace_size(args));
 
-    float ave_time = grouped_gemm<ALayout, BLayout, CLayout>(
-        args,
-        ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
-        gemm_workspace.GetDeviceBuffer());
+    float ave_time =
+        grouped_gemm<ALayout, BLayout, CLayout>(args,
+                                                stream_config{nullptr, true, 1, n_warmup, n_repeat},
+                                                gemm_workspace.GetDeviceBuffer());
 
     std::string op_name{"Grouped Gemm"};
 
@@ -61,12 +61,12 @@ int run_grouped_gemm_example_with_layouts(int argc,
     const int repeat      = arg_parser.get_int("repeat");
     const int warmup      = arg_parser.get_int("warmup");
 
-    std::vector<ck_tile::index_t> Ms        = arg_parser.get_int_vec("Ms");
-    std::vector<ck_tile::index_t> Ns        = arg_parser.get_int_vec("Ns");
-    std::vector<ck_tile::index_t> Ks        = arg_parser.get_int_vec("Ks");
-    std::vector<ck_tile::index_t> stride_As = arg_parser.get_int_vec("stride_As");
-    std::vector<ck_tile::index_t> stride_Bs = arg_parser.get_int_vec("stride_Bs");
-    std::vector<ck_tile::index_t> stride_Cs = arg_parser.get_int_vec("stride_Cs");
+    std::vector<index_t> Ms        = arg_parser.get_int_vec("Ms");
+    std::vector<index_t> Ns        = arg_parser.get_int_vec("Ns");
+    std::vector<index_t> Ks        = arg_parser.get_int_vec("Ks");
+    std::vector<index_t> stride_As = arg_parser.get_int_vec("stride_As");
+    std::vector<index_t> stride_Bs = arg_parser.get_int_vec("stride_Bs");
+    std::vector<index_t> stride_Cs = arg_parser.get_int_vec("stride_Cs");
 
     if(!valid_input_data(group_count, Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs))
     {
@@ -83,17 +83,17 @@ int run_grouped_gemm_example_with_layouts(int argc,
         }
     }
 
-    std::vector<ck_tile::HostTensor<ADataType>> a_m_k_tensors;
-    std::vector<ck_tile::HostTensor<BDataType>> b_k_n_tensors;
-    std::vector<ck_tile::HostTensor<CDataType>> c_m_n_tensors;
+    std::vector<HostTensor<ADataType>> a_m_k_tensors;
+    std::vector<HostTensor<BDataType>> b_k_n_tensors;
+    std::vector<HostTensor<CDataType>> c_m_n_tensors;
 
     a_m_k_tensors.reserve(group_count);
     b_k_n_tensors.reserve(group_count);
     c_m_n_tensors.reserve(group_count);
 
-    std::vector<std::unique_ptr<ck_tile::DeviceMem>> a_m_k_dev_buf;
-    std::vector<std::unique_ptr<ck_tile::DeviceMem>> b_k_n_dev_buf;
-    std::vector<std::unique_ptr<ck_tile::DeviceMem>> c_m_n_dev_buf;
+    std::vector<std::unique_ptr<DeviceMem>> a_m_k_dev_buf;
+    std::vector<std::unique_ptr<DeviceMem>> b_k_n_dev_buf;
+    std::vector<std::unique_ptr<DeviceMem>> c_m_n_dev_buf;
 
     a_m_k_dev_buf.reserve(group_count);
     b_k_n_dev_buf.reserve(group_count);
@@ -104,34 +104,34 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
     for(int i = 0; i < group_count; ++i)
     {
-        const ck_tile::index_t M = Ms[i];
-        const ck_tile::index_t N = Ns[i];
-        const ck_tile::index_t K = Ks[i];
+        const index_t M = Ms[i];
+        const index_t N = Ns[i];
+        const index_t K = Ks[i];
 
-        stride_As[i] = ck_tile::get_default_stride(M, N, stride_As[i], a_layout);
-        stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], b_layout);
-        stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], CLayout{});
+        stride_As[i] = get_default_stride(M, N, stride_As[i], a_layout);
+        stride_Bs[i] = get_default_stride(K, N, stride_Bs[i], b_layout);
+        stride_Cs[i] = get_default_stride(M, N, stride_Cs[i], CLayout{});
 
-        a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
-            ck_tile::host_tensor_descriptor(M, K, stride_As[i], a_layout)));
-        b_k_n_tensors.push_back(ck_tile::HostTensor<BDataType>(
-            ck_tile::host_tensor_descriptor(K, N, stride_Bs[i], b_layout)));
-        c_m_n_tensors.push_back(ck_tile::HostTensor<CDataType>(
-            ck_tile::host_tensor_descriptor(M, N, stride_Cs[i], CLayout{})));
+        a_m_k_tensors.push_back(
+            HostTensor<ADataType>(host_tensor_descriptor(M, K, stride_As[i], a_layout)));
+        b_k_n_tensors.push_back(
+            HostTensor<BDataType>(host_tensor_descriptor(K, N, stride_Bs[i], b_layout)));
+        c_m_n_tensors.push_back(
+            HostTensor<CDataType>(host_tensor_descriptor(M, N, stride_Cs[i], CLayout{})));
 
         std::cout << "gemm[" << i << "]"
                   << " a_m_k: " << a_m_k_tensors[i].mDesc << " b_k_n: " << b_k_n_tensors[i].mDesc
                   << " c_m_n: " << c_m_n_tensors[i].mDesc << std::endl;
 
-        ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k_tensors[i]);
-        ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n_tensors[i]);
+        FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k_tensors[i]);
+        FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n_tensors[i]);
 
-        a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
-            a_m_k_tensors[i].get_element_space_size_in_bytes()));
-        b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
-            b_k_n_tensors[i].get_element_space_size_in_bytes()));
-        c_m_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
-            c_m_n_tensors[i].get_element_space_size_in_bytes()));
+        a_m_k_dev_buf.push_back(
+            std::make_unique<DeviceMem>(a_m_k_tensors[i].get_element_space_size_in_bytes()));
+        b_k_n_dev_buf.push_back(
+            std::make_unique<DeviceMem>(b_k_n_tensors[i].get_element_space_size_in_bytes()));
+        c_m_n_dev_buf.push_back(
+            std::make_unique<DeviceMem>(c_m_n_tensors[i].get_element_space_size_in_bytes()));
 
         a_m_k_dev_buf[i]->ToDevice(a_m_k_tensors[i].data());
         b_k_n_dev_buf[i]->ToDevice(b_k_n_tensors[i].data());
@@ -157,12 +157,12 @@ int run_grouped_gemm_example_with_layouts(int argc,
     {
         for(int i = 0; i < group_count; ++i)
         {
-            ck_tile::HostTensor<CDataType> c_m_n_host_ref(
-                ck_tile::host_tensor_descriptor(Ms[i], Ns[i], stride_Cs[i], CLayout{}));
+            HostTensor<CDataType> c_m_n_host_ref(
+                host_tensor_descriptor(Ms[i], Ns[i], stride_Cs[i], CLayout{}));
             c_m_n_host_ref.SetZero();
-            ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+            reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
                 a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
-            pass &= ck_tile::check_err(c_m_n_tensors[i], c_m_n_host_ref);
+            pass &= check_err(c_m_n_tensors[i], c_m_n_host_ref);
         }
         std::cout << "The CPU veification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
@@ -181,8 +181,8 @@ int run_grouped_gemm_example(int argc, char* argv[])
     const std::string a_layout = arg_parser.get_str("a_layout");
     const std::string b_layout = arg_parser.get_str("b_layout");
 
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using Row = tensor_layout::gemm::RowMajor;
+    using Col = tensor_layout::gemm::ColumnMajor;
 
     if(a_layout == "R" && b_layout == "C")
     {
