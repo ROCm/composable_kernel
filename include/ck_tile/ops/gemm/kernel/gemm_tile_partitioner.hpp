@@ -64,9 +64,10 @@ struct GemmTile1DPartitioner
         return integer_divide_ceil(K, KPerBlock);
     }
 
-    CK_TILE_DEVICE auto
+    template <typename TType>
+    CK_TILE_DEVICE auto constexpr
     operator()(index_t blockIdx, index_t NBlockSize) noexcept(noexcept(GetNBlock(NBlockSize) != 0))
-        -> tuple<index_t, index_t>
+        -> const tuple<TType, TType>
     {
         const index_t NBlock = GetNBlock(NBlockSize);
 
