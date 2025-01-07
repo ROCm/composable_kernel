@@ -36,7 +36,7 @@ struct BatchedTransposeProblem
     static constexpr index_t kMWarpPerBlock = kMPerBlock / kMPerWarp;
     static constexpr index_t kNWarpPerBlock = kNPerBlock / kNPerWarp;
 
-    static constexpr index_t kBlockSize = 256;
+    static constexpr index_t kBlockSize = kMThreadPerWarp * kNThreadPerWarp * kMWarpPerBlock * kNWarpPerBlock;
 
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
