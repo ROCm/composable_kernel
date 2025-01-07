@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,10 +9,10 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_b_scale.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/gemm_universal.hpp"
+#include "ck/library/tensor_operation_instance/gpu/gemm_b_scale.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -26,26 +26,28 @@ namespace profiler {
 
 template <typename ADataType,
           typename BDataType,
+          typename BScaleDataType,
           typename ComputeDataType,
           typename AccDataType,
           typename CDataType,
+          index_t ScaleBlockK,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool profile_gemm_universal_impl(int do_verification,
-                                 int init_method,
-                                 bool do_log,
-                                 bool time_kernel,
-                                 int M,
-                                 int N,
-                                 int K,
-                                 int StrideA,
-                                 int StrideB,
-                                 int StrideC,
-                                 int KBatch,
-                                 int n_warmup,
-                                 int n_iter,
-                                 uint64_t rotating = 0)
+bool profile_gemm_b_scale_impl(int do_verification,
+                               int init_method,
+                               bool do_log,
+                               bool time_kernel,
+                               int M,
+                               int N,
+                               int K,
+                               int StrideA,
+                               int StrideB,
+                               int StrideC,
+                               int KBatch,
+                               int n_warmup,
+                               int n_iter,
+                               uint64_t rotating = 0)
 {
     bool pass = true;
 
@@ -63,14 +65,25 @@ bool profile_gemm_universal_impl(int do_verification,
             }
         };
 
+    ck::index_t Scale_Stride_BN = ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>
+                                      ? ((K + ScaleBlockK - 1) / ScaleBlockK)
+                                      : N;
+
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<BDataType> b_k_n_permute(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<BScaleDataType> b1_k_n(f_host_tensor_descriptor(
+        (K + ScaleBlockK - 1) / ScaleBlockK, // K direction group size is ScaleBlockK
+        N,                                   // N direction group size is 1
+        Scale_Stride_BN,
+        BLayout{}));
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
-    std::size_t total_gemm_needed =
-        a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes();
+    int total_gemm_needed = a_m_k.GetElementSpaceSizeInBytes() +
+                            b_k_n.GetElementSpaceSizeInBytes() +
+                            b1_k_n.GetElementSpaceSizeInBytes();
+
     int rotating_count = std::max(
         1,
         std::min(n_iter,
@@ -78,6 +91,7 @@ bool profile_gemm_universal_impl(int do_verification,
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
+    std::cout << "b1_k_n: " << b1_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_device_result.mDesc << std::endl;
     std::cout << "rotating count: " << rotating_count << std::endl;
 
@@ -87,14 +101,17 @@ bool profile_gemm_universal_impl(int do_verification,
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_3<BScaleDataType>{0, 1.0});
         break;
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_3<BScaleDataType>{0, 1.0});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_3<BScaleDataType>{0, 1.0});
     }
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -107,19 +124,24 @@ bool profile_gemm_universal_impl(int do_verification,
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
+    DeviceMem b1_device_buf(sizeof(BScaleDataType) * b1_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
+    b1_device_buf.ToDevice(b1_k_n.mData.data());
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGemmV2<ALayout,
-                                                                BLayout,
-                                                                CLayout,
-                                                                ADataType,
-                                                                BDataType,
-                                                                CDataType,
-                                                                AElementOp,
-                                                                BElementOp,
-                                                                CElementOp>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGemmV2BScale<ALayout,
+                                                                      BLayout,
+                                                                      CLayout,
+                                                                      ADataType,
+                                                                      BDataType,
+                                                                      BScaleDataType,
+                                                                      CDataType,
+                                                                      1,
+                                                                      ScaleBlockK,
+                                                                      AElementOp,
+                                                                      BElementOp,
+                                                                      CElementOp>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -130,6 +152,26 @@ bool profile_gemm_universal_impl(int do_verification,
     // Run reference GEMM
     if(do_verification)
     {
+        Tensor<float> b_k_n_dequant({K, N});
+
+        float v_b = 0;
+        for(int n = 0; n < N; n++)
+        {
+            for(int k = 0; k < K; k++)
+            {
+                ck::pk_i4_t i4x2 = b_k_n(k, n).data;
+                int8_t i4        = 0;
+                if(k % 2 == 1)
+                    i4 = (i4x2.data >> 0) & 0xf;
+                else
+                    i4 = (i4x2.data >> 4) & 0xf;
+                i4  = i4 - 8;
+                v_b = ck::type_convert<float>(i4);
+
+                b_k_n_dequant(k, n) = ck::type_convert<float>(v_b) *
+                                      ck::type_convert<float>(b1_k_n(k / ScaleBlockK, n));
+            }
+        }
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                                 BDataType,
                                                                                 CDataType,
@@ -143,13 +185,12 @@ bool profile_gemm_universal_impl(int do_verification,
         auto ref_invoker = ref_gemm.MakeInvoker();
 
         auto ref_argument = ref_gemm.MakeArgument(
-            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+            a_m_k, b_k_n_dequant, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
         ref_invoker.Run(ref_argument);
     }
 
     std::string best_op_name;
-    std::optional<std::string> best_op_object_name;
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
@@ -177,7 +218,7 @@ bool profile_gemm_universal_impl(int do_verification,
                 }
             }
 
-            if constexpr(is_same_v<BDataType, pk_i4_t> && is_same_v<ADataType, half_t>)
+            if(is_same_v<BDataType, pk_i4_t> && is_same_v<ADataType, half_t>)
             {
                 // vector pk_i4x4 permute
                 for(int i = 0; i < N; i++)
@@ -247,20 +288,22 @@ bool profile_gemm_universal_impl(int do_verification,
         {
             auto kbatch_curr = kbatch_list[i];
 
-            auto argument_ptr =
-                op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                            M,
-                                            N,
-                                            K,
-                                            StrideA,
-                                            StrideB,
-                                            StrideC,
-                                            kbatch_curr,
-                                            a_element_op,
-                                            b_element_op,
-                                            c_element_op);
+            auto argument_ptr = op_ptr->MakeArgumentPointer(
+                static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                M,
+                N,
+                K,
+                StrideA,
+                StrideB,
+                StrideC,
+                Scale_Stride_BN,
+                static_cast<BScaleDataType*>(b1_device_buf.GetDeviceBuffer()),
+                kbatch_curr,
+                a_element_op,
+                b_element_op,
+                c_element_op);
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -299,7 +342,7 @@ bool profile_gemm_universal_impl(int do_verification,
                     if(do_log)
                     {
                         LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-                        LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
+                        LogRangeAsType<int8_t>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
                         LogRangeAsType<float>(
                             std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
                             << std::endl;
@@ -309,8 +352,7 @@ bool profile_gemm_universal_impl(int do_verification,
                     }
                 }
 
-                std::string op_name                    = op_ptr->GetTypeString();
-                std::optional<std::string> op_obj_name = op_ptr->GetObjectName();
+                std::string op_name = op_ptr->GetTypeString();
 
                 float ave_time = invoker_ptr->Run(argument_ptr.get(),
                                                   StreamConfig{nullptr,
@@ -344,12 +386,11 @@ bool profile_gemm_universal_impl(int do_verification,
 
                 if(tflops > best_tflops && ave_time > 1e-10)
                 {
-                    best_op_name        = op_name;
-                    best_op_object_name = op_obj_name;
-                    best_tflops         = tflops;
-                    best_ave_time       = ave_time;
-                    best_gb_per_sec     = gb_per_sec;
-                    best_kbatch         = kbatch_curr;
+                    best_op_name    = op_name;
+                    best_tflops     = tflops;
+                    best_ave_time   = ave_time;
+                    best_gb_per_sec = gb_per_sec;
+                    best_kbatch     = kbatch_curr;
                 }
             }
             else
@@ -399,9 +440,6 @@ bool profile_gemm_universal_impl(int do_verification,
               << " StrideB = " << StrideB << " StrideC = " << StrideC << " KBatch = " << best_kbatch
               << " : " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
               << " GB/s, " << best_op_name << std::endl;
-
-    if(best_op_object_name)
-        std::cout << best_op_object_name.value() << std::endl;
 
     return pass;
 }
