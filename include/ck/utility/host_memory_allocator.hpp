@@ -38,21 +38,23 @@ namespace memory {
             maxPoolSizeInBytes_(maxPoolSizeInBytes)
         {
             if (enableLogging_)
+            {
                 std::cout << "[ DynamicMemPool ] Created memory pool for process " << pid_ << std::endl;
+            }
         }
 
         ~DynamicMemPool() override
         {
-            if (enableLogging_)
-                std::cout << "[ DynamicMemPool ] Deleting pool for process " << pid_ << "..."<< std::endl;
-
-            for (auto& [size, q] : memory_pool_)
+            // Get keys of the map and clear the memory pool queue for each key.
+            for (auto& [size, _] : memory_pool_)
             {
-                clearMemoryPoolQueue(q);
+                clearMemoryPoolQueue(size);
             }
 
             if (enableLogging_)
+            {
                 std::cout << "[ DynamicMemPool ] Deleted pool for process " << pid_ << std::endl;
+            }  
         }
 
         void* allocate(std::size_t sizeInBytes) override
@@ -61,25 +63,34 @@ namespace memory {
             // If there is a memory pool for the requested size, return the memory from the pool.
             if (memory_pool_.find(sizeInBytes) != memory_pool_.end() && !memory_pool_[sizeInBytes].empty())
             {
+
+#ifdef ENABLE_MEM_POOL_LOGGING            
                 if (enableLogging_)
                 {
                     std::cout << "[ DynamicMemPool ] Reusing memory from pool for size " << sizeInBytes << std::endl;
                 }
+#endif
+                
                 void* p = memory_pool_[sizeInBytes].front();
                 memory_pool_[sizeInBytes].pop();
                 memPoolSizeInBytes_ -= sizeInBytes;
 
+#ifdef ENABLE_MEM_POOL_LOGGING
                 if (enableLogging_)
                 {
                     std::cout << "[ DynamicMemPool ] Total memory in pool: " << memPoolSizeInBytes_ << std::endl;
                 }
+#endif
                 return p;
             }
 
+#ifdef ENABLE_MEM_POOL_LOGGING
             if (enableLogging_)
             {
                 std::cout << "[ DynamicMemPool ] Allocating new memory for size " << sizeInBytes << std::endl;
             }
+#endif
+
             void* p;
             constexpr unsigned flags = hipDeviceScheduleYield; //hipDeviceScheduleSpin doesn not work, leads to freezing.
             hip_check_error(hipHostMalloc(&p, sizeInBytes, flags));
@@ -91,12 +102,13 @@ namespace memory {
             std::lock_guard<std::mutex> lock(mutex_);
             if (memory_pool_.find(sizeInBytes) != memory_pool_.end())
             {
+#ifdef ENABLE_MEM_POOL_LOGGING
                 if (enableLogging_)
                 {
                     std::cout << "[ DynamicMemPool ] Adding memory to pool for size " << sizeInBytes << std::endl;
                 }
-                auto& q = memory_pool_[sizeInBytes];
-                q.push(p);
+#endif
+                memory_pool_[sizeInBytes].push(p);
                 memPoolSizeInBytes_ += sizeInBytes;
                 // If the memory pool size exceeds the maximum size, free the memory.
                 if (memPoolSizeInBytes_ > maxPoolSizeInBytes_)
@@ -105,34 +117,36 @@ namespace memory {
                     {
                         std::cout << "[ DynamicMemPool ] Clearing pool queue for size " << sizeInBytes << std::endl;
                     }
-                    memPoolSizeInBytes_ -= sizeInBytes * q.size();
-                    clearMemoryPoolQueue(q);
+                    memPoolSizeInBytes_ -= sizeInBytes * memory_pool_[sizeInBytes].size();
+                    clearMemoryPoolQueue(sizeInBytes);
                 }
             }
             else {
+#ifdef ENABLE_MEM_POOL_LOGGING
                 if (enableLogging_)
                 {
                     std::cout << "[ DynamicMemPool ] Creating new pool queue for size " << sizeInBytes << std::endl;
                 }
-                std::queue<void*> q;
-                q.push(p);
-                memory_pool_.insert(std::make_pair(sizeInBytes, std::move(q)));
+#endif
+                memory_pool_[sizeInBytes].push(p);
                 memPoolSizeInBytes_ += sizeInBytes;
             }
+#ifdef ENABLE_MEM_POOL_LOGGING
             if (enableLogging_)
             {
                 std::cout << "[ DynamicMemPool ] Total memory in pool: " << memPoolSizeInBytes_ << std::endl;
             }
+#endif
         }
     private:
-        constexpr static size_t defaultMaxMemoryPoolSizeInBytes_ = 100 * 1024 * 1024; // 100MB
+        constexpr static size_t defaultMaxMemoryPoolSizeInBytes_ = 10 * 1024 * 1024; // 10MB
 
-        static void clearMemoryPoolQueue(std::queue<void*>& q)
+        void clearMemoryPoolQueue(size_t sizeInBytes)
         {
-            while (!q.empty())
+            while (!memory_pool_[sizeInBytes].empty())
             {
-                void* p = q.front();
-                q.pop(); 
+                void* p = memory_pool_[sizeInBytes].front();
+                memory_pool_[sizeInBytes].pop(); 
                 hip_check_error(hipHostFree(p));
             }
         }
