@@ -72,7 +72,7 @@ struct FlatmmSn_32x256x512_1x4x1_16x16x64_Base
 struct FlatmmSn_32x256x512_1x4x1_16x16x64_int8 : public FlatmmSn_32x256x512_1x4x1_16x16x64_Base
 {
     using BDataType = int8_t;
-    using ODataType = int8_t;
+    using ODataType = bf16_t;
     using DScaleDataType = float_t;
 
     // TODO: need paired with tile_window_linear!

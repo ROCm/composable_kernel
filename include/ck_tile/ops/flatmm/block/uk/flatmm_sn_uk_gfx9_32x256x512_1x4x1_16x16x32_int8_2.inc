@@ -205,7 +205,7 @@
 "  v_mfma_i32_16x16x32_i8  v[220:223], acc[124:125], v[188:189], v[220:223]  \n"
 "  v_mfma_i32_16x16x32_i8  v[220:223], acc[126:127], v[190:191], v[220:223]  \n"
 "  s_add_u32     s60, 0x00000200, s80                   \n"
-"  s_cmp_lt_u32  s60, s81                               \n"
+"  s_cmp_lt_u32  s60, %[s_loop_cnt]                              \n"
 "  s_cselect_b32  %[s_tile_os_b], %[s_tile_os_b], 0                           \n"
 "  s_cselect_b32  %[s_tile_os_b_half], %[s_tile_os_b_half], 0                           \n"
 "  s_cselect_b32  %[s_tile_os_dq], %[s_tile_os_dq], 0                           \n"
@@ -528,10 +528,10 @@
 "  s_mov_b64     exec, %[s_execflag_7]                         \n"
 "  global_atomic_pk_add_bf16   %[v_os_o7], v79, [%[s_res_o0],%[s_res_o1]] inst_offset:256  \n"
 "  s_mov_b64     exec, s[36:37]                         \n"
-"  s_add_u32     %[s_res_o0], s59, %[s_res_o0]                            \n"
+"  s_add_u32     %[s_res_o0], %[s_tile_os_o], %[s_res_o0]                            \n"
 "  s_addc_u32    %[s_res_o1], 0, %[s_res_o1]                              \n"
 "  s_addk_i32    s80, 0x0100                            \n"
-"  s_cmp_lt_i32  s80, s81                               \n"
+"  s_cmp_lt_i32  s80, %[s_loop_cnt]                               \n"
 "  s_cbranch_scc0  label_end_gemm2                           \n"
 "  s_waitcnt     vmcnt(41)                              \n"
 "  s_barrier                                            \n"
@@ -702,7 +702,7 @@
 "  v_mfma_i32_16x16x32_i8  v[252:255], acc[252:253], v[188:189], v[252:255]  \n"
 "  v_mfma_i32_16x16x32_i8  v[252:255], acc[254:255], v[190:191], v[252:255]  \n"
 "  s_add_u32     s60, 0x00000200, s80                   \n"
-"  s_cmp_lt_u32  s60, s81                               \n"
+"  s_cmp_lt_u32  s60, %[s_loop_cnt]                               \n"
 "  s_cselect_b32  %[s_tile_os_b], %[s_tile_os_b], 0                           \n"
 "  s_cselect_b32  %[s_tile_os_b_half], %[s_tile_os_b_half], 0                           \n"
 "  s_cselect_b32  %[s_tile_os_dq], %[s_tile_os_dq], 0                           \n"
@@ -1025,10 +1025,10 @@
 "  s_mov_b64     exec, %[s_execflag_7]                         \n"
 "  global_atomic_pk_add_bf16   %[v_os_o7], v79, [%[s_res_o0],%[s_res_o1]] inst_offset:256  \n"
 "  s_mov_b64     exec, s[36:37]                         \n"
-"  s_add_u32     %[s_res_o0], s59, %[s_res_o0]                            \n"
+"  s_add_u32     %[s_res_o0], %[s_tile_os_o], %[s_res_o0]                            \n"
 "  s_addc_u32    %[s_res_o1], 0, %[s_res_o1]                              \n"
 "  s_addk_i32    s80, 0x0100                            \n"
-"  s_cmp_lt_i32  s80, s81                               \n"
+"  s_cmp_lt_i32  s80, %[s_loop_cnt]                               \n"
 "  s_cbranch_scc0   label_end_gemm2           \n"
 "  s_branch      label_startgemm2  \n" 
 " label_end_gemm2: \n"
@@ -1037,6 +1037,3 @@
 #undef _UK_MFMA_
 #undef _UK_PK_CVT_
 #undef _UK_ATOMIC_ADD_
-
-
-

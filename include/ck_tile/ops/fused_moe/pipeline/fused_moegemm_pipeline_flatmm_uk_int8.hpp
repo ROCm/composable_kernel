@@ -372,8 +372,8 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
                                                               Nl_; // Kr0_ * Kr1_ * W_;
             return generate_tuple(
                 [&](auto i) {
-                    constexpr auto i_nr_  = number<i % Nr_>{};
-                    return i_nr_ * shared_intermediate_size_1 * Nw_ * Nl_ +
+                    // constexpr auto i_nr_  = number<i % Nr_>{};
+                    return i * shared_intermediate_size_1 * Nw_ * Nl_ +
                            base_os_;
                 },
                 number<num_offsets_>{});
@@ -382,7 +382,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         auto o_coords = generate_tuple(
             [&](auto i) {
                 return token_id[i] * kargs.stride_token +
-                       threadIdx.x % (BlockShape::Block_N1 / kAlignmentO) * kAlignmentO;
+                       threadIdx.x % (BlockShape::Block_N1/2 / kAlignmentO) * kAlignmentO;
             },
             number<row_ids_a.size()>{});
 
@@ -420,11 +420,13 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
                           BlockShape::Block_K0, // tile offset for B matrix each unroll
                           BlockShape::Block_Kr0 *
                           BlockShape::Block_W0); // tile offset for B matrix each unroll
-        if(hipBlockIdx_x == 0 && hipBlockIdx_y == 0 && hipBlockIdx_z == 0 &&
-    hipThreadIdx_x  == 5)
+        if(hipBlockIdx_x == 1 && hipBlockIdx_y == 1 && hipBlockIdx_z == 0 &&
+    hipThreadIdx_x  == 64)
 {
     printf("\ngemm0 done\n");
-
+    // printf("\n wg 1 1, wave 1, row_coords_a 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", row_coords_a[number<0>{}],row_coords_a[number<1>{}],row_coords_a[number<2>{}],row_coords_a[number<3>{}], row_coords_a[number<4>{}],row_coords_a[number<5>{}],row_coords_a[number<6>{}],row_coords_a[number<7>{}]);
+    //  printf("\n -------------- -row_ids_a 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", row_ids_a[number<0>{}],row_ids_a[number<1>{}],row_ids_a[number<2>{}],row_ids_a[number<3>{}], row_ids_a[number<4>{}],row_ids_a[number<5>{}],row_ids_a[number<6>{}],row_ids_a[number<7>{}]);
+     printf("\n -------------- - token_id 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", token_id[number<0>{}],token_id[number<1>{}],token_id[number<2>{}],token_id[number<3>{}],  token_id[number<4>{}],token_id[number<5>{}],token_id[number<6>{}],token_id[number<7>{}]);
 }
         // sweep_tile(
         //     acc_0,
@@ -457,8 +459,8 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
              w_scale,
              smq_scale,
              BlockShape::Block_N1,
-             shared_intermediate_size_1 * BlockShape::Block_N1 - kr_1 * BlockShape::Block_W1, // along N
-             kr_1 * BlockShape::Block_W1,
+             shared_intermediate_size_1 * BlockShape::Block_N1 - 256 * 16, // along N
+             256 * 16,
              BlockShape::Block_N1);                               // along N
     }
 };
