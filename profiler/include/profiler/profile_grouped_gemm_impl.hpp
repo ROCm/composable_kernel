@@ -77,7 +77,7 @@ bool profile_grouped_gemm_impl(int do_verification,
     std::vector<Tensor<CDataType>> c_m_n_host_results;
     std::vector<Tensor<CDataType>> c_m_n_device_results;
 
-    ComputeDataType max_abs_in_val = 0.f;
+    double max_abs_in_val = 0.f;
     for(std::size_t i = 0; i < group_count; i++)
     {
         a_m_k.push_back(

@@ -469,7 +469,11 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
         {
             return false;
         }
-
+        if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> &&
+           arg.Streamk_sel > 0)
+        {
+            return false;
+        }
         if((arg.K % AK1 != 0 || arg.K % BK1 != 0) && !(GemmSpec == GemmSpecialization::MKPadding ||
                                                        GemmSpec == GemmSpecialization::NKPadding ||
                                                        GemmSpec == GemmSpecialization::MNKPadding ||

@@ -40,6 +40,7 @@ template<> struct Layernorm2dFusedQuantEnumName<Layernorm2dFusedQuantEnum::SMOOT
 template <bool kPadN_,
           bool kSaveMeanInvStd_,
           bool kFastFDiv_,
+          bool kWelford_,
           bool kTwoPass_,
           Layernorm2dFusedAddEnum kFusedAdd_,
           Layernorm2dFusedQuantEnum kFusedQuant_>
@@ -48,6 +49,7 @@ struct Layernorm2dFwdTraits
     static constexpr bool kPadN                            = kPadN_;
     static constexpr bool kSaveMeanInvStd                  = kSaveMeanInvStd_;
     static constexpr bool kFastFDiv                        = kFastFDiv_;
+    static constexpr bool kWelford                         = kWelford_;
     static constexpr bool kTwoPass                         = kTwoPass_;
     static constexpr Layernorm2dFusedAddEnum kFusedAdd     = kFusedAdd_;
     static constexpr Layernorm2dFusedQuantEnum kFusedQuant = kFusedQuant_;

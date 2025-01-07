@@ -51,25 +51,10 @@ using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
 using CDataType   = Types::CDataType;
 
-struct gemm_basic_args
-{
-    const void* p_a;
-    const void* p_b;
-    void* p_c;
-    ck_tile::index_t kbatch;
-    ck_tile::index_t M;
-    ck_tile::index_t N;
-    ck_tile::index_t K;
-    ck_tile::index_t stride_A;
-    ck_tile::index_t stride_B;
-    ck_tile::index_t stride_C;
-};
-
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("b", "1", "batch size")
-        .insert("m", "3840", "m dimension")
+    arg_parser.insert("m", "3840", "m dimension")
         .insert("n", "4096", "n dimension")
         .insert("k", "2048", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
@@ -82,11 +67,12 @@ auto create_args(int argc, char* argv[])
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer");
+        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
+        .insert("split_k", "1", "splitK value");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
 // host API
-float gemm_calc(gemm_basic_args args, const ck_tile::stream_config& s);
+float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);

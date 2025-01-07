@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -54,6 +54,7 @@
 #include "ck_tile/core/tensor/tile_window_linear.hpp"
 #include "ck_tile/core/tensor/tile_window_utils.hpp"
 #include "ck_tile/core/tensor/update_tile.hpp"
+#include "ck_tile/core/utility/amd_address_space.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/functional_with_tuple.hpp"
