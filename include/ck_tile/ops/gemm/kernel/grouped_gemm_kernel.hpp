@@ -3,17 +3,11 @@
 
 #pragma once
 
-#include <iostream>
-#include <string>
-
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/literals.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
-#include "ck_tile/core.hpp"
-#include "ck_tile/ops/common.hpp"
-#include "ck_tile/host.hpp"
-
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+#include "ck_tile/host.hpp"
 
 namespace ck_tile {
 
@@ -29,9 +23,12 @@ struct GroupedGemmHostArgs : public ck_tile::GemmHostArgs
                                      ck_tile::index_t stride_A_,
                                      ck_tile::index_t stride_B_,
                                      ck_tile::index_t stride_C_)
-        : GemmHostArgs(a_ptr_, b_ptr_, c_ptr_, 1, M_, N_, K_, stride_A_, stride_B_, stride_C_)
+        : GemmHostArgs(a_ptr_, b_ptr_, c_ptr_, KBatch, M_, N_, K_, stride_A_, stride_B_, stride_C_)
     {
     }
+
+    private:
+    static constexpr index_t KBatch = 1;
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
@@ -126,7 +123,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
                                        stride_a,
                                        stride_b,
                                        stride_c,
-                                       /*KBatch*/ KBatch};
+                                       KBatch};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }
