@@ -194,20 +194,88 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(do_validation)
     {
         // reference
-        ck_tile::reference_rmsnorm2d_fwd<XDataType,
-                                         GammaDataType,
-                                         ComputeDataType,
-                                         YDataType,
-                                         InvRmsDataType>(
-            x_host, gamma_host, y_host_ref, invRms_host_ref, epsilon);
+        if (fused_add != 0)
+        {
+            // fused pre_add/pre_add_store
+            // TODO we accumulate directly to x_host for simplcity here...
+            std::transform(x_host.mData.cbegin(),
+                           x_host.mData.cend(),
+                           x_residual_host.mData.cbegin(),
+                           x_host.mData.begin(),
+                           [](auto x_, auto r_) {
+                               auto o_ = ck_tile::type_convert<ComputeDataType>(x_) +
+                                         ck_tile::type_convert<ComputeDataType>(r_);
+                               return ck_tile::type_convert<XDataType>(o_);
+                           });
+        }
+
+        if (fused_quant != 0)
+        {
+            auto dquant_functor = [&](int m_, auto& o_, auto& acc_) {
+                int N_ = acc_.mDesc.get_lengths()[1];
+                if(fused_quant == 1)
+                {
+                    for(int n_ = 0; n_ < N_; n_++)
+                    {
+                        // input smooth outlier
+                        acc_(m_, n_) =
+                            acc_(m_, n_) * ck_tile::type_convert<ComputeDataType>(x_scale_host(n_));
+                    }
+                }
+                ComputeDataType absmax = static_cast<ComputeDataType>(0);
+                for(int n_ = 0; n_ < N_; n_++)
+                {
+                    const auto a = ck_tile::abs(acc_(m_, n_));
+                    absmax       = a > absmax ? a : absmax;
+                }
+                // printf("cpu:absmax:%f\n", absmax);
+                ComputeDataType y_scale = absmax / static_cast<ComputeDataType>(127.0);
+                y_scale_host_ref(m_)    = ck_tile::type_convert<YScaleDataType>(y_scale);
+                for(int n_ = 0; n_ < N_; n_++)
+                {
+                    o_(m_, n_) = ck_tile::type_convert<YDataType>(acc_(m_, n_) / y_scale);
+                }
+            };
+
+            ck_tile::reference_rmsnorm2d_fwd<XDataType,
+                                             GammaDataType,
+                                             ComputeDataType,
+                                             YDataType,
+                                             InvRmsDataType>(
+                x_host, gamma_host, y_host_ref, invRms_host_ref, epsilon, dquant_functor);
+        }
+        else
+        {
+            ck_tile::reference_rmsnorm2d_fwd<XDataType,
+                                             GammaDataType,
+                                             ComputeDataType,
+                                             YDataType,
+                                             InvRmsDataType>(
+                x_host, gamma_host, y_host_ref, invRms_host_ref, epsilon);
+        }
 
         y_buf.FromDevice(y_host_dev.data());
+
+        ck_tile::HostTensor<YResidualDataType> y_residual_host_dev({m, n}, {yr_stride, 1});
+        if(fused_add == 1)
+        {
+            y_residual_buf.FromDevice(y_residual_host_dev.data());
+        }
 
         auto [rtol, atol] = get_elimit<XDataType>();
         if(x_stride == n)
         {
             pass = ck_tile::check_err(
                 y_host_dev, y_host_ref, std::string("OUT Error: Incorrect results!"), rtol, atol);
+
+            if(fused_add == 1)
+            {
+                pass &= ck_tile::check_err(y_residual_host_dev,
+                                           x_host,
+                                           std::string("ADD Error: Incorrect results!"),
+                                           rtol,
+                                           atol);
+            }
         }
         else
         {
@@ -223,7 +291,32 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                std::string("] Error: Incorrect results!"),
                                            rtol,
                                            atol);
+
+                if(fused_add == 1)
+                {
+                    std::vector<YResidualDataType> y_residual_host_dev_row(
+                        y_residual_host_dev.begin() + i_r * yr_stride,
+                        y_residual_host_dev.begin() + i_r * yr_stride + n);
+                    std::vector<YResidualDataType> y_residual_host_ref_row(
+                        x_host.begin() + i_r * yr_stride, x_host.begin() + i_r * yr_stride + n);
+                    pass &= ck_tile::check_err(y_residual_host_dev_row,
+                                               y_residual_host_ref_row,
+                                               std::string("ADD[") + std::to_string(i_r) +
+                                                   std::string("] Error: Incorrect results!"),
+                                               rtol,
+                                               atol);
+                }
             }
+        }
+
+        if(fused_quant == 1)
+        {
+            y_scale_buf.FromDevice(y_scale_host_dev.data());
+            pass &= ck_tile::check_err(y_scale_host_dev,
+                                       y_scale_host_ref,
+                                       std::string("SCALE Error: Incorrect results!"),
+                                       rtol,
+                                       atol);
         }
 
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
