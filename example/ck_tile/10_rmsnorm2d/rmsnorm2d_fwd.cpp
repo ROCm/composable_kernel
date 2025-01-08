@@ -19,6 +19,14 @@ auto get_elimit<ck_tile::bf16_t>()
     return ck_tile::make_tuple(rtol, atol);
 }
 
+template <>
+auto get_elimit<ck_tile::int8_t>()
+{
+    double rtol = 1e-02;
+    double atol = 1.0;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -268,7 +276,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             y_residual_buf.FromDevice(y_residual_host_dev.data());
         }
 
-        auto [rtol, atol] = get_elimit<XDataType>();
+        auto [rtol, atol] = get_elimit<YDataType>();
         if(x_stride == n)
         {
             pass = ck_tile::check_err(
