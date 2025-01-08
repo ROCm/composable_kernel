@@ -1341,8 +1341,10 @@ struct ThreadwiseTensorSliceTransfer_v4
                 });
             }
 
-            if constexpr(is_same<remove_cvref_t<SrcData>, pk_i4_t>::value)
+            if constexpr(is_same<remove_cvref_t<SrcData>, pk_i4_t>::value &&
+                         is_same<remove_cvref_t<DstData>, half_t>::value)
             {
+
                 // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
                 // DstData)
                 vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
@@ -1363,6 +1365,34 @@ struct ThreadwiseTensorSliceTransfer_v4
                         dst_tmp_vector.template AsType<dst_v_t>()(i),
                         src_tmp_vector.template AsType<src_v_t>()[i],
                         scale_vector.template AsType<scale_v_t>()[Number<0>{}]);
+                });
+
+                // copy data from dst_tmp_vector into dst_buf
+                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                    constexpr index_t dst_offset = dst_desc.CalculateOffset(
+                        dst_origin_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
+
+                    dst_buf(Number<dst_offset>{}) = dst_tmp_vector.template AsType<DstData>()[i];
+                });
+            }
+            else if constexpr(is_same<remove_cvref_t<SrcData>, pk_i4_t>::value &&
+                              is_same<remove_cvref_t<DstData>, f8_t>::value)
+            {
+                // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
+                // DstData)
+                vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
+
+                constexpr index_t pack_size = 8;
+
+                static_assert(SrcScalarPerVector % pack_size == 0, "");
+
+                using src_v_t = typename vector_type_maker_t<SrcData, pack_size / PackedSize>::type;
+                using dst_v_t = typename vector_type_maker_t<DstData, pack_size>::type;
+
+                static_for<0, SrcScalarPerVector / pack_size, 1>{}([&](auto i) {
+                    ck::tensor_operation::element_wise::PassThroughPack8{}(
+                        dst_tmp_vector.template AsType<dst_v_t>()(i),
+                        src_tmp_vector.template AsType<src_v_t>()[i]);
                 });
 
                 // copy data from dst_tmp_vector into dst_buf

@@ -4,8 +4,8 @@
 #ifndef CK_AMD_INLINE_ASM_HPP
 #define CK_AMD_INLINE_ASM_HPP
 
-#include "c_style_pointer_cast.hpp"
 #include "data_type.hpp"
+#include "c_style_pointer_cast.hpp"
 
 // TODO: deprecate all amd_assembly_outer_product_xxx
 

@@ -61,9 +61,11 @@ __host__ __device__ inline half4_t pki4_to_half4_scale(int q, const ck::half2_t&
 
     vector_type<half_t, 4> res;
 
+    // for two fp16 from lowbit, subtract 1032 to get correct fp16 value
     res.template AsType<half2_t>()(Number<0>{}) =
         amd_assembly_pk_add_f16(bit_cast<half2_t>(lo), bit_cast<half2_t>(SUB));
 
+    // for two fp16 from highbit, divide 16 and subtract 72 to get correct fp16 value
     res.template AsType<half2_t>()(Number<1>{}) = amd_assembly_pk_fma_f16(
         bit_cast<half2_t>(hi), bit_cast<half2_t>(MUL), bit_cast<half2_t>(ADD));
 
