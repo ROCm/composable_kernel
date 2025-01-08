@@ -135,7 +135,7 @@ struct BlockFmhaPipelineQSKSVS
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
-               RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
+               RandValDramBlockWindowTmp& /* unused_randval_dram_block_window_tmp */,
                LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
                const LSEElementFunction& lse_element_func,
                const SAccElementFunction& s_acc_element_func,
@@ -145,7 +145,7 @@ struct BlockFmhaPipelineQSKSVS
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& /* unused_dropout */) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
