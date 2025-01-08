@@ -84,8 +84,8 @@ struct Rmsnorm2dFwdPipelineOnePass
         auto block_reduce2d_cross_warp_sync =
             Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
 
-        const auto x      = load_tile(x_window);
-        const auto x_resi = load_tile(x_residual_window);
+        auto x      = load_tile(x_window);
+        auto x_resi = load_tile(x_residual_window);
 
         // load gamma (TODO: support no gamma?)
         const auto gamma = load_tile(gamma_window);
@@ -122,27 +122,27 @@ struct Rmsnorm2dFwdPipelineOnePass
             store_tile(inv_rms_window, cast_tile<InvRmsDataType>(inv_rms));
 
         // rmsnorm computation
-        auto y = make_static_distributed_tensor<YDataType>(x.get_tile_distribution());
-        sweep_tile(y, [&, inv_rms_ = inv_rms](auto idx) {
+        auto rmsn = make_static_distributed_tensor<ComputeDataType>(x.get_tile_distribution());
+        sweep_tile(rmsn, [&, inv_rms_ = inv_rms](auto idx) {
             constexpr auto i_idx = make_tuple(idx[number<0>{}]);
             constexpr auto j_idx = make_tuple(idx[number<1>{}]);
 
             const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
 
             const auto x_ = type_convert<ComputeDataType>(x[idx]);
-            auto y_       = x_ * inv_rms_[i_idx] * gamma_;
+            auto rmsn_    = x_ * inv_rms_[i_idx] * gamma_;
 
-            y(idx) = type_convert<YDataType>(y_);
+            rmsn(idx) = rmsn_;
         });
 
         if constexpr (kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT ||
                       kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
         {
-            Epilogue{}(y_window_, x_scale_window_, y_scale_window_, y, smem);
+            Epilogue{}(y_window_, x_scale_window_, y_scale_window_, rmsn, smem);
         }
         else
         {
-            Epilogue{}(y_window_, y);
+            Epilogue{}(y_window_, rmsn);
         }
     }
 };

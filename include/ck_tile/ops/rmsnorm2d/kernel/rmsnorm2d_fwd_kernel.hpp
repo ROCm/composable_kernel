@@ -183,7 +183,7 @@ struct Rmsnorm2dFwd
                     number<1>{});
 
                 const auto tmp2_ = pad_tensor_view(
-                    tmp_, make_tuple(number<Block_M>{}, make_tuple(number<Block_N>{}), sequence<kPadM, kPadN>{}));
+                    tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<kPadM, kPadN>{});
                 return make_tile_window(
                     tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
             }
@@ -225,7 +225,7 @@ struct Rmsnorm2dFwd
             if constexpr (kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
             {
                 auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                    static_cast<YDataType*>(kargs.p_y_residual),
+                    static_cast<YResidualDataType*>(kargs.p_y_residual),
                     make_tuple(kargs.m, kargs.n),
                     make_tuple(kargs.yr_stride, 1),
                     number<Vector_N>{},
@@ -234,7 +234,7 @@ struct Rmsnorm2dFwd
                 auto tmp2_ = pad_tensor_view(
                     tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<kPadM, kPadN>{});
                 return make_tile_window(
-                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}));
+                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
             }
             else
             {

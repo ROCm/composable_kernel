@@ -95,8 +95,8 @@ struct Rmsnorm2dFwdPipelineTwoPass
 
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
-            const auto x      = load_tile(x_window);
-            const auto x_resi = load_tile(x_residual_window);
+            auto x      = load_tile(x_window);
+            auto x_resi = load_tile(x_residual_window);
 
             move_tile_window(x_window, {0, Block_N});
             move_tile_window(x_residual_window, {0, Block_N});
@@ -147,22 +147,22 @@ struct Rmsnorm2dFwdPipelineTwoPass
             // load gamma/beta (TODO: support no gamma/beta?)
             const auto gamma = load_tile(gamma_window);
 
-            auto y = make_static_distributed_tensor<YDataType>(x.get_tile_distribution());
-
-            sweep_tile(y, [&, inv_rms_ = inv_rms](auto idx) {
+            // rmsnorm computation
+            auto rmsn = make_static_distributed_tensor<ComputeDataType>(x.get_tile_distribution());
+            sweep_tile(rmsn, [&, inv_rms_ = inv_rms](auto idx) {
                 constexpr auto i_idx = make_tuple(idx[number<0>{}]);
                 constexpr auto j_idx = make_tuple(idx[number<1>{}]);
 
                 const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
 
                 const auto x_ = type_convert<ComputeDataType>(x[idx]);
-                auto y_       = x_ * inv_rms_[i_idx] * gamma_;
+                auto rmsn_    = x_ * inv_rms_[i_idx] * gamma_;
 
-                y(idx) = type_convert<YDataType>(y_);
+                rmsn(idx) = rmsn_;
             });
 
             static_assert(kFusedQuant != Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT);
-            Epilogue{}(y_window, y);
+            Epilogue{}(y_window, rmsn);
 
             move_tile_window(x_window, {0, -Block_N});
             move_tile_window(gamma_window, {-Block_N});
