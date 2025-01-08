@@ -643,8 +643,8 @@ def process_results(Map conf=[:]){
                     }
                     if (params.RUN_CK_TILE_GEMM_TESTS){
                         try{
-                            unstash "perf_gemm_log_gfx942"
-                            unstash "perf_gemm_log_gfx90a"
+                            unstash "perf_tile_gemm_log_gfx942"
+                            unstash "perf_tile_gemm_log_gfx90a"
                         }
                         catch(Exception err){
                             echo "could not locate the GEMM performance logs: ${err.getMessage()}."
