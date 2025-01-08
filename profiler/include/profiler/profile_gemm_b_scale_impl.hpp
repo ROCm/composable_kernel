@@ -445,7 +445,7 @@ bool profile_gemm_b_scale_impl(int do_verification,
 
     if(best_op_object_name)
         std::cout << best_op_object_name.value() << std::endl;
-        
+
     return pass;
 }
 
