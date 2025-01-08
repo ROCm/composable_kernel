@@ -240,8 +240,10 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                 {
                     wei_device_buf.FromDevice(weight_device_result.mData.data());
 
-                    using ComputeType = std::conditional_t<
-                        sizeof(ComputeTypeA) < sizeof(ComputeTypeB) ? ComputeTypeA : ComputeTypeB>;
+                    using ComputeType =
+                        std::conditional_t<sizeof(ComputeTypeA) < sizeof(ComputeTypeB),
+                                           ComputeTypeA,
+                                           ComputeTypeB>;
                     using AccDataType =
                         std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
                     const index_t num_accums         = output.GetElementSize() / conv_param.K_;
