@@ -240,17 +240,18 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                 {
                     wei_device_buf.FromDevice(weight_device_result.mData.data());
 
-                    static_assert(std::is_same_v<ComputeTypeA, ComputeTypeB>);
+                    using ComputeType = std::conditional_t<
+                        sizeof(ComputeTypeA) < sizeof(ComputeTypeB) ? ComputeTypeA : ComputeTypeB>;
                     using AccDataType =
-                        std::conditional_t<std::is_same_v<ComputeTypeA, int8_t>, int32_t, float>;
+                        std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
                     const index_t num_accums         = output.GetElementSize() / conv_param.K_;
                     const index_t num_accums_split_k = split_k_list[split_k_id];
                     // Calculate thresholds
                     auto rtol =
-                        ck::utils::get_relative_threshold<ComputeTypeA, WeiDataType, AccDataType>(
+                        ck::utils::get_relative_threshold<ComputeType, WeiDataType, AccDataType>(
                             num_accums / num_accums_split_k);
                     auto atol =
-                        ck::utils::get_absolute_threshold<ComputeTypeA, WeiDataType, AccDataType>(
+                        ck::utils::get_absolute_threshold<ComputeType, WeiDataType, AccDataType>(
                             max_accumulated_value / num_accums_split_k,
                             num_accums / num_accums_split_k);
                     // Calculate error due to split_k accumulation
