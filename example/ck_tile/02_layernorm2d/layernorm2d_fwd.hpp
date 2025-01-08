@@ -16,6 +16,7 @@ struct LayerNormTypeConfig<ck_tile::half_t, OutType, XScaleDataType_, YScaleData
 {
     using XDataType       = ck_tile::half_t;
     using YDataType       = OutType;
+    using XBiasDataType   = ck_tile::half_t;
     using GammaDataType   = ck_tile::half_t;
     using BetaDataType    = ck_tile::half_t;
     using MeanDataType    = ck_tile::half_t;
@@ -30,6 +31,7 @@ struct LayerNormTypeConfig<ck_tile::bf16_t, OutType, XScaleDataType_, YScaleData
 {
     using XDataType       = ck_tile::bf16_t;
     using YDataType       = OutType;
+    using XBiasDataType   = ck_tile::bf16_t;
     using GammaDataType   = ck_tile::bf16_t;
     using BetaDataType    = ck_tile::bf16_t;
     using MeanDataType    = ck_tile::bf16_t;
@@ -57,6 +59,7 @@ struct layernorm2d_fwd_traits
     std::string prec_sy; // y-scale, used for [M*1] output for next layer
 
     bool save_mean_var; //
+    int xbias;          // 0:no-bias, 1:add bias
     int fused_add;      // 0:no-add, 1:pre-add-store, 2:pre-add
     int fused_quant;    // 0:no-sweep, 1:smooth-dynamic-quant, 2:dynamic-quant
 };
