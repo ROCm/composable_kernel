@@ -66,8 +66,7 @@ void reference_rmsnorm2d_fwd(const HostTensor<XDataType>& x_m_n,
         {
             ComputeDataType x     = ck_tile::type_convert<ComputeDataType>(x_m_n(m, n));
             ComputeDataType gamma = ck_tile::type_convert<ComputeDataType>(gamma_n(n));
-            auto y                = x * divisor * gamma;
-            acc(m, n)             = ck_tile::type_convert<YDataType>(y);
+            acc(m, n)             = x * divisor * gamma;
         }
 
         epilogue_functor(m, y_m_n, acc);

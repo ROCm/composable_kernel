@@ -116,7 +116,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
                 }
             }
 
-            block_reduce2d(x, square_sum, reduce_square_sum_func);
+            block_reduce2d(acc, square_sum, reduce_square_sum_func);
         }
 
         block_reduce2d_sync(square_sum, reduce_sum_func);
@@ -143,7 +143,19 @@ struct Rmsnorm2dFwdPipelineTwoPass
         // rmsnorm computation
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
-            const auto x = load_tile(x_window);
+            auto x      = load_tile(x_window);
+            auto x_resi = load_tile(x_residual_window);
+            auto acc    = cast_tile<ComputeDataType>(x);
+
+            if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE ||
+                         kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD)
+            {
+                sweep_tile(x_resi, [&](auto idx) {
+                    // compute x = x_resi + x
+                    acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
+                });
+            }
+
             // load gamma/beta (TODO: support no gamma/beta?)
             const auto gamma = load_tile(gamma_window);
 
@@ -155,8 +167,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
 
                 const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
 
-                const auto x_ = type_convert<ComputeDataType>(x[idx]);
-                auto rmsn_    = x_ * inv_rms_[i_idx] * gamma_;
+                auto rmsn_    = acc(idx) * inv_rms_[i_idx] * gamma_;
 
                 rmsn(idx) = rmsn_;
             });
@@ -165,6 +176,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
             Epilogue{}(y_window, rmsn);
 
             move_tile_window(x_window, {0, -Block_N});
+            move_tile_window(x_residual_window, {0, -Block_N});
             move_tile_window(gamma_window, {-Block_N});
             move_tile_window(y_window, {0, -Block_N});
         }

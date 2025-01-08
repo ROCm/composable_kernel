@@ -97,6 +97,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         prec_sy = "fp32";
     }
 
+    if(fused_quant == 1 && prec_o != "int8")
+    {
+        std::cout << "if fused_quant is 1, only support \"-prec_o=int8\" case" << std::endl;
+        return false;
+    }
+
     using TypeConfig = RmsnormTypeConfig<InDataType, OutDataType, XScaleDataType, YScaleDataType>;
 
     using XDataType     = typename TypeConfig::XDataType;

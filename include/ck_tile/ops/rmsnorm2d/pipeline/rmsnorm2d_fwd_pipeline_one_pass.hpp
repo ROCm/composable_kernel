@@ -129,8 +129,7 @@ struct Rmsnorm2dFwdPipelineOnePass
 
             const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
 
-            const auto x_ = type_convert<ComputeDataType>(x[idx]);
-            auto rmsn_    = x_ * inv_rms_[i_idx] * gamma_;
+            auto rmsn_    = acc[idx] * inv_rms_[i_idx] * gamma_;
 
             rmsn(idx) = rmsn_;
         });
