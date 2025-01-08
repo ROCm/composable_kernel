@@ -110,7 +110,7 @@ auto create_args(int argc, char* argv[])
 }
 
 template <typename Type>
-bool test_batched_transpose(ck_tile::ArgParser args)
+bool run_batched_transpose(ck_tile::ArgParser args)
 {
     int validate           = args.get_int("v");
     std::string prec       = args.get_str("pr");
@@ -229,13 +229,7 @@ bool test_batched_transpose(ck_tile::ArgParser args)
             {dim_out[0], dim_out[1], dim_out[2], dim_out[3]},
             {stride_dim_out[0], stride_dim_out[1], stride_dim_out[2], stride_dim_out[3]});
 
-        // dump_host_tensor_4d(x_host);
         ck_tile::reference_batched_transpose<Type>(x_host, y_ref, layout_in, layout_out);
-        // printf("y reference:\n");
-        // dump_host_tensor_4d(y_ref);
-
-        // printf("y host:\n");
-        // dump_host_tensor_4d(y_host);
 
         auto [rtol, atol] = get_elimit<Type>("");
 
@@ -257,19 +251,19 @@ int main(int argc, char** argv)
     bool r = true;
     if(prec.compare("fp32") == 0)
     {
-        r &= test_batched_transpose<float>(args);
+        r &= run_batched_transpose<float>(args);
     }
     else if(prec.compare("fp16") == 0)
     {
-        r &= test_batched_transpose<ck_tile::fp16_t>(args);
+        r &= run_batched_transpose<ck_tile::fp16_t>(args);
     }
     else if(prec.compare("bf16") == 0)
     {
-        r &= test_batched_transpose<ck_tile::bf16_t>(args);
+        r &= run_batched_transpose<ck_tile::bf16_t>(args);
     }
     else if(prec.compare("int8") == 0)
     {
-        r &= test_batched_transpose<ck_tile::int8_t>(args);
+        r &= run_batched_transpose<ck_tile::int8_t>(args);
     }
 
     return r ? 0 : -1;

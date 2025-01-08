@@ -51,20 +51,32 @@ struct BatchedTransposePipeline
 
         // according coordinate to load each block data from global memory to shared memory.
         __syncthreads();
+
+        // Iterate over the first dimension of the span
         sweep_tile_span(span_2d_x[number<0>{}], [&](auto idx0) {
+            // Iterate over the second dimension of the span
             sweep_tile_span(span_2d_x[number<1>{}], [&](auto idx1) {
+                // Calculate the source width index within the shared memory
                 uint32_t i_src_w                      = get_thread_id() & 15;
+                // Calculate the source height index within the shared memory
                 uint32_t i_src_h                      = get_thread_id() >> 4;
+                // Create a tuple of the current indices
                 constexpr auto i_j_idx                = make_tuple(idx0, idx1);
                 smem[i_src_h * smem_stride + i_src_w] = x(i_j_idx);
             });
         });
 
         __syncthreads();
+
+        // Iterate over the first dimension of the span
         sweep_tile_span(span_2d_y[number<0>{}], [&](auto idx0) {
+            // Iterate over the second dimension of the span
             sweep_tile_span(span_2d_y[number<1>{}], [&](auto idx1) {
+                // Calculate the source width index within the shared memory
                 uint32_t i_src_w       = get_thread_id() & 15;
+                // Calculate the source height index within the shared memory
                 uint32_t i_src_h       = get_thread_id() >> 4;
+                // Create a tuple of the current indices
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
                 y(i_j_idx)             = smem[i_src_h * smem_stride + i_src_w];
             });
