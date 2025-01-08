@@ -3,7 +3,7 @@
 
 #pragma once
 #include <ck/utility/ignore.hpp>
-
+#include "data_type.hpp"
 #include "ck/ck.hpp"
 
 namespace ck {
