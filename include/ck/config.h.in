@@ -97,6 +97,10 @@
 #cmakedefine CK_ENABLE_DL_KERNELS @CK_ENABLE_DL_KERNELS@
 #endif
 
+#ifndef CK_ENABLE_DPP_KERNELS
+#cmakedefine CK_ENABLE_DPP_KERNELS @CK_ENABLE_DPP_KERNELS@
+#endif
+
 //
 // CK kernels which support XDL (MI series)
 //

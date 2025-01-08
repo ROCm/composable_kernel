@@ -54,9 +54,9 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
             list(REMOVE_ITEM FILE_NAME "${source}")
         endif()
     endforeach()
-    #Do not build any DPP examples if DL_KERNELS not set
+    #Do not build any DPP examples if DPP_KERNELS not set
     foreach(source IN LISTS FILE_NAME)
-        if(NOT DEFINED DL_KERNELS AND source MATCHES "_dpp")
+        if(NOT DEFINED DPP_KERNELS AND source MATCHES "_dpp")
             message("removing dpp example ${source} ")
             list(REMOVE_ITEM FILE_NAME "${source}")
         endif()

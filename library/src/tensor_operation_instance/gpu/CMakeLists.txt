@@ -39,6 +39,13 @@ function(add_instance_library INSTANCE_NAME)
 
     set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
 
+    # Do not build DPP instances if DPP_KERNELS macro is not set
+    foreach(source IN LISTS ARGN)
+        if(NOT DEFINED DPP_KERNELS AND source MATCHES "_dpp")
+            message("removing dpp instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+    endforeach()
     # Do not build DL instances if DL_KERNELS macro is not set
     foreach(source IN LISTS ARGN)
         if(NOT DEFINED DL_KERNELS AND source MATCHES "_dl")
