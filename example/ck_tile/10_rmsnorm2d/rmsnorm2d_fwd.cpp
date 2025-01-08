@@ -266,13 +266,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(x_stride == n)
         {
             pass = ck_tile::check_err(
-                y_host_dev, y_host_ref, std::string("OUT Error: Incorrect results!"), rtol, atol);
+                y_host_dev, y_host_ref, std::string("\nOUT Error: Incorrect results!"), rtol, atol);
 
             if(fused_add == 1)
             {
                 pass &= ck_tile::check_err(y_residual_host_dev,
                                            x_host,
-                                           std::string("ADD Error: Incorrect results!"),
+                                           std::string("\nADD Error: Incorrect results!"),
                                            rtol,
                                            atol);
             }
@@ -287,7 +287,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                       y_host_ref.begin() + i_r * y_stride + n);
                 pass &= ck_tile::check_err(y_host_dev_row,
                                            y_host_ref_row,
-                                           std::string("OUT[") + std::to_string(i_r) +
+                                           std::string("\nOUT[") + std::to_string(i_r) +
                                                std::string("] Error: Incorrect results!"),
                                            rtol,
                                            atol);
@@ -301,7 +301,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                         x_host.begin() + i_r * yr_stride, x_host.begin() + i_r * yr_stride + n);
                     pass &= ck_tile::check_err(y_residual_host_dev_row,
                                                y_residual_host_ref_row,
-                                               std::string("ADD[") + std::to_string(i_r) +
+                                               std::string("\nADD[") + std::to_string(i_r) +
                                                    std::string("] Error: Incorrect results!"),
                                                rtol,
                                                atol);
@@ -314,7 +314,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             y_scale_buf.FromDevice(y_scale_host_dev.data());
             pass &= ck_tile::check_err(y_scale_host_dev,
                                        y_scale_host_ref,
-                                       std::string("SCALE Error: Incorrect results!"),
+                                       std::string("\nSCALE Error: Incorrect results!"),
                                        rtol,
                                        atol);
         }
