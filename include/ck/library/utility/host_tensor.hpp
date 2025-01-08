@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -44,9 +44,18 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
         else
             os << delim;
 
-        if constexpr(std::is_same_v<T, ck::f8_t> || std::is_same_v<T, ck::bf8_t>)
+        using RangeType = ck::remove_cvref_t<decltype(v)>;
+        if constexpr(std::is_same_v<RangeType, ck::f8_t> || std::is_same_v<RangeType, ck::bf8_t> ||
+                     std::is_same_v<RangeType, ck::bhalf_t>)
         {
             os << ck::type_convert<float>(v);
+        }
+        else if constexpr(std::is_same_v<RangeType, ck::pk_i4_t>)
+        {
+            const auto packed_floats = ck::type_convert<ck::float2_t>(v);
+            const ck::vector_type<float, 2> vector_of_floats{packed_floats};
+            os << vector_of_floats.template AsType<float>()[ck::Number<0>{}] << delim
+               << vector_of_floats.template AsType<float>()[ck::Number<1>{}];
         }
         else
         {
