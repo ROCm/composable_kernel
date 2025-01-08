@@ -15,6 +15,7 @@ struct Layernorm2dFwdHostArgs
     const void* p_x;          // [m ,n], input, fp16/bf16
     const void* p_x_residual; // [m ,n], shortcut input, prec same as input, nullptr if not used
     const void* p_x_scale;    // [1 ,n], smooth scale input, fp32, nullptr if not used
+    const void* p_x_bias;     // [1, n], bias, prec same as input
     const void* p_gamma;      // [1, n], gamma, prec same as input
     const void* p_beta;       // [1, n], beta, prec same as input
 
@@ -43,6 +44,7 @@ struct Layernorm2dFwd
     using Problem  = typename Pipeline::Problem;
 
     using XDataType       = remove_cvref_t<typename Problem::XDataType>;
+    using XBiasDataType   = remove_cvref_t<typename Problem::XBiasDataType>;
     using GammaDataType   = remove_cvref_t<typename Problem::GammaDataType>;
     using BetaDataType    = remove_cvref_t<typename Problem::BetaDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
@@ -67,6 +69,7 @@ struct Layernorm2dFwd
     static constexpr bool kPadM       = false; // always no need to pad along M
     static constexpr bool kPadN       = Problem::Traits::kPadN;
     static constexpr bool kTwoPass    = Problem::Traits::kTwoPass;
+    static constexpr auto kXbias      = Problem::Traits::kXbias;
     static constexpr auto kFusedAdd   = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant = Problem::Traits::kFusedQuant;
 
@@ -82,6 +85,7 @@ struct Layernorm2dFwd
         const void* p_x;          // [m ,n], input, fp16/bf16
         const void* p_x_residual; // [m ,n], shortcut input, prec same as input, nullptr if not used
         const void* p_x_scale;    // [1 ,n], smooth scale input, fp32, nullptr if not used
+        const void* p_x_bias;     // [1, n], bias, prec same as input
         const void* p_gamma;      // [1, n], gamma, prec same as input
         const void* p_beta;       // [1, n], beta, prec same as input
 
@@ -108,6 +112,7 @@ struct Layernorm2dFwd
         return Kargs{hargs.p_x,
                      hargs.p_x_residual,
                      hargs.p_x_scale,
+                     hargs.p_x_bias,
                      hargs.p_gamma,
                      hargs.p_beta,
                      hargs.p_y,
@@ -152,6 +157,7 @@ struct Layernorm2dFwd
         using S_ = typename Problem::BlockShape;
         auto surfix = [&] () {
             std::string n;
+            if (kXbias != Layernorm2dXBiasEnum::NO_BIAS) n += _SS_("_") + Layernorm2dXBiasEnumName<kXbias>::name;
             if (kFusedAdd != Layernorm2dFusedAddEnum::NO_ADD) n += _SS_("_") + Layernorm2dFusedAddEnumName<kFusedAdd>::name;
             if (kFusedQuant != Layernorm2dFusedQuantEnum::NO_SWEEP) n += _SS_("_") + Layernorm2dFusedQuantEnumName<kFusedQuant>::name;
             if (kPadN) n += "_pn";
@@ -225,6 +231,27 @@ struct Layernorm2dFwd
             else
             {
                 return make_null_tile_window(make_tuple(number<Block_M>{}, number<Block_N>{}));
+            }
+        }();
+
+        const auto x_bias_window = [&]() {
+            if constexpr(kXbias == Layernorm2dXBiasEnum::ADD_BIAS)
+            {
+                const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
+                    static_cast<const XBiasDataType*>(kargs.p_x_bias),
+                    make_tuple(kargs.n),
+                    make_tuple(1),
+                    number<Vector_N>{},
+                    number<1>{});
+
+                const auto tmp2_ =
+                    pad_tensor_view(tmp_, make_tuple(number<Block_N>{}), sequence<false>{});
+
+                return make_tile_window(tmp2_, make_tuple(number<Block_N>{}), {0});
+            }
+            else
+            {
+                return make_null_tile_window(make_tuple(number<Block_N>{}));
             }
         }();
 
@@ -371,6 +398,7 @@ struct Layernorm2dFwd
 
         Pipeline{}(x_window,
                    x_residual_window,
+                   x_bias_window,
                    gamma_window,
                    beta_window,
                    y_window,
