@@ -426,9 +426,9 @@ __host__ __device__ inline constexpr bool fp8_is_nan(bf8_fnuz_t a)
 }
 
 template <typename T,
-          std::enable_if_t<std::is_same_v<T, bf8_ocp_t> || std::is_same_v<T, f8_ocp_t> ||
-                               std::is_same_v<T, bf8_fnuz_t> || std::is_same_v<T, f8_fnuz_t>,
-                           bool> = true>
+          ck::enable_if_t<is_same_v<T, bf8_ocp_t> || is_same_v<T, f8_ocp_t> ||
+                              is_same_v<T, bf8_fnuz_t> || is_same_v<T, f8_fnuz_t>,
+                          bool> = true>
 __host__ __device__ static inline constexpr bool fp8_is_inf(T)
 {
     return false;
@@ -825,7 +825,7 @@ __host__ __device__ static inline fp8_storage_t cvt_float_to_fp8(const float f)
     if constexpr(stochastic_rounding)
     {
         constexpr int seed = 1254739;
-        rng                = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
+        rng                = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f);
     }
     return cast_to_f8_from_f32<interp, sat == ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
         f, rng);
@@ -841,7 +841,7 @@ __host__ static inline fp8_storage_t cvt_float_to_fp8(const float f)
     if constexpr(stochastic_rounding)
     {
         constexpr int seed = 1254739;
-        rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
+        rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f);
     }
 
     if constexpr(interp == ck_fp8_interpretation_t::CK_E4M3_FNUZ)
