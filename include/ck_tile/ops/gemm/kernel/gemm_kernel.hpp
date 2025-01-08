@@ -75,22 +75,12 @@ struct GemmKernel
     static constexpr auto I1 = number<1>();
     static constexpr auto I2 = number<2>();
 
-    // clang-format off
-    template <typename T> struct t2s;
-    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
-    template <> struct t2s<fp16_t> { static constexpr const char * name = "fp16"; };
-    template <> struct t2s<bf16_t> { static constexpr const char * name = "bf16"; };
-    template <> struct t2s<fp8_t> { static constexpr const char * name = "fp8"; };
-    template <> struct t2s<bf8_t> { static constexpr const char * name = "bf8"; };
-    template <> struct t2s<int8_t> { static constexpr const char * name = "int8"; };
-    // clang-format on
-
     CK_TILE_HOST static std::string GetName()
     {
-#define _SS_ std::string
 #define _TS_ std::to_string
         // clang-format off
         using P_ = GemmPipeline;
+        using _SS_ = std::string;
 
             auto prec_str = [&] () {
             std::string base_str = _SS_(t2s<ADataType>::name);
@@ -104,7 +94,6 @@ struct GemmKernel
                 _TS_(P_::kMPerBlock) + "x" + _TS_(P_::kNPerBlock) + "x" + _TS_(P_::kKPerBlock) + "_" +
                 _TS_(P_::VectorSizeA) + "x" + _TS_(P_::VectorSizeB) + "x" + _TS_(P_::VectorSizeC) + "_" +
                 _TS_(P_::kPadM) + "x" + _TS_(P_::kPadN) + "x" + _TS_(P_::kPadK);
-#undef _SS_
 #undef _TS_
         // clang-format on
     }

@@ -44,16 +44,6 @@ struct GroupedGemmKernel
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    // clang-format off
-    template <typename T> struct t2s;
-    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
-    template <> struct t2s<fp16_t> { static constexpr const char * name = "fp16"; };
-    template <> struct t2s<bf16_t> { static constexpr const char * name = "bf16"; };
-    template <> struct t2s<fp8_t> { static constexpr const char * name = "fp8"; };
-    template <> struct t2s<bf8_t> { static constexpr const char * name = "bf8"; };
-    template <> struct t2s<int8_t> { static constexpr const char * name = "int8"; };
-    // clang-format on
-
     CK_TILE_HOST static std::string GetName()
     {
 #define _SS_ std::string
