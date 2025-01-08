@@ -510,8 +510,8 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
         }
     }();
 
-    dim3 grids =
-        Kernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, args.num_splits);
+    dim3 grids = Kernel::GridSize(
+        args.batch, args.nhead_q, args.nhead_k, args.max_seqlen_q, args.hdim_v, args.num_splits);
 
     return ck_tile::make_tuple(kargs, grids);
 }
