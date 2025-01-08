@@ -7,12 +7,6 @@
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v2.hpp"
 namespace ck {
 
-enum struct BlockGemmPipelineVersion
-{
-    v1, // Single lds buffer
-    v2, // Double lds buffer
-};
-
 template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           BlockGemmPipelineScheduler BlkGemmPipeSche,
           index_t BlockSize,
