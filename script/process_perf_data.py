@@ -336,14 +336,14 @@ def main():
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_fmha_bwd_tflops"
-        if 'gemm_basic' in filename:
+        if 'gemm_basic_fp16' in filename:
             for i in range(1, len(results)+1):
                 testlist.append("Test%i"%i)
-            table_name="ck_tile_gemm_basic_tflops"
-        if 'gemm_mem_pipeline' in filename:
+            table_name="ck_tile_gemm_basic_fp16_tflops"
+        if 'gemm_mem_pipeline_fp16' in filename:
             for i in range(1, len(results)+1):
                 testlist.append("Test%i"%i)
-            table_name="ck_tile_gemm_mem_pipeline_tflops"
+            table_name="ck_tile_gemm_mem_pipeline_fp16_tflops"
 
         tflops_base = get_baseline(table_name,conn)
         store_new_test_result(table_name, results, testlist, branch_name, node_id, gpu_arch, compute_units, rocm_vers, hip_vers, environment, sqlEngine)
