@@ -352,7 +352,8 @@ bool profile_gemm_b_scale_impl(int do_verification,
                     }
                 }
 
-                std::string op_name = op_ptr->GetTypeString();
+                std::string op_name                    = op_ptr->GetTypeString();
+                std::optional<std::string> op_obj_name = op_ptr->GetObjectName();
 
                 float ave_time = invoker_ptr->Run(argument_ptr.get(),
                                                   StreamConfig{nullptr,
@@ -386,11 +387,12 @@ bool profile_gemm_b_scale_impl(int do_verification,
 
                 if(tflops > best_tflops && ave_time > 1e-10)
                 {
-                    best_op_name    = op_name;
-                    best_tflops     = tflops;
-                    best_ave_time   = ave_time;
-                    best_gb_per_sec = gb_per_sec;
-                    best_kbatch     = kbatch_curr;
+                    best_op_name        = op_name;
+                    best_op_object_name = op_obj_name;
+                    best_tflops         = tflops;
+                    best_ave_time       = ave_time;
+                    best_gb_per_sec     = gb_per_sec;
+                    best_kbatch         = kbatch_curr;
                 }
             }
             else
@@ -441,6 +443,9 @@ bool profile_gemm_b_scale_impl(int do_verification,
               << " : " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
               << " GB/s, " << best_op_name << std::endl;
 
+    if(best_op_object_name)
+        std::cout << best_op_object_name.value() << std::endl;
+        
     return pass;
 }
 
