@@ -17,6 +17,7 @@ struct Layernorm2dFwdPipelineTwoPass
     using Policy  = ck_tile::remove_cvref_t<Policy_>;
 
     using XDataType       = ck_tile::remove_cvref_t<typename Problem::XDataType>;
+    using XBiasDataType   = ck_tile::remove_cvref_t<typename Problem::XBiasDataType>;
     using GammaDataType   = ck_tile::remove_cvref_t<typename Problem::GammaDataType>;
     using BetaDataType    = ck_tile::remove_cvref_t<typename Problem::BetaDataType>;
     using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
@@ -37,6 +38,7 @@ struct Layernorm2dFwdPipelineTwoPass
     static constexpr bool kPadN              = Problem::Traits::kPadN;
     static constexpr bool kFastFDiv          = Problem::Traits::kFastFDiv;
     static constexpr bool kWelford           = Problem::Traits::kWelford;
+    static constexpr auto kXbias             = Problem::Traits::kXbias;
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
@@ -54,6 +56,7 @@ struct Layernorm2dFwdPipelineTwoPass
 
     template <typename XWindow,
               typename XResidualWindow,
+              typename XBiasWindow,
               typename GammaWindow,
               typename BetaWindow,
               typename YWindow,
@@ -65,6 +68,7 @@ struct Layernorm2dFwdPipelineTwoPass
               typename Epilogue>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
                                    const XResidualWindow& x_residual_window_,
+                                   const XBiasWindow& x_bias_window_,
                                    const GammaWindow& gamma_window_,
                                    const BetaWindow& beta_window_,
                                    YWindow& y_window,
@@ -81,6 +85,8 @@ struct Layernorm2dFwdPipelineTwoPass
         static_assert(kWelford == true, "2 pass only supports welford merge");
         auto x_window =
             make_tile_window(x_window_, Policy::template MakeXBlockTileDistribution<Problem>());
+        auto x_bias_window = make_tile_window(
+            x_bias_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
         auto gamma_window = make_tile_window(
             gamma_window_, Policy::template MakeGammaBetaBlockTileDistribution<Problem>());
         auto beta_window = make_tile_window(
@@ -115,12 +121,23 @@ struct Layernorm2dFwdPipelineTwoPass
 
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
-            auto x      = load_tile(x_window);
-            auto x_resi = load_tile(x_residual_window);
+            auto x            = load_tile(x_window);
+            auto x_resi       = load_tile(x_residual_window);
+            const auto x_bias = load_tile(x_bias_window);
 
             move_tile_window(x_window, {0, Block_N});
             move_tile_window(x_residual_window, {0, Block_N});
+            move_tile_window(x_bias_window, {Block_N});
             auto acc = cast_tile<ComputeDataType>(x);
+
+            if constexpr(kXbias == Layernorm2dXBiasEnum::ADD_BIAS)
+            {
+                sweep_tile(x, [&](auto idx) {
+                    // compute x = bias + x
+                    constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+                    acc(idx)             = type_convert<ComputeDataType>(x_bias[j_idx]) + acc(idx);
+                });
+            }
 
             if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE ||
                          kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD)
@@ -167,6 +184,7 @@ struct Layernorm2dFwdPipelineTwoPass
 
         move_tile_window(x_window, {0, -Block_N});
         move_tile_window(x_residual_window, {0, -Block_N});
+        move_tile_window(x_bias_window, {-Block_N});
         move_tile_window(gamma_window, {stride_to_right_most_window});
         move_tile_window(beta_window, {stride_to_right_most_window});
         move_tile_window(y_window, {0, stride_to_right_most_window});
@@ -174,9 +192,19 @@ struct Layernorm2dFwdPipelineTwoPass
         // layernorm computation
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
-            auto x      = load_tile(x_window);
-            auto x_resi = load_tile(x_residual_window);
-            auto acc    = cast_tile<ComputeDataType>(x);
+            auto x            = load_tile(x_window);
+            auto x_resi       = load_tile(x_residual_window);
+            const auto x_bias = load_tile(x_bias_window);
+            auto acc          = cast_tile<ComputeDataType>(x);
+
+            if constexpr(kXbias == Layernorm2dXBiasEnum::ADD_BIAS)
+            {
+                sweep_tile(x, [&](auto idx) {
+                    // compute x = bias + x
+                    constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+                    acc(idx)             = type_convert<ComputeDataType>(x_bias[j_idx]) + acc(idx);
+                });
+            }
 
             if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE ||
                          kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD)
@@ -209,6 +237,7 @@ struct Layernorm2dFwdPipelineTwoPass
 
             move_tile_window(x_window, {0, -Block_N});
             move_tile_window(x_residual_window, {0, -Block_N});
+            move_tile_window(x_bias_window, {-Block_N});
             move_tile_window(gamma_window, {-Block_N});
             move_tile_window(beta_window, {-Block_N});
             move_tile_window(y_window, {0, -Block_N});
