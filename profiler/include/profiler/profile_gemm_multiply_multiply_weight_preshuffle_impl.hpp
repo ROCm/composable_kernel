@@ -25,20 +25,16 @@ namespace ck {
 namespace profiler {
 
 template <typename InOutDataType>
-void preShuffleBuffer(const InOutDataType* src,
-                      InOutDataType* dst,
-                      int N,
-                      int K,
-                      int NXdl)
+void preShuffleBuffer(const InOutDataType* src, InOutDataType* dst, int N, int K, int NXdl)
 {
     int KPack = 16;
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
-    int N0 = N / NLane;
+    int K0 = K / (KLane * KPack);
     // K -> K0 KLane KPack
     // N -> N0 NLane
-    // N, K -> K0 N0 KLane NLane KPack
+    // N, K -> N0 K0 KLane NLane KPack
     int tempk;
     for(int n = 0; n < N; ++n)
     {
@@ -52,7 +48,7 @@ void preShuffleBuffer(const InOutDataType* src,
             int k1 = tempk / KPack;
             int k2 = tempk % KPack;
 
-            int outputIndex = k0 * KPack * NLane * KLane * N0 + n0 * KPack * NLane * KLane +
+            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
                               k1 * KPack * NLane + n1 * KPack + k2;
 
             dst[outputIndex] = src[n * K + k];
