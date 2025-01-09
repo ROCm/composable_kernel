@@ -339,10 +339,10 @@ def cmake_build(Map conf=[:]){
         try{
             archiveArtifacts "perf_fmha_*.log"
             if (arch_type == 1){
-                stash includes: "perf_fmha_**.log", name: "perf_fmha_log_gfx90a"
+                stash includes: "perf_fmha_**_gfx90a.log", name: "perf_fmha_log_gfx90a"
             }
             else if (arch_type == 2){
-                stash includes: "perf_fmha_**.log", name: "perf_fmha_log_gfx942"
+                stash includes: "perf_fmha_**_gfx942.log", name: "perf_fmha_log_gfx942"
             }
         }
         catch(Exception err){
@@ -353,10 +353,10 @@ def cmake_build(Map conf=[:]){
         try{
             archiveArtifacts "perf_tile_gemm_*.log"
             if (arch_type == 1){
-                stash includes: "perf_tile_gemm_**.log", name: "perf_tile_gemm_log_gfx90a"
+                stash includes: "perf_tile_gemm_**_fp16_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
             }
             else if (arch_type == 2){
-                stash includes: "perf_tile_gemm_**.log", name: "perf_tile_gemm_log_gfx942"
+                stash includes: "perf_tile_gemm_**_fp16_gfx942.log", name: "perf_tile_gemm_log_gfx942"
             }
         }
         catch(Exception err){
