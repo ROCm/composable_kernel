@@ -62,6 +62,7 @@ check_err(const Range& out,
 
         return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
     };
+    printf("1090111\n");
 
     bool res{true};
     int err_count  = 0;
@@ -76,7 +77,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 500)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -107,6 +108,7 @@ check_err(const Range& out,
           double atol             = 1e-3,
           bool allow_infinity_ref = false)
 {
+    printf("1111\n");
     if(out.size() != ref.size())
     {
         std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
@@ -127,6 +129,7 @@ check_err(const Range& out,
     double err    = 0;
     // TODO: This is a hack. We should have proper specialization for bf16_t data type.
     double max_err = std::numeric_limits<float>::min();
+    int print_cnt = 0;
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const double o = type_convert<float>(*std::next(std::begin(out), i));
@@ -136,12 +139,16 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 500)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
+        } else if (print_cnt < 10) {
+            print_cnt++;
+            std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                        << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
         }
     }
     if(!res)
@@ -195,7 +202,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 500)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -235,6 +242,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
                   << std::endl;
         return false;
     }
+    printf("222\n");
 
     bool res{true};
     int err_count   = 0;
@@ -250,7 +258,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 500)
             {
                 std::cerr << msg << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r
                           << std::endl;
@@ -313,6 +321,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     bool res{true};
     int err_count  = 0;
     double err     = 0;
+    printf("11113\n");
     double max_err = std::numeric_limits<float>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
@@ -327,7 +336,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 500)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o_fp64 << " != " << r_fp64 << std::endl;
@@ -381,7 +390,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 500)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;

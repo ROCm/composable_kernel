@@ -155,7 +155,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int fused_quant     = arg_parser.get_int("fquant");
     int gate_only       = arg_parser.get_int("gate_only");
     int api             = arg_parser.get_int("api");
-    int balance         = arg_parser.get_int("balance");
+    // int balance         = arg_parser.get_int("balance");
     int tp              = arg_parser.get_int("tp");
     int init            = arg_parser.get_int("init");
     uint32_t seed       = arg_parser.get_uint32("seed");
@@ -257,14 +257,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     else if(init == 2)
     {
-        ck_tile::FillNormalDistribution<ADataType>{0.f, 1.f, seed, true}(a_host);
-        ck_tile::FillNormalDistribution<GDataType>{0.f, 1.f, seed, true}(g_host);
-        ck_tile::FillNormalDistribution<DDataType>{0.f, 1.f, seed, true}(d_host);
-        ck_tile::FillNormalDistribution<AScaleDataType>{0.f, 1.f, seed, true}(sa_host);
-        ck_tile::FillNormalDistribution<GScaleDataType>{0.f, 1.f, seed, true}(sg_host);
-        ck_tile::FillNormalDistribution<DScaleDataType>{0.f, 1.f, seed, true}(sd_host);
-        ck_tile::FillNormalDistribution<YSmoothScaleDataType>{0.f, 1.f, seed, true}(sy_host);
-        ck_tile::FillNormalDistribution<TopkWeightDataType>{0.f, 1.f, seed, true}(topk_weight_host);
+        ck_tile::FillNormalDistribution<ADataType>{1.f, 1.f, seed, true}(a_host);
+        ck_tile::FillNormalDistribution<GDataType>{1.f, 1.f, seed, true}(g_host);
+        ck_tile::FillNormalDistribution<DDataType>{1.f, 1.f, seed, true}(d_host);
+        ck_tile::FillNormalDistribution<AScaleDataType>{1.f, 1.f, seed, true}(sa_host);
+        ck_tile::FillNormalDistribution<GScaleDataType>{1.f, 1.f, seed, true}(sg_host);
+        ck_tile::FillNormalDistribution<DScaleDataType>{1.f, 1.f, seed, true}(sd_host);
+        ck_tile::FillNormalDistribution<YSmoothScaleDataType>{1.f, 1.f, seed, true}(sy_host);
+        ck_tile::FillNormalDistribution<TopkWeightDataType>{0.125f, 0.125f, seed, true}(topk_weight_host);
     }
 
     // permute weight
@@ -272,15 +272,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<DDataType> d_perm_host = shuffle_moe_weight(d_host, prec_w, 1);
 
     // do moe sorting
-    if(balance)
+    if(1)
     {
-        int e_cnt = 0;
-        for(int i = 0; i < static_cast<int>(topk_ids_host.mData.size()); i++)
-        {
-            topk_ids_host.mData[i] = e_cnt;
-            e_cnt++;
-            if(e_cnt >= experts)
-                e_cnt = 0;
+        for(int i=0; i < topk; i++) {
+            topk_ids_host.mData[i] = i;
+            topk_weight_host.mData[i] = 0.1;
         }
     }
     else
@@ -420,7 +416,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 experts,
                 block_m);
 
-            ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Gelu>(
+            ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Silu>(
                 a_host,
                 g_host,
                 d_host,
@@ -529,7 +525,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(do_validation)
         {
-            ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Gelu>(
+            ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Silu>(
                 a_host,
                 g_host,
                 d_host,
