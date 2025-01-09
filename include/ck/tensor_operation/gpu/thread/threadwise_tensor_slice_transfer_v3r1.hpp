@@ -279,12 +279,12 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                                                    Sequence<I0, I8, I12, I14>,
                                                    Sequence<I0>>;
 
-            static_for<0, VectorSizeLookupTable{}.At(SrcScalarPerVector).Size(), 1>{}(
+            static_for<0, tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>::Size(), 1>{}(
                 [&](auto v_idx) {
                     constexpr auto VectorLoadSize =
-                        VectorSizeLookupTable{}.At(SrcScalarPerVector).At(v_idx);
+                        tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>::At(v_idx);
                     constexpr auto LoadOffset =
-                        VectorOffsetsLookupTable{}.At(SrcScalarPerVector).At(v_idx);
+                        tuple_element_t<SrcScalarPerVector, VectorOffsetsLookupTable>::At(v_idx);
 
                     using src_vector_container   = vector_type_maker_t<SrcData, VectorLoadSize>;
                     using src_vector_container_t = typename src_vector_container::type;
