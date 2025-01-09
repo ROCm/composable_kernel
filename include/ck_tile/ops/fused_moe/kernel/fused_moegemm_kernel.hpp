@@ -298,6 +298,9 @@ struct FusedMoeGemmKernel
 
             index_t token_id =
                 reinterpret_cast<const index_t*>(kargs.sorted_token_ids_ptr)[sorted_token_id];
+#if CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
+            token_id &= 0xffffff;
+#endif
             auto topk_weight = reinterpret_cast<const TopkWeightDataType*>(
                 kargs.sorted_weight_ptr)[sorted_token_id];
 

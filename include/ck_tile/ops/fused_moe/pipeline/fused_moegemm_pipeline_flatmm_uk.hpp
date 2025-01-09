@@ -125,6 +125,9 @@ struct FusedMoeGemmPipeline_FlatmmUk
         array<index_t, n_size> row_ids;
         static_for<0, n_size, 1>{}([&](auto i) {
             row_ids.at(i) = sorted_token_ids_ptr[coords[i]]; // base_coord + i * MLans;
+#if CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
+            row_ids.at(i) &= 0xffffff;
+#endif
         });
 
         return row_ids;
