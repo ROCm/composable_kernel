@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -90,7 +90,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
             Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
 
         using ComputeTensorType = decltype(cast_tile<ComputeDataType>(load_tile(x_window)));
-        auto square_sum   = block_reduce2d.template MakeYBlockTile<ComputeTensorType>();
+        auto square_sum         = block_reduce2d.template MakeYBlockTile<ComputeTensorType>();
         set_tile(square_sum, reduce_square_sum_func.GetIdentityValue<ComputeDataType>());
 
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
@@ -102,14 +102,14 @@ struct Rmsnorm2dFwdPipelineTwoPass
             move_tile_window(x_residual_window, {0, Block_N});
 
             auto acc = cast_tile<ComputeDataType>(x);
-            if constexpr (kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
-                          kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+            if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
+                         kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
             {
                 sweep_tile(x_resi, [&](auto idx) {
                     // compute x = x_resi + x
                     acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
                 });
-                if constexpr (kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+                if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
                 {
                     store_tile(y_residual_window, cast_tile<YResidualDataType>(acc));
                     move_tile_window(y_residual_window, {0, Block_N});
@@ -167,12 +167,12 @@ struct Rmsnorm2dFwdPipelineTwoPass
 
                 const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
 
-                auto rmsn_    = acc(idx) * inv_rms_[i_idx] * gamma_;
+                auto rmsn_ = acc(idx) * inv_rms_[i_idx] * gamma_;
 
                 rmsn(idx) = rmsn_;
             });
 
-            static_assert(kFusedQuant != Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT);
+            static_assert(kFusedQuant == Rmsnorm2dFusedQuantEnum::NO_SWEEP);
             Epilogue{}(y_window, rmsn);
 
             move_tile_window(x_window, {0, -Block_N});

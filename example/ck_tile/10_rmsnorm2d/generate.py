@@ -31,7 +31,8 @@ FUSED_ADD_ENUM_STR_MAP = [
 
 FUSED_FUSED_SWEEP_STR_MAP = [
     'no',
-    'dquant' ]
+    'sdquant',  # smooth dynamic quant
+    'dquant' ]  # dynamic quant (without x_scale)
 
 DATA_TYPE_MAP = {'fp32' : 'float',
                  'fp16' : 'ck_tile::fp16_t',
@@ -211,7 +212,7 @@ float rmsnorm2d_fwd_(const S& s, A a)
 
     using DynamicQuantEpilogue = ck_tile::DynamicQuantEpilogue<DynamicQuantEpilogueProblem>;
 
-    using Epilogue = std::conditional_t<Traits_::kFusedQuant == 1, DynamicQuantEpilogue,  Default2DEpilogue>;
+    using Epilogue = std::conditional_t<Traits_::kFusedQuant != 0, DynamicQuantEpilogue,  Default2DEpilogue>;
 
     using Kernel = ck_tile::Rmsnorm2dFwd<Pipeline, Epilogue>;
 
@@ -483,9 +484,9 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
         dtype_list = [('fp16,fp16'), ('bf16,bf16'),
                         ('fp16,int8'), ('bf16,int8')] # NOTE: only fused-dynamic-quant use int8 out
         #fused_add_list = [0, 1, 2]
-        #fused_sweep_list = [0, 1, 2] # NOTE: only single pass can use fused dynamic quant
+        #fused_sweep_list = [0, 1, 2] # NOTE: only single pass can use fused (smooth) dynamic quant
         fused_add_list = [0, 1]
-        fused_sweep_list = [0, 1] # NOTE: only single pass can use fused dynamic quant
+        fused_sweep_list = [0, 1, 2] # NOTE: only single pass can use fused (smooth) dynamic quant
 
         #                                                       rm  rn  tm   tn  vn  pd     mv     2p     add    sweep
         h_trait_dict = {'64'  : [ h_traits('x', 'y', 'xs', 'ys', 1,  1,  8,  8,  8,  True,  False, False,   0,    0),
@@ -543,9 +544,9 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
             for dtype, scale_type, fused_add, fused_quant in itertools.product(dtype_list, scale_list, fused_add_list, fused_sweep_list):
                 prec_i, prec_o = dtype.split(',')
                 scale_x, scale_y = scale_type.split(',')
-                if prec_o in dynamic_quant_out_dtype and fused_quant != 1:
+                if prec_o in dynamic_quant_out_dtype and fused_quant != 1 and fused_quant != 2:
                     continue # skip non dynamic quant case
-                if fused_quant == 1 and hs_key == 'big':
+                if (fused_quant == 1 or fused_quant == 2) and hs_key == 'big':
                     continue
                 current_hs = list()
                 for chs_ in hs:

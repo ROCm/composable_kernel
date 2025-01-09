@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -105,33 +105,17 @@ struct DynamicQuantEpilogue
         return reduce_crosswarp_sync.GetSmemSize();
     }
 
-    // TODO: this function assume store out vector size is the same as OAccTile last dimension size
-    //       how do we fix this ?
-    template <typename ODramWindowTmp,
-              typename XScaleWindow,
-              typename YScaleWindow,
-              typename OAccTile>
-    CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
-                                   const XScaleWindow& x_scale_window_,
-                                   YScaleWindow& y_scale_window,
-                                   const OAccTile& o_acc_tile,
-                                   void* smem)
+    template <typename ODramWindowTmp, typename YScaleWindow, typename OAccTile>
+    CK_TILE_DEVICE auto Impl(ODramWindowTmp& o_dram_window_tmp,
+                             YScaleWindow& y_scale_window,
+                             const OAccTile& o_acc_tile,
+                             void* smem)
     {
         auto reduce                = GetBlockReduce2d();
         auto reduce_sync           = GetBlockReduce2dSync();
         auto reduce_crosswarp_sync = GetBlockReduce2dCrossWarpSync();
-        const auto x_scale_window =
-            make_tile_window(x_scale_window_, MakeSmoothInputScaleTileDistribution());
-
-        auto x_scale = load_tile(x_scale_window);
 
         auto o_acc_tmp = o_acc_tile;
-
-        sweep_tile(o_acc_tmp, [&](auto idx) {
-            constexpr auto j_idx = make_tuple(idx[number<1>{}]);
-            const auto xs_       = type_convert<AccDataType>(x_scale[j_idx]);
-            o_acc_tmp(idx)       = o_acc_tmp(idx) * xs_;
-        });
 
         const auto f_absmax = [](auto acc_, auto v_0_) { return max(acc_, abs(v_0_)); };
 
@@ -183,6 +167,46 @@ struct DynamicQuantEpilogue
         {
             store_tile(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tmp));
         }
+    }
+
+    // TODO: this function assume store out vector size is the same as OAccTile last dimension size
+    //       how do we fix this ?
+
+    // Smooth Dynamic Quant
+    template <typename ODramWindowTmp,
+              typename XScaleWindow,
+              typename YScaleWindow,
+              typename OAccTile>
+    CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
+                                   const XScaleWindow& x_scale_window_,
+                                   YScaleWindow& y_scale_window,
+                                   const OAccTile& o_acc_tile,
+                                   void* smem)
+    {
+        const auto x_scale_window =
+            make_tile_window(x_scale_window_, MakeSmoothInputScaleTileDistribution());
+
+        auto x_scale = load_tile(x_scale_window);
+
+        auto o_acc_tmp = o_acc_tile;
+
+        sweep_tile(o_acc_tmp, [&](auto idx) {
+            constexpr auto j_idx = make_tuple(idx[number<1>{}]);
+            const auto xs_       = type_convert<AccDataType>(x_scale[j_idx]);
+            o_acc_tmp(idx)       = o_acc_tmp(idx) * xs_;
+        });
+
+        Impl(o_dram_window_tmp, y_scale_window, o_acc_tmp, smem);
+    }
+
+    // Dynamic Quant
+    template <typename ODramWindowTmp, typename YScaleWindow, typename OAccTile>
+    CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
+                                   YScaleWindow& y_scale_window,
+                                   const OAccTile& o_acc_tile,
+                                   void* smem)
+    {
+        Impl(o_dram_window_tmp, y_scale_window, o_acc_tile, smem);
     }
 };
 } // namespace ck_tile

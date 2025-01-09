@@ -64,15 +64,15 @@ template <typename InDataType,
           bool SaveRms>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
-    ck_tile::index_t m      = arg_parser.get_int("m");
-    ck_tile::index_t n      = arg_parser.get_int("n");
-    float epsilon         = arg_parser.get_float("e");
-    int kname             = arg_parser.get_int("kname");
-    int do_validation     = arg_parser.get_int("v");
-    int fused_add         = arg_parser.get_int("fadd");
-    int fused_quant       = arg_parser.get_int("fquant");
-    int warmup            = arg_parser.get_int("warmup");
-    int repeat            = arg_parser.get_int("repeat");
+    ck_tile::index_t m = arg_parser.get_int("m");
+    ck_tile::index_t n = arg_parser.get_int("n");
+    float epsilon      = arg_parser.get_float("e");
+    int kname          = arg_parser.get_int("kname");
+    int do_validation  = arg_parser.get_int("v");
+    int fused_add      = arg_parser.get_int("fadd");
+    int fused_quant    = arg_parser.get_int("fquant");
+    int warmup         = arg_parser.get_int("warmup");
+    int repeat         = arg_parser.get_int("repeat");
 
     ck_tile::index_t x_stride = arg_parser.get_int("x_stride");
     if(x_stride < 0)
@@ -105,7 +105,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         prec_sy = "fp32";
     }
 
-    if(fused_quant == 1 && prec_o != "int8")
+    if((fused_quant == 1 || fused_quant == 2) && prec_o != "int8")
     {
         std::cout << "if fused_quant is 1, only support \"-prec_o=int8\" case" << std::endl;
         return false;
@@ -113,9 +113,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using TypeConfig = RmsnormTypeConfig<InDataType, OutDataType, XScaleDataType, YScaleDataType>;
 
-    using XDataType     = typename TypeConfig::XDataType;
-    using YDataType     = typename TypeConfig::YDataType;
-    using GammaDataType = typename TypeConfig::GammaDataType;
+    using XDataType         = typename TypeConfig::XDataType;
+    using YDataType         = typename TypeConfig::YDataType;
+    using GammaDataType     = typename TypeConfig::GammaDataType;
     using XResidualDataType = XDataType;
     using YResidualDataType = XDataType;
 
@@ -208,7 +208,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(do_validation)
     {
         // reference
-        if (fused_add != 0)
+        if(fused_add != 0)
         {
             // fused pre_add/pre_add_store
             // TODO we accumulate directly to x_host for simplcity here...
@@ -223,7 +223,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                            });
         }
 
-        if (fused_quant != 0)
+        if(fused_quant != 0)
         {
             auto dquant_functor = [&](int m_, auto& o_, auto& acc_) {
                 int N_ = acc_.mDesc.get_lengths()[1];
@@ -362,31 +362,36 @@ int main(int argc, char* argv[])
         prec_sy = "fp32";
     }
 
-    int save_rms                = arg_parser.get_int("save_rms");
+    int save_rms = arg_parser.get_int("save_rms");
 
     if(prec_i == "fp16" && prec_o == "fp16" && prec_sx == "fp32" && prec_sy == "fp32" && save_rms)
     {
         return run<ck_tile::half_t, ck_tile::half_t, float, float, true>(arg_parser) ? 0 : -2;
     }
-    else if(prec_i == "fp16" && prec_o == "fp16" && prec_sx == "fp32" && prec_sy == "fp32" && !save_rms)
+    else if(prec_i == "fp16" && prec_o == "fp16" && prec_sx == "fp32" && prec_sy == "fp32" &&
+            !save_rms)
     {
         return run<ck_tile::half_t, ck_tile::half_t, float, float, false>(arg_parser) ? 0 : -2;
     }
-    else if(prec_i == "bf16" && prec_o == "bf16" && prec_sx == "fp32" && prec_sy == "fp32" && save_rms)
+    else if(prec_i == "bf16" && prec_o == "bf16" && prec_sx == "fp32" && prec_sy == "fp32" &&
+            save_rms)
     {
         return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true>(arg_parser) ? 0 : -2;
     }
-    else if(prec_i == "bf16" && prec_o == "bf16" && prec_sx == "fp32" && prec_sy == "fp32" && !save_rms)
+    else if(prec_i == "bf16" && prec_o == "bf16" && prec_sx == "fp32" && prec_sy == "fp32" &&
+            !save_rms)
     {
         return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true>(arg_parser) ? 0 : -2;
     }
 
     // dynamic quant case, only in inference
-    else if (prec_i == "fp16" && prec_o == "int8" && prec_sx == "fp32" && prec_sy == "fp32" && !save_rms)
+    else if(prec_i == "fp16" && prec_o == "int8" && prec_sx == "fp32" && prec_sy == "fp32" &&
+            !save_rms)
     {
         return run<ck_tile::half_t, ck_tile::int8_t, float, float, true>(arg_parser) ? 0 : -2;
     }
-    else if (prec_i == "bf16" && prec_o == "int8" && prec_sx == "fp32" && prec_sy == "fp32" && !save_rms)
+    else if(prec_i == "bf16" && prec_o == "int8" && prec_sx == "fp32" && prec_sy == "fp32" &&
+            !save_rms)
     {
         return run<ck_tile::bf16_t, ck_tile::int8_t, float, float, true>(arg_parser) ? 0 : -2;
     }

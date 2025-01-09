@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -92,22 +92,23 @@ struct Rmsnorm2dFwdPipelineOnePass
 
         auto acc = cast_tile<ComputeDataType>(x);
 
-        if constexpr (kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
-                      kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+        if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
+                     kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
         {
             sweep_tile(x_resi, [&](auto idx) {
                 // compute x = x_resi + x
                 acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
             });
-            if constexpr (kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+            if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
             {
                 store_tile(y_residual_window, cast_tile<YResidualDataType>(acc));
             }
         }
 
         // compute mean square each-thread->cross-lane->cross-warp
-        auto square_sum = block_reduce2d(
-            acc, reduce_square_sum_func.GetIdentityValue<ComputeDataType>(), reduce_square_sum_func);
+        auto square_sum = block_reduce2d(acc,
+                                         reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
+                                         reduce_square_sum_func);
         block_reduce2d_sync(square_sum, reduce_sum_func);
         block_reduce2d_cross_warp_sync(square_sum, smem, reduce_sum_func);
 
@@ -129,15 +130,18 @@ struct Rmsnorm2dFwdPipelineOnePass
 
             const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
 
-            auto rmsn_    = acc[idx] * inv_rms_[i_idx] * gamma_;
+            auto rmsn_ = acc[idx] * inv_rms_[i_idx] * gamma_;
 
             rmsn(idx) = rmsn_;
         });
 
-        if constexpr (kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT ||
-                      kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
+        if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
         {
             Epilogue{}(y_window_, x_scale_window_, y_scale_window_, rmsn, smem);
+        }
+        else if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT)
+        {
+            Epilogue{}(y_window_, y_scale_window_, rmsn, smem);
         }
         else
         {
