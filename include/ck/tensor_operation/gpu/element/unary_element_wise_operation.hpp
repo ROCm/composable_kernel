@@ -324,11 +324,11 @@ struct PassThrough final : public UnaryOpBase
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
-    template <>
-    __host__ __device__ void operator()<pk_i4_t, pk_i4_t>(pk_i4_t& y, const pk_i4_t& x) const
-    {
-        y = x;
-    }
+    // template <>
+    // __host__ __device__ void operator()<pk_i4_t, pk_i4_t>(pk_i4_t& y, const pk_i4_t& x) const
+    // {
+    //     y = x;
+    // }
 
     template <>
     __host__ __device__ void operator()<float, double>(float& y, const double& x) const

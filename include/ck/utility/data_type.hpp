@@ -11,15 +11,16 @@ namespace ck {
 using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
+using pk_i4_t = uint8_t;
 
 // custom data type - pack int4 data
-struct pk_i4_t
-{
-    using type = uint8_t;
-    type data;
-    __host__ __device__ constexpr pk_i4_t() : data{type{}} {}
-    __host__ __device__ constexpr pk_i4_t(type init) : data{init} {}
-};
+// struct pk_i4_t
+// {
+//     using type = uint8_t;
+//     type data;
+//     __host__ __device__ constexpr pk_i4_t() : data{type{}} {}
+//     __host__ __device__ constexpr pk_i4_t(type init) : data{init} {}
+// };
 
 inline constexpr auto next_pow2(uint32_t x)
 {
@@ -174,12 +175,12 @@ struct scalar_type<int4_t>
 };
 #endif
 
-template <>
-struct scalar_type<pk_i4_t>
-{
-    using type                           = pk_i4_t;
-    static constexpr index_t vector_size = 1;
-};
+// template <>
+// struct scalar_type<pk_i4_t>
+// {
+//     using type                           = pk_i4_t;
+//     static constexpr index_t vector_size = 1;
+// };
 
 template <>
 struct scalar_type<f8_fnuz_t>
@@ -1060,11 +1061,11 @@ struct nnvb_data_t_selector<bf8_ocp_t>
     using type = bf8_ocp_t::data_type;
 };
 
-template <>
-struct nnvb_data_t_selector<pk_i4_t>
-{
-    using type = pk_i4_t::type;
-};
+// template <>
+// struct nnvb_data_t_selector<pk_i4_t>
+// {
+//     using type = pk_i4_t::type;
+// };
 
 template <typename T, index_t N>
 struct non_native_vector_base<
