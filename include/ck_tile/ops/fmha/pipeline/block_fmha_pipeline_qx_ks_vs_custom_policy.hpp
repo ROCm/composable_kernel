@@ -125,6 +125,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
     }
 };
 
+/// NOTICE: we no-longer use this policy.
 template <>
 struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
 {
