@@ -15,7 +15,7 @@ using int4_t  = _BitInt(4);
 // custom data type - pack int4 data
 struct pk_i4_t
 {
-    using type = int8_t;
+    using type = uint8_t;
     type data;
     __host__ __device__ constexpr pk_i4_t() : data{type{}} {}
     __host__ __device__ constexpr pk_i4_t(type init) : data{init} {}
