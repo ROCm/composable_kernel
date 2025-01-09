@@ -126,6 +126,7 @@ struct Rmsnorm2dFwd
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     template <> struct t2s<ck_tile::fp8_t> { static constexpr const char * name = "fp8"; };
     template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
+    template <> struct t2s<ck_tile::int8_t> { static constexpr const char * name = "int8"; };
     // clang-format on
 
     // in byte
@@ -133,24 +134,41 @@ struct Rmsnorm2dFwd
 
     CK_TILE_HOST static std::string GetName()
     {
+#define _SS_ std::string
+#define _TS_ std::to_string
         // clang-format off
         using S_ = typename Problem::BlockShape;
         auto surfix = [&] () {
             std::string n;
+            if (kFusedAdd != Rmsnorm2dFusedAddEnum::NO_ADD) n += _SS_("_") + Rmsnorm2dFusedAddEnumName<kFusedAdd>::name;
+            if (kFusedQuant != Rmsnorm2dFusedQuantEnum::NO_SWEEP) n += _SS_("_") + Rmsnorm2dFusedQuantEnumName<kFusedQuant>::name;
             if (kPadN) n += "_pn";
             if (kSaveInvRms) n += "_rms";
-            if (kTwoPass) n += "_2p";
+            // if (kTwoPass) n += "_2p";
             return n; }();
 
-        #define _SS_  std::string
-        #define _TS_  std::to_string
-        return _SS_("rmsnorm2d_fwd_") + _SS_(t2s<XDataType>::name) + "_" +
+        auto prec_str = [&] () {
+            std::string base_str = _SS_(t2s<XDataType>::name);
+            if (!std::is_same_v<XDataType, YDataType>) {
+                base_str += _SS_("_") + _SS_(t2s<YDataType>::name);
+            }
+            if (kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT) {
+                base_str += _SS_("_sx") + _SS_(t2s<XScaleDataType>::name);
+                base_str += _SS_("_sy") + _SS_(t2s<YScaleDataType>::name);
+            }
+            if (kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT) {
+                base_str += _SS_("_sy") + _SS_(t2s<YScaleDataType>::name);
+            }
+            return base_str;
+        }();
+
+        return _SS_("rmsnorm2d_fwd_") + _SS_(prec_str) + "_" +
              _TS_(S_::Block_M) + "x" + _TS_(S_::Block_N) + "_" + _TS_(S_::WarpPerBlock_M) + "x" + _TS_(S_::WarpPerBlock_N) + "_" +
              _TS_(S_::Warp_M) + "x" + _TS_(S_::Warp_N) + "_" + _TS_(S_::Vector_M) + "x" + _TS_(S_::Vector_N) + "_" +
              _SS_(Pipeline::name) + surfix;
-        #undef _SS_
-        #undef _TS_
         // clang-format on
+#undef _SS_
+#undef _TS_
     }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
@@ -170,10 +188,10 @@ struct Rmsnorm2dFwd
             return make_tile_window(
                 tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
         }();
-        
+
         const auto x_residual_window = [&]() {
-            if constexpr (kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
-                          kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+            if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
+                         kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
             {
                 const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                     static_cast<const XResidualDataType*>(kargs.p_x_residual),
@@ -182,8 +200,9 @@ struct Rmsnorm2dFwd
                     number<Vector_N>{},
                     number<1>{});
 
-                const auto tmp2_ = pad_tensor_view(
-                    tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<kPadM, kPadN>{});
+                const auto tmp2_ = pad_tensor_view(tmp_,
+                                                   make_tuple(number<Block_M>{}, number<Block_N>{}),
+                                                   sequence<kPadM, kPadN>{});
                 return make_tile_window(
                     tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
             }
@@ -222,7 +241,7 @@ struct Rmsnorm2dFwd
         }();
 
         auto y_residual_window = [&]() {
-            if constexpr (kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+            if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
             {
                 auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                     static_cast<YResidualDataType*>(kargs.p_y_residual),
@@ -231,8 +250,9 @@ struct Rmsnorm2dFwd
                     number<Vector_N>{},
                     number<1>{});
 
-                auto tmp2_ = pad_tensor_view(
-                    tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<kPadM, kPadN>{});
+                auto tmp2_ = pad_tensor_view(tmp_,
+                                             make_tuple(number<Block_M>{}, number<Block_N>{}),
+                                             sequence<kPadM, kPadN>{});
                 return make_tile_window(
                     tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
             }
