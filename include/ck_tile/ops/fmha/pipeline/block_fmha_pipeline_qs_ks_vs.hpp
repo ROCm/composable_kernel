@@ -10,6 +10,7 @@
 
 namespace ck_tile {
 
+/// NOTICE: we no-longer use this pipeline.
 // This pipeline is qkv all located in LDS
 template <typename Problem_, typename Policy_ = BlockFmhaPipelineQSKSVSDefaultPolicy>
 struct BlockFmhaPipelineQSKSVS
