@@ -50,11 +50,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     constexpr int kBlockPerCu = 1;
 
-    // Whether the GemmPolicy is default or custom
-    constexpr bool kBlockDefaultPolicy = false;
-    constexpr BlockGemmMethod kBlockGemmMethod = BlockGemmMethod::UniversalGemmAsBsCr;
-    constexpr BlockGemmPolicy kBlockGemmPolicy = BlockGemmPolicy::DefaultPolicyV1;
-
     // ===============================================
 
     using GemmShape =
@@ -66,15 +61,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     using GemmEpilogue = ck_tile::Default2DEpilogue<
         ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
 
-    using Traits = ck_tile::TileGemmTraits<kPadM,
-                                           kPadN,
-                                           kPadK,
-                                           ALayout,
-                                           BLayout,
-                                           CLayout,
-                                           kBlockDefaultPolicy,
-                                           kBlockGemmMethod,
-                                           kBlockGemmPolicy>;
+    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
 
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;

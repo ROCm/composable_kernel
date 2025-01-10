@@ -33,10 +33,6 @@ struct GemmPipelineProblemBase
     static constexpr bool kPadN = GemmTraits::kPadN;
     static constexpr bool kPadK = GemmTraits::kPadK;
 
-    static constexpr bool kBlockDefaultPolicy = GemmTraits::kBlockDefaultPolicy;
-    static constexpr int kBlockPolicyMethod   = GemmTraits::kBlockPolicyMethod;
-    static constexpr int kBlockMethod         = GemmTraits::kBlockMethod;
-
     static constexpr auto Scheduler = GemmPipelineScheduler::Default;
 
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()

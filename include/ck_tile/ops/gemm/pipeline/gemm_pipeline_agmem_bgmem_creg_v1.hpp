@@ -23,7 +23,7 @@ struct GemmPipelineAGmemBGmemCRegV1
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
-    using BlockGemm = typename Policy::template BlockGemm<Problem>;
+    using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
 

@@ -39,18 +39,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
 
-    // Whether the GemmPolicy is default or custom
-    constexpr bool kBlockDefaultPolicy = true;
-    // kBlockMethod decides which kind of the BlockGEMM Method the GEMM should use.
-    // 0: BlockUniversalGemmAsBsCr
-    // 1: BlockGemmARegBRegCRegV1
-    constexpr int kBlockGemmMethod = 0;
-    // kBlockPolicyMethod decides which kind of the BlockGEMM Method the GEMM should use.
-    // 0: Default BlockGemmARegBRegCRegV1 Policy
-    // 1: Default BlockGemmARegBRegCRegV2 Policy
-    // 2: BlockGemmASmemBSmemCRegV1CustomPolicy
-    constexpr int kBlockGemmPolicy = 1;
-
     // Whether doing the CShuffle (transpose before the global memory), depending on the output
     // layout.
     constexpr bool CShuffleEpilogue =
@@ -78,15 +66,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         ck_tile::Default2DEpilogue<
             ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
 
-    using CodegenGemmTraits      = ck_tile::TileGemmTraits<kPadM,
-                                                      kPadN,
-                                                      kPadK,
-                                                      ALayout,
-                                                      BLayout,
-                                                      CLayout,
-                                                      kBlockDefaultPolicy,
-                                                      kBlockGemmMethod,
-                                                      kBlockGemmPolicy>;
+    using CodegenGemmTraits =
+        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
     using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;

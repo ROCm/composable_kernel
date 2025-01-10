@@ -11,31 +11,11 @@ namespace ck_tile {
 // UniversalGemm Policy
 struct UniversalGemmPipelineAgBgCrPolicy
 {
-
-    template <typename Problem>
-    static auto GetBlockGemmTypeIdentity()
-    {
-        if constexpr(Problem::kBlockMethod == 0)
-        {
-            return custom_std::type_identity<decltype(GetBlockGemmUniversal<Problem>())>{};
-        }
-        else
-        {
-            return custom_std::type_identity<decltype(GetBlockGemmGlobalRegister<Problem>())>{};
-        }
-    }
-
-    template <typename Problem>
-    using BlockGemm = typename decltype(GetBlockGemmTypeIdentity<Problem>())::type;
-
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
 
     static constexpr bool TransposeC = true;
-
-    template <typename Problem>
-    using BlockGemm = typename decltype(GetBlockGemmTypeIdentity<Problem>())::type;
 
     template <typename Problem, typename DataType, index_t MNPerBlock>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorLoadSize()
@@ -464,102 +444,24 @@ struct UniversalGemmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemmUniversal()
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        if constexpr(Problem::kBlockDefaultPolicy == true)
-        {
-            // Default Policy
-            if constexpr(Problem::kBlockPolicyMethod == 0)
-            {
-                using BlockGemmPolicy = BlockGemmARegBRegCRegV1DefaultPolicy;
-                return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
-            }
-            else if constexpr(Problem::kBlockPolicyMethod == 1)
-            {
-                using BlockGemmPolicy = BlockGemmARegBRegCRegV2DefaultPolicy;
-                return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
-            }
-        }
-        else
-        {
-            // Custom Policy
-            using AccDataType = float;
-            using BlockWarps  = typename Problem::BlockGemmShape::BlockWarps;
-            using WarpTile    = typename Problem::BlockGemmShape::WarpTile;
-            using WarpGemm    = WarpGemmMfmaDispatcher<typename Problem::ADataType,
-                                                    typename Problem::BDataType,
-                                                    AccDataType,
-                                                    WarpTile::at(I0),
-                                                    WarpTile::at(I1),
-                                                    WarpTile::at(I2),
-                                                    TransposeC>;
-            using BlockGemmPolicy =
-                BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
-                                                      typename Problem::BDataType,
-                                                      typename Problem::CDataType,
-                                                      BlockWarps,
-                                                      WarpGemm>;
-
-            if constexpr(Problem::kBlockPolicyMethod == 2)
-            {
-                return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
-            }
-            else
-            {
-                static_assert(
-                    false,
-                    "There are no other customer policies to support in BlockUniversalGemmAsBsCr");
-            }
-        }
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemmGlobalRegister()
-    {
-        if constexpr(Problem::kBlockDefaultPolicy == true)
-        {
-            // Default Policy
-            if constexpr(Problem::kBlockPolicyMethod == 0)
-            {
-                using BlockGemmPolicy = BlockGemmARegBRegCRegV1DefaultPolicy;
-                return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
-            }
-            else if constexpr(Problem::kBlockPolicyMethod == 1)
-            {
-                using BlockGemmPolicy = BlockGemmARegBRegCRegV2DefaultPolicy;
-                return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
-            }
-        }
-        else
-        {
-            // Custom Policy
-            using AccDataType     = float;
-            using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
-            using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
-            using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
-                                                    typename Problem::BDataType,
-                                                    AccDataType,
-                                                    WarpTile::at(I0),
-                                                    WarpTile::at(I1),
-                                                    WarpTile::at(I2),
-                                                    TransposeC>;
-            using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
-                                                                        typename Problem::BDataType,
-                                                                        typename Problem::CDataType,
-                                                                        BlockWarps,
-                                                                        WarpGemm>;
-
-            if constexpr(Problem::kBlockPolicyMethod == 2)
-            {
-                return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
-            }
-            else
-            {
-                static_assert(
-                    false,
-                    "There are no other customer policies to support in BlockUniversalGemmAsBsCr");
-            }
-        }
+        using AccDataType     = float;
+        using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
+        using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
+        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
+                                                typename Problem::BDataType,
+                                                AccDataType,
+                                                WarpTile::at(I0),
+                                                WarpTile::at(I1),
+                                                WarpTile::at(I2),
+                                                TransposeC>;
+        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
+                                                                      typename Problem::BDataType,
+                                                                      typename Problem::CDataType,
+                                                                      BlockWarps,
+                                                                      WarpGemm>;
+        return BlockGemmASmemBSmemCRegV1<Problem, BlockGemmPolicy>{};
     }
 };
 
