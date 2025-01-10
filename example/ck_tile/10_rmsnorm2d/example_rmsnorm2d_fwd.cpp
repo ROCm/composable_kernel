@@ -37,12 +37,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     assert(stride >= n);
 
-    using XDataType      = DataType;
-    using YDataType      = DataType;
-    using GammaDataType  = DataType;
-    using InvRmsDataType = ck_tile::null_type;
-    using XScaleDataType = ck_tile::null_type;
-    using YScaleDataType = ck_tile::null_type;
+    using XDataType           = DataType;
+    using YDataType           = DataType;
+    using GammaDataType       = DataType;
+    using InvRmsDataType      = ck_tile::null_type;
+    using SmoothScaleDataType = ck_tile::null_type;
+    using YScaleDataType      = ck_tile::null_type;
 
     using ComputeDataType = float;
 
@@ -71,7 +71,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockTile  = ck_tile::sequence<2, 128>;
     using WarpTile   = ck_tile::sequence<1, 64>;
     using Vector     = ck_tile::sequence<1, 1>;
-    using Shape   = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using Shape      = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
 
     using PipelineTraits =
         ck_tile::Rmsnorm2dFwdTraits<true,  // kPadN
@@ -85,7 +85,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                          ComputeDataType,
                                                          YDataType,
                                                          InvRmsDataType,
-                                                         XScaleDataType,
+                                                         SmoothScaleDataType,
                                                          YScaleDataType,
                                                          Shape,
                                                          PipelineTraits>;
@@ -94,10 +94,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using TwoPassPipeline = ck_tile::Rmsnorm2dFwdPipelineTwoPass<Problem>;
     using Pipeline        = std::conditional_t<kTwoPass, TwoPassPipeline, OnePassPipeline>;
 
-    using Default2DEpilogueProblem = ck_tile::Default2DEpilogueProblem<ComputeDataType, YDataType, false, PipelineTraits::kPadN, false>;
+    using Default2DEpilogueProblem = ck_tile::
+        Default2DEpilogueProblem<ComputeDataType, YDataType, false, PipelineTraits::kPadN, false>;
     using Default2DEpilogue = ck_tile::Default2DEpilogue<Default2DEpilogueProblem>;
 
-    using Kernel          = ck_tile::Rmsnorm2dFwd<Pipeline, Default2DEpilogue>;
+    using Kernel = ck_tile::Rmsnorm2dFwd<Pipeline, Default2DEpilogue>;
 
     ck_tile::Rmsnorm2dFwdHostArgs args{x_buf.GetDeviceBuffer(),
                                        nullptr,
