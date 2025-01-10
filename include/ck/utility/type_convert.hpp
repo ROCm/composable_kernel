@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -463,6 +463,19 @@ inline __host__ __device__ float2_t type_convert<float2_t, f8x2_ocp_t>(f8x2_ocp_
                     fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(
                         x.AsType<fp8_storage_t>()[Number<1>{}])};
 #endif
+}
+
+template <>
+inline __host__ __device__ float2_t type_convert<float2_t, pk_i4_t>(pk_i4_t x)
+{
+    uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
+    uint8_t x_l  = (x_u8 & 0x0f) >> 0;
+    uint8_t x_h  = (x_u8 & 0xf0) >> 4;
+
+    auto l_f32 = ck::type_convert<float>(x_l);
+    auto h_f32 = ck::type_convert<float>(x_h);
+
+    return {l_f32, h_f32};
 }
 
 template <>

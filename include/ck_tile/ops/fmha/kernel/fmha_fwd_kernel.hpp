@@ -20,10 +20,9 @@
 
 namespace ck_tile {
 
-template <typename TilePartitioner_, typename FmhaPipeline_, typename EpiloguePipeline_>
+template <typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdKernel
 {
-    using TilePartitioner                         = ck_tile::remove_cvref_t<TilePartitioner_>;
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
     using EpiloguePipeline                        = ck_tile::remove_cvref_t<EpiloguePipeline_>;
     static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
@@ -84,7 +83,7 @@ struct FmhaFwdKernel
             return n.empty() ? n : std::string("p") + n; }();
         return
             _SS_("fmha_fwd_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
-            "_" + (kIsGroupMode ? "group" : "batch") + "_" + _SS_(TilePartitioner::name) + "_"
+            "_" + (kIsGroupMode ? "group" : "batch") + "_"
             "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
                     _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kQKHeaddim) + "_" +
             "r" + _TS_(g0br::at(ck_tile::number<0>{})) + "x" + _TS_(g0br::at(ck_tile::number<1>{})) + "x" + _TS_(g0br::at(ck_tile::number<2>{})) + "_" +
@@ -867,9 +866,75 @@ struct FmhaFwdKernel
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_q_,
-                                                ck_tile::index_t hdim_v_)
+                                                ck_tile::index_t hdim_v_,
+                                                bool has_padded_seqlen_k = false)
     {
-        return TilePartitioner::GridSize(batch_size_, nhead_, seqlen_q_, hdim_v_);
+        // has_padded_seqlen_k is determined by checking (seqlen_k_ptr != nullptr)
+        if(has_padded_seqlen_k)
+        {
+            // TODO: this may need tuning
+            return dim3(nhead_,
+                        batch_size_,
+                        ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
+                            ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1));
+        }
+        else
+        {
+            // TODO: this may need tuning
+            return dim3(ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
+                            ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1),
+                        nhead_,
+                        batch_size_);
+        }
+    }
+
+    CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
+    {
+        bool has_padded_seqlen_k = false;
+
+        if constexpr(kIsGroupMode)
+            has_padded_seqlen_k = (kargs.seqlen_k_ptr != nullptr);
+
+        if(has_padded_seqlen_k)
+        {
+            // const index_t num_tile_m0 = seqlen_q / kM0;
+            const index_t num_tile_n1 =
+                ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
+
+            const index_t i_block = blockIdx.z;
+            const index_t i_nhead = blockIdx.x;
+            const index_t i_batch = blockIdx.y;
+
+            const auto f = [](index_t dividend, index_t divisor) {
+                index_t quotient = dividend / divisor;
+                index_t modulus  = dividend - quotient * divisor;
+                return ck_tile::make_tuple(quotient, modulus);
+            };
+
+            const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
+
+            return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+        }
+        else
+        {
+            // const index_t num_tile_m0 = seqlen_q / kM0;
+            const index_t num_tile_n1 =
+                ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
+
+            const index_t i_block = blockIdx.x;
+            const index_t i_nhead = blockIdx.y;
+            const index_t i_batch = blockIdx.z;
+
+            const auto f = [](index_t dividend, index_t divisor) {
+                index_t quotient = dividend / divisor;
+                index_t modulus  = dividend - quotient * divisor;
+                return ck_tile::make_tuple(quotient, modulus);
+            };
+
+            const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
+
+            return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+        }
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
@@ -885,8 +950,7 @@ struct FmhaFwdKernel
         __shared__ char smem_ptr[GetSmemSize()];
 
         // divide problem
-        const auto [i_tile_m, i_tile_n, i_nhead, i_batch] =
-            TilePartitioner{}(kargs.seqlen_q, kargs.hdim_v);
+        const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
 
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
         const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);

@@ -119,8 +119,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
-        index_t smem_size             = 0;
-        smem_size += smem_size_a + smem_size_b;
+        constexpr index_t smem_size   = smem_size_a + smem_size_b;
 
         return smem_size;
     }
@@ -489,6 +488,8 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
                                            sequence<1, 3>>{});
         }
     }
+
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return TransposeC; }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()

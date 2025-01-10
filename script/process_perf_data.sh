@@ -43,3 +43,19 @@ file=./perf_fmha_bwd_gfx90a.log
 if [ -e "$file" ]; then
     python3 process_perf_data.py perf_fmha_bwd_gfx90a.log
 fi
+file=./perf_tile_gemm_basic_fp16_gfx942.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_tile_gemm_basic_fp16_gfx942.log
+fi
+file=./perf_tile_gemm_basic_fp16_gfx90a.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_tile_gemm_basic_fp16_gfx90a.log
+fi
+file=./perf_tile_gemm_mem_pipeline_fp16_gfx942.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_tile_gemm_mem_pipeline_fp16_gfx942.log
+fi
+file=./perf_tile_gemm_mem_pipeline_fp16_gfx90a.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_tile_gemm_mem_pipeline_fp16_gfx90a.log
+fi
