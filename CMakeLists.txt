@@ -106,9 +106,11 @@ if(CK_USE_CODEGEN)
     add_definitions(-DCK_USE_CODEGEN)
 endif()
 
-option(CK_TIME_KERNEL "Enable kernel time tracking" OFF)
+option(CK_TIME_KERNEL "Enable kernel time tracking" ON)
 if(CK_TIME_KERNEL)
-    add_definitions(-DCK_TIME_KERNEL)
+    add_definitions(-DCK_TIME_KERNEL=ON)
+else()
+    add_definitions(-DCK_TIME_KERNEL=OFF)
 endif()
 
 include(getopt)
