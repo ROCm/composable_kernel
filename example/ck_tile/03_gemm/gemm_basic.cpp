@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -9,13 +9,10 @@
 #include <string>
 #include <tuple>
 
-#include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/host.hpp"
 #include "gemm_basic.hpp"
 
 template <typename ALayout, typename BLayout, typename CLayout>
-float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadM = false;
@@ -101,6 +98,30 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
     return ave_time;
+}
+
+float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+{
+    if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+    {
+        return gemm_<Row, Row, Row>(args, s);
+    }
+    else if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+    {
+        return gemm_<Row, Col, Row>(args, s);
+    }
+    else if(!t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+    {
+        return gemm_<Col, Row, Row>(args, s);
+    }
+    else if(!t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+    {
+        return gemm_<Col, Col, Row>(args, s);
+    }
+    else
+    {
+        throw std::runtime_error("Wrong! Layouts not supported!\n");
+    }
 }
 
 #include "run_gemm_example.inc"

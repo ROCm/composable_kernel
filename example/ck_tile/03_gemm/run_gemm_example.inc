@@ -28,8 +28,13 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_B = stride_B;
     args.stride_C = stride_C;
 
-    float ave_time = gemm_calc<ALayout, BLayout, CLayout>(
-        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+    gemm_traits traits{DataTypeTraits<ADataType>{}.name,
+                       std::is_same_v<ALayout, Row>,
+                       std::is_same_v<BLayout, Row>,
+                       std::is_same_v<CLayout, Row>};
+
+    float ave_time =
+        gemm(traits, args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
@@ -210,9 +215,6 @@ int run_gemm_example(int argc, char* argv[])
     if(!result)
         return -1;
 
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
-
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
 
@@ -224,16 +226,14 @@ int run_gemm_example(int argc, char* argv[])
     {
         return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
     }
-    // TODO: Fixme: with latest changes to GemmPipelineAGmemBGmemCRegV1DefaultPolicy below do not
-    // work.
-    // else if(a_layout == "C" && b_layout == "C")
-    // {
-    //     return run_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
-    // }
-    // else if(a_layout == "C" && b_layout == "R")
-    // {
-    //     return run_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
-    // }
+    else if(a_layout == "C" && b_layout == "C")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "R")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
+    }
     else
     {
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
