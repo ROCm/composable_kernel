@@ -200,6 +200,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::size_t num_byte =
         sizeof(XDataType) * m * n + sizeof(GammaDataType) * n + sizeof(YDataType) * m * n;
+    num_byte += SaveRms ? sizeof(InvRmsDataType) * m * n : 0;
+    num_byte += fused_add ? sizeof(XResidualDataType) * m * n : 0;
+    num_byte += ((fused_quant == 1) || (fused_quant == 2)) ? sizeof(YScaleDataType) * m : 0;
+    num_byte += (fused_quant == 1) ? sizeof(SmoothScaleDataType) * n : 0;
 
     float gb_per_sec = num_byte / 1.E6 / ave_time;
     std::cout << ", " << ave_time * 1.E3 << " us, " << gb_per_sec << " GB/s" << std::flush;
