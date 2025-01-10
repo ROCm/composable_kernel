@@ -108,9 +108,9 @@ endif()
 
 option(CK_TIME_KERNEL "Enable kernel time tracking" ON)
 if(CK_TIME_KERNEL)
-    add_definitions(-DCK_TIME_KERNEL=ON)
+    add_definitions(-DCK_TIME_KERNEL=1)
 else()
-    add_definitions(-DCK_TIME_KERNEL=OFF)
+    add_definitions(-DCK_TIME_KERNEL=0)
 endif()
 
 include(getopt)
