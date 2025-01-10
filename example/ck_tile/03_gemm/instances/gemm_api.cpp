@@ -477,6 +477,4 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
     {
         throw std::runtime_error("Wrong! DataTypes not supported!\n");
     }
-
-    return 1.0f;
 }
