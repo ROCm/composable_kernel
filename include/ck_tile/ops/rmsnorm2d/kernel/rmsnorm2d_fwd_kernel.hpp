@@ -14,7 +14,7 @@ struct Rmsnorm2dFwdHostArgs
 {
     const void* p_x;          // [m ,n], input, fp16/bf16
     const void* p_x_residual; // [m ,n], shortcut input, prec same as input, nullptr if not used
-    const void* p_x_scale;    // [1 ,n], smooth scale input, fp32, nullptr if not used
+    const void* p_sm_scale;   // [1 ,n], smooth scale input, fp32, nullptr if not used
     const void* p_gamma;      // [1, n], gamma, prec same as input
 
     void* p_y;          // [m, n], output, fp16/bf16
@@ -40,13 +40,13 @@ struct Rmsnorm2dFwd
     using Epilogue = remove_cvref_t<Epilogue_>;
     using Problem  = typename Pipeline::Problem;
 
-    using XDataType       = remove_cvref_t<typename Problem::XDataType>;
-    using GammaDataType   = remove_cvref_t<typename Problem::GammaDataType>;
-    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-    using YDataType       = remove_cvref_t<typename Problem::YDataType>;
-    using InvRmsDataType  = remove_cvref_t<typename Problem::InvRmsDataType>;
-    using XScaleDataType  = remove_cvref_t<typename Problem::XScaleDataType>;
-    using YScaleDataType  = remove_cvref_t<typename Problem::YScaleDataType>;
+    using XDataType           = remove_cvref_t<typename Problem::XDataType>;
+    using GammaDataType       = remove_cvref_t<typename Problem::GammaDataType>;
+    using ComputeDataType     = remove_cvref_t<typename Problem::ComputeDataType>;
+    using YDataType           = remove_cvref_t<typename Problem::YDataType>;
+    using InvRmsDataType      = remove_cvref_t<typename Problem::InvRmsDataType>;
+    using SmoothScaleDataType = remove_cvref_t<typename Problem::SmoothScaleDataType>;
+    using YScaleDataType      = remove_cvref_t<typename Problem::YScaleDataType>;
 
     // for simplicity, shortcut input/output type is same as X
     using XResidualDataType = XDataType;
@@ -74,7 +74,7 @@ struct Rmsnorm2dFwd
     {
         const void* p_x;
         const void* p_x_residual;
-        const void* p_x_scale;
+        const void* p_sm_scale;
         const void* p_gamma;
 
         void* p_y;
@@ -97,7 +97,7 @@ struct Rmsnorm2dFwd
     {
         return Kargs{hargs.p_x,
                      hargs.p_x_residual,
-                     hargs.p_x_scale,
+                     hargs.p_sm_scale,
                      hargs.p_gamma,
                      hargs.p_y,
                      hargs.p_y_residual,
@@ -153,7 +153,7 @@ struct Rmsnorm2dFwd
                 base_str += _SS_("_") + _SS_(t2s<YDataType>::name);
             }
             if (kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT) {
-                base_str += _SS_("_sx") + _SS_(t2s<XScaleDataType>::name);
+                base_str += _SS_("_sx") + _SS_(t2s<SmoothScaleDataType>::name);
                 base_str += _SS_("_sy") + _SS_(t2s<YScaleDataType>::name);
             }
             if (kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT) {
@@ -281,18 +281,18 @@ struct Rmsnorm2dFwd
                 return make_null_tile_window(make_tuple(number<Block_M>{}));
         }();
 
-        auto x_scale_window = [&]() {
+        auto sm_scale_window = [&]() {
             if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
             {
                 const auto win_ = [&]() {
                     const auto tmp_0_ = make_naive_tensor_view_packed<address_space_enum::global>(
-                        static_cast<const XScaleDataType*>(kargs.p_x_scale),
+                        static_cast<const SmoothScaleDataType*>(kargs.p_sm_scale),
                         make_tuple(kargs.n),
                         number<Vector_N>{});
 
                     return pad_tensor_view(tmp_0_,
                                            make_tuple(number<Block_N>{}),
-                                           sequence<false>{}); // x_scale no need pad
+                                           sequence<false>{}); // sm_scale no need pad
                 }();
                 return make_tile_window(win_, make_tuple(number<Block_N>{}), {0});
             }
@@ -331,7 +331,7 @@ struct Rmsnorm2dFwd
                    y_window,
                    y_residual_window,
                    inv_rms_window,
-                   x_scale_window,
+                   sm_scale_window,
                    y_scale_window,
                    static_cast<const ComputeDataType>(kargs.epsilon),
                    kargs.n,

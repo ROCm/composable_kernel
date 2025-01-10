@@ -52,7 +52,7 @@ struct Rmsnorm2dFwdPipelineOnePass
               typename YWindow,
               typename YResidualWindow,
               typename InvRmsWindow,
-              typename XScaleWindow,
+              typename SmoothScaleWindow,
               typename YScaleWindow,
               typename Epilogue>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
@@ -61,7 +61,7 @@ struct Rmsnorm2dFwdPipelineOnePass
                                    YWindow& y_window_,
                                    const YResidualWindow& y_residual_window_,
                                    InvRmsWindow& inv_rms_window,
-                                   const XScaleWindow& x_scale_window_,
+                                   const SmoothScaleWindow& sm_scale_window_,
                                    YScaleWindow& y_scale_window_,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
@@ -137,7 +137,7 @@ struct Rmsnorm2dFwdPipelineOnePass
 
         if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
         {
-            Epilogue{}(y_window_, x_scale_window_, y_scale_window_, rmsn, smem);
+            Epilogue{}(y_window_, sm_scale_window_, y_scale_window_, rmsn, smem);
         }
         else if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT)
         {

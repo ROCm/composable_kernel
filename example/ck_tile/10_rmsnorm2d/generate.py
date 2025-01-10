@@ -32,7 +32,7 @@ FUSED_ADD_ENUM_STR_MAP = [
 FUSED_FUSED_SWEEP_STR_MAP = [
     'no',
     'sdquant',  # smooth dynamic quant
-    'dquant' ]  # dynamic quant (without x_scale)
+    'dquant' ]  # dynamic quant (without sm_scale)
 
 DATA_TYPE_MAP = {'fp32' : 'float',
                  'fp16' : 'ck_tile::fp16_t',
@@ -51,7 +51,7 @@ class rmsnorm_fwd_codegen:
 // this is used to pattern-match internl kernel implementation, not to instantiate kernel
 template <typename XDataType_,
           typename YDataType_,
-          typename XScaleDataType_,
+          typename SmoothScaleDataType_,
           typename YScaleDataType_,
           ck_tile::index_t Repeat_M_,         // each thread repeat along M
           ck_tile::index_t Repeat_N_,         // each thread repeat along N
@@ -65,10 +65,10 @@ template <typename XDataType_,
           ck_tile::index_t kFusedQuant_ = 0>
 struct rmsnorm2d_fwd_traits_
 {
-    using XDataType = ck_tile::remove_cvref_t<XDataType_>;
-    using YDataType = ck_tile::remove_cvref_t<YDataType_>;
-    using XScaleDataType = ck_tile::remove_cvref_t<XScaleDataType_>;
-    using YScaleDataType = ck_tile::remove_cvref_t<YScaleDataType_>;
+    using XDataType           = ck_tile::remove_cvref_t<XDataType_>;
+    using YDataType           = ck_tile::remove_cvref_t<YDataType_>;
+    using SmoothScaleDataType = ck_tile::remove_cvref_t<SmoothScaleDataType_>;
+    using YScaleDataType      = ck_tile::remove_cvref_t<YScaleDataType_>;
 
     static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= warpSize;
     static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % warpSize == 0);
@@ -128,7 +128,7 @@ struct rmsnorm2d_fwd_traits_
 
 template <typename XDataType_,
           typename YDataType_,
-          typename XScaleDataType_,
+          typename SmoothScaleDataType_,
           typename YScaleDataType_,
           ck_tile::index_t Repeat_M_,         // each thread repeat along M
           ck_tile::index_t Repeat_N_,         // each thread repeat along N
@@ -142,7 +142,7 @@ template <typename XDataType_,
           int  kFusedQuant_>
 using traits_ = rmsnorm2d_fwd_traits_<XDataType_,
                                       YDataType_,
-                                      XScaleDataType_,
+                                      SmoothScaleDataType_,
                                       YScaleDataType_,
                                       Repeat_M_,
                                       Repeat_N_,
@@ -175,11 +175,11 @@ using A = rmsnorm2d_fwd_args;
 template <typename Traits_>
 float rmsnorm2d_fwd_(const S& s, A a)
 {{
-    using XDataType       = typename Traits_::XDataType;
-    using YDataType       = typename Traits_::YDataType;
-    using XScaleDataType  = typename Traits_::XScaleDataType;
-    using YScaleDataType  = typename Traits_::YScaleDataType;
-    using ComputeDataType = typename RmsnormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::ComputeDataType;
+    using XDataType           = typename Traits_::XDataType;
+    using YDataType           = typename Traits_::YDataType;
+    using SmoothScaleDataType = typename Traits_::SmoothScaleDataType;
+    using YScaleDataType      = typename Traits_::YScaleDataType;
+    using ComputeDataType     = typename RmsnormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::ComputeDataType;
 
     using PipelineTraits =
         ck_tile::Rmsnorm2dFwdTraits<Traits_::kPadN,
@@ -189,13 +189,13 @@ float rmsnorm2d_fwd_(const S& s, A a)
                                     static_cast<ck_tile::Rmsnorm2dFusedQuantEnum>(Traits_::kFusedQuant)>;
 
     using PipelineProblem =
-        ck_tile::Rmsnorm2dFwdPipelineProblem<typename RmsnormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::XDataType,
-                                             typename RmsnormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::GammaDataType,
-                                             typename RmsnormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::ComputeDataType,
-                                             typename RmsnormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::YDataType,
-                                             typename RmsnormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::InvRmsDataType,
-                                             typename RmsnormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::XScaleDataType,
-                                             typename RmsnormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::YScaleDataType,
+        ck_tile::Rmsnorm2dFwdPipelineProblem<typename RmsnormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::XDataType,
+                                             typename RmsnormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::GammaDataType,
+                                             typename RmsnormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::ComputeDataType,
+                                             typename RmsnormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::YDataType,
+                                             typename RmsnormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::InvRmsDataType,
+                                             typename RmsnormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::SmoothScaleDataType,
+                                             typename RmsnormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::YScaleDataType,
                                              typename Traits_::Shape,
                                              PipelineTraits>;
 
@@ -207,7 +207,7 @@ float rmsnorm2d_fwd_(const S& s, A a)
     using Default2DEpilogue = ck_tile::Default2DEpilogue<Default2DEpilogueProblem>;
 
     static constexpr bool UseSmoothInputScale = Traits_::kFusedQuant == 1;
-    using DynamicQuantEpilogueProblem = ck_tile::DynamicQuantEpilogueProblem<ComputeDataType, XScaleDataType, YScaleDataType, YDataType, typename Traits_::Shape,
+    using DynamicQuantEpilogueProblem = ck_tile::DynamicQuantEpilogueProblem<ComputeDataType, SmoothScaleDataType, YScaleDataType, YDataType, typename Traits_::Shape,
             ck_tile::DynamicQuantEpilogueTraits<false, Traits_::kPadN, UseSmoothInputScale, false,  true/*max3*/>>;
 
     using DynamicQuantEpilogue = ck_tile::DynamicQuantEpilogue<DynamicQuantEpilogueProblem>;
@@ -232,7 +232,7 @@ float rmsnorm2d_fwd_(const S& s, A a)
 
     API_BASE = """
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <ck_tile/core.hpp>
 #include "rmsnorm2d_fwd.hpp"
@@ -256,7 +256,7 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
 
     INSTANCE_BASE = """
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "rmsnorm2d_fwd_api_common.hpp"
 
@@ -352,7 +352,7 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
     class h_traits:
         F_XDataType : str
         F_YDataType : str
-        F_XScaleDataType : str
+        F_SmoothScaleDataType : str
         F_YScaleDataType : str
         F_Repeat_M : int
         F_Repeat_N : int
@@ -367,7 +367,7 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
 
         @property
         def trait_name(self) ->str:
-            t_ = f'{DATA_TYPE_MAP[self.F_XDataType]}, {DATA_TYPE_MAP[self.F_YDataType]}, {DATA_TYPE_MAP[self.F_XScaleDataType]}, {DATA_TYPE_MAP[self.F_YScaleDataType]}, {self.F_Repeat_M:2}, {self.F_Repeat_N:2}, {self.F_ThreadPerBlock_M:2}, {self.F_ThreadPerBlock_N:4}'
+            t_ = f'{DATA_TYPE_MAP[self.F_XDataType]}, {DATA_TYPE_MAP[self.F_YDataType]}, {DATA_TYPE_MAP[self.F_SmoothScaleDataType]}, {DATA_TYPE_MAP[self.F_YScaleDataType]}, {self.F_Repeat_M:2}, {self.F_Repeat_N:2}, {self.F_ThreadPerBlock_M:2}, {self.F_ThreadPerBlock_N:4}'
             t_ += f', {self.F_Vector_N:2}, {BOOL_MAP(self.F_kPadN):5}, {BOOL_MAP(self.F_kSaveInvRms):5}'
             t_ += f', {BOOL_MAP(self.F_kTwoPass):5}, {self.F_kFusedAdd:4}, {self.F_kFusedQuant:4}'
             return t_
@@ -450,8 +450,8 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
                         if ins.F_kFusedQuant == 0:
                             _sweep_cond = 't.fused_quant == {f_fused_sweep}'.format(f_fused_sweep = ins.F_kFusedQuant)
                         elif ins.F_kFusedQuant == 1:
-                            _sweep_cond = 't.fused_quant == {f_fused_sweep} && (t.prec_sx == \"{f_sx_type}\" && t.prec_sy == \"{f_sy_type}\")'.format(
-                                f_fused_sweep = ins.F_kFusedQuant, f_sx_type=ins.F_XScaleDataType, f_sy_type=ins.F_YScaleDataType)
+                            _sweep_cond = 't.fused_quant == {f_fused_sweep} && (t.prec_sm == \"{f_sx_type}\" && t.prec_sy == \"{f_sy_type}\")'.format(
+                                f_fused_sweep = ins.F_kFusedQuant, f_sx_type=ins.F_SmoothScaleDataType, f_sy_type=ins.F_YScaleDataType)
                         elif ins.F_kFusedQuant == 2:
                             _sweep_cond = 't.fused_quant == {f_fused_sweep} && (t.prec_sy == \"{f_sy_type}\")'.format(
                                 f_fused_sweep = ins.F_kFusedQuant, f_sy_type=ins.F_YScaleDataType)
@@ -543,7 +543,7 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
             current_n = hs[0].F_Repeat_N * hs[0].F_ThreadPerBlock_N * hs[0].F_Vector_N
             for dtype, scale_type, fused_add, fused_quant in itertools.product(dtype_list, scale_list, fused_add_list, fused_sweep_list):
                 prec_i, prec_o = dtype.split(',')
-                scale_x, scale_y = scale_type.split(',')
+                scale_sm, scale_y = scale_type.split(',')
                 if prec_o in dynamic_quant_out_dtype and fused_quant != 1 and fused_quant != 2:
                     continue # skip non dynamic quant case
                 if (fused_quant == 1 or fused_quant == 2) and hs_key == 'big':
@@ -553,8 +553,8 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
                     h_ = copy.copy(chs_) # copy the base instance out
                     h_.F_XDataType = prec_i
                     h_.F_YDataType = prec_o
-                    h_.F_XScaleDataType = scale_y
-                    h_.F_YScaleDataType = scale_x
+                    h_.F_SmoothScaleDataType = scale_sm
+                    h_.F_YScaleDataType = scale_y
                     h_.F_kFusedAdd = fused_add
                     h_.F_kFusedQuant = fused_quant
                     current_hs.append(h_) # + "\n"

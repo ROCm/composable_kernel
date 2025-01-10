@@ -24,19 +24,19 @@ struct DynamicQuantEpilogueTraits
 
 // this epilogue just store out a M*N matrix, row major
 template <typename AccDataType_,
-          typename XScaleDataType_,
+          typename SmoothScaleDataType_,
           typename YScaleDataType_,
           typename ODataType_,
           typename BlockShape_,
           typename Traits_>
 struct DynamicQuantEpilogueProblem
 {
-    using AccDataType    = remove_cvref_t<AccDataType_>;
-    using XScaleDataType = remove_cvref_t<XScaleDataType_>;
-    using YScaleDataType = remove_cvref_t<YScaleDataType_>;
-    using ODataType      = remove_cvref_t<ODataType_>;
-    using BlockShape     = remove_cvref_t<BlockShape_>; // can consum generic 2d shape
-    using Traits         = remove_cvref_t<Traits_>;
+    using AccDataType         = remove_cvref_t<AccDataType_>;
+    using SmoothScaleDataType = remove_cvref_t<SmoothScaleDataType_>;
+    using YScaleDataType      = remove_cvref_t<YScaleDataType_>;
+    using ODataType           = remove_cvref_t<ODataType_>;
+    using BlockShape          = remove_cvref_t<BlockShape_>; // can consum generic 2d shape
+    using Traits              = remove_cvref_t<Traits_>;
 };
 
 // TODO: we should put descriptor creation function into policy
@@ -45,7 +45,7 @@ struct DynamicQuantEpilogue
 {
     using Problem                     = remove_cvref_t<Problem_>;
     using AccDataType                 = remove_cvref_t<typename Problem::AccDataType>;
-    using XScaleDataType              = remove_cvref_t<typename Problem::XScaleDataType>;
+    using SmoothScaleDataType         = remove_cvref_t<typename Problem::SmoothScaleDataType>;
     using YScaleDataType              = remove_cvref_t<typename Problem::YScaleDataType>;
     using ODataType                   = remove_cvref_t<typename Problem::ODataType>;
     using BlockShape                  = remove_cvref_t<typename Problem::BlockShape>;
@@ -78,7 +78,7 @@ struct DynamicQuantEpilogue
 #if 0
         // don't remove this
         // Note that if we set encoding purposely like this, you will result in compile fail
-        // TODO: x_scale create local-scratch to accept arbitrary acc input (with same length)
+        // TODO: sm_scale create local-scratch to accept arbitrary acc input (with same length)
         return make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M>,
@@ -174,25 +174,25 @@ struct DynamicQuantEpilogue
 
     // Smooth Dynamic Quant
     template <typename ODramWindowTmp,
-              typename XScaleWindow,
+              typename SmoothScaleWindow,
               typename YScaleWindow,
               typename OAccTile>
     CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
-                                   const XScaleWindow& x_scale_window_,
+                                   const SmoothScaleWindow& sm_scale_window_,
                                    YScaleWindow& y_scale_window,
                                    const OAccTile& o_acc_tile,
                                    void* smem)
     {
-        const auto x_scale_window =
-            make_tile_window(x_scale_window_, MakeSmoothInputScaleTileDistribution());
+        const auto sm_scale_window =
+            make_tile_window(sm_scale_window_, MakeSmoothInputScaleTileDistribution());
 
-        auto x_scale = load_tile(x_scale_window);
+        auto sm_scale = load_tile(sm_scale_window);
 
         auto o_acc_tmp = o_acc_tile;
 
         sweep_tile(o_acc_tmp, [&](auto idx) {
             constexpr auto j_idx = make_tuple(idx[number<1>{}]);
-            const auto xs_       = type_convert<AccDataType>(x_scale[j_idx]);
+            const auto xs_       = type_convert<AccDataType>(sm_scale[j_idx]);
             o_acc_tmp(idx)       = o_acc_tmp(idx) * xs_;
         });
 

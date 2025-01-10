@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,31 +8,34 @@
 #include "ck_tile/ops/rmsnorm2d.hpp"
 #include <string>
 
-template <typename InType, typename OutType, typename XScaleDataType_, typename YScaleDataType_>
+template <typename InType,
+          typename OutType,
+          typename SmoothScaleDataType_,
+          typename YScaleDataType_>
 struct RmsnormTypeConfig;
 
-template <typename OutType, typename XScaleDataType_, typename YScaleDataType_>
-struct RmsnormTypeConfig<ck_tile::half_t, OutType, XScaleDataType_, YScaleDataType_>
+template <typename OutType, typename SmoothScaleDataType_, typename YScaleDataType_>
+struct RmsnormTypeConfig<ck_tile::half_t, OutType, SmoothScaleDataType_, YScaleDataType_>
 {
-    using XDataType       = ck_tile::half_t;
-    using YDataType       = OutType;
-    using GammaDataType   = ck_tile::half_t;
-    using InvRmsDataType  = ck_tile::half_t;
-    using ComputeDataType = float;
-    using XScaleDataType  = XScaleDataType_;
-    using YScaleDataType  = YScaleDataType_;
+    using XDataType           = ck_tile::half_t;
+    using YDataType           = OutType;
+    using GammaDataType       = ck_tile::half_t;
+    using InvRmsDataType      = ck_tile::half_t;
+    using ComputeDataType     = float;
+    using SmoothScaleDataType = SmoothScaleDataType_;
+    using YScaleDataType      = YScaleDataType_;
 };
 
-template <typename OutType, typename XScaleDataType_, typename YScaleDataType_>
-struct RmsnormTypeConfig<ck_tile::bf16_t, OutType, XScaleDataType_, YScaleDataType_>
+template <typename OutType, typename SmoothScaleDataType_, typename YScaleDataType_>
+struct RmsnormTypeConfig<ck_tile::bf16_t, OutType, SmoothScaleDataType_, YScaleDataType_>
 {
-    using XDataType       = ck_tile::bf16_t;
-    using YDataType       = OutType;
-    using GammaDataType   = ck_tile::bf16_t;
-    using InvRmsDataType  = ck_tile::bf16_t;
-    using ComputeDataType = float;
-    using XScaleDataType  = XScaleDataType_;
-    using YScaleDataType  = YScaleDataType_;
+    using XDataType           = ck_tile::bf16_t;
+    using YDataType           = OutType;
+    using GammaDataType       = ck_tile::bf16_t;
+    using InvRmsDataType      = ck_tile::bf16_t;
+    using ComputeDataType     = float;
+    using SmoothScaleDataType = SmoothScaleDataType_;
+    using YScaleDataType      = YScaleDataType_;
 };
 
 // runtime args
@@ -49,15 +52,15 @@ struct rmsnorm2d_fwd_traits
     std::string prec_i; // input precision
     std::string prec_o; // output precision
 
-    // if fused_quant == 1, need set prec_sx/prec_sy to proper string, otherwise can set
+    // if fused_quant == 1, need set prec_sm/prec_sy to proper string, otherwise can set
     // arbitrary(will skip check) if fused_quant == 2, need set prec_sy to proper string, otherwise
     // can set arbitrary(will skip check)
-    std::string prec_sx; // x-scale, used for [1*N] input smooth quant
+    std::string prec_sm; // x-scale, used for [1*N] input smooth quant
     std::string prec_sy; // y-scale, used for [M*1] output for next layer
-    
+
     bool save_rms;
-    int fused_add;      // 0:no-add, 1:pre-add-store, 2:pre-add
-    int fused_quant;    // 0:no-sweep, 1:smooth-dynamic-quant, 2:dynamic-quant
+    int fused_add;   // 0:no-add, 1:pre-add-store, 2:pre-add
+    int fused_quant; // 0:no-sweep, 1:smooth-dynamic-quant, 2:dynamic-quant
 };
 
 float rmsnorm2d_fwd(rmsnorm2d_fwd_traits, rmsnorm2d_fwd_args, const ck_tile::stream_config&);

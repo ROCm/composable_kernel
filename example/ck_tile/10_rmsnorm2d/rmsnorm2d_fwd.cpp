@@ -42,7 +42,7 @@ auto create_args(int argc, char* argv[])
         .insert("kname", "1", "print kernel name or not")
         .insert("prec_i", "fp16", "input precision")
         .insert("prec_o", "auto", "output precision, set auto will be the same as input")
-        .insert("prec_sx",
+        .insert("prec_sm",
                 "auto",
                 "output quant scale type, set auto will use fp32. used when fquant=1")
         .insert("prec_sy",
@@ -59,7 +59,7 @@ auto create_args(int argc, char* argv[])
 
 template <typename InDataType,
           typename OutDataType,
-          typename XScaleDataType,
+          typename SmoothScaleDataType,
           typename YScaleDataType,
           bool SaveRms>
 bool run(const ck_tile::ArgParser& arg_parser)
@@ -90,15 +90,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::string prec_i  = arg_parser.get_str("prec_i");
     std::string prec_o  = arg_parser.get_str("prec_o");
-    std::string prec_sx = arg_parser.get_str("prec_sx");
+    std::string prec_sm = arg_parser.get_str("prec_sm");
     std::string prec_sy = arg_parser.get_str("prec_sy");
     if(prec_o == "auto")
     {
         prec_o = prec_i;
     }
-    if(prec_sx == "auto")
+    if(prec_sm == "auto")
     {
-        prec_sx = "fp32";
+        prec_sm = "fp32";
     }
     if(prec_sy == "auto")
     {
@@ -111,7 +111,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-    using TypeConfig = RmsnormTypeConfig<InDataType, OutDataType, XScaleDataType, YScaleDataType>;
+    using TypeConfig =
+        RmsnormTypeConfig<InDataType, OutDataType, SmoothScaleDataType, YScaleDataType>;
 
     using XDataType         = typename TypeConfig::XDataType;
     using YDataType         = typename TypeConfig::YDataType;
@@ -127,8 +128,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // host verify
     ck_tile::HostTensor<XDataType> x_host({m, n}, {x_stride, 1});
     ck_tile::HostTensor<GammaDataType> gamma_host({n});
-    ck_tile::HostTensor<XScaleDataType> x_scale_host({n});
-    ck_tile::HostTensor<XScaleDataType> x_scale_host_dev({n});
+    ck_tile::HostTensor<SmoothScaleDataType> sm_scale_host({n});
+    ck_tile::HostTensor<SmoothScaleDataType> sm_scale_host_dev({n});
 
     ck_tile::HostTensor<XResidualDataType> x_residual_host({m, n}, {xr_stride, 1});
     ck_tile::HostTensor<YResidualDataType> y_residual_host({m, n}, {yr_stride, 1});
@@ -142,21 +143,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::FillUniformDistribution<XDataType>{-.5f, .5f}(x_host);
     ck_tile::FillUniformDistribution<XResidualDataType>{-.5f, .5f}(x_residual_host);
-    ck_tile::FillUniformDistribution<XScaleDataType>{-1.f, 1.f}(x_scale_host);
+    ck_tile::FillUniformDistribution<SmoothScaleDataType>{-1.f, 1.f}(sm_scale_host);
     ck_tile::FillUniformDistribution<GammaDataType>{-.5f, .5f}(gamma_host);
 
     ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem gamma_buf(gamma_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_buf(y_host_dev.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_scale_buf(y_scale_host_dev.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem x_scale_buf(x_scale_host_dev.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem sm_scale_buf(sm_scale_host_dev.get_element_space_size_in_bytes());
     ck_tile::DeviceMem x_residual_buf(x_residual_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_residual_buf(y_residual_host.get_element_space_size_in_bytes());
 
     x_buf.ToDevice(x_host.data());
     gamma_buf.ToDevice(gamma_host.data());
     x_residual_buf.ToDevice(x_residual_host.data());
-    x_scale_buf.ToDevice(x_scale_host.data());
+    sm_scale_buf.ToDevice(sm_scale_host.data());
 
     auto prec_str = [&]() {
         auto base_str = prec_i;
@@ -176,11 +177,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << ", xr_stride:" << xr_stride << ", y_stride:" << y_stride
               << ", yr_stride:" << yr_stride << std::flush;
 
-    rmsnorm2d_fwd_traits traits{prec_i, prec_o, prec_sx, prec_sy, SaveRms, fused_add, fused_quant};
+    rmsnorm2d_fwd_traits traits{prec_i, prec_o, prec_sm, prec_sy, SaveRms, fused_add, fused_quant};
 
     rmsnorm2d_fwd_args args{x_buf.GetDeviceBuffer(),
                             fused_add != 0 ? x_residual_buf.GetDeviceBuffer() : nullptr,
-                            fused_quant == 1 ? x_scale_buf.GetDeviceBuffer() : nullptr,
+                            fused_quant == 1 ? sm_scale_buf.GetDeviceBuffer() : nullptr,
                             gamma_buf.GetDeviceBuffer(),
                             y_buf.GetDeviceBuffer(),
                             fused_add == 1 ? y_residual_buf.GetDeviceBuffer() : nullptr,
@@ -232,8 +233,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                     for(int n_ = 0; n_ < N_; n_++)
                     {
                         // input smooth outlier
-                        acc_(m_, n_) =
-                            acc_(m_, n_) * ck_tile::type_convert<ComputeDataType>(x_scale_host(n_));
+                        acc_(m_, n_) = acc_(m_, n_) *
+                                       ck_tile::type_convert<ComputeDataType>(sm_scale_host(n_));
                     }
                 }
                 ComputeDataType absmax = static_cast<ComputeDataType>(0);
@@ -347,15 +348,15 @@ int main(int argc, char* argv[])
 
     std::string prec_i  = arg_parser.get_str("prec_i");
     std::string prec_o  = arg_parser.get_str("prec_o");
-    std::string prec_sx = arg_parser.get_str("prec_sx");
+    std::string prec_sm = arg_parser.get_str("prec_sm");
     std::string prec_sy = arg_parser.get_str("prec_sy");
     if(prec_o == "auto")
     {
         prec_o = prec_i;
     }
-    if(prec_sx == "auto")
+    if(prec_sm == "auto")
     {
-        prec_sx = "fp32";
+        prec_sm = "fp32";
     }
     if(prec_sy == "auto")
     {
@@ -364,33 +365,33 @@ int main(int argc, char* argv[])
 
     int save_rms = arg_parser.get_int("save_rms");
 
-    if(prec_i == "fp16" && prec_o == "fp16" && prec_sx == "fp32" && prec_sy == "fp32" && save_rms)
+    if(prec_i == "fp16" && prec_o == "fp16" && prec_sm == "fp32" && prec_sy == "fp32" && save_rms)
     {
         return run<ck_tile::half_t, ck_tile::half_t, float, float, true>(arg_parser) ? 0 : -2;
     }
-    else if(prec_i == "fp16" && prec_o == "fp16" && prec_sx == "fp32" && prec_sy == "fp32" &&
+    else if(prec_i == "fp16" && prec_o == "fp16" && prec_sm == "fp32" && prec_sy == "fp32" &&
             !save_rms)
     {
         return run<ck_tile::half_t, ck_tile::half_t, float, float, false>(arg_parser) ? 0 : -2;
     }
-    else if(prec_i == "bf16" && prec_o == "bf16" && prec_sx == "fp32" && prec_sy == "fp32" &&
+    else if(prec_i == "bf16" && prec_o == "bf16" && prec_sm == "fp32" && prec_sy == "fp32" &&
             save_rms)
     {
         return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true>(arg_parser) ? 0 : -2;
     }
-    else if(prec_i == "bf16" && prec_o == "bf16" && prec_sx == "fp32" && prec_sy == "fp32" &&
+    else if(prec_i == "bf16" && prec_o == "bf16" && prec_sm == "fp32" && prec_sy == "fp32" &&
             !save_rms)
     {
         return run<ck_tile::bf16_t, ck_tile::bf16_t, float, float, true>(arg_parser) ? 0 : -2;
     }
 
     // dynamic quant case, only in inference
-    else if(prec_i == "fp16" && prec_o == "int8" && prec_sx == "fp32" && prec_sy == "fp32" &&
+    else if(prec_i == "fp16" && prec_o == "int8" && prec_sm == "fp32" && prec_sy == "fp32" &&
             !save_rms)
     {
         return run<ck_tile::half_t, ck_tile::int8_t, float, float, true>(arg_parser) ? 0 : -2;
     }
-    else if(prec_i == "bf16" && prec_o == "int8" && prec_sx == "fp32" && prec_sy == "fp32" &&
+    else if(prec_i == "bf16" && prec_o == "int8" && prec_sm == "fp32" && prec_sy == "fp32" &&
             !save_rms)
     {
         return run<ck_tile::bf16_t, ck_tile::int8_t, float, float, true>(arg_parser) ? 0 : -2;

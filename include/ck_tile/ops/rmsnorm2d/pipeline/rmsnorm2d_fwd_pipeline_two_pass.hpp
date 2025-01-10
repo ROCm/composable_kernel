@@ -52,7 +52,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
               typename YWindow,
               typename YResidualWindow,
               typename InvRmsWindow,
-              typename XScaleWindow,
+              typename SmoothScaleWindow,
               typename YScaleWindow,
               typename Epilogue>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
@@ -61,7 +61,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
                                    YWindow& y_window,
                                    const YResidualWindow& y_residual_window_,
                                    InvRmsWindow& inv_rms_window,
-                                   const XScaleWindow& /*x_scale_window_*/,
+                                   const SmoothScaleWindow& /*sm_scale_window_*/,
                                    YScaleWindow& /*y_scale_window*/,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
