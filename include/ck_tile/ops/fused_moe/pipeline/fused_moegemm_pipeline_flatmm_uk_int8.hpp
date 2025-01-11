@@ -74,7 +74,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         constexpr index_t smem_1 = Policy::template GetUK_1<Problem>().GetSmemSize();
         constexpr index_t smem_bridge =
             BlockShape::Block_M0 * BlockShape::Block_N0 * sizeof(YDataType);
-        return max(smem_0, max(smem_1, smem_bridge));
+                return max(smem_0, max(smem_1, smem_bridge));
     }
 
     // this is the thread-offset along row/col
@@ -159,15 +159,22 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
 
     template <typename ROW_IDS>
     CK_TILE_DEVICE auto GetAScale(const ROW_IDS row_ids_mma,
-                                       const AScaleDataType* a_scale_ptr)
+                                    //    const AScaleDataType* a_scale_ptr, index_t num_tokens_)
+                                      index_t num_tokens_)
     {
         constexpr index_t n_size = row_ids_mma.size();
 
         array<TopkWeightDataType, n_size> w;
         static_for<0, n_size, 1>{}([&](auto i) {
             auto row_id = row_ids_mma[i] & 0xffffff;
-            auto itp_k = row_ids_mma[i] >> 24;
-            w.at(i) = a_scale_ptr[row_id * 5+itp_k];
+            if (row_id >= num_tokens_)
+            {
+                w.at(i) = 0.f;
+            } else {
+                w.at(i) = 1.f;
+                // auto itp_k = row_ids_mma[i] >> 24;
+                // w.at(i) = a_scale_ptr[row_id * 5+itp_k];
+            }
         });
 
         return w;
@@ -247,7 +254,12 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         index_t kr_0 = kargs.hidden_size / BlockShape::Warp_K0;          // divide K in W
         index_t nr_1 = kargs.hidden_size / BlockShape::Warp_N1;
         index_t kr_1 = shared_intermediate_size_1 / BlockShape::Warp_K1;
+        // if(threadIdx.x == 31 && blockIdx.x == 0 && blockIdx.y == 0)
+        // {
 
+        //      printf("\nWarpPerBlock_N0 :%x, WarpPerBlock_M0:%x,\n", BlockShape::WarpPerBlock_N0
+        //      , BlockShape::WarpPerBlock_M0);
+        // }
         const IndexDataType expert_id = __builtin_amdgcn_readfirstlane(
             reinterpret_cast<const IndexDataType*>(kargs.sorted_expert_ids_ptr)[sorted_tile_id]);
         index_t expert_stride_0 = shared_intermediate_size_0 * kargs.hidden_size;
@@ -271,7 +283,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
             row_coords_a_mma, reinterpret_cast<const IndexDataType*>(kargs.sorted_token_ids_ptr));
         auto token_id = generate_tuple(
             [&](auto i) {
-                return (row_ids_a[i]) &0xffffff;
+                return (row_ids_a[i] &0xffffff);
             },
             number<row_ids_a.size()>{});
         auto a_coords = generate_tuple(
@@ -385,10 +397,16 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
                        threadIdx.x % (BlockShape::Block_N1/2 / kAlignmentO) * kAlignmentO;
             },
             number<row_ids_a.size()>{});
-
+        
         auto o_flags =
             generate_tuple([&](auto i) { return cmp_lt_to_exec(token_id[i], kargs.num_tokens); },
-                           number<row_ids_a.size()>{});
+            // generate_tuple([&](auto i) { 
+            //     if (__builtin_amdgcn_readfirstlane(token_id[i]) < kargs.num_tokens)
+            //         {return 0xffffffffffffffff;}
+            //     else 
+            //         {return uint32x2_t 0;}
+            // },
+            number<token_id.size()>{});
 
         auto o_res =
             make_wave_buffer_resource(reinterpret_cast<const ODataType*>(kargs.o_ptr),
@@ -398,13 +416,59 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         auto w_scale      = GetWeightScale(
             row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr));
         auto a_scale      = GetAScale(
-            row_ids_a_mma, reinterpret_cast<const AScaleDataType*>(kargs.a_scale_ptr));
+            // row_ids_a_mma, reinterpret_cast<const AScaleDataType*>(kargs.a_scale_ptr), kargs.num_tokens );
+            row_ids_a_mma,  kargs.num_tokens );
         auto gqsmq_coords = GetColCoords_GQSMQ(intermediate_tile_id * BlockShape::Block_K1);
         auto dq_coords = gqsmq_coords[0];//only one for this tiling
         auto gq_scale = GetGQScale(
             gqsmq_coords, (reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr) + static_cast<long_index_t>(expert_id) * shared_intermediate_size_0));
         auto smq_scale = GetSMQScale(
             gqsmq_coords, (reinterpret_cast<const YSmoothScaleDataType*>(kargs.y_smooth_scale_ptr) + static_cast<long_index_t>(expert_id) * shared_intermediate_size_0));
+if(threadIdx.x == 95 && blockIdx.x == 0 && blockIdx.y == 0)
+{
+   printf("\nblockIdx.x :%x, blockIdx.y :%x, d ptr: %p, wg d ptr :%x%x,gemm0 done\n", blockIdx.x, blockIdx.y, kargs.d_ptr,d_res[1],d_res[0]);
+//     // printf("\n wg 1 1, wave 1, row_coords_a 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", row_coords_a[number<0>{}],row_coords_a[number<1>{}],row_coords_a[number<2>{}],row_coords_a[number<3>{}], row_coords_a[number<4>{}],row_coords_a[number<5>{}],row_coords_a[number<6>{}],row_coords_a[number<7>{}]);
+//     //  printf("\n -------------- -row_ids_a 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", row_ids_a[number<0>{}],row_ids_a[number<1>{}],row_ids_a[number<2>{}],row_ids_a[number<3>{}], row_ids_a[number<4>{}],row_ids_a[number<5>{}],row_ids_a[number<6>{}],row_ids_a[number<7>{}]);
+//     //  printf("\n -----------thread id %x--- - token_id 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", hipThreadIdx_x , token_id[number<0>{}],token_id[number<1>{}],token_id[number<2>{}],token_id[number<3>{}],  token_id[number<4>{}],token_id[number<5>{}],token_id[number<6>{}],token_id[number<7>{}]);
+//     // printf("\n -----------thread id %x--- - token_id , 7:%x,, \n", hipThreadIdx_x , token_id[number<7>{}]);
+//     //  printf("\n -------------- - exec 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", o_flags[number<0>{}][0],o_flags[number<1>{}][0],o_flags[number<2>{}][0],o_flags[number<3>{}][0],  o_flags[number<4>{}][0],o_flags[number<5>{}][0],o_flags[number<6>{}][0],o_flags[number<7>{}][0]);
+      printf("\ntoken id :%x,%x,%x,%x, %x,%x,%x,%x  \n d_coords: %x,%x,%x,%x,  \n row_idx: %x,%x,%x,%x, %x,%x,%x,%x  \n o_flags:%x,%x,%x,%x, %x,%x,%x,%x \n", 
+      token_id[number<0>{}],
+      token_id[number<1>{}],
+      token_id[number<2>{}],
+      token_id[number<3>{}],
+      token_id[number<4>{}],
+      token_id[number<5>{}],
+      token_id[number<6>{}],
+      token_id[number<7>{}], 
+      d_coords[number<0>{}],
+      d_coords[number<1>{}],
+      d_coords[number<2>{}],
+      d_coords[number<3>{}],
+    //   d_coords[number<4>{}],
+    //   d_coords[number<5>{}],
+    //   d_coords[number<6>{}],
+    //   d_coords[number<7>{}],
+      row_ids_a[number<0>{}],
+      row_ids_a[number<1>{}],
+      row_ids_a[number<2>{}],
+      row_ids_a[number<3>{}],
+      row_ids_a[number<4>{}],
+      row_ids_a[number<5>{}],
+      row_ids_a[number<6>{}],
+      row_ids_a[number<7>{}],
+    o_flags[number<0>{}][0],
+      o_flags[number<1>{}][0],
+      o_flags[number<2>{}][0],
+      o_flags[number<3>{}][0],
+      o_flags[number<4>{}][0],
+      o_flags[number<5>{}][0],
+      o_flags[number<6>{}][0],
+      o_flags[number<7>{}][0]);
+    //  return;
+}
+ __builtin_amdgcn_sched_barrier(0);
+ 
         auto uk_0  = Policy::template GetUK_0<Problem>();
        // auto acc_0= uk_0(
                     uk_0(a_scale,
@@ -418,17 +482,12 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
                           smem,
                           kargs.hidden_size,
                           BlockShape::Block_K0, // tile offset for B matrix each unroll
-                          BlockShape::Block_Kr0 *
-                          BlockShape::Block_W0); // tile offset for B matrix each unroll
-        if(hipBlockIdx_x == 1 && hipBlockIdx_y == 1 && hipBlockIdx_z == 0 &&
-    hipThreadIdx_x  == 64)
-{
-    printf("\ngemm0 done\n");
-    // printf("\n wg 1 1, wave 1, row_coords_a 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", row_coords_a[number<0>{}],row_coords_a[number<1>{}],row_coords_a[number<2>{}],row_coords_a[number<3>{}], row_coords_a[number<4>{}],row_coords_a[number<5>{}],row_coords_a[number<6>{}],row_coords_a[number<7>{}]);
-    //  printf("\n -------------- -row_ids_a 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", row_ids_a[number<0>{}],row_ids_a[number<1>{}],row_ids_a[number<2>{}],row_ids_a[number<3>{}], row_ids_a[number<4>{}],row_ids_a[number<5>{}],row_ids_a[number<6>{}],row_ids_a[number<7>{}]);
-     printf("\n -------------- - token_id 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", token_id[number<0>{}],token_id[number<1>{}],token_id[number<2>{}],token_id[number<3>{}],  token_id[number<4>{}],token_id[number<5>{}],token_id[number<6>{}],token_id[number<7>{}]);
-}
-        // sweep_tile(
+                          16*256,
+                          kargs.num_tokens * kargs.stride_token); // tile offset for B matrix each unroll
+            // return;
+             __builtin_amdgcn_sched_barrier(0);
+
+//         // sweep_tile(
         //     acc_0,
         //     [&](auto idx0, auto idx1) {
         //         fp32x2_t v_{acc_0(idx0), acc_0(idx1)};
@@ -449,6 +508,7 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
         uk_1(
             // dq_res,
             //  d_res,
+             token_id,
              dq_coords,
              d_coords,
              o_res,

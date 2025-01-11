@@ -242,6 +242,7 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
 {
     using ADataType = int8_t;
     using BDataType = int8_t;
+    using AScaleDataType = float;
 
     // TODO: need paired with tile_window_linear!
     // TODO: need call init_raw() before call this function!
@@ -258,7 +259,8 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
                CK_TILE_LDS_ADDR void* smem,
                index_t k,
                index_t tile_offset_a, // for each tile, the offset to move for each unroll
-               index_t tile_offset_b) // for each tile, the offset to move for each unroll
+               index_t tile_offset_b,
+               index_t a_bound_) // for each tile, the offset to move for each unroll
     {
         static_assert(ACoords::size() == Block_M * Block_K / BlockSize / 4 /*2x per dword*/); // 8
         static_assert(BCoords::size() == Repeat_N);
@@ -449,7 +451,10 @@ struct Flatmm_32x512x256_1x4x1_16x16x64_int8 : public Flatmm_32x512x256_1x4x1_16
                 [c62]"+v"(v_z62),
                 [c63]"+v"(v_z63),
                 [s_mem_]"+r"(smem)
-            :   [a_scale0]"v"(a_scale_[0]),
+            :   
+                [a_bound]"s"(static_cast<int>(a_bound_ * sizeof(ADataType))),
+           //     [a_scale_bound]"s"(a_scale_bound_ * sizeof(AScaleDataType)),
+                [a_scale0]"v"(a_scale_[0]),
                 [a_scale1]"v"(a_scale_[1]),
                 [gq_scale0]"v"(gq_scale_[0]),
                 [gq_scale1]"v"(gq_scale_[1]),

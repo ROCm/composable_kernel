@@ -87,11 +87,11 @@ void topid_unique_gen(
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("t", "128", "num input tokens")
-        .insert("e", "32", "num of experts")
-        .insert("k", "5", "topk")
-        .insert("h", "8192", "hidden_size of this model")
-        .insert("i", "8192", "intermediate_size between 2 gemms of FFN")
+    arg_parser.insert("t", "32", "num input tokens")
+        .insert("e", "1", "num of experts")
+        .insert("k", "1", "topk")
+        .insert("h", "256", "hidden_size of this model")
+        .insert("i", "4096", "intermediate_size between 2 gemms of FFN")
         .insert("stride", "-1", "stride per row, if -1 then equal to hidden_size")
         .insert("bm", "32", "blocking factor for sorted tokens")
         .insert("tp", "8", "tensor parallel size")

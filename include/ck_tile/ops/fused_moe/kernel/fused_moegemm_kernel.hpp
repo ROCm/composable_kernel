@@ -237,12 +237,23 @@ struct FusedMoeGemmKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
+        
         if constexpr(UseUK)
         {
-            __shared__ CK_TILE_LDS_ADDR ADataType smem[GetSmemSize()];
+            
+            __shared__ CK_TILE_LDS_ADDR ADataType smem[65536];
+            // index_t s_size = GetSmemSize();
+        //    ADataType{}.aaa();
             IndexDataType num_sorted_tiles = __builtin_amdgcn_readfirstlane(
                 *reinterpret_cast<const IndexDataType*>(kargs.num_sorted_tiles_ptr));
-
+            // __builtin_amdgcn_sched_barrier(0);
+            // if(threadIdx.x == 0){
+            //         printf("num_sorted_tiles  %d\n", num_sorted_tiles);
+            //         printf("data type :%s\n", t2s<ADataType>::name);
+            //         printf("\nblockIdx.x :%x, blockIdx.y :%x,\n", blockIdx.x, blockIdx.y);
+            //         __builtin_amdgcn_sched_barrier(0);
+            // }
+            //  __builtin_amdgcn_sched_barrier(0);
             num_sorted_tiles = num_sorted_tiles / BlockShape::Block_M0;
 
             const auto [sorted_tile_id, intermediate_tile_id] =
