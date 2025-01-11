@@ -65,12 +65,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
-    using BaseGemmPipeline                 = ck_tile::BaseGemmPipelineAgBgCrCompV3<
-#endif
-        GemmPipelineProblem>;
+
+    using BaseGemmPipeline = UNIVERSAL_GEMM_PIPELINE<GemmPipelineProblem>;
 
     const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
     const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;

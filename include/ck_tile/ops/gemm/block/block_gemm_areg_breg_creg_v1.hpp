@@ -7,6 +7,10 @@
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1_default_policy.hpp"
 
 namespace ck_tile {
+
+// A is block distributed tensor
+// B is block distributed tensor
+// C is block distributed tensor
 template <typename Problem_, typename Policy_ = BlockGemmARegBRegCRegV1DefaultPolicy>
 struct BlockGemmARegBRegCRegV1
 {
@@ -38,11 +42,10 @@ struct BlockGemmARegBRegCRegV1
                                        tuple<sequence<1, 0>>,
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
-
         constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             a_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});
-        constexpr auto a_block_dstr = make_static_tile_distribution(a_block_dstr_encode);
-        return a_block_dstr;
+
+        return a_block_dstr_encode;
     }
 
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistribution()
@@ -57,8 +60,7 @@ struct BlockGemmARegBRegCRegV1
         constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             b_block_outer_dstr_encoding, typename WG::BWarpDstrEncoding{});
 
-        constexpr auto b_block_dstr = make_static_tile_distribution(b_block_dstr_encode);
-        return b_block_dstr;
+        return b_block_dstr_encode;
     }
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockDistribution()
@@ -72,10 +74,11 @@ struct BlockGemmARegBRegCRegV1
             sequence<0, 0>>{};
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
-        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-        return c_block_dstr;
+
+        return c_block_dstr_encode;
     }
 
+    // C += A * B
     template <typename CBlockTensor, typename ABlockTensor, typename BBlockTensor>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
                                    const ABlockTensor& a_block_tensor,
@@ -87,7 +90,9 @@ struct BlockGemmARegBRegCRegV1
                       "wrong!");
 
         constexpr auto a_block_dstr_encode = MakeABlockDistribution();
+
         constexpr auto b_block_dstr_encode = MakeBBlockDistribution();
+
         constexpr auto c_block_dstr_encode = MakeCBlockDistribution();
 
         // check ABC-block-distribution
@@ -186,10 +191,10 @@ struct BlockGemmARegBRegCRegV1
     CK_TILE_DEVICE auto operator()(const ABlockTensor& a_block_tensor,
                                    const BBlockTensor& b_block_tensor) const
     {
-        constexpr auto c_block_dstr_encode = MakeCBlockDistribution();
-        auto c_block_tensor                = make_static_tile_distribution(c_block_dstr_encode);
+        auto c_block_tensor = MakeCBlockTile();
         operator()(c_block_tensor, a_block_tensor, b_block_tensor);
         return c_block_tensor;
     }
 };
+
 } // namespace ck_tile

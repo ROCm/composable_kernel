@@ -20,9 +20,11 @@
 
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrMem
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrMem
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Interwave
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV3
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV3
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
 #else
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
