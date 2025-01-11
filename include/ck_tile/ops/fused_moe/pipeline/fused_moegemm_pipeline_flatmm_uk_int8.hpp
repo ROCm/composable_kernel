@@ -105,9 +105,9 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
     // TODO: properlly support scatter/gather for load only
     CK_TILE_DEVICE auto GetRowCoords_A(index_t base_offset)
     {
-        constexpr index_t KLans   = BlockShape::Block_K0 / kAlignmentA;
-        constexpr index_t MLans   = BlockShape::BlockSize / KLans;
-        constexpr index_t MRepeat = BlockShape::Block_M0 / MLans;
+        constexpr index_t KLans   = BlockShape::Block_K0 / kAlignmentA;//64
+        constexpr index_t MLans   = BlockShape::BlockSize / KLans;//4
+        constexpr index_t MRepeat = BlockShape::Block_M0 / MLans;//8
 
         auto base_coord = threadIdx.x / KLans + base_offset;
 
@@ -424,50 +424,58 @@ struct FusedMoeGemmPipeline_FlatmmUk_int8
             gqsmq_coords, (reinterpret_cast<const GScaleDataType*>(kargs.g_scale_ptr) + static_cast<long_index_t>(expert_id) * shared_intermediate_size_0));
         auto smq_scale = GetSMQScale(
             gqsmq_coords, (reinterpret_cast<const YSmoothScaleDataType*>(kargs.y_smooth_scale_ptr) + static_cast<long_index_t>(expert_id) * shared_intermediate_size_0));
-if(threadIdx.x == 95 && blockIdx.x == 0 && blockIdx.y == 0)
-{
-   printf("\nblockIdx.x :%x, blockIdx.y :%x, d ptr: %p, wg d ptr :%x%x,gemm0 done\n", blockIdx.x, blockIdx.y, kargs.d_ptr,d_res[1],d_res[0]);
-//     // printf("\n wg 1 1, wave 1, row_coords_a 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", row_coords_a[number<0>{}],row_coords_a[number<1>{}],row_coords_a[number<2>{}],row_coords_a[number<3>{}], row_coords_a[number<4>{}],row_coords_a[number<5>{}],row_coords_a[number<6>{}],row_coords_a[number<7>{}]);
-//     //  printf("\n -------------- -row_ids_a 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", row_ids_a[number<0>{}],row_ids_a[number<1>{}],row_ids_a[number<2>{}],row_ids_a[number<3>{}], row_ids_a[number<4>{}],row_ids_a[number<5>{}],row_ids_a[number<6>{}],row_ids_a[number<7>{}]);
-//     //  printf("\n -----------thread id %x--- - token_id 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", hipThreadIdx_x , token_id[number<0>{}],token_id[number<1>{}],token_id[number<2>{}],token_id[number<3>{}],  token_id[number<4>{}],token_id[number<5>{}],token_id[number<6>{}],token_id[number<7>{}]);
-//     // printf("\n -----------thread id %x--- - token_id , 7:%x,, \n", hipThreadIdx_x , token_id[number<7>{}]);
-//     //  printf("\n -------------- - exec 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", o_flags[number<0>{}][0],o_flags[number<1>{}][0],o_flags[number<2>{}][0],o_flags[number<3>{}][0],  o_flags[number<4>{}][0],o_flags[number<5>{}][0],o_flags[number<6>{}][0],o_flags[number<7>{}][0]);
-      printf("\ntoken id :%x,%x,%x,%x, %x,%x,%x,%x  \n d_coords: %x,%x,%x,%x,  \n row_idx: %x,%x,%x,%x, %x,%x,%x,%x  \n o_flags:%x,%x,%x,%x, %x,%x,%x,%x \n", 
-      token_id[number<0>{}],
-      token_id[number<1>{}],
-      token_id[number<2>{}],
-      token_id[number<3>{}],
-      token_id[number<4>{}],
-      token_id[number<5>{}],
-      token_id[number<6>{}],
-      token_id[number<7>{}], 
-      d_coords[number<0>{}],
-      d_coords[number<1>{}],
-      d_coords[number<2>{}],
-      d_coords[number<3>{}],
-    //   d_coords[number<4>{}],
-    //   d_coords[number<5>{}],
-    //   d_coords[number<6>{}],
-    //   d_coords[number<7>{}],
-      row_ids_a[number<0>{}],
-      row_ids_a[number<1>{}],
-      row_ids_a[number<2>{}],
-      row_ids_a[number<3>{}],
-      row_ids_a[number<4>{}],
-      row_ids_a[number<5>{}],
-      row_ids_a[number<6>{}],
-      row_ids_a[number<7>{}],
-    o_flags[number<0>{}][0],
-      o_flags[number<1>{}][0],
-      o_flags[number<2>{}][0],
-      o_flags[number<3>{}][0],
-      o_flags[number<4>{}][0],
-      o_flags[number<5>{}][0],
-      o_flags[number<6>{}][0],
-      o_flags[number<7>{}][0]);
-    //  return;
-}
- __builtin_amdgcn_sched_barrier(0);
+// if(threadIdx.x == 255 && blockIdx.x == 0 && blockIdx.y == 0)
+// {
+//    printf("\nblockIdx.x :%x, blockIdx.y :%x, d ptr: %p, o ptr: %p, wg d ptr :%x%x,gemm0 done\n", blockIdx.x, blockIdx.y,kargs.d_ptr, kargs.o_ptr,d_res[1],d_res[0]);
+// //     // printf("\n wg 1 1, wave 1, row_coords_a 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", row_coords_a[number<0>{}],row_coords_a[number<1>{}],row_coords_a[number<2>{}],row_coords_a[number<3>{}], row_coords_a[number<4>{}],row_coords_a[number<5>{}],row_coords_a[number<6>{}],row_coords_a[number<7>{}]);
+// //     //  printf("\n -------------- -row_ids_a 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", row_ids_a[number<0>{}],row_ids_a[number<1>{}],row_ids_a[number<2>{}],row_ids_a[number<3>{}], row_ids_a[number<4>{}],row_ids_a[number<5>{}],row_ids_a[number<6>{}],row_ids_a[number<7>{}]);
+// //     //  printf("\n -----------thread id %x--- - token_id 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", hipThreadIdx_x , token_id[number<0>{}],token_id[number<1>{}],token_id[number<2>{}],token_id[number<3>{}],  token_id[number<4>{}],token_id[number<5>{}],token_id[number<6>{}],token_id[number<7>{}]);
+// //     // printf("\n -----------thread id %x--- - token_id , 7:%x,, \n", hipThreadIdx_x , token_id[number<7>{}]);
+// //     //  printf("\n -------------- - exec 0: %x 1: %x, 2: %x, 3:%x, 5: %x 6: %x, 7: %x, 8:%x,, \n", o_flags[number<0>{}][0],o_flags[number<1>{}][0],o_flags[number<2>{}][0],o_flags[number<3>{}][0],  o_flags[number<4>{}][0],o_flags[number<5>{}][0],o_flags[number<6>{}][0],o_flags[number<7>{}][0]);
+//       printf("\ntoken_id :%x,%x,%x,%x, %x,%x,%x,%x  \no_coords :%x,%x,%x,%x, %x,%x,%x,%x  \n d_coords: %x,%x,%x,%x,  \n row_idx: %x,%x,%x,%x, %x,%x,%x,%x  \n o_flags:%x,%x,%x,%x, %x,%x,%x,%x \n", 
+//     token_id[number<0>{}],
+//       token_id[number<1>{}],
+//       token_id[number<2>{}],
+//       token_id[number<3>{}],
+//       token_id[number<4>{}],
+//       token_id[number<5>{}],
+//       token_id[number<6>{}],
+//       token_id[number<7>{}], 
+//       o_coords[number<0>{}],
+//       o_coords[number<1>{}],
+//       o_coords[number<2>{}],
+//       o_coords[number<3>{}],
+//       o_coords[number<4>{}],
+//       o_coords[number<5>{}],
+//       o_coords[number<6>{}],
+//       o_coords[number<7>{}], 
+//       d_coords[number<0>{}],
+//       d_coords[number<1>{}],
+//       d_coords[number<2>{}],
+//       d_coords[number<3>{}],
+//     //   d_coords[number<4>{}],
+//     //   d_coords[number<5>{}],
+//     //   d_coords[number<6>{}],
+//     //   d_coords[number<7>{}],
+//       row_ids_a[number<0>{}],
+//       row_ids_a[number<1>{}],
+//       row_ids_a[number<2>{}],
+//       row_ids_a[number<3>{}],
+//       row_ids_a[number<4>{}],
+//       row_ids_a[number<5>{}],
+//       row_ids_a[number<6>{}],
+//       row_ids_a[number<7>{}],
+//     o_flags[number<0>{}][0],
+//       o_flags[number<1>{}][0],
+//       o_flags[number<2>{}][0],
+//       o_flags[number<3>{}][0],
+//       o_flags[number<4>{}][0],
+//       o_flags[number<5>{}][0],
+//       o_flags[number<6>{}][0],
+//       o_flags[number<7>{}][0]);
+//     //  return;
+// }
+//  __builtin_amdgcn_sched_barrier(0);
  
         auto uk_0  = Policy::template GetUK_0<Problem>();
        // auto acc_0= uk_0(
@@ -483,10 +491,10 @@ if(threadIdx.x == 95 && blockIdx.x == 0 && blockIdx.y == 0)
                           kargs.hidden_size,
                           BlockShape::Block_K0, // tile offset for B matrix each unroll
                           16*256,
-                          kargs.num_tokens * kargs.stride_token); // tile offset for B matrix each unroll
+                          __builtin_amdgcn_readfirstlane(kargs.num_tokens * kargs.stride_token)); // tile offset for B matrix each unroll
             // return;
              __builtin_amdgcn_sched_barrier(0);
-
+// return;
 //         // sweep_tile(
         //     acc_0,
         //     [&](auto idx0, auto idx1) {
@@ -515,7 +523,7 @@ if(threadIdx.x == 95 && blockIdx.x == 0 && blockIdx.y == 0)
              o_coords,
              o_flags,
              smem,
-             kargs.hidden_size, // total n number
+             __builtin_amdgcn_readfirstlane(kargs.hidden_size), // total n number
              w_scale,
              smq_scale,
              BlockShape::Block_N1,

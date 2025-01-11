@@ -166,7 +166,7 @@
 "  buffer_load_dwordx4  acc[224:227], %[v_os_b2], s[12:15], 0 offen  \n"
 "  v_mfma_i32_16x16x32_i8  v[208:211], acc[100:101], v[148:149], v[208:211]  \n"
 "  v_mfma_i32_16x16x32_i8  v[208:211], acc[102:103], v[150:151], v[208:211]  \n"
-";---  buffer_load_dword  v13, %[v_os_dq], s[16:19], 0 offen        \n"
+";--  buffer_load_dword  v13, %[v_os_dq], s[16:19], 0 offen        \n"
 "  v_mfma_i32_16x16x32_i8  v[208:211], acc[104:105], v[152:153], v[208:211]  \n"
 "  v_mfma_i32_16x16x32_i8  v[208:211], acc[106:107], v[154:155], v[208:211]  \n"
 "  buffer_load_dwordx4  acc[228:231], %[v_os_b2], s[12:15], 0 offen offset:1024  \n"
@@ -482,4 +482,5 @@
 #undef _UK_MFMA_
 #undef _UK_PK_CVT_
 #undef _UK_ATOMIC_ADD_
+
 
