@@ -335,8 +335,6 @@ struct BlockFmhaPipelineQSKSVS
                 gemm_0(s_acc, q_lds_window, k_lds_window);
             }
 
-            __builtin_amdgcn_sched_barrier(0);
-
             const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
 
             // STAGE 2, scale_s, add bias, mask, softmax
