@@ -33,7 +33,7 @@ struct BlockGemmARegBRegCRegV1
     static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
     static constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
 
-    CK_TILE_DEVICE static constexpr auto MakeABlockDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
         constexpr auto a_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<NWarp>,
@@ -48,7 +48,7 @@ struct BlockGemmARegBRegCRegV1
         return a_block_dstr_encode;
     }
 
-    CK_TILE_DEVICE static constexpr auto MakeBBlockDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
     {
         constexpr auto b_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<MWarp>,
@@ -63,7 +63,7 @@ struct BlockGemmARegBRegCRegV1
         return b_block_dstr_encode;
     }
 
-    CK_TILE_DEVICE static constexpr auto MakeCBlockDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeCBlockDistributionEncode()
     {
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
@@ -89,11 +89,11 @@ struct BlockGemmARegBRegCRegV1
                           std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
                       "wrong!");
 
-        constexpr auto a_block_dstr_encode = MakeABlockDistribution();
+        constexpr auto a_block_dstr_encode = MakeABlockDistributionEncode();
 
-        constexpr auto b_block_dstr_encode = MakeBBlockDistribution();
+        constexpr auto b_block_dstr_encode = MakeBBlockDistributionEncode();
 
-        constexpr auto c_block_dstr_encode = MakeCBlockDistribution();
+        constexpr auto c_block_dstr_encode = MakeCBlockDistributionEncode();
 
         // check ABC-block-distribution
         static_assert(
