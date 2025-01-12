@@ -109,7 +109,9 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 }
 
 template <typename DataType>
-float gemm_type_(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+float gemm_type_(const gemm_traits& t,
+                 const ck_tile::GemmHostArgs& args,
+                 const ck_tile::stream_config& s)
 {
     if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
     {
@@ -135,13 +137,16 @@ float gemm_type_(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const 
 
 float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
-    if(t.data_type == "fp16") {
+    if(t.data_type == "fp16")
+    {
         return gemm_type_<GemmFp16>(t, args, s);
     }
-    else if(t.data_type == "bf16") {
+    else if(t.data_type == "bf16")
+    {
         return gemm_type_<GemmBf16>(t, args, s);
     }
-    else {
+    else
+    {
         throw std::runtime_error("Wrong! Data type not supported!\n");
     }
 }
@@ -159,7 +164,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "bf16", "data type. fp16/bf16/fp8/bf8")
+        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
