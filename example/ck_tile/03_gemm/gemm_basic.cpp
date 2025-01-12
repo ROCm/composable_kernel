@@ -11,9 +11,17 @@
 
 #include "gemm_basic.hpp"
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ALayout, typename BLayout, typename CLayout, typename DataTypeConfig>
 float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
+    using Types = GemmBasicTypeConfig<DataTypeConfig>;
+
+    // Specific type aliases for easy access
+    using ADataType   = typename Types::ADataType;
+    using BDataType   = typename Types::BDataType;
+    using AccDataType = typename Types::AccDataType;
+    using CDataType   = typename Types::CDataType;
+
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;
@@ -100,27 +108,41 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     return ave_time;
 }
 
-float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+template <typename DataType>
+float gemm_type_(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
     {
-        return gemm_<Row, Row, Row>(args, s);
+        return gemm_<Row, Row, Row, DataType>(args, s);
     }
     else if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
     {
-        return gemm_<Row, Col, Row>(args, s);
+        return gemm_<Row, Col, Row, DataType>(args, s);
     }
     else if(!t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
     {
-        return gemm_<Col, Row, Row>(args, s);
+        return gemm_<Col, Row, Row, DataType>(args, s);
     }
     else if(!t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
     {
-        return gemm_<Col, Col, Row>(args, s);
+        return gemm_<Col, Col, Row, DataType>(args, s);
     }
     else
     {
         throw std::runtime_error("Wrong! Layouts not supported!\n");
+    }
+}
+
+float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+{
+    if(t.data_type == "fp16") {
+        return gemm_type_<GemmFp16>(t, args, s);
+    }
+    else if(t.data_type == "bf16") {
+        return gemm_type_<GemmBf16>(t, args, s);
+    }
+    else {
+        throw std::runtime_error("Wrong! Data type not supported!\n");
     }
 }
 
@@ -137,7 +159,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
+        .insert("prec", "bf16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")

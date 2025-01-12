@@ -10,17 +10,34 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 
+struct GemmFp16
+{
+};
+
+struct GemmBf16
+{
+};
+
 template <typename DataType>
 struct GemmBasicTypeConfig;
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::half_t>
+struct GemmBasicTypeConfig<GemmFp16>
 {
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::half_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
     // ToDo: Add more bias config to support different categories of GEMM.
+};
+
+template <>
+struct GemmBasicTypeConfig<GemmBf16>
+{
+    using ADataType   = ck_tile::bf16_t;
+    using BDataType   = ck_tile::bf16_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::bf16_t;
 };
 
 template <typename T>
@@ -44,13 +61,11 @@ struct DataTypeTraits<ck_tile::half_t>
     static constexpr const char* name = "fp16";
 };
 
-using Types = GemmBasicTypeConfig<ck_tile::half_t>;
-
-// Specific type aliases for easy access
-using ADataType   = Types::ADataType;
-using BDataType   = Types::BDataType;
-using AccDataType = Types::AccDataType;
-using CDataType   = Types::CDataType;
+template <>
+struct DataTypeTraits<ck_tile::bf16_t>
+{
+    static constexpr const char* name = "bf16";
+};
 
 using Row = ck_tile::tensor_layout::gemm::RowMajor;
 using Col = ck_tile::tensor_layout::gemm::ColumnMajor;

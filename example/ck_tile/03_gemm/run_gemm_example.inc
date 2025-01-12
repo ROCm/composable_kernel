@@ -2,7 +2,7 @@
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ALayout, typename BLayout, typename CLayout, typename DataTypeT>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
                   ck_tile::DeviceMem& c_m_n_dev_buf,
@@ -16,6 +16,11 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_warmup,
                   int n_repeat)
 {
+    using Types = GemmBasicTypeConfig<DataTypeT>;
+    using ADataType   = typename Types::ADataType;
+    using BDataType   = typename Types::BDataType;
+    using CDataType   = typename Types::CDataType;
+
     ck_tile::GemmHostArgs args;
     args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
     args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
@@ -50,7 +55,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ALayout, typename BLayout, typename CLayout, typename DataTypeT>
 int run_gemm_example_with_layouts(int argc,
                                   char* argv[],
                                   const ALayout a_layout                  = ALayout{},
@@ -60,6 +65,12 @@ int run_gemm_example_with_layouts(int argc,
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return -1;
+
+    using Types = GemmBasicTypeConfig<DataTypeT>;
+    using ADataType   = typename Types::ADataType;
+    using BDataType   = typename Types::BDataType;
+    using AccDataType = typename Types::AccDataType;
+    using CDataType   = typename Types::CDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -129,7 +140,7 @@ int run_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<ALayout, BLayout, CLayout>(a_m_k_dev_buf,
+    invoke_gemm<ALayout, BLayout, CLayout, DataTypeT>(a_m_k_dev_buf,
                                            b_k_n_dev_buf,
                                            c_m_n_dev_buf,
                                            M,
@@ -209,6 +220,35 @@ int run_gemm_example_with_layouts(int argc,
     return pass;
 }
 
+template <typename DataType>
+int run_gemm_example_with_datatype(int argc, char* argv[], const std::string& a_layout, const std::string& b_layout)
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
+    if(a_layout == "R" && b_layout == "R")
+    {
+        return run_gemm_example_with_layouts<Row, Row, Row, DataType>(argc, argv, Row{}, Row{}, Row{});
+    }
+    else if(a_layout == "R" && b_layout == "C")
+    {
+        return run_gemm_example_with_layouts<Row, Col, Row, DataType>(argc, argv, Row{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "C")
+    {
+        return run_gemm_example_with_layouts<Col, Col, Row, DataType>(argc, argv, Col{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "R")
+    {
+        return run_gemm_example_with_layouts<Col, Row, Row, DataType>(argc, argv, Col{}, Row{}, Row{});
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+    }
+}
+
 int run_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -217,25 +257,18 @@ int run_gemm_example(int argc, char* argv[])
 
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
+    std::string prec = arg_parser.get_str("prec");
 
-    if(a_layout == "R" && b_layout == "R")
-    {
-        return run_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
+    if(prec == "fp16") {
+        return run_gemm_example_with_datatype<GemmFp16>(argc, argv, a_layout, b_layout);
     }
-    else if(a_layout == "R" && b_layout == "C")
+    else if(prec == "bf16")
     {
-        return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "C")
-    {
-        return run_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "R")
-    {
-        return run_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
+        return run_gemm_example_with_datatype<GemmBf16>(argc, argv, a_layout, b_layout);
     }
     else
     {
-        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+        throw std::runtime_error("Unsupported data type!");
     }
+
 }
