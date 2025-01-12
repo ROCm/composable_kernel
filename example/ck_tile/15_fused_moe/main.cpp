@@ -108,6 +108,7 @@ auto create_args(int argc, char* argv[])
         .insert(
             "gate_only", "1", "w0(gate/up) style, 0:gate+up will double interm size, 1:only gate")
         .insert("api", "0", "benchmark api set: 0:fused-moe(moe-gemm+moe-sorting), 1:moe-gemm")
+        .insert("act", "0", "activation after first gemm. 0:gelu, 1:silu")
         .insert("balance",
                 "0",
                 "if set to 1, will try balance the expert in topk-ids(convenient for testing)")
@@ -135,6 +136,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t intermediate_size = arg_parser.get_int("i");
     ck_tile::index_t stride            = arg_parser.get_int("stride");
     ck_tile::index_t block_m           = arg_parser.get_int("bm");
+    ck_tile::index_t activation        = arg_parser.get_int("act");
     if(stride < 0)
         stride = hidden_size;
     std::string prec_i  = arg_parser.get_str("prec_i");
@@ -194,11 +196,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
             return std::string(", st:") + std::to_string(stride);
     }();
 
-    std::cout << "[" << api_str << "|" << prec_str << "]"
-              << " t:" << tokens << ", e:" << experts << ", k:" << topk << stride_str
-              << ", hidden:" << hidden_size << ", interm:" << intermediate_size << ", tp:" << tp
-              << ", shrd_interm:" << shared_intermediate_size_0 << "|" << shared_intermediate_size_1
-              << ", go:" << gate_only << ", q:" << fused_quant << std::flush;
+    std::cout
+        << "[" << api_str << "|" << prec_str << "]"
+        << " t:" << tokens << ", e:" << experts << ", k:" << topk << stride_str
+        << ", hidden:" << hidden_size << ", interm:" << intermediate_size << ", tp:"
+        << tp
+        // << ", shrd_interm:" << shared_intermediate_size_0 << "|" << shared_intermediate_size_1
+        << (gate_only ? ", g1u0" : ", g1u1") << ", q:" << fused_quant << std::flush;
 
     using TypeConfig           = FusedMoeGemmTypeConfig<I, W, O, ST, SW, SQ, KW>;
     using ADataType            = typename TypeConfig::ADataType;
@@ -370,6 +374,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                 prec_sq,
                                 prec_kw,
                                 block_m,
+                                activation,
                                 gate_only,
                                 fused_quant};
 
@@ -389,7 +394,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                             num_sorted_tiles_buf.GetDeviceBuffer(),
                             block_m,
                             hidden_size,
-                            shared_intermediate_size_0,
+                            intermediate_size / tp,
                             tokens,
                             experts,
                             topk,
@@ -438,7 +443,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 tokens,
                 experts,
                 hidden_size,
-                shared_intermediate_size_0,
+                intermediate_size / tp,
                 topk,
                 gate_only);
 
@@ -491,6 +496,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                     prec_sq,
                                     prec_kw,
                                     block_m,
+                                    activation,
                                     gate_only,
                                     fused_quant};
 
@@ -507,7 +513,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                 sorted_expert_ids_buf.GetDeviceBuffer(),
                                 num_sorted_tiles_buf.GetDeviceBuffer(),
                                 hidden_size,
-                                shared_intermediate_size_0,
+                                intermediate_size / tp,
                                 tokens,
                                 experts,
                                 topk,
@@ -547,7 +553,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 tokens,
                 experts,
                 hidden_size,
-                shared_intermediate_size_0,
+                intermediate_size / tp,
                 topk,
                 gate_only);
 

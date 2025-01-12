@@ -111,7 +111,7 @@ struct FusedMoeGemmHostArgs
     const void* num_sorted_tiles_ptr;  // [1]
 
     index_t hidden_size;       // k
-    index_t intermediate_size; // n / TP, for Gate. if Gate+Up, Down need divide by 2
+    index_t intermediate_size; // n / TP, for Gate/UP/Down
     index_t num_tokens;        // input number of tokens for current iteration
     index_t num_experts;       // number of groups
     index_t topk;              // need this?
@@ -204,7 +204,7 @@ struct FusedMoeGemmKernel
         const void* num_sorted_tiles_ptr;
 
         index_t hidden_size;       // k
-        index_t intermediate_size; // n / TP, for Gate. if Gate+Up, Down need divide by 2
+        index_t intermediate_size; // n / TP, for Gate/Up/Down
         index_t num_tokens;        // input number of tokens for current iteration
         index_t num_experts;       // number of groups
         index_t topk;              // need this?

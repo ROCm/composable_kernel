@@ -159,7 +159,7 @@
     " ds_write_b64 %[v_sfl_sst], [%[c6],%[c7]] offset:23168  \n"
     " s_mov_b32 s80, 0 \n"
     " s_waitcnt vmcnt(24) \n"
-    "label_0AA6: \n"
+    "coreloop_top_%=: \n"
     " s_waitcnt vmcnt(30) & lgkmcnt(0)  \n"
     " s_barrier \n" _UK_MFMA_ " [%[c0], %[c1], %[c2], %[c3]], acc[0:1], v[128:129], 0  \n"
     " ds_read_b32 v10, %[v_sfl_sld] offset:16640  \n"
@@ -396,7 +396,7 @@
             "%[c15]",
             "%[c7]") " s_addk_i32 s80, 0x0080  \n"
                      " s_cmp_lt_i32 s80, %[s_loop_cnt]  \n"
-                     " s_cbranch_scc0 label_0EC1  \n"
+                     " s_cbranch_scc0 loop_atomic_%=  \n"
                      " s_waitcnt vmcnt(30) & lgkmcnt(0)  \n"
                      " s_barrier  \n" _UK_MFMA_
                      " [%[c16], %[c17], %[c18], %[c19]], acc[128:129], v[128:129], 0  \n"
@@ -693,9 +693,9 @@
                                      "%[c31]",
                                      "%[c23]") " s_addk_i32 s80, 0x0080  \n"
                                                " s_cmp_lt_i32 s80, %[s_loop_cnt]  \n"
-                                               " s_cbranch_scc0 label_0EC1  \n"
-                                               " s_branch label_0AA6  \n"
-                                               " label_0EC1: \n"
+                                               " s_cbranch_scc0 loop_atomic_%=  \n"
+                                               " s_branch coreloop_top_%=  \n"
+                                               " loop_atomic_%=: \n"
                                                " s_waitcnt lgkmcnt(0)  \n"
                                                " s_barrier  \n"
                                                " ds_read_b32 v10, %[v_sfl_sld] offset:16640  \n"

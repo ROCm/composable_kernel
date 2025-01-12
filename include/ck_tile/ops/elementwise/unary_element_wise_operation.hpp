@@ -719,6 +719,14 @@ struct Silu
         constexpr T one = type_convert<T>(1);
         y               = x * (one / (one + ck_tile::exp(-x)));
     };
+
+    template <>
+    CK_TILE_HOST_DEVICE void operator()<fp32x2_t>(fp32x2_t& y, const fp32x2_t& x) const
+    {
+        constexpr auto one = type_convert<float>(1);
+        y[0]               = x[0] * (one / (one + ck_tile::exp(-x[0])));
+        y[1]               = x[1] * (one / (one + ck_tile::exp(-x[1])));
+    };
 };
 
 struct TanH

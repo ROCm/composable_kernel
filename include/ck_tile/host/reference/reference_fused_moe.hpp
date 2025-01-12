@@ -73,7 +73,7 @@ void reference_fused_moe(
     ck_tile::index_t tokens,
     ck_tile::index_t experts,
     ck_tile::index_t hidden_size,
-    ck_tile::index_t intermediate_size, // this size is for gate/up
+    ck_tile::index_t intermediate_size, // this size is for gate/up/down
     ck_tile::index_t topk,
     ck_tile::index_t gate_only)
 {
@@ -82,8 +82,8 @@ void reference_fused_moe(
     assert(sorted_expert_ids_host.get_num_of_dimension() == 1);
     assert(num_sorted_tiles_host.get_element_size() == 1);
     ck_tile::index_t num_sorted_tiles    = num_sorted_tiles_host.mData[0] / block_m;
-    ck_tile::index_t intermediate_size_0 = intermediate_size;
-    ck_tile::index_t intermediate_size_1 = intermediate_size / (gate_only ? 1 : 2);
+    ck_tile::index_t intermediate_size_0 = intermediate_size * (gate_only ? 1 : 2);
+    ck_tile::index_t intermediate_size_1 = intermediate_size;
 
     ck_tile::HostTensor<AccDataType> out_topk_tokens({tokens, topk, hidden_size});
 

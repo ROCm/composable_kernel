@@ -167,9 +167,12 @@ struct FusedMoeGemmPipeline_FlatmmUk
                                    index_t sorted_tile_id,
                                    index_t intermediate_tile_id)
     {
-        constexpr index_t hidden_radio_0            = IsGateOnly ? 1 : 2;
-        ck_tile::index_t shared_intermediate_size_0 = kargs.intermediate_size;
-        ck_tile::index_t shared_intermediate_size_1 = kargs.intermediate_size / hidden_radio_0;
+        constexpr index_t hidden_radio_0 = IsGateOnly ? 1 : 2;
+        ck_tile::index_t shared_intermediate_size_0 =
+            kargs.intermediate_size * hidden_radio_0; // total gate+up
+        ck_tile::index_t shared_intermediate_size_1 = kargs.intermediate_size;
+
+        // after weight shuffling, gate-only: [nr0, kr0, w0], gate+up: [nr0_gate + nr0_up, kr0, w0]
 
         index_t nr_0 = shared_intermediate_size_0 / BlockShape::Warp_N0; // divide N in W
         index_t kr_0 = kargs.hidden_size / BlockShape::Warp_K0;          // divide K in W
