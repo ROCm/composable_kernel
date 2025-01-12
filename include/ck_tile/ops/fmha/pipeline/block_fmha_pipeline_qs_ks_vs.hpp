@@ -106,11 +106,6 @@ struct BlockFmhaPipelineQSKSVS
         return Policy::template GetSmemSize<Problem>();
     }
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeQ()
-    {
-        return Policy::template GetSmemSizeQ<Problem>();
-    }
-
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
@@ -328,8 +323,7 @@ struct BlockFmhaPipelineQSKSVS
                 });
             }
 
-            const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
-            {                                                 // tail
+            { // tail
                 block_sync_lds();
                 gemm_0(s_acc, q_lds_window, k_lds_window);
                 block_sync_lds();
@@ -340,6 +334,10 @@ struct BlockFmhaPipelineQSKSVS
 
                 gemm_0(s_acc, q_lds_window, k_lds_window);
             }
+
+            __builtin_amdgcn_sched_barrier(0);
+
+            const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
 
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)

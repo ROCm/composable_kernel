@@ -146,8 +146,16 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentQ()
     {
-        using QDataType = remove_cvref_t<typename Problem::QDataType>;
-        return 16 / sizeof(QDataType);
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+
+        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::QDataType);
+
+        // this should align with MakeQDramTileDistribution()
+        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
+        static_assert(0 < ElemPerThread);
+        return min(ElemPerThread, MaxVectorSize);
     }
 
     template <typename Problem>
@@ -156,19 +164,25 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
         using QDataType = remove_cvref_t<typename Problem::QDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
 
-        constexpr index_t K1 = 16 / sizeof(QDataType); // use dwordx4. TODO: change this
-        constexpr index_t K0 = kKPerBlock / K1;
-        constexpr index_t M2 = get_warp_size() / K0;
-        constexpr index_t M1 = kBlockSize / get_warp_size();
-        constexpr index_t M0 = kMPerBlock / (M2 * M1);
+        constexpr index_t MaxVectorSize = 16 / sizeof(QDataType);
+
+        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
+        static_assert(0 < ElemPerThread);
+        constexpr index_t kMaxVecLoad = min(ElemPerThread, MaxVectorSize);
+
+        constexpr index_t KPerThread     = kMaxVecLoad;
+        constexpr index_t KThreads       = kKPerBlock / KPerThread;
+        constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+        constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+                                       tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
+                                             sequence<KThreads, KPerThread>>,
                                        tuple<sequence<1>, sequence<1, 2>>,
                                        tuple<sequence<1>, sequence<2, 0>>,
                                        sequence<1, 2>,
