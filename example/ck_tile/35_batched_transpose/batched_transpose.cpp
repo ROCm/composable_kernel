@@ -202,6 +202,18 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     ck_tile::stream_config sc{nullptr, true};
 
     auto ms = batched_transpose(trait, karg, sc);
+
+    std::size_t num_operations = N * C * H * (W - 1);
+    std::size_t num_bytes = N * C * H * W * sizeof(Type);
+
+    float ave_time = ms * 1E-3;
+    float gb_per_sec = num_bytes / ms * 1.E-6;
+    float tflops = static_cast<float>(num_operations) / ms * 1.E-6;
+
+    std::cout << "Run Batched Transpose kernel with N=" << N << ", C=" << C << ", H=" << H << ", W=" << W
+              << ", layout_in=" << layout_in << ", layout_out=" << layout_out << " : " << ms << " ms ("
+              << ave_time << " ave_time), " << tflops << " TFlops" << gb_per_sec << " GB/s, " << std::endl;
+
     printf("[%s]N:%d, C:%d, H:%d, W:%d, layout_in:%s, %f\n",
            prec.c_str(),
            N,
