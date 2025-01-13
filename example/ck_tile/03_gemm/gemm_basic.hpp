@@ -8,6 +8,27 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/ops/epilogue.hpp"
+#include "ck_tile/ops/gemm.hpp"
+
+#define CK_TILE_PIPELINE_COMPUTE 1
+#define CK_TILE_PIPELINE_MEMORY 2
+
+#ifndef CK_TILE_PIPELINE_DEFAULT
+#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE
+#endif
+
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
+#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrMem
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrMem
+#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Interwave
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV3
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV3
+#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
+#else
+#error "unsupported CK_TILE_PIPELINE_DEFAULT value"
+#endif
 
 template <typename DataType>
 struct GemmBasicTypeConfig;
