@@ -15,6 +15,13 @@ TEST(BHALF_T, Nan)
     EXPECT_EQ(bhalf_nan, type_convert<bhalf_t>(ck::NumericLimits<float>::QuietNaN()));
 }
 
+TEST(BHALF_T, Inf)
+{
+    const uint16_t binary_bhalf_inf = 0x7F80;
+    const bhalf_t bhalf_inf         = *(&binary_bhalf_inf);
+    EXPECT_EQ(bhalf_inf, type_convert<bhalf_t>(ck::NumericLimits<float>::Infinity()));
+}
+
 TEST(BHALF_T, MantisaOverflow)
 {
     const float abs_tol   = std::pow(2, -7);
