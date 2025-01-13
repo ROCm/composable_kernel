@@ -250,14 +250,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
     else if(init == 1)
     {
         ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f, seed, true}(a_host);
-        ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f, seed, true}(g_host);
-        ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f, seed, true}(d_host);
+        // ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f, seed, true}(g_host);
+        // ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f, seed, true}(d_host);
+
+        ck_tile::FillUniformDistribution<GDataType>{1.f, 1.f, seed, true}(g_host);
+        ck_tile::FillUniformDistribution<DDataType>{1.f, 1.f, seed, true}(d_host);
+
         ck_tile::FillUniformDistribution<AScaleDataType>{-.5f, .5f, seed, true}(sa_host);
         ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f, seed, true}(sg_host);
         ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f, seed, true}(sd_host);
         ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f, seed, true}(sy_host);
-        ck_tile::FillUniformDistribution<TopkWeightDataType>{-.5f, .5f, seed, true}(
-            topk_weight_host);
+        // ck_tile::FillUniformDistribution<TopkWeightDataType>{-.5f, .5f, seed, true}(
+        //     topk_weight_host);
+        ck_tile::FillUniformDistribution<TopkWeightDataType>{1, 1, seed, true}(topk_weight_host);
     }
     else if(init == 2)
     {

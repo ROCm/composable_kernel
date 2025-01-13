@@ -234,7 +234,8 @@ struct Flatmm_32x512x128_1x4x1_16x16x32_Base // for f16/bf16
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return 32 * (128 + 8) * sizeof(bf16_t);
+        // return 32 * (128 + 8) * sizeof(bf16_t);
+        return MakeLdsLoadDesc_A().get_element_space_size() * sizeof(bf16_t) * 2; // 2 lds buffers
     }
 };
 
@@ -444,34 +445,78 @@ struct Flatmm_32x512x128_1x4x1_16x16x32_BF16 : public Flatmm_32x512x128_1x4x1_16
 
         index_t loop_cnt = k / Block_K;
 
-        // this is the acc thread buffer
-        fp32x4_t v_acc[16]{.0f};
+        if constexpr(Is2B)
+        {
+            // this is the acc thread buffer
+            fp32x4_t v_acc[32]{.0f};
 
-        // B nr->kr
+            // B nr->kr
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Winline-asm"
-        // clang-format off
-        asm volatile(
+            // clang-format off
+            asm volatile(
 #define CK_TILE_FLATMM_UK_MFMA CK_TILE_FLATMM_UK_MFMA_BF16
+#define CK_TILE_FLATMM_UK_2B 1
 #include "uk/flatmm_uk_gfx9_32x512x128_1x1x1_16x16x16.inc"
-#undef CK_TILE_FLATMM_UK_MFMA
-            : _EXPAND_ASM_ARGS_OUT_ONE_ACC
-            : _EXPAND_ASM_ARGS_IN
-            : _EXPAND_ASM_ARGS_CLOBBER
-        );
-        // clang-format on
+                : _EXPAND_ASM_ARGS_OUT_TWO_ACC
+                : _EXPAND_ASM_ARGS_IN, 
+                    [s_res_b4]"s"(res_b[4]), 
+                    [s_res_b5]"s"(res_b[5]),
+                    [s_res_b6]"s"(res_b[6]),
+                    [s_res_b7]"s"(res_b[7])
+                : _EXPAND_ASM_ARGS_CLOBBER, "s24", "s25", "s26", "s27"
+            );
+            // clang-format on
 #pragma clang diagnostic pop
 
-        // return local scratch
-        auto c = MakeCBlockTile();
-        for(auto i = 0; i < 16; i++)
-        {
-            c.get_thread_buffer()[4 * i + 0] = v_acc[i].x;
-            c.get_thread_buffer()[4 * i + 1] = v_acc[i].y;
-            c.get_thread_buffer()[4 * i + 2] = v_acc[i].z;
-            c.get_thread_buffer()[4 * i + 3] = v_acc[i].w;
+            // return local scratch
+            auto c = make_tuple(MakeCBlockTile(), MakeCBlockTile());
+            for(auto i = 0; i < 16; i++)
+            {
+                c.at(number<0>{}).get_thread_buffer()[4 * i + 0] = v_acc[i].x;
+                c.at(number<0>{}).get_thread_buffer()[4 * i + 1] = v_acc[i].y;
+                c.at(number<0>{}).get_thread_buffer()[4 * i + 2] = v_acc[i].z;
+                c.at(number<0>{}).get_thread_buffer()[4 * i + 3] = v_acc[i].w;
+            }
+            for(auto i = 0; i < 16; i++)
+            {
+                c.at(number<1>{}).get_thread_buffer()[4 * i + 0] = v_acc[16 + i].x;
+                c.at(number<1>{}).get_thread_buffer()[4 * i + 1] = v_acc[16 + i].y;
+                c.at(number<1>{}).get_thread_buffer()[4 * i + 2] = v_acc[16 + i].z;
+                c.at(number<1>{}).get_thread_buffer()[4 * i + 3] = v_acc[16 + i].w;
+            }
+            return c;
         }
-        return c;
+        else
+        {
+            // this is the acc thread buffer
+            fp32x4_t v_acc[16]{.0f};
+
+            // B nr->kr
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Winline-asm"
+            // clang-format off
+            asm volatile(
+#define CK_TILE_FLATMM_UK_MFMA CK_TILE_FLATMM_UK_MFMA_BF16
+#include "uk/flatmm_uk_gfx9_32x512x128_1x1x1_16x16x16.inc"
+                : _EXPAND_ASM_ARGS_OUT_ONE_ACC
+                : _EXPAND_ASM_ARGS_IN
+                : _EXPAND_ASM_ARGS_CLOBBER
+            );
+            // clang-format on
+#pragma clang diagnostic pop
+
+            // return local scratch
+            auto c = MakeCBlockTile();
+            for(auto i = 0; i < 16; i++)
+            {
+                c.get_thread_buffer()[4 * i + 0] = v_acc[i].x;
+                c.get_thread_buffer()[4 * i + 1] = v_acc[i].y;
+                c.get_thread_buffer()[4 * i + 2] = v_acc[i].z;
+                c.get_thread_buffer()[4 * i + 3] = v_acc[i].w;
+            }
+            return c;
+        }
     }
 };
 
@@ -537,34 +582,78 @@ struct Flatmm_32x512x128_1x4x1_16x16x32_FP16 : public Flatmm_32x512x128_1x4x1_16
 
         index_t loop_cnt = k / Block_K;
 
-        // this is the acc thread buffer
-        fp32x4_t v_acc[16]{.0f};
+        if constexpr(Is2B)
+        {
+            // this is the acc thread buffer
+            fp32x4_t v_acc[32]{.0f};
 
-        // B nr->kr
+            // B nr->kr
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Winline-asm"
-        // clang-format off
-        asm volatile(
+            // clang-format off
+            asm volatile(
 #define CK_TILE_FLATMM_UK_MFMA CK_TILE_FLATMM_UK_MFMA_FP16
+#define CK_TILE_FLATMM_UK_2B 1
 #include "uk/flatmm_uk_gfx9_32x512x128_1x1x1_16x16x16.inc"
-#undef CK_TILE_FLATMM_UK_MFMA
-            : _EXPAND_ASM_ARGS_OUT_ONE_ACC
-            : _EXPAND_ASM_ARGS_IN
-            : _EXPAND_ASM_ARGS_CLOBBER
-        );
-        // clang-format on
+                : _EXPAND_ASM_ARGS_OUT_TWO_ACC
+                : _EXPAND_ASM_ARGS_IN, 
+                    [s_res_b4]"s"(res_b[4]), 
+                    [s_res_b5]"s"(res_b[5]),
+                    [s_res_b6]"s"(res_b[6]),
+                    [s_res_b7]"s"(res_b[7])
+                : _EXPAND_ASM_ARGS_CLOBBER, "s24", "s25", "s26", "s27"
+            );
+            // clang-format on
 #pragma clang diagnostic pop
 
-        // return local scratch
-        auto c = MakeCBlockTile();
-        for(auto i = 0; i < 16; i++)
-        {
-            c.get_thread_buffer()[4 * i + 0] = v_acc[i].x;
-            c.get_thread_buffer()[4 * i + 1] = v_acc[i].y;
-            c.get_thread_buffer()[4 * i + 2] = v_acc[i].z;
-            c.get_thread_buffer()[4 * i + 3] = v_acc[i].w;
+            // return local scratch
+            auto c = make_tuple(MakeCBlockTile(), MakeCBlockTile());
+            for(auto i = 0; i < 16; i++)
+            {
+                c.at(number<0>{}).get_thread_buffer()[4 * i + 0] = v_acc[i].x;
+                c.at(number<0>{}).get_thread_buffer()[4 * i + 1] = v_acc[i].y;
+                c.at(number<0>{}).get_thread_buffer()[4 * i + 2] = v_acc[i].z;
+                c.at(number<0>{}).get_thread_buffer()[4 * i + 3] = v_acc[i].w;
+            }
+            for(auto i = 0; i < 16; i++)
+            {
+                c.at(number<1>{}).get_thread_buffer()[4 * i + 0] = v_acc[16 + i].x;
+                c.at(number<1>{}).get_thread_buffer()[4 * i + 1] = v_acc[16 + i].y;
+                c.at(number<1>{}).get_thread_buffer()[4 * i + 2] = v_acc[16 + i].z;
+                c.at(number<1>{}).get_thread_buffer()[4 * i + 3] = v_acc[16 + i].w;
+            }
+            return c;
         }
-        return c;
+        else
+        {
+            // this is the acc thread buffer
+            fp32x4_t v_acc[16]{.0f};
+
+            // B nr->kr
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Winline-asm"
+            // clang-format off
+            asm volatile(
+#define CK_TILE_FLATMM_UK_MFMA CK_TILE_FLATMM_UK_MFMA_FP16
+#include "uk/flatmm_uk_gfx9_32x512x128_1x1x1_16x16x16.inc"
+                : _EXPAND_ASM_ARGS_OUT_ONE_ACC
+                : _EXPAND_ASM_ARGS_IN
+                : _EXPAND_ASM_ARGS_CLOBBER
+            );
+            // clang-format on
+#pragma clang diagnostic pop
+
+            // return local scratch
+            auto c = MakeCBlockTile();
+            for(auto i = 0; i < 16; i++)
+            {
+                c.get_thread_buffer()[4 * i + 0] = v_acc[i].x;
+                c.get_thread_buffer()[4 * i + 1] = v_acc[i].y;
+                c.get_thread_buffer()[4 * i + 2] = v_acc[i].z;
+                c.get_thread_buffer()[4 * i + 3] = v_acc[i].w;
+            }
+            return c;
+        }
     }
 };
 #undef _EXPAND_ASM_ARGS_OUT_ONE_ACC

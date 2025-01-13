@@ -239,7 +239,7 @@ struct FusedMoeGemmKernel
     {
         if constexpr(UseUK)
         {
-            __shared__ CK_TILE_LDS_ADDR ADataType smem[GetSmemSize()];
+            __shared__ CK_TILE_LDS_ADDR char smem[GetSmemSize()];
             IndexDataType num_sorted_tiles = __builtin_amdgcn_readfirstlane(
                 *reinterpret_cast<const IndexDataType*>(kargs.num_sorted_tiles_ptr));
 
