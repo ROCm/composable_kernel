@@ -42,7 +42,7 @@ struct BatchedTransposePipeline
             Policy::template MakeOutputDistribution<Problem>());
 
         constexpr auto span_2d_x = decltype(x)::get_distributed_spans();
-        constexpr auto span_2d_y = decltype(y)::get_distributed_spans();
+        /*constexpr auto span_2d_y = decltype(y)::get_distributed_spans();
 
         constexpr auto element_byte    = sizeof(InputType);
         constexpr auto padding_element = 4 / element_byte;
@@ -79,6 +79,14 @@ struct BatchedTransposePipeline
                 // Create a tuple of the current indices
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
                 y(i_j_idx)             = smem[i_src_h * smem_stride + i_src_w];
+            });
+        });
+        */
+
+        sweep_tile_span(span_2d_x[number<0>{}], [&](auto idx0) {
+            sweep_tile_span(span_2d_x[number<1>{}], [&](auto idx1) {
+                constexpr auto i_j_idx                = make_tuple(idx1, idx0);
+                y(i_j_idx) = x(i_j_idx);
             });
         });
 
