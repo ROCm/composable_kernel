@@ -335,7 +335,9 @@ struct BlockFmhaPipelineQSKSVS
                 gemm_0(s_acc, q_lds_window, k_lds_window);
             }
 
+            __builtin_amdgcn_sched_barrier(0);
             const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
+            __builtin_amdgcn_sched_barrier(0);
 
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -461,6 +463,8 @@ struct BlockFmhaPipelineQSKSVS
 
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+
+            __builtin_amdgcn_sched_barrier(0);
 
             // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
