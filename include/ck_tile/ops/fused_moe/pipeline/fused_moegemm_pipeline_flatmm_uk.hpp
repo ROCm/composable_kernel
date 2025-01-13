@@ -313,9 +313,6 @@ struct FusedMoeGemmPipeline_FlatmmUk
         auto w_scale      = GetWeightScale(
             row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr));
 
-        if (row_ids_a[0] >= kargs.num_tokens)
-            return;
-
         auto uk_0_g = Policy::template GetUK_0<Problem>();
         auto acc_0  = uk_0_g(a_res,
                             a_coords,
