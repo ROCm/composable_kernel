@@ -144,7 +144,7 @@ struct Rmsnorm2dFwd
             if (kFusedQuant != Rmsnorm2dFusedQuantEnum::NO_SWEEP) n += _SS_("_") + Rmsnorm2dFusedQuantEnumName<kFusedQuant>::name;
             if (kPadN) n += "_pn";
             if (kSaveInvRms) n += "_rms";
-            // if (kTwoPass) n += "_2p";
+            if (kTwoPass) n += "_2p";
             return n; }();
 
         auto prec_str = [&] () {

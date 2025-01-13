@@ -137,6 +137,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
             row_size % Block_N == 0 ? row_size - Block_N : row_size - row_size % Block_N;
 
         move_tile_window(x_window, {0, -Block_N});
+        move_tile_window(x_residual_window, {0, -Block_N});
         move_tile_window(gamma_window, {stride_to_right_most_window});
         move_tile_window(y_window, {0, stride_to_right_most_window});
 
