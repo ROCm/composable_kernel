@@ -386,7 +386,7 @@ struct FusedMoeGemmPipeline_FlatmmUk
                     sequence<1, 2>{});
 
                 auto reduced_acc_0 =
-                    tile_elementwise_in([&](const auto& a_, const auto& b_) { return a_ + b_; },
+                    tile_elementwise_in([&](const auto& a_, const auto& b_) { return a_ * b_; },
                                         acc_0.at(number<0>{}),
                                         acc_0.at(number<1>{}));
 

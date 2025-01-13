@@ -199,8 +199,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout
         << "[" << api_str << "|" << prec_str << "]"
         << " t:" << tokens << ", e:" << experts << ", k:" << topk << stride_str
-        << ", hidden:" << hidden_size << ", interm:" << intermediate_size << ", tp:"
-        << tp
+        << ", hidden:" << hidden_size << ", interm:" << intermediate_size << ", tp:" << tp
+        << ", act:"
+        << activation
         // << ", shrd_interm:" << shared_intermediate_size_0 << "|" << shared_intermediate_size_1
         << (gate_only ? ", g1u0" : ", g1u1") << ", q:" << fused_quant << std::flush;
 
@@ -250,19 +251,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     else if(init == 1)
     {
         ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f, seed, true}(a_host);
-        // ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f, seed, true}(g_host);
-        // ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f, seed, true}(d_host);
-
-        ck_tile::FillUniformDistribution<GDataType>{1.f, 1.f, seed, true}(g_host);
-        ck_tile::FillUniformDistribution<DDataType>{1.f, 1.f, seed, true}(d_host);
-
+        ck_tile::FillUniformDistribution<GDataType>{-.5f, .5f, seed, true}(g_host);
+        ck_tile::FillUniformDistribution<DDataType>{-.5f, .5f, seed, true}(d_host);
         ck_tile::FillUniformDistribution<AScaleDataType>{-.5f, .5f, seed, true}(sa_host);
         ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f, seed, true}(sg_host);
         ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f, seed, true}(sd_host);
         ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f, seed, true}(sy_host);
-        // ck_tile::FillUniformDistribution<TopkWeightDataType>{-.5f, .5f, seed, true}(
-        //     topk_weight_host);
-        ck_tile::FillUniformDistribution<TopkWeightDataType>{1, 1, seed, true}(topk_weight_host);
+        ck_tile::FillUniformDistribution<TopkWeightDataType>{-.5f, .5f, seed, true}(
+            topk_weight_host);
     }
     else if(init == 2)
     {
@@ -418,6 +414,28 @@ bool run(const ck_tile::ArgParser& arg_parser)
                   << cal_tbps(ave_time) << " TB/s" << std::flush;
         bool pass = true;
 
+#define CPU_FUSED_MOE(act_type_)                                                 \
+    ck_tile::reference_fused_moe<AccDataType, act_type_>(a_host,                 \
+                                                         g_host,                 \
+                                                         d_host,                 \
+                                                         sa_host,                \
+                                                         sg_host,                \
+                                                         sd_host,                \
+                                                         sy_host,                \
+                                                         o_host,                 \
+                                                         sorted_token_ids_host,  \
+                                                         sorted_weight_host,     \
+                                                         sorted_expert_ids_host, \
+                                                         num_sorted_tiles_host,  \
+                                                         topk_ids_host,          \
+                                                         block_m,                \
+                                                         tokens,                 \
+                                                         experts,                \
+                                                         hidden_size,            \
+                                                         intermediate_size / tp, \
+                                                         topk,                   \
+                                                         gate_only)
+
         if(do_validation)
         {
             ck_tile::reference_moe_sorting<TopkWeightDataType, IndexDataType>(
@@ -429,28 +447,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 num_sorted_tiles_host.mData[0],
                 experts,
                 block_m);
-
-            ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Gelu>(
-                a_host,
-                g_host,
-                d_host,
-                sa_host,
-                sg_host,
-                sd_host,
-                sy_host,
-                o_host,
-                sorted_token_ids_host,
-                sorted_weight_host,
-                sorted_expert_ids_host,
-                num_sorted_tiles_host,
-                topk_ids_host,
-                block_m,
-                tokens,
-                experts,
-                hidden_size,
-                intermediate_size / tp,
-                topk,
-                gate_only);
+            if(activation == 0)
+            {
+                CPU_FUSED_MOE(ck_tile::element_wise::Gelu);
+            }
+            else
+            {
+                CPU_FUSED_MOE(ck_tile::element_wise::Silu);
+            }
 
             auto o_dev = o_buf.ToHost<ODataType>();
             // o_dev.savetxt("gpu-out.txt", "float");
@@ -540,27 +544,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(do_validation)
         {
-            ck_tile::reference_fused_moe<AccDataType, ck_tile::element_wise::Gelu>(
-                a_host,
-                g_host,
-                d_host,
-                sa_host,
-                sg_host,
-                sd_host,
-                sy_host,
-                o_host,
-                sorted_token_ids_host,
-                sorted_weight_host,
-                sorted_expert_ids_host,
-                num_sorted_tiles_host,
-                topk_ids_host,
-                block_m,
-                tokens,
-                experts,
-                hidden_size,
-                intermediate_size / tp,
-                topk,
-                gate_only);
+            if(activation == 0)
+            {
+                CPU_FUSED_MOE(ck_tile::element_wise::Gelu);
+            }
+            else
+            {
+                CPU_FUSED_MOE(ck_tile::element_wise::Silu);
+            }
 
             auto o_dev = o_buf.ToHost<ODataType>();
             // o_dev.savetxt("gpu-out.txt", "float");

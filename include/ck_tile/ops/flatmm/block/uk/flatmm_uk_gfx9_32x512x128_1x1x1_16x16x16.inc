@@ -684,6 +684,10 @@
                 "%[v_acc_16]", "%[v_acc_17]","%[v_acc_18]","%[v_acc_19]","%[v_acc_20]","%[v_acc_21]","%[v_acc_22]","%[v_acc_23]",
                 "%[v_acc_24]","%[v_acc_25]","%[v_acc_26]","%[v_acc_27]","%[v_acc_28]","%[v_acc_29]","%[v_acc_30]","%[v_acc_31]",
                 "s[20:23]")
+    "s_cmp_gt_i32  %[s_loop_cnt] 1             ; move b with cond \n"
+    "s_cselect_b32 s86, %[s_tile_os_b], 0                          \n"
+    "s_add_u32     s24, s86, s24                                  \n"
+    "s_addc_u32    s25, 0, s25                                    \n"
     "s_sub_i32     %[s_loop_cnt], %[s_loop_cnt], 1                \n"
     "s_cmp_gt_i32  %[s_loop_cnt] 0                                \n"
     "s_cbranch_scc0 L_end_uk_g1u1_32x512x128_16x16x16_%=\n"
@@ -695,8 +699,6 @@
     "s_cselect_b32 s86, %[s_tile_os_b], 0                          \n"
     "s_add_u32     s20, s86, s20                                  \n"
     "s_addc_u32    s21, 0, s21                                    \n"
-    "s_add_u32     s24, s86, s24                                  \n"
-    "s_addc_u32    s25, 0, s25                                    \n"
     ";------------------------------------------                  \n"
     _UK_PIPELINE_0(_UK_GLD_A0, _UK_GLD_A1, _UK_GLD_A2, _UK_GLD_A3, _UK_GLD_A4, _UK_GLD_A5, _UK_GLD_A6, _UK_GLD_A7_AND_L0 ,
                 _UK_NONE, _UK_NONE, _UK_NONE, _UK_NONE ,_UK_NONE, _UK_NONE, _UK_NONE, _UK_NONE,
@@ -714,6 +716,10 @@
                 "%[v_acc_16]", "%[v_acc_17]","%[v_acc_18]","%[v_acc_19]","%[v_acc_20]","%[v_acc_21]","%[v_acc_22]","%[v_acc_23]",
                 "%[v_acc_24]","%[v_acc_25]","%[v_acc_26]","%[v_acc_27]","%[v_acc_28]","%[v_acc_29]","%[v_acc_30]","%[v_acc_31]",
                 "s[20:23]")
+    "s_cmp_gt_i32  %[s_loop_cnt] 1             ; move b with cond \n"
+    "s_cselect_b32 s86, %[s_tile_os_b], 0                          \n"
+    "s_add_u32     s24, s86, s24                                  \n"
+    "s_addc_u32    s25, 0, s25                                    \n"
     "s_sub_i32     %[s_loop_cnt], %[s_loop_cnt], 1                \n"
     "s_cmp_gt_i32  %[s_loop_cnt] 0                                \n"
     "s_cbranch_scc0 L_end_uk_g1u1_32x512x128_16x16x16_%=\n"
@@ -725,8 +731,6 @@
     "s_cselect_b32 s86, %[s_tile_os_b], 0                          \n"
     "s_add_u32     s20, s86, s20                                  \n"
     "s_addc_u32    s21, 0, s21                                    \n"
-    "s_add_u32     s24, s86, s24                                  \n"
-    "s_addc_u32    s25, 0, s25                                    \n"
     "s_branch     L_start_uk_g1u1_32x512x128_16x16x16_%=\n"
     "L_end_uk_g1u1_32x512x128_16x16x16_%=:\n"
     "s_nop 2\n"
