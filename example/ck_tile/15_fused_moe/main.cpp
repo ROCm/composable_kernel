@@ -113,8 +113,9 @@ auto create_args(int argc, char* argv[])
                 "0",
                 "if set to 1, will try balance the expert in topk-ids(convenient for testing)")
         .insert("init",
-                "2",
-                "init method. 0:random stepped float(fast). 1: random uniform, 2:rand normalized"
+                "1",
+                "init method. 0:random stepped float(fast). 1: random uniform[-0.5, 0.5], 2:rand "
+                "normalized[0, 1]"
                 "normalized(slow)")
         .insert("seed", "11939", "seed used to do random")
         .insert("warmup", "5", "cold iter")
