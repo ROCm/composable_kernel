@@ -219,7 +219,7 @@ inline __host__ __device__ f8_fnuz_t f8_convert_sr<f8_fnuz_t, half_t>(half_t x)
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 1254739;
 
-    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<size_t>(&x), x);
     return utils::cast_to_f8<half_t,
                              f8_fnuz_t,
                              negative_zero_nan,
@@ -276,7 +276,7 @@ inline __host__ __device__ bf8_fnuz_t f8_convert_sr<bf8_fnuz_t, half_t>(half_t x
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 1254739;
 
-    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<size_t>(&x), x);
     return utils::cast_to_f8<half_t,
                              bf8_fnuz_t,
                              negative_zero_nan,

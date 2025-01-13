@@ -327,7 +327,7 @@ struct vector_type<T, 2, typename ck::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 3, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 3, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -397,7 +397,7 @@ struct vector_type<T, 3, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 4, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 4, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -467,7 +467,7 @@ struct vector_type<T, 4, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 5, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 5, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d4_t __attribute__((ext_vector_type(4)));
@@ -537,7 +537,7 @@ struct vector_type<T, 5, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 7, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 7, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -619,7 +619,7 @@ struct vector_type<T, 7, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 8, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 8, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -701,7 +701,7 @@ struct vector_type<T, 8, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 13, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 13, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d4_t __attribute__((ext_vector_type(4)));
@@ -783,7 +783,7 @@ struct vector_type<T, 13, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
-struct vector_type<T, 16, typename std::enable_if_t<is_native_type<T>()>>
+struct vector_type<T, 16, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -1388,7 +1388,7 @@ template <typename T, index_t N>
 struct non_native_vector_base<
     T,
     N,
-    std::enable_if_t<sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8>>
+    ck::enable_if_t<sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8>>
 {
     using data_t = typename nnvb_data_t_selector<T>::type; // select data_t based on the size of T
     static_assert(sizeof(T) == sizeof(data_t), "non_native_vector_base storage size mismatch");
