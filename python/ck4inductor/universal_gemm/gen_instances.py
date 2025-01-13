@@ -68,12 +68,13 @@ def parse_instances(str_instances: List[str]) -> List[CKGemmOperation]:
 
         template_args.insert(2, tuple())  # ds layout
         template_args.insert(6, tuple())  # ds dtype
-
-        new_instance = CKGemmOperation(
-            *template_args,  # type: ignore[arg-type]
-        )
-
-        op_instances.append(new_instance)
+        try:
+            new_instance = CKGemmOperation(
+                *template_args,  # type: ignore[arg-type]
+            )
+            op_instances.append(new_instance)
+        except TypeError as e:
+            log.debug(f"{e} when parsing {line}")
     return op_instances
 
 
