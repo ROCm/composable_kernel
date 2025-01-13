@@ -51,7 +51,7 @@ inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t 
     return u.fp32;
 }
 
-// convert fp32 to bfp16
+// convert fp32 to bfp16, round to nearest even
 template <>
 inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float x)
 {
