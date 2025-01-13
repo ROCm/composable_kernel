@@ -104,9 +104,10 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
-    using I0        = number<0>;
-    using I1        = number<1>;
-    using I2        = number<2>;
+
+    using I0 = number<0>;
+    using I1 = number<1>;
+    using I2 = number<2>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;

@@ -106,11 +106,6 @@ struct BlockFmhaPipelineQSKSVS
         return Policy::template GetSmemSize<Problem>();
     }
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeQ()
-    {
-        return Policy::template GetSmemSizeQ<Problem>();
-    }
-
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
@@ -328,8 +323,7 @@ struct BlockFmhaPipelineQSKSVS
                 });
             }
 
-            const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
-            {                                                 // tail
+            { // tail
                 block_sync_lds();
                 gemm_0(s_acc, q_lds_window, k_lds_window);
                 block_sync_lds();
@@ -340,6 +334,10 @@ struct BlockFmhaPipelineQSKSVS
 
                 gemm_0(s_acc, q_lds_window, k_lds_window);
             }
+
+            __builtin_amdgcn_sched_barrier(0);
+            const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
+            __builtin_amdgcn_sched_barrier(0);
 
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -462,6 +460,12 @@ struct BlockFmhaPipelineQSKSVS
                 p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
+
+            const auto p =
+                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+
+            __builtin_amdgcn_sched_barrier(0);
+
             // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
@@ -508,9 +512,6 @@ struct BlockFmhaPipelineQSKSVS
                            tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
             }
             move_tile_window(v_dram_window, {0, kK1});
-
-            const auto p =
-                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)

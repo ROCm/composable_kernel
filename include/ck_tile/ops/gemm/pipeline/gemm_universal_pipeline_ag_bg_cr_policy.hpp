@@ -11,7 +11,6 @@ namespace ck_tile {
 // UniversalGemm Policy
 struct UniversalGemmPipelineAgBgCrPolicy
 {
-
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
