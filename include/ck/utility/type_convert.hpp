@@ -61,7 +61,10 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
         uint32_t int32;
     } u = {x};
 
-    return uint16_t(u.int32 >> 16);
+    const uint32_t first_bf16_mantisa_bit = ((u.int32 >> 16) & 1);
+    constexpr uint32_t rounding_bias      = uint32_t((1 << 15) - 1);
+
+    return uint16_t((u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16);
 }
 
 // convert bfp16 to fp16 via fp32
