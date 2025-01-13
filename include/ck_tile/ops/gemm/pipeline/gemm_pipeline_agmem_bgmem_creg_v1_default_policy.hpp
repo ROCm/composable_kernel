@@ -12,8 +12,11 @@ namespace ck_tile {
 // Default policy class should not be templated, put template on member functions instead
 struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 {
+    static constexpr auto I0 = number<0>{};
+    static constexpr auto I1 = number<1>{};
+    static constexpr auto I2 = number<2>{};
 
-    static constexpr bool TransposeC = false;
+    static constexpr bool TransposeC = true;
 
 #if 0
     // 2d
@@ -491,10 +494,6 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        constexpr auto I0 = number<0>{};
-        constexpr auto I1 = number<1>{};
-        constexpr auto I2 = number<2>{};
-
         using AccDataType     = float;
         using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
