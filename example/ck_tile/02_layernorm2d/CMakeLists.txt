@@ -42,3 +42,25 @@ target_compile_options(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${EXAMPLE_LAYERNORM2D_
 # however, this property may affect global
 # TODO: consider codegen a makefile by us
 set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
+
+set(EXAMPLE_LAYERNORM2D_BWD "tile_example_layernorm2d_bwd")
+# not using add_example_executable() to add this target, since we don't want this to have
+# to be included in "make all/install/check"
+message("adding example ${EXAMPLE_LAYERNORM2D_BWD}")
+file(GLOB INSTANCE_SRCS instances/*.cpp)
+add_executable(${EXAMPLE_LAYERNORM2D_BWD} EXCLUDE_FROM_ALL layernorm2d_bwd.cpp)
+target_include_directories(${EXAMPLE_LAYERNORM2D_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_sources(${EXAMPLE_LAYERNORM2D_BWD} PRIVATE ${INSTANCE_SRCS})
+
+set(EXAMPLE_layernorm2d_bwd_COMPILE_OPTIONS)
+
+# NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
+list(APPEND EXAMPLE_layernorm2d_bwd_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
+
+target_compile_options(${EXAMPLE_LAYERNORM2D_BWD} PRIVATE ${EXAMPLE_layernorm2d_bwd_COMPILE_OPTIONS})
+
+# TODO: we have to turn off this global prop, otherwise the progress bar generated
+# by cmake will print too many files, execvp: /bin/sh: Argument list too long
+# however, this property may affect global
+# TODO: consider codegen a makefile by us
+set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
