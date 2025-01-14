@@ -157,7 +157,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
                 });
             }
 
-            // load gamma/beta (TODO: support no gamma/beta?)
+            // load gamma (TODO: support no gamma?)
             const auto gamma = load_tile(gamma_window);
 
             // rmsnorm computation
