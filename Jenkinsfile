@@ -512,6 +512,13 @@ def Build_CK(Map conf=[:]){
                         arch_type = 5
                     }
                     cmake_build(conf)
+                    if ( arch_type == 1 ){
+                            echo "Run inductor codegen tests"
+                            sh """
+                                  pip install --verbose .
+                                  pytest python/test/test_gen_instances.py
+                            """
+                    }
                     dir("build"){
                         if (params.RUN_FULL_QA && arch_type == 1 ){
                             // build deb packages for all gfx9 targets on gfx90a system and prepare to export
