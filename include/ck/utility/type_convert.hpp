@@ -22,6 +22,7 @@ __host__ __device__ constexpr Y bf16_convert_rtn(X x);
 template <>
 inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
 {
+    // Nan check
     if(x != x)
     {
         return uint16_t(0x7FC0);
