@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -581,6 +581,10 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
+        if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t>)
         {
             return false;
         }

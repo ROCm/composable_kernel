@@ -9,17 +9,8 @@
 #include <string>
 #include <tuple>
 
-#include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
 #include "gemm_basic.hpp"
-
-#define CK_TILE_PIPELINE_COMPUTE 1
-#define CK_TILE_PIPELINE_MEMORY 2
-
-#ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE
-#endif
 
 template <typename ALayout, typename BLayout, typename CLayout>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
@@ -71,12 +62,11 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
 
     using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
-    using BaseGemmPipeline                 = ck_tile::BaseGemmPipelineAgBgCrCompV3<
-#endif
-        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
+
+    using GemmPipelineProblem =
+        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+
+    using BaseGemmPipeline = UNIVERSAL_GEMM_PIPELINE<GemmPipelineProblem>;
 
     const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
     const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
@@ -89,26 +79,20 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
+        constexpr auto scheduler      = GEMM_PIPELINE_SCHEDULER;
 
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-        using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
-        using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<
-#endif
-            ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                  BDataType,
-                                                  AccDataType,
-                                                  GemmShape,
-                                                  Traits,
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-                                                  ck_tile::GemmPipelineScheduler::Interwave,
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
-                                                  ck_tile::GemmPipelineScheduler::Intrawave,
-#endif
-                                                  has_hot_loop_v,
-                                                  tail_number_v>>;
-        using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs   = Kernel::MakeKernelArgs(args);
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                           BDataType,
+                                                                           AccDataType,
+                                                                           GemmShape,
+                                                                           Traits,
+                                                                           scheduler,
+                                                                           has_hot_loop_v,
+                                                                           tail_number_v>;
+
+        using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+        using Kernel       = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        auto kargs         = Kernel::MakeKernelArgs(args);
 
         const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
         constexpr dim3 blocks = Kernel::BlockSize();
