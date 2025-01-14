@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -125,6 +125,20 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
+
+    CK_TILE_HOST static std::string GetName()
+    {
+#define _TS_ std::to_string
+        // clang-format off
+        using _SS_ = std::string;
+
+        return _SS_("pipeline_AgBgCrMe_") +
+                _TS_(MPerBlock) + "x" + _TS_(NPerBlock) + "x" + _TS_(KPerBlock) + "_" +
+                _TS_(VectorSizeA) + "x" + _TS_(VectorSizeB) + "x" + _TS_(VectorSizeC) + "_" +
+                _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK);
+#undef _TS_
+        // clang-format on
+    }
 
     using Base::PrefetchStages;
 

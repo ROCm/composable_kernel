@@ -90,10 +90,7 @@ struct GemmKernel
             return base_str;
         }();
 
-        return _SS_("gemm_") + _SS_(prec_str) + "_" +
-                _TS_(P_::kMPerBlock) + "x" + _TS_(P_::kNPerBlock) + "x" + _TS_(P_::kKPerBlock) + "_" +
-                _TS_(P_::VectorSizeA) + "x" + _TS_(P_::VectorSizeB) + "x" + _TS_(P_::VectorSizeC) + "_" +
-                _TS_(P_::kPadM) + "x" + _TS_(P_::kPadN) + "x" + _TS_(P_::kPadK);
+        return _SS_("gemm_") + _SS_(prec_str) + "_" + P_::GetName();
 #undef _TS_
         // clang-format on
     }

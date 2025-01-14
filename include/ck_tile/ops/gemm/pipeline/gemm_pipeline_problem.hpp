@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,6 +34,19 @@ struct GemmPipelineProblemBase
     static constexpr bool kPadK = GemmTraits::kPadK;
 
     static constexpr auto Scheduler = GemmPipelineScheduler::Default;
+
+    CK_TILE_HOST static std::string GetName()
+    {
+#define _TS_ std::to_string
+        // clang-format off
+        using _SS_ = std::string;
+
+        return _SS_("gemm_problem_") +
+                _TS_(VectorLoadSize) + "x" + _TS_(kBlockSize) + "_" +
+                _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK);
+#undef _TS_
+        // clang-format on
+    }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
     {

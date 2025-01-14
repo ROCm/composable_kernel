@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -38,6 +38,20 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
+
+    CK_TILE_HOST static std::string GetName()
+    {
+#define _TS_ std::to_string
+        // clang-format off
+        using _SS_ = std::string;
+
+        return _SS_("pipeline_AGmemBGmemCRegV1_") +
+                _TS_(kMPerBlock) + "x" + _TS_(kNPerBlock) + "x" + _TS_(kKPerBlock) + "x" + _TS_(BlockSize) + "_" +
+                _TS_(VectorSizeA) + "x" + _TS_(VectorSizeB) + "x" + _TS_(VectorSizeC) + "_" +
+                _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK);
+#undef _TS_
+        // clang-format on
+    }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     {
