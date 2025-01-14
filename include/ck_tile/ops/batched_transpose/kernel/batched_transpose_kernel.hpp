@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -48,12 +48,6 @@ struct BatchedTransposeKernel
 
     using Kargs = BatchedTransposeKargs;
     using Hargs = BatchedTransposeHostArgs;
-
-    // CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
-    // {
-    //     size_t grid_size = h.batch * h.dim_block_h * h.dim_block_w;
-    //     return dim3(grid_size);
-    // }
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
     {
