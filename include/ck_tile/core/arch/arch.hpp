@@ -30,7 +30,7 @@ struct safe_underlying_type<T, false>
 template <typename T>
 using safe_underlying_type_t = typename safe_underlying_type<T, std::is_enum<T>::value>::type;
 
-enum struct address_space_enum : std::uint8_t
+enum struct address_space_enum : std::uint16_t
 {
     generic = 0,
     global,
@@ -40,7 +40,7 @@ enum struct address_space_enum : std::uint8_t
     vgpr
 };
 
-enum struct memory_operation_enum : std::uint8_t
+enum struct memory_operation_enum : std::uint16_t
 {
     set = 0,
     atomic_add,
