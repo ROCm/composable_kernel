@@ -93,7 +93,7 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
   target_compile_options(${PROFILER_EXECUTABLE} PRIVATE --offload-compress)
 endif()
 
-# target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility getopt::getopt)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility getopt::getopt)
 # target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_instance)
 # target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_fwd_instance)
 # target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_bwd_data_instance)
