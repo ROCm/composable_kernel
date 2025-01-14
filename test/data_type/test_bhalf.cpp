@@ -26,7 +26,23 @@ TEST(BHALF_T, MantisaOverflow)
 {
     const float abs_tol   = std::pow(2, -7);
     const uint32_t val    = 0x81FFFFFF;
-    const float float_val = *(&val);
+    const float float_val = *(reinterpret_cast<const float*>(&val));
 
     ASSERT_NEAR(float_val, type_convert<float>(type_convert<bhalf_t>(float_val)), abs_tol);
+}
+
+TEST(BHALF_T, ExpOverflow)
+{
+    const uint32_t val    = 0xFF800000;
+    const float float_val = *(reinterpret_cast<const float*>(&val));
+    ASSERT_EQ(type_convert<float>(type_convert<bhalf_t>(float_val)), float_val);
+}
+
+TEST(BHALF_T, MantisaExpOverflow)
+{
+    const uint32_t val    = 0xFFFFFFFF;
+    const float float_val = *(reinterpret_cast<const float*>(&val));
+
+    ASSERT_TRUE(std::isnan(float_val));
+    ASSERT_TRUE(std::isnan(type_convert<float>(type_convert<bhalf_t>(float_val))));
 }
