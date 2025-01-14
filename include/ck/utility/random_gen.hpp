@@ -3,9 +3,13 @@
 
 #pragma once
 #include <ck/utility/ignore.hpp>
-#include "data_type.hpp"
 #include "ck/ck.hpp"
 
+#ifdef CK_CODE_GEN_RTC
+using uint8_t  = unsigned char;
+using uint16_t = unsigned short;
+using uint32_t = unsigned int;
+#endif
 namespace ck {
 
 // Pseudo random number generator
