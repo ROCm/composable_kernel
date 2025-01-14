@@ -129,7 +129,7 @@ auto create_args(int argc, char* argv[])
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("t", "128", "num input tokens")
         .insert("e", "32", "num of experts")
-        .insert("k", "2", "topk")
+        .insert("k", "5", "topk")
         .insert("h", "8192", "hidden_size of this model")
         .insert("i", "8192", "intermediate_size between 2 gemms of FFN")
         .insert("stride", "-1", "stride per row, if -1 then equal to hidden_size")
@@ -285,6 +285,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f, seed, true}(sg_host);
         ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f, seed, true}(sd_host);
         ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f, seed, true}(sy_host);
+        // ck_tile::FillConstant<TopkWeightDataType>{0.1}(topk_weight_host);
         ck_tile::FillUniformDistribution<TopkWeightDataType>{0.0f, 1.0f, seed, true}(
             topk_weight_host);
     }
@@ -308,6 +309,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<GScaleDataType>{-.5f, .5f, seed, true}(sg_host);
         ck_tile::FillUniformDistribution<DScaleDataType>{-.5f, .5f, seed, true}(sd_host);
         ck_tile::FillUniformDistribution<YSmoothScaleDataType>{-.5f, .5f, seed, true}(sy_host);
+        // ck_tile::FillConstant<TopkWeightDataType>{0.5}(topk_weight_host);
         ck_tile::FillUniformDistribution<TopkWeightDataType>{0.0f, 1.0f, seed, true}(
             topk_weight_host);
     }
@@ -397,11 +399,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // output_matrix_2d(a_host, tokens, hidden_size);
     std::cout << sorted_token_ids_host << std::endl;
-    std::cout << num_sorted_tiles_host << std::endl;
+    // std::cout << num_sorted_tiles_host << std::endl;
     // output_matrix_3d(g_host, experts, shared_intermediate_size_0, hidden_size);
     // output_matrix_3d(d_host, experts, hidden_size, shared_intermediate_size_1);
-    std::cout << sorted_expert_ids_host << std::endl;
-    // std::cout << topk_weight_host << std::endl;
+    // std::cout << sorted_expert_ids_host << std::endl;
+    std::cout << topk_weight_host << std::endl;
 
     std::cout << sorted_weight_host << std::endl;
     // done, preparing GPU buffer

@@ -171,6 +171,7 @@ void reference_fused_moe(
             //     printf("in:%d, %f\t", i_n, acc);
             acc_1(0, i_n) = acc * weight; // multiple weight here
         }
+        (void)weight;
 
         for(ck_tile::index_t i_n = 0; i_n < hidden_size; i_n++)
         {

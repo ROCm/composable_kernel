@@ -170,6 +170,16 @@ struct FusedMoeGemmPipeline_General
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
         auto s_acc              = SaccBlockTileType{};
 
+        constexpr auto w_dstr =
+            make_static_tile_distribution(detail::make_reduce_tile_distribution_encoding(
+                s_acc.get_tile_distribution().get_static_tile_distribution_encoding(),
+                sequence<1>{}));
+        auto w_global_to_dram_window = make_tile_window(w_window_.get_bottom_tensor_view(),
+                                                        make_tuple(number<BlockShape::Block_M0>{}),
+                                                        w_window_.get_window_origin(),
+                                                        w_dstr);
+        auto w                       = load_tile(w_global_to_dram_window);
+
         auto a_dram_block = load_tile(a_global_to_dram_window);
         auto g_dram_block = load_tile(g_global_to_dram_window);
         // block_sync_load_raw();
@@ -250,16 +260,6 @@ struct FusedMoeGemmPipeline_General
         using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
         auto o_acc              = OaccBlockTileType{};
 
-        constexpr auto w_dstr =
-            make_static_tile_distribution(detail::make_reduce_tile_distribution_encoding(
-                s_acc.get_tile_distribution().get_static_tile_distribution_encoding(),
-                sequence<1>{}));
-        auto w_global_to_dram_window = make_tile_window(w_window_.get_bottom_tensor_view(),
-                                                        make_tuple(number<BlockShape::Block_M0>{}),
-                                                        w_window_.get_window_origin(),
-                                                        w_dstr);
-        auto w                       = load_tile(w_global_to_dram_window);
-        float weight                 = type_convert<float>(w.get_thread_buffer()[0]);
 #if 0
         constexpr index_t w_buffer_size = decltype(w)::get_thread_buffer_size();
         if(threadIdx.x == 1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
@@ -294,7 +294,7 @@ struct FusedMoeGemmPipeline_General
         // d data
         auto d_global_to_dram_window = make_tile_window(
             d_window_.get_bottom_tensor_view(),
-            make_tuple(number<BlockShape::Block_N0>{}, number<BlockShape::Block_K0>{}),
+            make_tuple(number<BlockShape::Block_N1>{}, number<BlockShape::Block_K1>{}),
             d_window_.get_window_origin(),
             Policy::template MakeGlobalTileDistribution_D<Problem>());
         auto d = load_tile(d_global_to_dram_window);
@@ -339,6 +339,8 @@ struct FusedMoeGemmPipeline_General
                 }
             }
         };
+
+        float weight           = type_convert<float>(w.get_thread_buffer()[0]);
         constexpr index_t kN1  = BlockShape::Block_N1;
         const index_t n1_loops = ck_tile::integer_divide_ceil(hidden_size, kN1);
         index_t iCounter1      = n1_loops - 1;
@@ -382,6 +384,7 @@ struct FusedMoeGemmPipeline_General
 #endif
         }
         // store_tile(o_window_, a_dram_block);
+        ignore = weight;
     }
 };
 
