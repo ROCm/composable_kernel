@@ -32,7 +32,9 @@ enum struct GemmDataType
 enum struct ScaleBlockTile
 {
     Tile_128_128_128, // 0
+    Tile_1_128_128,   // 1
 };
+
 
 #define OP_NAME "gemm_ab_scale"
 #define OP_DESC "GEMM_AB_Scale"
@@ -154,8 +156,25 @@ int profile_gemm_ab_scale(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
+    // if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN &&
+    //    scale_block_tile == ScaleBlockTile::Tile_128_128_128)
+    // {
+    //     return profile(F8{},
+    //                    F32{},
+    //                    F8{},
+    //                    F32{},
+    //                    F8{},
+    //                    F32{},
+    //                    BF16{},
+    //                    ck::Number<128>{},
+    //                    ck::Number<128>{},
+    //                    ck::Number<128>{},
+    //                    Row{},
+    //                    Col{},
+    //                    Row{});
+    // }
     if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN &&
-       scale_block_tile == ScaleBlockTile::Tile_128_128_128)
+       scale_block_tile == ScaleBlockTile::Tile_1_128_128)
     {
         return profile(F8{},
                        F32{},
@@ -164,7 +183,7 @@ int profile_gemm_ab_scale(int argc, char* argv[])
                        F8{},
                        F32{},
                        BF16{},
-                       ck::Number<128>{},
+                       ck::Number<1>{},
                        ck::Number<128>{},
                        ck::Number<128>{},
                        Row{},
