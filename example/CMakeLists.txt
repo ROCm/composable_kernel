@@ -5,6 +5,11 @@ include_directories(BEFORE
 
 add_custom_target(examples)
 
+set(REGRESSION_EXAMPLES
+    example_sparse_embedding3_forward_layernorm
+)
+
+
 function(add_example_dependencies EXAMPLE_NAME FILE_NAME)
     if(FILE_NAME)
         add_dependencies(EXAMPLE_NAME FILE_NAME)
@@ -107,6 +112,15 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
         set(result 0)
     endif()
     #message("add_example returns ${result}")
+    if(result EQUAL 0 AND NOT "${EXAMPLE_NAME}" IN_LIST REGRESSION_EXAMPLES)
+        message("adding to SMOKE EXAMPLE FILTER ${EXAMPLE_NAME}")
+        set_tests_properties(${EXAMPLE_NAME} PROPERTIES LABELS "SMOKE_EXAMPLE")
+        add_dependencies(smoke ${EXAMPLE_NAME})
+    elseif(result EQUAL 0 AND "${EXAMPLE_NAME}" IN_LIST REGRESSION_EXAMPLES)
+        message("Adding to REGRESSION EXAMPLE FILTER ${EXAMPLE_NAME}")
+        set_tests_properties(${EXAMPLE_NAME} PROPERTIES LABELS "REGRESSION_EXAMPLE")
+        add_dependencies(regression ${EXAMPLE_NAME})
+    endif()
     set(result ${result} PARENT_SCOPE)
 endfunction(add_example_executable EXAMPLE_NAME)
 
@@ -189,6 +203,16 @@ function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
         set(result 0)
     endif()
     #message("add_example returns ${result}")
+    # if(result EQUAL 0 AND NOT "${EXAMPLE_NAME}" IN_LIST REGRESSION_EXAMPLES)
+    #     message("NO TESTING:: adding to SMOKE EXAMPLE FILTER ${EXAMPLE_NAME}")
+    #     set_tests_properties(${EXAMPLE_NAME} PROPERTIES LABELS "SMOKE_EXAMPLE")
+    #     add_dependencies(smoke ${EXAMPLE_NAME})
+    # elseif(result EQUAL 0 AND "${EXAMPLE_NAME}" IN_LIST REGRESSION_EXAMPLES)
+    #     message("NO TESTING:: Adding to REGRESSION EXAMPLE FILTER ${EXAMPLE_NAME}")
+    #     set_tests_properties(${EXAMPLE_NAME} PROPERTIES LABELS "REGRESSION_EXAMPLE")
+    #     add_dependencies(regression ${EXAMPLE_NAME})
+    # endif()
+
     set(result ${result} PARENT_SCOPE)
 endfunction(add_example_executable_no_testing EXAMPLE_NAME)
 
