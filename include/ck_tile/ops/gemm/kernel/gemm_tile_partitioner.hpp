@@ -90,18 +90,18 @@ struct GemmTile1DPartitioner
 };
 
 template <typename, index_t typename = void>
-struct has_0_arg_fn_impl : std::false_type
+struct has_1_arg_fn_impl : std::false_type
 {
 };
 
 template <typename T>
-struct has_0_arg_fn_impl<T, std::void_t<decltype(std::declval<T>().GetOutputTileIndex(1))>>
+struct has_1_arg_fn_impl<T, std::void_t<decltype(std::declval<T>().GetOutputTileIndex(1))>>
     : std::true_type
 {
 };
 
 template <typename PartitionerFn,
-          typename = typename std::enable_if_t<has_0_arg_fn_impl<PartitionerFn>{}>>
+          typename = typename std::enable_if_t<has_1_arg_fn_impl<PartitionerFn>{}>>
 struct OffsetCallculation1DPartitioner
 {
     CK_TILE_DEVICE static constexpr auto GetOffsetedTileIndex(index_t block_start)
