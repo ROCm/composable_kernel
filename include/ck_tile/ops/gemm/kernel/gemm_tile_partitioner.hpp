@@ -89,7 +89,7 @@ struct GemmTile1DPartitioner
     }
 };
 
-template <typename, index_t typename = void>
+template <typename, typename = void>
 struct has_1_arg_fn_impl : std::false_type
 {
 };

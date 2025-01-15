@@ -45,6 +45,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
+    using Offset1DPartitioner = OffsetCallculation1DPartitioner<TilePartitioner>;
     using Base           = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
     using GemmKernelArgs = typename Base::GemmKernelArgs;
 
@@ -139,7 +140,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     CK_TILE_DEVICE void Run(const GemmTransKernelArg& kargs) const
     {
         TilePartitioner::SetNBlock(kargs.group_karg.N);
-        const auto [iM, iN] = OffsetCallculation1DPartitioner<TilePartitioner>::GetOffsetedTileIndex(kargs.block_start);
+        const auto [iM, iN] = Offset1DPartitioner::GetOffsetedTileIndex(kargs.block_start);
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
