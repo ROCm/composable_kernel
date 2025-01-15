@@ -72,7 +72,6 @@ struct GemmTile1DPartitioner
     CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx) noexcept
         -> const tuple<index_t, index_t>
     {
-        
         const index_t NBlock = GetNBlock(_NBlockSize);
 
         const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx / NBlock);
@@ -109,7 +108,6 @@ struct OffsetCallculation1DPartitioner
         -> const tuple<index_t, index_t>
     {
         const auto [iM, iN] = PartitionerFn::GetOutputTileIndex(blockIdx.x - block_start);
-
         return make_tuple(iM, iN);
     }
 };
