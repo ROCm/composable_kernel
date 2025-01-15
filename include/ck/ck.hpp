@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -159,6 +159,9 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 
 // set stochastic rounding as default for f8 conversions
 #define CK_USE_SR_F8_CONVERSION 1
+
+// set rounding to nearest even as default for f8 conversions
+#define CK_USE_SR_F8_CONVERSION 0
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
