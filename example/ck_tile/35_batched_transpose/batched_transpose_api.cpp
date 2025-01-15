@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 #include "batched_transpose_api.hpp"
 
 #define BATCHED_TRANSPOSE_DISPATCH()                                                   \
