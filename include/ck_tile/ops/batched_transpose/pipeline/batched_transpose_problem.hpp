@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -36,7 +36,8 @@ struct BatchedTransposeProblem
     static constexpr index_t kMWarpPerBlock = kMPerBlock / kMPerWarp;
     static constexpr index_t kNWarpPerBlock = kNPerBlock / kNPerWarp;
 
-    static constexpr index_t kBlockSize = kMThreadPerWarp * kNThreadPerWarp * kMWarpPerBlock * kNWarpPerBlock;
+    static constexpr index_t kBlockSize =
+        kMThreadPerWarp * kNThreadPerWarp * kMWarpPerBlock * kNWarpPerBlock;
 
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
