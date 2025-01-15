@@ -456,7 +456,10 @@ struct GemmKernel
 
     CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const
     {
-        const auto [i_m, i_n] = TilePartitioner{}();
+        const auto [iM, iN] = TilePartitioner::GetOutputTileIndex(blockIdx.x, blockIdx.y);
+        const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+
         const SplitKBatchOffset splitk_batch_offset(kargs);
         // options
         const ADataType* a_ptr =
