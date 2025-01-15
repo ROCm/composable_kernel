@@ -236,14 +236,15 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 // denorm test fix, necessary for gfx90a
 #ifndef CK_GFX90A_DENORM_WORKAROUND
 #define CK_GFX90A_DENORM_WORKAROUND 0
-#else
+#endif // CK_GFX90A_DENORM_WORKAROUND
 // Enable only for gfx90a
 #if defined(__gfx90a__)
+#if CK_GFX90A_DENORM_WORKAROUND
 #define CK_GFX90A_DENORM_WORKAROUND 1
+#endif // CK_GFX90A_DENORM_WORKAROUND is set to 1
 #else
 #define CK_GFX90A_DENORM_WORKAROUND 0
 #endif // gfx90a
-#endif // CK_GFX90A_DENORM_WORKAROUND
 
 // set flag to 1 to build deprecated instances
 #define CK_BUILD_DEPRECATED 1
