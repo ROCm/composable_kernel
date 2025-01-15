@@ -160,8 +160,8 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 // set stochastic rounding as default for f8 conversions
 #define CK_USE_SR_F8_CONVERSION 1
 
-// set rounding to nearest even as default for f8 conversions
-#define CK_USE_SR_F8_CONVERSION 0
+// set rounding to nearest even as default for bf16 conversions
+#define CK_USE_RNE_BF16_CONVERSION 1
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
