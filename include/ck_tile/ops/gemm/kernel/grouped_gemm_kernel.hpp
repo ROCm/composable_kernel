@@ -46,8 +46,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     using Offset1DPartitioner = OffsetCallculation1DPartitioner<TilePartitioner>;
-    using Base           = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
-    using GemmKernelArgs = typename Base::GemmKernelArgs;
+    using Base                = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    using GemmKernelArgs      = typename Base::GemmKernelArgs;
 
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
     static constexpr index_t KBatch          = 1;
