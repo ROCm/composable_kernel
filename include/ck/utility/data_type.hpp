@@ -2161,6 +2161,10 @@ using f4x64_t = typename vector_type<f4x2_pk_t, 32>::type;
 using f6x16_t = typename vector_type<f6x16_pk_t, 1>::type;
 using f6x32_t = typename vector_type<f6x32_pk_t, 1>::type;
 
+// bf6
+using bf6x16_t = typename vector_type<bf6x16_pk_t, 1>::type;
+using bf6x32_t = typename vector_type<bf6x32_pk_t, 1>::type;
+
 template <typename T>
 struct NumericLimits
 {
