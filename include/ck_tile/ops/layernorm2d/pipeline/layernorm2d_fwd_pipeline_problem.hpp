@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,28 +8,30 @@
 namespace ck_tile {
 
 template <typename XDataType_,
+          typename XBiasDataType_,
           typename GammaDataType_,
           typename BetaDataType_,
           typename ComputeDataType_,
           typename YDataType_,
           typename MeanDataType_,
           typename InvStdDataType_,
-          typename XScaleDataType_,
+          typename SmoothScaleDataType_,
           typename YScaleDataType_,
           typename BlockShape_,
           typename Traits_>
 struct Layernorm2dFwdPipelineProblem
 {
-    using XDataType       = remove_cvref_t<XDataType_>;
-    using GammaDataType   = remove_cvref_t<GammaDataType_>;
-    using BetaDataType    = remove_cvref_t<BetaDataType_>;
-    using ComputeDataType = remove_cvref_t<ComputeDataType_>;
-    using YDataType       = remove_cvref_t<YDataType_>;
-    using MeanDataType    = remove_cvref_t<MeanDataType_>;
-    using InvStdDataType  = remove_cvref_t<InvStdDataType_>;
-    using XScaleDataType  = remove_cvref_t<XScaleDataType_>;
-    using YScaleDataType  = remove_cvref_t<YScaleDataType_>;
-    using BlockShape      = remove_cvref_t<BlockShape_>;
+    using XDataType           = remove_cvref_t<XDataType_>;
+    using XBiasDataType       = remove_cvref_t<XBiasDataType_>;
+    using GammaDataType       = remove_cvref_t<GammaDataType_>;
+    using BetaDataType        = remove_cvref_t<BetaDataType_>;
+    using ComputeDataType     = remove_cvref_t<ComputeDataType_>;
+    using YDataType           = remove_cvref_t<YDataType_>;
+    using MeanDataType        = remove_cvref_t<MeanDataType_>;
+    using InvStdDataType      = remove_cvref_t<InvStdDataType_>;
+    using SmoothScaleDataType = remove_cvref_t<SmoothScaleDataType_>;
+    using YScaleDataType      = remove_cvref_t<YScaleDataType_>;
+    using BlockShape          = remove_cvref_t<BlockShape_>;
 
     static constexpr bool kNeedCrossLaneSync = BlockShape::ThreadPerWarp_N > 1;
     static constexpr bool kNeedCrossWarpSync = BlockShape::WarpPerBlock_N > 1;

@@ -719,7 +719,82 @@ struct Silu
         constexpr T one = type_convert<T>(1);
         y               = x * (one / (one + ck_tile::exp(-x)));
     };
+
+    template <>
+    CK_TILE_HOST_DEVICE void operator()<fp32x2_t>(fp32x2_t& y, const fp32x2_t& x) const
+    {
+        constexpr auto one = type_convert<float>(1);
+        y[0]               = x[0] * __builtin_amdgcn_rcpf(one + ck_tile::exp(-x[0]));
+        y[1]               = x[1] * __builtin_amdgcn_rcpf(one + ck_tile::exp(-x[1]));
+    };
 };
+
+#if 0
+// Silu, the formular is not so good to do inline asm (dependency)
+// we put the code here purposely if in the future ppl want to try
+struct SiluAsm
+{
+    template <typename T>
+    CK_TILE_HOST void operator()(T& y, T& x) const
+    {
+        static_assert(std::is_same_v<T, float>, "Data type is not supported by this operation!");
+        constexpr T one = type_convert<T>(1);
+        y               = x * (one / (one + ck_tile::exp(-x)));
+    };
+
+    template <typename T>
+    CK_TILE_DEVICE void operator()(T& y, T& x) const
+    {
+        static_assert(std::is_same_v<T, float>, "Data type is not supported by this operation!");
+
+        const uint32_t log2e_neg_ = 0x3fb8aa3b | 0x80000000; // log2e_v<float> * -1;
+
+        // NOTE: x/y can't be same register before inline asm
+        // "+v" as y, "v" as x is not enought, x/y stil maybe put to same register
+        T tmp = x;
+        asm volatile("v_mul_f32 %[v_y], %[s_log2e], %[v_x]\n"
+                     "v_exp_f32 %[v_y], %[v_y]\n"
+                     "s_nop 0           ; hazard for exp\n"
+                     "v_add_f32 %[v_y], %[v_y], 1.0\n"
+                     "v_rcp_f32 %[v_y], %[v_y]\n"
+                     "s_nop 0           ; hazard for rcp\n"
+                     "v_mul_f32 %[v_y], %[v_x], %[v_y]\n"
+                     : [v_y] "+v"(y), [v_x] "+v"(tmp)
+                     : [s_log2e] "s"(log2e_neg_)
+                     :);
+    };
+
+    template <>
+    CK_TILE_HOST void operator()<fp32x2_t>(fp32x2_t& y, fp32x2_t& x) const
+    {
+        constexpr auto one = type_convert<float>(1);
+        y[0]               = x[0] * (one / (one + ck_tile::exp(-x[0])));
+        y[1]               = x[1] * (one / (one + ck_tile::exp(-x[1])));
+    };
+
+    template <>
+    CK_TILE_DEVICE void operator()<fp32x2_t>(fp32x2_t& y, fp32x2_t& x) const
+    {
+        const uint32_t log2e_neg_ = 0x3fb8aa3b | 0x80000000; // log2e_v<float> * -1;
+
+        // NOTE: x/y can't be same register before inline asm
+        // float tmp0 = x[0], tmp1 = x[1];
+        asm volatile("v_mul_f32 %[v_y0], %[s_log2e], %[v_x0]\n"
+                     "v_mul_f32 %[v_y1], %[s_log2e], %[v_x1]\n"
+                     "v_exp_f32 %[v_y0], %[v_y0]\n"
+                     "v_exp_f32 %[v_y1], %[v_y1]\n"
+                     "v_add_f32 %[v_y0], %[v_y0], 1.0\n"
+                     "v_add_f32 %[v_y1], %[v_y1], 1.0\n"
+                     "v_rcp_f32 %[v_y0], %[v_y0]\n"
+                     "v_rcp_f32 %[v_y1], %[v_y1]\n"
+                     "v_mul_f32 %[v_y0], %[v_x0], %[v_y0]\n"
+                     "v_mul_f32 %[v_y1], %[v_x1], %[v_y1]\n"
+                     : [v_y0] "+v"(y[0]), [v_y1] "+v"(y[1]), [v_x0] "+v"(x[0]), [v_x1] "+v"(x[1])
+                     : [s_log2e] "s"(log2e_neg_)
+                     :);
+    };
+};
+#endif
 
 struct TanH
 {

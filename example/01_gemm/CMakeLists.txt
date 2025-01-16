@@ -48,9 +48,6 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_skip_b_lds_fp16)
 add_example_executable(example_gemm_xdl_bf16 gemm_xdl_bf16.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16)
 
-add_example_executable(example_gemm_xdl_bf16_rtn gemm_xdl_bf16_rtn.cpp)
-add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16_rtn)
-
 add_example_executable(example_gemm_xdl_int8 gemm_xdl_int8.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_int8)
 
