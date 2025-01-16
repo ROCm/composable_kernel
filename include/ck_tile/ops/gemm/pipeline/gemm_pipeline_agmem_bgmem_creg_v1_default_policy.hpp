@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
 namespace ck_tile {
 
@@ -11,6 +12,11 @@ namespace ck_tile {
 // Default policy class should not be templated, put template on member functions instead
 struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 {
+    static constexpr auto I0 = number<0>{};
+    static constexpr auto I1 = number<1>{};
+    static constexpr auto I2 = number<2>{};
+
+    static constexpr bool TransposeC = true;
 
 #if 0
     // 2d
@@ -52,6 +58,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
+        // TODO: this 8 is AK1! should be a policy parameter!
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / 8>{}, number<kMPerBlock>{}, number<8>{}),
             make_tuple(number<(kMPerBlock + 1) * 8>{}, number<8>{}, number<1>{}),
@@ -112,8 +119,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
-        index_t smem_size             = 0;
-        smem_size += smem_size_a + smem_size_b;
+        constexpr index_t smem_size   = smem_size_a + smem_size_b;
 
         return smem_size;
     }
@@ -264,6 +270,9 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
                 static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
                 static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");
                 constexpr index_t M0 = MPerBlock / (M2 * M1);
+                static_assert(M0 * M1 * M2 == MPerBlock,
+                              "Incorrect M0, M2, M1 configuration! "
+                              "M0, M1, M2 must cover whole MPerBlock!");
 
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<1>,
@@ -277,6 +286,9 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
             {
                 constexpr index_t M0 = BlockSize / get_warp_size();
                 constexpr index_t M1 = MPerBlock / (M2 * M0);
+                static_assert(M0 * M1 * M2 == MPerBlock,
+                              "Incorrect M0, M1, M2 configuration! "
+                              "M0, M1, M2 must cover whole MPerBlock!");
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<1>,
                                                tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
@@ -350,6 +362,9 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
                 static_assert(N2 != 0, "N2 is zero, which will lead to a division by zero error.");
                 static_assert(N1 != 0, "N1 is zero, which will lead to a division by zero error.");
                 constexpr index_t N0 = NPerBlock / (N2 * N1);
+                static_assert(N0 * N1 * N2 == NPerBlock,
+                              "Incorrect N0, N1, N2 configuration! "
+                              "N0, N1, N2 must cover whole NPerBlock!");
 
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<1>,
@@ -364,7 +379,9 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
             {
                 constexpr index_t N0 = BlockSize / get_warp_size();
                 constexpr index_t N1 = NPerBlock / (N2 * N0);
-
+                static_assert(N0 * N1 * N2 == NPerBlock,
+                              "Incorrect N0, N1, N2 configuration! "
+                              "N0, N1, N2 must cover whole NPerBlock!");
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<1>,
                                                tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
@@ -472,12 +489,28 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         }
     }
 
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return TransposeC; }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1DefaultPolicy;
+        using AccDataType     = float;
+        using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
+        using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
+        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
+                                                typename Problem::BDataType,
+                                                AccDataType,
+                                                WarpTile::at(I0),
+                                                WarpTile::at(I1),
+                                                WarpTile::at(I2),
+                                                TransposeC>;
+        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
+                                                                      typename Problem::BDataType,
+                                                                      typename Problem::CDataType,
+                                                                      BlockWarps,
+                                                                      WarpGemm>;
 
-        return BlockGemmASmemBSmemCRegV1<Problem, BlockGemmPolicy>{};
+        return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
     }
 };
 

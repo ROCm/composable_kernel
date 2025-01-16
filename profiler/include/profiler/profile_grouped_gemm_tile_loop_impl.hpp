@@ -127,7 +127,7 @@ bool profile_grouped_gemm_tile_loop_impl(int do_verification,
     p_b.reserve(group_count);
     p_c.reserve(group_count);
 
-    using KernelArguments = ck::tensor_operation::device::GroupedGemmTileLoopKernelArguments<>;
+    using KernelArguments = ck::tensor_operation::device::GroupedGemmKernelArgument<>;
 
     std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
     std::vector<KernelArguments> gemm_kargs;

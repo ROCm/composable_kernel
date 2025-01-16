@@ -283,7 +283,7 @@ class FmhaBwdApiPool:
                         inners = inners + FMHA_BWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_pipeline_enum=BWD_DQDKDV_PIPELINE_ENUM_MAP[trait.pipeline],
                                     F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_mask=get_mask_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias],
                                     F_bias=BIAS_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout_check=DROPOUT_CHECK_MAP[trait.dropout], F_dropout=DROPOUT_MAP[trait.dropout],
-                                    F_scheck=trait.scheck(spad1=spad1), F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype],
+                                    F_scheck=trait.scheck(spad1=spad1), F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=hdim, F_dtype=BWD_DTYPE_MAP[dtype],
                                     F_spad0=BOOL_MAP[trait.spad], F_spad1=BOOL_MAP[spad1], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                     F_deterministic=BOOL_MAP[trait.deterministic])
 
@@ -360,7 +360,7 @@ class FmhaBwdDQDKDVKernel:
             FMHA_BWD_DQ_DK_DV_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
                 F_hdim          = self.F_hdim,
-                F_dtype         = DTYPE_MAP[self.F_dtype],
+                F_dtype         = BWD_DTYPE_MAP[self.F_dtype],
                 F_bm0           = self.F_tile.F_bm0,
                 F_bn0           = self.F_tile.F_bn0,
                 F_bk0           = self.F_tile.F_bk0,
@@ -469,7 +469,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
     gen = list()
     api_pool = FmhaBwdApiPool(mask_impl)
 
-    for dtype in DTYPE_MAP.keys():
+    for dtype in BWD_DTYPE_MAP.keys():
         d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
         if d == None:
             continue
@@ -585,7 +585,7 @@ class FmhaBwdOGradDotOKernel:
             FMHA_BWD_DOT_DO_O_KERNEL_BODY.format(
                 F_idx       = self.F_idx,
                 F_hdim      = self.F_hdim,
-                F_dtype     = DTYPE_MAP[self.F_dtype],
+                F_dtype     = BWD_DTYPE_MAP[self.F_dtype],
                 F_spad      = BOOL_MAP[self.F_spad],
                 F_dvpad     = BOOL_MAP[self.F_dvpad],
                 F_mode      = MODE_MAP[self.F_mode],
@@ -616,7 +616,7 @@ def get_bwd_dot_do_o_blobs() -> List[FmhaBwdOGradDotOKernel]:
 
     gen = list()
 
-    for dtype in DTYPE_MAP.keys():
+    for dtype in BWD_DTYPE_MAP.keys():
         d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
         if d == None:
             continue
@@ -716,7 +716,7 @@ class FmhaBwdConvertQGradKernel:
             FMHA_BWD_CONVERT_DQ_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
                 F_hdim          = self.F_hdim,
-                F_dtype         = DTYPE_MAP[self.F_dtype],
+                F_dtype         = BWD_DTYPE_MAP[self.F_dtype],
                 F_bm0           = self.F_bm0,
                 F_bn0           = self.F_bn0,
                 F_spad          = BOOL_MAP[self.F_spad],
@@ -751,7 +751,7 @@ def get_bwd_convert_dq_blobs() -> List[FmhaBwdConvertQGradKernel]:
 
     gen = list()
 
-    for dtype in DTYPE_MAP.keys():
+    for dtype in BWD_DTYPE_MAP.keys():
         d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
         if d == None:
             continue

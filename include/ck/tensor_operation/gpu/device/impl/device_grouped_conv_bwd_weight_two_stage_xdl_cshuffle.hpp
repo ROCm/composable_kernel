@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -111,8 +111,7 @@ __global__ void
             [[maybe_unused]] const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             [[maybe_unused]] const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // offset base pointer for each work-group
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
     const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
@@ -1559,14 +1558,23 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             }
         }
 
-        if(!(arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0 &&
+        const bool is_w_pad_zero = arg.input_left_pads_[NDimSpatial - 1] == 0 &&
+                                   arg.input_right_pads_[NDimSpatial - 1] == 0;
+        const auto X                 = arg.filter_spatial_lengths_[NDimSpatial - 1];
+        const bool XC_access_allowed = arg.Conv_G_ == 1 &&
+                                       (arg.Conv_C_ * X) % BBlockTransferSrcScalarPerVector == 0 &&
+                                       is_w_pad_zero;
+
+        if(!((arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0 || XC_access_allowed) &&
              arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0))
         {
-            if(!(arg.Conv_K_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideA_ == 1))
+            if(!(arg.Conv_K_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideA_ == 1 &&
+                 NumGroupsToMerge > 1))
             {
                 return false;
             }
-            if(!(arg.Conv_C_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideB_ == 1))
+            if(!(arg.Conv_C_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideB_ == 1 &&
+                 NumGroupsToMerge > 1))
             {
                 return false;
             }

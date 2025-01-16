@@ -36,6 +36,10 @@ struct DeviceGemmV2 : public BaseOperator
                         CElementwiseOperation c_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+
+    virtual bool GetPermuteA()         = 0;
+    virtual bool GetPermuteB()         = 0;
+    virtual ck::index_t GetKPerBlock() = 0;
 };
 
 template <typename ALayout,
@@ -71,6 +75,43 @@ struct DeviceGemmV2R1 : public BaseOperator
                         CElementwiseOperation c_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+};
+
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
+          typename BDataType,
+          typename BScaleType,
+          typename CDataType,
+          index_t ScaleBlockN,
+          index_t ScaleBlockK,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation>
+struct DeviceGemmV2BScale : public BaseOperator
+{
+    virtual std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_a,
+                        const void* p_b,
+                        void* p_c,
+                        ck::index_t M,
+                        ck::index_t N,
+                        ck::index_t K,
+                        ck::index_t StrideA,
+                        ck::index_t StrideB,
+                        ck::index_t StrideC,
+                        ck::index_t StrideScaleB,
+                        const void* p_b_scale,
+                        ck::index_t KSplit,
+                        AElementwiseOperation a_element_op,
+                        BElementwiseOperation b_element_op,
+                        CElementwiseOperation c_element_op) = 0;
+
+    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+
+    virtual bool GetPermuteB()         = 0;
+    virtual ck::index_t GetKPerBlock() = 0;
 };
 
 } // namespace device

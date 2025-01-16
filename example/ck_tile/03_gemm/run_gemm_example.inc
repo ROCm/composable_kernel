@@ -16,11 +16,11 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_warmup,
                   int n_repeat)
 {
-    gemm_basic_args args;
-    args.p_a      = a_m_k_dev_buf.GetDeviceBuffer();
-    args.p_b      = b_k_n_dev_buf.GetDeviceBuffer();
-    args.p_c      = c_m_n_dev_buf.GetDeviceBuffer();
-    args.kbatch   = kbatch;
+    ck_tile::GemmHostArgs args;
+    args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
+    args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
+    args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
+    args.k_batch  = kbatch;
     args.M        = M;
     args.N        = N;
     args.K        = K;
@@ -31,15 +31,13 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float ave_time = gemm_calc<ALayout, BLayout, CLayout>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
-    std::string op_name{"Gemm{MemBoundPipeline}"};
-
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
         sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run " << op_name << "kernel with M =" << M << " N =" << N << " K =" << K
+    std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
               << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
@@ -66,9 +64,9 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
-    ck_tile::index_t batch_size = arg_parser.get_int("b");
-    int n_warmup                = arg_parser.get_int("warmup");
-    int n_repeat                = arg_parser.get_int("repeat");
+    ck_tile::index_t kbatch = arg_parser.get_int("split_k");
+    int n_warmup            = arg_parser.get_int("warmup");
+    int n_repeat            = arg_parser.get_int("repeat");
 
     using namespace ck_tile::literals;
 
@@ -114,7 +112,6 @@ int run_gemm_example_with_layouts(int argc,
         f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
 
     // TODO: add different init types
-
     ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
     ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
 
@@ -136,7 +133,7 @@ int run_gemm_example_with_layouts(int argc,
                                            stride_A,
                                            stride_B,
                                            stride_C,
-                                           batch_size,
+                                           kbatch,
                                            n_warmup,
                                            n_repeat);
 
@@ -164,14 +161,39 @@ int run_gemm_example_with_layouts(int argc,
         c_m_n_gpu_ref.SetZero();
         c_m_n_gpu_buf_ref.SetZero();
 
+        ADataType* d_A;
+        BDataType* d_B;
+        CDataType* d_C;
+
+        ck_tile::hip_check_error(hipMalloc(&d_A, M * K * sizeof(ADataType)));
+        ck_tile::hip_check_error(hipMalloc(&d_B, N * K * sizeof(BDataType)));
+        ck_tile::hip_check_error(hipMalloc(&d_C, M * N * sizeof(CDataType)));
+
+        ck_tile::hip_check_error(hipMemcpy(d_A,
+                                           a_m_k_dev_buf.GetDeviceBuffer(),
+                                           M * K * sizeof(ADataType),
+                                           hipMemcpyHostToDevice));
+        ck_tile::hip_check_error(hipMemcpy(d_B,
+                                           b_k_n_dev_buf.GetDeviceBuffer(),
+                                           N * K * sizeof(BDataType),
+                                           hipMemcpyHostToDevice));
+
         ck_tile::reference_gemm_gpu<ADataType,
                                     BDataType,
                                     AccDataType,
                                     CDataType,
                                     ALayout,
                                     BLayout,
-                                    CLayout>(
-            a_m_k_dev_buf, b_k_n_dev_buf, c_m_n_gpu_buf_ref, M, N, K, stride_A, stride_B, stride_C);
+                                    CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
+
+        ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
+                                           d_C,
+                                           M * N * sizeof(CDataType),
+                                           hipMemcpyDeviceToHost));
+
+        ck_tile::hip_check_error(hipFree(d_A));
+        ck_tile::hip_check_error(hipFree(d_B));
+        ck_tile::hip_check_error(hipFree(d_C));
 
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
         pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_gpu_ref);
@@ -202,14 +224,16 @@ int run_gemm_example(int argc, char* argv[])
     {
         return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
     }
-    else if(a_layout == "C" && b_layout == "C")
-    {
-        return run_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "R")
-    {
-        return run_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
-    }
+    // TODO: Fixme: with latest changes to GemmPipelineAGmemBGmemCRegV1DefaultPolicy below do not
+    // work.
+    // else if(a_layout == "C" && b_layout == "C")
+    // {
+    //     return run_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
+    // }
+    // else if(a_layout == "C" && b_layout == "R")
+    // {
+    //     return run_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
+    // }
     else
     {
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");

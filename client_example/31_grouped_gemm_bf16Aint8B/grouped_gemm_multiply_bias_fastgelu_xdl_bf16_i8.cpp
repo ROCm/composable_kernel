@@ -121,7 +121,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     constexpr ck::index_t NumDTensor = 2;
 
     using GroupedGemmKernelArgument =
-        ck::tensor_operation::device::GroupedGemmTileLoopKernelArguments<NumDTensor>;
+        ck::tensor_operation::device::GroupedGemmKernelArgument<NumDTensor>;
 
     std::vector<GroupedGemmKernelArgument> grouped_gemm_kernel_args_;
     grouped_gemm_kernel_args_.reserve(group_count);

@@ -102,4 +102,28 @@ CK_TILE_DEVICE T warp_shuffle(const T& v_local, uint32_t src_lane)
 #endif
 }
 
+template <typename T>
+CK_TILE_DEVICE auto flag_to_exec(const T& v_flag)
+{
+    static_assert(sizeof(T) == 4);
+    // per-thread v_flag store into 2x sgpr
+    uint32x2_t exec_flag;
+    asm volatile("v_cmp_ge_u32 %[s_exec_flag], %[v_flag], 1"
+                 : [s_exec_flag] "=s"(exec_flag)
+                 : [v_flag] "v"(v_flag));
+    return exec_flag;
+}
+
+template <typename X, typename Y>
+CK_TILE_DEVICE auto cmp_lt_to_exec(const X& x, const Y& y)
+{
+    static_assert(sizeof(X) == 4 && sizeof(Y) == 4);
+    // per-thread cmp store into 2x sgpr
+    uint32x2_t exec_flag;
+    asm volatile("v_cmp_lt_u32 %[s_exec_flag], %[v_x], %[v_y]"
+                 : [s_exec_flag] "=s"(exec_flag)
+                 : [v_x] "v"(x), [v_y] "v"(y));
+    return exec_flag;
+}
+
 } // namespace ck_tile
