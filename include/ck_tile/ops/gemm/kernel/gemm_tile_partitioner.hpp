@@ -17,7 +17,7 @@ struct GemmTile2DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    /// @brief Returns the 2D-grid size.
+    /// @brief Returns 2D-grid size.
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t batch_size) noexcept(
         noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
@@ -34,7 +34,7 @@ struct GemmTile2DPartitioner
     }
 
     /// @brief Returns the tile raw indexes. Call with blockIdx and blockIdy, where:
-    // blockIdx = blockId.x and  blockIdy blockIdx.y.
+    // blockIdx = blockId.x and blockIdy blockIdx.y.
     CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx,
                                                             index_t blockIdy) noexcept
         -> const tuple<index_t, index_t>
@@ -55,7 +55,7 @@ struct GemmTile1DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    /// @brief Returns the 1D-grid size.
+    /// @brief Returns 1D-grid size.
     CK_TILE_HOST static constexpr auto
     GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
@@ -80,7 +80,7 @@ struct GemmTile1DPartitioner
     CK_TILE_DEVICE static constexpr auto SetNBlock(index_t N) noexcept -> void { _NBlockSize = N; }
 
     /// @brief Returns the tile raw index. Call with blockIdx, which is offset (blockIdx.x -
-    /// block_start). Note: The N block size must be set before calling this function.
+    /// block_start). Note: The `SetNBlock` must be called before calling this function.
     CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx) noexcept
         -> const tuple<index_t, index_t>
     {
