@@ -946,7 +946,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))  &&
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)  &&
                      !(is_same<tensor_layout::gemm::RowMajor, ALayout>::value))
         {
             if(!(karg.M % MPerBlock == 0))
@@ -964,7 +964,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))  &&
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)  &&
                      (is_same<tensor_layout::gemm::RowMajor, BLayout>::value))
         {
             if(!(karg.N % NPerBlock == 0))
@@ -986,6 +986,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         {
 
             auto K_t = KPerBlock;
+            // auto K_t = karg.KBatch * KPerBlock;
             if(!(karg.K % K_t == 0))
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
@@ -1000,17 +1001,17 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         else
         {
 
-            // if(karg.K <= 0)
-            // {
-            //     return false;
-            // }
-            constexpr auto KReadVec = math::lcm(AK1Number, BK1Number);
-            auto K_t                = karg.KBatch * KReadVec;
-            auto KReadPadSplited    = math::integer_divide_ceil(karg.K, K_t) * KReadVec;
-            if((KReadPadSplited * (karg.KBatch - 1)) >= karg.K)
+            if(karg.K <= 0)
             {
                 return false;
             }
+            // constexpr auto KReadVec = math::lcm(AK1Number, BK1Number);
+            // auto K_t                = karg.KBatch * KReadVec;
+            // auto KReadPadSplited    = math::integer_divide_ceil(karg.K, K_t) * KReadVec;
+            // if((KReadPadSplited * (karg.KBatch - 1)) >= karg.K)
+            // {
+            //     return false;
+            // }
         }
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
