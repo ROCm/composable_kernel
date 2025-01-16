@@ -70,11 +70,16 @@ struct FusedMoeGemmPipeline_FlatmmUk
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
+#if 1
         constexpr index_t smem_0 = Policy::template GetUK_0<Problem>().GetSmemSize();
         constexpr index_t smem_1 = Policy::template GetUK_1<Problem>().GetSmemSize();
         constexpr index_t smem_bridge =
             BlockShape::Block_M0 * BlockShape::Block_N0 * sizeof(YDataType);
-        return max(smem_0, max(smem_1, smem_bridge));
+        return max(smem_0 + smem_1, smem_bridge);
+#else
+        // keep it here purposely in case we have regression
+        return 65536;
+#endif
     }
 
     // this is the thread-offset along row/col
@@ -125,6 +130,9 @@ struct FusedMoeGemmPipeline_FlatmmUk
         array<index_t, n_size> row_ids;
         static_for<0, n_size, 1>{}([&](auto i) {
             row_ids.at(i) = sorted_token_ids_ptr[coords[i]]; // base_coord + i * MLans;
+#if CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
+            row_ids.at(i) &= 0xffffff;
+#endif
         });
 
         return row_ids;
@@ -164,9 +172,12 @@ struct FusedMoeGemmPipeline_FlatmmUk
                                    index_t sorted_tile_id,
                                    index_t intermediate_tile_id)
     {
-        constexpr index_t hidden_radio_0            = IsGateOnly ? 1 : 2;
-        ck_tile::index_t shared_intermediate_size_0 = kargs.intermediate_size;
-        ck_tile::index_t shared_intermediate_size_1 = kargs.intermediate_size / hidden_radio_0;
+        constexpr index_t hidden_radio_0 = IsGateOnly ? 1 : 2;
+        ck_tile::index_t shared_intermediate_size_0 =
+            kargs.intermediate_size * hidden_radio_0; // total gate+up
+        ck_tile::index_t shared_intermediate_size_1 = kargs.intermediate_size;
+
+        // after weight shuffling, gate-only: [nr0, kr0, w0], gate+up: [nr0_gate + nr0_up, kr0, w0]
 
         index_t nr_0 = shared_intermediate_size_0 / BlockShape::Warp_N0; // divide N in W
         index_t kr_0 = kargs.hidden_size / BlockShape::Warp_K0;          // divide K in W
@@ -200,29 +211,35 @@ struct FusedMoeGemmPipeline_FlatmmUk
             make_wave_buffer_resource(reinterpret_cast<const ADataType*>(kargs.a_ptr),
                                       kargs.num_tokens * kargs.stride_token * sizeof(ADataType));
 
-        auto g_win = [&]() {
-            const GDataType* g_ptr = reinterpret_cast<const GDataType*>(kargs.g_ptr) +
-                                     static_cast<long_index_t>(expert_id) * expert_stride_0 +
-                                     interm_idx_nr0 * kr_0 * BlockShape::Block_W0;
-            auto g_view_ = make_naive_tensor_view<address_space_enum::global>(
-                g_ptr,
+        auto make_gu_win = [&](const auto* ptr_) {
+            auto view_ = make_naive_tensor_view<address_space_enum::global>(
+                ptr_,
                 make_tuple(nr_0, kr_0, number<BlockShape::Block_W0>{}),
                 make_tuple(kr_0 * BlockShape::Block_W0, number<BlockShape::Block_W0>{}, 1),
                 number<kAlignmentG>{},
                 number<1>{});
 
-            auto g_window_ = make_tile_window_linear_raw(
-                g_view_,
+            auto win_ = make_tile_window_linear_raw(
+                view_,
                 make_tuple(number<BlockShape::Block_Nr0>{},
                            number<BlockShape::Block_Kr0>{},
                            number<BlockShape::Block_W0>{}),
                 {0, 0, 0},
                 Policy::template MakeGlobalTileDistribution_G<Problem>(),
                 sequence<0, 1, 1>{});
-            return g_window_;
-        }();
+            return win_;
+        };
+
+        const GDataType* gu_ptr = reinterpret_cast<const GDataType*>(kargs.g_ptr) +
+                                  static_cast<long_index_t>(expert_id) * expert_stride_0 +
+                                  interm_idx_nr0 * kr_0 * BlockShape::Block_W0;
+
+        auto g_win = make_gu_win(gu_ptr);
+        // Note: gu swizzled, [nr_u+nr_g, kr, w], hence base offset to up is just interm*hidden
+        auto u_win = make_gu_win(gu_ptr + kargs.intermediate_size * kargs.hidden_size);
 
         auto g_res    = g_win.get_bottom_tensor_view().get_buffer_view().cached_buf_res_;
+        auto u_res    = u_win.get_bottom_tensor_view().get_buffer_view().cached_buf_res_;
         auto g_coords = generate_tuple([&](auto i) { return g_win.cached_coords_[i].get_offset(); },
                                        number<decltype(g_win)::NumAccess_NonLinear>{});
 
@@ -309,28 +326,73 @@ struct FusedMoeGemmPipeline_FlatmmUk
         auto w_scale      = GetWeightScale(
             row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr));
 
-        auto uk_0  = Policy::template GetUK_0<Problem>();
-        auto acc_0 = uk_0(a_res,
-                          a_coords,
-                          g_res,
-                          g_coords,
-                          smem,
-                          kargs.hidden_size,
-                          BlockShape::Block_K0, // tile offset for B matrix each unroll
-                          BlockShape::Block_Kr0 *
-                              BlockShape::Block_W0); // tile offset for B matrix each unroll
+        auto uk_0 = Policy::template GetUK_0<Problem>();
 
-        sweep_tile(
-            acc_0,
-            [&](auto idx0, auto idx1) {
-                fp32x2_t v_{acc_0(idx0), acc_0(idx1)};
-                typename Problem::GateActivation{}(v_, v_);
-                acc_0(idx0) = v_.x;
-                acc_0(idx1) = v_.y;
-            },
-            sequence<1, 2>{});
+        auto y_pre = [&]() {
+            if constexpr(IsGateOnly)
+            {
+                auto acc_0 = uk_0(a_res,
+                                  a_coords,
+                                  g_res,
+                                  g_coords,
+                                  smem,
+                                  kargs.hidden_size,
+                                  BlockShape::Block_K0, // tile offset for B matrix each unroll
+                                  BlockShape::Block_Kr0 *
+                                      BlockShape::Block_W0); // tile offset for B matrix each unroll
 
-        auto y_pre = cast_tile<YDataType>(acc_0);
+                sweep_tile(
+                    acc_0,
+                    [&](auto idx0, auto idx1) {
+                        fp32x2_t v_{acc_0(idx0), acc_0(idx1)};
+                        typename Problem::GateActivation{}(v_, v_);
+                        acc_0(idx0) = v_.x;
+                        acc_0(idx1) = v_.y;
+                    },
+                    sequence<1, 2>{});
+
+                return cast_tile<YDataType>(acc_0);
+            }
+            else
+            {
+                uint32x8_t gu_res;
+                gu_res[0] = g_res[0];
+                gu_res[1] = g_res[1];
+                gu_res[2] = g_res[2];
+                gu_res[3] = g_res[3];
+                gu_res[4] = u_res[0];
+                gu_res[5] = u_res[1];
+                gu_res[6] = u_res[2];
+                gu_res[7] = u_res[3];
+
+                auto acc_0 = uk_0(a_res,
+                                  a_coords,
+                                  gu_res,
+                                  g_coords,
+                                  smem,
+                                  kargs.hidden_size,
+                                  BlockShape::Block_K0, // tile offset for B matrix each unroll
+                                  BlockShape::Block_Kr0 * BlockShape::Block_W0,
+                                  bool_constant<true>{}); // tile offset for B matrix each unroll
+
+                sweep_tile(
+                    acc_0.at(number<0>{}),
+                    [&](auto idx0, auto idx1) {
+                        fp32x2_t v_{acc_0.at(number<0>{})(idx0), acc_0.at(number<0>{})(idx1)};
+                        typename Problem::GateActivation{}(v_, v_);
+                        acc_0.at(number<0>{})(idx0) = v_.x;
+                        acc_0.at(number<0>{})(idx1) = v_.y;
+                    },
+                    sequence<1, 2>{});
+
+                auto reduced_acc_0 =
+                    tile_elementwise_in([&](const auto& a_, const auto& b_) { return a_ * b_; },
+                                        acc_0.at(number<0>{}),
+                                        acc_0.at(number<1>{}));
+
+                return cast_tile<YDataType>(reduced_acc_0);
+            }
+        }();
 
         block_sync_lds();
 
