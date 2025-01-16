@@ -1145,11 +1145,11 @@ struct Swish
     __host__ __device__ void operator()(Y& y, const X& x) const
     {
         static_assert(is_same<X, float>::value || is_same<X, double>::value ||
-                          is_same<X, ck::half_t>::value,
+                          is_same<X, ck::half_t>::value || is_same<X, int8_t>::value,
                       "Data type is not supported by this operation!");
 
         static_assert(is_same<Y, float>::value || is_same<Y, double>::value ||
-                          is_same<Y, ck::half_t>::value,
+                          is_same<Y, ck::half_t>::value || is_same<Y, int8_t>::value,
                       "Data type is not supported by this operation!");
 
         float bx = -beta_ * type_convert<float>(x);
@@ -1537,6 +1537,15 @@ struct DynamicUnaryOp
         case(UnaryOpType::Elu): elu_(y, x); break;
         default: break;
         }
+    }
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
+    {
+        float y_float;
+        float x_float = type_convert<float>(x);
+        this->operator()(y_float, x_float);
+        y = type_convert<bhalf_t>(y_float);
     }
 
     private:
