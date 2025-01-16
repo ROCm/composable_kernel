@@ -219,7 +219,7 @@ TEST(BF6, ScaledConvertFP32Stochastic)
                 abs_tol);
 }
 
-TEST(FP6, TestSize)
+TEST(BF6, TestSize)
 {
     ASSERT_EQ(1, sizeof(bf6_t));
     ASSERT_EQ(12, sizeof(bf6x16_pk_t));
@@ -229,7 +229,7 @@ TEST(FP6, TestSize)
     ASSERT_EQ(32, sizeof(vector_type<bf6x32_pk_t, 1>));
 }
 
-TEST(FP6, TestAlignment)
+TEST(BF6, TestAlignment)
 {
     ASSERT_EQ(1, alignof(bf6_t));
     ASSERT_EQ(4, alignof(bf6x16_pk_t));
@@ -240,7 +240,7 @@ TEST(FP6, TestAlignment)
 }
 
 // test vector of 1 bf6x16_pk_t, contains 16 bf6_t
-TEST(FP6, TestAsType16x1)
+TEST(BF6, TestAsType16x1)
 {
     // test size
     const int vector_size       = 1;
@@ -281,7 +281,7 @@ TEST(FP6, TestAsType16x1)
 }
 
 // test vector of 2 bf6x16_pk_t, contains 32 bf6_t
-TEST(FP6, TestAsType16x2)
+TEST(BF6, TestAsType16x2)
 {
     // test size
     const int vector_size       = 2;
@@ -322,7 +322,7 @@ TEST(FP6, TestAsType16x2)
 }
 
 // test vector of 1 bf6x32_pk_t, contains 32 bf6_t
-TEST(FP6, TestAsType32x1)
+TEST(BF6, TestAsType32x1)
 {
     // test size
     const int vector_size       = 1;
