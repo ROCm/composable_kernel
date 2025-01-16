@@ -7,7 +7,7 @@ include(gtest)
 
 add_custom_target(tests)
 
-# list of tests that are labelled as REGRESSION_TEST for make regression (runtime less than 30 seconds)
+# list of tests that are labelled as REGRESSION_TEST for make regression (runtime more than 30 seconds)
 # all other tests are labelled as SMOKE_TEST
 set(REGRESSION_TESTS
     test_gemm_standalone_xdl_fp16

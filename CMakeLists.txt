@@ -537,10 +537,8 @@ endif()
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 # make smoke runs the tests and examples that runs within 30 seconds on gfx90a
 add_custom_target(smoke COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "SMOKE_TEST")
-# make regression runs the tests and examples that runs within 30 seconds on gfx90a
+# make regression runs the tests and examples that runs for more 30 seconds on gfx90a
 add_custom_target(regression COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "REGRESSION_TEST")
-
-
 
 
 file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
