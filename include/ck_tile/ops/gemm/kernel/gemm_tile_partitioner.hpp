@@ -126,8 +126,8 @@ template <typename PartitionerFn,
           typename = typename std::enable_if_t<HasFnOneArgImpl<PartitionerFn>{}>>
 struct OffsetCallculation1DPartitioner
 {
-    /// @brief  Returns a `tuple` [Im, In] shifted index, used to calculate 1d-tile index.
-    //  Note: The function subtracts the block's start (offset).
+    /// @brief  Returns a `tuple` [Im, In] shifted index, used to shift 1d-tile index.
+    //  Note: The function subtracts the block's start (offset) from 1D raw-indexes.
     [[nodiscard]] CK_TILE_DEVICE static constexpr auto
     GetOffsetedTileIndex(index_t block_start) noexcept -> const tuple<index_t, index_t>
     {
