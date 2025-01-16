@@ -119,9 +119,9 @@ struct HasFnOneArgImpl<T, std::void_t<decltype(std::declval<T>().GetOutputTileIn
 };
 
 /// @brief Struct `OffsetCallculation1DPartitioner` class.
-/// used to calculate the tile index.
+/// used to calculate offseted tile indexes.
 /// Note: The struct supports the 1D-Partitioner mechanism, enable-if `GetOutputTileIndex`-fn
-/// is std::true_type when PartitionerFn's fn is well-formed, otherwise etd::false_type.
+/// is std::true_type when `GetOutputTileIndex`-fn is well-formed, otherwise std::false_type.
 template <typename PartitionerFn,
           typename = typename std::enable_if_t<HasFnOneArgImpl<PartitionerFn>{}>>
 struct OffsetCallculation1DPartitioner
