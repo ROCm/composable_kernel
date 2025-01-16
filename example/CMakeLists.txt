@@ -206,9 +206,9 @@ function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
         set(result 0)
     endif()
     
-    message("add_example returns ${result}")
+    #message("add_example returns ${result}")
     set(result ${result} PARENT_SCOPE)
-    
+
 endfunction(add_example_executable_no_testing EXAMPLE_NAME)
 
 # add all example subdir
