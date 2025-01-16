@@ -7,6 +7,8 @@ include(gtest)
 
 add_custom_target(tests)
 
+# list of tests that are labelled as REGRESSION_TEST for make regression (runtime less than 30 seconds)
+# all other tests are labelled as SMOKE_TEST
 set(REGRESSION_TESTS
     test_gemm_standalone_xdl_fp16
     test_gemm_fp16
@@ -201,14 +203,14 @@ function(add_gtest_executable TEST_NAME)
         rocm_install(TARGETS ${TEST_NAME} COMPONENT tests)
         set(result 0)
     endif()
-    message("add_gtest returns ${result}")
+    #message("add_gtest returns ${result}")
     set(result ${result} PARENT_SCOPE)
     if(result EQUAL 0 AND NOT "${TEST_NAME}" IN_LIST REGRESSION_TESTS)
-        message("adding to SMOKE TEST FILTER ${TEST_NAME}")
+        #message("adding to smoke test FILTER ${TEST_NAME}")
         set_tests_properties(${TEST_NAME} PROPERTIES LABELS "SMOKE_TEST")
         add_dependencies(smoke ${TEST_NAME})
     elseif(result EQUAL 0 AND "${TEST_NAME}" IN_LIST REGRESSION_TESTS)
-        message("Adding to REGRESSION TEST FILTER ${TEST_NAME}")
+        #message("Adding to REGRESSION TEST FILTER ${TEST_NAME}")
         set_tests_properties(${TEST_NAME} PROPERTIES LABELS "REGRESSION_TEST")
         add_dependencies(regression ${TEST_NAME})
     endif()

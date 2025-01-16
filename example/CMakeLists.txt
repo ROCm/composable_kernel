@@ -5,6 +5,9 @@ include_directories(BEFORE
 
 add_custom_target(examples)
 
+
+# list of examples that are labelled as REGRESSION_EXAMPLE for make regression (runtime less than 30 seconds)
+# all other tests are labelled as SMOKE_EXAMPLE
 set(REGRESSION_EXAMPLES
     example_sparse_embedding3_forward_layernorm
 )
@@ -113,12 +116,12 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
     endif()
     #message("add_example returns ${result}")
     if(result EQUAL 0 AND NOT "${EXAMPLE_NAME}" IN_LIST REGRESSION_EXAMPLES)
-        message("adding to SMOKE EXAMPLE FILTER ${EXAMPLE_NAME}")
-        set_tests_properties(${EXAMPLE_NAME} PROPERTIES LABELS "SMOKE_EXAMPLE")
+        #message("adding to SMOKE EXAMPLE FILTER ${EXAMPLE_NAME}")
+        set_tests_properties(${EXAMPLE_NAME} PROPERTIES LABELS "SMOKE_TEST")
         add_dependencies(smoke ${EXAMPLE_NAME})
     elseif(result EQUAL 0 AND "${EXAMPLE_NAME}" IN_LIST REGRESSION_EXAMPLES)
-        message("Adding to REGRESSION EXAMPLE FILTER ${EXAMPLE_NAME}")
-        set_tests_properties(${EXAMPLE_NAME} PROPERTIES LABELS "REGRESSION_EXAMPLE")
+        #message("Adding to REGRESSION EXAMPLE FILTER ${EXAMPLE_NAME}")
+        set_tests_properties(${EXAMPLE_NAME} PROPERTIES LABELS "REGRESSION_TEST")
         add_dependencies(regression ${EXAMPLE_NAME})
     endif()
     set(result ${result} PARENT_SCOPE)
