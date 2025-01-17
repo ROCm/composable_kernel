@@ -97,6 +97,10 @@ if(DL_KERNELS)
     add_definitions(-DDL_KERNELS)
     set(CK_ENABLE_DL_KERNELS "ON")
 endif()
+if(DPP_KERNELS)
+    add_definitions(-DDPP_KERNELS)
+    set(CK_ENABLE_DPP_KERNELS "ON")
+endif()
 option(CK_USE_CODEGEN "Enable codegen library" OFF)
 if(CK_USE_CODEGEN)
     add_definitions(-DCK_USE_CODEGEN)
@@ -532,7 +536,13 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERS
     add_compile_options(-fdiagnostics-color=always)
 endif()
 
+# make check runs the entire set of examples and tests
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+# make smoke runs the tests and examples that runs within 30 seconds on gfx90a
+add_custom_target(smoke COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "SMOKE_TEST")
+# make regression runs the tests and examples that runs for more 30 seconds on gfx90a
+add_custom_target(regression COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "REGRESSION_TEST")
+
 
 file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
 file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
@@ -588,7 +598,7 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
    )
    add_subdirectory(example)
    if(BUILD_TESTING)
-	   add_subdirectory(test)
+       add_subdirectory(test)
    endif()
 endif()
 

@@ -11,7 +11,6 @@ namespace ck_tile {
 // UniversalGemm Policy
 struct UniversalGemmPipelineAgBgCrPolicy
 {
-
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
@@ -443,6 +442,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                            sequence<1, 3>>{});
         }
     }
+
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return TransposeC; }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
