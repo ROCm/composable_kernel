@@ -564,6 +564,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                                arg.gemm_desc_kernel_arg_.size() * sizeof(GemmBiasTransKernelArg),
                                hipMemcpyHostToDevice,
                                stream_config.stream_id_));
+            ck::memory::PinnedHostMemoryDeallocator::instance().destruct_device(
+                static_cast<const void*>(arg.gemm_desc_kernel_arg_.data()), stream_config.stream_id_);
 
             float ave_time = 0;
 

@@ -610,6 +610,8 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
                                arg.gemm_desc_kernel_arg_.size() * sizeof(GemmKernelArg),
                                hipMemcpyHostToDevice,
                                stream_config.stream_id_));
+            ck::memory::PinnedHostMemoryDeallocator::instance().destruct_device(
+                static_cast<const void*>(arg.gemm_desc_kernel_arg_.data()), stream_config.stream_id_);
 
             auto launch_kernel = [&](auto has_main_k_block_loop,
                                      auto has_double_tail_k_block_loop) {

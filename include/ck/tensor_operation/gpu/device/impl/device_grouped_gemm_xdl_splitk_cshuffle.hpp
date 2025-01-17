@@ -427,6 +427,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
                                hipMemcpyHostToDevice,
                                stream_config.stream_id_));
+            ck::memory::PinnedHostMemoryDeallocator::instance().destruct_device(
+                static_cast<const void*>(arg.gemm_kernel_args_.data()), stream_config.stream_id_);
 
             float ave_time = 0;
 
