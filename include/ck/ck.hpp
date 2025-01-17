@@ -234,9 +234,6 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #define CK_WORKAROUND_SWDEV_388832 1
 
 // denorm test fix, necessary for gfx90a
-#ifndef CK_GFX90A_DENORM_WORKAROUND
-#define CK_GFX90A_DENORM_WORKAROUND 0
-#endif // CK_GFX90A_DENORM_WORKAROUND
 // Enable only for gfx90a
 #if defined(__gfx90a__)
 #if CK_GFX90A_DENORM_WORKAROUND
