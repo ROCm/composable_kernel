@@ -53,7 +53,7 @@ struct BatchedTransposeKernel
     {
         size_t grid_size_x = (h.width + h.dim_block_w - 1) / h.dim_block_w;
         size_t grid_size_y = (h.height + h.dim_block_h - 1) / h.dim_block_h;
-        size_t grid_size_z = h.batch * h.dim_blocks;
+        size_t grid_size_z = h.batch;
         return dim3(grid_size_x, grid_size_y, grid_size_z);
     }
 
@@ -85,7 +85,7 @@ struct BatchedTransposeKernel
         static constexpr ck_tile::index_t kMPerThread = Problem::kMPerThread;
         static constexpr ck_tile::index_t kNPerThread = Problem::kNPerThread;
 
-        const auto iDim  = get_block_id() / kargs.dim_blocks;
+        const auto iDim  = blockIdx.z;
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride,
@@ -99,8 +99,8 @@ struct BatchedTransposeKernel
                                    sequence<kPadM, kPadN>{});
         }();
 
-        const auto iM = blockIdx.x % kargs.dim_blocks / kargs.dim_block_w;
-        const auto iN = blockIdx.y % kargs.dim_blocks % kargs.dim_block_w;
+        const auto iM = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
+        const auto iN = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
 
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
