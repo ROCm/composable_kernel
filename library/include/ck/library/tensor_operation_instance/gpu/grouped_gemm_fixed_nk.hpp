@@ -126,7 +126,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_nk_mn_instances(
                                                          PassThrough>>>& instances);
 #endif
 
-// bf16_inputA bf16_inputB 
+// bf16_inputA bf16_inputB
 #if defined(CK_ENABLE_BF16)
 void add_device_grouped_gemm_xdl_fixed_nk_bf16_bf16_bf16_mk_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
@@ -153,7 +153,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_bf16_bf16_bf16_mk_nk_mn_instances(
                                                          PassThrough,
                                                          PassThrough,
                                                          PassThrough>>>& instances);
-#endif // CK_ENABLE_BF16 
+#endif // CK_ENABLE_BF16
 
 template <typename ALayout,
           typename BLayout,
@@ -256,7 +256,7 @@ struct DeviceOperationInstanceFactory<
         }
 #endif
 
-// bf16_inputA bf16_inputB 
+// bf16_inputA bf16_inputB
 #if defined(CK_ENABLE_BF16)
         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, bhalf_t> &&
                      is_same_v<EDataType, bhalf_t>)
