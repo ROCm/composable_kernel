@@ -711,40 +711,19 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         // in some cases.
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            constexpr auto MLdsLayer        = 32 * 4 / KPerBlock / sizeof(LDSTypeA) < 1
-                                                  ? 1
-                                                  : 32 * 4 / KPerBlock / sizeof(LDSTypeA);
-            constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
-                make_tuple(
-                    AK0Number * Number<MLdsLayer>{}, Number<MPerBlock / MLdsLayer>{}, AK1Number),
-                make_tuple(AK1Number, Number<KPerBlock * MLdsLayer>{}, I1));
+            constexpr auto a_lds_block_desc =
+                make_naive_tensor_descriptor(make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number),
+                                             make_tuple(AK1Number, Number<KPerBlock>{}, I1));
 
             constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
                 a_lds_block_desc,
-                make_tuple(make_xor_with_modulo_transform(make_tuple(
-                               Number<MPerBlock / MLdsLayer>{}, Number<AK0Number * MLdsLayer>{})),
+                make_tuple(make_xor_with_modulo_transform(
+                               make_tuple(Number<MPerBlock>{}, Number<AK0Number>{})),
                            make_pass_through_transform(AK1Number)),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
 
-            constexpr auto a_lds_block_desc_ak0_mldslayer_m_ak1 = transform_tensor_descriptor(
-                a_lds_block_desc_permuted,
-                make_tuple(make_unmerge_transform(make_tuple(AK0Number, Number<MLdsLayer>{})),
-                           make_pass_through_transform(Number<MPerBlock / MLdsLayer>{}),
-                           make_pass_through_transform(AK1Number)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}, Sequence<3>{}));
-
-            constexpr auto a_lds_block_desc_ak0_m_ak1 = transform_tensor_descriptor(
-                a_lds_block_desc_ak0_mldslayer_m_ak1,
-                make_tuple(make_pass_through_transform(AK0Number),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(Number<MPerBlock / MLdsLayer>{}, Number<MLdsLayer>{})),
-                           make_pass_through_transform(AK1Number)),
-                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-
-            return a_lds_block_desc_ak0_m_ak1;
+            return a_lds_block_desc_permuted;
         }
         else // ColumnMajor A
         {
@@ -1223,7 +1202,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                                 1,
                                                 AThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
-                                                BlockwiseGemmPipe::GlobalBufferNum>(
+                                                2>(
                 a_grid_desc_ak0_m_ak1,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
@@ -1660,7 +1639,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                                 1,
                                                 AThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
-                                                BlockwiseGemmPipe::GlobalBufferNum>(
+                                                2>(
                 a_grid_desc_ak0_m_ak1,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
