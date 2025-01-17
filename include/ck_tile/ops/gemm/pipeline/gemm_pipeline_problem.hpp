@@ -33,6 +33,8 @@ struct GemmPipelineProblemBase
     static constexpr bool kPadN = GemmTraits::kPadN;
     static constexpr bool kPadK = GemmTraits::kPadK;
 
+    static constexpr bool isDoubleSmemBuffer = GemmTraits::isDoubleSmemBuffer;
+
     static constexpr auto Scheduler = GemmPipelineScheduler::Default;
 
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()

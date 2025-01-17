@@ -10,6 +10,7 @@ namespace ck_tile {
 template <bool kPadM_,
           bool kPadN_,
           bool kPadK_,
+          bool isDoubleSmemBuffer_,
           typename ALayout_,
           typename BLayout_,
           typename CLayout_>
@@ -18,6 +19,8 @@ struct TileGemmTraits
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
     static constexpr bool kPadK = kPadK_;
+
+    static constexpr bool isDoubleSmemBuffer = isDoubleSmemBuffer_;
 
     static constexpr int _VectorSize = 16;
 

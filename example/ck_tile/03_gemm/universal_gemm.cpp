@@ -29,7 +29,9 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
 
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE || \
+      CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V2)
+    // Compute friendly for Intrawave scheduler
     // Compute friendly for Intrawave scheduler
     constexpr ck_tile::index_t M_Tile = 256;
     constexpr ck_tile::index_t N_Tile = 256;
@@ -61,7 +63,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     using GemmEpilogue = ck_tile::Default2DEpilogue<
         ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
 
-    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+    using Traits =
+        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, isDoubleSmemBuffer, ALayout, BLayout, CLayout>;
 
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;

@@ -13,19 +13,27 @@
 
 #define CK_TILE_PIPELINE_COMPUTE 1
 #define CK_TILE_PIPELINE_MEMORY 2
+#define CK_TILE_PIPELINE_COMPUTE_V2 3
 
 #ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE
+#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V2
 #endif
 
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrMem
 #define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrMem
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Interwave
+constexpr bool isDoubleSmemBuffer = false;
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV3
 #define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV3
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
+constexpr bool isDoubleSmemBuffer = false;
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V2)
+#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV4
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV3
+#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
+constexpr bool isDoubleSmemBuffer = true;
 #else
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
 #endif
