@@ -52,7 +52,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // using WarpTile   = ck_tile::sequence<1, 512>;
     // using Vector = ck_tile::sequence<1, 8>;
 
-    constexpr ck_tile::index_t kBlockSize  = 512;
+    constexpr ck_tile::index_t kBlockSize  = 256;
     constexpr ck_tile::index_t kBlockPerCu = 1;
     ck_tile::index_t kGridSize             = (m / BlockTile::at(ck_tile::number<0>{}));
     std::cout << "grid size " << kGridSize << std::endl;

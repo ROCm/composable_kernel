@@ -1,6 +1,6 @@
 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <ck_tile/core.hpp>
 #include "moe_smoothquant.hpp"
@@ -35,7 +35,7 @@ float moe_smoothquant_(const S& s, A a)
 
     using PipelineProblem = ck_tile::SmoothquantPipelineProblem<
         typename MoeSmoothquantTypeConfig<DataType>::XDataType,
-        typename MoeSmoothquantTypeConfig<DataType>::XScaleDataType,
+        typename MoeSmoothquantTypeConfig<DataType>::SmoothScaleDataType,
         typename MoeSmoothquantTypeConfig<DataType>::ComputeDataType,
         typename MoeSmoothquantTypeConfig<DataType>::YScaleDataType,
         typename MoeSmoothquantTypeConfig<DataType>::QYDataType,

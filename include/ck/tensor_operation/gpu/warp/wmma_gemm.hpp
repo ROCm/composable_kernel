@@ -307,7 +307,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16_gfx12,
 
     // Wave mode dependent propety
     static constexpr index_t wave_size = Number<WaveSize>{};
-    // * Fixed in Navi3x, Will be wave mode dependent on Navi4x
+    // * Fixed for gfx11, Will be wave mode dependent on gfx12
     // static constexpr index_t num_src_a_vgprs_per_wave = k_per_wmma / 2 * src_a_data_size / 4;
     // static constexpr index_t num_src_b_vgprs_per_wave = k_per_wmma / 2 * src_b_data_size / 4;
     // * num_acc_vgprs_per_wave alone M direction
