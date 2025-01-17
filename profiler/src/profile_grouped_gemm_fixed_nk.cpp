@@ -17,11 +17,11 @@ enum struct GemmMatrixLayout
 
 enum struct GemmDataType
 {
-    BF16_BF16_BF16, // 0
-    BF16_I8_BF16,   // 1
-    F16_F16_F16,    // 2
-    F16_F8_F16,     // 3
-    F16_I8_F16,     // 4
+    BF16_I8_BF16,   // 0
+    F16_F16_F16,    // 1
+    F16_F8_F16,     // 2
+    F16_I8_F16,     // 3
+    BF16_BF16_BF16  // 4
 };
 
 #define OP_NAME "grouped_gemm_fixed_nk"
