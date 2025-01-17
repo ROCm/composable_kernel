@@ -12,6 +12,11 @@ namespace ck_tile {
 // Default policy class should not be templated, put template on member functions instead
 struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 {
+    static constexpr auto I0 = number<0>{};
+    static constexpr auto I1 = number<1>{};
+    static constexpr auto I2 = number<2>{};
+
+    static constexpr bool TransposeC = true;
 
 #if 0
     // 2d
@@ -114,8 +119,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
-        index_t smem_size             = 0;
-        smem_size += smem_size_a + smem_size_b;
+        constexpr index_t smem_size   = smem_size_a + smem_size_b;
 
         return smem_size;
     }
@@ -485,14 +489,11 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         }
     }
 
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return TransposeC; }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        constexpr bool TransposeC = false;
-        constexpr auto I0         = number<0>{};
-        constexpr auto I1         = number<1>{};
-        constexpr auto I2         = number<2>{};
-
         using AccDataType     = float;
         using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile        = typename Problem::BlockGemmShape::WarpTile;

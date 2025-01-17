@@ -15,11 +15,14 @@
 
 namespace ck_tile {
 /*
- * a host side utility, arg parser for
- *  -[key0]=[value0] -[key1]=[value1] ...
+ * a host side utility, arg parser for, either
+ * -[key0] = [value0, value1, value2]
+ * or
+ * -[key0]=[value0] -[key1]=[value1] ...
  */
 class ArgParser
 {
+
     public:
     class Arg
     {
@@ -185,6 +188,45 @@ class ArgParser
     {
         double value = atof(input_map.at(name).value.c_str());
         return value;
+    }
+
+    std::vector<std::string> get_string_vec(const std::string& name,
+                                            const std::string& delimiter = ",") const
+    {
+        if(get_str(name).empty())
+        {
+            return {};
+        }
+        std::string s = get_str(name);
+        std::vector<std::string> tokens;
+        size_t pos = 0;
+        std::string token;
+        while((pos = s.find(delimiter)) != std::string::npos)
+        {
+            token = s.substr(0, pos);
+            tokens.push_back(token);
+            s.erase(0, pos + delimiter.length());
+        }
+        tokens.push_back(s);
+
+        return tokens;
+    }
+
+    std::vector<int> get_int_vec(const std::string& name, const std::string& delimiter = ",") const
+    {
+        if(get_str(name).empty())
+        {
+            return {};
+        }
+        const std::vector<std::string> args = get_string_vec(name, delimiter);
+        std::vector<int> tokens;
+        tokens.reserve(static_cast<int>(args.size()));
+        for(const std::string& token : args)
+        {
+            int value = atoi(token.c_str());
+            tokens.push_back(value);
+        }
+        return tokens;
     }
 
     private:
