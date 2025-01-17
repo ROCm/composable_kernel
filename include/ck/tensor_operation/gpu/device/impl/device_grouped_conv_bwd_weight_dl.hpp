@@ -49,7 +49,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(defined(__gfx906__) || defined(__gfx103__) || defined(__gfx90a__) || defined(__gfx908__) || \
-    defined(__gfx94__) || defined(__gfx11__) || defined(__gfx12__))
+    defined(__gfx94__) || defined(__gfx101__) || defined(__gfx11__) || defined(__gfx12__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
