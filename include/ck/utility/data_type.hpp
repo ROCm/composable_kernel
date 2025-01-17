@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,6 +11,17 @@ namespace ck {
 using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
+
+// custom data type - pack int4 data
+struct pk_i4_t
+{
+    using type = int8_t;
+    type data;
+    __host__ __device__ constexpr pk_i4_t() : data{type{}} {}
+    __host__ __device__ constexpr pk_i4_t(type init) : data{init} {}
+
+    __host__ __device__ constexpr operator float() const { return static_cast<int8_t>(data); }
+};
 
 inline constexpr auto next_pow2(uint32_t x)
 {
@@ -166,6 +177,13 @@ struct scalar_type<int4_t>
 #endif
 
 template <>
+struct scalar_type<pk_i4_t>
+{
+    using type                           = pk_i4_t;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
 struct scalar_type<f8_fnuz_t>
 {
     using type                           = f8_fnuz_t;
@@ -297,6 +315,76 @@ struct vector_type<T, 2, typename std::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
+struct vector_type<T, 3, typename std::enable_if_t<is_native_type<T>()>>
+{
+    using d1_t = T;
+    typedef T d2_t __attribute__((ext_vector_type(2)));
+    typedef T d3_t __attribute__((ext_vector_type(3)));
+
+    using type = d3_t;
+
+    union
+    {
+        d3_t d3_;
+        StaticallyIndexedArray<d1_t, 3> d1x3_;
+        StaticallyIndexedArray<d2_t, 1> d2x1_;
+        StaticallyIndexedArray<d3_t, 1> d3x1_;
+    } data_;
+
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d3_t>::value,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x3_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x1_;
+        }
+        else if constexpr(is_same<X, d3_t>::value)
+        {
+            return data_.d3x1_;
+        }
+        else
+        {
+            return err;
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d3_t>::value,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x3_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x1_;
+        }
+        else if constexpr(is_same<X, d3_t>::value)
+        {
+            return data_.d3x1_;
+        }
+        else
+        {
+            return err;
+        }
+    }
+};
+
+template <typename T>
 struct vector_type<T, 4, typename std::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
@@ -358,6 +446,158 @@ struct vector_type<T, 4, typename std::enable_if_t<is_native_type<T>()>>
         else if constexpr(is_same<X, d4_t>::value)
         {
             return data_.d4x1_;
+        }
+        else
+        {
+            return err;
+        }
+    }
+};
+
+template <typename T>
+struct vector_type<T, 5, typename std::enable_if_t<is_native_type<T>()>>
+{
+    using d1_t = T;
+    typedef T d4_t __attribute__((ext_vector_type(4)));
+    typedef T d5_t __attribute__((ext_vector_type(5)));
+
+    using type = d5_t;
+
+    union
+    {
+        d5_t d5_;
+        StaticallyIndexedArray<d1_t, 5> d1x5_;
+        StaticallyIndexedArray<d4_t, 1> d4x1_;
+        StaticallyIndexedArray<d5_t, 1> d5x1_;
+    } data_;
+
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d4_t>::value || is_same<X, d5_t>::value,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x5_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x1_;
+        }
+        else if constexpr(is_same<X, d5_t>::value)
+        {
+            return data_.d5x1_;
+        }
+        else
+        {
+            return err;
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d4_t>::value || is_same<X, d5_t>::value,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x5_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x1_;
+        }
+        else if constexpr(is_same<X, d5_t>::value)
+        {
+            return data_.d5x1_;
+        }
+        else
+        {
+            return err;
+        }
+    }
+};
+
+template <typename T>
+struct vector_type<T, 7, typename std::enable_if_t<is_native_type<T>()>>
+{
+    using d1_t = T;
+    typedef T d2_t __attribute__((ext_vector_type(2)));
+    typedef T d4_t __attribute__((ext_vector_type(4)));
+    typedef T d7_t __attribute__((ext_vector_type(7)));
+
+    using type = d7_t;
+
+    union
+    {
+        d7_t d7_;
+        StaticallyIndexedArray<d1_t, 7> d1x7_;
+        StaticallyIndexedArray<d2_t, 3> d2x3_;
+        StaticallyIndexedArray<d4_t, 1> d4x1_;
+        StaticallyIndexedArray<d7_t, 1> d7x1_;
+    } data_;
+
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d7_t>::value,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x7_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x3_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x1_;
+        }
+        else if constexpr(is_same<X, d7_t>::value)
+        {
+            return data_.d7x1_;
+        }
+        else
+        {
+            return err;
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d7_t>::value,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x7_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x3_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x1_;
+        }
+        else if constexpr(is_same<X, d7_t>::value)
+        {
+            return data_.d7x1_;
         }
         else
         {
@@ -440,6 +680,88 @@ struct vector_type<T, 8, typename std::enable_if_t<is_native_type<T>()>>
         else if constexpr(is_same<X, d8_t>::value)
         {
             return data_.d8x1_;
+        }
+        else
+        {
+            return err;
+        }
+    }
+};
+
+template <typename T>
+struct vector_type<T, 13, typename std::enable_if_t<is_native_type<T>()>>
+{
+    using d1_t = T;
+    typedef T d4_t __attribute__((ext_vector_type(4)));
+    typedef T d8_t __attribute__((ext_vector_type(8)));
+    typedef T d13_t __attribute__((ext_vector_type(13)));
+
+    using type = d13_t;
+
+    union
+    {
+        d13_t d13_;
+        StaticallyIndexedArray<d1_t, 13> d1x13_;
+        StaticallyIndexedArray<d4_t, 3> d4x3_;
+        StaticallyIndexedArray<d8_t, 1> d8x1_;
+        StaticallyIndexedArray<d13_t, 1> d13x1_;
+    } data_;
+
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d4_t>::value ||
+                          is_same<X, d8_t>::value || is_same<X, d13_t>::value,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x13_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x3_;
+        }
+        else if constexpr(is_same<X, d8_t>::value)
+        {
+            return data_.d8x1_;
+        }
+        else if constexpr(is_same<X, d13_t>::value)
+        {
+            return data_.d13x1_;
+        }
+        else
+        {
+            return err;
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d4_t>::value ||
+                          is_same<X, d8_t>::value || is_same<X, d13_t>::value,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x13_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x3_;
+        }
+        else if constexpr(is_same<X, d8_t>::value)
+        {
+            return data_.d8x1_;
+        }
+        else if constexpr(is_same<X, d13_t>::value)
+        {
+            return data_.d13x1_;
         }
         else
         {
@@ -1044,6 +1366,12 @@ struct nnvb_data_t_selector<bf8_ocp_t>
     using type = bf8_ocp_t::data_type;
 };
 
+template <>
+struct nnvb_data_t_selector<pk_i4_t>
+{
+    using type = pk_i4_t::type;
+};
+
 template <typename T, index_t N>
 struct non_native_vector_base<
     T,
@@ -1159,6 +1487,14 @@ template <index_t N>
 struct scalar_type<non_native_vector_base<bf8_ocp_t, N>>
 {
     using type = typename non_native_vector_base<bf8_ocp_t, N>::data_t;
+
+    static constexpr index_t vector_size = N;
+};
+
+template <index_t N>
+struct scalar_type<non_native_vector_base<pk_i4_t, N>>
+{
+    using type = typename non_native_vector_base<pk_i4_t, N>::data_t;
 
     static constexpr index_t vector_size = N;
 };
@@ -1870,6 +2206,11 @@ using uint8x8_t  = typename vector_type<uint8_t, 8>::type;
 using uint8x16_t = typename vector_type<uint8_t, 16>::type;
 using uint8x32_t = typename vector_type<uint8_t, 32>::type;
 using uint8x64_t = typename vector_type<uint8_t, 64>::type;
+
+// pack int4
+using pk_i4x2_t = typename vector_type<pk_i4_t, 2>::type;
+using pk_i4x4_t = typename vector_type<pk_i4_t, 4>::type;
+using pk_i4x8_t = typename vector_type<pk_i4_t, 8>::type;
 
 template <typename T>
 struct NumericLimits

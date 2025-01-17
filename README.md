@@ -121,6 +121,15 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
     You can find instructions for running each individual example in [example](/example).
 
+* Build and run smoke/regression examples and tests:
+
+    ```bash
+    make -j smoke # tests and examples that run for < 30 seconds each
+    ```
+     ```bash
+    make -j regression # tests and examples that run for >= 30 seconds each
+    ```
+
 * Build ckProfiler:
 
     ```bash
@@ -152,6 +161,9 @@ Additional cmake flags can be used to significantly speed-up the build:
 * `DL_KERNELS` (default is OFF) must be set to ON in order to build instances, such as `gemm_dl` or
   `batched_gemm_multi_d_dl`. These instances are useful on architectures like the NAVI2x, as most
   other platforms have faster instances, such as `xdl` or `wmma`, available.
+
+* `DPP_KERNELS` (default is OFF) must be set to ON in order to build instances, such as `gemm_dpp`. 
+  These instances are useful on architectures like the NAVI2x, as most other platforms have faster instances, such as `xdl` or `wmma`, available.
 
 * `CK_USE_FP8_ON_UNSUPPORTED_ARCH` (default is OFF) must be set to ON in order to build instances,
   such as `gemm_universal`, `gemm_universal_streamk` and `gemm_multiply_multiply` for fp8 data type for GPU targets which do not  have native support for fp8 data type, such as gfx908 or gfx90a. These instances are useful on

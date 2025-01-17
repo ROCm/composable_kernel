@@ -23,6 +23,8 @@ struct GemmPipelineAGmemBGmemCRegV1
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
+    using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
+
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
@@ -52,6 +54,8 @@ struct GemmPipelineAGmemBGmemCRegV1
     {
         return Policy::template GetSmemSize<Problem>();
     }
+
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return Policy::IsTransposeC(); }
 
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,
@@ -124,7 +128,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             b_lds_block, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0});
 
         // Block GEMM
-        auto block_gemm = Policy::template GetBlockGemm<Problem>();
+        auto block_gemm = BlockGemm();
 
         // Acc register tile
         auto c_block_tile = decltype(block_gemm(a_lds_gemm_window, b_lds_gemm_window)){};
