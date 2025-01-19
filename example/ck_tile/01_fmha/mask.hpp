@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 #include <string>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/fmha.hpp"
+#include "ck_tile/device/ops/fmha.hpp"
 
 // keep this in sync with ck_tile::GenericAttentionMaskEnum
 enum class mask_enum

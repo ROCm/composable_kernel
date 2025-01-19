@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/device/ops/gemm.hpp"
 
 // if set to 1, slightly more instructions generated to calculate address
 #ifndef MERGE_2D_013425

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/common.hpp"
-#include "ck_tile/ops/reduce/block/block_reduce.hpp"
-#include "ck_tile/ops/reduce/block/block_reduce2d_default_policy.hpp"
+#include "ck_tile/device/ops/common.hpp"
+#include "ck_tile/device/ops/reduce/block/block_reduce.hpp"
+#include "ck_tile/device/ops/reduce/block/block_reduce2d_default_policy.hpp"
 
 namespace ck_tile {
 

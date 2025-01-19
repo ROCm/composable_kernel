@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <vector>
 #include <iostream>
@@ -7,7 +7,7 @@
 #include <cassert>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/fmha.hpp"
+#include "ck_tile/device/ops/fmha.hpp"
 
 #ifndef TEST_ALIBI_VERBOSE
 #define TEST_ALIBI_VERBOSE 0

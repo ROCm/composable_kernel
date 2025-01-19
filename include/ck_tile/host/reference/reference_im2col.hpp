@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/host/host_tensor.hpp"
+#include "ck_tile/host/util/host_tensor.hpp"
+#include "ck_tile/host/util/convolution_parameter.hpp"
 #include <thread>
 
 namespace ck_tile {

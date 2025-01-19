@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
 #include <sstream>
@@ -7,10 +7,10 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
+#include "ck_tile/host/util/kernel_launch.hpp"
+#include "ck_tile/device/ops/epilogue.hpp"
+#include "ck_tile/device/ops/gemm.hpp"
+#include "ck_tile/device/ops/gemm/kernel/batched_gemm_kernel.hpp"
 
 template <typename Tuple>
 class TestCkTileBatchedGemm : public ::testing::Test

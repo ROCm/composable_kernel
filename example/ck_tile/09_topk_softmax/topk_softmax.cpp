@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <vector>
 #include <iostream>
@@ -11,7 +11,7 @@
 #include <unordered_set>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/reduce.hpp"
+#include "ck_tile/device/ops/reduce.hpp"
 #include "topk_softmax_api.hpp"
 
 #if 0

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/layernorm2d.hpp"
+#include "ck_tile/host/util/kernel_launch.hpp"
+#include "ck_tile/device/ops/layernorm2d.hpp"
 #include <string>
 
 template <typename InType, typename OutType, typename XScaleDataType_, typename YScaleDataType_>

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/fmha.hpp"
-#include "ck_tile/ops/epilogue.hpp"
+#include "ck_tile/host/util/kernel_launch.hpp"
+#include "ck_tile/device/ops/fmha.hpp"
+#include "ck_tile/device/ops/epilogue.hpp"
 #include "mask.hpp"
 #include "bias.hpp"
 

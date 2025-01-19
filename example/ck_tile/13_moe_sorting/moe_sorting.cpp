@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <set>
 #include <vector>
@@ -12,7 +12,7 @@
 #include <unordered_set>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/reduce.hpp"
+#include "ck_tile/device/ops/reduce.hpp"
 #include "moe_sorting_api.hpp"
 
 auto create_args(int argc, char* argv[])

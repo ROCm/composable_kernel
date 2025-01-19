@@ -9,6 +9,9 @@ NS = 'ck_tile'
 OPS = 'ops'
 REF = 'ref'
 OPS_COMMON = 'common' # common header will be duplicated into ops/* other module
+DEVICE = 'device'
+HOST = 'host'
+UTIL = 'util'
 
 HEADER_COMMON = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2018-{datetime.now().year}, Advanced Micro Devices, Inc. All rights reserved.\n
@@ -28,17 +31,35 @@ class submodule_t:
     def __init__(self):
         self.m = dict()
     def push(self, f):
-        if len(f.parents) != 1: # ignore ./xxx.hpp
+        if len(f.parents) != 2: # ignore device/xxx.hpp and host/xxx.hpp
             mod = get_module(f)
-            # ref is supposed to include one header on demand
-            if mod == REF:
-                return
-            if mod == OPS:
+            if mod == HOST or mod == DEVICE:
                 if mod not in self.m.keys():
                     self.m[mod] = dict()
                 mod2 = get_module(f, 1)
-                if Path(mod2).suffix != '.hpp':
-                    # ignore ops/xxx.hpp
+                if mod2 == UTIL:
+                    if mod2 not in self.m[mod].keys():
+                        self.m[mod][mod2] = dict()
+                    mod3 = get_module(f, 2)
+                    if Path(mod3).suffix != '.hpp':
+                        # ignore util/xxx.hpp
+                        if mod3 not in self.m[mod][mod2].keys():
+                            self.m[mod][mod2][mod3] = list()
+                        self.m[mod][mod2][mod3].append(f)
+
+                # ref is supposed to include one header on demand TODO: ref moved to host/reference
+                elif mod2 == REF:
+                    return
+                elif mod2 == OPS:
+                    if mod2 not in self.m[mod].keys():
+                        self.m[mod][mod2] = dict()
+                    mod3 = get_module(f, 2)
+                    if Path(mod3).suffix != '.hpp':
+                        # ignore ops/xxx.hpp
+                        if mod3 not in self.m[mod][mod2].keys():
+                            self.m[mod][mod2][mod3] = list()
+                        self.m[mod][mod2][mod3].append(f)
+                else:
                     if mod2 not in self.m[mod].keys():
                         self.m[mod][mod2] = list()
                     self.m[mod][mod2].append(f)
@@ -49,7 +70,7 @@ class submodule_t:
 
     def gen(self):
         def gen_header(hpath, include_list):
-            # print(hpath)
+            #print(hpath)
             if os.path.exists(str(hpath)):
                 os.remove(str(hpath))
             with hpath.open('w') as f:
@@ -60,22 +81,26 @@ class submodule_t:
                     header_path = NS + '/' + str(individual_header)
                     f.write(f'#include \"{header_path}\"\n')
                 # f.write('\n') # otherwise clang-format will complain
-        # print(self.m)
+        #print(self.m)
         # restructure common
-        for k, v in self.m.items():
-            if k == OPS and OPS_COMMON in v.keys():
-                common_list = copy.deepcopy(v[OPS_COMMON])
-                # v.pop(OPS_COMMON)
-                for km in v.keys():
-                    if km != OPS_COMMON:
-                        v[km].extend(common_list)
+        for k0, _ in self.m.items():
+            if k0 == DEVICE or k0 == HOST:
+                for k, v in self.m[k0].items():
+                    if k == OPS and OPS_COMMON in v.keys():
+                        common_list = copy.deepcopy(v[OPS_COMMON])
+                        # v.pop(OPS_COMMON)
+                        for km in v.keys():
+                            if km != OPS_COMMON:
+                                v[km].extend(common_list)
 
-        for k, v in self.m.items():
-            if k == OPS:
-                for km, kv in v.items():
-                    gen_header(Path(k) / (f'{km}.hpp'), kv)
-            else:
-                gen_header(Path(f'{k}.hpp'), v)
+        for k0, _ in self.m.items():
+            if k0 == DEVICE or k0 == HOST:
+                for k, v in self.m[k0].items():
+                    if k == OPS:
+                        for km, kv in v.items():
+                            gen_header(Path(k0 + '/' + k) / (f'{km}.hpp'), kv)
+                    else:
+                        gen_header(Path(f'{k0}/{k}.hpp'), v)
             
 
 submodule = submodule_t()

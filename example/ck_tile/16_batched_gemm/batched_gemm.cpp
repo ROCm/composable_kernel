@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -10,8 +10,8 @@
 #include <tuple>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/device/ops/epilogue.hpp"
+#include "ck_tile/device/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
 #include "batched_gemm.hpp"
 
