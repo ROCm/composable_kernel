@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/util/kernel_launch.hpp"
-#include "ck_tile/device/ops/fused_moe.hpp"
+#include "ck_tile/host/ops/fused_moe.hpp"
 #include <string>
 
 // this is only a convenient structure for creating an example

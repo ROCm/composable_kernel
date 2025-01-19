@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/device/ops/common.hpp"
-// #include "ck_tile/device/ops/permute/pipeline/generic_petmute_problem.hpp"
+// #include "ck_tile/host/ops/permute/pipeline/generic_petmute_problem.hpp"
 
 namespace ck_tile {
 

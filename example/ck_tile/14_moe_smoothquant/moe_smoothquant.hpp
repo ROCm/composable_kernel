@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/util/kernel_launch.hpp"
-#include "ck_tile/device/ops/smoothquant.hpp"
+#include "ck_tile/host/ops/smoothquant.hpp"
 #include <string>
 
 template <typename DataType>

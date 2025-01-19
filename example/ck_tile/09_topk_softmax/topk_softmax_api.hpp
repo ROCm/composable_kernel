@@ -4,7 +4,7 @@
 #pragma once
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "ck_tile/device/ops/topk_softmax.hpp"
+#include "ck_tile/host/ops/topk_softmax.hpp"
 #include <string>
 
 struct topk_softmax_trait

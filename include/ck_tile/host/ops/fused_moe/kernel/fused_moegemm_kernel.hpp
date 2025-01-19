@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/device/ops/common.hpp"
-#include "ck_tile/device/ops/elementwise.hpp"
+#include "ck_tile/host/ops/elementwise.hpp"
 #include <string>
 #include <type_traits>
 

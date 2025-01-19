@@ -4,7 +4,7 @@
 #pragma once
 
 #include "fused_moegemm_api_traits.hpp"
-#include "ck_tile/device/ops/fused_moe.hpp"
+#include "ck_tile/host/ops/fused_moe.hpp"
 #include <iostream>
 
 template <ck_tile::index_t... Is>

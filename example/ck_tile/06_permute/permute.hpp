@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/util/kernel_launch.hpp"
-#include "ck_tile/device/ops/permute.hpp"
+#include "ck_tile/host/ops/permute.hpp"
 #include <string>
 
 struct permute_traits

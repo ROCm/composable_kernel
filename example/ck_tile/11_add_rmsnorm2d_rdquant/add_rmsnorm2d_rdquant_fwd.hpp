@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/util/kernel_launch.hpp"
-#include "ck_tile/device/ops/add_rmsnorm2d_rdquant.hpp"
+#include "ck_tile/host/ops/add_rmsnorm2d_rdquant.hpp"
 #include <string>
 
 template <typename DataType>

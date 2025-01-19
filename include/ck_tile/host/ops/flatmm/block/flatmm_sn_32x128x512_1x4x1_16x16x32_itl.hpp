@@ -5,8 +5,8 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/device/ops/gemm/warp/warp_gemm.hpp"
-#include "ck_tile/device/ops/flatmm/block/flatmm_uk_config.hpp"
-#include "ck_tile/device/ops/flatmm/block/flatmm_sn_32x128x512_1x4x1_16x16x32.hpp"
+#include "ck_tile/host/ops/flatmm/block/flatmm_uk_config.hpp"
+#include "ck_tile/host/ops/flatmm/block/flatmm_sn_32x128x512_1x4x1_16x16x32.hpp"
 
 namespace ck_tile {
 

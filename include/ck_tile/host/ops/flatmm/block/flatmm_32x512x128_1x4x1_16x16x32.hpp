@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/device/ops/gemm/warp/warp_gemm.hpp"
-#include "ck_tile/device/ops/flatmm/block/flatmm_uk_config.hpp"
+#include "ck_tile/host/ops/flatmm/block/flatmm_uk_config.hpp"
 
 namespace ck_tile {
 

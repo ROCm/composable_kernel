@@ -1,7 +1,7 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/util/kernel_launch.hpp"
-#include "ck_tile/device/ops/rmsnorm2d.hpp"
+#include "ck_tile/host/ops/rmsnorm2d.hpp"
 #include <cstring>
 
 auto create_args(int argc, char* argv[])

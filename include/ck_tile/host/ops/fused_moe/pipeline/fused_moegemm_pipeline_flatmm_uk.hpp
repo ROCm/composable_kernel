@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/device/ops/common/tensor_layout.hpp"
-#include "ck_tile/device/ops/fused_moe/pipeline/fused_moegemm_pipeline_flatmm_policy.hpp"
+#include "ck_tile/host/ops/fused_moe/pipeline/fused_moegemm_pipeline_flatmm_policy.hpp"
 
 namespace ck_tile {
 

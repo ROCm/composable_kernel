@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/device/ops/norm_reduce/thread/thread_welford.hpp"
+#include "ck_tile/host/ops/norm_reduce/thread/thread_welford.hpp"
 
 namespace ck_tile {
 

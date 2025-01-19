@@ -4,8 +4,8 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/device/ops/fused_moe/pipeline/fused_moegemm_traits.hpp"
-#include "ck_tile/device/ops/flatmm.hpp"
+#include "ck_tile/host/ops/fused_moe/pipeline/fused_moegemm_traits.hpp"
+#include "ck_tile/host/ops/flatmm.hpp"
 #include "ck_tile/device/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/device/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 

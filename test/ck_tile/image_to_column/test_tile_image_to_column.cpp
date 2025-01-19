@@ -7,7 +7,7 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/util/kernel_launch.hpp"
-#include "ck_tile/device/ops/image_to_column.hpp"
+#include "ck_tile/host/ops/image_to_column.hpp"
 
 // Host API implementation
 template <typename DataType>

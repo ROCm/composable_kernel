@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/device/ops/topk_softmax/pipeline/topk_softmax_warp_per_row_policy.hpp"
+#include "ck_tile/host/ops/topk_softmax/pipeline/topk_softmax_warp_per_row_policy.hpp"
 #include <string>
 #include <type_traits>
 
