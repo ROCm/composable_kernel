@@ -6,22 +6,6 @@
 using Row = ck_tile::tensor_layout::gemm::RowMajor;
 using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-template float gemm_<trait_<ck_tile::half_t,
-                            ck_tile::half_t,
-                            float,
-                            ck_tile::half_t,
-                            Col,
-                            Col,
-                            Row,
-                            256,
-                            256,
-                            32,
-                            2,
-                            2,
-                            1,
-                            32,
-                            32,
-                            16,
-                            false,
-                            false,
-                            false>>(const A&, const S&);
+// clang-format off
+template float gemm_<gemm_traits_<ck_tile::half_t, ck_tile::half_t, float, ck_tile::half_t, Col, Col, Row, 256, 256, 32, 2, 2, 1, 32, 32, 16, false, false, false>>(const A&, const S&);
+// clang-format on

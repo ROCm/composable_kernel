@@ -55,12 +55,13 @@ using CDataType   = Types::CDataType;
 using Row = ck_tile::tensor_layout::gemm::RowMajor;
 using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
+/** \brief Struct used for specifying desired gemm details*/
 struct gemm_traits
 {
-    std::string data_type;
-    bool is_a_rowmajor;
-    bool is_b_rowmajor;
-    bool is_c_rowmajor;
+    std::string data_type; /** Tensors datatype, can be set to either fp16 or bf16*/
+    bool is_a_rowmajor;    /** Whether A matrix is rowmajor */
+    bool is_b_rowmajor;    /** Whether B matrix is rowmajor */
+    bool is_c_rowmajor;    /** Whether C matrix is rowmajor */
 };
 
 template <typename ADataType_,
@@ -106,9 +107,18 @@ struct gemm_traits_
 };
 
 // host API
+
 template <typename Traits_>
 float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
 
+/**
+ * \brief Invoke gemm function
+ *
+ * \param traits Gemm traits which are used for choosing best instance.
+ * \param args Runtime gemm host arguments.
+ * \param s Stream configuration.
+ * \return Time of execution.
+ */
 float gemm(const gemm_traits& traits,
            const ck_tile::GemmHostArgs& args,
            const ck_tile::stream_config& s);

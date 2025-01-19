@@ -2,6 +2,29 @@
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
+auto create_args(int argc, char* argv[])
+{
+    ck_tile::ArgParser arg_parser;
+    arg_parser.insert("m", "3840", "m dimension")
+        .insert("n", "4096", "n dimension")
+        .insert("k", "2048", "k dimension")
+        .insert("a_layout", "R", "A tensor data layout - Row by default")
+        .insert("b_layout", "R", "B tensor data layout - Row by default")
+        .insert("c_layout", "R", "C tensor data layout - Row by default")
+        .insert("stride_a", "0", "Tensor A stride")
+        .insert("stride_b", "0", "Tensor B stride")
+        .insert("stride_c", "0", "Tensor C stride")
+        .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
+        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
+        .insert("warmup", "50", "number of iterations before benchmark the kernel")
+        .insert("repeat", "100", "number of iterations to benchmark the kernel")
+        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
+        .insert("split_k", "1", "splitK value");
+
+    bool result = arg_parser.parse(argc, argv);
+    return std::make_tuple(result, arg_parser);
+}
+
 template <typename ALayout, typename BLayout, typename CLayout>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
@@ -28,6 +51,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_B = stride_B;
     args.stride_C = stride_C;
 
+    // TODO: Change datatypes in future to allow mixed precision gemms!
     gemm_traits traits{DataTypeTraits<ADataType>{}.name,
                        std::is_same_v<ALayout, Row>,
                        std::is_same_v<BLayout, Row>,

@@ -1,6 +1,3 @@
-# add_executable(tile_example_gemm_basic EXCLUDE_FROM_ALL gemm_basic.cpp)
-# add_executable(tile_example_universal_gemm EXCLUDE_FROM_ALL universal_gemm.cpp)
-
 function (add_gemm_example TARGET_NAME MAIN_SRC)
 message("adding ${TARGET_NAME}")
 # not using add_example_executable() to add target, since we don't want this to have
@@ -16,7 +13,7 @@ target_sources(${TARGET_NAME} PRIVATE ${INSTANCE_SRCS})
 
 set(COMPILE_OPTIONS)
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
-list(APPEND COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
+list(APPEND COMPILE_OPTIONS -Wno-undefined-func-template)
 
 target_compile_options(${TARGET_NAME} PRIVATE ${COMPILE_OPTIONS})
 endfunction(add_gemm_example TARGET_NAME MAIN_SRC)

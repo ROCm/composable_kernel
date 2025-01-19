@@ -2,49 +2,10 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #include <ck_tile/core.hpp>
 #include <iostream>
-#include "gemm_basic.hpp"
+#include "gemm.hpp"
 
 using A = ck_tile::GemmHostArgs;
 using S = ck_tile::stream_config;
-
-template <typename ADataType_,
-          typename BDataType_,
-          typename AccDataType_,
-          typename CDataType_,
-          typename ALayout_,
-          typename BLayout_,
-          typename CLayout_,
-          ck_tile::index_t M_Tile_,
-          ck_tile::index_t N_Tile_,
-          ck_tile::index_t K_Tile_,
-          ck_tile::index_t M_Warp_,
-          ck_tile::index_t N_Warp_,
-          ck_tile::index_t K_Warp_,
-          ck_tile::index_t M_Warp_Tile_,
-          ck_tile::index_t N_Warp_Tile_,
-          ck_tile::index_t K_Warp_Tile_,
-          bool kPadM_,
-          bool kPadN_,
-          bool kPadK_>
-using trait_ = gemm_traits_<ADataType_,
-                            BDataType_,
-                            AccDataType_,
-                            CDataType_,
-                            ALayout_,
-                            BLayout_,
-                            CLayout_,
-                            M_Tile_,
-                            N_Tile_,
-                            K_Tile_,
-                            M_Warp_,
-                            N_Warp_,
-                            K_Warp_,
-                            M_Warp_Tile_,
-                            N_Warp_Tile_,
-                            K_Warp_Tile_,
-                            kPadM_,
-                            kPadN_,
-                            kPadK_>;
 
 template <typename Traits_>
 float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
