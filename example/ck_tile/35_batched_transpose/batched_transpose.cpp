@@ -183,7 +183,6 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     uint32_t dim_block_h = (height + kparam.tile_y - 1) / kparam.tile_y;
     uint32_t dim_block_w = (width + kparam.tile_x - 1) / kparam.tile_x;
     uint32_t dim_stride  = height * width;
-    uint32_t dim_blocks  = dim_block_h * dim_block_w;
 
     batched_transpose_kargs karg = [&]() {
         batched_transpose_kargs a_;
@@ -192,7 +191,6 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         a_.batch       = N;
         a_.height      = height;
         a_.width       = width;
-        a_.dim_blocks  = dim_blocks;
         a_.dim_stride  = dim_stride;
         a_.dim_block_h = dim_block_h;
         a_.dim_block_w = dim_block_w;

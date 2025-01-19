@@ -19,7 +19,7 @@ struct BatchedTransposeHostArgs
     index_t batch;
     index_t height;
     index_t width;
-    index_t dim_blocks;
+    // index_t dim_blocks;
     index_t dim_stride;
     index_t dim_block_h;
     index_t dim_block_w;
@@ -40,10 +40,7 @@ struct BatchedTransposeKernel
         index_t batch;
         index_t height;
         index_t width;
-        index_t dim_blocks;
         index_t dim_stride;
-        index_t dim_block_h;
-        index_t dim_block_w;
     };
 
     using Kargs = BatchedTransposeKargs;
@@ -60,15 +57,12 @@ struct BatchedTransposeKernel
     CK_TILE_HOST static constexpr auto MakeKargs(const Hargs& h)
     {
         Kargs k;
-        k.p_input     = h.p_input;
-        k.p_output    = h.p_output;
-        k.batch       = h.batch;
-        k.height      = h.height;
-        k.width       = h.width;
-        k.dim_blocks  = h.dim_blocks;
-        k.dim_stride  = h.dim_stride;
-        k.dim_block_h = h.dim_block_h;
-        k.dim_block_w = h.dim_block_w;
+        k.p_input    = h.p_input;
+        k.p_output   = h.p_output;
+        k.batch      = h.batch;
+        k.height     = h.height;
+        k.width      = h.width;
+        k.dim_stride = h.dim_stride;
         return k;
     }
 

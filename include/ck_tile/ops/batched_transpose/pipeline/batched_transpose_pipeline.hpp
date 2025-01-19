@@ -8,10 +8,6 @@
 #include <string>
 #include <type_traits>
 
-#ifndef BATCHED_TRANSPOSE_USE_RAW_TILE_WINDOW
-#define BATCHED_TRANSPOSE_USE_RAW_TILE_WINDOW 0
-#endif
-
 namespace ck_tile {
 
 template <typename Problem_, typename Policy_ = BatchedTransposePolicy>
