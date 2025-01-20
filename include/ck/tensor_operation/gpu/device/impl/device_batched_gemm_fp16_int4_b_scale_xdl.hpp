@@ -280,6 +280,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
                  index_t BatchStrideScaleB_,
                  const BScaleDataType* p_b_scale_grid_,
                  index_t Batch_,
+                 index_t KBatch_,
                  AElementwiseOperation a_element_op_,
                  BElementwiseOperation b_element_op_,
                  CElementwiseOperation c_element_op_)
@@ -294,7 +295,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
                                      StrideC_,
                                      StrideScaleB_,
                                      p_b_scale_grid_,
-                                     1, // KBatch
+                                     KBatch_, // KBatch
                                      a_element_op_,
                                      b_element_op_,
                                      c_element_op_),

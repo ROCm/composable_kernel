@@ -18,7 +18,11 @@ struct ProblemSize final
     ck::index_t batch_stride_B = K * N;
     ck::index_t batch_stride_C = M * N;
 
+    // Batched Gemm count
     ck::index_t batch_count = 2;
+
+    // Split K count
+    ck::index_t KBatch = 1;
 };
 
 struct ExecutionConfig final
@@ -123,7 +127,8 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
            batch_stride_A,
            batch_stride_B,
            batch_stride_C,
-           batch_count] = problem_size;
+           batch_count,
+           KBatch] = problem_size;
 
     auto f_host_tensor_descriptor = [](std::size_t batch_count_,
                                        std::size_t row,
@@ -322,7 +327,8 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                           batch_stride_C,
                           batch_BScale_Stride,
                           static_cast<BScaleDataType*>(b1_g_scale_device_buf.GetDeviceBuffer()),
-                          batch_count,
+                          batch_count, // batch count
+                          KBatch,      // split K count
                           a_element_op,
                           b_element_op,
                           c_element_op);
@@ -456,6 +462,11 @@ bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
         if(argc >= 11)
         {
             problem_size.batch_count = std::stoi(argv[10]);
+        }
+
+        if(argc >= 12)
+        {
+            problem_size.KBatch = std::stoi(argv[11]);
         }
     }
     else
