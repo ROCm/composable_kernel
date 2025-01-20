@@ -200,9 +200,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         ComputeTypeA,
         ComputeTypeB>;
 
-    // Block2CTileMap configuration parameter.
     using Block2ETileMap = typename GridwiseGemm::Block2CTileMap;
-    ;
 
     using GroupedGemmBlock2ETileMap = OffsettedBlockToCTileMap<Block2ETileMap>;
     using KernelArgument            = typename GridwiseGemm::Argument;
@@ -279,14 +277,15 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 const index_t stride_b = gemm_descs[i].stride_B_;
                 const index_t stride_c = gemm_descs[i].stride_C_;
 
-                const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
-                const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
+                // const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
+                // const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
 
-                const auto c_grid_desc_m_n =
-                    GridwiseGemm::MakeCGridDescriptor_M_N(M, m_padded, N, n_padded, stride_c);
+                index_t gdx, gdy, gdz; 
+                std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(M, N, K_BATCH);
 
-                const auto local_b2c_tile_map = Block2ETileMap{c_grid_desc_m_n, B2E_M01, K_BATCH};
-                const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(c_grid_desc_m_n);
+                const auto local_b2c_tile_map = Block2ETileMap{gdx, gdy, gdz};
+                // const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(c_grid_desc_m_n);
+                const index_t grid_size_grp = gdx * gdy * gdz;
 
                 const index_t block_start = grid_size_;
                 const index_t block_end   = grid_size_ + grid_size_grp;
@@ -328,21 +327,21 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
                 auto& karg = gemm_kernel_args_[i].karg_;
 
-                const index_t m_padded = GridwiseGemm::CalculateMPadded(karg.M);
-                const index_t n_padded = GridwiseGemm::CalculateNPadded(karg.N);
+                // const index_t m_padded = GridwiseGemm::CalculateMPadded(karg.M);
+                // const index_t n_padded = GridwiseGemm::CalculateNPadded(karg.N);
 
-                const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(
-                    karg.M, karg.N, m_padded, n_padded, karg.StrideC);
+                index_t gdx, gdy, gdz; 
+                std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(karg.M, karg.N, karg.KBatch);
 
-                const auto local_b2c_tile_map = Block2ETileMap{c_grid_desc_m_n, B2E_M01, K_BATCH};
-                const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(c_grid_desc_m_n);
+                const auto local_b2c_tile_map = Block2ETileMap{gdx, gdy, gdz};
+                // const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(c_grid_desc_m_n);
+                const index_t grid_size_grp = gdx * gdy * gdz;
 
                 const index_t block_start = grid_size_;
                 const index_t block_end   = grid_size_ + grid_size_grp;
 
                 grid_size_ += grid_size_grp;
 
-                // block-to-e-tile map
                 auto grouped_block_2_ctile_map =
                     GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
 
@@ -440,9 +439,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                            0,
                                            cast_pointer_to_constant_address_space(arg.p_workspace_),
                                            arg.gemm_kernel_args_.size(),
-                                           AElementwiseOperation,
-                                           BElementwiseOperation,
-                                           CDEElementwiseOperation);
+                                           PassThrough{},
+                                           PassThrough{},
+                                           PassThrough{});
             };
 
             constexpr index_t minimum_occupancy =
