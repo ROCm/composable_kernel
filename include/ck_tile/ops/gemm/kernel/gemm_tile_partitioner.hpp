@@ -7,7 +7,7 @@
 
 namespace ck_tile {
 
-/// @brief An internal class dedicated to 2D tiles.
+/// @brief An internal ck-tile class dedicated to 2D tiles.
 template <typename BlockGemmShapeType>
 struct GemmTile2DPartitioner
 {
@@ -17,7 +17,6 @@ struct GemmTile2DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    /// @brief Returns 2D-grid size.
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t batch_size) noexcept(
         noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
@@ -27,14 +26,13 @@ struct GemmTile2DPartitioner
         return dim3(GridDimX, GridDimY, GridDimZ);
     }
 
-    /// @brief Returns the number of loops from the the ceiling of M divided by KPerBlock.
     CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K) noexcept -> index_t
     {
         return integer_divide_ceil(K, KPerBlock);
     }
 
-    /// @brief Returns the tile raw indexes. Call with blockIdx and blockIdy, where:
-    // blockIdx = blockId.x and blockIdy blockIdx.y.
+    /// @brief Returns the output tile indexes. Call with blockIdx and blockIdy, where:
+    // blockIdx is blockId.x and blockIdy is blockIdx.y.
     CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx,
                                                             index_t blockIdy) noexcept
         -> const tuple<index_t, index_t>
@@ -45,7 +43,7 @@ struct GemmTile2DPartitioner
     }
 };
 
-/// @brief An internal class dedicated to 1D tiles.
+/// @brief An internal ck-tile class dedicated to 1D tiles.
 template <typename BlockGemmShapeType>
 struct GemmTile1DPartitioner
 {
@@ -55,7 +53,6 @@ struct GemmTile1DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    /// @brief Returns 1D-grid size.
     CK_TILE_HOST static constexpr auto
     GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
@@ -64,22 +61,19 @@ struct GemmTile1DPartitioner
         return dim3(GridDimX * GridDimY, 1, 1);
     }
 
-    /// @brief Returns the value of the ceiling of N divided by NPerBlock
     CK_TILE_HOST_DEVICE static constexpr auto GetNBlock(index_t N) noexcept -> index_t
     {
         return integer_divide_ceil(N, NPerBlock);
     }
 
-    /// @brief Returns the number of loops from the the ceiling of M divided by KPerBlock.
     CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K) noexcept -> index_t
     {
         return integer_divide_ceil(K, KPerBlock);
     }
 
-    /// @brief Set the N block size.
     CK_TILE_DEVICE static constexpr auto SetNBlock(index_t N) noexcept -> void { _NBlockSize = N; }
 
-    /// @brief Returns the tile raw index. Call with blockIdx, which is offset (blockIdx.x -
+    /// @brief Returns the output tile index. Call with blockIdx, which is offset (blockIdx.x -
     /// block_start). Note: The `SetNBlock` must be called before calling this function.
     CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx) noexcept
         -> const tuple<index_t, index_t>
@@ -94,7 +88,6 @@ struct GemmTile1DPartitioner
     private:
     CK_TILE_DEVICE static index_t _NBlockSize;
 
-    /// @brief Return modulo value.
     [[nodiscard]] CK_TILE_DEVICE static auto constexpr modulo(index_t input, index_t ceil) noexcept
         -> index_t
     {
