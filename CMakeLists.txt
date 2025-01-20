@@ -106,6 +106,13 @@ if(CK_USE_CODEGEN)
     add_definitions(-DCK_USE_CODEGEN)
 endif()
 
+option(CK_TIME_KERNEL "Enable kernel time tracking" ON)
+if(CK_TIME_KERNEL)
+    add_definitions(-DCK_TIME_KERNEL=1)
+else()
+    add_definitions(-DCK_TIME_KERNEL=0)
+endif()
+
 include(getopt)
 
 # CK version file to record release version as well as git commit hash
