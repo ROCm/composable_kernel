@@ -15,8 +15,7 @@
 #include <type_traits>
 #include "unistd.h"
 
-
-CK_DECLARE_ENV_VAR_UINT64(CK_PINNED_MEM_SIZE_KB)
+CK_DECLARE_ENV_VAR_UINT64(CK_PINNED_HOST_MEM_POOL_SIZE_KB)
 
 namespace ck {
 namespace memory {
@@ -38,12 +37,15 @@ namespace memory {
             offsetInBytes_(0),
             activeMemoryPoolSizeInBytes_(poolSizeInBytes)
         {
-            if (!ck::EnvIsUnset(CK_ENV(CK_PINNED_MEM_SIZE_KB)))
+            if (!ck::EnvIsUnset(CK_ENV(CK_PINNED_HOST_MEM_POOL_SIZE_KB)))
             {
                 // kB to bytes conversion
                 constexpr size_t KB = 1024;
-                activeMemoryPoolSizeInBytes_ = ck::EnvValue(CK_ENV(CK_PINNED_MEM_SIZE_KB)) * KB;
-                std::cout << "[ StaticMemPool ] Override of default memory size to " << activeMemoryPoolSizeInBytes_ << " bytes." << std::endl;
+                activeMemoryPoolSizeInBytes_ = ck::EnvValue(CK_ENV(CK_PINNED_HOST_MEM_POOL_SIZE_KB)) * KB;
+                if (enableLogging_)
+                {
+                    std::cout << "[ StaticMemPool ] Override of default memory size to " << activeMemoryPoolSizeInBytes_ << " bytes." << std::endl;
+                }
             }
             allocateNewPinnedMemoryBlock(activeMemoryPoolSizeInBytes_); 
         }
@@ -51,6 +53,11 @@ namespace memory {
         ~StaticMemPool() override
         {
             // Loop through all the pinned memory blocks and free them.
+            if (enableLogging_) 
+            {
+                std::cout << "[ StaticMemPool ] Deleting " << std::to_string(pinnedMemoryBaseAddress_.size()) <<  
+                    " pinned host memory blocks for process " << pid_ << std::endl;
+            }
             while (!pinnedMemoryBaseAddress_.empty())
             {
                 hip_check_error(hipHostFree(pinnedMemoryBaseAddress_.top()));
@@ -132,7 +139,7 @@ namespace memory {
         }
 
     private:
-        constexpr static size_t defaultMaxMemoryPoolSizeInBytes_ = 10 * 1024 * 1024; // 10MB
+        constexpr static size_t defaultMaxMemoryPoolSizeInBytes_ = 1 * 1024 * 1024; // 1MB
         std::mutex mutex_;
         std::map<size_t, std::queue<void*>> memory_pool_{};
         std::stack<std::byte*> pinnedMemoryBaseAddress_;
@@ -212,8 +219,6 @@ namespace memory {
                 return p;
             }
 
-            std::cerr << "[ StaticMemPool ] WARNING: Could not find memory from pool to allocate " << sizeInBytes << 
-                " bytes." << std::endl;
             return nullptr;
         }
     };
@@ -241,11 +246,13 @@ namespace memory {
                     }
                     catch (const std::exception& e) 
                     {
-                        std::cerr << "Error in cleanup thread: " << e.what() << std::endl;
+                        std::cerr << "[ StaticMemPool ] Error in cleanup thread: " << e.what() << std::endl;
+                        should_stop_ = true;
                     }
                     catch (...) 
                     {
-                        std::cerr << "Error in cleanup thread." << std::endl;
+                        std::cerr << "[ StaticMemPool ] Error in cleanup thread." << std::endl;
+                        should_stop_ = true;
                     }
                 }
             });
@@ -330,10 +337,10 @@ namespace memory {
 
         void deallocate(void* p) 
         {   
-            host_destruct_events_.erase(p);
             auto* memory_pool = get_memory_pool();
             memory_pool->deallocate(p, allocated_memory_[p]);
             hip_check_error(hipEventDestroy(device_destruct_events_[p]));
+            host_destruct_events_.erase(p);
             device_destruct_events_.erase(p);
             allocated_memory_.erase(p);
         }
@@ -341,17 +348,14 @@ namespace memory {
         bool canDeallocate(void* p) 
         {
             bool can_deallocate_on_device = false;
-            if (device_destruct_events_.find(p) != device_destruct_events_.end()) 
+            hipError_t state = hipEventQuery(device_destruct_events_[p]);
+            if (state == hipSuccess) 
             {
-                hipError_t state = hipEventQuery(device_destruct_events_[p]);
-                if (state == hipSuccess) 
-                {
-                    can_deallocate_on_device =  true;
-                }
-                else if (state != hipErrorNotReady)
-                {
-                    throw std::runtime_error("Error querying event state: " + std::to_string(state));
-                }
+                can_deallocate_on_device =  true;
+            }
+            else if (state != hipErrorNotReady)
+            {
+                throw std::runtime_error("Error querying event state: " + std::to_string(state));
             }
 
             const bool can_deallocate_on_host = host_destruct_events_[p];
