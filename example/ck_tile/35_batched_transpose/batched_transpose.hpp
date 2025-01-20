@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <vector>
 #include <string>
@@ -102,12 +102,11 @@ std::vector<transpose_kernel_param_t> get_transpose_all_kernel(std::string fp_st
         return {};
 }
 
-bool transpose_kernel_is_valid(uint32_t batch,
+bool transpose_kernel_is_valid(uint32_t,
                                uint32_t height,
                                uint32_t width,
                                const transpose_kernel_param_t* kparam)
 {
-    (void)batch;
     return width % kparam->ediv_x == 0 && height % kparam->ediv_y == 0;
 }
 
