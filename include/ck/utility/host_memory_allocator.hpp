@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -15,8 +15,7 @@
 #include <type_traits>
 #include "unistd.h"
 
-CK_DECLARE_ENV_VAR_BOOL(CK_USE_DYNAMIC_MEM_POOL)
-CK_DECLARE_ENV_VAR_BOOL(CK_PREFER_RECYCLED_PINNED_MEM)
+
 CK_DECLARE_ENV_VAR_UINT64(CK_PINNED_MEM_SIZE_KB)
 
 namespace ck {
@@ -30,138 +29,6 @@ namespace memory {
         virtual void deallocate(void* p, std::size_t sizeInBytes) = 0;
     };  
 
-    class DynamicMemPool : public IMemPool
-    {
-    public:
-        DynamicMemPool(size_t maxPoolSizeInBytes = defaultMaxMemoryPoolSizeInBytes_) : 
-            enableLogging_(ck::EnvIsEnabled(CK_ENV(CK_LOGGING))),
-            pid_(getpid()),
-            maxPoolSizeInBytes_(maxPoolSizeInBytes)
-        {
-            if (enableLogging_)
-            {
-                std::cout << "[ DynamicMemPool ] Created memory pool for process " << pid_ << std::endl;
-            }
-        }
-
-        ~DynamicMemPool() override
-        {
-            // Get keys of the map and clear the memory pool queue for each key.
-            for (auto& [size, _] : memory_pool_)
-            {
-                clearMemoryPoolQueue(size);
-            }
-
-            if (enableLogging_)
-            {
-                std::cout << "[ DynamicMemPool ] Deleted pool for process " << pid_ << std::endl;
-            }  
-        }
-
-        void* allocate(std::size_t sizeInBytes) override
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            // If there is a memory pool for the requested size, return the memory from the pool.
-            if (memory_pool_.find(sizeInBytes) != memory_pool_.end() && !memory_pool_[sizeInBytes].empty())
-            {
-
-#ifdef ENABLE_MEM_POOL_LOGGING            
-                if (enableLogging_)
-                {
-                    std::cout << "[ DynamicMemPool ] Reusing memory from pool for size " << sizeInBytes << std::endl;
-                }
-#endif
-                
-                void* p = memory_pool_[sizeInBytes].front();
-                memory_pool_[sizeInBytes].pop();
-                memPoolSizeInBytes_ -= sizeInBytes;
-
-#ifdef ENABLE_MEM_POOL_LOGGING
-                if (enableLogging_)
-                {
-                    std::cout << "[ DynamicMemPool ] Total memory in pool: " << memPoolSizeInBytes_ << std::endl;
-                }
-#endif
-                return p;
-            }
-
-#ifdef ENABLE_MEM_POOL_LOGGING
-            if (enableLogging_)
-            {
-                std::cout << "[ DynamicMemPool ] Allocating new memory for size " << sizeInBytes << std::endl;
-            }
-#endif
-
-            void* p;
-            constexpr unsigned flags = hipDeviceScheduleYield; //hipDeviceScheduleSpin doesn not work, leads to freezing.
-            hip_check_error(hipHostMalloc(&p, sizeInBytes, flags));
-            return p;
-        }
-
-        void deallocate(void* p, std::size_t sizeInBytes) override
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (memory_pool_.find(sizeInBytes) != memory_pool_.end())
-            {
-#ifdef ENABLE_MEM_POOL_LOGGING
-                if (enableLogging_)
-                {
-                    std::cout << "[ DynamicMemPool ] Adding memory to pool for size " << sizeInBytes << std::endl;
-                }
-#endif
-                memory_pool_[sizeInBytes].push(p);
-                memPoolSizeInBytes_ += sizeInBytes;
-                // If the memory pool size exceeds the maximum size, free the memory.
-                if (memPoolSizeInBytes_ > maxPoolSizeInBytes_)
-                {
-                    if (enableLogging_)
-                    {
-                        std::cout << "[ DynamicMemPool ] Clearing pool queue for size " << sizeInBytes << std::endl;
-                    }
-                    memPoolSizeInBytes_ -= sizeInBytes * memory_pool_[sizeInBytes].size();
-                    clearMemoryPoolQueue(sizeInBytes);
-                }
-            }
-            else {
-#ifdef ENABLE_MEM_POOL_LOGGING
-                if (enableLogging_)
-                {
-                    std::cout << "[ DynamicMemPool ] Creating new pool queue for size " << sizeInBytes << std::endl;
-                }
-#endif
-                std::queue<void*> q;
-                q.push(p);
-                memory_pool_.insert({sizeInBytes, std::move(q)});
-                memPoolSizeInBytes_ += sizeInBytes;
-            }
-#ifdef ENABLE_MEM_POOL_LOGGING
-            if (enableLogging_)
-            {
-                std::cout << "[ DynamicMemPool ] Total memory in pool: " << memPoolSizeInBytes_ << std::endl;
-            }
-#endif
-        }
-    private:
-        constexpr static size_t defaultMaxMemoryPoolSizeInBytes_ = 1 * 1024 * 1024; // 1MB
-
-        void clearMemoryPoolQueue(size_t sizeInBytes)
-        {
-            while (!memory_pool_[sizeInBytes].empty())
-            {
-                void* p = memory_pool_[sizeInBytes].front();
-                memory_pool_[sizeInBytes].pop(); 
-                hip_check_error(hipHostFree(p));
-            }
-        }
-
-        std::mutex mutex_; // Mutex to protect access to the memory pool.
-        std::map<size_t, std::queue<void*>> memory_pool_{};
-        size_t memPoolSizeInBytes_{0};
-        bool enableLogging_{false};
-        int pid_{-1};
-        size_t maxPoolSizeInBytes_;
-    };
-
     class StaticMemPool : public IMemPool
     {
     public:
@@ -169,7 +36,6 @@ namespace memory {
             enableLogging_(ck::EnvIsEnabled(CK_ENV(CK_LOGGING))),
             pid_(getpid()),
             offsetInBytes_(0),
-            preferRecycledMem_(ck::EnvIsEnabled(CK_ENV(CK_PREFER_RECYCLED_PINNED_MEM))),
             activeMemoryPoolSizeInBytes_(poolSizeInBytes)
         {
             if (!ck::EnvIsUnset(CK_ENV(CK_PINNED_MEM_SIZE_KB)))
@@ -200,7 +66,7 @@ namespace memory {
         {
             std::lock_guard<std::mutex> lock(mutex_);
 
-            if (!preferRecycledMem_ && offsetInBytes_ + sizeInBytes - 1 < activeMemoryPoolSizeInBytes_)
+            if (offsetInBytes_ + sizeInBytes - 1 < activeMemoryPoolSizeInBytes_)
             {
                 return allocateNewMemory(sizeInBytes);
             }
@@ -211,12 +77,6 @@ namespace memory {
                 return ptr;
             }
 
-            if (offsetInBytes_ + sizeInBytes - 1 < activeMemoryPoolSizeInBytes_)
-            {
-                return allocateNewMemory(sizeInBytes);
-            }
-
-            // Memory became too fragmented, reserve a new block.
             size_t requestedBlockSize = std::max(activeMemoryPoolSizeInBytes_, 2*sizeInBytes);    
             allocateNewPinnedMemoryBlock(requestedBlockSize);
             return allocateNewMemory(sizeInBytes);
@@ -279,7 +139,6 @@ namespace memory {
         bool enableLogging_;
         int pid_;
         int offsetInBytes_;
-        bool preferRecycledMem_;
         size_t activeMemoryPoolSizeInBytes_;
 
         void allocateNewPinnedMemoryBlock(size_t memoryPoolSizeInBytes)
@@ -363,10 +222,7 @@ namespace memory {
     {
     public:
         IMemPool* get_memory_pool() {
-            //static DynamicMemPool dynamic_memory_pool;
             static StaticMemPool static_memory_pool;
-            //static bool use_dynamic_mem_pool = ck::EnvIsEnabled(CK_ENV(CK_USE_DYNAMIC_MEM_POOL));
-            //return use_dynamic_mem_pool ? static_cast<IMemPool*>(&dynamic_memory_pool) : static_cast<IMemPool*>(&static_memory_pool);
             return &static_memory_pool;
         }
     };
