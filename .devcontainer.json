@@ -12,6 +12,6 @@
         "HIP_VISIBLE_DEVICES": "6,7"
     },
     "mounts": [
-       "source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached"
+       "source=${localEnv:HOME}/vpietila/.ssh,target=/root/.ssh,type=bind,consistency=cached"
     ]
  }
