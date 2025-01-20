@@ -1,7 +1,7 @@
 #!/bin/sh
 # TODO: run this script from CK root or build directory
 EXE="$(find . -name tile_example_fmha_fwd -type f | head -n 1)"
-VALID=2
+VALID=1
 
 # for prec in "fp16" "bf16" ; do
 # for perm in 0 1 ; do
