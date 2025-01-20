@@ -45,9 +45,9 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    using Offset1DPartitioner = OffsetCallculation1DPartitioner<TilePartitioner>;
-    using Base                = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
-    using GemmKernelArgs      = typename Base::GemmKernelArgs;
+    using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
+    using Base                    = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    using GemmKernelArgs          = typename Base::GemmKernelArgs;
 
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
     static constexpr index_t KBatch          = 1;
@@ -140,14 +140,13 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     CK_TILE_DEVICE void Run(const GemmTransKernelArg& kargs) const
     {
         TilePartitioner::SetNBlock(kargs.group_karg.N);
-        const auto [iM, iN] = Offset1DPartitioner::GetOffsetedTileIndex(kargs.block_start);
+        const auto [iM, iN] = OffsetTile1DPartitioner::GetOffsetedTileIndex(kargs.block_start);
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
         const typename Base::SplitKBatchOffset splitk_batch_offset(kargs.group_karg, blockIdx.z);
 
-        // options
         const ADataType* a_ptr = static_cast<const ADataType*>(kargs.group_karg.a_ptr);
         const BDataType* b_ptr = static_cast<const BDataType*>(kargs.group_karg.b_ptr);
         CDataType* c_ptr       = static_cast<CDataType*>(kargs.group_karg.c_ptr);

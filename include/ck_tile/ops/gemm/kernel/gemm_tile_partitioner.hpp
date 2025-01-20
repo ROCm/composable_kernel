@@ -7,7 +7,9 @@
 
 namespace ck_tile {
 
-/// @brief An internal ck-tile class dedicated to 2D tiles.
+/**
+ * @brief Struct representing 2D block index mapping into 3D output tile space.
+ */
 template <typename BlockGemmShapeType>
 struct GemmTile2DPartitioner
 {
@@ -17,6 +19,9 @@ struct GemmTile2DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    /**
+     * @brief Returns 2D gird size.
+     */
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t batch_size) noexcept(
         noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
@@ -26,13 +31,22 @@ struct GemmTile2DPartitioner
         return dim3(GridDimX, GridDimY, GridDimZ);
     }
 
+    /**
+     * @brief Returns the value of the ceiling.
+     * @param [in] K K is dimension
+     */
     CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K) noexcept -> index_t
     {
         return integer_divide_ceil(K, KPerBlock);
     }
 
-    /// @brief Returns the output tile indexes. Call with blockIdx and blockIdy, where:
-    // blockIdx is blockId.x and blockIdy is blockIdx.y.
+    /**
+     * @brief The function returns 2D output tile space.
+     * @note  The `SetNBlock` must be called before calling this function.
+     * @param [in] blockIdx is blockIdx.x
+     * @param [in] blockIdy is blockIdx.y
+     * @return Returns the output tile indexes.
+     */
     CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx,
                                                             index_t blockIdy) noexcept
         -> const tuple<index_t, index_t>
@@ -43,7 +57,9 @@ struct GemmTile2DPartitioner
     }
 };
 
-/// @brief An internal ck-tile class dedicated to 1D tiles.
+/**
+ * @brief Struct representing 1D block index mapping into 2D output tile space.
+ */
 template <typename BlockGemmShapeType>
 struct GemmTile1DPartitioner
 {
@@ -53,6 +69,10 @@ struct GemmTile1DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    constexpr GemmTile1DPartitioner([[maybe_unused]] index_t N) {}
+    /**
+     * @brief Returns 1D grid size.
+     */
     CK_TILE_HOST static constexpr auto
     GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
@@ -61,24 +81,39 @@ struct GemmTile1DPartitioner
         return dim3(GridDimX * GridDimY, 1, 1);
     }
 
+    /**
+     * @brief Returns the value of the ceiling.
+     * @param [in] N is dimension
+     */
     CK_TILE_HOST_DEVICE static constexpr auto GetNBlock(index_t N) noexcept -> index_t
     {
         return integer_divide_ceil(N, NPerBlock);
     }
 
+    /**
+     * @brief Returns the number of loops.
+     * @param [in] K is dimension
+     */
     CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K) noexcept -> index_t
     {
         return integer_divide_ceil(K, KPerBlock);
     }
 
-    CK_TILE_DEVICE static constexpr auto SetNBlock(index_t N) noexcept -> void { _NBlockSize = N; }
+    /**
+     * @brief Set the N block size.
+     * @param [in] N is dimension
+     */
+    CK_TILE_DEVICE static constexpr auto SetNBlock(index_t N) noexcept -> void { N_ = N; }
 
-    /// @brief Returns the output tile index. Call with blockIdx, which is offset (blockIdx.x -
-    /// block_start). Note: The `SetNBlock` must be called before calling this function.
+    /**
+     * @brief The function returns 2D output tile space.
+     * @note  The `SetNBlock`-fn  must be called before calling this function.
+     * @param [in] blockIdx is blockIdx.x - block_start.
+     * */
     CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx) noexcept
         -> const tuple<index_t, index_t>
     {
-        const index_t NBlock = GetNBlock(_NBlockSize);
+        const index_t NBlock = GetNBlock(N_);
 
         const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx / NBlock);
         const index_t iN = __builtin_amdgcn_readfirstlane(modulo(blockIdx, NBlock));
@@ -86,8 +121,12 @@ struct GemmTile1DPartitioner
     }
 
     private:
-    CK_TILE_DEVICE static index_t _NBlockSize;
+    CK_TILE_DEVICE static index_t N_;
 
+    /**
+     * @brief Return modulo value.
+     * @note  The function avoids using the % modulo operator
+     */
     [[nodiscard]] CK_TILE_DEVICE static auto constexpr modulo(index_t input, index_t ceil) noexcept
         -> index_t
     {
@@ -95,32 +134,41 @@ struct GemmTile1DPartitioner
     }
 };
 
-/// @brief `GemmTile1DPartitioner::GetOutputTileIndex`'s std::false specialization,
-/// checking expression validity in-place for ill-formed.
+/**
+ * @brief `GemmTile1DPartitioner::GetOutputTileIndex`'s std::false specialization,
+ * checking expression validity in-place for ill-formed.
+ */
 template <typename, typename = void>
 struct HasFnOneArgImpl : std::false_type
 {
 };
 
-/// @brief `GemmTile1DPartitioner::GetOutputTileIndex`'s std::true specialization,
-/// checking expression validity in-place for well-formed.
-/// Note: `1` - a constant value indicating the number of parameters in the function.
+/**
+ * @brief `GemmTile1DPartitioner::GetOutputTileIndex`'s std::true specialization,
+ * checking expression validity in-place for well-formed.
+ * @note: `1` - a constant value indicating the number of parameters in the function.
+ */
 template <typename T>
 struct HasFnOneArgImpl<T, std::void_t<decltype(std::declval<T>().GetOutputTileIndex(1))>>
     : std::true_type
 {
 };
 
-/// @brief Struct `OffsetCallculation1DPartitioner` class.
-/// used to calculate offseted tile indexes.
-/// Note: The struct supports the 1D-Partitioner mechanism, enable-if `GetOutputTileIndex`-fn
-/// is std::true_type when `GetOutputTileIndex`-fn is well-formed, otherwise std::false_type.
+/**
+ * @brief Struct used to calculate offseted tile indexes.
+ * @note: The struct supports the 1D-Partitioner mechanism,
+ * enable-if `GetOutputTileIndex`-fn is std::true_type when `GetOutputTileIndex`-fn is well-formed,
+ * otherwise std::false_type.
+ */
 template <typename PartitionerFn,
           typename = typename std::enable_if_t<HasFnOneArgImpl<PartitionerFn>{}>>
-struct OffsetCallculation1DPartitioner
+struct OffsettedTile1DPartitioner
 {
-    /// @brief  Returns a `tuple` [Im, In] shifted index, used to shift 1d-tile index.
-    //  Note: The function subtracts the block's start (offset) from 1D raw-indexes.
+    /**
+     * @brief The function subtracts the block's start (offset) from 1D raw-indexes.
+     * @param [in] block_start is blockIdx.x - block_start.
+     * @return Returns a `tuple` [Im, In] shifted index, used to shift 1d-tile index.
+     */
     [[nodiscard]] CK_TILE_DEVICE static constexpr auto
     GetOffsetedTileIndex(index_t block_start) noexcept -> const tuple<index_t, index_t>
     {
