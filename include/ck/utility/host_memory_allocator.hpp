@@ -286,7 +286,7 @@ namespace memory {
             host_destruct_events_.insert({p, false});
         }
 
-        void destruct_host(void* p /*, std::function<void()>&& destructor*/) 
+        void destruct_host(void* p) 
         {
             std::lock_guard<std::mutex> lock(mutex_);
             host_destruct_events_[p] = true;
@@ -330,7 +330,6 @@ namespace memory {
 
         void deallocate(void* p) 
         {   
-            //destructors_[p]();
             host_destruct_events_.erase(p);
             auto* memory_pool = get_memory_pool();
             memory_pool->deallocate(p, allocated_memory_[p]);
@@ -394,15 +393,7 @@ namespace memory {
 
         void deallocate(T* p, std::size_t) 
         {    
-            // auto destructor = [&]() {
-            //     if constexpr (std::is_destructible_v<T>) 
-            //     {
-            //         for (size_t i = 0; i < n; ++i) {
-            //             p[i].~T();
-            //         }
-            //     }
-            // };
-            PinnedHostMemoryDeallocator::instance().destruct_host(p /*, std::move(destructor)*/);
+            PinnedHostMemoryDeallocator::instance().destruct_host(p);
         }
 
         template<typename U, typename... Args>
