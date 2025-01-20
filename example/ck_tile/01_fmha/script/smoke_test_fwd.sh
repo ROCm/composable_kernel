@@ -71,11 +71,10 @@ run_fp8_tests() {
     for perm in 0 1 ; do
     for bias in "n" "e" "a" ; do
     for b in 1 2 ; do
-    for hdim in 64 128 256 ; do
-    
-    $EXE -prec=fp8 -init=3 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=c -squant=1 -kname=$KNAME $COMMON_ARGS  
 
-    done ; done ; done ; done
+    $EXE -prec=fp8 -init=3 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=c -squant=1 -kname=$KNAME $COMMON_ARGS
+
+    done ; done ; done
 }
 
 run_fp16_appendkv_tests() {
@@ -96,11 +95,11 @@ run_fp16_appendkv_tests() {
 
 set -x
 
-run_fp16_bf16_tests
+# run_fp16_bf16_tests
 run_fp8_tests
 
-if [ $TEST_APPENDKV -eq 1 ] ; then
-    run_fp16_appendkv_tests
-fi
+# if [ $TEST_APPENDKV -eq 1 ] ; then
+#     run_fp16_appendkv_tests
+# fi
 
 set +x

@@ -236,10 +236,11 @@ struct numeric_traits<half_t>
     static constexpr uint16_t head_mask = 0xFC00;
     static constexpr uint16_t mant_mask = 0x3FF;
     static constexpr uint16_t exp_mask  = 0x1F;
-    static constexpr uint32_t Inf       = 0x7C00;
-    static constexpr uint32_t NegInf    = 0xFC00;
-    static constexpr uint32_t NaN       = 0x7C01;
-    static constexpr uint32_t Neg0      = 0x8000;
+    static constexpr uint16_t abs_mask  = 0x7FFF;
+    static constexpr uint16_t Inf       = 0x7C00;
+    static constexpr uint16_t NegInf    = 0xFC00;
+    static constexpr uint16_t NaN       = 0x7C01;
+    static constexpr uint16_t Neg0      = 0x8000;
     using bitwise_type                  = uint16_t;
 };
 
