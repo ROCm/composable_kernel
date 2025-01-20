@@ -7,9 +7,7 @@
 
 namespace ck_tile {
 
-/**
- * @brief Struct representing 2D block index mapping into 3D output tile space.
- */
+/** @brief Struct representing 2D block index mapping into 3D output tile space. */
 template <typename BlockGemmShapeType>
 struct GemmTile2DPartitioner
 {
@@ -19,9 +17,7 @@ struct GemmTile2DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    /**
-     * @brief Returns 2D gird size.
-     */
+    /** @brief Returns 2D grid size. */
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t batch_size) noexcept(
         noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
@@ -33,7 +29,7 @@ struct GemmTile2DPartitioner
 
     /**
      * @brief Returns the value of the ceiling.
-     * @param [in] K K is dimension
+     * @param [in] K is dimension
      */
     CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K) noexcept -> index_t
     {
@@ -42,7 +38,6 @@ struct GemmTile2DPartitioner
 
     /**
      * @brief The function returns 2D output tile space.
-     * @note  The `SetNBlock` must be called before calling this function.
      * @param [in] blockIdx is blockIdx.x
      * @param [in] blockIdy is blockIdx.y
      * @return Returns the output tile indexes.
@@ -69,10 +64,13 @@ struct GemmTile1DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    constexpr GemmTile1DPartitioner([[maybe_unused]] index_t N) {}
-    /**
-     * @brief Returns 1D grid size.
-     */
+    /** @brief delete default ctr without any object */
+    constexpr GemmTile1DPartitioner() noexcept = delete;
+
+    /** @brief onstructs an object that does contain a N value. */
+    constexpr GemmTile1DPartitioner(index_t N) noexcept { N_ = N; }
+
+    /** @brief Returns 1D grid size. */
     CK_TILE_HOST static constexpr auto
     GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
@@ -100,14 +98,7 @@ struct GemmTile1DPartitioner
     }
 
     /**
-     * @brief Set the N block size.
-     * @param [in] N is dimension
-     */
-    CK_TILE_DEVICE static constexpr auto SetNBlock(index_t N) noexcept -> void { N_ = N; }
-
-    /**
      * @brief The function returns 2D output tile space.
-     * @note  The `SetNBlock`-fn  must be called before calling this function.
      * @param [in] blockIdx is blockIdx.x - block_start.
      * */
     CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx) noexcept
@@ -166,13 +157,14 @@ struct OffsettedTile1DPartitioner
 {
     /**
      * @brief The function subtracts the block's start (offset) from 1D raw-indexes.
-     * @param [in] block_start is blockIdx.x - block_start.
+     * @param [in] block_start is `blockIdx.x - block_start`.
      * @return Returns a `tuple` [Im, In] shifted index, used to shift 1d-tile index.
      */
     [[nodiscard]] CK_TILE_DEVICE static constexpr auto
     GetOffsetedTileIndex(index_t block_start) noexcept -> const tuple<index_t, index_t>
     {
-        const auto [iM, iN] = PartitionerFn::GetOutputTileIndex(blockIdx.x - block_start);
+        PartitionerFn partioner(blockIdx.x - block_start);
+        const auto [iM, iN] = partioner.GetOutputTileIndex(blockIdx.x - block_start);
         return make_tuple(iM, iN);
     }
 };
