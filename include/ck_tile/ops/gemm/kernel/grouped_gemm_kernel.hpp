@@ -139,7 +139,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     CK_TILE_DEVICE void Run(const GemmTransKernelArg& kargs) const
     {
-        const auto [iM, iN] = OffsetTile1DPartitioner::GetOffsetedTileIndex(kargs.block_start);
+        const auto [iM, iN] =
+            OffsetTile1DPartitioner::GetOffsetedTileIndex(kargs.block_start, kargs.group_karg.N);
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
@@ -166,7 +167,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
         index_t left     = 0;
         index_t right    = group_count;
-        index_t group_id = index_t((left + right) / 2);
+        index_t group_id = index_t((left + right) >> 1);
 
         while((!(block_id >= gemm_desc_ptr[group_id].block_start &&
                  block_id < gemm_desc_ptr[group_id].block_end)) &&

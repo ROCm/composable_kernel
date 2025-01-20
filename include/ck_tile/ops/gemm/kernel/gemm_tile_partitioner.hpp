@@ -64,10 +64,10 @@ struct GemmTile1DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    /** @brief delete default ctr without any object */
+    /** @brief delete default ctr with no any object */
     constexpr GemmTile1DPartitioner() noexcept = delete;
 
-    /** @brief onstructs an object that does contain a N value. */
+    /** @brief constructs an object that does contain a N value. */
     constexpr GemmTile1DPartitioner(index_t N) noexcept { N_ = N; }
 
     /** @brief Returns 1D grid size. */
@@ -160,11 +160,12 @@ struct OffsettedTile1DPartitioner
      * @param [in] block_start is `blockIdx.x - block_start`.
      * @return Returns a `tuple` [Im, In] shifted index, used to shift 1d-tile index.
      */
-    [[nodiscard]] CK_TILE_DEVICE static constexpr auto
-    GetOffsetedTileIndex(index_t block_start) noexcept -> const tuple<index_t, index_t>
+    [[nodiscard]] CK_TILE_DEVICE static constexpr auto GetOffsetedTileIndex(index_t block_start,
+                                                                            index_t N) noexcept
+        -> const tuple<index_t, index_t>
     {
-        PartitionerFn partioner(blockIdx.x - block_start);
-        const auto [iM, iN] = partioner.GetOutputTileIndex(blockIdx.x - block_start);
+        // PartitionerFn partioner(N);
+        const auto [iM, iN] = PartitionerFn(N).GetOutputTileIndex(blockIdx.x - block_start);
         return make_tuple(iM, iN);
     }
 };
