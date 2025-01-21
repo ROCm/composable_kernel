@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -29,24 +29,13 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t VectorSizeA = Problem::VectorSizeA;
-    static constexpr index_t VectorSizeB = Problem::VectorSizeB;
-    static constexpr index_t VectorSizeC = Problem::VectorSizeC;
+    static constexpr index_t VectorSizeA = Policy::template GetVectorSizeA<Problem>();
+    static constexpr index_t VectorSizeB = Policy::template GetVectorSizeB<Problem>();
+    static constexpr index_t VectorSizeC = Policy::template GetVectorSizeC<Problem>();
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
-
-    CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
-    {
-        return integer_divide_ceil(
-                   sizeof(ADataType) *
-                       Policy::template MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
-                   16) *
-                   16 +
-               sizeof(BDataType) *
-                   Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
-    }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
