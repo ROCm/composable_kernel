@@ -170,21 +170,17 @@ struct UniversalGemmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
     {
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-
-        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        // TODO: this not alwyas has to be ture, sometimes we may want different KPack value.
-        return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock>();
+        using BlockGemm         = decltype(GetBlockGemm<Problem>());
+        constexpr index_t KPack = BlockGemm::Traits::KPack;
+        return KPack;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
     {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
-
-        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        // TODO: this not alwyas has to be ture, sometimes we may want different KPack value.
-        return GetGlobalVectorLoadSize<Problem, BDataType, NPerBlock>();
+        using BlockGemm         = decltype(GetBlockGemm<Problem>());
+        constexpr index_t KPack = BlockGemm::Traits::KPack;
+        return KPack;
     }
 
     template <typename Problem>
