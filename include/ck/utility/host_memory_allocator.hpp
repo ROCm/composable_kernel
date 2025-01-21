@@ -235,7 +235,8 @@ namespace memory {
     class MemoryCleanupThread 
     {
     public:
-        MemoryCleanupThread(std::function<void()> cleanup_function) : cleanup_callback_(cleanup_function), cleanup_interval_ms_(defaultCleanupIntervalMs_)
+        MemoryCleanupThread(std::function<void()> cleanup_function) 
+        : cleanup_callback_(cleanup_function), cleanup_interval_ms_(defaultCleanupIntervalMs_), enableLogging_(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
         {
             if (!ck::EnvIsUnset(CK_ENV(CK_PINNED_HOST_MEM_POOL_GC_INTERVAL_MS)))
             {
@@ -285,6 +286,7 @@ namespace memory {
         std::thread cleanup_thread_;
         bool should_stop_{false};
         size_t cleanup_interval_ms_;
+        bool enableLogging_;
     };
 
     class PinnedHostMemoryDeallocator : public PinnedHostMemoryAllocatorBase
@@ -319,7 +321,7 @@ namespace memory {
         void deallocate_all() 
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            std::vector<void*> keys;
+            std::vector<const void*> keys;
             keys.reserve(allocated_memory_.size());
             for (const auto& [p, _] : allocated_memory_) {
                 keys.push_back(p);
@@ -341,22 +343,22 @@ namespace memory {
 
     private:
         std::mutex mutex_;
-        std::map<void*, std::size_t> allocated_memory_;
-        std::map<void*, bool> host_destruct_events_;
-        std::map<void*, hipEvent_t> device_destruct_events_;
+        std::map<const void*, std::size_t> allocated_memory_;
+        std::map<const void*, bool> host_destruct_events_;
+        std::map<const void*, hipEvent_t> device_destruct_events_;
         MemoryCleanupThread cleanup_thread_;
 
-        void deallocate(void* p) 
+        void deallocate(const void* p) 
         {   
             auto* memory_pool = get_memory_pool();
-            memory_pool->deallocate(p, allocated_memory_[p]);
+            memory_pool->deallocate(const_cast<void*>(p), allocated_memory_[p]);
             hip_check_error(hipEventDestroy(device_destruct_events_[p]));
             host_destruct_events_.erase(p);
             device_destruct_events_.erase(p);
             allocated_memory_.erase(p);
         }
 
-        bool canDeallocate(void* p) 
+        bool canDeallocate(const void* p) 
         {
             const bool can_deallocate_on_host = host_destruct_events_[p];
 
