@@ -59,7 +59,7 @@ set(PROFILER_SOURCES
 #   list(APPEND PROFILER_SOURCES profile_gemm_splitk.cpp)
   # list(APPEND PROFILER_SOURCES profile_gemm_universal.cpp)
   list(APPEND PROFILER_SOURCES profile_gemm_b_scale.cpp)
-  list(APPEND PPRFILER_SOURCES profile_batched_gemm_b_scale.cpp)
+  list(APPEND PROFILER_SOURCES profile_batched_gemm_b_scale.cpp)
 #   list(APPEND PROFILER_SOURCES profile_gemm_universal_batched.cpp)
 #   list(APPEND PROFILER_SOURCES profile_gemm_universal_reduce.cpp)
 #   list(APPEND PROFILER_SOURCES profile_gemm_universal_streamk.cpp)

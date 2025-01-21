@@ -88,8 +88,8 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
         Scale_Stride_BN,
         BatchStrideScaleB,
         BLayout{}));
-    Tensor<CDataType> c_g_m_n_host_result(BatchSize, f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<CDataType> c_g_m_n_device_result(BatchSize, f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_g_m_n_host_result(f_host_tensor_descriptor(BatchSize, M, N, StrideC, BatchStrideC, CLayout{}));
+    Tensor<CDataType> c_g_m_n_device_result(f_host_tensor_descriptor(BatchSize, M, N, StrideC, BatchStrideC, CLayout{}));
 
     int total_gemm_needed = a_g_m_k.GetElementSpaceSizeInBytes() +
                             b_g_k_n.GetElementSpaceSizeInBytes() +
@@ -172,7 +172,7 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
             {
                 for(int k = 0; k < K; k++)
                 {
-                    ck::pk_i4_t i4x2 = b_k_n(k, n).data;
+                    ck::pk_i4_t i4x2 = b_g_k_n(bs, k, n).data;
                     int8_t i4        = 0;
                     if(k % 2 == 1)
                         i4 = (i4x2.data >> 0) & 0xf;
@@ -227,7 +227,7 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
             int K0 = K / KPerBlock;
 
             // int K0, N, K1
-            for(int bs = 0; bs < batch_count; bs++)
+            for(int bs = 0; bs < BatchSize; bs++)
             {
                 for(int j = 0; j < K0; j++)
                 {
@@ -245,7 +245,7 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
             if(is_same_v<BDataType, pk_i4_t> && is_same_v<ADataType, half_t>)
             {
                 // vector pk_i4x4 permute
-                for(int bs = 0; bs < batch_count; bs++)
+                for(int bs = 0; bs < BatchSize; bs++)
                 {
                     for(int i = 0; i < N; i++)
                     {

@@ -85,7 +85,7 @@ int profile_batched_gemm_b_scale(int argc, char* argv[])
     const int BatchStrideA      = M * N;
     const int BatchStrideB      = N * K;
     const int BatchStrideC      = M * N;
-    const int BatchStrideScaleB = (K + B_scale_block -1)/B_scale_block * N;
+    const int BatchStrideScaleB = (K + static_cast<int>(B_scale_block) -1)/static_cast<int>(B_scale_block) * N;
     const int BatchSize         = std::stoi(argv[15]);
 
     const int KBatch  = std::stoi(argv[16]);
