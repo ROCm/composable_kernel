@@ -249,19 +249,19 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
             
-            static_assert((is_a_col_major ? 
-                  (MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}]
-                   KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}]) &&
+            static_assert(is_a_col_major ? 
+                  (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                   MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}])
                   :
-                  (MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}]
-                   KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}]),
+                  (MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                   KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                    "A block window has incorrect lengths for defined ALayout!");
-            static_assert((is_b_row_major ? 
-                  (KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}]
-                   NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]) &&
+            static_assert(is_b_row_major ? 
+                  (KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                   NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
                   :
-                  (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]
-                   KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}]),
+                  (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                   KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]), 
                    "B block window has incorrect lengths for defined BLayout!");
 
             // ------------------------------------------------------------------------------------
