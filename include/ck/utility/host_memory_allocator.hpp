@@ -320,11 +320,11 @@ namespace memory {
         {
             std::lock_guard<std::mutex> lock(mutex_);
             std::vector<void*> keys;
-            for (const auto& [p, _] : allocated_memory_) 
-            {
+            keys.reserve(allocated_memory_.size());
+            for (const auto& [p, _] : allocated_memory_) {
                 keys.push_back(p);
             }
-            for (auto p : keys) 
+            for (const void* p : keys) 
             {
                 if (canDeallocate(p))
                 {
@@ -358,6 +358,13 @@ namespace memory {
 
         bool canDeallocate(void* p) 
         {
+            const bool can_deallocate_on_host = host_destruct_events_[p];
+
+            if (!can_deallocate_on_host) 
+            {
+                return false;
+            }
+            
             bool can_deallocate_on_device = false;
             hipError_t state = hipEventQuery(device_destruct_events_[p]);
             if (state == hipSuccess) 
@@ -369,7 +376,6 @@ namespace memory {
                 throw std::runtime_error("Error querying event state: " + std::to_string(state));
             }
 
-            const bool can_deallocate_on_host = host_destruct_events_[p];
             return can_deallocate_on_device && can_deallocate_on_host;
         }
     };
