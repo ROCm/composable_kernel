@@ -12,13 +12,11 @@ for prec in "fp16" "bf16" ; do
 for perm in 0 1 ; do
 for hdim in 128 ; do
 for v3_atomic_fp32 in 0 1 ; do
-for v3_spec in 0 1 ; do
 for mask in 0 1 ; do
 
-$EXE -prec=$prec -b=4 -h=2 -d=$hdim -s=512 -iperm=$perm -operm=$perm -mask=$mask -bwd_v3=1 -v3_atomic_fp32=$v3_atomic_fp32 -v3_spec=$v3_spec -mode=0 -kname=$KNAME $COMMON_ARGS
-$EXE -prec=$prec -b=1 -h=3 -d=$hdim -s=768 -iperm=$perm -operm=$perm -mask=$mask -bwd_v3=1 -v3_atomic_fp32=$v3_atomic_fp32 -v3_spec=$v3_spec -mode=0 -kname=$KNAME $COMMON_ARGS
+$EXE -prec=$prec -b=4 -h=2 -d=$hdim -s=512 -iperm=$perm -operm=$perm -mask=$mask -bwd_v3=1 -v3_atomic_fp32=$v3_atomic_fp32 -mode=0 -kname=$KNAME $COMMON_ARGS
+$EXE -prec=$prec -b=1 -h=3 -d=$hdim -s=768 -iperm=$perm -operm=$perm -mask=$mask -bwd_v3=1 -v3_atomic_fp32=$v3_atomic_fp32 -mode=0 -kname=$KNAME $COMMON_ARGS
 
-done
 done
 done
 done

@@ -100,9 +100,6 @@ auto create_args(int argc, char* argv[])
             "v3_atomic_fp32",
             "1",
             "if set to 0 will use atomic fp16/bf16(w/o convert_dq kernel) when bwd_v3 is set to 1")
-        .insert("v3_spec",
-                "0",
-                "if set to 1 will call the specialized v3 kernel when bwd_v3 is set to 1")
         .insert("v3_bf16_cvt",
                 "1",
                 "float to bf16 convert type when bwd_v3 is set to 1, 0:RTNE; 1:RTNA; 2:RTZ");
@@ -211,7 +208,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bool deterministic  = arg_parser.get_bool("deterministic");
     bool bwd_v3         = arg_parser.get_bool("bwd_v3");
     bool v3_atomic_fp32 = arg_parser.get_bool("v3_atomic_fp32");
-    bool v3_spec        = arg_parser.get_bool("v3_spec");
     int v3_bf16_cvt     = arg_parser.get_int("v3_bf16_cvt");
 
     ck_tile::stream_config stream_config{nullptr,
@@ -454,7 +450,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        deterministic,
                                        bwd_v3,
                                        v3_atomic_fp32,
-                                       v3_spec,
                                        v3_bf16_cvt};
     auto fmha_args   = [&]() {
         assert(nhead % nhead_k == 0);

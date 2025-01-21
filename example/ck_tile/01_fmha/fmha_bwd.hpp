@@ -452,7 +452,6 @@ struct fmha_bwd_traits
     bool is_deterministic;
     bool uses_bwd_v3;
     bool is_v3_atomic_fp32;
-    bool is_v3_spec;
     int how_v3_bf16_cvt;
     // TODO: padding check is inside this api
 };
