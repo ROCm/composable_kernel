@@ -6,9 +6,9 @@
 
 struct ProblemSize final
 {
-    ck::index_t M = 128;
-    ck::index_t N = 128;
-    ck::index_t K = 512;
+    ck::index_t M = 256;
+    ck::index_t N = 256;
+    ck::index_t K = 2048;
 
     ck::index_t stride_A = K;
     ck::index_t stride_B = K;
@@ -221,6 +221,7 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     // weight permute
     if constexpr(PermuteB)
     {
+        printf("Permute B\n");
         int K1 = KPerBlock;
         int K0 = K / KPerBlock;
 
@@ -422,12 +423,12 @@ bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
     ProblemSize problem_size;
     ExecutionConfig config;
 
-    std::mt19937 gen(11939);
-    std::uniform_int_distribution<int> dis(0, 15);
+    // std::mt19937 gen(11939);
+    // std::uniform_int_distribution<int> dis(0, 15);
 
-    problem_size.M = 256 * (dis(gen) + 1);
-    problem_size.N = 128 * (dis(gen) + 1);
-    problem_size.K = 64 * (dis(gen) + 2);
+    // problem_size.M = 128 * (dis(gen) + 1);
+    // problem_size.N = 128 * (dis(gen) + 1);
+    // problem_size.K = 256 * (dis(gen) + 2);
 
     problem_size.stride_A = problem_size.K;
     problem_size.stride_B = problem_size.K;
@@ -445,7 +446,7 @@ bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc >= 10)
+    else if(argc >= 7)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
@@ -455,16 +456,16 @@ bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
         problem_size.N = std::stoi(argv[5]);
         problem_size.K = std::stoi(argv[6]);
 
-        problem_size.stride_A = std::stoi(argv[7]);
-        problem_size.stride_B = std::stoi(argv[8]);
-        problem_size.stride_C = std::stoi(argv[9]);
+        problem_size.stride_A = problem_size.K;
+        problem_size.stride_B = problem_size.K;
+        problem_size.stride_C = problem_size.N;
 
-        if(argc >= 11)
+        if(argc >= 7)
         {
             problem_size.batch_count = std::stoi(argv[10]);
         }
 
-        if(argc >= 12)
+        if(argc >= 8)
         {
             problem_size.KBatch = std::stoi(argv[11]);
         }
