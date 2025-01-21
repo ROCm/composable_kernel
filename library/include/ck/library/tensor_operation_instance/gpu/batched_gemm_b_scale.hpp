@@ -74,7 +74,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, pk_i4_t> &&
                      is_same_v<CDataType, half_t>)
         {
-            if constexpr(is_same_v<ALaouyt, Row> && is_same_v<BLayout, Col> &&
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<CLayout, Row>)
             {
                 add_device_batched_gemm_b_scale_xdl_f16_i4_f16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
