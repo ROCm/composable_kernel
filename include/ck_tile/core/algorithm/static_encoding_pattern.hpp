@@ -14,7 +14,7 @@
 namespace ck_tile {
 
 /**
- * @brief Enumeration describing tile distribution patterns.
+ * @brief Enumeration describing static tile distribution patterns.
  *
  */
 enum struct tile_distribution_pattern
@@ -34,8 +34,6 @@ enum struct tile_distribution_pattern
      *
      */
     block_raked,
-    // TODO pattern taking into account MFMA attributes:
-    // block_fmha_pipeline_qx_ks_vs_custom_policy.hpp::51 MakeQDramTileDistribution()
 };
 
 struct TileDistributionEcodingPattern
@@ -73,27 +71,27 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     : public TileDistributionEcodingPattern
 {
 
+    // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
+    static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
+    static constexpr index_t warp_size = get_warp_size();
+    static constexpr index_t num_warps = BlockSize / get_warp_size();
+    static constexpr index_t X1        = VecSize;
+    static constexpr index_t X0        = XPerTile / X1; // # of threads in X dim
+
+    // # of rows in Y dim accessed by single wavefront in one iteration
+    static constexpr index_t Y1 = warp_size / X0;
+    static_assert(X0 * Y1 == warp_size, "X0 * Y1 must cover whole wavefront!");
+
+    static constexpr index_t Y0 = num_warps;
+    //  YPerWarp = YPerTile / Y0;
+    //  Y2 = YPerWarp / Y1;
+    static constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters within wavefront
+
+    static_assert(X0 * Y1 * Y0 == BlockSize, "X0 * warp_ys * Y0 must cover whole workgroup!");
+    static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
+
     CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
     {
-        // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
-        static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
-        constexpr index_t warp_size = get_warp_size();
-        constexpr index_t num_warps = BlockSize / get_warp_size();
-        constexpr index_t X1        = VecSize;
-        constexpr index_t X0        = XPerTile / X1; // # of threads in X dim
-
-        // # of rows in Y dim accessed by single wavefront in one iteration
-        constexpr index_t Y1 = warp_size / X0;
-        static_assert(X0 * Y1 == warp_size, "X0 * Y1 must cover whole wavefront!");
-
-        constexpr index_t Y0 = num_warps;
-        //  YPerWarp = YPerTile / Y0;
-        //  Y2 = YPerWarp / Y1;
-        constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters within wavefront
-
-        static_assert(X0 * Y1 * Y0 == BlockSize, "X0 * warp_ys * Y0 must cover whole workgroup!");
-        static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
-
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
                                        tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
@@ -101,6 +99,17 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                        tuple<sequence<0>, sequence<1, 0>>,
                                        sequence<1, 2>,
                                        sequence<2, 1>>{});
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffled2DStaticTileDistribution()
+    {
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
+                                       tuple<sequence<2>, sequence<2, 1>>,
+                                       tuple<sequence<0>, sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<1, 2>>{});
     }
 };
 
@@ -113,27 +122,39 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                          tile_distribution_pattern::warp_raked>
     : public TileDistributionEcodingPattern
 {
+
+    static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
+    static constexpr index_t warp_size = get_warp_size();
+    static constexpr index_t num_warps = BlockSize / get_warp_size();
+    static constexpr index_t X1        = VecSize;
+    static constexpr index_t X0        = XPerTile / X1; // # of threads in X dim
+
+    static constexpr index_t Y2 = warp_size / X0; // # of rows in Y dim to cover whole wavefront
+    static_assert(X0 * Y2 == warp_size, "X0 * Y2 must cover whole wavefront!");
+
+    static constexpr index_t Y0 = num_warps;
+    static_assert(X0 * Y2 * Y0 == BlockSize, "X0 * Y2 * Y1 must cover whole workgroup!");
+
+    static constexpr index_t Y1 = YPerTile / (Y2 * Y0); // # of iters within wavefront
+    static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
+
     CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
     {
-        static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
-        constexpr index_t warp_size = get_warp_size();
-        constexpr index_t num_warps = BlockSize / get_warp_size();
-        constexpr index_t X1        = VecSize;
-        constexpr index_t X0        = XPerTile / X1; // # of threads in X dim
-
-        constexpr index_t Y2 = warp_size / X0; // # of rows in Y dim to cover whole wavefront
-        static_assert(X0 * Y2 == warp_size, "X0 * Y2 must cover whole wavefront!");
-
-        constexpr index_t Y0 = num_warps;
-        static_assert(X0 * Y2 * Y0 == BlockSize, "X0 * Y2 * Y1 must cover whole workgroup!");
-
-        constexpr index_t Y1 = YPerTile / (Y2 * Y0); // # of iters within wavefront
-        static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
-
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
                                        tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
                                        tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<0>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<1, 1>>{});
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffled2DStaticTileDistribution()
+    {
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
+                                       tuple<sequence<2>, sequence<2, 1>>,
                                        tuple<sequence<0>, sequence<2, 0>>,
                                        sequence<1, 2>,
                                        sequence<1, 1>>{});
@@ -150,21 +171,21 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     : public TileDistributionEcodingPattern
 {
 
+    // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
+    static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
+    static constexpr index_t warp_size = get_warp_size();
+    static constexpr index_t num_warps = BlockSize / get_warp_size();
+    static constexpr index_t X1        = VecSize;
+    static constexpr index_t X0        = XPerTile / X1; // # of threads in X dim
+    static constexpr index_t Y2 = warp_size / X0; // # of rows in Y dim to cover whole wavefront
+    static_assert(X0 * Y2 == warp_size, "X0 * Y2 must cover whole wavefront!");
+    static constexpr index_t Y1 = num_warps;
+    static_assert(X0 * Y2 * Y1 == BlockSize, "X0 * Y2 * Y1 must cover whole workgroup!");
+    static constexpr index_t Y0 = YPerTile / (Y2 * Y1); // # of iters
+    static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
+
     CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
     {
-        // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
-        static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
-        constexpr index_t warp_size = get_warp_size();
-        constexpr index_t num_warps = BlockSize / get_warp_size();
-        constexpr index_t X1        = VecSize;
-        constexpr index_t X0        = XPerTile / X1;  // # of threads in X dim
-        constexpr index_t Y2        = warp_size / X0; // # of rows in Y dim to cover whole wavefront
-        static_assert(X0 * Y2 == warp_size, "X0 * Y2 must cover whole wavefront!");
-        constexpr index_t Y1 = num_warps;
-        static_assert(X0 * Y2 * Y1 == BlockSize, "X0 * Y2 * Y1 must cover whole workgroup!");
-        constexpr index_t Y0 = YPerTile / (Y2 * Y1);
-        static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
-
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
                                        tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
@@ -172,6 +193,17 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                        tuple<sequence<1>, sequence<2, 0>>,
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffled2DStaticTileDistribution()
+    {
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
+                                       tuple<sequence<2>, sequence<2, 1>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<1, 0>>{});
     }
 };
 
