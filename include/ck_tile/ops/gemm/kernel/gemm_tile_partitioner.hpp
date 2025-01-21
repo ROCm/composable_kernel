@@ -17,7 +17,7 @@ struct GemmTile2DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    /** @brief Returns 2D grid size. */
+    /** @brief Returns 3D grid size. */
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t batch_size) noexcept(
         noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
@@ -28,7 +28,7 @@ struct GemmTile2DPartitioner
     }
 
     /**
-     * @brief Returns the value of the ceiling.
+     * @brief Returns the number of loops.
      * @param [in] K is dimension
      */
     CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K) noexcept -> index_t
@@ -80,7 +80,7 @@ struct GemmTile1DPartitioner
     }
 
     /**
-     * @brief Returns the value of the ceiling.
+     * @brief Returns the number of blocks in N.
      * @param [in] N is dimension
      */
     CK_TILE_HOST_DEVICE static constexpr auto GetNBlock(index_t N) noexcept -> index_t
