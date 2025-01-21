@@ -164,7 +164,6 @@ struct OffsettedTile1DPartitioner
                                                                             index_t N) noexcept
         -> const tuple<index_t, index_t>
     {
-        // PartitionerFn partioner(N);
         const auto [iM, iN] = PartitionerFn(N).GetOutputTileIndex(blockIdx.x - block_start);
         return make_tuple(iM, iN);
     }
