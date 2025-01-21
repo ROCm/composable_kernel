@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,7 +8,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 
 namespace ck_tile {
 
@@ -141,7 +140,9 @@ struct GemmKernel
 
     CK_TILE_DEVICE void operator()(GemmCommonKargs kargs) const
     {
-        const auto [i_m, i_n] = TilePartitioner{}();
+        const auto idxs = TilePartitioner{}();
+        const auto i_m  = idxs.at(number<0>{});
+        const auto i_n  = idxs.at(number<1>{});
         // options
         const ADataType* a_start = static_cast<const ADataType*>(kargs.a_ptr);
         const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr);
@@ -160,9 +161,9 @@ struct GemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     a_start,
-                    make_tuple(kargs.M, kargs.K),
-                    make_tuple(1, kargs.stride_A),
-                    number<1>{},
+                    make_tuple(kargs.K, kargs.M),
+                    make_tuple(kargs.stride_A, 1),
+                    number<GemmPipeline::VectorSizeA>{},
                     number<1>{});
             }
         }();
@@ -172,9 +173,9 @@ struct GemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     b_start,
-                    make_tuple(kargs.N, kargs.K),
-                    make_tuple(1, kargs.stride_B),
-                    number<1>{},
+                    make_tuple(kargs.K, kargs.N),
+                    make_tuple(kargs.stride_B, 1),
+                    number<GemmPipeline::VectorSizeB>{},
                     number<1>{});
             }
             else
@@ -200,16 +201,27 @@ struct GemmKernel
             {
                 return pad_tensor_view(
                     a_tensor_view,
-                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
-                    sequence<GemmPipeline::kPadM, false>{});
+                    make_tuple(number<TilePartitioner::kK>{}, number<TilePartitioner::kM>{}),
+                    sequence<false, GemmPipeline::kPadM>{});
             }
         }();
-        // clang-format on
 
-        auto a_block_window = make_tile_window(
-            a_pad_view,
-            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
-            {i_m, 0});
+        auto a_block_window = [&]() {
+            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+            {
+                return make_tile_window(
+                    a_pad_view,
+                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
+                    {i_m, 0});
+            }
+            else
+            {
+                return make_tile_window(
+                    a_pad_view,
+                    make_tuple(number<TilePartitioner::kK>{}, number<TilePartitioner::kM>{}),
+                    {0, i_m});
+            }
+        }();
 
         auto b_pad_view = [&]() {
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
@@ -223,15 +235,27 @@ struct GemmKernel
             {
                 return pad_tensor_view(
                     b_tensor_view,
-                    make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
-                    sequence<GemmPipeline::kPadN, false>{});
+                    make_tuple(number<TilePartitioner::kK>{}, number<TilePartitioner::kN>{}),
+                    sequence<false, GemmPipeline::kPadN>{});
             }
         }();
 
-        auto b_block_window = make_tile_window(
-            b_pad_view,
-            make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
-            {i_n, 0});
+        auto b_block_window = [&]() {
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+            {
+                return make_tile_window(
+                    b_pad_view,
+                    make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
+                    {i_n, 0});
+            }
+            else
+            {
+                return make_tile_window(
+                    b_pad_view,
+                    make_tuple(number<TilePartitioner::kK>{}, number<TilePartitioner::kN>{}),
+                    {0, i_n});
+            }
+        }();
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
