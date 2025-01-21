@@ -30,7 +30,7 @@ struct meta_data_buffer
         {
             constexpr index_t size = sizeof(T);
 
-            auto tmp = bit_cast<array<std::byte, size>>(data);
+            auto tmp = ck_tile::bit_cast<array<std::byte, size>>(data);
 
             for(int i = 0; i < size; i++)
             {
@@ -66,7 +66,7 @@ struct meta_data_buffer
                 pos++;
             }
 
-            data = bit_cast<T>(tmp);
+            data = ck_tile::bit_cast<T>(tmp);
         }
 
         return data;
@@ -86,7 +86,7 @@ struct meta_data_buffer
             pos++;
         }
 
-        auto data = bit_cast<T>(tmp);
+        auto data = ck_tile::bit_cast<T>(tmp);
 
         return data;
     }

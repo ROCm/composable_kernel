@@ -19,7 +19,27 @@ echo 'Host name: ' $host_name
 export GPU_arch=$4
 echo 'GPU_arch: ' $GPU_arch
 
-# run verification tests
-example/ck_tile/03_gemm/script/smoke_test.sh
+function print_log_header(){
+    rm -f $1;
+    echo 'On branch ' $3 &> $1;
+    echo 'Node name: ' $4 >> $1;
+    # get GPU architecture and compute units from rocminfo
+    echo -n "GPU_arch: " >> $1; rocminfo | grep "Name:" | grep "gfx" >> $1;
+    rocminfo | grep "Compute Unit:" >> $1;
+    hipcc --version | grep -e 'HIP version'  >> $1;
+    echo 'Environment type: ' $2 >> $1;
+    /opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> $1;
+}
 
-# We do not have a performance benchmark for gemm yet. Will add it in the future.
+# run verification tests
+example/ck_tile/03_gemm/script/smoke_test_basic.sh
+example/ck_tile/03_gemm/script/smoke_test_mem_pipeline.sh
+
+# run performance benchmarks
+export gemm_basic_log="perf_tile_gemm_basic_fp16_$GPU_arch.log"
+print_log_header $gemm_basic_log $env_type $branch $host_name
+example/ck_tile/03_gemm/script/benchmark_basic.sh 2>&1 | tee -a $gemm_basic_log
+
+export gemm_mem_pipeline_log="perf_tile_gemm_mem_pipeline_fp16_$GPU_arch.log"
+print_log_header $gemm_mem_pipeline_log $env_type $branch $host_name
+example/ck_tile/03_gemm/script/benchmark_mem_pipeline.sh 2>&1 | tee -a $gemm_mem_pipeline_log
