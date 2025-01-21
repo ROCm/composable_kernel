@@ -107,22 +107,12 @@ struct GemmTile1DPartitioner
         const index_t NBlock = GetNBlock(N_);
 
         const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx / NBlock);
-        const index_t iN = __builtin_amdgcn_readfirstlane(modulo(blockIdx, NBlock));
+        const index_t iN = __builtin_amdgcn_readfirstlane(blockIdx - (iM)*NBlock);
         return make_tuple(iM, iN);
     }
 
     private:
     CK_TILE_DEVICE static index_t N_;
-
-    /**
-     * @brief Return modulo value.
-     * @note  The function avoids using the % modulo operator
-     */
-    [[nodiscard]] CK_TILE_DEVICE static auto constexpr modulo(index_t input, index_t ceil) noexcept
-        -> index_t
-    {
-        return input >= ceil ? input - (input / ceil) * ceil : input;
-    }
 };
 
 /**
