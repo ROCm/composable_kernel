@@ -101,9 +101,12 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     CK_TILE_DEVICE void operator()(BatchedGemmKernelArgs kargs) const
     {
-        const auto [i_m, i_n] = TilePartitioner{}();
-        const auto i_batch    = __builtin_amdgcn_readfirstlane(blockIdx.z / kargs.KBatch);
-        const auto i_k        = __builtin_amdgcn_readfirstlane(blockIdx.z - i_batch * kargs.KBatch);
+        const auto [iM, iN] = TilePartitioner::GetOutputTileIndex(blockIdx.x, blockIdx.y);
+        const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+
+        const auto i_batch = __builtin_amdgcn_readfirstlane(blockIdx.z / kargs.KBatch);
+        const auto i_k     = __builtin_amdgcn_readfirstlane(blockIdx.z - i_batch * kargs.KBatch);
 
         const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, i_k);
 
