@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -48,6 +48,7 @@ struct Layernorm2dFwdPipelineDefaultPolicy
         using P_ = BlockNormReduceProblem<typename Problem::ComputeDataType,
                                           typename Problem::ComputeDataType,
                                           typename Problem::BlockShape,
+                                          true,
                                           Problem::Traits::kFastFDiv,
                                           Problem::Traits::kWelford>;
         return BlockNormReduce<P_>{};
@@ -59,6 +60,7 @@ struct Layernorm2dFwdPipelineDefaultPolicy
         using P_ = BlockNormReduceProblem<typename Problem::ComputeDataType,
                                           typename Problem::ComputeDataType,
                                           typename Problem::BlockShape,
+                                          true,
                                           Problem::Traits::kFastFDiv,
                                           Problem::Traits::kWelford>;
 
@@ -71,6 +73,7 @@ struct Layernorm2dFwdPipelineDefaultPolicy
         using P_ = BlockNormReduceProblem<typename Problem::ComputeDataType,
                                           typename Problem::ComputeDataType,
                                           typename Problem::BlockShape,
+                                          true,
                                           Problem::Traits::kFastFDiv,
                                           Problem::Traits::kWelford>;
 
@@ -85,6 +88,7 @@ struct Layernorm2dFwdPipelineDefaultPolicy
             using P_ = BlockNormReduceProblem<typename Problem::ComputeDataType,
                                               typename Problem::ComputeDataType,
                                               typename Problem::BlockShape,
+                                              true,
                                               Problem::Traits::kFastFDiv,
                                               Problem::Traits::kWelford>;
 
