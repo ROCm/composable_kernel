@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -170,18 +170,18 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
     using I = ck::Number<N>;
 
     using ABlockTransferThreadClusterArrageOrder =
-        std::conditional_t<std::is_same_v<ALayout, Row>, S<0, 2, 1, 3>, S<0, 1, 3, 2>>;
+        std::conditional_t<std::is_same_v<ALayout, Row>, S<1, 0, 2>, S<0, 2, 1>>;
     using ABlockTransferSrcAccessOrder =
-        std::conditional_t<std::is_same_v<ALayout, Row>, S<0, 2, 1, 3>, S<0, 1, 3, 2>>;
+        std::conditional_t<std::is_same_v<ALayout, Row>, S<1, 0, 2>, S<0, 2, 1>>;
     using ABlockTransferSrcVectorDim = std::conditional_t<std::is_same_v<ALayout, Row>, I<3>, I<2>>;
     using ABlockTransferDstScalarPerVector_K1 =
         std::conditional_t<std::is_same_v<ALayout, Row>, I<8>, I<2>>;
     using ABlockLdsAddExtraM = std::conditional_t<std::is_same_v<ALayout, Row>, I<1>, I<0>>;
 
     using BBlockTransferThreadClusterArrageOrder =
-        std::conditional_t<std::is_same_v<BLayout, Row>, S<0, 1, 3, 2>, S<0, 2, 1, 3>>;
+        std::conditional_t<std::is_same_v<BLayout, Row>, S<0, 2, 1>, S<1, 0, 2>>;
     using BBlockTransferSrcAccessOrder =
-        std::conditional_t<std::is_same_v<BLayout, Row>, S<0, 1, 3, 2>, S<0, 2, 1, 3>>;
+        std::conditional_t<std::is_same_v<BLayout, Row>, S<0, 2, 1>, S<1, 0, 2>>;
     using BBlockTransferSrcVectorDim = std::conditional_t<std::is_same_v<BLayout, Row>, I<2>, I<3>>;
     using BBlockTransferDstScalarPerVector_K1 =
         std::conditional_t<std::is_same_v<ALayout, Row>, I<2>, I<8>>;
@@ -214,14 +214,14 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
             32,
             4,
             2,
-            S<1, 4, 16, 1>,
+            S<4, 16, 1>,
             ABlockTransferThreadClusterArrageOrder,
             ABlockTransferSrcAccessOrder,
             ABlockTransferSrcVectorDim::value,
             ABlockTransferSrcScalarPerVector,
             ABlockTransferDstScalarPerVector_K1::value,
             ABlockLdsAddExtraM::value,
-            S<1, 4, 16, 1>,
+            S<4, 16, 1>,
             BBlockTransferThreadClusterArrageOrder,
             BBlockTransferSrcAccessOrder,
             BBlockTransferSrcVectorDim::value,
@@ -230,7 +230,7 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
             BBlockLdsAddExtraM::value,
             1,
             1,
-            S<1, 16, 1, 8>,
+            S<16, 1, 8>,
             CDEBlockTransferScalarPerVector_NPerBlock>;
 
     bool IsSupported(const std::vector<int>& Ms,
