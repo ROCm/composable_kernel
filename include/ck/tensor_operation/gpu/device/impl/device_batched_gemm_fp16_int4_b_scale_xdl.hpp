@@ -869,6 +869,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
                              index_t BatchStrideScaleB,
                              const BScaleDataType* p_b_scale,
                              index_t Batch,
+                             index_t KBatch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
@@ -889,6 +890,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
                         BatchStrideScaleB,
                         p_b_scale,
                         Batch,
+                        KBatch,
                         a_element_op,
                         b_element_op,
                         c_element_op};
@@ -913,6 +915,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
                                                       index_t BatchStrideScaleB,
                                                       const void* p_b_scale,
                                                       index_t Batch,
+                                                      index_t KBatch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op) override
@@ -933,6 +936,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
                                           BatchStrideScaleB,
                                           static_cast<const BScaleDataType*>(p_b_scale),
                                           Batch,
+                                          KBatch,
                                           a_element_op,
                                           b_element_op,
                                           c_element_op);

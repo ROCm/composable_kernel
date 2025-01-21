@@ -75,6 +75,7 @@ struct DeviceBatchedGemm_BScale : public BaseOperator
                         ck::index_t BatchStrideScaleB,                        
                         const void* p_b_scale,
                         ck::index_t Batch,
+                        ck::index_t KBatch,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CElementwiseOperation c_element_op) = 0;

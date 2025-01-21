@@ -422,12 +422,12 @@ bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
     ProblemSize problem_size;
     ExecutionConfig config;
 
-    // std::mt19937 gen(11939);
-    // std::uniform_int_distribution<int> dis(0, 15);
+    std::mt19937 gen(11939);
+    std::uniform_int_distribution<int> dis(0, 15);
 
-    // problem_size.M = 256 * (dis(gen) + 1);
-    // problem_size.N = 128 * (dis(gen) + 1);
-    // problem_size.K = 64 * (dis(gen) + 2);
+    problem_size.M = 256 * (dis(gen) + 1);
+    problem_size.N = 128 * (dis(gen) + 1);
+    problem_size.K = 64 * (dis(gen) + 2);
 
     problem_size.stride_A = problem_size.K;
     problem_size.stride_B = problem_size.K;
