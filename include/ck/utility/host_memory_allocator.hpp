@@ -16,7 +16,7 @@
 #include "unistd.h"
 
 CK_DECLARE_ENV_VAR_UINT64(CK_PINNED_HOST_MEM_POOL_SIZE_KB)
-
+CK_DECLARE_ENV_VAR_UINT64(CK_PINNED_HOST_MEM_POOL_GC_INTERVAL_MS)
 namespace ck {
 namespace memory {
 
@@ -235,11 +235,20 @@ namespace memory {
     class MemoryCleanupThread 
     {
     public:
-        MemoryCleanupThread(std::function<void()> cleanup_function) : cleanup_callback_(cleanup_function)
+        MemoryCleanupThread(std::function<void()> cleanup_function) : cleanup_callback_(cleanup_function), cleanup_interval_ms_(defaultCleanupIntervalMs_)
         {
+            if (!ck::EnvIsUnset(CK_ENV(CK_PINNED_HOST_MEM_POOL_GC_INTERVAL_MS)))
+            {
+                cleanup_interval_ms_ = ck::EnvValue(CK_ENV(CK_PINNED_HOST_MEM_POOL_GC_INTERVAL_MS));
+                if (enableLogging_)
+                {
+                    std::cout << "[ StaticMemPool ] Override of clean-up thread sleep time to " << cleanup_interval_ms_ << " ms." << std::endl;
+                }
+            }
+
             cleanup_thread_ = std::thread([this]() {
                 while (!should_stop_) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(cleanup_interval_ms_));
                     try 
                     {
                         cleanup_callback_();
@@ -271,9 +280,11 @@ namespace memory {
         MemoryCleanupThread(MemoryCleanupThread&&) noexcept = default;
         MemoryCleanupThread& operator=(MemoryCleanupThread&&) noexcept = default;
     private:
+        constexpr static size_t defaultCleanupIntervalMs_ = 50;
         std::function<void()> cleanup_callback_;
         std::thread cleanup_thread_;
         bool should_stop_{false};
+        size_t cleanup_interval_ms_;
     };
 
     class PinnedHostMemoryDeallocator : public PinnedHostMemoryAllocatorBase
