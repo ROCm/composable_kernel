@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,8 +31,8 @@ template <typename SliceLengths,
           typename DstDimAccessOrder,
           index_t SrcVectorDim,
           index_t DstVectorDim,
-          index_t SrcScalarPerVector,
-          index_t DstScalarPerVector,
+          index_t SrcScalarPerVector_,
+          index_t DstScalarPerVector_,
           index_t SrcScalarStrideInVector,
           index_t DstScalarStrideInVector,
           bool SrcResetCoordinateAfterRun, // control whether to move back src coordinate after each
@@ -53,7 +53,30 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
-    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I0  = Number<0>{};
+    static constexpr auto I1  = Number<1>{};
+    static constexpr auto I2  = Number<2>{};
+    static constexpr auto I3  = Number<3>{};
+    static constexpr auto I4  = Number<4>{};
+    static constexpr auto I5  = Number<5>{};
+    static constexpr auto I6  = Number<6>{};
+    static constexpr auto I7  = Number<7>{};
+    static constexpr auto I8  = Number<8>{};
+    static constexpr auto I10 = Number<10>{};
+    static constexpr auto I12 = Number<12>{};
+    static constexpr auto I13 = Number<13>{};
+    static constexpr auto I14 = Number<14>{};
+    static constexpr auto I16 = Number<16>{};
+
+    static constexpr index_t PackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
+    static constexpr auto SrcScalarPerVector = Number<SrcScalarPerVector_ / PackedSize>{};
+    static constexpr auto DstScalarPerVector = Number<DstScalarPerVector_ / PackedSize>{};
 
     __device__ constexpr ThreadwiseTensorSliceTransfer_v3r1(
         const SrcDesc& src_desc,
@@ -67,6 +90,17 @@ struct ThreadwiseTensorSliceTransfer_v3r1
           src_element_op_(src_element_op),
           dst_element_op_(dst_element_op)
     {
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        {
+            static_assert(is_same_v<remove_cvref_t<SrcData>, remove_cvref_t<DstData>>,
+                          "SrcData != DstData");
+
+            static_assert(
+                SrcScalarPerVector_ % PackedSize == 0 && DstScalarPerVector_ % PackedSize == 0,
+                "SrcScalarPerVector_ and DstScalarPerVector_ cannot be 1 for packed data type");
+
+            static_assert(SrcVectorDim == DstVectorDim, "pk_i4_t does not support transpose");
+        }
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -95,11 +129,11 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
-        static_assert(SliceLengths::At(SrcVectorDim) % SrcScalarPerVector == 0,
+        static_assert(SliceLengths::At(SrcVectorDim) % (SrcScalarPerVector_) == 0,
                       "SliceLengths[SrcVectorDim] must be divisible by SrcScalarPerVector");
 
         constexpr auto src_dim_access_order = SrcDimAccessOrder{};
@@ -177,12 +211,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, is_src_valid);
 
-            using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
-            using src_vector_t    = typename src_vector_type::type;
-
-            auto src_vector_container =
-                src_vector_type{src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), true)};
-
             using dst_vector_type = vector_type_maker_t<DstData, SrcScalarPerVector>;
             using dst_vector_t    = typename dst_vector_type::type;
             dst_vector_type op_r_v;
@@ -193,17 +221,22 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                     if constexpr(decltype(src_element_op_)::is_pack8_invocable)
                         return math::min(8, SrcScalarPerVector);
                 }
-                if constexpr(is_detected<is_pack4_invocable_t, decltype(src_element_op_)>::value)
+                else if constexpr(is_detected<is_pack4_invocable_t,
+                                              decltype(src_element_op_)>::value)
                 {
                     if constexpr(decltype(src_element_op_)::is_pack4_invocable)
                         return math::min(4, SrcScalarPerVector);
                 }
-                if constexpr(is_detected<is_pack2_invocable_t, decltype(src_element_op_)>::value)
+                else if constexpr(is_detected<is_pack2_invocable_t,
+                                              decltype(src_element_op_)>::value)
                 {
                     if constexpr(decltype(src_element_op_)::is_pack2_invocable)
                         return math::min(2, SrcScalarPerVector);
                 }
-                return 1;
+                else
+                {
+                    return 1;
+                }
             };
 
             constexpr index_t elem_op_vec_len = get_elem_op_vec_len();
@@ -211,11 +244,63 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             using src_elem_op_vec_t = typename vector_type<SrcData, elem_op_vec_len>::type;
             using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
 
-            static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto idx) {
-                // apply the src elementwise op and convert to DstData under the hood if needed
-                src_element_op_(op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                                src_vector_container.template AsType<src_elem_op_vec_t>()[idx]);
-            });
+            using VectorSizeLookupTable    = Tuple<Sequence<>,
+                                                Sequence<I1>,
+                                                Sequence<I2>,
+                                                Sequence<I2, I1>,
+                                                Sequence<I4>,
+                                                Sequence<I4, I1>,
+                                                Sequence<I4, I2>,
+                                                Sequence<I4, I2, I1>,
+                                                Sequence<I8>,
+                                                Sequence<I8, I1>,
+                                                Sequence<I8, I2>,
+                                                Sequence<I8, I2, I1>,
+                                                Sequence<I8, I4>,
+                                                Sequence<I8, I4, I1>,
+                                                Sequence<I8, I4, I2>,
+                                                Sequence<I8, I4, I2, I1>,
+                                                Sequence<I16>>;
+            using VectorOffsetsLookupTable = Tuple<Sequence<>,
+                                                   Sequence<I0>,
+                                                   Sequence<I0>,
+                                                   Sequence<I0, I2>,
+                                                   Sequence<I0>,
+                                                   Sequence<I0, I4>,
+                                                   Sequence<I0, I4>,
+                                                   Sequence<I0, I4, I6>,
+                                                   Sequence<I0>,
+                                                   Sequence<I0, I8>,
+                                                   Sequence<I0, I8>,
+                                                   Sequence<I0, I8, I10>,
+                                                   Sequence<I0, I8>,
+                                                   Sequence<I0, I8, I12>,
+                                                   Sequence<I0, I8, I12>,
+                                                   Sequence<I0, I8, I12, I14>,
+                                                   Sequence<I0>>;
+
+            static_for<0, tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>::Size(), 1>{}(
+                [&](auto v_idx) {
+                    constexpr auto VectorLoadSize =
+                        tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>::At(v_idx);
+                    constexpr auto LoadOffset =
+                        tuple_element_t<SrcScalarPerVector, VectorOffsetsLookupTable>::At(v_idx);
+
+                    using src_vector_container   = vector_type_maker_t<SrcData, VectorLoadSize>;
+                    using src_vector_container_t = typename src_vector_container::type;
+
+                    src_vector_container src_vector =
+                        src_vector_container{src_buf.template Get<src_vector_container_t>(
+                            src_coord_.GetOffset() / PackedSize + LoadOffset, true)};
+
+                    static_for<0, VectorLoadSize / elem_op_vec_len, 1>{}([&](auto idx) {
+                        // apply the src elementwise op and convert to DstData under the hood if
+                        // needed
+                        src_element_op_(
+                            op_r_v.template AsType<dst_elem_op_vec_t>()(idx + LoadOffset),
+                            src_vector.template AsType<src_elem_op_vec_t>()[idx]);
+                    });
+                });
 
             // copy data from src_vector_container into src_thread_scratch_
             src_thread_scratch_tuple_(thread_scratch_id)
@@ -276,10 +361,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             dst_thread_scratch_(idx) = src_thread_scratch_tuple_[thread_scratch_id][idx];
         });
 #else
-
         // OOB Check
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -350,6 +434,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                       (is_same<f8_t, remove_cvref_t<DstData>>::value &&
                        SrcScalarPerVector % 4 == 0 && DstScalarPerVector % 4 == 0)))
         {
+            static_assert(!is_same_v<remove_cvref_t<SrcData>, pk_i4_t>,
+                          "in-register transpose is not supported for pk_i4_t");
             // each transpose does
             // DstScalarPerVector # of src vectors in src_thread_scratch_
             // SrcScalarPerVector # of dst vectors in dst_thread_scratch_
@@ -410,7 +496,12 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         }
         else
         {
-            static_ford<SliceLengths>{}([&](auto idx) {
+            constexpr auto packed_per_access = generate_sequence(
+                detail::lambda_scalar_per_access<SrcVectorDim, PackedSize>{}, Number<nDim>{});
+
+            constexpr auto packed_access_lengths = SliceLengths{} / packed_per_access;
+
+            static_ford<decltype(packed_access_lengths)>{}([&](auto idx) {
                 dst_thread_scratch_(idx) = src_thread_scratch_tuple_[thread_scratch_id][idx];
             });
         }
@@ -438,7 +529,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         // src scalar per access on each dim
         // TODO: don't use this
         constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
 
@@ -526,13 +617,11 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
                 // apply DstElementwiseOperation
                 dst_element_op_(dst_v, dst_vector_container.template AsType<DstData>()[i]);
-
-                dst_vector_container.template AsType<DstData>()(i) = dst_v;
             });
 
             // copy data from dst_vector_container to dst_buf
             dst_buf.template Set<dst_vector_t>(
-                dst_coord_.GetOffset(),
+                dst_coord_.GetOffset() / PackedSize,
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
@@ -586,7 +675,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -644,7 +733,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
 
@@ -730,7 +819,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     __device__ static constexpr auto GetSrcThreadScratchDescriptor()
     {
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -779,7 +868,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     __device__ static constexpr auto GetSrcOOBThreadScratchDescriptor()
     {
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -790,7 +879,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     {
         // 1st stage of transforms
         constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector_>{}, Number<nDim>{});
 
         constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
 

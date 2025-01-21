@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -12,7 +12,7 @@ namespace ck_tile {
 struct MoeSmoothquantHostArgs
 {
     const void* p_x;        // [tokens ,hidden_size], input, fp16/bf16
-    const void* p_xscale;   // [experts, hidden_size], input, columnwise scale, fp32
+    const void* p_smscale;  // [experts, hidden_size], input, columnwise scale, fp32
     const void* p_topk_ids; // [tokens, topk]
 
     void* p_yscale; // [topk * tokens,  1], output, rowwise quant scale
@@ -33,11 +33,11 @@ struct MoeSmoothquant
     using Pipeline = remove_cvref_t<Pipeline_>;
     using Problem  = typename Pipeline::Problem;
 
-    using XDataType       = remove_cvref_t<typename Problem::XDataType>;
-    using XScaleDataType  = remove_cvref_t<typename Problem::XScaleDataType>;
-    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-    using YScaleDataType  = remove_cvref_t<typename Problem::YScaleDataType>;
-    using QYDataType      = remove_cvref_t<typename Problem::QYDataType>;
+    using XDataType           = remove_cvref_t<typename Problem::XDataType>;
+    using SmoothScaleDataType = remove_cvref_t<typename Problem::SmoothScaleDataType>;
+    using ComputeDataType     = remove_cvref_t<typename Problem::ComputeDataType>;
+    using YScaleDataType      = remove_cvref_t<typename Problem::YScaleDataType>;
+    using QYDataType          = remove_cvref_t<typename Problem::QYDataType>;
 
     static constexpr index_t Block_M = Problem::BlockShape::Block_M;
     static constexpr index_t Block_N = Problem::BlockShape::Block_N;
@@ -57,7 +57,7 @@ struct MoeSmoothquant
     struct Kargs
     {
         const void* p_x;        // [tokens ,hidden_size], input, fp16/bf16
-        const void* p_xscale;   // [experts, hidden_size], input, columnwise scale, fp32
+        const void* p_smscale;  // [experts, hidden_size], input, columnwise scale, fp32
         const void* p_topk_ids; // [tokens, topk]
 
         void* p_yscale; // [topk, tokens, 1], output, rowwise quant scale
@@ -75,7 +75,7 @@ struct MoeSmoothquant
     CK_TILE_HOST static constexpr Kargs MakeKargs(const Hargs& hargs)
     {
         return Kargs{hargs.p_x,
-                     hargs.p_xscale,
+                     hargs.p_smscale,
                      hargs.p_topk_ids,
                      hargs.p_yscale,
                      hargs.p_qy,
@@ -153,9 +153,10 @@ struct MoeSmoothquant
         }();
 
         // [experts, hidden_size],
-        const auto xscale_window = [&]() {
+        const auto smscale_window = [&]() {
             const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<const XScaleDataType*>(kargs.p_xscale) + i_expert * kargs.hidden_size,
+                static_cast<const SmoothScaleDataType*>(kargs.p_smscale) +
+                    i_expert * kargs.hidden_size,
                 make_tuple(kargs.hidden_size),
                 make_tuple(1),
                 number<Vector_N>{},
@@ -198,7 +199,7 @@ struct MoeSmoothquant
 
         __shared__ char smem[GetSmemSize()];
 
-        Pipeline{}(x_window, xscale_window, yscale_window, qy_window, kargs.hidden_size, smem);
+        Pipeline{}(x_window, smscale_window, yscale_window, qy_window, kargs.hidden_size, smem);
     }
 };
 

@@ -59,14 +59,6 @@ struct BlockGemmARegBSmemCRegV2
 
         const index_t iNWarp = get_warp_id() % NWarp;
 
-        constexpr auto a_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<NWarp>,
-                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-                                       tuple<sequence<1, 0>>,
-                                       tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
             tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
@@ -75,19 +67,14 @@ struct BlockGemmARegBSmemCRegV2
             sequence<1, 2>,
             sequence<0, 0>>{};
 
-        constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            a_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});
-
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
-
-        constexpr auto a_block_dstr = make_static_tile_distribution(a_block_dstr_encode);
 
         // constrcut from A-block-tensor from A-Block-tensor-tmp
         // FIXME: need method to check a_block_tensor and a_block_tensor_tmp have equivalent
         // distribution
-        auto a_block_tensor =
-            make_static_distributed_tensor<typename ABlockTensorTmp::DataType>(a_block_dstr);
+        auto a_block_tensor = make_static_distributed_tensor<typename ABlockTensorTmp::DataType>(
+            MakeABlockTileDistribution());
 
         a_block_tensor.get_thread_buffer() = a_block_tensor_tmp.get_thread_buffer();
 
@@ -180,6 +167,33 @@ struct BlockGemmARegBSmemCRegV2
                 });
             });
         });
+    }
+
+    template <index_t MPerBlock = BlockGemmShape::kM, index_t KPerBlock = BlockGemmShape::kK>
+    CK_TILE_DEVICE static constexpr auto MakeABlockTileDistribution()
+    {
+        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+
+        using WG = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr index_t MWarp = config.template at<1>();
+        constexpr index_t NWarp = config.template at<2>();
+
+        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
+        constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
+
+        constexpr auto a_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+
+        constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            a_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});
+
+        return make_static_tile_distribution(a_block_dstr_encode);
     }
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
