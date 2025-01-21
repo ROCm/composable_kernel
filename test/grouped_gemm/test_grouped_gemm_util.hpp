@@ -203,7 +203,6 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
             PassThrough,
             PassThrough,
             GemmSpec,
-            1,
             128,
             128,
             128,
@@ -230,7 +229,7 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
             BBlockLdsAddExtraM::value,
             1,
             1,
-            S<16, 1, 8>,
+            S<1, 16, 1, 8>,
             CDEBlockTransferScalarPerVector_NPerBlock>;
 
     bool IsSupported(const std::vector<int>& Ms,
