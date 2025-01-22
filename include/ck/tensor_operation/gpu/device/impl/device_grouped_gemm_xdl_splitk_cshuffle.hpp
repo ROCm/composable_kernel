@@ -397,7 +397,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
                 bool not_all_have_kbatch_value_same = all_have_kbatch_gt_one xor (kbatch > 1);
 
-                if(!not_all_have_kbatch_value_same)
+                if(not_all_have_kbatch_value_same)
                 {
                     std::ostringstream err;
                     err << "Not all gemms have same kbatch value (=1 or >1)! "
