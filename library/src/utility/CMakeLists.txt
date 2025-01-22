@@ -1,4 +1,4 @@
-add_library(utility STATIC
+add_library(utility
     device_memory.cpp
     host_tensor.cpp
     convolution_parameter.cpp
