@@ -31,9 +31,9 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t VectorSizeA = Policy::template GetVectorSizeA<Problem>();
-    static constexpr index_t VectorSizeB = Policy::template GetVectorSizeB<Problem>();
-    static constexpr index_t VectorSizeC = Policy::template GetVectorSizeC<Problem>();
+    static constexpr index_t VectorSizeA = Problem::VectorSizeA;
+    static constexpr index_t VectorSizeB = Problem::VectorSizeB;
+    static constexpr index_t VectorSizeC = Problem::VectorSizeC;
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
@@ -139,7 +139,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>)
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                    Policy::template MakeShuffledARegBlockDescriptor<Problem>());
+                    Policy::template MakeShuffledARegBlockDistribution<Problem>());
                 shuffle_tile(a_shuffle_tmp, a_block_tile);
                 const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_shuffle_tmp);
                 store_tile(a_copy_lds_window, a_block_tile_tmp);
@@ -153,7 +153,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-                    Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
+                    Policy::template MakeShuffledBRegBlockDistribution<Problem>());
                 shuffle_tile(b_shuffle_tmp, b_block_tile);
                 const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_shuffle_tmp);
                 store_tile(b_copy_lds_window, b_block_tile_tmp);
@@ -190,7 +190,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
                 auto b_shuffle_tmp_loop = make_static_distributed_tensor<BDataType>(
-                    Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
+                    Policy::template MakeShuffledBRegBlockDistribution<Problem>());
                 shuffle_tile(b_shuffle_tmp_loop, b_block_tile);
                 store_tile(b_copy_lds_window,
                            tile_elementwise_in(b_element_func, b_shuffle_tmp_loop));
