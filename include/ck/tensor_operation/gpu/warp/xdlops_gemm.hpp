@@ -1014,7 +1014,7 @@ struct MfmaSelector
     {
         return MfmaInstr::mfma_i32_16x16x64i8;
     }
-#elif defined(__gfx950__)
+#elif defined(__gfx942__)
     template <>
     constexpr auto GetMfma<int8_t, 32, 32>()
     {
