@@ -1064,14 +1064,14 @@ struct FmhaFwdKernel
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kSubQKHeaddim>{}),
-                    sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                    sequence<false, kPadHeadDimQ>{});
             }
             else
             {
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0>{}),
-                    sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                    sequence<false, kPadHeadDimQ>{});
             }
         }();
         const auto k_dram = [&]() {
@@ -1082,10 +1082,20 @@ struct FmhaFwdKernel
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
-            return pad_tensor_view(
-                k_dram_naive,
-                make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
-                sequence<kPadSeqLenK, kPadHeadDimQ>{});
+            if constexpr(FmhaPipeline::kKLoadOnce)
+            {
+                return pad_tensor_view(
+                    k_dram_naive,
+                    make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kSubQKHeaddim>{}),
+                    sequence<false, kPadHeadDimQ>{});
+            }
+            else
+            {
+                return pad_tensor_view(
+                    k_dram_naive,
+                    make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+                    sequence<false, kPadHeadDimQ>{});
+            }
         }();
         const auto v_dram = [&]() {
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
@@ -1107,7 +1117,7 @@ struct FmhaFwdKernel
                 return pad_tensor_view(
                     v_dram_transposed,
                     make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
-                    sequence<kPadHeadDimV, kPadSeqLenK>{});
+                    sequence<kPadHeadDimV, false>{});
             }
             else
             {
@@ -1121,7 +1131,7 @@ struct FmhaFwdKernel
                 return pad_tensor_view(
                     v_dram_naive,
                     make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
-                    sequence<kPadHeadDimV, kPadSeqLenK>{});
+                    sequence<false, kPadSeqLenK>{});
             }
         }();
 
@@ -1137,7 +1147,15 @@ struct FmhaFwdKernel
             {i_m0, 0});
 
         auto k_dram_window = make_tile_window(
-            k_dram, make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}), {0, 0});
+            k_dram,
+            [&]() {
+                if constexpr(FmhaPipeline::kKLoadOnce)
+                    return make_tuple(number<FmhaPipeline::kN0>{},
+                                      number<FmhaPipeline::kSubQKHeaddim>{});
+                else
+                    return make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{});
+            }(),
+            {0, 0});
 
         auto v_dram_window =
             make_tile_window(v_dram,

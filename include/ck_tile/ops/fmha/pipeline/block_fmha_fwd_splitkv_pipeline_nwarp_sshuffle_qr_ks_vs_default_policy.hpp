@@ -13,15 +13,11 @@ namespace ck_tile {
 // This pipeline is qkv all located in LDS
 struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
     : BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
-                                          /* AsyncCopyK = */ false,
-                                          /* AsyncCopyV = */ false,
-                                          /* NumPrefetchK = */ 1,
+                                          /* AsyncCopy = */ false,
                                           /* NumPrefetchV = */ 1>
 {
     using BasePolicy = BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
-                                                           /* AsyncCopyK = */ false,
-                                                           /* AsyncCopyV = */ false,
-                                                           /* NumPrefetchK = */ 1,
+                                                           /* AsyncCopy = */ false,
                                                            /* NumPrefetchV = */ 1>;
 
     template <typename Problem>
@@ -76,10 +72,10 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
                                        sequence<0, 1>>{});
     }
 
-    template <typename Problem, typename BlockGemm>
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQRegTileDistribution()
     {
-        return BasePolicy::template MakeQDramTileDistribution<Problem, BlockGemm>();
+        return BasePolicy::template MakeQDramTileDistribution<Problem>();
     }
 
     template <typename Problem>

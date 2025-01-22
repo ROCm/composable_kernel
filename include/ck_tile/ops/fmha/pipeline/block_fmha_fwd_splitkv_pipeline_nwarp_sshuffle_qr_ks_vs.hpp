@@ -316,11 +316,11 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
 
         // load Q from LDS
         __builtin_amdgcn_sched_barrier(0);
-        auto q_lds_window_for_load = make_tile_window(
-            q_lds,
-            Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
-            {0, 0},
-            Policy::template MakeQRegTileDistribution<Problem, decltype(gemm_0)>());
+        auto q_lds_window_for_load =
+            make_tile_window(q_lds,
+                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0},
+                             Policy::template MakeQRegTileDistribution<Problem>());
         block_sync_lds();
         auto q = load_tile(q_lds_window_for_load);
         __builtin_amdgcn_sched_barrier(0);

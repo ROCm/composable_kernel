@@ -34,6 +34,9 @@ struct BlockFmhaPipelineQSKSVS
     static constexpr bool kQLoadOnce = false;
     static_assert(kQLoadOnce == Policy::QLoadOnce);
 
+    static constexpr bool kKLoadOnce = false;
+    static_assert(kKLoadOnce == Policy::KLoadOnce);
+
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr index_t kM0           = BlockFmhaShape::kM0;
@@ -94,6 +97,8 @@ struct BlockFmhaPipelineQSKSVS
             {
                 return 1;
             }
+            else
+                return 1;
         }
     }();
 

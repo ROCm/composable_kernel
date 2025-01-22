@@ -17,9 +17,6 @@
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_one_warp_v1.hpp"
 
-// TODO: remove this
-#define K_LDS_LOAD_USE_OFFSET_TRANSFORM 0
-
 namespace ck_tile {
 
 template <bool QLoadOnce_>
@@ -50,9 +47,11 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
         return min(MaxVectorSize, WG::kK / WG::WarpGemmAttribute::Impl::kABKLane);
     }
 
-    template <typename Problem, typename BlockGemm>
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
     {
+        using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+
         return BlockGemm::template MakeABlockTileDistribution<
             Problem::BlockFmhaShape::kM0,
             Problem::BlockFmhaShape::kSubQKHeaddim>();
@@ -277,72 +276,32 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
     }
 };
 
-// This pipeline is qkv all located in LDS
-template <bool QLoadOnce_,
-          bool AsyncCopyK_,
-          bool AsyncCopyV_,
-          index_t NumPrefetchK_,
-          index_t NumPrefetchV_>
+template <bool QLoadOnce_, bool AsyncCopy_, index_t NumPrefetchV_>
 struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLoadOnce_>
 {
-    static constexpr bool AsyncCopyK = AsyncCopyK_;
-    static constexpr bool AsyncCopyV = AsyncCopyV_; // TODO: this not supported yet
+    static constexpr index_t NumPrefetchV = NumPrefetchV_;
 
-    static constexpr index_t NumPrefetchK = NumPrefetchK_;
-    static constexpr index_t NumPrefetchV = NumPrefetchK_;
+    // 1) When Async == true, we preload whole K-tile for next iteration using single LDS buffer,
+    //    and preload V-slice for next unroll using multiple LDS buffers
+    // 2) When Async == false, we preload K-slice for next unroll using single LDS buffer, and
+    //    preload V-slice for next unroll using single LDS buffer
+    static constexpr bool AsyncCopy = AsyncCopy_;
+
+    static constexpr bool KLoadOnce = AsyncCopy;
 
     using QXPolicy = BlockFmhaPipelineQXCustomPolicy<QLoadOnce_>;
 
-    template <index_t k_prefetches_, index_t v_prefetches_, index_t k_loops_, index_t v_loops_>
-    struct LdsBufferSequence
-    {
-        static constexpr auto Make()
-        {
-            return transform_sequences(
-                [&](auto i) {
-                    if(i < k_loops_)
-                        return i % k_prefetches_;
-                    return (i - k_loops_) % v_prefetches_;
-                },
-                typename arithmetic_sequence_gen<0, k_loops_ + v_loops_, 1>::type{});
-        };
-
-        using type = remove_cvref_t<decltype(Make())>;
-    };
-    // clang-format off
-    template<> struct
-    LdsBufferSequence<3, 3, 4, 4> { using type = sequence<1, 2, 0, 1,   0, 1, 2, 0>; };
-
-    template<> struct
-    LdsBufferSequence<3, 3, 4, 2> { using type = sequence<1, 2, 0, 1,   2, 0>; };
-
-    template<> struct
-    LdsBufferSequence<3, 3, 2, 4> { using type = sequence<1, 2,         0, 1, 2, 0>; };
-
-    template<> struct
-    LdsBufferSequence<3, 3, 3, 3> { using type = sequence<1, 2, 0,      1, 2, 0>; };
-
-    template<> struct
-    LdsBufferSequence<3, 3, 3, 4> { using type = sequence<1, 2, 0,      0, 1, 2, 0>; };
-
-    template<> struct
-    LdsBufferSequence<3, 3, 2, 2> { using type = sequence<1, 2,         1, 0>;};
-    // clang-format on
-
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetLdsBufferSequence()
+    CK_TILE_DEVICE static constexpr auto GetNumVLdsBuffers()
     {
         using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
 
-        constexpr index_t kN0        = BlockFmhaShape::kN0;
-        constexpr index_t kK0        = BlockFmhaShape::kK0;
-        constexpr index_t kK1        = BlockFmhaShape::kK1;
-        constexpr index_t kQKHeaddim = BlockFmhaShape::kQKHeaddim;
+        constexpr index_t kN0 = BlockFmhaShape::kN0;
+        constexpr index_t kK1 = BlockFmhaShape::kK1;
 
-        constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
 
-        return typename LdsBufferSequence<NumPrefetchK, NumPrefetchV, k0_loops, k1_loops>::type{};
+        return min(NumPrefetchV, k1_loops);
     }
 
     template <typename Problem>
@@ -356,15 +315,16 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentK()
     {
-        using KDataType = remove_cvref_t<typename Problem::KDataType>;
-        if constexpr(AsyncCopyK)
-        {
-            return 4 / sizeof(KDataType);
-        }
-        else
-        {
-            return 16 / sizeof(KDataType);
-        }
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock =
+            KLoadOnce ? Problem::BlockFmhaShape::kSubQKHeaddim : Problem::BlockFmhaShape::kK0;
+
+        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::KDataType);
+
+        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+        static_assert(0 < ElemPerThread);
+        return min(ElemPerThread, MaxVectorSize);
     }
 
     template <typename Problem>
@@ -382,17 +342,17 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using VDataType = remove_cvref_t<typename Problem::VDataType>;
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            constexpr index_t kBlockSize   = Problem::kBlockSize;
-            constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
-            constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1;
-            constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+            constexpr index_t kBlockSize    = Problem::kBlockSize;
+            constexpr index_t kNPerBlock    = Problem::BlockFmhaShape::kN1;
+            constexpr index_t kKPerBlock    = Problem::BlockFmhaShape::kK1;
+            constexpr index_t ElemPerThread = kNPerBlock * kKPerBlock / kBlockSize;
             constexpr index_t kMaxVecLoad =
-                min(total_pixels, static_cast<index_t>(16 / sizeof(VDataType)));
+                min(ElemPerThread, static_cast<index_t>(16 / sizeof(VDataType)));
             constexpr index_t kMinVecLoad = 4 / sizeof(VDataType);
 
-            constexpr index_t kVecLoad = ((total_pixels / kMaxVecLoad) >= kMinVecLoad)
+            constexpr index_t kVecLoad = ((ElemPerThread / kMaxVecLoad) >= kMinVecLoad)
                                              ? kMaxVecLoad
-                                             : (total_pixels / kMinVecLoad);
+                                             : (ElemPerThread / kMinVecLoad);
 
             return kVecLoad;
         }
@@ -423,60 +383,12 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSingleSmemElementSpaceSize()
-    {
-        // this function assume K/V can share smem
-        constexpr index_t SingleKSize = [&]() {
-            if constexpr(!AsyncCopyK)
-            {
-                return MakeKLdsBlockDescriptor<Problem>().get_element_space_size();
-            }
-            else
-            {
-                constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-                constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
-                constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
-                constexpr index_t warpSize   = ck_tile::get_warp_size();
-
-                constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
-                constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
-                constexpr index_t kPad    = KPack;
-
-                static_assert(warpSize * KVector >= kKPerBlock &&
-                              warpSize * KVector % kKPerBlock == 0);
-                constexpr index_t LanesPerK  = kKPerBlock / KVector;
-                constexpr index_t LaneGroups = warpSize / LanesPerK;
-                constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
-
-                return NumIssues * NumWarps * (warpSize * KVector + kPad);
-            }
-        }();
-
-        constexpr index_t SingleVSize = [&]() {
-            using VDataType                = remove_cvref_t<typename Problem::VDataType>;
-            constexpr index_t Banks        = 32; // TODO: need change based on arch
-            constexpr index_t PixelsPerRow = Banks * 4 / sizeof(VDataType);
-            constexpr index_t kKPack       = GetSmemKPackK<Problem>();
-            static_assert(PixelsPerRow % kKPack == 0);
-            constexpr index_t NPerRow    = PixelsPerRow / kKPack;
-            constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
-            static_assert(kNPerBlock % NPerRow == 0);
-            static_assert(kKPerBlock % kKPack == 0);
-
-            return (kKPerBlock / kKPack) * (kNPerBlock / NPerRow) * (PixelsPerRow + kKPack);
-        }();
-
-        return max(SingleKSize, SingleVSize);
-    }
-
-    // TODO: this is used for non async copy desc. unify in the future
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
-        constexpr index_t kKPack     = GetSmemKPackK<Problem>();
+        constexpr index_t kKPerBlock =
+            KLoadOnce ? Problem::BlockFmhaShape::kSubQKHeaddim : Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPack = GetSmemKPackK<Problem>();
 
         constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / kKPack>{}, number<kNPerBlock>{}, number<kKPack>{}),
@@ -495,164 +407,26 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         return k_lds_block_desc;
     }
 
-    template <typename Problem, index_t IBuf = 0>
-    CK_TILE_HOST_DEVICE static constexpr auto
-        MakeKLdsStoreBlockDescriptor(number<IBuf> = number<0>{})
-    {
-        // K is always k-major, we use async-copy to load into LDS
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
-        constexpr index_t warpSize   = ck_tile::get_warp_size();
-
-        constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
-        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
-        constexpr index_t kPad =
-            KPack; // for async-copy, this pad is between warps. Optimize this for lds_read speed
-
-        static_assert(warpSize * KVector >= kKPerBlock && warpSize * KVector % kKPerBlock == 0);
-        constexpr index_t LanesPerK =
-            kKPerBlock / KVector; // how many lane (within a wave) to load K
-        constexpr index_t LaneGroups =
-            warpSize /
-            LanesPerK; // how many groups (within a wave), they may load different N, but same K
-        constexpr index_t NumIssues = kNPerBlock / (LaneGroups * NumWarps);
-        static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
-
-        constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor_with_offset(
-            make_tuple(number<NumIssues>{},  // n0
-                       number<LaneGroups>{}, // n1
-                       number<NumWarps>{},   // n2
-                       number<LanesPerK>{},  // k0
-                       number<KVector>{}),   // k1
-            make_tuple(number<NumWarps*(warpSize * KVector + kPad)>{},
-                       number<kKPerBlock>{},
-                       number<warpSize * KVector + kPad>{},
-                       number<KVector>{},
-                       number<1>{}),
-            number<IBuf * GetSingleSmemElementSpaceSize<Problem>()>{},
-            number<KVector>{},
-            number<1>{});
-
-        // TODO this layout is hard coded, and will be used in async copy buffer view load
-        // in LDS the real layout is (bufs, N0, N2, N1*K0*K1)
-        constexpr auto k_lds_block_desc_issues_warps_lanes = transform_tensor_descriptor(
-            k_lds_block_desc_0,
-            make_tuple(make_pass_through_transform(number<NumIssues>{}),
-                       make_pass_through_transform(number<NumWarps>{}),
-                       make_merge_transform(make_tuple(
-                           number<LaneGroups>{}, number<LanesPerK>{}, number<KVector>{}))),
-            make_tuple(sequence<0>{}, sequence<2>{}, sequence<1, 3, 4>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
-
-        return k_lds_block_desc_issues_warps_lanes;
-    }
-
-#if K_LDS_LOAD_USE_OFFSET_TRANSFORM
-    template <typename Problem, index_t IBuf = 0>
-    CK_TILE_HOST_DEVICE static constexpr auto
-        MakeKLdsLoadBlockDescriptor(number<IBuf> = number<0>{})
-    {
-        // K is always k-major, we use async-copy to load into LDS
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
-        constexpr index_t warpSize   = ck_tile::get_warp_size();
-
-        constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
-        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
-        constexpr index_t kPad    = KPack; // for async-copy, this pad is between warps
-
-        static_assert(warpSize * KVector >= kKPerBlock && warpSize * KVector % kKPerBlock == 0);
-        constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
-        constexpr index_t LaneGroups = warpSize / LanesPerK; // within a wave
-        constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
-        static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
-
-        constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor_with_offset(
-            make_tuple(number<NumIssues>{},          // n0
-                       number<NumWarps>{},           // n2
-                       number<LaneGroups>{},         // n1
-                       number<kKPerBlock / KPack>{}, // k0
-                       number<KPack>{}),             // k1
-            make_tuple(number<NumWarps*(warpSize * KVector + kPad)>{},
-                       number<warpSize * KVector + kPad>{},
-                       number<kKPerBlock>{},
-                       number<KPack>{},
-                       number<1>{}),
-            number<IBuf * GetSingleSmemElementSpaceSize<Problem>()>{},
-            number<KPack>{},
-            number<1>{});
-
-        constexpr auto k_lds_block_desc = transform_tensor_descriptor(
-            k_lds_block_desc_0,
-            make_tuple(
-                make_merge_transform(
-                    make_tuple(number<NumIssues>{}, number<LaneGroups>{}, number<NumWarps>{})),
-                make_merge_transform(make_tuple(number<kKPerBlock / KPack>{}, number<KPack>{}))),
-            make_tuple(sequence<0, 2, 1>{}, sequence<3, 4>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return k_lds_block_desc;
-    }
-#else
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsLoadBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto GetVSingleSmemElementSpaceSize()
     {
-        // K is always k-major, we use async-copy to load into LDS
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
-        constexpr index_t warpSize   = ck_tile::get_warp_size();
+        constexpr index_t SingleVSize = [&]() {
+            using VDataType                = remove_cvref_t<typename Problem::VDataType>;
+            constexpr index_t Banks        = 32; // TODO: need change based on arch
+            constexpr index_t PixelsPerRow = Banks * 4 / sizeof(VDataType);
+            constexpr index_t kKPack       = GetSmemKPackV<Problem>();
+            static_assert(PixelsPerRow % kKPack == 0);
+            constexpr index_t NPerRow    = PixelsPerRow / kKPack;
+            constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+            static_assert(kNPerBlock % NPerRow == 0);
+            static_assert(kKPerBlock % kKPack == 0);
 
-        constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
-        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
-        constexpr index_t kPad    = KPack; // for async-copy, this pad is between warps
+            return (kKPerBlock / kKPack) * (kNPerBlock / NPerRow) * (PixelsPerRow + kKPack);
+        }();
 
-        static_assert(warpSize * KVector >= kKPerBlock && warpSize * KVector % kKPerBlock == 0);
-        constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
-        constexpr index_t LaneGroups = warpSize / LanesPerK; // within a wave
-        constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
-        static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
-        // constexpr index_t SingleKSize = NumIssues * NumWarps * (warpSize * KVector + kPad);
-        // constexpr index_t SingleVSize =
-        // MakeVLdsBlockDescriptor<Problem>().get_element_space_size();
-        constexpr index_t BufferSize =
-            GetSingleSmemElementSpaceSize<Problem>(); //  max(SingleKSize, SingleVSize);
-
-        constexpr auto k_lds_block_desc_0 =
-            make_naive_tensor_descriptor(make_tuple(number<NumPrefetchK>{},       // num_buffers
-                                                    number<NumIssues>{},          // n0
-                                                    number<NumWarps>{},           // n2
-                                                    number<LaneGroups>{},         // n1
-                                                    number<kKPerBlock / KPack>{}, // k0
-                                                    number<KPack>{}),             // k1
-                                         make_tuple(number<BufferSize>{},
-                                                    number<NumWarps*(warpSize * KVector + kPad)>{},
-                                                    number<warpSize * KVector + kPad>{},
-                                                    number<kKPerBlock>{},
-                                                    number<KPack>{},
-                                                    number<1>{}),
-                                         number<KPack>{},
-                                         number<1>{});
-
-        constexpr auto k_lds_block_desc = transform_tensor_descriptor(
-            k_lds_block_desc_0,
-            make_tuple(
-                make_merge_transform(make_tuple(number<NumPrefetchK>{},
-                                                number<NumIssues>{},
-                                                number<LaneGroups>{},
-                                                number<NumWarps>{})),
-                make_merge_transform(make_tuple(number<kKPerBlock / KPack>{}, number<KPack>{}))),
-            make_tuple(sequence<0, 1, 3, 2>{}, sequence<4, 5>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return k_lds_block_desc;
+        return SingleVSize;
     }
-#endif
 
     // 3d + padding
     template <typename Problem>
@@ -669,13 +443,15 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         static_assert(kNPerBlock % NPerRow == 0);
         static_assert(kKPerBlock % kKPack == 0);
 
+        constexpr index_t NumVLdsBuffers = GetNumVLdsBuffers<Problem>();
+
         constexpr auto v_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<NumPrefetchV>{},
+            make_tuple(number<NumVLdsBuffers>{},
                        number<kKPerBlock / kKPack>{},
                        number<kNPerBlock / NPerRow>{},
                        number<NPerRow>{},
                        number<kKPack>{}),
-            make_tuple(number<GetSingleSmemElementSpaceSize<Problem>()>{},
+            make_tuple(number<GetVSingleSmemElementSpaceSize<Problem>()>{},
                        number<(kNPerBlock / NPerRow) * (PixelsPerRow + kKPack)>{},
                        number<PixelsPerRow + kKPack>{},
                        number<kKPack>{},
@@ -687,7 +463,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             v_lds_block_desc_0,
             make_tuple(
                 make_merge_transform(make_tuple(
-                    number<NumPrefetchV>{}, number<kNPerBlock / NPerRow>{}, number<NPerRow>{})),
+                    number<NumVLdsBuffers>{}, number<kNPerBlock / NPerRow>{}, number<NPerRow>{})),
                 make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<0, 2, 3>{}, sequence<1, 4>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
@@ -696,28 +472,26 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeKV()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeK()
     {
-        // TODO: assume Q is in register
-        // TODO: assume K/V has same data type
-        constexpr index_t single_smem_size =
-            GetSingleSmemElementSpaceSize<Problem>() * sizeof(typename Problem::KDataType);
+        return MakeKLdsBlockDescriptor<Problem>().get_element_space_size() *
+               sizeof(typename Problem::KDataType);
+    }
 
-        return QXPolicy::template GetSmemSizeQ<Problem>() +
-               single_smem_size * max(NumPrefetchK, NumPrefetchV);
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeV()
+    {
+        return MakeVLdsBlockDescriptor<Problem>().get_element_space_size() *
+               sizeof(typename Problem::VDataType);
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        if constexpr(AsyncCopyK)
-        {
-            return GetSmemSizeKV<Problem>() + GetSmemSizeDropout<Problem>(0);
-        }
-        else
-        {
-            return ck_tile::max(GetSmemSizeKV<Problem>(), GetSmemSizeDropout<Problem>(0));
-        }
+        // assume Q can reuse the shared memory with K or V
+        return max(QXPolicy::template GetSmemSizeQ<Problem>(),
+                   GetSmemSizeK<Problem>() + GetSmemSizeV<Problem>()) +
+               GetSmemSizeDropout<Problem>(0);
     }
 
     // this method is only available when Problem::kHasDropout is present
@@ -754,58 +528,33 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKDramTileDistribution()
     {
-        if constexpr(!AsyncCopyK)
-        {
-            using KDataType = remove_cvref_t<typename Problem::KDataType>;
+        using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
-            constexpr index_t kBlockSize = Problem::kBlockSize;
-            constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock =
+            KLoadOnce ? Problem::BlockFmhaShape::kSubQKHeaddim : Problem::BlockFmhaShape::kK0;
 
-            constexpr index_t K1 = 16 / sizeof(KDataType);
-            constexpr index_t K0 = kKPerBlock / K1;
-            constexpr index_t N2 = get_warp_size() / K0;
-            constexpr index_t N1 = kBlockSize / get_warp_size();
-            constexpr index_t N0 = kNPerBlock / (N2 * N1);
+        constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
 
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<1>, sequence<2, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 1>>{});
-        }
-        else
-        {
-            constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
-            constexpr index_t kBlockSize = Problem::kBlockSize;
-            constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
-            constexpr index_t warpSize   = ck_tile::get_warp_size();
+        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+        static_assert(0 < ElemPerThread);
+        constexpr index_t kMaxVecLoad = min(ElemPerThread, MaxVectorSize);
 
-            constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
+        constexpr index_t KPerThread     = kMaxVecLoad;
+        constexpr index_t KThreads       = kKPerBlock / KPerThread;
+        constexpr index_t NThreadPerWarp = get_warp_size() / KThreads;
+        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+        constexpr index_t NPerThread     = kNPerBlock / (NThreadPerWarp * NumWarps);
 
-            static_assert(warpSize * KVector >= kKPerBlock && warpSize * KVector % kKPerBlock == 0);
-            constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
-            constexpr index_t LaneGroups = warpSize / LanesPerK; // within a wave
-            constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
-            static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
-
-            constexpr index_t N0 = NumIssues;
-            constexpr index_t N1 = LaneGroups;
-            constexpr index_t N2 = NumWarps;
-            constexpr index_t K0 = LanesPerK;
-            constexpr index_t K1 = KVector;
-
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<2>, sequence<1, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 1>>{});
-        }
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<NPerThread, NumWarps, NThreadPerWarp>,
+                                             sequence<KThreads, KPerThread>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
     }
 
     template <typename Problem>
@@ -822,9 +571,9 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t N1 = GetAlignmentV<Problem>();
             constexpr index_t N0 = kNPerBlock / N1; // P
 
-            constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
-            static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
-            constexpr index_t K3     = total_pixels / N1;
+            constexpr index_t ElemPerThread = kNPerBlock * kKPerBlock / kBlockSize;
+            static_assert(ElemPerThread % N1 == 0); // TODO: this is not always true?
+            constexpr index_t K3     = ElemPerThread / N1;
             constexpr index_t kKPack = GetSmemKPackV<Problem>();
             static_assert(kKPack % K3 == 0);
             constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
@@ -893,11 +642,11 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
 
-        constexpr index_t N1           = GetAlignmentV<Problem>();
-        constexpr index_t N0           = kNPerBlock / N1;
-        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
-        static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
-        constexpr index_t K3     = total_pixels / N1;
+        constexpr index_t N1            = GetAlignmentV<Problem>();
+        constexpr index_t N0            = kNPerBlock / N1;
+        constexpr index_t ElemPerThread = kNPerBlock * kKPerBlock / kBlockSize;
+        static_assert(ElemPerThread % N1 == 0); // TODO: this is not always true?
+        constexpr index_t K3     = ElemPerThread / N1;
         constexpr index_t kKPack = GetSmemKPackV<Problem>();
         static_assert(kKPack % K3 == 0);
         constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave

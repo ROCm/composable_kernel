@@ -35,6 +35,9 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
 
+    static constexpr bool kKLoadOnce = false;
+    static_assert(kKLoadOnce == Policy::KLoadOnce);
+
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr index_t kM0           = BlockFmhaShape::kM0;
@@ -178,11 +181,11 @@ struct BlockFmhaPipelineQRKSVS
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
 
-        auto q_dram_window = make_tile_window(
-            q_dram_block_window_tmp.get_bottom_tensor_view(),
-            q_dram_block_window_tmp.get_window_lengths(),
-            q_dram_block_window_tmp.get_window_origin(),
-            Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
+        auto q_dram_window =
+            make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+                             q_dram_block_window_tmp.get_window_lengths(),
+                             q_dram_block_window_tmp.get_window_origin(),
+                             Policy::template MakeQDramTileDistribution<Problem>());
 
         auto q = load_tile(q_dram_window);
 
