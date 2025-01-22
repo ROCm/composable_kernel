@@ -93,10 +93,10 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                            has_hot_loop_v,
                                                                            tail_number_v>;
 
-        using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem,
-                                           ck_tile::UniversalGemmPipelineAgBgCrPolicy>;
-        using Kernel       = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs         = Kernel::MakeKernelArgs(args);
+        using GemmPipeline =
+            GEMM_PIPELINE<UniversalGemmProblem, ck_tile::UniversalGemmPipelineAgBgCrPolicy>;
+        using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        auto kargs   = Kernel::MakeKernelArgs(args);
 
         const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
         constexpr dim3 blocks = Kernel::BlockSize();
@@ -220,5 +220,39 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 }
 
 #include "run_gemm_example.inc"
+
+int run_gemm_example(int argc, char* argv[])
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+    std::string a_layout = arg_parser.get_str("a_layout");
+    std::string b_layout = arg_parser.get_str("b_layout");
+
+    if(a_layout == "R" && b_layout == "R")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
+    }
+    else if(a_layout == "R" && b_layout == "C")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "C")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "R")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+    }
+}
 
 int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
