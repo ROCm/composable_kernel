@@ -120,6 +120,13 @@ struct Rmsnorm2dFwdPipelineOnePass
         block_norm_reduce_sync(square_mean, cur_count);
         block_norm_reduce_cross_warp_sync(square_mean, cur_count, smem);
 
+        if constexpr(!kWelford)
+        {
+            sweep_tile(square_mean, [&](auto idx) {
+                square_mean(idx) = square_mean(idx) / type_convert<ComputeDataType>(row_size);
+            });
+        }
+
         // compute inv-rms
         auto inv_rms = tile_elementwise_in(
             [&](const auto& v_) {

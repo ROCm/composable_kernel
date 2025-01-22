@@ -200,6 +200,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float ave_time = rmsnorm2d_fwd(
         traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
 
+    if(ave_time < 0)
+    {
+        std::cout << " not supported!" << std::endl << std::flush;
+        return false;
+    }
+
     std::size_t num_byte =
         sizeof(XDataType) * m * n + sizeof(GammaDataType) * n + sizeof(YDataType) * m * n;
     num_byte += SaveRms ? sizeof(InvRmsDataType) * m * n : 0;

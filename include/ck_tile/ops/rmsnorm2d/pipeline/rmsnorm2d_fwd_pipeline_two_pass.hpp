@@ -70,6 +70,8 @@ struct Rmsnorm2dFwdPipelineTwoPass
                                    void* smem,
                                    Epilogue) const
     {
+        static_assert(kWelford == true, "2 pass only supports welford merge");
+
         auto x_window =
             make_tile_window(x_window_, Policy::template MakeXBlockTileDistribution<Problem>());
         auto gamma_window = make_tile_window(
