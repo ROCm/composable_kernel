@@ -454,15 +454,15 @@ struct UniversalGemmPipelineAgBgCrPolicy
     {
         using ALayout = remove_cvref_t<typename Problem::ALayout>;
 
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t BlockSize   = Problem::kBlockSize;
+        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
         constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
 
         // Tile: MPerBlock X KPerBlock
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            using TileEncodingPattern     = TileDistributionEncodingPattern2D<BlockSize,
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
                                                                           MPerBlock,
                                                                           KPerBlock,
                                                                           VecLoadSize,
@@ -472,7 +472,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         // Tile: KPerBlock X MPerBlock
         else
         {
-            using TileEncodingPattern     = TileDistributionEncodingPattern2D<BlockSize,
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
                                                                           KPerBlock,
                                                                           MPerBlock,
                                                                           VecLoadSize,
@@ -486,15 +486,15 @@ struct UniversalGemmPipelineAgBgCrPolicy
     {
         using BLayout = remove_cvref_t<typename Problem::BLayout>;
 
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t BlockSize   = Problem::kBlockSize;
+        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
         constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
 
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            using TileEncodingPattern     = TileDistributionEncodingPattern2D<BlockSize,
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
                                                                           KPerBlock,
                                                                           NPerBlock,
                                                                           VecLoadSize,
@@ -504,7 +504,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         // Tile: NPerBlock X KPerBlock
         else
         {
-            using TileEncodingPattern     = TileDistributionEncodingPattern2D<BlockSize,
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
                                                                           NPerBlock,
                                                                           KPerBlock,
                                                                           VecLoadSize,
@@ -550,7 +550,11 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return TransposeC; }
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
+    {
+        return Problem::TransposeC;
+    }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
