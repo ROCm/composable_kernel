@@ -48,6 +48,7 @@ CK_TILE_HOST void reference_layernorm2d_bwd_gamma_part(const HostTensor<XDataTyp
                 const ComputeDataType dy = ck_tile::type_convert<ComputeDataType>(dy_m_n(m_offset + inner_m, n));
                 gamma_acc += dy * (x - mean) * inv_std;
                 beta_acc += dy;
+                //printf("\ndteng print---dy[%d][%d]=%f\n",m_offset + inner_m,n,dy);
             }
 
             dgamma_mpart_n(m, n) = ck_tile::type_convert<GammaDataType>(gamma_acc);
@@ -69,14 +70,18 @@ CK_TILE_HOST void reference_layernorm2d_bwd_gamma_part(const HostTensor<XDataTyp
                 ds += dy * gamma * x;
                 db += dy * gamma;
             }
+            ds_m(m_offset + inner_m) = ds;
+            db_m(m_offset + inner_m) = db;
             ComputeDataType b = (db * mean - ds) * inv_std * inv_std * inv_std / N;
             ComputeDataType c = -b * mean - db * inv_std / N;
+
             for(int n = 0; n < N; ++n)
             {
                 const ComputeDataType dy    = ck_tile::type_convert<ComputeDataType>(dy_m_n(m_offset + inner_m, n));
                 const ComputeDataType x     = ck_tile::type_convert<ComputeDataType>(x_m_n(m_offset + inner_m, n));
                 const ComputeDataType gamma = ck_tile::type_convert<ComputeDataType>(gamma_n(n));
                 dx_m_n(m_offset + inner_m, n) = ck_tile::type_convert<XDataType>(dy * gamma * inv_std + b * x + c);
+                //printf("\ndteng print---dx[%d][%d]=%f\n",m_offset + inner_m,n,ck_tile::type_convert<ComputeDataType>(dx_m_n(m_offset + inner_m, n)));
             }
         }
     };

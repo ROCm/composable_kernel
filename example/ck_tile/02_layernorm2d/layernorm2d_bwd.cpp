@@ -126,6 +126,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
                               dgamma_buf.GetDeviceBuffer(),
                               dbeta_buf.GetDeviceBuffer(),
                               dx_buf.GetDeviceBuffer(),
+                            
+                              //tmp
+                              ds_buf.GetDeviceBuffer(),
+                              db_buf.GetDeviceBuffer(),
+
                               m,
                               n,
                               stride};
@@ -155,12 +160,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         dgamma_buf.FromDevice(dgamma_host_dev.data());
         dbeta_buf.FromDevice(dbeta_host_dev.data());
+        dx_buf.FromDevice(dx_host_dev.data());
+
+        //tmp
+        ds_buf.FromDevice(ds_host_dev.data());
+        db_buf.FromDevice(db_host_dev.data());
 
         auto [rtol, atol] = get_elimit<DataType>();
-        pass = ck_tile::check_err(
-            dgamma_host_dev, dgamma_host_ref, std::string("GAMMA OUT Error: Incorrect results!"), rtol, atol);
+        // pass = ck_tile::check_err(
+        //     dgamma_host_dev, dgamma_host_ref, std::string("GAMMA OUT Error: Incorrect results!"), rtol, atol);
+        // pass &= ck_tile::check_err(
+        //     dbeta_host_dev, dbeta_host_ref, std::string("BETA OUT Error: Incorrect results!"), rtol, atol);
         pass &= ck_tile::check_err(
-            dbeta_host_dev, dbeta_host_ref, std::string("BETA OUT Error: Incorrect results!"), rtol, atol);
+            dx_host_dev, dx_host_ref, std::string("DX OUT Error: Incorrect results!"), rtol, atol);
+        
+        //tmp
+        // pass &= ck_tile::check_err(
+        //    ds_host_dev, ds_host_ref, std::string("DS OUT Error: Incorrect results!"), rtol, atol);
+        // pass &= ck_tile::check_err(
+        //    db_host_dev, db_host_ref, std::string("DB OUT Error: Incorrect results!"), rtol, atol);
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 

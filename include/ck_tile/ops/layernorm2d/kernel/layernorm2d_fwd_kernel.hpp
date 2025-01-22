@@ -192,7 +192,9 @@ struct Layernorm2dFwd
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         const auto iM = get_block_id() * Block_M;
-
+        // if(threadIdx.x == 0 && blockIdx.x == 0){
+        //     printf("dteng block shape---WarpPerBlock_M=%d, WarpPerBlock_N=%d, ThreadPerWarp_M=%d, ThreadPerWarp_N=%d, Vector_N=%d\n", static_cast<int>(Problem::BlockShape::WarpPerBlock_M), static_cast<int>(Problem::BlockShape::WarpPerBlock_N), static_cast<int>(Problem::BlockShape::ThreadPerWarp_M), static_cast<int>(Problem::BlockShape::ThreadPerWarp_N), static_cast<int>(Problem::BlockShape::Vector_N));
+        // }
         const auto x_window = [&]() {
             const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<const XDataType*>(kargs.p_x),

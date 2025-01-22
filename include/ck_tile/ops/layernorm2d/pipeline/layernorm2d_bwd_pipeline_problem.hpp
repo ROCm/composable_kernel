@@ -28,6 +28,8 @@ struct Layernorm2dBwdGammaBetaPipelineProblem
     using BlockShape      = remove_cvref_t<BlockShape_>;
 
     static constexpr bool kPadN           = kPadN_;
+    static constexpr bool kNeedCrossLaneSync = BlockShape::ThreadPerWarp_N > 1;
+    static constexpr bool kNeedCrossWarpSync = BlockShape::WarpPerBlock_N > 1;
 };
 
 } // namespace ck_tile

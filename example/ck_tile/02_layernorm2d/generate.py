@@ -84,7 +84,8 @@ struct layernorm2d_fwd_traits_
         if constexpr(is_warp_per_row)
         {
             static_assert(warpSize % ThreadPerBlock_N_ == 0);
-            return total_warps * (warpSize / ThreadPerBlock_N_);
+            //return total_warps * (warpSize / ThreadPerBlock_N_);
+            return total_warps;
         }
         else
         {
@@ -483,7 +484,7 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
                             _sweep_cond = 't.fused_quant == {f_fused_sweep} && (t.prec_sy == \"{f_sy_type}\")'.format(
                                 f_fused_sweep = ins.F_kFusedQuant, f_sy_type=ins.F_YScaleDataType)
                         _cond = '((a.n % {f_vec_n} == 0) && (t.xbias == {f_xbias}) && (t.fused_add == {f_fused_add}) && ({f_sweep_cond}))'.format(
-                                        f_vec_n = ins.F_Vector_N, f_xbias = ins.F_kXbias, f_fused_add = ins.F_kFusedAdd,
+                                        f_vec_n = 1, f_xbias = ins.F_kXbias, f_fused_add = ins.F_kFusedAdd,
                                         f_sweep_cond = _sweep_cond)
                         inner_str += self.API_INNER_CASE.format(F_if = get_if_str(idx_in_n, len_in_n, False),
                                             F_VEC_COND = _cond, F_instance_func=ins.call_name)

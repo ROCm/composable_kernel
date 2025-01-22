@@ -133,7 +133,10 @@ struct Layernorm2dFwdPipelineOnePass
         {
             sweep_tile(x_resi, [&](auto idx) {
                 // compute x = x_resi + x
+                //printf("x: threadidx=%d, blockidx=%d, acc=%f\n",threadIdx.x, blockIdx.x, x(idx));
+                // printf("acc pre: threadidx=%d, blockidx=%d, acc=%f\n",threadIdx.x, blockIdx.x, acc(idx));
                 acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
+                // printf("acc post: threadidx=%d, blockidx=%d, acc=%f\n",threadIdx.x, blockIdx.x, acc(idx));
             });
             if constexpr(kFusedAdd == Layernorm2dFusedAddEnum::PRE_ADD_STORE)
                 store_tile(y_residual_window, cast_tile<YResidualDataType>(acc));
@@ -184,6 +187,7 @@ struct Layernorm2dFwdPipelineOnePass
             const auto beta_  = type_convert<ComputeDataType>(beta[j_idx]);
 
             auto ln_ = (acc[idx] - mean_[i_idx]) * inv_std[i_idx] * gamma_ + beta_;
+            // printf("ln: threadidx=%d, blockidx=%d, acc=%f\n",threadIdx.x, blockIdx.x, ln_);
             ln(idx)  = ln_;
         });
 

@@ -43,8 +43,10 @@ struct layernorm2d_bwd_args : public ck_tile::Layernorm2dBwdGammaBetaHostArgs
 // this is used to pattern-match internl kernel implementation, not to instantiate kernel
 template <typename DataType_,
           ck_tile::index_t Repeat_M_,         // each thread repeat along M
+          ck_tile::index_t Repeat_N_,         // each thread repeat along N
           ck_tile::index_t ThreadPerBlock_M_, // num threads along M
           ck_tile::index_t ThreadPerBlock_N_, // num threads along N
+          ck_tile::index_t Vector_N_,         // vector size along N
           bool kPadN_>
 struct layernorm2d_bwd_traits_
 {
@@ -60,7 +62,8 @@ struct layernorm2d_bwd_traits_
         if constexpr(is_warp_per_row)
         {
             static_assert(warpSize % ThreadPerBlock_N_ == 0);
-            return total_warps * (warpSize / ThreadPerBlock_N_);
+            // return total_warps * (warpSize / ThreadPerBlock_N_);
+            return total_warps;
         }
         else
         {
@@ -84,17 +87,18 @@ struct layernorm2d_bwd_traits_
     }();
 
     static constexpr ck_tile::index_t Repeat_M = Repeat_M_;
+    static constexpr ck_tile::index_t Repeat_N = Repeat_N_;
 
     static constexpr ck_tile::index_t Block_M = Repeat_M_ * ThreadPerBlock_M_;
-    static constexpr ck_tile::index_t Block_N = ThreadPerBlock_N_;
+    static constexpr ck_tile::index_t Block_N = Repeat_N_ * ThreadPerBlock_N_ * Vector_N_;
 
     static constexpr ck_tile::index_t Warp_M = ThreadPerBlock_M_ / BlockWarps_M;
-    static constexpr ck_tile::index_t Warp_N = ThreadPerBlock_N_ / BlockWarps_N;
+    static constexpr ck_tile::index_t Warp_N = ThreadPerBlock_N_ / BlockWarps_N * Vector_N_;
 
     using BlockTile  = ck_tile::sequence<Block_M, Block_N>;
     using BlockWarps = ck_tile::sequence<BlockWarps_M, BlockWarps_N>;
     using WarpTile   = ck_tile::sequence<Warp_M, Warp_N>;
-    using Vector     = ck_tile::sequence<1, 1>;
+    using Vector     = ck_tile::sequence<1, Vector_N_>;
 
     using Shape = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
 
@@ -103,13 +107,17 @@ struct layernorm2d_bwd_traits_
 
 template <typename DataType_,
           ck_tile::index_t Repeat_M_,         // each thread repeat along M
+          ck_tile::index_t Repeat_N_,         // each thread repeat along N
           ck_tile::index_t ThreadPerBlock_M_, // num threads along M
           ck_tile::index_t ThreadPerBlock_N_, // num threads along N
+          ck_tile::index_t Vector_N_,         // vector size along N
           bool kPadN_>
 using trait_ = layernorm2d_bwd_traits_<DataType_,
                                        Repeat_M_,
+                                       Repeat_N_,
                                        ThreadPerBlock_M_,
                                        ThreadPerBlock_N_,
+                                       Vector_N_,
                                        kPadN_>;
 
 template <typename Traits_>
@@ -126,7 +134,9 @@ template <typename data_type>
 struct layernorm2d_bwd_b16_
 {
     /* data */
-    using Trait = trait_<data_type,   1,  1,  64,  true>;
+    //using Trait = trait_<data_type,   1,  1,  1,  256,  1,  true>;
+    //using Trait = trait_<data_type,   1,  8,  64,  4,  8,  true>;
+    using Trait = trait_<data_type,   1,  4,  1,  128, 8,  true>;
     float operator() (layernorm2d_bwd_traits /*t*/,
                       layernorm2d_bwd_args a,
                       const ck_tile::stream_config& s) {
