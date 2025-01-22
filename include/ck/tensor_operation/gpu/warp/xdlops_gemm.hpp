@@ -944,7 +944,7 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<half_t, 32, 32>()
     {
-#if defined(__gfx950)
+#if defined(__gfx950__)
         return MfmaInstr::mfma_f32_32x32x16f16;
 #else
         return MfmaInstr::mfma_f32_32x32x8f16;
