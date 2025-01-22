@@ -434,7 +434,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 {
                     const auto& karg = trans_arg.karg_;
                     ave_time += launch_and_time_kernel(
-                        stream_config, kernel, dim3(arg.grid_size_), dim3(BlockSize), 0, karg_);
+                        stream_config, kernel, dim3(arg.grid_size_), dim3(BlockSize), 0, karg);
                 }
             };
 
