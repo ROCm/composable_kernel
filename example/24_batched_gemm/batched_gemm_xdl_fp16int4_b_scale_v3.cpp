@@ -49,7 +49,7 @@ static constexpr bool PermuteB    = false;
 static constexpr ck::index_t Scale_Block_N = 1;
 static constexpr ck::index_t Scale_Block_K = 128;
 
-static constexpr ck::index_t KPerBlock = 256;
+static constexpr ck::index_t KPerBlock = 128;
 
 // clang-format off
 using DeviceBatchedGemmV2Instance = 
@@ -58,15 +58,28 @@ using DeviceBatchedGemmV2Instance =
         ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 
         256, Scale_Block_N, Scale_Block_K,
-        16, 64,
+        128, 128,
         KPerBlock, 8, 32,
-        16,   16,
-        1,    1,
-        S<32, 8, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        32,   32,
+        2,    2,
+        S<16, 16, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 8, 8, 0,
-        S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
-        1, 1, S<1, 16, 1, 8>, 8,
+        1, 1, S<1, 16, 1, 8>, 8,        
+        // ALayout,   BLayout,  CLayout,   
+        // ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType, 
+        // AElementOp, BElementOp, CElementOp, GemmDefault, 
+        // 256, Scale_Block_N, Scale_Block_K,
+        // 256, 128,
+        // KPerBlock, 8, 32,
+        // 32,   32,
+        // 4,    2,
+        // S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        // 2, 8, 8, 0,
+        // S<1, 256, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        // 2, 32, 32, 0,
+        // 1, 1, S<1, 32, 1, 8>, 8,
         ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, CDataType, CDataType, PermuteA, PermuteB>;
 // clang-format on
 

@@ -48,13 +48,42 @@ __global__ void
     const auto c_batch_offset       = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
     const auto b_scale_batch_offset = karg.compute_ptr_offset_of_batch.GetSacleBPtrOffset(g_idx);
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+    // auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+
+    // printf("blockIdx.x: %d, blockIdx.y: %d, blockIdx.z: %d, a_batch_offset: %ld, b_batch_offset: "
+    //     "%ld, c_batch_offset: %ld, b_scale_batch_offset: %ld, karg.p_a_grid: %p, "
+    //     "karg.p_b_grid: %p, karg.p_c_grid: %p, karg.p_b_scale_grid: %p\n",
+    //     blockIdx.x,
+    //     blockIdx.y,
+    //     blockIdx.z,
+    //     a_batch_offset,
+    //     b_batch_offset,
+    //     c_batch_offset,
+    //     b_scale_batch_offset,
+    //     static_cast<const void*>(karg.p_a_grid + a_batch_offset),
+    //     static_cast<const void*>(karg.p_b_grid + b_batch_offset),
+    //     static_cast<const void*>(karg.p_c_grid + c_batch_offset),
+    //     static_cast<const void*>(karg.p_b_scale_grid + b_scale_batch_offset));
+
+    // const _Float16* a_ptr = karg.p_a_grid + a_batch_offset;
+    // if(blockIdx.z == 1 && threadIdx.x == 0)
+    // {
+    //     for(int i = 0; i < 128 * 384; i++)
+    //     {
+    //         const _Float16* el_ptr = a_ptr + i;
+    //         printf("%.2f ", static_cast<float>(*el_ptr));
+            
+    //         if(i%384==0)
+    //             printf("\n");
+    //     }
+    //     printf("\n");
+    // }
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + a_batch_offset + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + b_batch_offset + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid + c_batch_offset + splitk_batch_offset.c_reduce_offset,
-        karg.p_b_scale_grid + b_scale_batch_offset + splitk_batch_offset.scale_k_split_offset,
+        karg.p_a_grid + a_batch_offset,
+        karg.p_b_grid + b_batch_offset,
+        karg.p_c_grid + c_batch_offset,
+        karg.p_b_scale_grid + b_scale_batch_offset,
         p_shared,
         karg);
 #else
@@ -223,9 +252,9 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
     struct ComputePtrOffsetOfStridedBatch
     {
         ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
-                                                  index_t BatchStrideB,
-                                                  index_t BatchStrideC,
-                                                  index_t BatchStrideScaleB)
+                                       index_t BatchStrideB,
+                                       index_t BatchStrideC,
+                                       index_t BatchStrideScaleB)
             : BatchStrideA_(BatchStrideA),
               BatchStrideB_(BatchStrideB),
               BatchStrideC_(BatchStrideC),
@@ -327,6 +356,8 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
             std::tie(gdx, gdy, gdz) =
                 GridwiseGemm::CalculateGridSize(arg.M, arg.N, arg.Batch * arg.KBatch);
 
+            printf("gdx: %d, gdy: %d, gdz: %d\n", gdx, gdy, gdz);
+
             float ave_time = 0;
 
             index_t k_grain = arg.KBatch * KPerBlock;
@@ -347,7 +378,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
                     auto size_a_buffer =
                         a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
                     auto size_b_buffer =
-                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
+                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);             
 
                     ck::utility::RotatingMemWrapper<Argument> rotating_mem(
                         arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer);
