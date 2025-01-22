@@ -168,6 +168,7 @@ struct GemmKernel
         {
             if(kargs.KBatch != 1)
             {
+                std::cerr << "Conditions not met for Kbatch >1 !" << std::endl;
                 return false;
             }
         }
@@ -176,10 +177,14 @@ struct GemmKernel
         {
             if(kargs.K % TilePartitioner::kK != 0 && GemmPipeline::kPadK == false)
             {
+                std::cerr << "Can't support K that is not a multiple of KPerBlock"
+                             " without padding!"
+                          << std::endl;
                 return false;
             }
             if(kargs.K % GemmPipeline::VectorSizeA != 0)
             {
+                std::cerr << "K is not a multiple of vector load size for A tensor!" << std::endl;
                 return false;
             }
         }
@@ -187,10 +192,14 @@ struct GemmKernel
         {
             if(kargs.M % TilePartitioner::kM != 0 && GemmPipeline::kPadM == false)
             {
+                std::cerr << "Can't support M that is not a multiple of MPerBlock"
+                             " without padding!"
+                          << std::endl;
                 return false;
             }
             if(kargs.M % GemmPipeline::VectorSizeA != 0)
             {
+                std::cerr << "M is not a multiple of vector load size for A tensor!" << std::endl;
                 return false;
             }
         }
@@ -199,10 +208,14 @@ struct GemmKernel
         {
             if(kargs.N % TilePartitioner::kN != 0 && GemmPipeline::kPadN == false)
             {
+                std::cerr << "Can't support N that is not a multiple of NPerBlock"
+                             " without padding!"
+                          << std::endl;
                 return false;
             }
             if(kargs.N % GemmPipeline::VectorSizeB != 0)
             {
+                std::cerr << "N is not a multiple of vector load size for B tensor!" << std::endl;
                 return false;
             }
         }
@@ -210,10 +223,14 @@ struct GemmKernel
         {
             if(kargs.K % TilePartitioner::kK != 0 && GemmPipeline::kPadK == false)
             {
+                std::cerr << "Can't support K that is not a multiple of KPerBlock"
+                             " without padding!"
+                          << std::endl;
                 return false;
             }
             if(kargs.K % GemmPipeline::VectorSizeB != 0)
             {
+                std::cerr << "K is not a multiple of vector load size for B tensor!" << std::endl;
                 return false;
             }
         }
@@ -222,10 +239,14 @@ struct GemmKernel
         {
             if(kargs.N % TilePartitioner::kN != 0 && GemmPipeline::kPadN == false)
             {
+                std::cerr << "Can't support N that is not a multiple of NPerBlock"
+                             " without padding!"
+                          << std::endl;
                 return false;
             }
             if(kargs.N % GemmPipeline::VectorSizeC != 0)
             {
+                std::cerr << "N is not a multiple of vector load size for C tensor!" << std::endl;
                 return false;
             }
         }
@@ -233,10 +254,14 @@ struct GemmKernel
         {
             if(kargs.M % TilePartitioner::kM != 0 && GemmPipeline::kPadM == false)
             {
+                std::cerr << "Can't support M that is not a multiple of MPerBlock"
+                             " without padding!"
+                          << std::endl;
                 return false;
             }
             if(kargs.M % GemmPipeline::VectorSizeC != 0)
             {
+                std::cerr << "M is not a multiple of vector load size for C tensor!" << std::endl;
                 return false;
             }
         }
@@ -346,8 +371,6 @@ struct GemmKernel
             }
         }();
 
-       
-
         const auto& b_pad_view = [&]() {
             const auto& b_tensor_view = views.at(I1);
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
@@ -392,8 +415,8 @@ struct GemmKernel
     CK_TILE_DEVICE static auto
     MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
     {
-        const auto& a_pad_view     = views.at(I0);
-        const auto& b_pad_view     = views.at(I1);
+        const auto& a_pad_view = views.at(I0);
+        const auto& b_pad_view = views.at(I1);
         const auto& c_pad_view = views.at(I2);
 
         const auto& a_block_window = [&]() {
@@ -429,8 +452,8 @@ struct GemmKernel
                     {0, i_n});
             }
         }();
-        
-        auto c_block_window    = make_tile_window(
+
+        auto c_block_window = make_tile_window(
             c_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
             {i_m, i_n});
