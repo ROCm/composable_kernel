@@ -31,6 +31,8 @@ struct Rmsnorm2dFwdPipelineOnePass
     static constexpr bool kNeedCrossWarpSync = Problem::kNeedCrossWarpSync;
     static constexpr bool kPadM              = false; // TODO - BlockRmsnorm2dFwdProblem::kPadM
     static constexpr bool kPadN              = Problem::Traits::kPadN;
+    static constexpr bool kFastFDiv          = Problem::Traits::kFastFDiv;
+    static constexpr bool kWelford           = Problem::Traits::kWelford;
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
@@ -62,7 +64,7 @@ struct Rmsnorm2dFwdPipelineOnePass
                                    const YResidualWindow& y_residual_window_,
                                    InvRmsWindow& inv_rms_window,
                                    const SmoothScaleWindow& sm_scale_window_,
-                                   YScaleWindow& y_scale_window_,
+                                   YScaleWindow& y_scale_window,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
                                    void* smem,
@@ -77,12 +79,13 @@ struct Rmsnorm2dFwdPipelineOnePass
         auto y_residual_window = make_tile_window(
             y_residual_window_, Policy::template MakeXBlockTileDistribution<Problem>());
 
-        auto reduce_square_sum_func = ReduceOp::SquareAdd{};
-        auto reduce_sum_func        = ReduceOp::Add{};
-        auto block_reduce2d         = Policy::template GetBlockReduce2d<Problem>();
-        auto block_reduce2d_sync    = Policy::template GetBlockReduce2dSync<Problem>();
-        auto block_reduce2d_cross_warp_sync =
-            Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
+        int cur_count = 0;
+        int max_count =
+            block_tile_welford_calculate_max_count<typename Problem::BlockShape>(row_size);
+        auto block_norm_reduce      = Policy::template GetBlockNormReduce<Problem>();
+        auto block_norm_reduce_sync = Policy::template GetBlockNormReduceSync<Problem>();
+        auto block_norm_reduce_cross_warp_sync =
+            Policy::template GetBlockNormReduceCrossWarpSync<Problem>();
 
         auto x      = load_tile(x_window);
         auto x_resi = load_tile(x_residual_window);
@@ -105,19 +108,32 @@ struct Rmsnorm2dFwdPipelineOnePass
             }
         }
 
+        // Calculate square here because block norm reduce only supports naive mean.
+        auto square = make_static_distributed_tensor<ComputeDataType>(acc.get_tile_distribution());
+        sweep_tile(acc, [&](auto idx) { square(idx) = acc(idx) * acc(idx); });
+
         // compute mean square each-thread->cross-lane->cross-warp
-        auto square_sum = block_reduce2d(acc,
-                                         reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
-                                         reduce_square_sum_func);
-        block_reduce2d_sync(square_sum, reduce_sum_func);
-        block_reduce2d_cross_warp_sync(square_sum, smem, reduce_sum_func);
+        using XTensorType = decltype(cast_tile<ComputeDataType>(x));
+        auto square_mean  = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
+        clear_tile(square_mean);
+        block_norm_reduce(square, square_mean, cur_count, max_count);
+        block_norm_reduce_sync(square_mean, cur_count);
+        block_norm_reduce_cross_warp_sync(square_mean, cur_count, smem);
 
         // compute inv-rms
         auto inv_rms = tile_elementwise_in(
             [&](const auto& v_) {
-                return type_convert<ComputeDataType>(1.0f) / (sqrt(v_ / row_size + epsilon));
+                if constexpr(kFastFDiv && std::is_same_v<ComputeDataType, float>)
+                {
+                    return type_convert<ComputeDataType>(1.0f) *
+                           __builtin_amdgcn_rcpf(sqrt(v_ + epsilon));
+                }
+                else
+                {
+                    return type_convert<ComputeDataType>(1.0f) / (sqrt(v_ + epsilon));
+                }
             },
-            square_sum);
+            square_mean);
 
         if constexpr(kSaveInvRms)
             store_tile(inv_rms_window, cast_tile<InvRmsDataType>(inv_rms));
@@ -137,11 +153,11 @@ struct Rmsnorm2dFwdPipelineOnePass
 
         if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
         {
-            Epilogue{}(y_window_, sm_scale_window_, y_scale_window_, rmsn, smem);
+            Epilogue{}(y_window_, sm_scale_window_, y_scale_window, rmsn, smem);
         }
         else if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT)
         {
-            Epilogue{}(y_window_, y_scale_window_, rmsn, smem);
+            Epilogue{}(y_window_, y_scale_window, rmsn, smem);
         }
         else
         {

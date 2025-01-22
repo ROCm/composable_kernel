@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/reduce/block/block_reduce2d_problem.hpp"
-#include "ck_tile/ops/reduce/block/block_reduce2d.hpp"
+#include "ck_tile/ops/norm_reduce/block/block_norm_reduce_problem.hpp"
+#include "ck_tile/ops/norm_reduce/block/block_norm_reduce.hpp"
 
 namespace ck_tile {
 
@@ -43,30 +43,39 @@ struct Rmsnorm2dFwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockReduce2d()
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockNormReduce()
     {
-        using P_ = BlockReduce2dProblem<typename Problem::ComputeDataType,
-                                        typename Problem::ComputeDataType,
-                                        typename Problem::BlockShape>;
-        return BlockReduce2d<P_>{};
+        using P_ = BlockNormReduceProblem<typename Problem::ComputeDataType,
+                                          typename Problem::ComputeDataType,
+                                          typename Problem::BlockShape,
+                                          false,
+                                          Problem::Traits::kFastFDiv,
+                                          Problem::Traits::kWelford>;
+        return BlockNormReduce<P_>{};
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockReduce2dSync()
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockNormReduceSync()
     {
-        using P_ = BlockReduce2dProblem<typename Problem::ComputeDataType,
-                                        typename Problem::ComputeDataType,
-                                        typename Problem::BlockShape>;
-        return BlockReduce2dSync<P_>{};
+        using P_ = BlockNormReduceProblem<typename Problem::ComputeDataType,
+                                          typename Problem::ComputeDataType,
+                                          typename Problem::BlockShape,
+                                          false,
+                                          Problem::Traits::kFastFDiv,
+                                          Problem::Traits::kWelford>;
+        return BlockNormReduceSync<P_>{};
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockReduce2dCrossWarpSync()
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockNormReduceCrossWarpSync()
     {
-        using P_ = BlockReduce2dProblem<typename Problem::ComputeDataType,
-                                        typename Problem::ComputeDataType,
-                                        typename Problem::BlockShape>;
-        return BlockReduce2dCrossWarpSync<P_>{};
+        using P_ = BlockNormReduceProblem<typename Problem::ComputeDataType,
+                                          typename Problem::ComputeDataType,
+                                          typename Problem::BlockShape,
+                                          false,
+                                          Problem::Traits::kFastFDiv,
+                                          Problem::Traits::kWelford>;
+        return BlockNormReduceCrossWarpSync<P_>{};
     }
 
     template <typename Problem>
@@ -74,17 +83,22 @@ struct Rmsnorm2dFwdPipelineDefaultPolicy
     {
         if constexpr(Problem::kNeedCrossWarpSync)
         {
-            using P_ = BlockReduce2dProblem<typename Problem::ComputeDataType,
-                                            typename Problem::ComputeDataType,
-                                            typename Problem::BlockShape>;
+            using P_ = BlockNormReduceProblem<typename Problem::ComputeDataType,
+                                              typename Problem::ComputeDataType,
+                                              typename Problem::BlockShape,
+                                              false,
+                                              Problem::Traits::kFastFDiv,
+                                              Problem::Traits::kWelford>;
 
-            using block_reduce2d = BlockReduce2d<P_>;
+            using block_reduce = BlockNormReduce<P_>;
             using x_block_tile =
                 decltype(make_static_distributed_tensor<typename Problem::ComputeDataType>(
                     MakeXBlockTileDistribution<Problem>()));
-            using y_block_tile = decltype(block_reduce2d::template MakeYBlockTile<x_block_tile>());
+            using mean_var_block_tile =
+                decltype(block_reduce::template MakeMeanVarBlockTile<x_block_tile>());
 
-            return GetBlockReduce2dCrossWarpSync<Problem>().template GetSmemSize<y_block_tile>();
+            return GetBlockNormReduceCrossWarpSync<Problem>()
+                .template GetSmemSize<mean_var_block_tile>();
         }
         else
         {

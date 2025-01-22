@@ -39,6 +39,8 @@ template<> struct Rmsnorm2dFusedQuantEnumName<Rmsnorm2dFusedQuantEnum::SMOOTH_DY
 
 template <bool kPadN_,
           bool kSaveInvRms_,
+          bool kFastFDiv_,
+          bool kWelford_,
           bool kTwoPass_,
           Rmsnorm2dFusedAddEnum kFusedAdd_,
           Rmsnorm2dFusedQuantEnum kFusedQuant_>
@@ -46,6 +48,8 @@ struct Rmsnorm2dFwdTraits
 {
     static constexpr bool kPadN                          = kPadN_;
     static constexpr bool kSaveInvRms                    = kSaveInvRms_;
+    static constexpr bool kFastFDiv                      = kFastFDiv_;
+    static constexpr bool kWelford                       = kWelford_;
     static constexpr bool kTwoPass                       = kTwoPass_;
     static constexpr Rmsnorm2dFusedAddEnum kFusedAdd     = kFusedAdd_;
     static constexpr Rmsnorm2dFusedQuantEnum kFusedQuant = kFusedQuant_;

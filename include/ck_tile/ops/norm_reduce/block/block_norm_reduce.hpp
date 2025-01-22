@@ -36,7 +36,7 @@ struct BlockNormReduce
         constexpr auto I1 = number<1>{};
 
         constexpr auto spans = XDistributedTensor_::get_distributed_spans();
-        constexpr bool computeVariance =
+        constexpr bool comp_var =
             !std::is_same<VarDistributedTensor_, null_tensor>::value && kComputeVariance;
 
         sweep_tile_span(spans[I1], [&](auto dstr_idx_i1) {
@@ -50,7 +50,7 @@ struct BlockNormReduce
                     auto x = ck_tile::type_convert<ComputeDataType>(x_tensor[in_dstr_idx]);
                     if(kWelford)
                     {
-                        if constexpr(computeVariance)
+                        if constexpr(comp_var)
                         {
                             welford_update(mean_tensor(out_dstr_idx),
                                            var_tensor(out_dstr_idx),
@@ -67,7 +67,7 @@ struct BlockNormReduce
                     else
                     {
                         mean_tensor(out_dstr_idx) += x;
-                        if constexpr(computeVariance)
+                        if constexpr(comp_var)
                         {
                             var_tensor(out_dstr_idx) += x * x;
                         }
@@ -98,7 +98,8 @@ struct BlockNormReduce
                                    int& cur_count_,
                                    const int& max_count_)
     {
-        Impl(x_tensor, mean_tensor, null_tensor{}, cur_count_, max_count_);
+        auto nt = null_tensor{};
+        Impl(x_tensor, mean_tensor, nt, cur_count_, max_count_);
     }
 
     template <typename XDistributedTensor_>
@@ -152,31 +153,39 @@ struct BlockNormReduceSync
         using DstrEncode       = typename Dstr::DstrEncode;
         using DstrEncodeDetail = typename DstrEncode::detail;
 
-        static_assert(std::is_same_v<Dstr, typename VarDistributedTensor_::StaticTileDistribution>,
-                      "wrong!");
-
         constexpr index_t NDimP = Dstr::get_num_of_dimension_p();
         constexpr index_t NDimR = Dstr::get_num_of_dimension_r();
 
         constexpr index_t idim_p_lane = NDimP - 1;
 
-        constexpr bool computeVariance =
+        constexpr bool comp_var =
             !std::is_same<VarDistributedTensor_, null_tensor>::value && kComputeVariance;
+
+        constexpr index_t thread_buf_size = MeanDistributedTensor_::get_thread_buffer_size();
+
+        if constexpr(comp_var)
+        {
+            static_assert(
+                std::is_same_v<Dstr, typename VarDistributedTensor_::StaticTileDistribution>,
+                "wrong!");
+            static_assert(thread_buf_size == VarDistributedTensor_::get_thread_buffer_size());
+        }
 
         // const auto ps_idx = make_array<index_t>(get_warp_id(), get_lane_id());
         // const auto rs_idx =
         //     mean_tensor.get_tile_distribution().calculate_rs_index_from_ps_index(ps_idx);
 
-        constexpr index_t thread_buf_size = MeanDistributedTensor_::get_thread_buffer_size();
-        static_assert((computeVariance == false) ||
-                      (thread_buf_size == VarDistributedTensor_::get_thread_buffer_size()));
-
         const int original_count = count;
 
         // loop over thread data
         static_for<0, thread_buf_size, 1>{}([&](auto i) {
-            auto v_local_mean  = mean_tensor.get_thread_buffer()[i];
-            auto v_local_var   = computeVariance ? var_tensor.get_thread_buffer()[i] : 0;
+            auto v_local_mean = mean_tensor.get_thread_buffer()[i];
+            auto v_local_var  = [&]() {
+                if constexpr(comp_var)
+                    return var_tensor.get_thread_buffer()[i];
+                else
+                    return 0;
+            }();
             auto v_local_count = original_count;
 
             // cross-lane reduce for replication
@@ -206,13 +215,13 @@ struct BlockNormReduceSync
                         // pull data from remote lane
                         const auto v_remote_mean = warp_shuffle(v_local_mean, src_lane);
                         const auto v_remote_var =
-                            computeVariance ? warp_shuffle(v_local_var, src_lane) : 0;
+                            comp_var ? warp_shuffle(v_local_var, src_lane) : 0;
                         if(kWelford)
                         {
                             const auto v_remote_count = warp_shuffle(v_local_count, src_lane);
 
                             // norm_reduce merge
-                            if constexpr(computeVariance)
+                            if constexpr(comp_var)
                             {
                                 welford_merge(v_local_mean,
                                               v_local_var,
@@ -234,7 +243,7 @@ struct BlockNormReduceSync
                         else
                         {
                             v_local_mean += v_remote_mean;
-                            if constexpr(computeVariance)
+                            if constexpr(comp_var)
                             {
                                 v_local_var += v_remote_var;
                             }
@@ -244,7 +253,11 @@ struct BlockNormReduceSync
             });
 
             mean_tensor.get_thread_buffer()(i) = v_local_mean;
-            var_tensor.get_thread_buffer()(i)  = v_local_var;
+            if constexpr(comp_var)
+            {
+                var_tensor.get_thread_buffer()(i) = v_local_var;
+            }
+
             if(kWelford)
             {
                 count = v_local_count;
@@ -263,7 +276,8 @@ struct BlockNormReduceSync
     template <typename MeanDistributedTensor_>
     CK_TILE_DEVICE void operator()(MeanDistributedTensor_& mean_tensor, int& count)
     {
-        Impl(mean_tensor, null_tensor{}, count);
+        auto nt = null_tensor{};
+        Impl(mean_tensor, nt, count);
     }
 };
 
@@ -348,17 +362,18 @@ struct BlockNormReduceCrossWarpSync
         // using DstrEncode       = typename Dstr::DstrEncode;
         // using DstrEncodeDetail = typename DstrEncode::detail;
 
-        constexpr bool computeVariance =
+        constexpr bool comp_var =
             !std::is_same<VarDistributedTensor_, null_tensor>::value && kComputeVariance;
 
-        static_assert(
-            (computeVariance == false) ||
-                std::is_same_v<Dstr, typename VarDistributedTensor_::StaticTileDistribution>,
-            "wrong!");
-
         constexpr index_t thread_buf_size = MeanDistributedTensor_::get_thread_buffer_size();
-        static_assert((computeVariance == false) ||
-                      (thread_buf_size == VarDistributedTensor_::get_thread_buffer_size()));
+
+        if constexpr(comp_var)
+        {
+            static_assert(thread_buf_size == VarDistributedTensor_::get_thread_buffer_size());
+            static_assert(
+                std::is_same_v<Dstr, typename VarDistributedTensor_::StaticTileDistribution>,
+                "wrong!");
+        }
 
         // Note: we always pack everything into fp32x4
         smem_dtype* smem_ptr            = reinterpret_cast<smem_dtype*>(smem);
@@ -413,7 +428,12 @@ struct BlockNormReduceCrossWarpSync
             // TODO: use descriptor for this
             auto v_local      = all_scratch[i_0 * num_reduce_warps];
             auto v_local_mean = bit_cast<DataType>(v_local[0]);
-            auto v_local_var  = kComputeVariance ? bit_cast<DataType>(v_local[1]) : 0;
+            auto v_local_var  = [&]() {
+                if constexpr(comp_var)
+                    return bit_cast<DataType>(v_local[1]);
+                else
+                    return 0;
+            }();
             int v_local_count = kWelford ? (kComputeVariance ? bit_cast<int>(v_local[2])
                                                              : bit_cast<int>(v_local[1]))
                                          : 0;
@@ -458,7 +478,11 @@ struct BlockNormReduceCrossWarpSync
             });
 
             mean_tensor.get_thread_buffer()(i_0) = v_local_mean;
-            var_tensor.get_thread_buffer()(i_0)  = v_local_var;
+            if constexpr(comp_var)
+            {
+                var_tensor.get_thread_buffer()(i_0) = v_local_var;
+            }
+
             if constexpr(kWelford)
             {
                 count = v_local_count;
@@ -479,7 +503,8 @@ struct BlockNormReduceCrossWarpSync
     template <typename MeanDistributedTensor_>
     CK_TILE_DEVICE void operator()(MeanDistributedTensor_& mean_tensor, int& count, void* smem)
     {
-        Impl(mean_tensor, null_tensor{}, count, smem);
+        auto nt = null_tensor{};
+        Impl(mean_tensor, nt, count, smem);
     }
 };
 

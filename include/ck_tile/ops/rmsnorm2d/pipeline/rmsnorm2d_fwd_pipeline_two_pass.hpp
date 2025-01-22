@@ -31,6 +31,8 @@ struct Rmsnorm2dFwdPipelineTwoPass
     static constexpr bool kNeedCrossWarpSync = Problem::kNeedCrossWarpSync;
     static constexpr bool kPadM              = false; // TODO - BlockRmsnorm2dFwdProblem::kPadM
     static constexpr bool kPadN              = Problem::Traits::kPadN;
+    static constexpr bool kFastFDiv          = Problem::Traits::kFastFDiv;
+    static constexpr bool kWelford           = Problem::Traits::kWelford;
     static constexpr auto kFusedAdd          = Problem::Traits::kFusedAdd;
     static constexpr auto kFusedQuant        = Problem::Traits::kFusedQuant;
 
@@ -82,16 +84,23 @@ struct Rmsnorm2dFwdPipelineTwoPass
         index_t num_n_tile_iteration =
             __builtin_amdgcn_readfirstlane(integer_divide_ceil(row_size, Block_N));
 
-        auto reduce_square_sum_func = ReduceOp::SquareAdd{};
-        auto reduce_sum_func        = ReduceOp::Add{};
-        auto block_reduce2d         = Policy::template GetBlockReduce2d<Problem>();
-        auto block_reduce2d_sync    = Policy::template GetBlockReduce2dSync<Problem>();
-        auto block_reduce2d_cross_warp_sync =
-            Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
+        // total number of count assume current iter have no pad(only last iter has pad)
+        constexpr index_t count_per_iter =
+            Problem::BlockShape::Repeat_N * Problem::BlockShape::Vector_N;
+        const index_t last_iter_n = row_size - (num_n_tile_iteration - 1) * Block_N;
 
-        using ComputeTensorType = decltype(cast_tile<ComputeDataType>(load_tile(x_window)));
-        auto square_sum         = block_reduce2d.template MakeYBlockTile<ComputeTensorType>();
-        set_tile(square_sum, reduce_square_sum_func.GetIdentityValue<ComputeDataType>());
+        int cur_count = 0;
+        int max_count =
+            (num_n_tile_iteration - 1) * count_per_iter +
+            block_tile_welford_calculate_max_count<typename Problem::BlockShape>(last_iter_n);
+        auto block_norm_reduce      = Policy::template GetBlockNormReduce<Problem>();
+        auto block_norm_reduce_sync = Policy::template GetBlockNormReduceSync<Problem>();
+        auto block_norm_reduce_cross_warp_sync =
+            Policy::template GetBlockNormReduceCrossWarpSync<Problem>();
+
+        using XTensorType = decltype(cast_tile<ComputeDataType>(load_tile(x_window)));
+        auto square_mean  = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
+        clear_tile(square_mean);
 
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
@@ -102,6 +111,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
             move_tile_window(x_residual_window, {0, Block_N});
 
             auto acc = cast_tile<ComputeDataType>(x);
+
             if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
                          kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
             {
@@ -116,18 +126,29 @@ struct Rmsnorm2dFwdPipelineTwoPass
                 }
             }
 
-            block_reduce2d(acc, square_sum, reduce_square_sum_func);
+            // Calculate square here because block norm reduce only supports naive mean.
+            sweep_tile(acc, [&](auto idx) { acc(idx) *= acc(idx); });
+
+            block_norm_reduce(acc, square_mean, cur_count, max_count);
         }
 
-        block_reduce2d_sync(square_sum, reduce_sum_func);
-        block_reduce2d_cross_warp_sync(square_sum, smem, reduce_sum_func);
+        block_norm_reduce_sync(square_mean, cur_count);
+        block_norm_reduce_cross_warp_sync(square_mean, cur_count, smem);
 
         // compute inv-rms
         auto inv_rms = tile_elementwise_in(
             [&](const auto& v_) {
-                return type_convert<ComputeDataType>(1.0f) / (sqrt(v_ / row_size + epsilon));
+                if(kFastFDiv && std::is_same_v<ComputeDataType, float>)
+                {
+                    return type_convert<ComputeDataType>(1.0f) *
+                           __builtin_amdgcn_rcpf(sqrt(v_ + epsilon));
+                }
+                else
+                {
+                    return type_convert<ComputeDataType>(1.0f) / (sqrt(v_ + epsilon));
+                }
             },
-            square_sum);
+            square_mean);
 
         if constexpr(kSaveInvRms)
             store_tile(inv_rms_window, cast_tile<InvRmsDataType>(inv_rms));
