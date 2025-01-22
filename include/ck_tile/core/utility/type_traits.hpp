@@ -109,4 +109,22 @@ CK_TILE_HOST_DEVICE PY c_style_pointer_cast(PX p_x)
 #pragma clang diagnostic pop
 }
 
+template <typename CompareTo, typename... Rest>
+struct is_any_of : std::false_type
+{
+};
+
+template <typename CompareTo, typename FirstType>
+struct is_any_of<CompareTo, FirstType> : std::is_same<CompareTo, FirstType>
+{
+};
+
+template <typename CompareTo, typename FirstType, typename... Rest>
+struct is_any_of<CompareTo, FirstType, Rest...>
+    : std::integral_constant<bool,
+                             std::is_same<CompareTo, FirstType>::value ||
+                                 is_any_of<CompareTo, Rest...>::value>
+{
+};
+
 } // namespace ck_tile

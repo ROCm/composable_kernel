@@ -17,7 +17,9 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 
 // to do: add various levels of logging with CK_LOG_LEVEL
 
+#ifndef CK_TIME_KERNEL
 #define CK_TIME_KERNEL 1
+#endif
 
 // constant address space for kernel parameter
 // https://llvm.org/docs/AMDGPUUsage.html#address-spaces
