@@ -944,7 +944,7 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<half_t, 32, 32>()
     {
-#if defined(CK_USE_AMD_MFMA_GFX950)
+#if defined(__gfx950)
         return MfmaInstr::mfma_f32_32x32x16f16;
 #else
         return MfmaInstr::mfma_f32_32x32x8f16;
@@ -954,7 +954,7 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<half_t, 16, 16>()
     {
-#if defined(CK_USE_AMD_MFMA_GFX950)
+#if defined(__gfx950__)
         return MfmaInstr::mfma_f32_16x16x32f16;
 #else
         return MfmaInstr::mfma_f32_16x16x16f16;
@@ -982,7 +982,7 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<bhalf_t, 32, 32>()
     {
-#if defined(CK_USE_AMD_MFMA_GFX950)
+#if defined(__gfx950__)
         return MfmaInstr::mfma_f32_32x32x16bf16;
 #elif defined(CK_USE_AMD_MFMA_BF16_1K_OP)
         return MfmaInstr::mfma_f32_32x32x8bf16_1k;
@@ -994,7 +994,7 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<bhalf_t, 16, 16>()
     {
-#if defined(CK_USE_AMD_MFMA_GFX950)
+#if defined(__gfx950__)
         return MfmaInstr::mfma_f32_16x16x32bf16;
 #elif defined(CK_USE_AMD_MFMA_BF16_1K_OP)
         return MfmaInstr::mfma_f32_16x16x16bf16_1k;
@@ -1003,7 +1003,7 @@ struct MfmaSelector
 #endif
     }
 
-#if defined(CK_USE_AMD_MFMA_GFX950)
+#if defined(__gfx950__)
     template <>
     constexpr auto GetMfma<int8_t, 32, 32>()
     {
@@ -1014,7 +1014,7 @@ struct MfmaSelector
     {
         return MfmaInstr::mfma_i32_16x16x64i8;
     }
-#elif defined(CK_USE_AMD_MFMA_GFX940)
+#elif defined(__gfx950__)
     template <>
     constexpr auto GetMfma<int8_t, 32, 32>()
     {

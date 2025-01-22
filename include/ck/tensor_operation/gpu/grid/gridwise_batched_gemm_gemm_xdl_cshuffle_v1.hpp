@@ -608,7 +608,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         // cause mismatch in summation index for example c[0:7] = a1[[0:3, 8:11]] * b1[0:7].
         // therefore we may just as well assign Gemm1KPack = group_size
 
-#if defined(CK_USE_AMD_MFMA_GFX950)
+#if defined(__gfx950__)
         // TODO: fix logic for gfx950 as it's temporary hack for passing compiling
         constexpr index_t Gemm1KPack = math::max(
             math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
