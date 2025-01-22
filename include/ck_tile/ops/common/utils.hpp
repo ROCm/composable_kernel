@@ -7,7 +7,9 @@
 #include <string>
 
 #include "ck_tile/core.hpp"
+
 namespace ck_tile {
+
 // clang-format off
 template <typename T> struct t2s;
 template <> struct t2s<float> { static constexpr const char * name = "fp32"; };

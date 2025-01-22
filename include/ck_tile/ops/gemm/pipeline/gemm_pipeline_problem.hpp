@@ -43,7 +43,8 @@ struct GemmPipelineProblemBase
 
         return _SS_("gemm_problem_") +
                 _TS_(VectorLoadSize) + "x" + _TS_(kBlockSize) + "_" +
-                _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK);
+                _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK) + "_" +
+                GemmPipelineSchedulerToString(Scheduler);
 #undef _TS_
         // clang-format on
     }

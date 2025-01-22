@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <ostream>
+#include <sstream>
 
 #include "ck_tile/core.hpp"
 
@@ -70,4 +71,11 @@ inline std::ostream& operator<<(std::ostream& os, const ck_tile::TailNumber& s)
     default: os << "";
     }
     return os;
+}
+
+inline std::string GemmPipelineSchedulerToString(const ck_tile::GemmPipelineScheduler& s)
+{
+    std::ostringstream oss;
+    oss << s;
+    return oss.str();
 }

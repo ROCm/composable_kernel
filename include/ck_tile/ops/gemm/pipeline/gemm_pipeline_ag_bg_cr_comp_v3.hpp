@@ -84,7 +84,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
         using _SS_ = std::string;
 
         return _SS_("pipeline_AgBgCrCompV3_") +
-                _TS_(MPerBlock) + "x" + _TS_(NPerBlock) + "x" + _TS_(KPerBlock) + "x" + _TS_(BlockSize) + "_" +
+                _TS_(BlockSize) + "_" +
                 _TS_(VectorSizeA) + "x" + _TS_(VectorSizeB) + "x" + _TS_(VectorSizeC) + "_" +
                 _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK);
 #undef _TS_
