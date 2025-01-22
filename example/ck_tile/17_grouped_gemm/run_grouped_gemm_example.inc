@@ -31,7 +31,7 @@ float invoke_gemm(int n_warmup,
 {
 
     ck_tile::DeviceMem gemm_workspace;
-    gemm_workspace.Realloc(GetWorkspaceSize(args));
+    gemm_workspace.Realloc(get_workspace_size(args));
 
     float ave_time = grouped_gemm<ALayout, BLayout, CLayout>(
         args,
@@ -128,16 +128,16 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const ck_tile::index_t N = Ns[i];
         const ck_tile::index_t K = Ks[i];
 
-        stride_As[i] = f_get_default_stride(M, N, stride_As[i], a_layout);
-        stride_Bs[i] = f_get_default_stride(K, N, stride_Bs[i], b_layout);
-        stride_Cs[i] = f_get_default_stride(M, N, stride_Cs[i], CLayout{});
+        stride_As[i] = ck_tile::get_default_stride(M, N, stride_As[i], a_layout);
+        stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], b_layout);
+        stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], CLayout{});
 
-        a_m_k_tensors.push_back(
-            ck_tile::HostTensor<ADataType>(f_host_tensor_descriptor(M, K, stride_As[i], a_layout)));
-        b_k_n_tensors.push_back(
-            ck_tile::HostTensor<BDataType>(f_host_tensor_descriptor(K, N, stride_Bs[i], b_layout)));
+        a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
+            ck_tile::host_tensor_descriptor(M, K, stride_As[i], a_layout)));
+        b_k_n_tensors.push_back(ck_tile::HostTensor<BDataType>(
+            ck_tile::host_tensor_descriptor(K, N, stride_Bs[i], b_layout)));
         c_m_n_tensors.push_back(ck_tile::HostTensor<CDataType>(
-            f_host_tensor_descriptor(M, N, stride_Cs[i], CLayout{})));
+            ck_tile::host_tensor_descriptor(M, N, stride_Cs[i], CLayout{})));
 
         std::cout << "gemm[" << i << "]"
                   << " a_m_k: " << a_m_k_tensors[i].mDesc << " b_k_n: " << b_k_n_tensors[i].mDesc
@@ -178,7 +178,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         for(int i = 0; i < group_count; ++i)
         {
             ck_tile::HostTensor<CDataType> c_m_n_host_ref(
-                f_host_tensor_descriptor(Ms[i], Ns[i], stride_Cs[i], CLayout{}));
+                ck_tile::host_tensor_descriptor(Ms[i], Ns[i], stride_Cs[i], CLayout{}));
             c_m_n_host_ref.SetZero();
             ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
                 a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
