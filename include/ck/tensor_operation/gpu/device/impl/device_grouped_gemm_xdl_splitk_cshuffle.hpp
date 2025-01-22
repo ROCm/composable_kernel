@@ -430,12 +430,12 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     }
                 }
 
-                ave_time = launch_and_time_kernel(stream_config,
-                                                  kernel,
-                                                  dim3(arg.grid_size_),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.gemm_kernel_args_[0].karg_);
+                for(const auto& trans_arg : arg.gemm_kernel_args_)
+                {
+                    const auto& karg = trans_arg.karg_;
+                    ave_time += launch_and_time_kernel(
+                        stream_config, kernel, dim3(arg.grid_size_), dim3(BlockSize), 0, karg_);
+                }
             };
 
             constexpr index_t minimum_occupancy =
