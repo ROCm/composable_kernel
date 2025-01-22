@@ -168,7 +168,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     transpose_kernel_param_t kparam;
     for(auto iter_kparam : get_transpose_all_kernel(prec))
     {
-        bool is_valid = is_kernel_valid(N, C, H, W, &iter_kparam, layout_in);
+        bool is_valid = is_kernel_valid(N, C, H, W, iter_kparam, layout_in);
         if(is_valid)
         {
             kparam = iter_kparam;

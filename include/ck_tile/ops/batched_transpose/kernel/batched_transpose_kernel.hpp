@@ -79,6 +79,8 @@ struct BatchedTransposeKernel
         static constexpr ck_tile::index_t kMPerThread = Problem::kMPerThread;
         static constexpr ck_tile::index_t kNPerThread = Problem::kNPerThread;
 
+        static_assert(kMPerThread == 1 && kNPerThread == 1);
+
         const auto iDim  = blockIdx.z;
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(

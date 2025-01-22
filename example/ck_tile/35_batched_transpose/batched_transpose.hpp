@@ -105,16 +105,16 @@ std::vector<transpose_kernel_param_t> get_transpose_all_kernel(std::string fp_st
 bool transpose_kernel_is_valid(uint32_t,
                                uint32_t height,
                                uint32_t width,
-                               const transpose_kernel_param_t* kparam)
+                               const transpose_kernel_param_t& kparam)
 {
-    return width % kparam->ediv_x == 0 && height % kparam->ediv_y == 0;
+    return width % kparam.ediv_x == 0 && height % kparam.ediv_y == 0;
 }
 
 bool is_kernel_valid(uint32_t n,
                      uint32_t c,
                      uint32_t h,
                      uint32_t w,
-                     const transpose_kernel_param_t* kparam,
+                     const transpose_kernel_param_t& kparam,
                      std::string layout_in)
 {
     if(layout_in == "nchw")
