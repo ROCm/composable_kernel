@@ -522,7 +522,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t MPerBlock   = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
         constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
-     
+
         using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
                                                                       KPerBlock,
                                                                       MPerBlock,
@@ -547,7 +547,6 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                                       VecLoadSize,
                                                                       BTileAccessPattern>;
         return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
-
     }
 
     template <typename Problem>
