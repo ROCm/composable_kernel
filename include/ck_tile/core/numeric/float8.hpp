@@ -14,14 +14,6 @@
 
 #pragma once
 
-#if CK_TILE_USE_OCP_FP8
-#define CK_TILE_FP8_TYPE_FNUZ 0
-#define CK_TILE_FP8_TYPE_OCP 1
-#else
-#define CK_TILE_FP8_TYPE_FNUZ 1
-#define CK_TILE_FP8_TYPE_OCP 0
-#endif
-
 #if(defined(__gfx94__) || defined(__gfx12__)) && __HIP_DEVICE_COMPILE__
 #define CK_TILE_FP8_CVT_DEVICE 1
 #else
@@ -80,10 +72,10 @@ struct alignas(1) float8_e4m3_t
 {
     static constexpr int exponent = 4;
     static constexpr int mantissa = 3;
-#if CK_TILE_FP8_TYPE_FNUZ
-    static constexpr int bias = 8; // FNUZ
+#if CK_TILE_USE_OCP_FP8
+    static constexpr int bias = 7; // OCP
 #else
-    static constexpr int bias = 7;  // OCP
+    static constexpr int bias = 8;  // FNUZ
 #endif
     using raw_type = uint8_t;
     raw_type data;
@@ -138,10 +130,10 @@ struct alignas(1) float8_e5m2_t
 {
     static constexpr int exponent = 5;
     static constexpr int mantissa = 2;
-#if CK_TILE_FP8_TYPE_FNUZ
-    static constexpr int bias = 16; // FNUZ
-#else
+#if CK_TILE_USE_OCP_FP8
     static constexpr int bias = 15; // OCP
+#else
+    static constexpr int bias = 16; // FNUZ
 #endif
     using raw_type = uint8_t;
     raw_type data;
@@ -225,12 +217,12 @@ struct numeric_traits<fp8_t>
 
     static constexpr int exp  = 4;
     static constexpr int mant = 3;
-#if CK_TILE_FP8_TYPE_FNUZ
-    static constexpr int bias                        = 8;
-    static constexpr fp8_interpretation f8_interpret = fp8_interpretation::E4M3_FNUZ;
-#else
+#if CK_TILE_USE_OCP_FP8
     static constexpr int bias                        = 7;
     static constexpr fp8_interpretation f8_interpret = fp8_interpretation::E4M3_OCP;
+#else
+    static constexpr int bias                        = 8;
+    static constexpr fp8_interpretation f8_interpret = fp8_interpretation::E4M3_FNUZ;
 #endif
     static constexpr uint8_t abs_mask = 0x7F;
 };
@@ -242,12 +234,12 @@ struct numeric_traits<bf8_t>
 
     static constexpr int exp  = 5;
     static constexpr int mant = 2;
-#if CK_TILE_FP8_TYPE_FNUZ
-    static constexpr int bias                        = 16;
-    static constexpr fp8_interpretation f8_interpret = fp8_interpretation::E5M2_FNUZ;
-#else
+#if CK_TILE_USE_OCP_FP8
     static constexpr int bias                        = 15;
     static constexpr fp8_interpretation f8_interpret = fp8_interpretation::E5M2_OCP;
+#else
+    static constexpr int bias                        = 16;
+    static constexpr fp8_interpretation f8_interpret = fp8_interpretation::E5M2_FNUZ;
 #endif
     static constexpr uint8_t abs_mask = 0x7F;
 };
@@ -805,7 +797,130 @@ CK_TILE_HOST_DEVICE float bf8_to_float(bf8_t x) { return bf8_to_float_raw(bit_ca
 template <class T>
 struct numeric;
 
-#if CK_TILE_FP8_TYPE_FNUZ
+#if CK_TILE_USE_OCP_FP8
+template <>
+struct numeric<fp8_t>
+{
+    // minimum finite value, or minimum positive normal value
+    CK_TILE_HOST_DEVICE static constexpr fp8_t min()
+    {
+        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x08)); // 0b00001000 = 2^-6
+    }
+
+    // minumum finite value
+    CK_TILE_HOST_DEVICE static constexpr fp8_t lowest()
+    {
+        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0xfe)); // 0b11111110 = -448
+    }
+
+    // maximum finite value
+    CK_TILE_HOST_DEVICE static constexpr fp8_t max()
+    {
+        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x7e)); // 0b01111110 = 448
+    }
+
+    // difference between 1.0 and next representable f8 value (1.125)
+    // returns fp8_t(0.125)
+    CK_TILE_HOST_DEVICE static constexpr fp8_t epsilon()
+    {
+        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x20)); // 0.125
+    }
+
+    // rounding error (0.0625)
+    // half of epsilon
+    CK_TILE_HOST_DEVICE static constexpr fp8_t round_error()
+    {
+        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x18)); // 0.0625
+    }
+
+    // quiet NaN
+    CK_TILE_HOST_DEVICE static constexpr fp8_t quiet_NaN()
+    {
+        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x7F)); // 0b01111111
+    }
+
+    // signaling NaN
+    CK_TILE_HOST_DEVICE static constexpr fp8_t signaling_NaN()
+    {
+        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0xFF)); // 0b11111111
+    }
+
+    // smallest positive subnormal value
+    CK_TILE_HOST_DEVICE static constexpr fp8_t denorm_min()
+    {
+        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x01));
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr fp8_t zero()
+    {
+        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0));
+    }
+};
+
+template <>
+struct numeric<bf8_t>
+{
+    // minimum finite value, or minimum positive normalized value for float
+    CK_TILE_HOST_DEVICE static constexpr bf8_t min()
+    {
+        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x04)); // 0b00000100 = 2^-14
+    }
+
+    // minumum finite value
+    CK_TILE_HOST_DEVICE static constexpr bf8_t lowest()
+    {
+        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0xfb)); // 0b11111011 = -57344
+    }
+
+    // maximum finite value
+    CK_TILE_HOST_DEVICE static constexpr bf8_t max()
+    {
+        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x7b)); // 0b01111011 = 57344
+    }
+
+    // difference between 1.0 and next representable bf8 value (1.25)
+    CK_TILE_HOST_DEVICE static constexpr bf8_t epsilon()
+    {
+        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x34)); // 0.25
+    }
+
+    // rounding error (0.125)
+    // half of epsilon
+    CK_TILE_HOST_DEVICE static constexpr bf8_t round_error()
+    {
+        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x30)); // 0.125
+    }
+
+    // positive infinity value
+    CK_TILE_HOST_DEVICE static constexpr bf8_t infinity()
+    {
+        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x7c)); // 0b01111100
+    }
+
+    // quiet NaN
+    CK_TILE_HOST_DEVICE static constexpr bf8_t quiet_NaN()
+    {
+        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x7F)); // 0b01111111
+    }
+
+    // signaling NaN
+    CK_TILE_HOST_DEVICE static constexpr bf8_t signaling_NaN()
+    {
+        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0xFF));
+    }
+
+    // smallest positive subnormal value
+    CK_TILE_HOST_DEVICE static constexpr bf8_t denorm_min()
+    {
+        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x01));
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr bf8_t zero()
+    {
+        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0));
+    }
+};
+#else
 template <>
 struct numeric<fp8_t>
 {
@@ -939,129 +1054,6 @@ struct numeric<bf8_t>
         return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0));
     }
 };
-#else
-template <>
-struct numeric<fp8_t>
-{
-    // minimum finite value, or minimum positive normal value
-    CK_TILE_HOST_DEVICE static constexpr fp8_t min()
-    {
-        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x08)); // 0b00001000 = 2^-6
-    }
-
-    // minumum finite value
-    CK_TILE_HOST_DEVICE static constexpr fp8_t lowest()
-    {
-        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0xfe)); // 0b11111110 = -448
-    }
-
-    // maximum finite value
-    CK_TILE_HOST_DEVICE static constexpr fp8_t max()
-    {
-        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x7e)); // 0b01111110 = 448
-    }
-
-    // difference between 1.0 and next representable f8 value (1.125)
-    // returns fp8_t(0.125)
-    CK_TILE_HOST_DEVICE static constexpr fp8_t epsilon()
-    {
-        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x20)); // 0.125
-    }
-
-    // rounding error (0.0625)
-    // half of epsilon
-    CK_TILE_HOST_DEVICE static constexpr fp8_t round_error()
-    {
-        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x18)); // 0.0625
-    }
-
-    // quiet NaN
-    CK_TILE_HOST_DEVICE static constexpr fp8_t quiet_NaN()
-    {
-        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x7F)); // 0b01111111
-    }
-
-    // signaling NaN
-    CK_TILE_HOST_DEVICE static constexpr fp8_t signaling_NaN()
-    {
-        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0xFF)); // 0b11111111
-    }
-
-    // smallest positive subnormal value
-    CK_TILE_HOST_DEVICE static constexpr fp8_t denorm_min()
-    {
-        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x01));
-    }
-
-    CK_TILE_HOST_DEVICE static constexpr fp8_t zero()
-    {
-        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0));
-    }
-};
-
-template <>
-struct numeric<bf8_t>
-{
-    // minimum finite value, or minimum positive normalized value for float
-    CK_TILE_HOST_DEVICE static constexpr bf8_t min()
-    {
-        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x04)); // 0b00000100 = 2^-14
-    }
-
-    // minumum finite value
-    CK_TILE_HOST_DEVICE static constexpr bf8_t lowest()
-    {
-        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0xfb)); // 0b11111011 = -57344
-    }
-
-    // maximum finite value
-    CK_TILE_HOST_DEVICE static constexpr bf8_t max()
-    {
-        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x7b)); // 0b01111011 = 57344
-    }
-
-    // difference between 1.0 and next representable bf8 value (1.25)
-    CK_TILE_HOST_DEVICE static constexpr bf8_t epsilon()
-    {
-        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x34)); // 0.25
-    }
-
-    // rounding error (0.125)
-    // half of epsilon
-    CK_TILE_HOST_DEVICE static constexpr bf8_t round_error()
-    {
-        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x30)); // 0.125
-    }
-
-    // positive infinity value
-    CK_TILE_HOST_DEVICE static constexpr bf8_t infinity()
-    {
-        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x7c)); // 0b01111100
-    }
-
-    // quiet NaN
-    CK_TILE_HOST_DEVICE static constexpr bf8_t quiet_NaN()
-    {
-        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x7F)); // 0b01111111
-    }
-
-    // signaling NaN
-    CK_TILE_HOST_DEVICE static constexpr bf8_t signaling_NaN()
-    {
-        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0xFF));
-    }
-
-    // smallest positive subnormal value
-    CK_TILE_HOST_DEVICE static constexpr bf8_t denorm_min()
-    {
-        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x01));
-    }
-
-    CK_TILE_HOST_DEVICE static constexpr bf8_t zero()
-    {
-        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0));
-    }
-};
 #endif
 
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
@@ -1083,10 +1075,10 @@ bool isnan(const fp8_t& x)
 {
     uint8_t xx = bit_cast<fp8_raw_t>(x);
 
-#if CK_TILE_FP8_TYPE_FNUZ
-    return xx == 0x80;
-#else
+#if CK_TILE_USE_OCP_FP8
     return (xx & 0x7f) == 0x7f;
+#else
+    return xx == 0x80;
 #endif
 }
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
@@ -1108,10 +1100,10 @@ bool isnan(const bf8_t& x)
 {
     uint8_t xx = bit_cast<bf8_raw_t>(x);
 
-#if CK_TILE_FP8_TYPE_FNUZ
-    return xx == 0x80;
-#else
+#if CK_TILE_USE_OCP_FP8
     return (xx & 0x7f) > 0x7c;
+#else
+    return xx == 0x80;
 #endif
 }
 

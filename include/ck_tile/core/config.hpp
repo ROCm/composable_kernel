@@ -232,12 +232,6 @@
 #endif
 
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
-#ifdef CK_TILE_USE_FNUZ_FP8
-#define CK_TILE_USE_FNUZ_FP8 1
-#else
-#define CK_TILE_USE_FNUZ_FP8 0
-#endif
-
 #ifdef CK_TILE_USE_OCP_FP8
 #define CK_TILE_USE_OCP_FP8 1
 #else
@@ -245,8 +239,6 @@
 #endif
 #elif defined(__gfx950__) || defined(__gfx12__) // for GPU code
 #define CK_TILE_USE_OCP_FP8 1
-#define CK_TILE_USE_FNUZ_FP8 0
 #else // for GPU code
-#define CK_TILE_USE_FNUZ_FP8 1
 #define CK_TILE_USE_OCP_FP8 0
 #endif
