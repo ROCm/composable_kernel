@@ -625,7 +625,9 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
             {BlockGemmPipelineScheduler::Interwave, "Interwave"}};
 
         std::map<BlockGemmPipelineVersion, std::string> BlkGemmPipelineVersionToString{
-            {BlockGemmPipelineVersion::v1, "v1"}, {BlockGemmPipelineVersion::v2, "v2"}};
+            {BlockGemmPipelineVersion::v1, "v1"},
+            {BlockGemmPipelineVersion::v2, "v2"},
+            {BlockGemmPipelineVersion::v3, "v3"}};
 
         // clang-format off
         str << "DeviceGemmXdlUniversal"
