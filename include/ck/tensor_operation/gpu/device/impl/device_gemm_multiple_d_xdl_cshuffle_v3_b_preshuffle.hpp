@@ -249,7 +249,6 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                 // Tail number always full
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-#if 0
                     if(arg.KBatch > 1)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -296,19 +295,10 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                             Run(kernel);
                         }
                     }
-#endif
-                    const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
-                        GridwiseGemm,
-                        true,
-                        InMemoryDataOperationEnum::Set,
-                        minimum_occupancy,
-                        TailNumber::Even>;
-                    Run(kernel);
                 }
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
                                   BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-#if 0
                     if(arg.KBatch > 1)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -359,18 +349,10 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                             Run(kernel);
                         }
                     }
-#endif
-                    const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle_2lds<
-                        GridwiseGemm,
-                        true,
-                        InMemoryDataOperationEnum::Set,
-                        minimum_occupancy,
-                        TailNumber::Even>;
-                    Run(kernel);
                 }
                 else
                 {
-                    throw std::runtime_error("todo: only v1 & v2 support now");
+                    throw std::runtime_error("todo: only v1 v2 and v3 support now");
                 }
             }
 #if 0
