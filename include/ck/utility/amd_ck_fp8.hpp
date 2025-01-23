@@ -825,7 +825,11 @@ __host__ __device__ static inline fp8_storage_t cvt_float_to_fp8(const float f)
     if constexpr(stochastic_rounding)
     {
         constexpr int seed = 1254739;
-        rng                = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f);
+#ifndef CK_CODE_GEN_RTC
+        rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
+#else
+        rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f);
+#endif
     }
     return cast_to_f8_from_f32<interp, sat == ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
         f, rng);
@@ -841,7 +845,11 @@ __host__ static inline fp8_storage_t cvt_float_to_fp8(const float f)
     if constexpr(stochastic_rounding)
     {
         constexpr int seed = 1254739;
+#ifndef CK_CODE_GEN_RTC
+        rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
+#else
         rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f);
+#endif
     }
 
     if constexpr(interp == ck_fp8_interpretation_t::CK_E4M3_FNUZ)
