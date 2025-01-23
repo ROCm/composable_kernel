@@ -436,7 +436,8 @@ struct GemmKernel
         const auto& a_block_window = gemm_tile_windows.at(I0);
         const auto& b_block_window = gemm_tile_windows.at(I1);
 
-        const auto& c_block_tile = [&]() {
+        const auto& c_block_tile = 
+        [&]() {
             if constexpr(GemmPipeline::isDoubleSmemBuffer == true)
             {
                 __shared__ char smem_ptr_1[GetSmemSize()];

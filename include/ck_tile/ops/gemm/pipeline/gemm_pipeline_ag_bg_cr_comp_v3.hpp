@@ -77,8 +77,6 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
 
-    using Base::PrefetchStages;
-
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
@@ -339,7 +337,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // tail
             if constexpr(TailNum == TailNumber::Full)
             {
-                block_gemm(c_block_tile, , b_lds_gemm_window);
+                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
             }
             // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
             // latency

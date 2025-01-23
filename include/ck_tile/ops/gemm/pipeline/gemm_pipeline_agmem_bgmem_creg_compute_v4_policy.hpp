@@ -7,10 +7,9 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
 namespace ck_tile {
-
 // Default policy for GemmPipelineAGmemBGmemCRegV1
 // Default policy class should not be templated, put template on member functions instead
-struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
+struct GemmPipelineAGmemBGmemCregComputeV4DefaultPolicy
 {
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -18,37 +17,6 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
     static constexpr bool TransposeC = true;
 
-#if 0
-    // 2d
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
-    {
-        using namespace ck_tile;
-
-        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
-
-        constexpr auto a_lds_block_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(kMPerBlock, kKPerBlock), number<32>{});
-
-        return a_lds_block_desc;
-    }
-
-    // 2d
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
-    {
-        using namespace ck_tile;
-
-        constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
-
-        constexpr auto b_lds_block_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(kNPerBlock, kKPerBlock), number<32>{});
-
-        return b_lds_block_desc;
-    }
-#elif 1
     // 3d + padding
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
@@ -97,7 +65,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
         return b_lds_block_desc;
     }
-
+    
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
@@ -137,77 +105,6 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
         return Problem::VectorLoadSize / sizeof(BDataType);
     }
-#elif 1
-    // fake XOR
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
-    {
-        using namespace ck_tile;
-
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-
-        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
-
-        constexpr auto a_lds_block_desc_d1_d2_d3 = make_naive_tensor_descriptor_packed(
-            make_tuple(number<kMPerBlock / 2>{}, number<2>{}, number<kKPerBlock>{}),
-            number<kKPerBlock>{});
-
-        constexpr index_t kK1 = 16 / sizeof(ADataType);
-
-        constexpr auto a_lds_block_desc_d4_d5_d6 = transform_tensor_descriptor(
-            a_lds_block_desc_d1_d2_d3,
-            make_tuple(
-                make_xor_transform(make_tuple(number<kMPerBlock / 2>{}, number<kKPerBlock>{}), kK1),
-                make_pass_through_transform(2)),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}));
-
-        constexpr auto a_lds_block_desc_m_k = transform_tensor_descriptor(
-            a_lds_block_desc_d4_d5_d6,
-            make_tuple(make_merge_transform(make_tuple(number<kMPerBlock / 2>{}, number<2>{})),
-                       make_pass_through_transform(kKPerBlock)),
-            make_tuple(sequence<0, 1>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return a_lds_block_desc_m_k;
-    }
-
-    // fake XOR
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
-    {
-        using namespace ck_tile;
-
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
-
-        constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
-
-        constexpr auto b_lds_block_desc_d1_d2_d3 = make_naive_tensor_descriptor_packed(
-            make_tuple(number<kNPerBlock / 2>{}, number<2>{}, number<kKPerBlock>{}),
-            number<kKPerBlock>{});
-
-        constexpr index_t kK1 = 16 / sizeof(BDataType);
-
-        constexpr auto b_lds_block_desc_d4_d5_d6 = transform_tensor_descriptor(
-            b_lds_block_desc_d1_d2_d3,
-            make_tuple(
-                make_xor_transform(make_tuple(number<kNPerBlock / 2>{}, number<kKPerBlock>{}), kK1),
-                make_pass_through_transform(2)),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}));
-
-        constexpr auto b_lds_block_desc_n_k = transform_tensor_descriptor(
-            b_lds_block_desc_d4_d5_d6,
-            make_tuple(make_merge_transform(make_tuple(number<kNPerBlock / 2>{}, number<2>{})),
-                       make_pass_through_transform(kKPerBlock)),
-            make_tuple(sequence<0, 1>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return b_lds_block_desc_n_k;
-    }
-#endif
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
@@ -504,14 +401,13 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
                                                 WarpTile::at(I1),
                                                 WarpTile::at(I2),
                                                 TransposeC>;
-        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
-                                                                      typename Problem::BDataType,
-                                                                      typename Problem::CDataType,
-                                                                      BlockWarps,
-                                                                      WarpGemm>;
+        using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
+                                                                    typename Problem::BDataType,
+                                                                    typename Problem::CDataType,
+                                                                    BlockWarps,
+                                                                    WarpGemm>;
 
-        return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
+        return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
     }
 };
-
 } // namespace ck_tile

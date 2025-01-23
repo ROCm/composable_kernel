@@ -35,6 +35,13 @@ struct GemmPipelineAgBgCrImplBase
         store_tile(lds_tile_window, block_tile_tmp);
     }
 
+    template <typename DstBlockTile, typename SrcTileWindow>
+    CK_TILE_DEVICE void LocalPrefetch(DstBlockTile& dst_block_tile,
+                                      const SrcTileWindow& lds_tile_window) const
+    {
+        load_tile(dst_block_tile, lds_tile_window);
+    }
+
     CK_TILE_DEVICE auto GetABLdsTensorViews(void* p_smem) const
     {
         // A tile in LDS
