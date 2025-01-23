@@ -3,8 +3,8 @@
 
 #pragma once
 
-template <typename LAYOUT>
-static constexpr inline auto is_row_major_const(LAYOUT layout_)
+template <typename Layout>
+static constexpr inline auto is_row_major(Layout layout_)
 {
     return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
@@ -136,18 +136,18 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const ck_tile::index_t K = Ks[i];
 
         stride_As[i] =
-            ck_tile::get_default_stride(M, N, stride_As[i], is_row_major_const(a_layout));
+            ck_tile::get_default_stride(M, N, stride_As[i], is_row_major(a_layout));
         stride_Bs[i] =
-            ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major_const(b_layout));
+            ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
         stride_Cs[i] =
-            ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major_const(CLayout{}));
+            ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
 
         a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
-            ck_tile::host_tensor_descriptor(M, K, stride_As[i], is_row_major_const(a_layout))));
+            ck_tile::host_tensor_descriptor(M, K, stride_As[i], is_row_major(a_layout))));
         b_k_n_tensors.push_back(ck_tile::HostTensor<BDataType>(
-            ck_tile::host_tensor_descriptor(K, N, stride_Bs[i], is_row_major_const(b_layout))));
+            ck_tile::host_tensor_descriptor(K, N, stride_Bs[i], is_row_major(b_layout))));
         c_m_n_tensors.push_back(ck_tile::HostTensor<CDataType>(
-            ck_tile::host_tensor_descriptor(M, N, stride_Cs[i], is_row_major_const(CLayout{}))));
+            ck_tile::host_tensor_descriptor(M, N, stride_Cs[i], is_row_major(CLayout{}))));
 
         std::cout << "gemm[" << i << "]"
                   << " a_m_k: " << a_m_k_tensors[i].mDesc << " b_k_n: " << b_k_n_tensors[i].mDesc
@@ -188,7 +188,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         for(int i = 0; i < group_count; ++i)
         {
             ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
-                Ms[i], Ns[i], stride_Cs[i], is_row_major_const(CLayout{})));
+                Ms[i], Ns[i], stride_Cs[i], is_row_major(CLayout{})));
             c_m_n_host_ref.SetZero();
             ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
                 a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
