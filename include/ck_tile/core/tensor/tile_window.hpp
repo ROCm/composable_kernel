@@ -21,7 +21,7 @@ namespace ck_tile {
 /**
  * @brief This class provides tile (windowed) view and access to the device memory.
  *
- * @note this tile window do not support single issue you need to use tile_window_linear
+ * @note This tile window does not support single issue you need to use tile_window_linear
  *       structure for this purpose
  *
  * @tparam BottomTensorView_        Class describing & holding device tensor memory.
