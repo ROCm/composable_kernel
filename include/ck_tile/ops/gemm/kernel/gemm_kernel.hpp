@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -174,7 +174,7 @@ struct GemmKernel
 
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
-            if(kargs.K % TilePartitioner::kK != 0 && GemmPipeline::kPadK == false)
+            if(kargs.K % TilePartitioner::KPerBlock != 0 && GemmPipeline::kPadK == false)
             {
                 return false;
             }
@@ -185,7 +185,7 @@ struct GemmKernel
         }
         else
         {
-            if(kargs.M % TilePartitioner::kM != 0 && GemmPipeline::kPadM == false)
+            if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
             {
                 return false;
             }
@@ -197,7 +197,7 @@ struct GemmKernel
 
         if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
         {
-            if(kargs.N % TilePartitioner::kN != 0 && GemmPipeline::kPadN == false)
+            if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
             {
                 return false;
             }
@@ -208,7 +208,7 @@ struct GemmKernel
         }
         else
         {
-            if(kargs.K % TilePartitioner::kK != 0 && GemmPipeline::kPadK == false)
+            if(kargs.K % TilePartitioner::KPerBlock != 0 && GemmPipeline::kPadK == false)
             {
                 return false;
             }
@@ -220,7 +220,7 @@ struct GemmKernel
 
         if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
         {
-            if(kargs.N % TilePartitioner::kN != 0 && GemmPipeline::kPadN == false)
+            if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
             {
                 return false;
             }
@@ -231,7 +231,7 @@ struct GemmKernel
         }
         else
         {
-            if(kargs.M % TilePartitioner::kM != 0 && GemmPipeline::kPadM == false)
+            if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
             {
                 return false;
             }
@@ -323,17 +323,17 @@ struct GemmKernel
             const auto& a_tensor_view = views.at(I0);
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
-                return pad_tensor_view(
-                    a_tensor_view,
-                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
-                    sequence<false, GemmPipeline::kPadK>{});
+                return pad_tensor_view(a_tensor_view,
+                                       make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                  number<TilePartitioner::KPerBlock>{}),
+                                       sequence<false, GemmPipeline::kPadK>{});
             }
             else
             {
-                return pad_tensor_view(
-                    a_tensor_view,
-                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
-                    sequence<GemmPipeline::kPadM, false>{});
+                return pad_tensor_view(a_tensor_view,
+                                       make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                  number<TilePartitioner::KPerBlock>{}),
+                                       sequence<GemmPipeline::kPadM, false>{});
             }
         }();
 
@@ -341,17 +341,17 @@ struct GemmKernel
             const auto& b_tensor_view = views.at(I1);
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
             {
-                return pad_tensor_view(
-                    b_tensor_view,
-                    make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
-                    sequence<false, GemmPipeline::kPadK>{});
+                return pad_tensor_view(b_tensor_view,
+                                       make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                  number<TilePartitioner::KPerBlock>{}),
+                                       sequence<false, GemmPipeline::kPadK>{});
             }
             else
             {
-                return pad_tensor_view(
-                    b_tensor_view,
-                    make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
-                    sequence<GemmPipeline::kPadN, false>{});
+                return pad_tensor_view(b_tensor_view,
+                                       make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                  number<TilePartitioner::KPerBlock>{}),
+                                       sequence<GemmPipeline::kPadN, false>{});
             }
         }();
 
@@ -359,17 +359,17 @@ struct GemmKernel
             const auto& c_tensor_view = views.at(I2);
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
-                return pad_tensor_view(
-                    c_tensor_view,
-                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
-                    sequence<false, GemmPipeline::kPadN>{});
+                return pad_tensor_view(c_tensor_view,
+                                       make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                  number<TilePartitioner::NPerBlock>{}),
+                                       sequence<false, GemmPipeline::kPadN>{});
             }
             else
             {
-                return pad_tensor_view(
-                    c_tensor_view,
-                    make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
-                    sequence<GemmPipeline::kPadM, false>{});
+                return pad_tensor_view(c_tensor_view,
+                                       make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                  number<TilePartitioner::NPerBlock>{}),
+                                       sequence<GemmPipeline::kPadM, false>{});
             }
         }();
 
@@ -383,19 +383,19 @@ struct GemmKernel
         const auto& a_pad_view     = views.at(I0);
         const auto& a_block_window = make_tile_window(
             a_pad_view,
-            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
             {i_m, 0});
 
         const auto& b_pad_view     = views.at(I1);
         const auto& b_block_window = make_tile_window(
             b_pad_view,
-            make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
+            make_tuple(number<TilePartitioner::NPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
             {i_n, 0});
 
         const auto& c_pad_view = views.at(I2);
         auto c_block_window    = make_tile_window(
             c_pad_view,
-            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
             {i_m, i_n});
 
         return make_tuple(a_block_window, b_block_window, c_block_window);
@@ -426,7 +426,7 @@ struct GemmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             MakeGemmTensorViews<DstInMemOp>(a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
-        ;
+
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
@@ -456,7 +456,10 @@ struct GemmKernel
 
     CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const
     {
-        const auto [i_m, i_n] = TilePartitioner{}();
+        const auto [iM, iN] = TilePartitioner::GetOutputTileIndex(blockIdx.x, blockIdx.y);
+        const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+
         const SplitKBatchOffset splitk_batch_offset(kargs);
         // options
         const ADataType* a_ptr =

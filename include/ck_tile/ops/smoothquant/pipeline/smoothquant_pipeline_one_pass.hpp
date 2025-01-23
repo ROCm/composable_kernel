@@ -113,7 +113,7 @@ struct SmoothquantPipelineOnePass
         sweep_tile(qy, [&](auto idx) {
             constexpr auto i_idx = make_tuple(idx[number<0>{}]);
             auto qy_             = y[idx] / yscale[i_idx];
-            qy(idx)              = saturates<QYDataType>{}(qy_);
+            qy(idx)              = type_convert<QYDataType>(saturates<QYDataType>{}(qy_));
         });
         store_tile(qy_window, qy);
     }
