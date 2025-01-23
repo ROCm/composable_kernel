@@ -24,6 +24,7 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_m
     add_device_operation_instances(
         instances,
         device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_instances<
+            v1,
             GemmDefault>{});
 }
 

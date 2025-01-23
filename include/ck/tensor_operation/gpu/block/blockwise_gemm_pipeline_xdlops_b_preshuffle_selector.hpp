@@ -5,6 +5,7 @@
 
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v1.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v2.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v3.hpp"
 namespace ck {
 
 template <BlockGemmPipelineVersion BlkGemmPipelineVer,
@@ -56,6 +57,30 @@ constexpr auto BlockGemmBPreshufflePipeline_Selector()
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
     {
         return BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlkGemmPipeSche,
+                                                           BlockSize,
+                                                           ADataType,
+                                                           BDataType,
+                                                           ComputeDataType,
+                                                           AccDataType,
+                                                           ATileDesc,
+                                                           BTileDesc,
+                                                           AMmaTileDesc,
+                                                           BMmaTileDesc,
+                                                           ABlockTransferSrcScalarPerVector,
+                                                           BBlockTransferSrcScalarPerVector,
+                                                           MPerBlock,
+                                                           NPerBlock,
+                                                           KPerBlock,
+                                                           MPerXDL,
+                                                           NPerXDL,
+                                                           MRepeat,
+                                                           NRepeat,
+                                                           KPack>{};
+    }
+    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+    {
+        static_assert(MRepeat >= 4, "MRepeat should at least be 4 in BlockGemmPipelineVersion::v3");
+        return BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlkGemmPipeSche,
                                                            BlockSize,
                                                            ADataType,
                                                            BDataType,

@@ -296,7 +296,8 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                         }
                     }
                 }
-                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
+                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     if(arg.KBatch > 1)
                     {
@@ -351,7 +352,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                 }
                 else
                 {
-                    throw std::runtime_error("todo: only v1 & v2 support now");
+                    throw std::runtime_error("todo: only v1 v2 and v3 support now");
                 }
             }
 #if 0
@@ -359,6 +360,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
             {
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
+#if 0
                     if(arg.KBatch > 1)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -405,8 +407,29 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                             Run(kernel);
                         }
                     }
+#endif
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
+                            GridwiseGemm,
+                            false,
+                            InMemoryDataOperationEnum::Set,
+                            minimum_occupancy,
+                            TailNumber::Odd>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
+                            GridwiseGemm,
+                            false,
+                            InMemoryDataOperationEnum::Set,
+                            minimum_occupancy,
+                            TailNumber::Even>;
+                        Run(kernel);
+                    }
                 }
-                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 || BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     if(arg.KBatch > 1)
                     {
@@ -602,7 +625,9 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
             {BlockGemmPipelineScheduler::Interwave, "Interwave"}};
 
         std::map<BlockGemmPipelineVersion, std::string> BlkGemmPipelineVersionToString{
-            {BlockGemmPipelineVersion::v1, "v1"}, {BlockGemmPipelineVersion::v2, "v2"}};
+            {BlockGemmPipelineVersion::v1, "v1"},
+            {BlockGemmPipelineVersion::v2, "v2"},
+            {BlockGemmPipelineVersion::v3, "v3"}};
 
         // clang-format off
         str << "DeviceGemmXdlUniversal"
