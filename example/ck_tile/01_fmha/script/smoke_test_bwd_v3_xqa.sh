@@ -10,7 +10,7 @@ COMMON_ARGS='-v=1'
 set -x
 for prec in "fp16" "bf16" ; do
 for perm in 0 1 ; do
-for hdim in 128 ; do
+for hdim in 72 96 128 ; do
 for v3_atomic_fp32 in 0 1 ; do
 for v3_bf16_cvt in 0 1 2 ; do
 for mask in 0 1 ; do
