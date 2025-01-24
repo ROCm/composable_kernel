@@ -1539,6 +1539,7 @@ struct nnvb_data_t_selector<bf6x32_pk_t>
     using type = bf6x32_pk_t::type;
 };
 
+template <>
 struct nnvb_data_t_selector<pk_i4_t>
 {
     using type = pk_i4_t::type;
