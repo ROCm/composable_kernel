@@ -535,10 +535,11 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
                                   h_traits('x', 'y', 'xs', 'ys', 1,  4,  1, 512, 4,  True,  False, False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  4,  1,1024, 2,  True,  False, False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 1,  8,  1,1024, 1,  True,  False, False,   0,    0)],
-                        'big'  :[ h_traits('x', 'y', 'xs', 'ys', 1,  2,  1, 256, 8,  True,  False,  True,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 1,  4,  1, 256, 4,  True,  False,  True,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 1,  2,  1,1024, 2,  True,  False,  True,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 1,  4,  1,1024, 1,  True,  False,  True,   0,    0)]}
+                        'big'  :[ h_traits('x', 'y', 'xs', 'ys', 1,  1,  1, 1024, 8,  True,  False,  True,   0,    0),
+                                #   h_traits('x', 'y', 'xs', 'ys', 1,  4,  1, 256, 4,  True,  False,  True,   0,    0),
+                                #   h_traits('x', 'y', 'xs', 'ys', 1,  2,  1,1024, 2,  True,  False,  True,   0,    0),
+                                #   h_traits('x', 'y', 'xs', 'ys', 1,  4,  1,1024, 1,  True,  False,  True,   0,    0)
+                                  ]}
         total_blob = list()
         for hs_key in h_trait_dict:
             hs = h_trait_dict[hs_key]
