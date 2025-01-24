@@ -36,7 +36,7 @@ enum struct tile_distribution_pattern
     block_raked,
 };
 
-struct TileDistributionEcodingPattern
+struct TileDistributionEncodingPattern
 {
 };
 
@@ -57,7 +57,7 @@ template <index_t BlockSize,
           index_t XPerTile,
           index_t VecSize,
           tile_distribution_pattern DistributionPattern>
-struct TileDistributionEncodingPattern2D : public TileDistributionEcodingPattern
+struct TileDistributionEncodingPattern2D : public TileDistributionEncodingPattern
 {
 };
 
@@ -68,7 +68,7 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                          XPerTile,
                                          VecSize,
                                          tile_distribution_pattern::thread_raked>
-    : public TileDistributionEcodingPattern
+    : public TileDistributionEncodingPattern
 {
 
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
@@ -120,7 +120,7 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                          XPerTile,
                                          VecSize,
                                          tile_distribution_pattern::warp_raked>
-    : public TileDistributionEcodingPattern
+    : public TileDistributionEncodingPattern
 {
 
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
@@ -168,7 +168,7 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                          XPerTile,
                                          VecSize,
                                          tile_distribution_pattern::block_raked>
-    : public TileDistributionEcodingPattern
+    : public TileDistributionEncodingPattern
 {
 
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!

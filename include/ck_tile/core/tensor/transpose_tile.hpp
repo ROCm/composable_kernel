@@ -26,6 +26,9 @@ CK_TILE_DEVICE void transpose_tile2d_impl_in_thread(OutTensor& out_tensor,
 {
     constexpr auto I0 = number<0>{};
 
+    static_assert(std::is_same_v<typename InTensor::DataType, typename OutTensor::DataType>,
+                  "Data type for InTensor and OutTensor must be the same!");
+
     using DataType = typename InTensor::DataType;
 
     constexpr auto y_in_desc  = InTensor::get_tile_distribution().get_ys_to_d_descriptor();
@@ -65,9 +68,7 @@ CK_TILE_DEVICE void transpose_tile2d_impl_in_thread(OutTensor& out_tensor,
         return y_dim_out_to_in_;
     }();
 
-    //
-    constexpr index_t NDimY = InTensor::get_tile_distribution().get_num_of_dimension_y();
-
+    constexpr index_t NDimY  = InTensor::get_tile_distribution().get_num_of_dimension_y();
     constexpr auto y_lengths = to_sequence(y_in_desc.get_lengths());
 
     // input and output vector dim in the order of input Y dims
