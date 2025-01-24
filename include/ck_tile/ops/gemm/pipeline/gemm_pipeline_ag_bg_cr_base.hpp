@@ -41,7 +41,7 @@ struct GemmPipelineAgBgCrImplBase
     {
         load_tile(dst_block_tile, lds_tile_window);
     }
-
+    
     CK_TILE_DEVICE auto GetABLdsTensorViews(void* p_smem) const
     {
         // A tile in LDS
@@ -51,11 +51,10 @@ struct GemmPipelineAgBgCrImplBase
 
         // TODO: LDS alignment should come from Policy!
         constexpr index_t a_lds_block_space_size_aligned =
-            integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16) *
-            16;
+            integer_least_multiple(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16);
 
         // B tile in LDS
-        BDataType* p_b_lds = static_cast<BDataType*>(
+        BDataType* __restrict__ p_b_lds = static_cast<BDataType*>(
             static_cast<void*>(static_cast<char*>(p_smem) + a_lds_block_space_size_aligned));
         constexpr auto b_lds_block_desc = Policy::template MakeBLdsBlockDescriptor<Problem>();
         auto b_lds_block = make_tensor_view<address_space_enum::lds>(p_b_lds, b_lds_block_desc);

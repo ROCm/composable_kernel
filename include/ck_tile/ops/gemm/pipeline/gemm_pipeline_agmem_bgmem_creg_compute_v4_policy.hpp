@@ -29,14 +29,14 @@ struct GemmPipelineAGmemBGmemCregComputeV4DefaultPolicy
         // TODO: this 8 is AK1! should be a policy parameter!
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / 8>{}, number<kMPerBlock>{}, number<8>{}),
-            make_tuple(number<(kMPerBlock + 1) * 8>{}, number<8>{}, number<1>{}),
+            make_tuple(number<kMPerBlock * 8>{}, number<8>{}, number<1>{}),
             number<8>{},
             number<1>{});
 
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_0,
-            make_tuple(make_pass_through_transform(kMPerBlock),
-                       make_merge_transform(make_tuple(kKPerBlock / 8, 8))),
+            make_tuple(make_pass_through_transform(number<kMPerBlock>{}),
+                       make_merge_transform(make_tuple(number<kKPerBlock>{} / 8, number<8>{}))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -52,14 +52,14 @@ struct GemmPipelineAGmemBGmemCregComputeV4DefaultPolicy
 
         constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / 8>{}, number<kNPerBlock>{}, number<8>{}),
-            make_tuple(number<(kNPerBlock + 1) * 8>{}, number<8>{}, number<1>{}),
+            make_tuple(number<(kNPerBlock) * 8>{}, number<8>{}, number<1>{}),
             number<8>{},
             number<1>{});
 
         constexpr auto b_lds_block_desc = transform_tensor_descriptor(
             b_lds_block_desc_0,
-            make_tuple(make_pass_through_transform(kNPerBlock),
-                       make_merge_transform(make_tuple(kKPerBlock / 8, 8))),
+            make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
+                       make_merge_transform(make_tuple(number<kKPerBlock / 8>{}, number<8>{}))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -69,16 +69,16 @@ struct GemmPipelineAGmemBGmemCregComputeV4DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
-        constexpr index_t smem_size_a = sizeof(typename Problem::ADataType) *
-                                        MakeALdsBlockDescriptor<Problem>().get_element_space_size();
+        constexpr index_t smem_size_a = integer_least_multiple(sizeof(typename Problem::ADataType) *
+                                        MakeALdsBlockDescriptor<Problem>().get_element_space_size(), 16);
         return smem_size_a;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
-        constexpr index_t smem_size_b = sizeof(typename Problem::BDataType) *
-                                        MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
+        constexpr index_t smem_size_b = integer_least_multiple(sizeof(typename Problem::BDataType) *
+                                        MakeBLdsBlockDescriptor<Problem>().get_element_space_size(), 16);
         return smem_size_b;
     }
 
@@ -87,9 +87,8 @@ struct GemmPipelineAGmemBGmemCregComputeV4DefaultPolicy
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
-        constexpr index_t smem_size   = smem_size_a + smem_size_b;
 
-        return smem_size;
+        return smem_size_a + smem_size_b;
     }
 
     template <typename Problem>
