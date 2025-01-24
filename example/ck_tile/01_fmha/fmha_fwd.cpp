@@ -1131,15 +1131,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         // NOTE: use gpu to do validation
         ck_tile::naive_attention_fwd_traits naive_t;
-        naive_t.q_type    = data_type;
-        naive_t.k_type    = data_type;
-        naive_t.v_type    = data_type;
-        naive_t.o_type    = data_type;
-        naive_t.q_layout  = i_perm == 1 ? "bhsd" : "bshd";
-        naive_t.k_layout  = i_perm == 1 ? "bhsd" : "bshd";
-        naive_t.v_layout  = i_perm == 1 ? "bhsd" : "bshd";
-        naive_t.o_layout  = o_perm == 1 ? "bhsd" : "bshd";
-        naive_t.variation = 0; // TODO?
+        naive_t.q_type     = data_type;
+        naive_t.k_type     = data_type;
+        naive_t.v_type     = data_type;
+        naive_t.o_type     = data_type;
+        naive_t.q_layout   = i_perm == 1 ? "bhsd" : "bshd";
+        naive_t.k_layout   = i_perm == 1 ? "bhsd" : "bshd";
+        naive_t.v_layout   = i_perm == 1 ? "bhsd" : "bshd";
+        naive_t.o_layout   = o_perm == 1 ? "bhsd" : "bshd";
+        naive_t.variation  = 0; // TODO?
+        naive_t.quant_algo = 0;
 
         ck_tile::DeviceMem o_naive_buf(o_host.get_element_space_size_in_bytes());
 

@@ -94,40 +94,56 @@ struct BlockFmhaFwdSplitKVPipelineProblem
     static constexpr bool kIsGroupMode = kIsGroupMode_;
 
     // attributes from traits
-    static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK       = Traits::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ      = Traits::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
-    static constexpr auto BiasEnum          = Traits::BiasEnum;
-    static constexpr bool kStoreLSE         = Traits::kStoreLSE;
-    static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
-    static constexpr bool kIsPagedKV        = Traits::kIsPagedKV;
-    static constexpr bool kHasUnevenSplits  = kIsGroupMode || Traits::kHasUnevenSplits;
-    static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
+    static constexpr bool kPadSeqLenQ                = Traits::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK                = Traits::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ               = Traits::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV               = Traits::kPadHeadDimV;
+    static constexpr auto BiasEnum                   = Traits::BiasEnum;
+    static constexpr bool kStoreLSE                  = Traits::kStoreLSE;
+    static constexpr bool kDoFp8StaticQuant          = Traits::kDoFp8StaticQuant;
+    static constexpr bool kIsPagedKV                 = Traits::kIsPagedKV;
+    static constexpr bool kHasUnevenSplits           = kIsGroupMode || Traits::kHasUnevenSplits;
+    static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
+    static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
+};
+
+// extract tile size attributes to remove dependency on traits
+template <typename OaccDataType_, ck_tile::index_t kN1_>
+struct BlockFmhaSplitKVCombinePipelineTileSizes
+{
+    static constexpr index_t MaxVectorSize = 16 / sizeof(OaccDataType_);
+
+    static constexpr index_t kN1      = kN1_;
+    static constexpr index_t NThreads = kN1 / MaxVectorSize;
+    static constexpr index_t kM0      = get_warp_size() / NThreads; // MThreadPerWarp
 };
 
 template <typename LSEDataType_,
           typename OaccDataType_,
           typename ODataType_,
           index_t HeadDimV_,
-          index_t kM0_,
-          index_t kN1_,
           bool kIsGroupMode_,
+          ck_tile::index_t kN1_,
           typename Traits_>
 struct BlockFmhaSplitKVCombinePipelineProblem
+    : BlockFmhaSplitKVCombinePipelineTileSizes<OaccDataType_, kN1_>
 {
+    using BaseType = BlockFmhaSplitKVCombinePipelineTileSizes<OaccDataType_, kN1_>;
+
     using LSEDataType  = remove_cvref_t<LSEDataType_>;
     using OaccDataType = remove_cvref_t<OaccDataType_>;
     using ODataType    = remove_cvref_t<ODataType_>;
     using Traits       = remove_cvref_t<Traits_>;
 
-    static constexpr index_t kNumWarps  = kM0_ / (get_warp_size() / 4);
-    static constexpr index_t kBlockSize = kNumWarps * get_warp_size();
-    static constexpr bool kIsGroupMode  = kIsGroupMode_;
+    static_assert(std::is_same_v<LSEDataType, OaccDataType>);
 
     static constexpr index_t kHeadDimV = HeadDimV_;
-    static constexpr index_t kM0       = kM0_;
-    static constexpr index_t kN1       = kN1_;
+    static constexpr bool kIsGroupMode = kIsGroupMode_;
+
+    using BaseType::kM0;
+    using BaseType::kN1;
+
+    static_assert(kN1 <= kHeadDimV && kHeadDimV % kN1 == 0);
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
@@ -136,6 +152,13 @@ struct BlockFmhaSplitKVCombinePipelineProblem
     static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr index_t kMaxSplits     = Traits::kMaxSplits;
+    static_assert(8 <= kMaxSplits);
+
+    static constexpr index_t kNumWarps  = 4; // always use 4 warps for each workgroup
+    static constexpr index_t kBlockSize = kNumWarps * get_warp_size();
+
+    static_assert(get_warp_size() <= (kM0 * kMaxSplits) &&
+                  (kM0 * kMaxSplits) % get_warp_size() == 0);
 };
 
 template <typename QDataType_,

@@ -7,6 +7,34 @@ include(gtest)
 
 add_custom_target(tests)
 
+# list of tests that are labelled as REGRESSION_TEST for make regression (runtime more than 30 seconds)
+# all other tests are labelled as SMOKE_TEST
+set(REGRESSION_TESTS
+    test_gemm_standalone_xdl_fp16
+    test_gemm_fp16
+    test_gemm_splitk
+    test_batched_gemm
+    test_gemm_universal
+    test_batched_gemm_softmax_gemm_fp16
+    test_batched_gemm_softmax_gemm_permute_fp16
+    test_batched_gemm_bias_softmax_gemm_permute_fp16
+    test_batched_gemm_softmax_gemm_permute_bf16
+    test_batched_gemm_bias_softmax_gemm_permute_bf16
+    test_grouped_gemm_splitk
+    test_reduce_no_index
+    test_reduce_with_index
+    test_convnd_fwd
+    test_convnd_bwd_data
+    test_grouped_convnd_fwd
+    test_grouped_convnd_bwd_weight
+    test_softmax_rank3
+    test_softmax_rank4
+    test_batchnorm_fwd_rank_4
+    test_batchnorm_bwd_rank_4
+    test_grouped_convnd_bwd_data_xdl
+    test_conv_tensor_rearrange
+)
+
 function(add_test_executable TEST_NAME)
     message("adding test ${TEST_NAME}")
     set(result 1)
@@ -43,6 +71,12 @@ function(add_test_executable TEST_NAME)
 
     set(TEST_TARGETS ${SUPPORTED_GPU_TARGETS})
 
+    foreach(source IN LISTS ARGN)
+        if(NOT DEFINED DPP_KERNELS AND source MATCHES "_dpp")
+            message("removing dpp test ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+    endforeach()
     foreach(source IN LISTS ARGN)
         if(NOT DEFINED DL_KERNELS AND source MATCHES "_dl")
             message("removing dl test ${source} ")
@@ -82,6 +116,15 @@ function(add_test_executable TEST_NAME)
     endif()
     #message("add_test returns ${result}")
     set(result ${result} PARENT_SCOPE)
+    if(result EQUAL 0 AND NOT "${TEST_NAME}" IN_LIST REGRESSION_TESTS)
+        message("adding to SMOKE TEST FILTER ${TEST_NAME}")
+        set_tests_properties(${TEST_NAME} PROPERTIES LABELS "SMOKE_TEST")
+        add_dependencies(smoke ${TEST_NAME})
+    elseif(result EQUAL 0 AND "${TEST_NAME}" IN_LIST REGRESSION_TESTS)
+        message("Adding to REGRESSION TEST FILTER ${TEST_NAME}")
+        set_tests_properties(${TEST_NAME} PROPERTIES LABELS "REGRESSION_TEST")
+        add_dependencies(regression ${TEST_NAME})
+    endif()
 endfunction()
 
 function(add_gtest_executable TEST_NAME)
@@ -162,6 +205,15 @@ function(add_gtest_executable TEST_NAME)
     endif()
     #message("add_gtest returns ${result}")
     set(result ${result} PARENT_SCOPE)
+    if(result EQUAL 0 AND NOT "${TEST_NAME}" IN_LIST REGRESSION_TESTS)
+        #message("adding to smoke test FILTER ${TEST_NAME}")
+        set_tests_properties(${TEST_NAME} PROPERTIES LABELS "SMOKE_TEST")
+        add_dependencies(smoke ${TEST_NAME})
+    elseif(result EQUAL 0 AND "${TEST_NAME}" IN_LIST REGRESSION_TESTS)
+        #message("Adding to REGRESSION TEST FILTER ${TEST_NAME}")
+        set_tests_properties(${TEST_NAME} PROPERTIES LABELS "REGRESSION_TEST")
+        add_dependencies(regression ${TEST_NAME})
+    endif()
 endfunction()
 
 add_compile_options(-Wno-c++20-extensions)
@@ -206,7 +258,7 @@ add_subdirectory(wrapper)
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx11")
     add_subdirectory(wmma_op)
 endif()
-if(SUPPORTED_GPU_TARGETS MATCHES "gfx942" AND CK_HIP_VERSION_MAJOR GREATER_EQUAL 6 AND CK_HIP_VERSION_MINOR GREATER_EQUAL 2) # smfmac needs ROCm6.2
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx942" OR SUPPORTED_GPU_TARGETS MATCHES "gfx950") # smfmac needs ROCm6.2
     add_subdirectory(smfmac_op)
 endif()
 add_subdirectory(position_embedding)
