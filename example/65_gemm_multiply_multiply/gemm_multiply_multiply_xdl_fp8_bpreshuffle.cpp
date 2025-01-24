@@ -27,14 +27,14 @@ using S = ck::Sequence<Is...>;
 
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
-using FP8  = ck::f8_t;
+// using F16  = ck::f8_t;
 using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using A0DataType       = FP8;
-using B0DataType       = FP8;
+using A0DataType       = F16;
+using B0DataType       = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using D0DataType       = F32;
@@ -98,9 +98,9 @@ struct MultiplyMultiply
     }
 };
 
-void preShuffleBuffer(const FP8* src, FP8* dst, int N, int K, int NXdl)
+void preShuffleBuffer(const F16* src, F16* dst, int N, int K, int NXdl)
 {
-    int KPack = 16;
+    int KPack = 8;
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
@@ -145,20 +145,23 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
 ///######|         |         |         |        |           |           |           |          |            |                 |            |            |             |               |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |    S<C, D0, D1>|
 ///###### RCR
         // kernel 1: 256->32x128x128 
-        // <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    128,  16,  16,  32,   32,    1,    1,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 32, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, FP8>;
-        // <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    256,  16,  16,  32,   32,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<16, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
+        // <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    128,  16,  16,  32,   32,    1,    1,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 32, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, F16>;
+        // <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   32,   128,    256,  16,  16,  32,   32,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<16, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, F16>;
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,
-               32,   128,    256,
-               16,   16,
+               32,   128,    128,
+               8,   8,
                32,   32,
                1,    1,
-               S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               1,    1,   S<1, 16, 1, 16>, S<8, 8, 1>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, FP8>;
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
+               //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+               //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+                //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+               1,    1,   S<1, 32, 1, 8>, S<8, 8, 1>,
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, F16>;
         // kernel 2: 128->32x128x128
-        //  <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   128,   32,   128,    128,  16,  16,  32,   32,    1,    2,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 16, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, FP8>;
+        //  <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   128,   32,   128,    128,  16,  16,  32,   32,    1,    2,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 16, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, F16>;
 
 // clang-format on
 
@@ -230,9 +233,19 @@ int main(int argc, char* argv[])
                 return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
+    const ck::index_t experts = 8;
+    Tensor<ck::index_t> expert_ids(HostTensorDescriptor({experts}, {1}));
+    Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({M}, {1}));
+    for (int i = 0; i < experts; i++) {
+        expert_ids.mData[i] = i;
+    }
+    
+    for (int i = 0; i < M; i++) {
+        sorted_token_ids.mData[i] = i % (M / 2);
+    }
 
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, A0Layout{}));
-    Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
+    Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N * experts, StrideB, B0Layout{}));
     Tensor<B0DataType> b0_preshuffled(
         f_host_tensor_descriptor(K, N, StrideB, B0Layout{})); // use laout only for size
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD, D0Layout{}));
@@ -267,12 +280,16 @@ int main(int argc, char* argv[])
         d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
         d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
+    DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.mDesc.GetElementSpaceSize());
+    DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_k_n.mDesc.GetElementSpaceSize());
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
+    sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
+    expert_ids_dev.ToDevice(expert_ids.mData.data());
     a0_device_buf.ToDevice(a0_m_k.mData.data());
     d0_device_buf.ToDevice(d0_m_n.mData.data());
     d1_device_buf.ToDevice(d1_m_n.mData.data());
@@ -297,7 +314,9 @@ int main(int argc, char* argv[])
 
     auto invoker = device_op.MakeInvoker();
     auto argument =
-        device_op.MakeArgument(a0_device_buf.GetDeviceBuffer(),
+        device_op.MakeArgument(sorted_token_ids_dev.GetDeviceBuffer(),
+                                expert_ids_dev.GetDeviceBuffer(),
+                                a0_device_buf.GetDeviceBuffer(),
                                b0_device_buf.GetDeviceBuffer(),
                                std::array<const void*, NumDTensor>{d0_device_buf.GetDeviceBuffer(),
                                                                    d1_device_buf.GetDeviceBuffer()},
@@ -321,7 +340,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 0, 50, 50, true, 50});
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =
