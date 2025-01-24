@@ -373,7 +373,8 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                         ck::type_convert<float>(v_b) *
                         ck::type_convert<float>(b1_g_k_n(bs, k / Scale_Block_K, n / Scale_Block_N));
 
-                    // printf("b_g_k_n_dequant(%d, %d, %d): %f\n", bs, k, n, b_g_k_n_dequant(bs, k, n));
+                    // printf("b_g_k_n_dequant(%d, %d, %d): %f\n", bs, k, n, b_g_k_n_dequant(bs, k,
+                    // n));
                 }
             }
         }
@@ -394,7 +395,7 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         hip_check_error(hipDeviceSynchronize());
 
         c_g_m_n_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
-        
+
         pass &= ck::utils::check_err(c_g_m_n_device_result,
                                      c_g_m_n_host_result,
                                      "Error: Incorrect results!",
@@ -405,7 +406,8 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     if(config.time_kernel)
     {
         // ave_time =
-        //     invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 20, 50, true, 50});
+        //     invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 20, 50, true,
+        //     50});
         ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
 
         std::size_t flop = 2_uz * M * N * K;
@@ -423,7 +425,7 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                   << " GB/s, " << gemm.GetTypeString() << std::endl;
     }
 
-#if 1
+#if 0
     // print A matrix
     printf("A matrix:\n");
     for(int bs = 0; bs < batch_count; bs++)
