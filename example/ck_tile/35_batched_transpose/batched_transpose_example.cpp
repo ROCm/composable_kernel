@@ -10,10 +10,7 @@
 #include <time.h>
 #include <unordered_set>
 
-#include "ck_tile/core.hpp"
-#include "ck_tile/ops/reduce.hpp"
-#include "batched_transpose_api.hpp"
-#include "batched_transpose.hpp"
+#include "batched_transpose_example.hpp"
 
 #if 0
 template <typename T>
@@ -109,6 +106,43 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
+std::vector<transpose_kernel_param_t> get_transpose_all_kernel(std::string fp_str)
+{
+    if(fp_str == "fp32")
+        return transpose_kernel_get_all_param_t<4>::get();
+    else if(fp_str == "fp16" || fp_str == "bf16")
+        return transpose_kernel_get_all_param_t<2>::get();
+    else if(fp_str == "int8")
+        return transpose_kernel_get_all_param_t<1>::get();
+    else
+        return {};
+}
+
+bool transpose_kernel_is_valid(uint32_t,
+                               uint32_t height,
+                               uint32_t width,
+                               const transpose_kernel_param_t& kparam)
+{
+    return width % kparam.ediv_x == 0 && height % kparam.ediv_y == 0;
+}
+
+bool is_kernel_valid(uint32_t n,
+                     uint32_t c,
+                     uint32_t h,
+                     uint32_t w,
+                     const transpose_kernel_param_t& kparam,
+                     std::string layout_in)
+{
+    if(layout_in == "nchw")
+    {
+        return transpose_kernel_is_valid(n, c, h * w, kparam);
+    }
+    else
+    {
+        return transpose_kernel_is_valid(n, h * w, c, kparam);
+    }
+}
+
 template <typename Type>
 bool run_batched_transpose(ck_tile::ArgParser args)
 {
@@ -178,28 +212,22 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     auto trait = batched_transpose_trait{prec, layout_in};
 
-    uint32_t height      = nchw2nhwc ? C : H * W;
-    uint32_t width       = nchw2nhwc ? H * W : C;
-    uint32_t dim_block_h = (height + kparam.tile_y - 1) / kparam.tile_y;
-    uint32_t dim_block_w = (width + kparam.tile_x - 1) / kparam.tile_x;
-    uint32_t dim_stride  = height * width;
+    uint32_t height = nchw2nhwc ? C : H * W;
+    uint32_t width  = nchw2nhwc ? H * W : C;
 
     batched_transpose_kargs karg = [&]() {
         batched_transpose_kargs a_;
-        a_.p_input     = x_dev.GetDeviceBuffer();
-        a_.p_output    = y_dev.GetDeviceBuffer();
-        a_.batch       = N;
-        a_.height      = height;
-        a_.width       = width;
-        a_.dim_stride  = dim_stride;
-        a_.dim_block_h = dim_block_h;
-        a_.dim_block_w = dim_block_w;
+        a_.p_input  = x_dev.GetDeviceBuffer();
+        a_.p_output = y_dev.GetDeviceBuffer();
+        a_.batch    = N;
+        a_.height   = height;
+        a_.width    = width;
         return a_;
     }();
 
     ck_tile::stream_config sc{nullptr, true};
 
-    auto ms = batched_transpose(trait, karg, sc);
+    auto ms = batched_transpose(trait, kparam, karg, sc);
 
     std::size_t num_operations = N * C * H * (W - 1);
     std::size_t num_bytes      = N * C * H * W * sizeof(Type);

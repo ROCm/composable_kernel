@@ -1,10 +1,24 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+#include "ck_tile/core.hpp"
+#include "ck_tile/host.hpp"
+#include "ck_tile/ops/reduce.hpp"
+#include "ck_tile/ops/batched_transpose.hpp"
 
 #include <vector>
 #include <string>
 
 #pragma once
+
+struct batched_transpose_trait
+{
+    std::string type;
+    std::string layout;
+};
+
+struct batched_transpose_kargs : public ck_tile::BatchedTransposeHostArgs
+{
+};
 
 struct transpose_kernel_param_t
 {
@@ -90,39 +104,7 @@ struct transpose_kernel_get_all_param_t<1>
     }
 };
 
-std::vector<transpose_kernel_param_t> get_transpose_all_kernel(std::string fp_str)
-{
-    if(fp_str == "fp32")
-        return transpose_kernel_get_all_param_t<4>::get();
-    else if(fp_str == "fp16" || fp_str == "bf16")
-        return transpose_kernel_get_all_param_t<2>::get();
-    else if(fp_str == "int8")
-        return transpose_kernel_get_all_param_t<1>::get();
-    else
-        return {};
-}
-
-bool transpose_kernel_is_valid(uint32_t,
-                               uint32_t height,
-                               uint32_t width,
-                               const transpose_kernel_param_t& kparam)
-{
-    return width % kparam.ediv_x == 0 && height % kparam.ediv_y == 0;
-}
-
-bool is_kernel_valid(uint32_t n,
-                     uint32_t c,
-                     uint32_t h,
-                     uint32_t w,
-                     const transpose_kernel_param_t& kparam,
-                     std::string layout_in)
-{
-    if(layout_in == "nchw")
-    {
-        return transpose_kernel_is_valid(n, c, h * w, kparam);
-    }
-    else
-    {
-        return transpose_kernel_is_valid(n, h * w, c, kparam);
-    }
-}
+float batched_transpose(batched_transpose_trait t,
+                        transpose_kernel_param_t kparam,
+                        batched_transpose_kargs a,
+                        ck_tile::stream_config s);
