@@ -164,9 +164,21 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         constexpr auto NumVLdsBuffers = Policy::template GetNumVLdsBuffers<Problem>();
 
+        auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+                                              q_dram_block_window_tmp.get_window_lengths(),
+                                              q_dram_block_window_tmp.get_window_origin(),
+                                              Policy::template MakeQRegTileDistribution<Problem>());
+        auto original_q    = load_tile(q_dram_window);
+
+        __builtin_amdgcn_sched_barrier(0);
+
+        // Q tile in LDS
+        QDataType* q_lds_ptr = static_cast<QDataType*>(smem_ptr);
+        auto q_lds           = make_tensor_view<address_space_enum::lds>(
+            q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
+
         // K tile in LDS
-        KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>()));
+        KDataType* k_lds_ptr = static_cast<KDataType*>(smem_ptr);
         auto k_lds           = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsBlockDescriptor<Problem>());
         auto k_lds_window =
@@ -183,14 +195,6 @@ struct BlockFmhaPipelineQRKSVSAsync
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
-
-        auto q_dram_window =
-            make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
-                             q_dram_block_window_tmp.get_window_lengths(),
-                             q_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakeQRegTileDistribution<Problem>());
-
-        auto q = load_tile(q_dram_window);
 
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
         auto s_acc              = SaccBlockTileType{};
@@ -256,6 +260,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                                                                     // load
         auto k_tile = load_tile(k_dram_window);
 
+        __builtin_amdgcn_sched_barrier(0);
+
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -272,7 +278,26 @@ struct BlockFmhaPipelineQRKSVSAsync
                              {0, seqlen_k_start}, // TODO: hdim split?
                              Policy::template MakeVDramTileDistribution<Problem>());
 
+        // store Q into LDS
+        __builtin_amdgcn_sched_barrier(0);
+        auto q_lds_window_for_store = make_tile_window(
+            q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+
+        store_tile(q_lds_window_for_store, original_q);
+        __builtin_amdgcn_sched_barrier(0);
+
+        // load Q from LDS
+        auto q_lds_window_for_load =
+            make_tile_window(q_lds,
+                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0},
+                             Policy::template MakeQRegTileDistribution<Problem>());
+        block_sync_lds();
+        auto q = load_tile(q_lds_window_for_load);
+
         auto q_tile = tile_elementwise_in(q_element_func, q);
+
+        __builtin_amdgcn_sched_barrier(0);
 
         // prefetch K tile
         index_t i_total_loops      = 0;
@@ -281,6 +306,10 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         static_assert(2 <= k0_loops);
         static_assert(1 <= k1_loops);
+
+        // ensure loading of Q from LDS completely done
+        block_sync_lds();
+
         do
         {
             store_tile(k_lds_window, k_tile);
