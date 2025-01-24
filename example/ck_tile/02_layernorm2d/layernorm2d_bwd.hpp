@@ -136,7 +136,7 @@ struct layernorm2d_bwd_b16_
     /* data */
     //using Trait = trait_<data_type,   1,  1,  1,  256,  1,  true>;
     //using Trait = trait_<data_type,   1,  8,  64,  4,  8,  true>;
-    using Trait = trait_<data_type,   1,  4,  1,  128, 8,  true>;
+    using Trait = trait_<data_type,   1,  4,  1,  64, 8,  true>;
     float operator() (layernorm2d_bwd_traits /*t*/,
                       layernorm2d_bwd_args a,
                       const ck_tile::stream_config& s) {

@@ -28,6 +28,10 @@
 // large n
 // template float layernorm2d_bwd_<trait_<ck_tile::bf16_t, 1,  32,  4,  16, 8,  true>>(const S&, A);
 // template float layernorm2d_bwd_<trait_<ck_tile::fp16_t, 1,  32,  4,  16, 8,  true>>(const S&, A);
-template float layernorm2d_bwd_<trait_<ck_tile::bf16_t, 1,  4,  1,  128, 8,  true>>(const S&, A);
-template float layernorm2d_bwd_<trait_<ck_tile::fp16_t, 1,  4,  1,  128, 8,  true>>(const S&, A);
+template float layernorm2d_bwd_<trait_<ck_tile::bf16_t, 1,  4,  1,  64, 8,  true>>(const S&, A);
+template float layernorm2d_bwd_<trait_<ck_tile::fp16_t, 1,  4,  1,  64, 8,  true>>(const S&, A);
+
+// two pass
+template float layernorm2d_bwd_<trait_<ck_tile::bf16_t, 1,  4,  2,  32, 8,  true>>(const S&, A);
+template float layernorm2d_bwd_<trait_<ck_tile::fp16_t, 1,  4,  2,  32, 8,  true>>(const S&, A);
 // clang-format on

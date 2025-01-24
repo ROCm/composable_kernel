@@ -27,7 +27,7 @@ float layernorm2d_bwd_(const S& s, A a)
         typename Traits_::Shape,
         Traits_::kPadN>;
 
-    using Pipeline = ck_tile::Layernorm2dBwdGammaBetaPipeline<PipelineProblem>;
+    using Pipeline = ck_tile::Layernorm2dBwdGammaBetaPipelineTwoPass<PipelineProblem>;
 
     using Kernel = ck_tile::Layernorm2dBwdGammaBeta<Pipeline>;
 

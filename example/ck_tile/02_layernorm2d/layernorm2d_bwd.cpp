@@ -139,7 +139,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
 
     std::size_t num_byte = sizeof(XDataType) * m * n + sizeof(GammaDataType) * n +
-                           sizeof(BetaDataType) * n + sizeof(YDataType) * m * n;
+                           sizeof(MeanDataType) * m + sizeof(InvStdDataType) * m + sizeof(YDataType) * m * n + sizeof(XDataType);
 
     float gb_per_sec = num_byte / 1.E6 / ave_time;
     std::cout << sizeof(ComputeDataType) << ", " << ave_time * 1.E3 << " us, " << gb_per_sec << " GB/s" << std::flush;
