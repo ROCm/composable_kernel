@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -36,7 +36,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-    kernel_batched_gemm_b_scale_xdl_cshuffle_v3(BatchedGemmArg karg)
+        kernel_batched_gemm_b_scale_xdl_cshuffle_v3(BatchedGemmArg karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -50,7 +50,8 @@ __global__ void
 
     // auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
-    // printf("blockIdx.x: %d, blockIdx.y: %d, blockIdx.z: %d, a_batch_offset: %ld, b_batch_offset: "
+    // printf("blockIdx.x: %d, blockIdx.y: %d, blockIdx.z: %d, a_batch_offset: %ld, b_batch_offset:
+    // "
     //     "%ld, c_batch_offset: %ld, b_scale_batch_offset: %ld, karg.p_a_grid: %p, "
     //     "karg.p_b_grid: %p, karg.p_c_grid: %p, karg.p_b_scale_grid: %p\n",
     //     blockIdx.x,
@@ -72,7 +73,7 @@ __global__ void
     //     {
     //         const _Float16* el_ptr = a_ptr + i;
     //         printf("%.2f ", static_cast<float>(*el_ptr));
-            
+
     //         if(i%384==0)
     //             printf("\n");
     //     }
@@ -81,7 +82,7 @@ __global__ void
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + a_batch_offset,
-        karg.p_b_grid + b_batch_offset,
+        karg.p_b_grid + b_batch_offset / 2,
         karg.p_c_grid + c_batch_offset,
         karg.p_b_scale_grid + b_scale_batch_offset,
         p_shared,
@@ -101,7 +102,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-    kernel_batched_gemm_b_scale_xdl_cshuffle_v3_2lds(BatchedGemmArg karg)
+        kernel_batched_gemm_b_scale_xdl_cshuffle_v3_2lds(BatchedGemmArg karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
@@ -120,7 +121,7 @@ __global__ void
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + a_batch_offset + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + b_batch_offset + splitk_batch_offset.b_k_split_offset,
+        karg.p_b_grid + (b_batch_offset + splitk_batch_offset.b_k_split_offset) / 2,
         karg.p_c_grid + c_batch_offset + splitk_batch_offset.c_reduce_offset,
         karg.p_b_scale_grid + b_scale_batch_offset + splitk_batch_offset.scale_k_split_offset,
         p_shared_0,
@@ -288,7 +289,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
         index_t BatchStrideScaleB_;
     };
 
-    struct Argument: public GridwiseGemm::Argument
+    struct Argument : public GridwiseGemm::Argument
     {
         index_t Batch;
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
@@ -329,13 +330,11 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
                                      b_element_op_,
                                      c_element_op_),
               Batch(Batch_),
-              compute_ptr_offset_of_batch(BatchStrideA_,
-                                          BatchStrideB_,
-                                          BatchStrideC_,
-                                          BatchStrideScaleB_)
+              compute_ptr_offset_of_batch(
+                  BatchStrideA_, BatchStrideB_, BatchStrideC_, BatchStrideScaleB_)
         {
         }
-    };    
+    };
 
     // Invoker
     struct Invoker : public BaseInvoker
@@ -378,7 +377,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
                     auto size_a_buffer =
                         a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
                     auto size_b_buffer =
-                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);             
+                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
 
                     ck::utility::RotatingMemWrapper<Argument> rotating_mem(
                         arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer);
