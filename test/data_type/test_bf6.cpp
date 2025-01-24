@@ -265,7 +265,9 @@ TEST(BF6, TestAsType16x1)
     vector_type<bf6x16_pk_t, vector_size> right_vec;
     // check default CTOR
     ck::static_for<0, packed_size, 1>{}([&](auto i) {
-        ASSERT_EQ(right_vec.template AsType<bf6x16_pk_t>()(Number<0>{}).template unpack<i>(), 0);
+        ASSERT_EQ(
+            right_vec.template AsType<bf6x16_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
+            0);
     });
     // assign test values to the vector
     ck::static_for<0, vector_size, 1>{}([&](auto i) {
@@ -275,8 +277,9 @@ TEST(BF6, TestAsType16x1)
     vector_type<bf6x16_pk_t, vector_size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, packed_size, 1>{}([&](auto i) {
-        ASSERT_EQ(left_vec.template AsType<bf6x16_pk_t>()(Number<0>{}).template unpack<i>(),
-                  test_vec.at(i));
+        ASSERT_EQ(
+            left_vec.template AsType<bf6x16_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
+            test_vec.at(i));
     });
 }
 
@@ -300,7 +303,7 @@ TEST(BF6, TestAsType16x2)
     ck::static_for<0, vector_size, 1>{}([&](auto idx_vector) {
         ck::static_for<0, packed_size, 1>{}([&](auto idx_element) {
             ASSERT_EQ(right_vec.template AsType<bf6x16_pk_t>()(Number<idx_vector>{})
-                          .template unpack<idx_element>(),
+                          .template unpack<>(Number<idx_element>{}),
                       0);
         });
     });
@@ -315,7 +318,7 @@ TEST(BF6, TestAsType16x2)
     ck::static_for<0, vector_size, 1>{}([&](auto idx_vector) {
         ck::static_for<0, packed_size, 1>{}([&](auto idx_element) {
             ASSERT_EQ(left_vec.template AsType<bf6x16_pk_t>()(Number<idx_vector>{})
-                          .template unpack<idx_element>(),
+                          .template unpack<>(Number<idx_element>{}),
                       test_vec.at(idx_vector * packed_size + idx_element));
         });
     });
@@ -339,7 +342,9 @@ TEST(BF6, TestAsType32x1)
     vector_type<bf6x32_pk_t, vector_size> right_vec;
     // check default CTOR
     ck::static_for<0, packed_size, 1>{}([&](auto i) {
-        ASSERT_EQ(right_vec.template AsType<bf6x32_pk_t>()(Number<0>{}).template unpack<i>(), 0);
+        ASSERT_EQ(
+            right_vec.template AsType<bf6x32_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
+            0);
     });
     // assign test values to the vector
     ck::static_for<0, vector_size, 1>{}([&](auto i) {
@@ -349,7 +354,8 @@ TEST(BF6, TestAsType32x1)
     vector_type<bf6x32_pk_t, vector_size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, packed_size, 1>{}([&](auto i) {
-        ASSERT_EQ(left_vec.template AsType<bf6x32_pk_t>()(Number<0>{}).template unpack<i>(),
-                  test_vec.at(i));
+        ASSERT_EQ(
+            left_vec.template AsType<bf6x32_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
+            test_vec.at(i));
     });
 }

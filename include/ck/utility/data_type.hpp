@@ -24,7 +24,7 @@ struct f4x2_pk_t
     f4x2_pk_t(type init) : data{init} {}
 
     template <index_t I>
-    __host__ __device__ inline type unpack() const
+    __host__ __device__ inline type unpack(Number<I>) const
     {
         static_assert(I < 2, "Index is out of range.");
         if constexpr(I == 0)
@@ -49,7 +49,7 @@ struct f6x16_pk_t
     f6x16_pk_t(type init) : data{init} {}
 
     template <index_t I>
-    __host__ __device__ inline f6_t unpack()
+    __host__ __device__ inline f6_t unpack(Number<I>)
     {
         static_assert(I < 16, "Index is out of range.");
 
@@ -79,7 +79,7 @@ struct f6x32_pk_t
     f6x32_pk_t(type init) : data{init} {}
 
     template <index_t I>
-    __host__ __device__ inline f6_t unpack()
+    __host__ __device__ inline f6_t unpack(Number<I>)
     {
         static_assert(I < 32, "Index is out of range.");
 
@@ -109,7 +109,7 @@ struct bf6x16_pk_t
     bf6x16_pk_t(type init) : data{init} {}
 
     template <index_t I>
-    __host__ __device__ inline bf6_t unpack()
+    __host__ __device__ inline bf6_t unpack(Number<I>)
     {
         static_assert(I < 16, "Index is out of range.");
 
@@ -139,7 +139,7 @@ struct bf6x32_pk_t
     bf6x32_pk_t(type init) : data{init} {}
 
     template <index_t I>
-    __host__ __device__ inline bf6_t unpack()
+    __host__ __device__ inline bf6_t unpack(Number<I>)
     {
         static_assert(I < 32, "Index is out of range.");
 
