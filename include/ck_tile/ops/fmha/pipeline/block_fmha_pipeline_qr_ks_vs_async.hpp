@@ -426,8 +426,6 @@ struct BlockFmhaPipelineQRKSVSAsync
             }
             move_tile_window(v_dram_window, {0, kK1});
 
-            __builtin_amdgcn_sched_barrier(0);
-
             if constexpr(NumVLdsBuffers > 1)
             {
                 v_buf = load_tile(v_dram_window); // load next v_buf
@@ -623,7 +621,6 @@ struct BlockFmhaPipelineQRKSVSAsync
                     get_slice_tile(v_lds_window,
                                    sequence<((k1_loops - 1) % NumVLdsBuffers) * kN1, 0>{},
                                    sequence<(((k1_loops - 1) % NumVLdsBuffers) + 1) * kN1, kK1>{}));
-                block_sync_lds();
             }
         } while(++i_total_loops < num_total_loop);
 
