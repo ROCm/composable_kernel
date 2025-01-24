@@ -48,7 +48,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQRegTileDistribution()
     {
         using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
 

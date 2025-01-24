@@ -188,7 +188,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
                              q_dram_block_window_tmp.get_window_lengths(),
                              q_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakeQDramTileDistribution<Problem>());
+                             Policy::template MakeQRegTileDistribution<Problem>());
 
         auto q = load_tile(q_dram_window);
 
