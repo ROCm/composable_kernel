@@ -283,13 +283,12 @@ struct BlockFmhaPipelineQRKSVSAsync
         static_assert(1 <= k1_loops);
         do
         {
-            // STAGE 1, QK gemm
-            clear_tile(s_acc); // initialize C
-
             store_tile(k_lds_window, k_tile);
-            block_sync_lds();
 
             __builtin_amdgcn_sched_barrier(0);
+
+            // STAGE 1, QK gemm
+            clear_tile(s_acc); // initialize C
 
             if(i_total_loops < num_total_loop - 1)
             {
@@ -298,6 +297,9 @@ struct BlockFmhaPipelineQRKSVSAsync
             }
 
             __builtin_amdgcn_sched_barrier(0);
+
+            // ensure k is completely updated on LDS
+            block_sync_lds();
 
             // for kQKHeaddim == 96 (kSubQKHeaddim == 128), we need to use k0_loops
             if constexpr(kQKHeaddim == kSubQKHeaddim)
