@@ -512,7 +512,7 @@ def Build_CK(Map conf=[:]){
                         arch_type = 5
                     }
                     cmake_build(conf)
-                    if ( arch_type == 1 ){
+                    if ( !params.BUILD_LEGACY_OS && arch_type == 1 ){
                             echo "Run inductor codegen tests"
                             sh """
                                   pip install --verbose .

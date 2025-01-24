@@ -41,6 +41,7 @@ float fused_moe(fused_moe_traits t, fused_moe_args a, const ck_tile::stream_conf
                                    t.prec_sq,
                                    t.prec_kw,
                                    t.block_m,
+                                   t.activation,
                                    t.gate_only,
                                    t.fused_quant};
     auto a1 = fused_moegemm_args{
