@@ -48,7 +48,7 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-    using TilePartitioner = ck_tile::GemmTilePartitioner<CodegenGemmShape>;
+    using TilePartitioner = ck_tile::GemmTile2DPartitioner<CodegenGemmShape>;
 
     using GemmEpilogue = std::conditional_t<
         CShuffleEpilogue,
@@ -60,8 +60,8 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                                                    kOutputRank,
                                                                    1,
                                                                    0,
-                                                                   TilePartitioner::kM,
-                                                                   TilePartitioner::kN>>,
+                                                                   TilePartitioner::MPerBlock,
+                                                                   TilePartitioner::NPerBlock>>,
         ck_tile::Default2DEpilogue<
             ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
 

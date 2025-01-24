@@ -1,6 +1,7 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/rmsnorm2d.hpp"
 #include <cstring>
 
@@ -36,10 +37,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     assert(stride >= n);
 
-    using XDataType      = DataType;
-    using YDataType      = DataType;
-    using GammaDataType  = DataType;
-    using InvRmsDataType = ck_tile::null_type;
+    using XDataType           = DataType;
+    using YDataType           = DataType;
+    using GammaDataType       = DataType;
+    using InvRmsDataType      = ck_tile::null_type;
+    using SmoothScaleDataType = ck_tile::null_type;
+    using YScaleDataType      = ck_tile::null_type;
 
     using ComputeDataType = float;
 
@@ -68,30 +71,49 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockTile  = ck_tile::sequence<2, 128>;
     using WarpTile   = ck_tile::sequence<1, 64>;
     using Vector     = ck_tile::sequence<1, 1>;
+    using Shape      = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
 
-    using Shape   = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using PipelineTraits =
+        ck_tile::Rmsnorm2dFwdTraits<true,  // kPadN
+                                    false, // kSaveInvRms
+                                    kTwoPass,
+                                    ck_tile::Rmsnorm2dFusedAddEnum::NO_ADD,      // fuse add
+                                    ck_tile::Rmsnorm2dFusedQuantEnum::NO_SWEEP>; // fuse quant
+
     using Problem = ck_tile::Rmsnorm2dFwdPipelineProblem<XDataType,
                                                          GammaDataType,
                                                          ComputeDataType,
                                                          YDataType,
                                                          InvRmsDataType,
+                                                         SmoothScaleDataType,
+                                                         YScaleDataType,
                                                          Shape,
-                                                         true,  // kPadN
-                                                         false, // kSaveInvRms
-                                                         kTwoPass>;
+                                                         PipelineTraits>;
 
     using OnePassPipeline = ck_tile::Rmsnorm2dFwdPipelineOnePass<Problem>;
     using TwoPassPipeline = ck_tile::Rmsnorm2dFwdPipelineTwoPass<Problem>;
     using Pipeline        = std::conditional_t<kTwoPass, TwoPassPipeline, OnePassPipeline>;
-    using Kernel          = ck_tile::Rmsnorm2dFwd<Pipeline>;
+
+    using Default2DEpilogueProblem = ck_tile::
+        Default2DEpilogueProblem<ComputeDataType, YDataType, false, PipelineTraits::kPadN, false>;
+    using Default2DEpilogue = ck_tile::Default2DEpilogue<Default2DEpilogueProblem>;
+
+    using Kernel = ck_tile::Rmsnorm2dFwd<Pipeline, Default2DEpilogue>;
 
     ck_tile::Rmsnorm2dFwdHostArgs args{x_buf.GetDeviceBuffer(),
+                                       nullptr,
+                                       nullptr,
                                        gamma_buf.GetDeviceBuffer(),
                                        y_buf.GetDeviceBuffer(),
+                                       nullptr,
+                                       nullptr,
                                        nullptr,
                                        epsilon,
                                        m,
                                        n,
+                                       stride,
+                                       stride,
+                                       stride,
                                        stride};
 
     auto kargs = Kernel::MakeKargs(args);

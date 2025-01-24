@@ -59,7 +59,7 @@ args:
       -kname    print kernel name or not (default:1)
      -prec_i    input precision (default:fp16)
      -prec_o    output precision, set auto will be the same as input (default:auto)
-    -prec_sx    output quant scale type, set auto will be the same as input. used when fquant=1 (default:auto)
+    -prec_sm    output quant scale type, set auto will be the same as input. used when fquant=1 (default:auto)
     -prec_sy    output quant scale type, set auto will be the same as input. used when fquant=1 or 2 (default:auto)
        -fadd    fused-add, 0:no fused add, 1:preadd+store, 2:preadd only (default:0)
      -fquant    fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant (default:0)
@@ -69,7 +69,7 @@ args:
 ```
 
 ## limitations
-Note that `fquant=2`, `fadd=2`, `prec_sx/prec_sy` other than `fp32` are not by default generated. Though our kernel template suppor this. (TBD: add some flag in generate.py) to generate those instance on demand. Beside, `N>8192` case will by default using two-pass pipeline, and `-fquant=1/2` are not supported yet. If need suport `N>8192` and `fused+residual+store`, you can use this example together with `12_smoothquant`, to construct layernorm+residual, and smoothquant, 2 kernels for this purpose.
+Note that `fquant=2`, `fadd=2`, `prec_sm/prec_sy` other than `fp32` are not by default generated. Though our kernel template suppor this. (TBD: add some flag in generate.py) to generate those instance on demand. Beside, `N>8192` case will by default using two-pass pipeline, and `-fquant=1/2` are not supported yet. If need suport `N>8192` and `fused+residual+store`, you can use this example together with `12_smoothquant`, to construct layernorm+residual, and smoothquant, 2 kernels for this purpose.
 
 ```
 # some case
