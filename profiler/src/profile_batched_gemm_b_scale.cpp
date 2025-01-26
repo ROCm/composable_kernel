@@ -82,13 +82,13 @@ int profile_batched_gemm_b_scale(int argc, char* argv[])
     const int StrideB = std::stoi(argv[13]);
     const int StrideC = std::stoi(argv[14]);
 
-    const int BatchStrideA      = M * N;
-    const int BatchStrideB      = N * K;
-    const int BatchStrideC      = M * N;
-    const int BatchStrideScaleB = (K + static_cast<int>(B_scale_block) -1)/static_cast<int>(B_scale_block) * N;
-    const int BatchSize         = std::stoi(argv[15]);
-
-    const int KBatch  = std::stoi(argv[16]);
+    const int BatchStrideA = M * N;
+    const int BatchStrideB = N * K;
+    const int BatchStrideC = M * N;
+    const int BatchStrideScaleB =
+        (K + static_cast<int>(B_scale_block) - 1) / static_cast<int>(B_scale_block) * N;
+    const int BatchSize = std::stoi(argv[15]);
+    const int KBatch    = std::stoi(argv[16]);
 
     printf("M:%d, N:%d, K:%d, StrideA:%d, StrideB:%d, StrideC:%d, BatchStrideA:%d, "
            "BatchStrideB:%d, BatchStrideC:%d, BatchStrideScaleB:%d, BatchSize:%d, KBatch:%d,\n",

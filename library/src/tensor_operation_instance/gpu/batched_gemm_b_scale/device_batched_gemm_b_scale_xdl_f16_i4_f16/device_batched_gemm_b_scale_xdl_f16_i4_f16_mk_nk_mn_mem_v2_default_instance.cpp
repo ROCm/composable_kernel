@@ -23,7 +23,8 @@ void add_device_batched_gemm_b_scale_xdl_f16_i4_f16_mk_nk_mn_mem_v2_default_inst
 {
     add_device_operation_instances(
         instances,
-        device_batched_gemm_b_scale_xdl_f16_i4_f16_mk_nk_mn_mem_instances<Intrawave, GemmDefault>{});
+        device_batched_gemm_b_scale_xdl_f16_i4_f16_mk_nk_mn_mem_instances<Intrawave,
+                                                                          GemmDefault>{});
 }
 
 } // namespace instance

@@ -53,20 +53,7 @@ static constexpr ck::index_t KPerBlock = 256;
 
 // clang-format off
 using DeviceBatchedGemmV2Instance = 
-    ck::tensor_operation::device::DeviceBatchedGemm_Xdl_CShuffleV3<
-        // ALayout,   BLayout,  CLayout,   
-        // ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType, 
-        // AElementOp, BElementOp, CElementOp, GemmDefault, 
-        // 256, Scale_Block_N, Scale_Block_K,
-        // 128, 128,
-        // 128, 8, 32,
-        // 32,   32,
-        // 2,    2,
-        // S<16, 16, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
-        // 2, 8, 8, 0,
-        // S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
-        // 2, 32, 32, 0,
-        // 1, 1, S<1, 16, 1, 8>, 8,        
+    ck::tensor_operation::device::DeviceBatchedGemm_Xdl_CShuffleV3<  
         ALayout,   BLayout,  CLayout,   
         ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 

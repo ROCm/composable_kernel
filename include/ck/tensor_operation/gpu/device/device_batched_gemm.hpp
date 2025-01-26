@@ -72,7 +72,7 @@ struct DeviceBatchedGemm_BScale : public BaseOperator
                         ck::index_t BatchStrideA,
                         ck::index_t BatchStrideB,
                         ck::index_t BatchStrideC,
-                        ck::index_t BatchStrideScaleB,                        
+                        ck::index_t BatchStrideScaleB,
                         const void* p_b_scale,
                         ck::index_t Batch,
                         ck::index_t KBatch,
@@ -82,7 +82,7 @@ struct DeviceBatchedGemm_BScale : public BaseOperator
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 
-    virtual bool GetPermuteB() = 0;
+    virtual bool GetPermuteB()         = 0;
     virtual ck::index_t GetKPerBlock() = 0;
 };
 
