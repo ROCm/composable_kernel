@@ -457,31 +457,6 @@ struct BlockFmhaPipelineQRKSVSAsync
             auto p_compute = make_static_distributed_tensor<SMPLComputeDataType>(
                 s.get_tile_distribution()); // Pcompute{j}
 
-            __builtin_amdgcn_sched_barrier(0);
-
-            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            {
-                auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
-                    Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
-                shuffle_tile(v_shuffle_tmp, v_tiles[I0]);
-
-                auto v_lds_window_tmp =
-                    get_slice_tile(v_lds_window, sequence<0, 0>{}, sequence<kN1, kK1>{});
-
-                store_tile(
-                    v_lds_window_tmp,
-                    tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
-            }
-            else
-            {
-                auto v_lds_window_tmp =
-                    get_slice_tile(v_lds_window, sequence<0, 0>{}, sequence<kN1, kK1>{});
-                store_tile(v_lds_window_tmp,
-                           tile_elementwise_in(v_element_func, v_tiles[I0])); // store the prefetch
-            }
-
-            __builtin_amdgcn_sched_barrier(0);
-
             static const auto get_validated_m = [](SMPLComputeDataType raw_m) {
                 /// NOTICE: bias might be materialized mask including -inf values, need
                 /// consideration
@@ -564,6 +539,31 @@ struct BlockFmhaPipelineQRKSVSAsync
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
             }
+
+            __builtin_amdgcn_sched_barrier(0);
+
+            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+            {
+                auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
+                    Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+                shuffle_tile(v_shuffle_tmp, v_tiles[I0]);
+
+                auto v_lds_window_tmp =
+                    get_slice_tile(v_lds_window, sequence<0, 0>{}, sequence<kN1, kK1>{});
+
+                store_tile(
+                    v_lds_window_tmp,
+                    tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
+            }
+            else
+            {
+                auto v_lds_window_tmp =
+                    get_slice_tile(v_lds_window, sequence<0, 0>{}, sequence<kN1, kK1>{});
+                store_tile(v_lds_window_tmp,
+                           tile_elementwise_in(v_element_func, v_tiles[I0])); // store the prefetch
+            }
+
+            __builtin_amdgcn_sched_barrier(0);
 
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
