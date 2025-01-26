@@ -154,13 +154,17 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kN0 == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kSubQKHeaddim ==
-                              KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
+                          kK0 == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                           kN1 == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kK1 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                           kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
+
+        constexpr index_t k0_loops = kQKHeaddim / kK0;
+        constexpr index_t k1_loops = kN0 / kK1;
+        static_assert(2 <= k0_loops);
+        static_assert(1 <= k1_loops);
 
         constexpr auto NumVLdsBuffers = Policy::template GetNumVLdsBuffers<Problem>();
 
@@ -257,8 +261,18 @@ struct BlockFmhaPipelineQRKSVSAsync
             k_dram_block_window.get_window_lengths(),
             k_dram_block_window.get_window_origin(),
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
-                                                                    // load
-        auto k_tile = load_tile(k_dram_window);
+
+        using k_tile_type = decltype(load_tile(k_dram_window));
+
+        statically_indexed_array<k_tile_type, k0_loops> k_tiles;
+
+        static_for<0, k0_loops, 1>{}([&](auto i_k0) {
+            k_tiles[i_k0] = load_tile(k_dram_window);
+
+            move_tile_window(k_dram_window, {0, kK0});
+        });
+
+        move_tile_window(k_dram_window, {0, -k0_loops * kK0});
 
         __builtin_amdgcn_sched_barrier(0);
 
@@ -300,19 +314,19 @@ struct BlockFmhaPipelineQRKSVSAsync
         __builtin_amdgcn_sched_barrier(0);
 
         // prefetch K tile
-        index_t i_total_loops      = 0;
-        constexpr index_t k0_loops = kQKHeaddim / kK0;
-        constexpr index_t k1_loops = kN0 / kK1;
-
-        static_assert(2 <= k0_loops);
-        static_assert(1 <= k1_loops);
+        index_t i_total_loops = 0;
 
         // ensure loading of Q from LDS completely done
         block_sync_lds();
 
         do
         {
-            store_tile(k_lds_window, k_tile);
+            static_for<0, k0_loops, 1>{}([&](auto i_k0) {
+                auto k_lds_window_tmp = get_slice_tile(
+                    k_lds_window, sequence<i_k0 * kN0, 0>{}, sequence<(i_k0 + 1) * kN0, kK0>{});
+
+                store_tile(k_lds_window_tmp, k_tiles[i_k0]);
+            });
 
             __builtin_amdgcn_sched_barrier(0);
 
@@ -322,7 +336,14 @@ struct BlockFmhaPipelineQRKSVSAsync
             if(i_total_loops < num_total_loop - 1)
             {
                 move_tile_window(k_dram_window, {kN0, 0});
-                k_tile = load_tile(k_dram_window);
+
+                static_for<0, k0_loops, 1>{}([&](auto i_k0) {
+                    k_tiles[i_k0] = load_tile(k_dram_window);
+
+                    move_tile_window(k_dram_window, {0, kK0});
+                });
+
+                move_tile_window(k_dram_window, {0, -k0_loops * kK0});
             }
 
             __builtin_amdgcn_sched_barrier(0);
@@ -335,8 +356,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                     s_acc,
                     get_slice_tile(q, sequence<0, i_k0 * kK0>{}, sequence<kM0, (i_k0 + 1) * kK0>{}),
                     get_slice_tile(k_lds_window,
-                                   sequence<0, i_k0 * kK0>{},
-                                   sequence<kN0, (i_k0 + 1) * kK0>{}));
+                                   sequence<i_k0 * kN0, 0>{},
+                                   sequence<(i_k0 + 1) * kN0, kK0>{}));
             });
 
             __builtin_amdgcn_sched_barrier(0); // prevent from messing up the order of global loads
