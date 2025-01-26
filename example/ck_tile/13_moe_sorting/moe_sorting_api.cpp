@@ -3,6 +3,10 @@
 
 #include "moe_sorting_api.hpp"
 
+#ifndef MOE_SORTING_USE_EX_KERNEL
+#define MOE_SORTING_USE_EX_KERNEL 1
+#endif
+
 #define MOE_SORTING_DISPATCH_ETILE(unroll_num_, expert_tile_)                         \
     constexpr ck_tile::index_t unroll_num  = unroll_num_;                             \
     constexpr ck_tile::index_t expert_tile = expert_tile_;                            \
@@ -17,6 +21,7 @@
         s, ck_tile::make_kernel(kernel{}, grids, blocks, lds_bytes, kargs));    \
     return ave_time;
 
+#if !MOE_SORTING_USE_EX_KERNEL
 #define MOE_SORTING_DISPATCH(unroll_num_)           \
     if(a.num_experts <= 8)                          \
     {                                               \
@@ -38,11 +43,13 @@
     {                                               \
         MOE_SORTING_DISPATCH_ETILE(unroll_num_, 0)  \
     }
+#endif
 
 float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_config s)
 {
     if(t.weight_type == "fp32" && t.index_type == "int32")
     {
+#if !MOE_SORTING_USE_EX_KERNEL
         if(a.num_experts > 127)
         {
             printf("lds size exceed, only support experts <127 \n");
@@ -83,6 +90,11 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
             MOE_SORTING_DISPATCH(4);
         }
         }
+#else
+        using index_t        = ck_tile::index_t;
+        using ms_weight_type = float;
+        MOE_SORTING_DISPATCH_ETILE(0, 0);
+#endif
     }
     return -1;
 }

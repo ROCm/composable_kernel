@@ -102,6 +102,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(weights_host);
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(moe_buf_host);
     topid_unique_gen<IndexType>(topk_ids_host.mData, tokens, topk, num_experts, seed);
+    // std::cout << topk_ids_host << std::endl;
 
     ck_tile::DeviceMem topk_ids_dev(topk_ids_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem weights_dev(weights_host.get_element_space_size_in_bytes());
@@ -199,9 +200,16 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                 moe_buf_host, moe_buf_ref, std::string("OUT Error: Incorrect zero buf!"), 0, 0);
         }
         rtn &= ref_total_tokens_post_pad == sorted_id_cnt_host.mData[0];
+        printf("total_tokens_post_pad:%d(%d), ",
+               ref_total_tokens_post_pad,
+               sorted_id_cnt_host.mData[0]);
     }
 
-    printf("valid:%s\n", rtn ? "y" : "n");
+    printf("valid:%s", rtn ? "y" : "n");
+    fflush(stdout);
+    if(!rtn)
+        printf(", (%d)", seed);
+    printf("\n");
     fflush(stdout);
     return rtn;
 }
