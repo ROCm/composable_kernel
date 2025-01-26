@@ -195,11 +195,6 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
         b1_g_k_n.GenerateTensorValue(GeneratorTensor_1<BScaleDataType>{1});
         break;
-    case 6:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.5, 0.5});
-        b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
-        b1_g_k_n.GenerateTensorValue(GeneratorTensor_3<BScaleDataType>{0, 1.0});
-        break;
     default:
         a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.5, 0.5});
         b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
@@ -351,9 +346,6 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         return true;
     }
 
-    std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
-    printf("workspace_size: %zu\n", workspace_size);
-
     bool pass = true;
     Tensor<float> b_g_k_n_dequant({batch_count, K, N});
     if(config.do_verification)
@@ -434,7 +426,29 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         {
             for(int j = 0; j < K; j++)
             {
-                printf("%f, ",static_cast<float>(a_g_m_k(bs, i, j)));
+                printf("%.2f,", static_cast<float>(a_g_m_k(bs, i, j)));
+            }
+            printf("\n");
+        }
+    }
+
+    // print B matrix original
+    printf("B matrix original:\n");
+    for(int bs = 0; bs < batch_count; bs++)
+    {
+        printf("batch %d -> Address: %p\n", bs, static_cast<void*>(&b_g_k_n(bs, 0, 0)));
+        for(int n = 0; n < N; n++)
+        {
+            for(int k = 0; k < K; k++)
+            {
+                ck::pk_i4_t i4x2 = b_g_k_n(bs, k, n).data;
+                int8_t i4        = 0;
+                if(k % 2 == 1)
+                    i4 = (i4x2.data >> 0) & 0xf;
+                else
+                    i4 = (i4x2.data >> 4) & 0xf;
+                i4 = i4 - 8;
+                printf("%d,", static_cast<int>(i4));
             }
             printf("\n");
         }
@@ -449,7 +463,7 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         {
             for(int j = 0; j < N; j++)
             {
-                printf("%f, ",static_cast<float>(b_g_k_n_dequant(bs, i, j)));
+                printf("%.2f, ", static_cast<float>(b_g_k_n_dequant(bs, i, j)));
             }
             printf("\n");
         }
@@ -457,14 +471,14 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     // print B scale matrix
     printf("B Scale matrix:\n");
-    for(int bs = 0; bs< batch_count; bs++)
+    for(int bs = 0; bs < batch_count; bs++)
     {
         printf("batch %d -> Address: %p\n", bs, static_cast<void*>(&b1_g_k_n(bs, 0, 0)));
         for(int i = 0; i < (K + Scale_Block_K - 1) / Scale_Block_K; i++)
         {
             for(int j = 0; j < (N + Scale_Block_N - 1) / Scale_Block_N; j++)
             {
-                printf("%f, ",static_cast<float>(b1_g_k_n(bs, i, j)));
+                printf("%.2f, ", static_cast<float>(b1_g_k_n(bs, i, j)));
             }
             printf("\n");
         }
@@ -474,12 +488,27 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     printf("C matrix:\n");
     for(int bs = 0; bs < batch_count; bs++)
     {
-        printf("batch %d -> Address: %p\n", bs, static_cast<void*>(&c_g_m_n_device_result(bs, 0, 0)));
+        printf(
+            "batch %d -> Address: %p\n", bs, static_cast<void*>(&c_g_m_n_device_result(bs, 0, 0)));
         for(int i = 0; i < M; i++)
         {
             for(int j = 0; j < N; j++)
             {
-                printf("%f, ",static_cast<float>(c_g_m_n_device_result(bs, i, j)));
+                printf("%.2f, ", static_cast<float>(c_g_m_n_device_result(bs, i, j)));
+            }
+            printf("\n");
+        }
+    }
+
+    printf("C reference matrix:\n");
+    for(int bs = 0; bs < batch_count; bs++)
+    {
+        printf("batch %d -> Address: %p\n", bs, static_cast<void*>(&c_g_m_n_host_result(bs, 0, 0)));
+        for(int i = 0; i < M; i++)
+        {
+            for(int j = 0; j < N; j++)
+            {
+                printf("%.2f, ", static_cast<float>(c_g_m_n_host_result(bs, i, j)));
             }
             printf("\n");
         }
@@ -501,14 +530,6 @@ bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
     problem_size.N = 128 * (dis(gen) + 1);
     problem_size.K = 256 * (dis(gen) + 2);
 
-    problem_size.stride_A = problem_size.K;
-    problem_size.stride_B = problem_size.K;
-    problem_size.stride_C = problem_size.N;
-
-    problem_size.batch_stride_A = problem_size.M * problem_size.K;
-    problem_size.batch_stride_B = problem_size.K * problem_size.N;
-    problem_size.batch_stride_C = problem_size.M * problem_size.N;
-
     problem_size.batch_count = 2;
 
     if(argc == 4)
@@ -527,10 +548,6 @@ bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
         problem_size.N = std::stoi(argv[5]);
         problem_size.K = std::stoi(argv[6]);
 
-        problem_size.stride_A = problem_size.K;
-        problem_size.stride_B = problem_size.K;
-        problem_size.stride_C = problem_size.N;
-
         if(argc >= 8)
         {
             problem_size.batch_count = std::stoi(argv[7]);
@@ -548,6 +565,14 @@ bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
         printf("arg3: time kernel (0=n0, 1=yes)\n");
         exit(0);
     }
+
+    problem_size.stride_A = problem_size.K;
+    problem_size.stride_B = problem_size.K;
+    problem_size.stride_C = problem_size.N;
+
+    problem_size.batch_stride_A = problem_size.M * problem_size.K;
+    problem_size.batch_stride_B = problem_size.K * problem_size.N;
+    problem_size.batch_stride_C = problem_size.M * problem_size.N;
 
     return run_batched_gemm(problem_size, config);
 }
