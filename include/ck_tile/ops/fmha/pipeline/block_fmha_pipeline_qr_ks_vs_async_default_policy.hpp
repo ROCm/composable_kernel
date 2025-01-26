@@ -177,8 +177,10 @@ struct BlockFmhaPipelineQRKSVSAsyncDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         // assume Q can reuse the shared memory with K or V
-        return max(GetSmemSizeQ<Problem>(), GetSmemSizeK<Problem>() + GetSmemSizeV<Problem>()) +
-               GetSmemSizeDropout<Problem>(0);
+        // assume Dropout can reuse the shared memory with V
+        return max(GetSmemSizeQ<Problem>(),
+                   GetSmemSizeK<Problem>() +
+                       max(GetSmemSizeV<Problem>(), GetSmemSizeDropout<Problem>(0)));
     }
 };
 

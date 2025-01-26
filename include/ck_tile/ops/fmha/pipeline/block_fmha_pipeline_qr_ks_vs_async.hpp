@@ -533,9 +533,8 @@ struct BlockFmhaPipelineQRKSVSAsync
 
             if constexpr(kHasDropout)
             {
-                auto randval_ptr = reinterpret_cast<char*>(smem_ptr) +
-                                   Policy::template GetSmemSizeK<Problem>() +
-                                   Policy::template GetSmemSizeV<Problem>();
+                auto randval_ptr =
+                    reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>();
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
             }
