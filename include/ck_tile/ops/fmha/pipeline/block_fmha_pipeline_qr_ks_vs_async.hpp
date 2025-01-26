@@ -330,23 +330,14 @@ struct BlockFmhaPipelineQRKSVSAsync
             // ensure k is completely updated on LDS
             block_sync_lds();
 
-            // for kQKHeaddim == 96 (kSubQKHeaddim == 128), we need to use k0_loops
-            if constexpr(kQKHeaddim == kSubQKHeaddim)
-            {
-                gemm_0(s_acc, q, k_lds_window);
-            }
-            else
-            {
-
-                static_for<0, k0_loops, 1>{}([&](auto i_k0) {
-                    gemm_0(s_acc,
-                           get_slice_tile(
-                               q, sequence<0, i_k0 * kK0>{}, sequence<kM0, (i_k0 + 1) * kK0>{}),
-                           get_slice_tile(k_lds_window,
-                                          sequence<0, i_k0 * kK0>{},
-                                          sequence<kN0, (i_k0 + 1) * kK0>{}));
-                });
-            }
+            static_for<0, k0_loops, 1>{}([&](auto i_k0) {
+                gemm_0(
+                    s_acc,
+                    get_slice_tile(q, sequence<0, i_k0 * kK0>{}, sequence<kM0, (i_k0 + 1) * kK0>{}),
+                    get_slice_tile(k_lds_window,
+                                   sequence<0, i_k0 * kK0>{},
+                                   sequence<kN0, (i_k0 + 1) * kK0>{}));
+            });
 
             __builtin_amdgcn_sched_barrier(0); // prevent from messing up the order of global loads
 
