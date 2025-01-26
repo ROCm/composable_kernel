@@ -396,56 +396,6 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         return WG::WarpGemmAttribute::Impl::kCM1PerLane;
     }
 
-    /*
-        template <typename Problem>
-        CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
-        {
-            constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-            constexpr index_t kKPerBlock =
-                KLoadOnce ? Problem::BlockFmhaShape::kSubQKHeaddim : Problem::BlockFmhaShape::kK0;
-            constexpr index_t kKPack = GetSmemKPackK<Problem>();
-
-            constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
-                make_tuple(number<kKPerBlock / kKPack>{}, number<kNPerBlock>{}, number<kKPack>{}),
-                make_tuple(number<(kNPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
-                number<8>{},
-                number<1>{});
-
-            constexpr auto k_lds_block_desc = transform_tensor_descriptor(
-                k_lds_block_desc_0,
-                make_tuple(
-                    make_pass_through_transform(number<kNPerBlock>{}),
-                    make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{},
-       number<kKPack>{}))), make_tuple(sequence<1>{}, sequence<0, 2>{}), make_tuple(sequence<0>{},
-       sequence<1>{}));
-
-            return k_lds_block_desc;
-        }
-    */
-
-    /*
-        template <typename Problem>
-        CK_TILE_HOST_DEVICE static constexpr auto GetKSingleSmemElementSpaceSize()
-        {
-            constexpr index_t SingleKSize = [&]() {
-                using KDataType                = remove_cvref_t<typename Problem::KDataType>;
-                constexpr index_t Banks        = 32; // TODO: need change based on arch
-                constexpr index_t PixelsPerRow = Banks * 4 / sizeof(KDataType);
-                constexpr index_t kKPack       = GetSmemKPackK<Problem>();
-                static_assert(PixelsPerRow % kKPack == 0);
-                constexpr index_t NPerRow    = PixelsPerRow / kKPack;
-                constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-                constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
-                static_assert(kNPerBlock % NPerRow == 0);
-                static_assert(kKPerBlock % kKPack == 0);
-
-                return (kKPerBlock / kKPack) * (kNPerBlock / NPerRow) * (PixelsPerRow + kKPack);
-            }();
-
-            return SingleKSize;
-        }
-    */
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVSingleSmemElementSpaceSize()
     {
@@ -471,46 +421,6 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
-        /*
-                using KDataType                = remove_cvref_t<typename Problem::KDataType>;
-                constexpr index_t Banks        = 32; // TODO: need change based on arch
-                constexpr index_t PixelsPerRow = Banks * 4 / sizeof(KDataType);
-                constexpr index_t kKPack       = GetSmemKPackK<Problem>();
-                static_assert(PixelsPerRow % kKPack == 0);
-                constexpr index_t NPerRow    = PixelsPerRow / kKPack;
-                constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-                constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
-                static_assert(kNPerBlock % NPerRow == 0);
-                static_assert(kKPerBlock % kKPack == 0);
-
-                constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
-
-                constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
-                    make_tuple(number<NumKLdsBuffers>{},
-                               number<kKPerBlock / kKPack>{},
-                               number<kNPerBlock / NPerRow>{},
-                               number<NPerRow>{},
-                               number<kKPack>{}),
-                    make_tuple(number<GetKSingleSmemElementSpaceSize<Problem>()>{},
-                               number<(kNPerBlock / NPerRow) * (PixelsPerRow + kKPack)>{},
-                               number<PixelsPerRow + kKPack>{},
-                               number<kKPack>{},
-                               number<1>{}),
-                    number<kKPack>{},
-                    number<1>{});
-
-                constexpr auto k_lds_block_desc = transform_tensor_descriptor(
-                    k_lds_block_desc_0,
-                    ake_tuple(
-                        make_merge_transform(make_tuple(
-                            number<NumKLdsBuffers>{}, number<kNPerBlock / NPerRow>{},
-           number<NPerRow>{})), make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{},
-           number<kKPack>{}))), make_tuple(sequence<0, 2, 3>{}, sequence<1, 4>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
-
-                return k_lds_block_desc;
-        */
-
         constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
         constexpr index_t kNPerBlock     = Problem::BlockFmhaShape::kN0;
         constexpr index_t kKPerBlock     = Problem::BlockFmhaShape::kK0;
