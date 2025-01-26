@@ -8,18 +8,18 @@
 #include <typeinfo>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_fp16_int4_b_scale_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm_b_scale.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
 namespace profiler {
@@ -78,9 +78,12 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                                       ? ((K + ScaleBlockK - 1) / ScaleBlockK)
                                       : N;
 
-    Tensor<ADataType> a_g_m_k(f_host_tensor_descriptor(BatchSize, M, K, StrideA, BatchStrideA, ALayout{}));
-    Tensor<BDataType> b_g_k_n(f_host_tensor_descriptor(BatchSize, K, N, StrideB, BatchStrideB, BLayout{}));
-    Tensor<BDataType> b_g_k_n_permute(f_host_tensor_descriptor(BatchSize, K, N, StrideB, BatchStrideB, BLayout{}));
+    Tensor<ADataType> a_g_m_k(
+        f_host_tensor_descriptor(BatchSize, M, K, StrideA, BatchStrideA, ALayout{}));
+    Tensor<BDataType> b_g_k_n(
+        f_host_tensor_descriptor(BatchSize, K, N, StrideB, BatchStrideB, BLayout{}));
+    Tensor<BDataType> b_g_k_n_permute(
+        f_host_tensor_descriptor(BatchSize, K, N, StrideB, BatchStrideB, BLayout{}));
     Tensor<BScaleDataType> b1_g_k_n(f_host_tensor_descriptor(
         BatchSize,
         (K + ScaleBlockK - 1) / ScaleBlockK, // K direction group size is ScaleBlockK
@@ -88,8 +91,10 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
         Scale_Stride_BN,
         BatchStrideScaleB,
         BLayout{}));
-    Tensor<CDataType> c_g_m_n_host_result(f_host_tensor_descriptor(BatchSize, M, N, StrideC, BatchStrideC, CLayout{}));
-    Tensor<CDataType> c_g_m_n_device_result(f_host_tensor_descriptor(BatchSize, M, N, StrideC, BatchStrideC, CLayout{}));
+    Tensor<CDataType> c_g_m_n_host_result(
+        f_host_tensor_descriptor(BatchSize, M, N, StrideC, BatchStrideC, CLayout{}));
+    Tensor<CDataType> c_g_m_n_device_result(
+        f_host_tensor_descriptor(BatchSize, M, N, StrideC, BatchStrideC, CLayout{}));
 
     int total_gemm_needed = a_g_m_k.GetElementSpaceSizeInBytes() +
                             b_g_k_n.GetElementSpaceSizeInBytes() +
@@ -345,8 +350,9 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                 // re-init C to zero before profiling next kernel
                 c_device_buf.SetZero();
 
-                invoker_ptr->Run(argument_ptr.get(),
-                                 StreamConfig{nullptr, false, 0, n_warmup, n_iter});
+                // invoker_ptr->Run(argument_ptr.get(),
+                //                  StreamConfig{nullptr, false, 0, n_warmup, n_iter});
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false, 0});
 
                 if(do_verification)
                 {
@@ -360,13 +366,15 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                         std::string msg = "Error: Incorrect results!";
                         double rtol     = 1e-1;
                         double atol     = 1e-1;
-                        pass            = pass & ck::utils::check_err(
-                                          c_g_m_n_device_result, c_g_m_n_host_result, msg, rtol, atol);
+                        pass =
+                            pass & ck::utils::check_err(
+                                       c_g_m_n_device_result, c_g_m_n_host_result, msg, rtol, atol);
                     }
                     else
                     {
 #endif
-                        pass = pass & ck::utils::check_err(c_g_m_n_device_result, c_g_m_n_host_result);
+                        pass =
+                            pass & ck::utils::check_err(c_g_m_n_device_result, c_g_m_n_host_result);
 #if defined CK_ENABLE_FP8
                     }
 #endif

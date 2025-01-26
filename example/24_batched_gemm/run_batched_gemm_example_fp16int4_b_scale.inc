@@ -195,6 +195,11 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
         b1_g_k_n.GenerateTensorValue(GeneratorTensor_1<BScaleDataType>{1});
         break;
+    case 6:
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.5, 0.5});
+        b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        b1_g_k_n.GenerateTensorValue(GeneratorTensor_3<BScaleDataType>{0, 1.0});
+        break;
     default:
         a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.5, 0.5});
         b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
@@ -372,9 +377,6 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                     b_g_k_n_dequant(bs, k, n) =
                         ck::type_convert<float>(v_b) *
                         ck::type_convert<float>(b1_g_k_n(bs, k / Scale_Block_K, n / Scale_Block_N));
-
-                    // printf("b_g_k_n_dequant(%d, %d, %d): %f\n", bs, k, n, b_g_k_n_dequant(bs, k,
-                    // n));
                 }
             }
         }
@@ -405,9 +407,6 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     if(config.time_kernel)
     {
-        // ave_time =
-        //     invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 20, 50, true,
-        //     50});
         ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
 
         std::size_t flop = 2_uz * M * N * K;
@@ -495,12 +494,12 @@ bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
     ProblemSize problem_size;
     ExecutionConfig config;
 
-    // std::mt19937 gen(11939);
-    // std::uniform_int_distribution<int> dis(0, 15);
+    std::mt19937 gen(11939);
+    std::uniform_int_distribution<int> dis(0, 15);
 
-    // problem_size.M = 128 * (dis(gen) + 1);
-    // problem_size.N = 128 * (dis(gen) + 1);
-    // problem_size.K = 256 * (dis(gen) + 2);
+    problem_size.M = 128 * (dis(gen) + 1);
+    problem_size.N = 128 * (dis(gen) + 1);
+    problem_size.K = 256 * (dis(gen) + 2);
 
     problem_size.stride_A = problem_size.K;
     problem_size.stride_B = problem_size.K;

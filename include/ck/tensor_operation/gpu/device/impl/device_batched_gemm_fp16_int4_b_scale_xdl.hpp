@@ -8,15 +8,15 @@
 
 #include "ck/utility/common_header.hpp"
 
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/flush_cache.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_b_scale.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 
@@ -34,59 +34,31 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-        kernel_batched_gemm_b_scale_xdl_cshuffle_v3(BatchedGemmArg karg)
+    kernel_batched_gemm_b_scale_xdl_cshuffle_v3(BatchedGemmArg karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t g_idx = blockIdx.z % karg.Batch;
+    const index_t k_idx = blockIdx.z / karg.Batch;
 
     const auto a_batch_offset       = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
     const auto b_batch_offset       = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
     const auto c_batch_offset       = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
     const auto b_scale_batch_offset = karg.compute_ptr_offset_of_batch.GetSacleBPtrOffset(g_idx);
 
-    // auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
-
-    // printf("blockIdx.x: %d, blockIdx.y: %d, blockIdx.z: %d, a_batch_offset: %ld, b_batch_offset:
-    // "
-    //     "%ld, c_batch_offset: %ld, b_scale_batch_offset: %ld, karg.p_a_grid: %p, "
-    //     "karg.p_b_grid: %p, karg.p_c_grid: %p, karg.p_b_scale_grid: %p\n",
-    //     blockIdx.x,
-    //     blockIdx.y,
-    //     blockIdx.z,
-    //     a_batch_offset,
-    //     b_batch_offset,
-    //     c_batch_offset,
-    //     b_scale_batch_offset,
-    //     static_cast<const void*>(karg.p_a_grid + a_batch_offset),
-    //     static_cast<const void*>(karg.p_b_grid + b_batch_offset),
-    //     static_cast<const void*>(karg.p_c_grid + c_batch_offset),
-    //     static_cast<const void*>(karg.p_b_scale_grid + b_scale_batch_offset));
-
-    // const _Float16* a_ptr = karg.p_a_grid + a_batch_offset;
-    // if(blockIdx.z == 1 && threadIdx.x == 0)
-    // {
-    //     for(int i = 0; i < 128 * 384; i++)
-    //     {
-    //         const _Float16* el_ptr = a_ptr + i;
-    //         printf("%.2f ", static_cast<float>(*el_ptr));
-
-    //         if(i%384==0)
-    //             printf("\n");
-    //     }
-    //     printf("\n");
-    // }
+    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, k_idx);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + a_batch_offset,
-        karg.p_b_grid + b_batch_offset / 2,
-        karg.p_c_grid + c_batch_offset,
-        karg.p_b_scale_grid + b_scale_batch_offset,
+        karg.p_a_grid + a_batch_offset + splitk_batch_offset.a_k_split_offset,
+        karg.p_b_grid + b_batch_offset + splitk_batch_offset.b_k_split_offset,
+        karg.p_c_grid + c_batch_offset + splitk_batch_offset.c_reduce_offset,
+        karg.p_b_scale_grid + b_scale_batch_offset + splitk_batch_offset.scale_k_split_offset,
         p_shared,
         karg);
+
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -100,9 +72,9 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-        kernel_batched_gemm_b_scale_xdl_cshuffle_v3_2lds(BatchedGemmArg karg)
+    kernel_batched_gemm_b_scale_xdl_cshuffle_v3_2lds(BatchedGemmArg karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
@@ -111,22 +83,24 @@ __global__ void
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t g_idx = blockIdx.z % karg.Batch;
+    const index_t k_idx = blockIdx.z / karg.Batch;
 
     const auto a_batch_offset       = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
     const auto b_batch_offset       = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
     const auto c_batch_offset       = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
     const auto b_scale_batch_offset = karg.compute_ptr_offset_of_batch.GetSacleBPtrOffset(g_idx);
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, k_idx);
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + a_batch_offset + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + (b_batch_offset + splitk_batch_offset.b_k_split_offset) / 2,
+        karg.p_b_grid + b_batch_offset + splitk_batch_offset.b_k_split_offset,
         karg.p_c_grid + c_batch_offset + splitk_batch_offset.c_reduce_offset,
         karg.p_b_scale_grid + b_scale_batch_offset + splitk_batch_offset.scale_k_split_offset,
         p_shared_0,
         p_shared_1,
         karg);
+
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -250,6 +224,12 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
         PermuteA,
         PermuteB>;
 
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
     struct ComputePtrOffsetOfStridedBatch
     {
         ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
@@ -270,7 +250,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
 
         __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
         {
-            return g_idx * static_cast<long_index_t>(BatchStrideB_);
+            return g_idx * static_cast<long_index_t>(BatchStrideB_) / BPackedSize;
         }
 
         __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
@@ -354,8 +334,6 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayou
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) =
                 GridwiseGemm::CalculateGridSize(arg.M, arg.N, arg.Batch * arg.KBatch);
-
-            printf("gdx: %d, gdy: %d, gdz: %d\n", gdx, gdy, gdz);
 
             float ave_time = 0;
 

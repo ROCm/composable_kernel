@@ -1,19 +1,19 @@
+#include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <numeric>
-#include <initializer_list>
-#include <cstdlib>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_fp16_int4_b_scale_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/utility/literals.hpp"
 
 template <ck::index_t... Is>
@@ -49,37 +49,37 @@ static constexpr bool PermuteB    = false;
 static constexpr ck::index_t Scale_Block_N = 1;
 static constexpr ck::index_t Scale_Block_K = 128;
 
-static constexpr ck::index_t KPerBlock = 128;
+static constexpr ck::index_t KPerBlock = 256;
 
 // clang-format off
 using DeviceBatchedGemmV2Instance = 
     ck::tensor_operation::device::DeviceBatchedGemm_Xdl_CShuffleV3<
-        ALayout,   BLayout,  CLayout,   
-        ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType, 
-        AElementOp, BElementOp, CElementOp, GemmDefault, 
-        256, Scale_Block_N, Scale_Block_K,
-        128, 128,
-        KPerBlock, 8, 32,
-        32,   32,
-        2,    2,
-        S<16, 16, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
-        2, 8, 8, 0,
-        S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
-        2, 32, 32, 0,
-        1, 1, S<1, 16, 1, 8>, 8,        
         // ALayout,   BLayout,  CLayout,   
         // ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType, 
         // AElementOp, BElementOp, CElementOp, GemmDefault, 
         // 256, Scale_Block_N, Scale_Block_K,
-        // 256, 128,
-        // KPerBlock, 8, 32,
+        // 128, 128,
+        // 128, 8, 32,
         // 32,   32,
-        // 4,    2,
-        // S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        // 2,    2,
+        // S<16, 16, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         // 2, 8, 8, 0,
-        // S<1, 256, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        // S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         // 2, 32, 32, 0,
-        // 1, 1, S<1, 32, 1, 8>, 8,
+        // 1, 1, S<1, 16, 1, 8>, 8,        
+        ALayout,   BLayout,  CLayout,   
+        ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType, 
+        AElementOp, BElementOp, CElementOp, GemmDefault, 
+        256, Scale_Block_N, Scale_Block_K,
+        16, 64,
+        KPerBlock, 8, 32,
+        16,   16,
+        1,    1,
+        S<32, 8, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        2, 8, 8, 0,
+        S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        2, 32, 32, 0,
+        1, 1, S<1, 16, 1, 8>, 8,
         ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, CDataType, CDataType, PermuteA, PermuteB>;
 // clang-format on
 
