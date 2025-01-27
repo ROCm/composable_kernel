@@ -135,12 +135,9 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const ck_tile::index_t N = Ns[i];
         const ck_tile::index_t K = Ks[i];
 
-        stride_As[i] =
-            ck_tile::get_default_stride(M, N, stride_As[i], is_row_major(a_layout));
-        stride_Bs[i] =
-            ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
-        stride_Cs[i] =
-            ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
+        stride_As[i] = ck_tile::get_default_stride(M, N, stride_As[i], is_row_major(a_layout));
+        stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
+        stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
 
         a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
             ck_tile::host_tensor_descriptor(M, K, stride_As[i], is_row_major(a_layout))));
@@ -229,10 +226,10 @@ int run_grouped_gemm_example(int argc, char* argv[])
     {
         return run_grouped_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
     }
-    else if(a_layout == "R" && b_layout == "R")
-    {
-        return run_grouped_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
-    }
+    // else if(a_layout == "R" && b_layout == "R")
+    // {
+    //     return run_grouped_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
+    // }
     else
     {
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
