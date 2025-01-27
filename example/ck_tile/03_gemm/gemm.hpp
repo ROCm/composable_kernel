@@ -52,9 +52,6 @@ using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
 using CDataType   = Types::CDataType;
 
-using Row = ck_tile::tensor_layout::gemm::RowMajor;
-using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
-
 /** \brief Struct used for specifying desired gemm details*/
 struct gemm_traits
 {

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common.hpp"
 
 namespace ck_tile {
 
@@ -12,18 +13,21 @@ struct GemmPipelineAgBgCrImplBase
 {
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
+    using ALayout        = remove_cvref_t<typename Problem::ALayout>;
+    using BLayout        = remove_cvref_t<typename Problem::BLayout>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    template <typename DstBlockTile, typename SrcTileWindow>
+    template <typename DstBlockTile, typename SrcTileWindow, typename DramTileWindowStep>
     CK_TILE_DEVICE void GlobalPrefetch(DstBlockTile& dst_block_tile,
-                                       SrcTileWindow& dram_tile_window) const
+                                       SrcTileWindow& dram_tile_window,
+                                       const DramTileWindowStep& dram_tile_window_step) const
     {
         load_tile(dst_block_tile, dram_tile_window);
-        move_tile_window(dram_tile_window, {0, KPerBlock});
+        move_tile_window(dram_tile_window, dram_tile_window_step);
     }
 
     template <typename DstTileWindow, typename SrcBlockTile, typename ElementFunction>
@@ -60,19 +64,21 @@ struct GemmPipelineAgBgCrImplBase
     CK_TILE_DEVICE auto GetAWindows(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                     const ALdsTensorView& a_lds_block_view) const
     {
+        constexpr bool is_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+
+        using YPerTile = std::conditional_t<is_col_major, number<KPerBlock>, number<MPerBlock>>;
+        using XPerTile = std::conditional_t<is_col_major, number<MPerBlock>, number<KPerBlock>>;
+
         // A DRAM tile window for load
         auto a_copy_dram_window =
             make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                             make_tuple(YPerTile{}, XPerTile{}),
                              a_dram_block_window_tmp.get_window_origin(),
                              Policy::template MakeADramTileDistribution<Problem>());
 
         // A LDS tile window for store
-        auto a_copy_lds_window =
-            make_tile_window(a_lds_block_view,
-                             make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                             {0, 0},
-                             a_copy_dram_window.get_tile_distribution());
+        auto a_copy_lds_window = make_tile_window(
+            a_lds_block_view, make_tuple(number<MPerBlock>{}, number<KPerBlock>{}), {0, 0});
 
         auto a_lds_gemm_window = make_tile_window(
             a_lds_block_view, make_tuple(number<MPerBlock>{}, number<KPerBlock>{}), {0, 0});
@@ -86,18 +92,22 @@ struct GemmPipelineAgBgCrImplBase
     CK_TILE_DEVICE auto GetBWindows(const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                     const BLdsTensorView& b_lds_block_view) const
     {
+        constexpr bool is_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+
+        using YPerTile = std::conditional_t<is_row_major, number<KPerBlock>, number<NPerBlock>>;
+        using XPerTile = std::conditional_t<is_row_major, number<NPerBlock>, number<KPerBlock>>;
+
         auto b_copy_dram_window =
             make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                             make_tuple(YPerTile{}, XPerTile{}),
                              b_dram_block_window_tmp.get_window_origin(),
                              Policy::template MakeBDramTileDistribution<Problem>());
 
+        // TODO: Do we really need those two tile windows???
+        // They're exactly same...
         // B LDS tile window for store
-        auto b_copy_lds_window =
-            make_tile_window(b_lds_block_view,
-                             make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                             {0, 0},
-                             b_copy_dram_window.get_tile_distribution());
+        auto b_copy_lds_window = make_tile_window(
+            b_lds_block_view, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
 
         auto b_lds_gemm_window = make_tile_window(
             b_lds_block_view, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});

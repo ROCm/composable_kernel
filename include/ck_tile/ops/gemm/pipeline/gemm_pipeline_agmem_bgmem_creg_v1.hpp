@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -38,17 +38,6 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
-
-    CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
-    {
-        return integer_divide_ceil(
-                   sizeof(ADataType) *
-                       Policy::template MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
-                   16) *
-                   16 +
-               sizeof(BDataType) *
-                   Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
-    }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
@@ -150,7 +139,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>)
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                    Policy::template MakeShuffledARegBlockDescriptor<Problem>());
+                    Policy::template MakeShuffledARegBlockDistribution<Problem>());
                 shuffle_tile(a_shuffle_tmp, a_block_tile);
                 const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_shuffle_tmp);
                 store_tile(a_copy_lds_window, a_block_tile_tmp);
@@ -164,7 +153,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-                    Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
+                    Policy::template MakeShuffledBRegBlockDistribution<Problem>());
                 shuffle_tile(b_shuffle_tmp, b_block_tile);
                 const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_shuffle_tmp);
                 store_tile(b_copy_lds_window, b_block_tile_tmp);
@@ -201,7 +190,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
                 auto b_shuffle_tmp_loop = make_static_distributed_tensor<BDataType>(
-                    Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
+                    Policy::template MakeShuffledBRegBlockDistribution<Problem>());
                 shuffle_tile(b_shuffle_tmp_loop, b_block_tile);
                 store_tile(b_copy_lds_window,
                            tile_elementwise_in(b_element_func, b_shuffle_tmp_loop));

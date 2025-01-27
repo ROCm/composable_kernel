@@ -69,9 +69,7 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
         ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
-    using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;
-    using CodegenGemmPipeline =
-        ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenGemmPolicy>;
+    using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
@@ -102,6 +100,9 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 
 float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
     if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
     {
         return gemm_<Row, Row, Row>(args, s);
@@ -110,14 +111,14 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_til
     {
         return gemm_<Row, Col, Row>(args, s);
     }
-    else if(!t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
-    {
-        return gemm_<Col, Row, Row>(args, s);
-    }
-    else if(!t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
-    {
-        return gemm_<Col, Col, Row>(args, s);
-    }
+    // else if(!t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+    // {
+    //     return gemm_<Col, Row, Row>(args, s);
+    // }
+    // else if(!t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+    // {
+    //     return gemm_<Col, Col, Row>(args, s);
+    // }
     else
     {
         throw std::runtime_error("Wrong! Layouts not supported!\n");
@@ -125,5 +126,27 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_til
 }
 
 #include "run_gemm_example.inc"
+
+int run_gemm_example(int argc, char* argv[])
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+    std::string a_layout = arg_parser.get_str("a_layout");
+    std::string b_layout = arg_parser.get_str("b_layout");
+
+    if(a_layout == "R" && b_layout == "C")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+    }
+}
 
 int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
