@@ -16,6 +16,7 @@ enum struct GemmPipelineType
     Mem,
     Comp
 };
+
 template <typename Tuple>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
