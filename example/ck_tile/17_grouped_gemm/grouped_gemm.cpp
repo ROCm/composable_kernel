@@ -88,12 +88,9 @@ using CodegenPipelineProblem =
                                  CodegenGemmShape,
                                  CodegenGemmTraits<ALayout, BLayout, CLayout>>;
 
-using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;
-
 template <typename ALayout, typename BLayout, typename CLayout>
 using CodegenGemmPipeline =
-    ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem<ALayout, BLayout, CLayout>,
-                                          CodegenGemmPolicy>;
+    ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem<ALayout, BLayout, CLayout>>;
 
 template <typename ALayout, typename BLayout, typename CLayout>
 using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner,
