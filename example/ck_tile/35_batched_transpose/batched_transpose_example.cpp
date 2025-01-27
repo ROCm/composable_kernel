@@ -106,43 +106,6 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-std::vector<transpose_kernel_param_t> get_transpose_all_kernel(std::string fp_str)
-{
-    if(fp_str == "fp32")
-        return transpose_kernel_get_all_param_t<4>::get();
-    else if(fp_str == "fp16" || fp_str == "bf16")
-        return transpose_kernel_get_all_param_t<2>::get();
-    else if(fp_str == "int8")
-        return transpose_kernel_get_all_param_t<1>::get();
-    else
-        return {};
-}
-
-bool transpose_kernel_is_valid(uint32_t,
-                               uint32_t height,
-                               uint32_t width,
-                               const transpose_kernel_param_t& kparam)
-{
-    return width % kparam.thread_tile_x == 0 && height % kparam.thread_tile_y == 0;
-}
-
-bool is_kernel_valid(uint32_t n,
-                     uint32_t c,
-                     uint32_t h,
-                     uint32_t w,
-                     const transpose_kernel_param_t& kparam,
-                     std::string layout_in)
-{
-    if(layout_in == "nchw")
-    {
-        return transpose_kernel_is_valid(n, c, h * w, kparam);
-    }
-    else
-    {
-        return transpose_kernel_is_valid(n, h * w, c, kparam);
-    }
-}
-
 template <typename Type>
 bool run_batched_transpose(ck_tile::ArgParser args)
 {
@@ -199,17 +162,6 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     x_dev.ToDevice(x_host.data());
 
-    transpose_kernel_param_t kparam;
-    for(auto iter_kparam : get_transpose_all_kernel(prec))
-    {
-        bool is_valid = is_kernel_valid(N, C, H, W, iter_kparam, layout_in);
-        if(is_valid)
-        {
-            kparam = iter_kparam;
-            break;
-        }
-    }
-
     auto trait = batched_transpose_trait{prec, layout_in};
 
     uint32_t height = nchw2nhwc ? C : H * W;
@@ -227,7 +179,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     ck_tile::stream_config sc{nullptr, true};
 
-    auto ms = batched_transpose(trait, kparam, karg, sc);
+    auto ms = batched_transpose(trait, karg, sc);
 
     std::size_t num_operations = N * C * H * (W - 1);
     std::size_t num_bytes      = N * C * H * W * sizeof(Type);

@@ -3,56 +3,27 @@
 #include "batched_transpose_example.hpp"
 #include <iostream>
 
-void print_kparam_values(const transpose_kernel_param_t& kparam)
-{
-    std::cout << "block_tile_x: " << kparam.block_tile_x << std::endl;
-    std::cout << "block_tile_y: " << kparam.block_tile_y << std::endl;
-    std::cout << "warp_tile_x: " << kparam.warp_tile_x << std::endl;
-    std::cout << "warp_tile_y: " << kparam.warp_tile_y << std::endl;
-    std::cout << "thread_tile_x: " << kparam.thread_tile_x << std::endl;
-    std::cout << "thread_tile_y: " << kparam.thread_tile_y << std::endl;
-}
 
-void populate_values(const transpose_kernel_param_t& kparam, batched_transpose_kargs& a)
+template <typename ts_type, ck_tile::index_t block_x,
+          ck_tile::index_t block_y,
+          ck_tile::index_t warp_x,
+          ck_tile::index_t warp_y,
+          ck_tile::index_t thread_x,
+          ck_tile::index_t thread_y>
+float batched_transpose_dispatch(batched_transpose_kargs& a,
+                                 ck_tile::stream_config& s)
 {
-    uint32_t dim_block_h = (a.height + kparam.block_tile_y - 1) / kparam.block_tile_y;
-    uint32_t dim_block_w = (a.width + kparam.block_tile_x - 1) / kparam.block_tile_x;
+    uint32_t dim_block_h = (a.height + block_y - 1) / block_y;
+    uint32_t dim_block_w = (a.width + block_x - 1) / block_x;
     uint32_t dim_stride  = a.height * a.width;
 
     a.dim_stride  = dim_stride;
     a.dim_block_h = dim_block_h;
     a.dim_block_w = dim_block_w;
-}
-
-template <typename ts_type>
-float batched_transpose_dispatch(const transpose_kernel_param_t& kparam,
-                                 batched_transpose_kargs& a,
-                                 ck_tile::stream_config& s)
-{
-    print_kparam_values(kparam);
-    populate_values(kparam, a);
-
-    ck_tile::index_t block_tile_x = kparam.block_tile_x;
-    ck_tile::index_t block_tile_y = kparam.block_tile_y;
-
-    ck_tile::index_t warp_tile_x = kparam.warp_tile_x;
-    ck_tile::index_t warp_tile_y = kparam.warp_tile_y;
-
-    ck_tile::index_t thread_tile_x = kparam.thread_tile_x;
-    ck_tile::index_t thread_tile_y = kparam.thread_tile_y;
-
-    std::cout << "-------------------------------------------" << std::endl;
-    std::cout << "block_tile_x: " << block_tile_x << std::endl;
-    std::cout << "block_tile_y: " << block_tile_y << std::endl;
-    std::cout << "warp_tile_x: " << warp_tile_x << std::endl;
-    std::cout << "warp_tile_y: " << warp_tile_y << std::endl;
-    std::cout << "thread_tile_x: " << thread_tile_x << std::endl;
-    std::cout << "thread_tile_y: " << thread_tile_y << std::endl;
-    std::cout << "-------------------------------------------" << std::endl;
-
-    using block_tile  = ck_tile::sequence<16, 16>;
-    using warp_tile   = ck_tile::sequence<8, 8>;
-    using thread_tile = ck_tile::sequence<1, 1>;
+    
+    using block_tile  = ck_tile::sequence<block_x, block_y>;
+    using warp_tile   = ck_tile::sequence<warp_x, warp_y>;
+    using thread_tile = ck_tile::sequence<thread_x, thread_y>;
 
     using ts_problem =
         ck_tile::BatchedTransposeProblem<ts_type, block_tile, warp_tile, thread_tile>;
@@ -71,26 +42,43 @@ float batched_transpose_dispatch(const transpose_kernel_param_t& kparam,
     return ave_time;
 }
 
+// Param Comb: type_size, block_x & y, warp_x & y, thread_x & y
+#define FOREACH_TRANSPOSE_PARAM(F)                 \
+    F(fp16, ck_tile::fp16_t, 16,16, 8,8, 1,1)       \
+    F(bf16, ck_tile::bf16_t, 16, 16, 8, 8, 1, 1)   \
+    F(fp32, ck_tile::fp32_t, 16, 16, 8, 8, 1, 1)   \
+    F(int8, ck_tile::int8_t, 16, 16, 8, 8, 1, 1)
+
+// Macro that defines one static function per line
+#define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, WX, WY, TX, TY)  \
+    static float transpose_fn_##SHORT_NAME##_##BX##_##BY##_##WX##_##WY##_##TX##_##TY( \
+        batched_transpose_kargs & a, ck_tile::stream_config & s)         \
+    {                                                                    \
+        return batched_transpose_dispatch<REAL_TYPE, BX,BY, WX,WY, TX,TY>(a, s); \
+    }
+
+FOREACH_TRANSPOSE_PARAM(GEN_TRANSPOSE_FN)
+
+
 float batched_transpose(batched_transpose_trait t,
-                        transpose_kernel_param_t kparam,
                         batched_transpose_kargs a,
                         ck_tile::stream_config s)
 {
     if(t.type == "fp16")
     {
-        return batched_transpose_dispatch<ck_tile::fp16_t>(kparam, a, s);
+        return transpose_fn_fp16_16_16_8_8_1_1(a, s);
     }
     else if(t.type == "bf16")
     {
-        return batched_transpose_dispatch<ck_tile::bf16_t>(kparam, a, s);
+        return transpose_fn_bf16_16_16_8_8_1_1(a, s);
     }
     else if(t.type == "fp32")
     {
-        return batched_transpose_dispatch<ck_tile::fp32_t>(kparam, a, s);
+        return transpose_fn_fp32_16_16_8_8_1_1(a, s);
     }
     else if(t.type == "int8")
     {
-        return batched_transpose_dispatch<ck_tile::int8_t>(kparam, a, s);
+        return transpose_fn_int8_16_16_8_8_1_1(a, s);
     }
     return -1;
 }
