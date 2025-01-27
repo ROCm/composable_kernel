@@ -62,8 +62,12 @@ struct f6x16_pk_t
         return data_union.f6_array[I];
     }
 
+    // V is vector_size and E is number of elements
+    template <size_t V, size_t E>
     __host__ __device__ inline type pack(f6_t* x)
     {
+        static_assert(V == 1 || V == 2, "Vector size must be 1 or 2.");
+        static_assert(E == 16, "Number of elements must be 16.");
         type* retval = reinterpret_cast<type*>(x);
         return *retval;
     }
@@ -92,8 +96,12 @@ struct f6x32_pk_t
         return data_union.f6_array[I];
     }
 
+    // V is vector_size and E is number of elements
+    template <size_t V, size_t E>
     __host__ __device__ inline type pack(f6_t* x)
     {
+        static_assert(V == 1, "Vector size must be 1.");
+        static_assert(E == 32, "Number of elements must be 16.");
         type* retval = reinterpret_cast<type*>(x);
         return *retval;
     }
@@ -122,8 +130,12 @@ struct bf6x16_pk_t
         return data_union.bf6_array[I];
     }
 
+    // V is vector_size and E is number of elements
+    template <size_t V, size_t E>
     __host__ __device__ inline type pack(bf6_t* x)
     {
+        static_assert(V == 1 || V == 2, "Vector size must be 1 or 2.");
+        static_assert(E == 16, "Number of elements must be 16.");
         type* retval = reinterpret_cast<type*>(x);
         return *retval;
     }
@@ -152,8 +164,12 @@ struct bf6x32_pk_t
         return data_union.bf6_array[I];
     }
 
+    // V is vector_size and E is number of elements
+    template <size_t V, size_t E>
     __host__ __device__ inline type pack(bf6_t* x)
     {
+        static_assert(V == 1, "Vector size must be 1.");
+        static_assert(E == 32, "Number of elements must be 16.");
         type* retval = reinterpret_cast<type*>(x);
         return *retval;
     }

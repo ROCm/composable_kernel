@@ -269,7 +269,8 @@ TEST(FP6, TestAsType16x1)
     });
     // assign test values to the vector
     ck::static_for<0, vector_size, 1>{}([&](auto i) {
-        right_vec.template AsType<f6x16_pk_t>()(Number<i>{}) = f6x16_pk_t{}.pack(test_vec.data());
+        right_vec.template AsType<f6x16_pk_t>()(Number<i>{}) =
+            f6x16_pk_t{}.pack<vector_size, packed_size>(test_vec.data());
     });
     // copy the vector
     vector_type<f6x16_pk_t, vector_size> left_vec{right_vec};
@@ -308,7 +309,7 @@ TEST(FP6, TestAsType16x2)
     // assign test values to the vector
     ck::static_for<0, vector_size, 1>{}([&](auto i) {
         right_vec.template AsType<f6x16_pk_t>()(Number<i>{}) =
-            f6x16_pk_t{}.pack(test_vec.data() + i * packed_size);
+            f6x16_pk_t{}.pack<vector_size, packed_size>(test_vec.data() + i * packed_size);
     });
     // copy the vector
     vector_type<f6x16_pk_t, vector_size> left_vec{right_vec};
@@ -345,7 +346,8 @@ TEST(FP6, TestAsType32x1)
     });
     // assign test values to the vector
     ck::static_for<0, vector_size, 1>{}([&](auto i) {
-        right_vec.template AsType<f6x32_pk_t>()(Number<i>{}) = f6x32_pk_t{}.pack(test_vec.data());
+        right_vec.template AsType<f6x32_pk_t>()(Number<i>{}) =
+            f6x32_pk_t{}.pack<vector_size, packed_size>(test_vec.data());
     });
     // copy the vector
     vector_type<f6x32_pk_t, vector_size> left_vec{right_vec};
