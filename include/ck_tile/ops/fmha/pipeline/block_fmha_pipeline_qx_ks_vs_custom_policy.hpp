@@ -296,11 +296,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         if constexpr(KLoadOnce)
         {
-            using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
-
-            constexpr index_t k0_loops = BlockFmhaShape::kQKHeaddim / BlockFmhaShape::kK0;
-
-            return k0_loops;
+            return 2;
         }
         else
             return 1;
