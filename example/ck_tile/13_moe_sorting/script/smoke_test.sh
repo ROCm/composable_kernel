@@ -19,5 +19,6 @@ $EXE -t=99 -e=2 -k=1
 $EXE -t=333 -e=99 -k=13
 $EXE -t=11 -e=256 -k=5
 $EXE -t=64 -e=455 -k=8
-$EXE -t=777 -e=802 -k=99 # has bug???
+$EXE -t=777 -e=802 -k=99
+$EXE -t=4097 -e=906 -k=51
 $EXE -t=128 -e=32 -k=5 -moe_buf_size=262144

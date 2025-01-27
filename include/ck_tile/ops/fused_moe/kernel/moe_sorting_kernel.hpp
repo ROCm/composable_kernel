@@ -71,6 +71,73 @@ namespace ck_tile {
 //  4）num_tokens_post_padded_ptr/num_sorted_tiles_ptr (select one)
 //
 //   max_num_tokens_padded: opk_ids.numel() + num_experts * (block_size - 1)
+
+
+CK_TILE_HOST constexpr auto moe_sorting_get_smem_row_col(int num_tokens_, int num_experts_)
+{
+    /*               num_experts + 1
+    *   +--------------------------------------+
+    *   |                                      |
+    *   |                                      |
+    *   |                                      |    * -> sub-tokens
+    *   |                                      |
+    *   |                                      |
+    *   +--------------------------------------+
+    *   |                                      |    2 -> cumsum buffer
+    *   +--------------------------------------+
+    *
+    */
+    int smem_cols = num_experts_ + 1;  // usually experts is power of 2. padding here
+    int smem_rows = [&](){
+        index_t target_occupancy_ = 2;
+        constexpr index_t total_ = 65536 / sizeof(int);
+        constexpr index_t sub_unroll = 8;
+        constexpr index_t cumsum_bufs = 2;  // 1 for cumsum, 1 for cnt
+        // at lease 2 lines, one for sub_token unroll, one for cumsum
+        // should be enough
+        if ((total_ / target_occupancy_) < ((cumsum_bufs+sub_unroll) * smem_cols)) {
+            if ((total_ / 1) < ((cumsum_bufs+sub_unroll) * smem_cols))
+                throw std::runtime_error("too many num_experts, can't allocate smem");
+            target_occupancy_ = 1;
+        }
+        int r = total_ / target_occupancy_ / smem_cols;
+
+        // round to sub_unroll multipl
+        int r_for_sub_token = r - cumsum_bufs;
+        r_for_sub_token = min(r_for_sub_token, num_tokens_);
+        r_for_sub_token = (r_for_sub_token + sub_unroll - 1) / sub_unroll * sub_unroll;
+        r_for_sub_token = max(r_for_sub_token, 1);
+
+        if(r_for_sub_token > 1)
+        {
+            int r_unroll_ = r_for_sub_token / sub_unroll;
+            
+
+            // round to 1x/2x/4x/8x number of sub_unroll
+            int clz_ = __builtin_clz(r_unroll_); // 0b1:31 0b2:30, 0b3:30, 0b4:29
+            int mask_ = (1 << (31 - clz_)) - 1;
+
+            
+            mask_ = mask_ > 0b111 ? 0b111 : mask_;  //clamp to 8x at most
+            mask_ = ~mask_;
+            //printf("r_unroll_:%d, clz:%d, mask:%x\n", r_unroll_, clz_, mask_); fflush(stdout);
+
+            r_for_sub_token = (r_unroll_ & mask_) * sub_unroll;
+        }
+
+        // final check
+        if( (r_for_sub_token + cumsum_bufs * smem_cols *  target_occupancy_ ) >= total_ ) {
+            throw std::runtime_error("can't run this kernel, request LDS over size");
+        }
+
+        return r_for_sub_token + cumsum_bufs;
+    }();
+
+    // printf("r:%d, c:%d\n", smem_rows, smem_cols);
+
+    return ck_tile::make_tuple(smem_rows, smem_cols);
+}
+
 struct MoeSortingHostArgs
 {
     const void* p_topk_ids;     // [token, topk]
@@ -141,53 +208,11 @@ struct MoeSortingKernel
 #endif
     }
 
-    CK_TILE_HOST static constexpr auto GetSmemRowCol(int num_tokens_, int num_experts_)
-    {
-        /*               num_experts + 1
-        *   +--------------------------------------+
-        *   |                                      |
-        *   |                                      |
-        *   |                                      |    * -> sub-tokens
-        *   |                                      |
-        *   |                                      |
-        *   +--------------------------------------+
-        *   |                                      |    2 -> cumsum buffer
-        *   +--------------------------------------+
-        *
-        */
-        int smem_cols = num_experts_ + 1;  // usually experts is power of 2. padding here
-        int smem_rows = [&](){
-            index_t target_occupancy_ = 2;
-            constexpr index_t total_ = 65536 / sizeof(int);
-            constexpr index_t sub_unroll = 8;
-            constexpr index_t cumsum_bufs = 2;  // 1 for cumsum, 1 for cnt
-            // at lease 2 lines, one for sub_token unroll, one for cumsum
-            // should be enough
-            if ((total_ / target_occupancy_) < ((cumsum_bufs+sub_unroll) * smem_cols)) {
-                if ((total_ / 1) < ((cumsum_bufs+sub_unroll) * smem_cols))
-                    throw std::runtime_error("too many num_experts, can't allocate smem");
-                target_occupancy_ = 1;
-            }
-            int r = total_ / target_occupancy_ / smem_cols;
-
-            // round to largest sub_unrollx below, keep 1 for cumsum buffer
-            int r_for_sub_token = r - cumsum_bufs;
-            r_for_sub_token = min(r_for_sub_token, num_tokens_);
-            r_for_sub_token = (r_for_sub_token + sub_unroll - 1) / sub_unroll * sub_unroll;
-            r_for_sub_token = max(r_for_sub_token, 1);
-            return r_for_sub_token + cumsum_bufs;
-        }();
-
-        // printf("r:%d, c:%d\n", smem_rows, smem_cols);
-
-        return ck_tile::make_tuple(smem_rows, smem_cols);
-    }
-
     // in byte
     CK_TILE_HOST static constexpr auto GetSmemSize(const Hargs& h)
     {
 #if MOE_SORTING_USE_EX_KERNEL
-        auto [smem_rows, smem_cols] = GetSmemRowCol(h.tokens, h.num_experts);
+        auto [smem_rows, smem_cols] = moe_sorting_get_smem_row_col(h.tokens, h.num_experts);
         return smem_rows * smem_cols * sizeof(int);
 #else
         const auto blocks = BlockSize(h);
@@ -215,7 +240,7 @@ struct MoeSortingKernel
         k.unit_size_mdiv    = mdiv{static_cast<uint32_t>(h.unit_size)};
         k.topk_mdiv         = mdiv{static_cast<uint32_t>(h.topk)};
         k.smem_rows         = [&](){
-            auto [r_, c_] = GetSmemRowCol(h.tokens, h.num_experts);
+            auto [r_, c_] = moe_sorting_get_smem_row_col(h.tokens, h.num_experts);
             (void) c_;
             return r_;
         }();
@@ -778,30 +803,40 @@ struct MoeSortingKernel
 
             for(int i_e = lane_group_id; i_e < num_experts; i_e += lane_group_nm)
             {
-                index_t local_c[8];
+                index_t local_c[Problem::SubTokenTile];
                 index_t cnt = 0;
 
-                for(int i = 0; i < sub_tokens; i += 8 * 8)
+                for(int i = 0; i < sub_tokens; i += 8 * Problem::SubTokenTile)
                 {
-                    local_c[0] = smem_tokens(i + 0 * 8 + lane_group_os, i_e);
-                    local_c[1] = smem_tokens(i + 1 * 8 + lane_group_os, i_e);
-                    local_c[2] = smem_tokens(i + 2 * 8 + lane_group_os, i_e);
-                    local_c[3] = smem_tokens(i + 3 * 8 + lane_group_os, i_e);
-                    local_c[4] = smem_tokens(i + 4 * 8 + lane_group_os, i_e);
-                    local_c[5] = smem_tokens(i + 5 * 8 + lane_group_os, i_e);
-                    local_c[6] = smem_tokens(i + 6 * 8 + lane_group_os, i_e);
-                    local_c[7] = smem_tokens(i + 7 * 8 + lane_group_os, i_e);
+#pragma unroll Problem::SubTokenTile
+                    for(int j = 0; j < Problem::SubTokenTile; j++)
+                    {
+                        local_c[j] = smem_tokens(i + j * 8 + lane_group_os, i_e);
+                    }
 
-                    // printf("i_e:%d, lane_group_os:%d, %d, %d, %d, %d, %d, %d, %d, %d\n",
-                    // i_e, lane_group_os,
-                    //     local_c[0],
-                    //     local_c[1],
-                    //     local_c[2],
-                    //     local_c[3],
-                    //     local_c[4],
-                    //     local_c[5],
-                    //     local_c[6],
-                    //     local_c[7]);
+#pragma unroll Problem::SubTokenTile
+                    for(int j = 0; j < Problem::SubTokenTile; j++)
+                    {
+                        cnt += wave_reduce(local_c[j], f_sum, number<8>{});
+                    }
+
+                    // if constexpr(Problem::SubTokenTile == 2)
+                    // printf("i_e:%d, lane_group_os:%d -> %d, %d\n",
+                    //  i_e, lane_group_os,
+                    //      local_c[0],
+                    //      local_c[1]);
+//
+// printf("i_e:%d, lane_group_os:%d, %d, %d, %d, %d, %d, %d, %d, %d\n",
+// i_e, lane_group_os,
+//     local_c[0],
+//     local_c[1],
+//     local_c[2],
+//     local_c[3],
+//     local_c[4],
+//     local_c[5],
+//     local_c[6],
+//     local_c[7]);
+#if 0
 #if 1
                     cnt +=
                         (i + 0 * 8 >= sub_tokens) ? 0 : wave_reduce(local_c[0], f_sum, number<8>{});
@@ -829,6 +864,7 @@ struct MoeSortingKernel
                     cnt += wave_reduce(local_c[5], f_sum, number<8>{});
                     cnt += wave_reduce(local_c[6], f_sum, number<8>{});
                     cnt += wave_reduce(local_c[7], f_sum, number<8>{});
+#endif
 #endif
                 }
                 if(lane_group_os == 0)
