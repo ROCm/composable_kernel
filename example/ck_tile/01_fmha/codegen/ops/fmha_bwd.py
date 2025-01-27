@@ -722,8 +722,10 @@ float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config&
     float r = -1;
 
     if (t.uses_bwd_v3 == true){{
-        if ((t.is_group_mode == false) && (t.bias_type == bias_enum::no_bias) && (t.has_dbias == false) && (t.has_dropout == false) && (a.hdim_q == a.hdim_v) &&
-                    (a.seqlen_q == a.seqlen_k) && (a.nhead_q % a.nhead_k == 0) && (t.is_deterministic == false) && (a.stride_q == a.stride_o /*i_perm == o_perm*/)) {{
+        if ((t.is_group_mode == false) && (t.bias_type == bias_enum::no_bias) && (t.has_dbias == false) && (t.has_dropout == false) && (t.is_deterministic == false) && (a.hdim_q == a.hdim_v) &&
+                    (a.seqlen_q == a.seqlen_k) && (a.nhead_q % a.nhead_k == 0) && (a.stride_q == a.stride_do) && (a.nhead_stride_q == a.nhead_stride_do) && (a.batch_stride_q == a.batch_stride_do) &&
+                    (a.stride_k == a.stride_v) && (a.nhead_stride_k == a.nhead_stride_v) && (a.batch_stride_k == a.batch_stride_v) && (a.nhead_stride_k == a.nhead_stride_dk) && (a.nhead_stride_v == a.nhead_stride_dv) &&
+                    ((a.batch_stride_dk / a.batch_stride_k) == (a.nhead_q / a.nhead_k)) && ((a.batch_stride_dv / a.batch_stride_v) == (a.nhead_q / a.nhead_k))) {{
             if((a.hdim_q > 64) && (a.hdim_q <= 128) && (a.hdim_q % 8 == 0) && (a.seqlen_k % 64 == 0)){{
                 if(t.data_type.compare("fp16") == 0){{
                     if(t.mask_type == mask_enum::no_mask){{
