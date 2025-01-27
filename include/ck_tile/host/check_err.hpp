@@ -443,7 +443,11 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     }
     if(!res)
     {
-        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        const float error_percent =
+            static_cast<float>(err_count) / static_cast<float>(out.size()) * 100.f;
+        std::cerr << "max err: " << max_err;
+        std::cerr << ", number of errors: " << err_count;
+        std::cerr << ", " << error_percent << "% wrong values" << std::endl;
     }
     return res;
 }
