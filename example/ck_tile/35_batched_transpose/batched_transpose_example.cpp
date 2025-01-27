@@ -123,7 +123,7 @@ bool transpose_kernel_is_valid(uint32_t,
                                uint32_t width,
                                const transpose_kernel_param_t& kparam)
 {
-    return width % kparam.ediv_x == 0 && height % kparam.ediv_y == 0;
+    return width % kparam.thread_tile_x == 0 && height % kparam.thread_tile_y == 0;
 }
 
 bool is_kernel_valid(uint32_t n,

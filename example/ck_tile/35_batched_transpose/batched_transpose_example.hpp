@@ -22,12 +22,12 @@ struct batched_transpose_kargs : public ck_tile::BatchedTransposeHostArgs
 
 struct transpose_kernel_param_t
 {
-    int tile_x;
-    int tile_y;
-    int pack_x;
-    int pack_y;
-    int ediv_x;
-    int ediv_y;
+    int block_tile_x;
+    int block_tile_y;
+    int warp_tile_x;
+    int warp_tile_y;
+    int thread_tile_x;
+    int thread_tile_y;
 };
 
 template <size_t type_size>
@@ -41,12 +41,12 @@ struct transpose_kernel_get_all_param_t<4>
     static std::vector<transpose_kernel_param_t> get()
     {
         std::vector<transpose_kernel_param_t> the_list{
-            {16, 16, 1, 1, 1, 1},
+            {16, 16, 8, 8, 1, 1},
             {32, 16, 1, 1, 1, 1},
             {16, 32, 1, 1, 1, 1},
             {32, 32, 1, 1, 1, 1},
 
-            {4, 64, 1, 1, 1, 1},
+            {4, 64, 8, 8, 1, 1},
             {64, 4, 1, 1, 1, 1},
             {4, 128, 1, 1, 1, 1},
             {128, 4, 1, 1, 1, 1},
@@ -63,7 +63,7 @@ struct transpose_kernel_get_all_param_t<2>
     static std::vector<transpose_kernel_param_t> get()
     {
         std::vector<transpose_kernel_param_t> the_list{
-            {16, 16, 1, 1, 1, 1}, {32, 16, 1, 1, 1, 1}, {16, 32, 1, 1, 1, 1}, {32, 32, 1, 1, 1, 1},
+            {16, 16, 8, 8, 1, 1}, {32, 16, 1, 1, 1, 1}, {16, 32, 1, 1, 1, 1}, {32, 32, 1, 1, 1, 1},
 
             {4, 64, 1, 1, 1, 1},  {64, 4, 1, 1, 1, 1},  {4, 128, 1, 1, 1, 1}, {128, 4, 1, 1, 1, 1},
             {4, 256, 1, 1, 1, 1}, {256, 4, 1, 1, 1, 1},
