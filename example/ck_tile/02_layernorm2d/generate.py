@@ -39,7 +39,8 @@ FUSED_FUSED_SWEEP_STR_MAP = [
 DATA_TYPE_MAP = {'fp32' : 'float',
                  'fp16' : 'ck_tile::fp16_t',
                  'bf16' : 'ck_tile::bf16_t',
-                 'int8' : 'ck_tile::int8_t'}
+                 'int8' : 'ck_tile::int8_t',
+                 'fp8'  : 'ck_tile::fp8_t'}
 
 def BOOL_MAP(b_) -> str:
     if b_:
@@ -504,12 +505,13 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
         h_traits = layernorm_fwd_codegen.h_traits
         h_instance = layernorm_fwd_codegen.h_instance
 
-        dynamic_quant_out_dtype = ['int8']
+        dynamic_quant_out_dtype = ['int8', 'fp8']
         # some predefined support range
         # (prec_i,prec_o) for simplicity this string will be used as key for dict
         scale_list = [('fp32,fp32')]
         dtype_list = [('fp16,fp16'), ('bf16,bf16'),
-                        ('fp16,int8'), ('bf16,int8')] # NOTE: only fused-dynamic-quant use int8 out
+                        ('fp16,int8'), ('bf16,int8'),
+                        ('fp16,fp8'), ('bf16,fp8')] # NOTE: only fused-dynamic-quant use int8 or fp8 out
         types_8bit = ('int8', 'fp8')
         types_16bit = ('int16', 'fp16', 'bf16')
         #fused_add_list = [0, 1, 2]

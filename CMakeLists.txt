@@ -106,6 +106,13 @@ if(CK_USE_CODEGEN)
     add_definitions(-DCK_USE_CODEGEN)
 endif()
 
+option(CK_TIME_KERNEL "Enable kernel time tracking" ON)
+if(CK_TIME_KERNEL)
+    add_definitions(-DCK_TIME_KERNEL=1)
+else()
+    add_definitions(-DCK_TIME_KERNEL=0)
+endif()
+
 include(getopt)
 
 # CK version file to record release version as well as git commit hash
@@ -533,7 +540,13 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERS
     add_compile_options(-fdiagnostics-color=always)
 endif()
 
+# make check runs the entire set of examples and tests
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+# make smoke runs the tests and examples that runs within 30 seconds on gfx90a
+add_custom_target(smoke COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "SMOKE_TEST")
+# make regression runs the tests and examples that runs for more 30 seconds on gfx90a
+add_custom_target(regression COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "REGRESSION_TEST")
+
 
 file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
 file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
