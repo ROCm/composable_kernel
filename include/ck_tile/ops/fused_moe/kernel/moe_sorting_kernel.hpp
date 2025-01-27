@@ -691,11 +691,10 @@ struct MoeSortingKernel
         __syncthreads();
 
         for(int i_token = 0; i_token < tokens; i_token += sub_tokens)
-        // int i_token = 0;
         {
 #if 1
-            __syncthreads();
-            // #pragma unroll 8
+            // __syncthreads();
+            // NOTE: below for loop can't have barrier inside!!
             for(int i = tid; i < (sub_tokens * topk); i += block_size)
             {
                 uint32_t curr_token_id, curr_topk_id;
@@ -715,16 +714,16 @@ struct MoeSortingKernel
                 __builtin_amdgcn_s_waitcnt(0xc07f);
                 //
             }
-            __syncthreads();
-            // if(tid == 0) {
-            //     int e0 = smem_tokens(0, 0);
-            //     int e1 = smem_tokens(1, 0);
-            //     int e2 = smem_tokens(2, 0);
-            //     int e3 = smem_tokens(3, 0);
-            //     int e4 = smem_tokens(4, 0);
-            //     int e5 = smem_tokens(5, 0);
-            //     int e6 = smem_tokens(6, 0);
-            //     int e7 = smem_tokens(7, 0);
+            __syncthreads(); // make sure different i_token iteration not overlap by different wave
+                             // if(tid == 0) {
+                             //     int e0 = smem_tokens(0, 0);
+                             //     int e1 = smem_tokens(1, 0);
+                             //     int e2 = smem_tokens(2, 0);
+                             //     int e3 = smem_tokens(3, 0);
+                             //     int e4 = smem_tokens(4, 0);
+                             //     int e5 = smem_tokens(5, 0);
+                             //     int e6 = smem_tokens(6, 0);
+                             //     int e7 = smem_tokens(7, 0);
             //     printf("xxx eid:%d i_token:%d, cnt:%d,%d,%d,%d,%d,%d,%d,%d(%d)\n", 0, i_token,
             //             e0,
             //             e1,
@@ -764,7 +763,11 @@ struct MoeSortingKernel
         }
 
         // counting
-        smem_cumsum(0) = 0;
+        if(tid == 0)
+        {
+            smem_cumsum(0) = 0;
+            // smem_cumdup(0) = 0;
+        }
 #if 0
         (void)f_sum;
         for(int i_e = tid; i_e < num_experts; i_e += block_size)
@@ -920,6 +923,7 @@ struct MoeSortingKernel
                     //  lid, local_cnt, pre_cumsum_, padded_tokens_per_expert,local_cumsum_ );
                     // if((i_e_+lid) < num_experts)
                     smem_cumsum(i_e_ + lid + 1) = local_cumsum_;
+                    // smem_cumdup(i_e_ + lid + 1) = local_cumsum_;
 
                     // NOTE: this waitcnt is a must, compiler will not generate waitcnt lgkmcnt()
                     // for above write however __syncthreads will cause barrier with waves other
@@ -946,11 +950,12 @@ struct MoeSortingKernel
                 p_sorted_expert_ids[unit_size_mdiv.div(i)] = i_e;
             }
         }
+        // if (tid == 0)
         smem_cumdup(num_experts) = smem_cumsum(num_experts);
 
-        __syncthreads();
-        __builtin_amdgcn_s_barrier();
-        __builtin_amdgcn_sched_barrier(0);
+        //__syncthreads();
+        //__builtin_amdgcn_s_barrier();
+        //__builtin_amdgcn_sched_barrier(0);
 
         // fill the p_sorted_token_ids/p_sorted_weights
         for(int i_token = 0; i_token < tokens; i_token += sub_tokens)
