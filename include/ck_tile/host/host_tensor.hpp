@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -678,4 +678,43 @@ struct HostTensor
     Descriptor mDesc;
     Data mData;
 };
+
+template <bool is_row_major>
+auto host_tensor_descriptor(std::size_t row,
+                            std::size_t col,
+                            std::size_t stride,
+                            bool_constant<is_row_major>)
+{
+    using namespace ck_tile::literals;
+
+    if constexpr(is_row_major)
+    {
+        return HostTensorDescriptor({row, col}, {stride, 1_uz});
+    }
+    else
+    {
+        return HostTensorDescriptor({row, col}, {1_uz, stride});
+    }
+}
+template <bool is_row_major>
+auto get_default_stride(std::size_t row,
+                        std::size_t col,
+                        std::size_t stride,
+                        bool_constant<is_row_major>)
+{
+    if(stride == 0)
+    {
+        if constexpr(is_row_major)
+        {
+            return col;
+        }
+        else
+        {
+            return row;
+        }
+    }
+    else
+        return stride;
+}
+
 } // namespace ck_tile

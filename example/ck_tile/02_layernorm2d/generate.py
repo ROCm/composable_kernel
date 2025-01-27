@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 # generate kernel instances to speed up compilation
 
 import argparse
@@ -39,7 +39,8 @@ FUSED_FUSED_SWEEP_STR_MAP = [
 DATA_TYPE_MAP = {'fp32' : 'float',
                  'fp16' : 'ck_tile::fp16_t',
                  'bf16' : 'ck_tile::bf16_t',
-                 'int8' : 'ck_tile::int8_t'}
+                 'int8' : 'ck_tile::int8_t',
+                 'fp8'  : 'ck_tile::fp8_t'}
 
 def BOOL_MAP(b_) -> str:
     if b_:
@@ -52,7 +53,7 @@ class layernorm_fwd_codegen:
 // this is used to pattern-match internl kernel implementation, not to instantiate kernel
 template <typename XDataType_,
           typename YDataType_,
-          typename XScaleDataType_,
+          typename SmoothScaleDataType_,
           typename YScaleDataType_,
           ck_tile::index_t Repeat_M_,         // each thread repeat along M
           ck_tile::index_t Repeat_N_,         // each thread repeat along N
@@ -71,7 +72,7 @@ struct layernorm2d_fwd_traits_
 {
     using XDataType = ck_tile::remove_cvref_t<XDataType_>;
     using YDataType = ck_tile::remove_cvref_t<YDataType_>;
-    using XScaleDataType = ck_tile::remove_cvref_t<XScaleDataType_>;
+    using SmoothScaleDataType = ck_tile::remove_cvref_t<SmoothScaleDataType_>;
     using YScaleDataType = ck_tile::remove_cvref_t<YScaleDataType_>;
 
     static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= warpSize;
@@ -135,7 +136,7 @@ struct layernorm2d_fwd_traits_
 
 template <typename XDataType_,
           typename YDataType_,
-          typename XScaleDataType_,
+          typename SmoothScaleDataType_,
           typename YScaleDataType_,
           ck_tile::index_t Repeat_M_,         // each thread repeat along M
           ck_tile::index_t Repeat_N_,         // each thread repeat along N
@@ -152,7 +153,7 @@ template <typename XDataType_,
           int  kFusedQuant_>
 using traits_ = layernorm2d_fwd_traits_<XDataType_,
                                        YDataType_,
-                                       XScaleDataType_,
+                                       SmoothScaleDataType_,
                                        YScaleDataType_,
                                        Repeat_M_,
                                        Repeat_N_,
@@ -170,7 +171,7 @@ using traits_ = layernorm2d_fwd_traits_<XDataType_,
 """
     API_COMMON_HEADER = """
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <ck_tile/core.hpp>
 #include "layernorm2d_fwd.hpp"
@@ -189,9 +190,9 @@ float layernorm2d_fwd_(const S& s, A a)
 {{
     using XDataType = typename Traits_::XDataType;
     using YDataType = typename Traits_::YDataType;
-    using XScaleDataType = typename Traits_::XScaleDataType;
+    using SmoothScaleDataType = typename Traits_::SmoothScaleDataType;
     using YScaleDataType = typename Traits_::YScaleDataType;
-    using ComputeDataType = typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::ComputeDataType;
+    using ComputeDataType = typename LayerNormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::ComputeDataType;
 
     using PipelineTraits = ck_tile::Layernorm2dFwdTraits<Traits_::kPadN,
         Traits_::kSaveMeanInvStd,
@@ -202,16 +203,16 @@ float layernorm2d_fwd_(const S& s, A a)
         static_cast<ck_tile::Layernorm2dFusedAddEnum>(Traits_::kFusedAdd),
         static_cast<ck_tile::Layernorm2dFusedQuantEnum>(Traits_::kFusedQuant)>;
     using PipelineProblem = ck_tile::Layernorm2dFwdPipelineProblem<
-        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::XDataType,
-        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::XBiasDataType,
-        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::GammaDataType,
-        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::BetaDataType,
-        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::ComputeDataType,
-        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::YDataType,
-        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::MeanDataType,
-        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::InvStdDataType,
-        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::XScaleDataType,
-        typename LayerNormTypeConfig<XDataType, YDataType, XScaleDataType, YScaleDataType>::YScaleDataType,
+        typename LayerNormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::XDataType,
+        typename LayerNormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::XBiasDataType,
+        typename LayerNormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::GammaDataType,
+        typename LayerNormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::BetaDataType,
+        typename LayerNormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::ComputeDataType,
+        typename LayerNormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::YDataType,
+        typename LayerNormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::MeanDataType,
+        typename LayerNormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::InvStdDataType,
+        typename LayerNormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::SmoothScaleDataType,
+        typename LayerNormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::YScaleDataType,
         typename Traits_::Shape,
         PipelineTraits>;
 
@@ -224,7 +225,7 @@ float layernorm2d_fwd_(const S& s, A a)
 
     static constexpr bool UseSmoothInputScale = Traits_::kFusedQuant == 1;
     static constexpr bool UseRawStore = sizeof(YDataType) == 4;
-    using DynamicQuantEpilogueProblem = ck_tile::DynamicQuantEpilogueProblem<ComputeDataType, XScaleDataType, YScaleDataType, YDataType, typename Traits_::Shape,
+    using DynamicQuantEpilogueProblem = ck_tile::DynamicQuantEpilogueProblem<ComputeDataType, SmoothScaleDataType, YScaleDataType, YDataType, typename Traits_::Shape,
             ck_tile::DynamicQuantEpilogueTraits<false, Traits_::kPadN, UseSmoothInputScale, UseRawStore,  true/*max3*/>>;
 
     using DynamicQuantEpilogue = ck_tile::DynamicQuantEpilogue<DynamicQuantEpilogueProblem>;
@@ -249,7 +250,7 @@ float layernorm2d_fwd_(const S& s, A a)
 
     API_BASE = """
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <ck_tile/core.hpp>
 #include "layernorm2d_fwd.hpp"
@@ -285,7 +286,7 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
 
     INSTANCE_BASE = """
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "layernorm2d_fwd_api_common.hpp"
 
@@ -374,7 +375,7 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
     class h_traits:
         F_XDataType : str
         F_YDataType : str
-        F_XScaleDataType : str
+        F_SmoothScaleDataType : str
         F_YScaleDataType : str
         F_Repeat_M : int
         F_Repeat_N : int
@@ -392,7 +393,7 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
 
         @property
         def trait_name(self) ->str:
-            t_ = f'{DATA_TYPE_MAP[self.F_XDataType]}, {DATA_TYPE_MAP[self.F_YDataType]}, {DATA_TYPE_MAP[self.F_XScaleDataType]}, {DATA_TYPE_MAP[self.F_YScaleDataType]}, {self.F_Repeat_M:2}, {self.F_Repeat_N:2}, {self.F_ThreadPerBlock_M:2}, {self.F_ThreadPerBlock_N:4}'
+            t_ = f'{DATA_TYPE_MAP[self.F_XDataType]}, {DATA_TYPE_MAP[self.F_YDataType]}, {DATA_TYPE_MAP[self.F_SmoothScaleDataType]}, {DATA_TYPE_MAP[self.F_YScaleDataType]}, {self.F_Repeat_M:2}, {self.F_Repeat_N:2}, {self.F_ThreadPerBlock_M:2}, {self.F_ThreadPerBlock_N:4}'
             t_ += f', {self.F_Vector_N:2}, {BOOL_MAP(self.F_kPadN):5}, {BOOL_MAP(self.F_kSaveMeanInvStd_):5}, {BOOL_MAP(self.F_kFastFDiv_):5}, {BOOL_MAP(self.F_kWelford_):5}'
             t_ += f', {BOOL_MAP(self.F_kTwoPass_):5}, {self.F_kXbias:4}, {self.F_kFusedAdd:4}, {self.F_kFusedQuant:4}'
             return t_
@@ -477,8 +478,8 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
                         if ins.F_kFusedQuant == 0:
                             _sweep_cond = 't.fused_quant == {f_fused_sweep}'.format(f_fused_sweep = ins.F_kFusedQuant)
                         elif ins.F_kFusedQuant == 1:
-                            _sweep_cond = 't.fused_quant == {f_fused_sweep} && (t.prec_sx == \"{f_sx_type}\" && t.prec_sy == \"{f_sy_type}\")'.format(
-                                f_fused_sweep = ins.F_kFusedQuant, f_sx_type=ins.F_XScaleDataType, f_sy_type=ins.F_YScaleDataType)
+                            _sweep_cond = 't.fused_quant == {f_fused_sweep} && (t.prec_sm == \"{f_sx_type}\" && t.prec_sy == \"{f_sy_type}\")'.format(
+                                f_fused_sweep = ins.F_kFusedQuant, f_sx_type=ins.F_SmoothScaleDataType, f_sy_type=ins.F_YScaleDataType)
                         elif ins.F_kFusedQuant == 2:
                             _sweep_cond = 't.fused_quant == {f_fused_sweep} && (t.prec_sy == \"{f_sy_type}\")'.format(
                                 f_fused_sweep = ins.F_kFusedQuant, f_sy_type=ins.F_YScaleDataType)
@@ -504,12 +505,13 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
         h_traits = layernorm_fwd_codegen.h_traits
         h_instance = layernorm_fwd_codegen.h_instance
 
-        dynamic_quant_out_dtype = ['int8']
+        dynamic_quant_out_dtype = ['int8', 'fp8']
         # some predefined support range
         # (prec_i,prec_o) for simplicity this string will be used as key for dict
         scale_list = [('fp32,fp32')]
         dtype_list = [('fp16,fp16'), ('bf16,bf16'),
-                        ('fp16,int8'), ('bf16,int8')] # NOTE: only fused-dynamic-quant use int8 out
+                        ('fp16,int8'), ('bf16,int8'),
+                        ('fp16,fp8'), ('bf16,fp8')] # NOTE: only fused-dynamic-quant use int8 or fp8 out
         types_8bit = ('int8', 'fp8')
         types_16bit = ('int16', 'fp16', 'bf16')
         #fused_add_list = [0, 1, 2]
@@ -572,7 +574,7 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
             current_n = hs[0].F_Repeat_N * hs[0].F_ThreadPerBlock_N * hs[0].F_Vector_N
             for dtype, scale_type, xbias, fused_add, fused_quant in itertools.product(dtype_list, scale_list, xbias_list, fused_add_list, fused_sweep_list):
                 prec_i, prec_o = dtype.split(',')
-                scale_x, scale_y = scale_type.split(',')
+                scale_sm, scale_y = scale_type.split(',')
                 if prec_o in dynamic_quant_out_dtype and fused_quant != 1:
                     continue # skip non dynamic quant case
                 if fused_quant == 1 and hs_key == 'big':
@@ -582,8 +584,8 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
                     h_ = copy.copy(chs_) # copy the base instance out
                     h_.F_XDataType = prec_i
                     h_.F_YDataType = prec_o
-                    h_.F_XScaleDataType = scale_y
-                    h_.F_YScaleDataType = scale_x
+                    h_.F_SmoothScaleDataType = scale_sm
+                    h_.F_YScaleDataType = scale_y
                     h_.F_kXbias = xbias
                     h_.F_kFusedAdd = fused_add
                     h_.F_kFusedQuant = fused_quant
