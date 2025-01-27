@@ -3,15 +3,14 @@
 #include "batched_transpose_example.hpp"
 #include <iostream>
 
-
-template <typename ts_type, ck_tile::index_t block_x,
+template <typename ts_type,
+          ck_tile::index_t block_x,
           ck_tile::index_t block_y,
           ck_tile::index_t warp_x,
           ck_tile::index_t warp_y,
           ck_tile::index_t thread_x,
           ck_tile::index_t thread_y>
-float batched_transpose_dispatch(batched_transpose_kargs& a,
-                                 ck_tile::stream_config& s)
+float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_config& s)
 {
     uint32_t dim_block_h = (a.height + block_y - 1) / block_y;
     uint32_t dim_block_w = (a.width + block_x - 1) / block_x;
@@ -20,7 +19,7 @@ float batched_transpose_dispatch(batched_transpose_kargs& a,
     a.dim_stride  = dim_stride;
     a.dim_block_h = dim_block_h;
     a.dim_block_w = dim_block_w;
-    
+
     using block_tile  = ck_tile::sequence<block_x, block_y>;
     using warp_tile   = ck_tile::sequence<warp_x, warp_y>;
     using thread_tile = ck_tile::sequence<thread_x, thread_y>;
@@ -43,22 +42,21 @@ float batched_transpose_dispatch(batched_transpose_kargs& a,
 }
 
 // Param Comb: type_size, block_x & y, warp_x & y, thread_x & y
-#define FOREACH_TRANSPOSE_PARAM(F)                 \
-    F(fp16, ck_tile::fp16_t, 16,16, 8,8, 1,1)       \
-    F(bf16, ck_tile::bf16_t, 16, 16, 8, 8, 1, 1)   \
-    F(fp32, ck_tile::fp32_t, 16, 16, 8, 8, 1, 1)   \
+#define FOREACH_TRANSPOSE_PARAM(F)               \
+    F(fp16, ck_tile::fp16_t, 16, 16, 8, 8, 1, 1) \
+    F(bf16, ck_tile::bf16_t, 16, 16, 8, 8, 1, 1) \
+    F(fp32, ck_tile::fp32_t, 16, 16, 8, 8, 1, 1) \
     F(int8, ck_tile::int8_t, 16, 16, 8, 8, 1, 1)
 
 // Macro that defines one static function per line
-#define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, WX, WY, TX, TY)  \
+#define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, WX, WY, TX, TY)               \
     static float transpose_fn_##SHORT_NAME##_##BX##_##BY##_##WX##_##WY##_##TX##_##TY( \
-        batched_transpose_kargs & a, ck_tile::stream_config & s)         \
-    {                                                                    \
-        return batched_transpose_dispatch<REAL_TYPE, BX,BY, WX,WY, TX,TY>(a, s); \
+        batched_transpose_kargs& a, ck_tile::stream_config& s)                        \
+    {                                                                                 \
+        return batched_transpose_dispatch<REAL_TYPE, BX, BY, WX, WY, TX, TY>(a, s);   \
     }
 
 FOREACH_TRANSPOSE_PARAM(GEN_TRANSPOSE_FN)
-
 
 float batched_transpose(batched_transpose_trait t,
                         batched_transpose_kargs a,
