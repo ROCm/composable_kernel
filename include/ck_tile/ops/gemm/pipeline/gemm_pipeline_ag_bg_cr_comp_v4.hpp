@@ -109,18 +109,20 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             constexpr auto num_buffer_load_inst = A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num;
 
+            constexpr auto num_issue = num_buffer_load_inst;
+
             static_for<0, num_buffer_load_inst, 1>{}([&](auto i) {
                 ignore = i;
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA : 1
                 __builtin_amdgcn_sched_group_barrier(
-                    0x100, num_ds_read_inst / num_buffer_load_inst, 0); // DS read : 2
+                    0x100, num_ds_read_inst / num_issue, 0); // DS read : 2
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);      // MFMA: 1
                 __builtin_amdgcn_sched_group_barrier(
-                    0x200, num_ds_write_inst / num_buffer_load_inst, 0); // DS write : 1
+                    0x200, num_ds_write_inst / num_issue, 0); // DS write : 1
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);       // MFMA : 1
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);       // VMEM read :1
                 __builtin_amdgcn_sched_group_barrier(
-                    0x008, C_MFMA_Inst_Num / num_buffer_load_inst - 3, 0); // MFMA : 5
+                    0x008, C_MFMA_Inst_Num / num_issue - 3, 0); // MFMA : 5
             });
             __builtin_amdgcn_sched_barrier(0);
         }
@@ -136,8 +138,8 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
-                                       void* p_smem_0,
-                                       void* p_smem_1) const
+                                       void* __restrict__ p_smem_0,
+                                       void* __restrict__ p_smem_1) const
         {
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
@@ -266,6 +268,9 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             Base::GlobalPrefetch(a_global_load_tile, a_copy_dram_window);
             Base::GlobalPrefetch(b_global_load_tile, b_copy_dram_window);
 
+            printf("Tail Num: =====================================\n");
+            printf("%d \n", static_cast<int>(TailNum));
+
             if(HasHotLoop)
             {
                 // minus 2 because we have ping-pong double buffer.
@@ -392,8 +397,8 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const index_t num_loop,
-                                   void* p_smem_0,
-                                   void* p_smem_1) const
+                                   void* __restrict__ p_smem_0,
+                                   void* __restrict__ p_smem_1) const
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,

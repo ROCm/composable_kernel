@@ -45,7 +45,7 @@ struct GemmPipelineAgBgCrImplBase
     CK_TILE_DEVICE auto GetABLdsTensorViews(void* p_smem) const
     {
         // A tile in LDS
-        ADataType* p_a_lds              = static_cast<ADataType*>(p_smem);
+        ADataType* __restrict__ p_a_lds              = static_cast<ADataType*>(p_smem);
         constexpr auto a_lds_block_desc = Policy::template MakeALdsBlockDescriptor<Problem>();
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
