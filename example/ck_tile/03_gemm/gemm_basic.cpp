@@ -103,11 +103,11 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_til
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
-    {
-        return gemm_<Row, Row, Row>(args, s);
-    }
-    else if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+    // if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+    // {
+    //     return gemm_<Row, Row, Row>(args, s);
+    // }
+    if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
     {
         return gemm_<Row, Col, Row>(args, s);
     }

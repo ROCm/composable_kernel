@@ -21,6 +21,9 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                                                      typename Traits_::CDataType,
                                                                      Traits_::kPadM,
                                                                      Traits_::kPadN>>;
+    constexpr bool TransposeC = false;
+    using GemmUniversalTraits = ck_tile::
+        TileGemmUniversalTraits<Traits_::kPadM, Traits_::kPadN, Traits_::kPadK, Traits_::ALayout, Traits_::BLayout, Traits_::CLayout, TransposeC>;
     using GemmTraits       = ck_tile::TileGemmTraits<Traits_::kPadM,
                                                Traits_::kPadN,
                                                Traits_::kPadK,
@@ -53,10 +56,10 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                                   typename Traits_::BDataType,
                                                   typename Traits_::AccDataType,
                                                   GemmShape,
-                                                  GemmTraits,
+                                                  GemmUniversalTraits,
                                                   ck_tile::GemmPipelineScheduler::Intrawave,
                                                   has_hot_loop_v,
-                                                  tail_number_v>>;
+                                                  tail_number_v>, ck_tile::UniversalGemmPipelineAgBgCrPolicy>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 

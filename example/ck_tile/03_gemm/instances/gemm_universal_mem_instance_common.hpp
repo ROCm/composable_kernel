@@ -26,7 +26,7 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                                Traits_::kPadK,
                                                typename Traits_::ALayout,
                                                typename Traits_::BLayout,
-                                               typename Traits_::CLayout>;
+                                               typename Traits_::CLayout>;                                               
     using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
         ck_tile::GemmPipelineProblem<typename Traits_::ADataType,
                                      typename Traits_::BDataType,
