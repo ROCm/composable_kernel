@@ -709,7 +709,11 @@ struct MoeSortingKernel
                     // printf("eid:%d, [%d] tid:%d, (i_token:%d, curr_token_id:%d)i_t:%d,
                     // curr_topk_id:%d, tokens:%d\n",
                     //   eid, i, tid, i_token, curr_token_id, i_t, curr_topk_id, tokens);
-                    smem_tokens(curr_token_id, eid)++;
+                    // smem_tokens(curr_token_id, eid)++;
+                    if constexpr(Problem::SubTokenOneShot)
+                        smem_tokens(curr_token_id, eid) = curr_topk_id + 1;
+                    else
+                        smem_tokens(curr_token_id, eid)++;
                 }
                 __builtin_amdgcn_s_waitcnt(0xc07f);
                 //
@@ -815,6 +819,10 @@ struct MoeSortingKernel
                     for(int j = 0; j < Problem::SubTokenTile; j++)
                     {
                         local_c[j] = smem_tokens(i + j * 8 + lane_group_os, i_e);
+                        if constexpr(Problem::SubTokenOneShot)
+                        {
+                            local_c[j] = local_c[j] != 0 ? 1 : 0;
+                        }
                     }
 
 #pragma unroll Problem::SubTokenTile
@@ -921,9 +929,8 @@ struct MoeSortingKernel
                     wave_cumsum<int, warpSize>(local_cumsum_);
                     //  printf(" lid:%d(%d), local_cnt:%d,pre_cumsum_:%d, %d--> %d\n", lid, i_e_ +
                     //  lid, local_cnt, pre_cumsum_, padded_tokens_per_expert,local_cumsum_ );
-                    // if((i_e_+lid) < num_experts)
-                    smem_cumsum(i_e_ + lid + 1) = local_cumsum_;
-                    // smem_cumdup(i_e_ + lid + 1) = local_cumsum_;
+                    if((i_e_ + lid) < num_experts)
+                        smem_cumsum(i_e_ + lid + 1) = local_cumsum_;
 
                     // NOTE: this waitcnt is a must, compiler will not generate waitcnt lgkmcnt()
                     // for above write however __syncthreads will cause barrier with waves other
@@ -953,42 +960,41 @@ struct MoeSortingKernel
         // if (tid == 0)
         smem_cumdup(num_experts) = smem_cumsum(num_experts);
 
-        //__syncthreads();
-        //__builtin_amdgcn_s_barrier();
-        //__builtin_amdgcn_sched_barrier(0);
-
         // fill the p_sorted_token_ids/p_sorted_weights
         for(int i_token = 0; i_token < tokens; i_token += sub_tokens)
         {
-#if 1
-            // clear every time
-            for(int i = tid; i < (sub_tokens * num_experts); i += block_size)
+            if constexpr(!Problem::SubTokenOneShot)
             {
-                uint32_t curr_token_id, curr_expert_id;
-                expert_mdiv.divmod(i, curr_token_id, curr_expert_id);
-                smem_tokens(curr_token_id, curr_expert_id) = 0;
-            }
-            __syncthreads();
-#endif
-            // load again
-            for(int i = tid; i < (sub_tokens * topk); i += block_size)
-            {
-                uint32_t curr_token_id_, curr_topk_id_;
-                topk_mdiv.divmod(i, curr_token_id_, curr_topk_id_);
-                int curr_token_id = static_cast<int>(curr_token_id_);
-                int curr_topk_id  = static_cast<int>(curr_topk_id_);
-                int i_t           = i_token + curr_token_id;
-                if(i_t < tokens)
+                // clear every time
+                for(int i = tid; i < (sub_tokens * num_experts); i += block_size)
                 {
-                    int eid = topk_id[i_t * topk + curr_topk_id];
-                    // if(eid == 0) {
-                    // printf("@@@ eid:%d, i_t:%d, cur:%d, curr_topk_id:%d\n", eid, i_t,
-                    // curr_token_id, curr_topk_id); printf("##  eid:%d,%d\n", i_t, curr_topk_id);
-                    //}
-                    smem_tokens(curr_token_id, eid) = curr_topk_id + 1; // at least 1
+                    uint32_t curr_token_id, curr_expert_id;
+                    expert_mdiv.divmod(i, curr_token_id, curr_expert_id);
+                    smem_tokens(curr_token_id, curr_expert_id) = 0;
                 }
+                __syncthreads();
+
+                // load again
+                for(int i = tid; i < (sub_tokens * topk); i += block_size)
+                {
+                    uint32_t curr_token_id_, curr_topk_id_;
+                    topk_mdiv.divmod(i, curr_token_id_, curr_topk_id_);
+                    int curr_token_id = static_cast<int>(curr_token_id_);
+                    int curr_topk_id  = static_cast<int>(curr_topk_id_);
+                    int i_t           = i_token + curr_token_id;
+                    if(i_t < tokens)
+                    {
+                        int eid = topk_id[i_t * topk + curr_topk_id];
+                        // if(eid == 0) {
+                        // printf("@@@ eid:%d, i_t:%d, cur:%d, curr_topk_id:%d\n", eid, i_t,
+                        // curr_token_id, curr_topk_id); printf("##  eid:%d,%d\n", i_t,
+                        // curr_topk_id);
+                        //}
+                        smem_tokens(curr_token_id, eid) = curr_topk_id + 1; // at least 1
+                    }
+                }
+                __syncthreads();
             }
-            __syncthreads();
 #if 0
             for(int eid = tid; eid < num_experts; eid += block_size) {
                 // indeed we can unroll 8x

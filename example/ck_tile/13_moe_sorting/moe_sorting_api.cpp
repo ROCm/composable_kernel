@@ -24,18 +24,18 @@
     return ave_time;
 
 #else
-#define MOE_SORTING_DISPATCH_(sub_token_tile_, expert_tile_)                                \
-    constexpr ck_tile::index_t sub_token_tile = sub_token_tile_;                            \
-    constexpr ck_tile::index_t expert_tile    = expert_tile_;                               \
-    using ms_problem =                                                                      \
-        ck_tile::MoeSortingProblemEx<index_t, ms_weight_type, sub_token_tile, expert_tile>; \
-    using kernel         = ck_tile::MoeSortingKernel<ms_problem>;                           \
-    auto kargs           = kernel::MakeKargs(a);                                            \
-    const dim3 grids     = kernel::GridSize(a);                                             \
-    const dim3 blocks    = kernel::BlockSize(a);                                            \
-    const auto lds_bytes = kernel::GetSmemSize(a);                                          \
-    float ave_time       = ck_tile::launch_kernel(                                          \
-        s, ck_tile::make_kernel(kernel{}, grids, blocks, lds_bytes, kargs));          \
+#define MOE_SORTING_DISPATCH_(sub_token_tile_, sub_token_onshot_)                                \
+    constexpr ck_tile::index_t sub_token_tile = sub_token_tile_;                                 \
+    constexpr bool sub_token_onshot           = sub_token_onshot_;                               \
+    using ms_problem =                                                                           \
+        ck_tile::MoeSortingProblemEx<index_t, ms_weight_type, sub_token_tile, sub_token_onshot>; \
+    using kernel         = ck_tile::MoeSortingKernel<ms_problem>;                                \
+    auto kargs           = kernel::MakeKargs(a);                                                 \
+    const dim3 grids     = kernel::GridSize(a);                                                  \
+    const dim3 blocks    = kernel::BlockSize(a);                                                 \
+    const auto lds_bytes = kernel::GetSmemSize(a);                                               \
+    float ave_time       = ck_tile::launch_kernel(                                               \
+        s, ck_tile::make_kernel(kernel{}, grids, blocks, lds_bytes, kargs));               \
     return ave_time;
 
 #endif
@@ -110,26 +110,50 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         }
         }
 #else
-        using index_t        = ck_tile::index_t;
-        using ms_weight_type = float;
-        auto [r_, c_]        = ck_tile::moe_sorting_get_smem_row_col(a.tokens, a.num_experts);
-        r_                   = (r_ - 2) / 8;
+        using index_t            = ck_tile::index_t;
+        using ms_weight_type     = float;
+        auto [r_, c_]            = ck_tile::moe_sorting_get_smem_row_col(a.tokens, a.num_experts);
+        auto sub_token_          = r_ - 2;
+        r_                       = (r_ - 2) / 8;
+        bool is_sub_token_onshot = a.tokens <= sub_token_;
         (void)c_;
-        if(r_ % 8 == 0)
+        if(is_sub_token_onshot)
         {
-            MOE_SORTING_DISPATCH_(8, 0);
-        }
-        else if(r_ % 4 == 0)
-        {
-            MOE_SORTING_DISPATCH_(4, 0);
-        }
-        else if(r_ % 2 == 0)
-        {
-            MOE_SORTING_DISPATCH_(2, 0);
+            if(r_ % 8 == 0)
+            {
+                MOE_SORTING_DISPATCH_(8, true);
+            }
+            else if(r_ % 4 == 0)
+            {
+                MOE_SORTING_DISPATCH_(4, true);
+            }
+            else if(r_ % 2 == 0)
+            {
+                MOE_SORTING_DISPATCH_(2, true);
+            }
+            else
+            {
+                MOE_SORTING_DISPATCH_(1, true);
+            }
         }
         else
         {
-            MOE_SORTING_DISPATCH_(1, 0);
+            if(r_ % 8 == 0)
+            {
+                MOE_SORTING_DISPATCH_(8, false);
+            }
+            else if(r_ % 4 == 0)
+            {
+                MOE_SORTING_DISPATCH_(4, false);
+            }
+            else if(r_ % 2 == 0)
+            {
+                MOE_SORTING_DISPATCH_(2, false);
+            }
+            else
+            {
+                MOE_SORTING_DISPATCH_(1, false);
+            }
         }
         // MOE_SORTING_DISPATCH_ETILE(0, 0);
 #endif

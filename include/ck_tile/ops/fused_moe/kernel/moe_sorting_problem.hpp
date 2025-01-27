@@ -29,6 +29,7 @@ struct MoeSortingProblem
 template <typename IndexType_,
           typename WeightType_,
           index_t SubTokenTile_, // 1,2,4,8, or 0 in the future
+          bool SubTokenOneShot_, // if we only loop over once or not
           index_t ExpertTile_ = 0>
 struct MoeSortingProblemEx
 {
@@ -39,6 +40,7 @@ struct MoeSortingProblemEx
     static constexpr index_t WarpSize      = get_warp_size();
     static constexpr index_t WarpsPerBlock = 1;
     static constexpr index_t SubTokenTile  = SubTokenTile_;
+    static constexpr bool SubTokenOneShot  = SubTokenOneShot_;
     static_assert(SubTokenTile == 1 || SubTokenTile == 2 || SubTokenTile == 4 || SubTokenTile == 8);
     static constexpr index_t ExpertTile = ExpertTile_; // TODO: only used in store out
 };
