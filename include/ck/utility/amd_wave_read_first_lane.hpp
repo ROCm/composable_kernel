@@ -7,7 +7,7 @@
 #include "ck/utility/functional2.hpp"
 #include "ck/utility/math.hpp"
 
-#ifndef __HIPCC_RTC__
+#ifndef CK_CODE_GEN_RTC
 #include <array>
 #include <cstddef>
 #include <cstdint>
