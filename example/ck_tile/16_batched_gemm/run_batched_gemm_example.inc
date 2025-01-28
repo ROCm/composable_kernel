@@ -301,11 +301,11 @@ int run_batched_gemm_example(int argc, char* argv[])
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
 
-    if(a_layout == "R" && b_layout == "R")
-    {
-        return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
-    }
-    else if(a_layout == "R" && b_layout == "C")
+    // if(a_layout == "R" && b_layout == "R")
+    // {
+    //     return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
+    // }
+    if(a_layout == "R" && b_layout == "C")
     {
         return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
     }
