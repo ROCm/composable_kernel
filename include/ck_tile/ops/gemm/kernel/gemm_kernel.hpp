@@ -160,8 +160,12 @@ struct GemmKernel
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
     {
         constexpr bool is_output_c_reg_transposed =
-            EpiloguePipeline::IsOutputTransposed() != GemmPipeline::TransposeC();
-        if constexpr(!((GemmPipeline::VectorSizeC % 2 == 0 && is_output_c_reg_transposed) ||
+            EpiloguePipeline::IsOutputTransposed() || GemmPipeline::TransposeC();
+        if constexpr(!((GemmPipeline::template GetVectorSizeC<
+                                EpiloguePipeline::IsOutputTransposed()>() %
+                                2 ==
+                            0 &&
+                        is_output_c_reg_transposed) ||
                        !(std::is_same_v<CDataType, fp16_t> || std::is_same_v<CDataType, bf16_t>)))
         {
             if(kargs.KBatch != 1)
@@ -180,7 +184,7 @@ struct GemmKernel
                           << std::endl;
                 return false;
             }
-            if(kargs.K % GemmPipeline::VectorSizeA != 0)
+            if(kargs.K % GemmPipeline::GetVectorSizeA() != 0)
             {
                 std::cerr << "K is not a multiple of vector load size for A tensor!" << std::endl;
                 return false;
@@ -195,7 +199,7 @@ struct GemmKernel
                           << std::endl;
                 return false;
             }
-            if(kargs.M % GemmPipeline::VectorSizeA != 0)
+            if(kargs.M % GemmPipeline::GetVectorSizeA() != 0)
             {
                 std::cerr << "M is not a multiple of vector load size for A tensor!" << std::endl;
                 return false;
@@ -211,7 +215,7 @@ struct GemmKernel
                           << std::endl;
                 return false;
             }
-            if(kargs.N % GemmPipeline::VectorSizeB != 0)
+            if(kargs.N % GemmPipeline::GetVectorSizeB() != 0)
             {
                 std::cerr << "N is not a multiple of vector load size for B tensor!" << std::endl;
                 return false;
@@ -226,7 +230,7 @@ struct GemmKernel
                           << std::endl;
                 return false;
             }
-            if(kargs.K % GemmPipeline::VectorSizeB != 0)
+            if(kargs.K % GemmPipeline::GetVectorSizeB() != 0)
             {
                 std::cerr << "K is not a multiple of vector load size for B tensor!" << std::endl;
                 return false;
@@ -242,7 +246,9 @@ struct GemmKernel
                           << std::endl;
                 return false;
             }
-            if(kargs.N % GemmPipeline::VectorSizeC != 0)
+            if(kargs.N % GemmPipeline::template GetVectorSizeC<
+                             EpiloguePipeline::IsOutputTransposed()>() !=
+               0)
             {
                 std::cerr << "N is not a multiple of vector load size for C tensor!" << std::endl;
                 return false;
@@ -257,7 +263,9 @@ struct GemmKernel
                           << std::endl;
                 return false;
             }
-            if(kargs.M % GemmPipeline::VectorSizeC != 0)
+            if(kargs.M % GemmPipeline::template GetVectorSizeC<
+                             EpiloguePipeline::IsOutputTransposed()>() !=
+               0)
             {
                 std::cerr << "M is not a multiple of vector load size for C tensor!" << std::endl;
                 return false;
@@ -288,7 +296,7 @@ struct GemmKernel
                     a_ptr,
                     make_tuple(kargs.M, splitk_batch_offset.splitted_k),
                     make_tuple(kargs.stride_A, 1),
-                    number<GemmPipeline::VectorSizeA>{},
+                    number<GemmPipeline::GetVectorSizeA()>{},
                     number<1>{});
             }
             else
@@ -297,7 +305,7 @@ struct GemmKernel
                     a_ptr,
                     make_tuple(splitk_batch_offset.splitted_k, kargs.M),
                     make_tuple(kargs.stride_A, 1),
-                    number<GemmPipeline::VectorSizeA>{},
+                    number<GemmPipeline::GetVectorSizeA()>{},
                     number<1>{});
             }
         }();
@@ -309,7 +317,7 @@ struct GemmKernel
                     b_ptr,
                     make_tuple(splitk_batch_offset.splitted_k, kargs.N),
                     make_tuple(kargs.stride_B, 1),
-                    number<GemmPipeline::VectorSizeB>{},
+                    number<GemmPipeline::GetVectorSizeB()>{},
                     number<1>{});
             }
             else
@@ -318,7 +326,7 @@ struct GemmKernel
                     b_ptr,
                     make_tuple(kargs.N, splitk_batch_offset.splitted_k),
                     make_tuple(kargs.stride_B, 1),
-                    number<GemmPipeline::VectorSizeB>{},
+                    number<GemmPipeline::GetVectorSizeB()>{},
                     number<1>{});
             }
         }();
@@ -331,7 +339,8 @@ struct GemmKernel
                     c_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(kargs.stride_C, 1),
-                    number<GemmPipeline::VectorSizeC>{},
+                    number<GemmPipeline::template GetVectorSizeC<
+                        EpiloguePipeline::IsOutputTransposed()>()>{},
                     number<1>{});
             }
             else
@@ -500,9 +509,13 @@ struct GemmKernel
         auto& c_block_window = gemm_tile_windows.at(I2);
 
         constexpr bool is_output_c_reg_transposed =
-            EpiloguePipeline::IsOutputTransposed() != GemmPipeline::TransposeC();
+            EpiloguePipeline::IsOutputTransposed() || GemmPipeline::TransposeC();
         if constexpr((DstInMemOp == memory_operation_enum::set) || (sizeof(CDataType) > 2) ||
-                     (GemmPipeline::VectorSizeC % 2 == 0 && is_output_c_reg_transposed))
+                     (GemmPipeline::template GetVectorSizeC<
+                              EpiloguePipeline::IsOutputTransposed()>() %
+                              2 ==
+                          0 &&
+                      is_output_c_reg_transposed))
         {
             EpiloguePipeline{}
                 .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(

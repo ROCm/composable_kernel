@@ -110,7 +110,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
      *
      * @return The vector store size for C tensor.
      */
-    template <typename Problem>
+    template <typename Problem, bool EpilogeWithTranspose>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
         using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
@@ -123,7 +123,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         // N is contiguous dimension
         if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
         {
-            if constexpr(TransposeC)
+            if constexpr(TransposeC || EpilogeWithTranspose)
             {
                 // In this case each thread has multiple consecutive elements in
                 // N dimension, however consecutive threads' elements have stride.
@@ -143,7 +143,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         // M is contiguous dimension
         else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
         {
-            if constexpr(TransposeC)
+            if constexpr(TransposeC || EpilogeWithTranspose)
             {
                 // In this case each thread has just a single item in Mdim
                 return WG::WarpGemmAttribute::Impl::kCNLane / WG::kN;

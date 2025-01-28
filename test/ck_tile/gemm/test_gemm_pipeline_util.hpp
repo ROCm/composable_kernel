@@ -114,7 +114,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                  M_Warp_Tile,
                                                  N_Warp_Tile,
                                                  K_Warp_Tile,
-                                                 GemmPipeline::TransposeC>>;
+                                                 UniversalGemmProblem::TransposeC>>;
 
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
