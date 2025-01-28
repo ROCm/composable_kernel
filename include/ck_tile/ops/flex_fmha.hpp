@@ -9,7 +9,7 @@
 #include "ck_tile/ops/fmha/block/block_position_encoding.hpp"
 #include "ck_tile/ops/fmha/block/block_rotary_embedding.hpp"
 #include "ck_tile/ops/fmha/block/page_block_navigator.hpp"
-#include "ck_tile/ops/fmha/kernel/fmha_fwd_kernel.hpp"
+#include "ck_tile/ops/fmha/kernel/fmha_flex_fwd_kernel.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_problem.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_flex_qr_ks_vs.hpp"
