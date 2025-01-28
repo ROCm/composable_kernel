@@ -160,7 +160,7 @@ struct GemmKernel
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
     {
         constexpr bool is_output_c_reg_transposed =
-            EpiloguePipeline::IsOutputTransposed() != GemmPipeline::IsTransposeC();
+            EpiloguePipeline::IsOutputTransposed() != GemmPipeline::TransposeC();
         if constexpr(!((GemmPipeline::VectorSizeC % 2 == 0 && is_output_c_reg_transposed) ||
                        !(std::is_same_v<CDataType, fp16_t> || std::is_same_v<CDataType, bf16_t>)))
         {
@@ -500,7 +500,7 @@ struct GemmKernel
         auto& c_block_window = gemm_tile_windows.at(I2);
 
         constexpr bool is_output_c_reg_transposed =
-            EpiloguePipeline::IsOutputTransposed() != GemmPipeline::IsTransposeC();
+            EpiloguePipeline::IsOutputTransposed() != GemmPipeline::TransposeC();
         if constexpr((DstInMemOp == memory_operation_enum::set) || (sizeof(CDataType) > 2) ||
                      (GemmPipeline::VectorSizeC % 2 == 0 && is_output_c_reg_transposed))
         {

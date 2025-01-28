@@ -58,7 +58,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                          M_Warp_Tile,
                                          N_Warp_Tile,
                                          K_Warp_Tile,
-                                         CodegenGemmPipeline::TransposeC>>;
+                                         CodegenPipelineProblem::TransposeC>>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;

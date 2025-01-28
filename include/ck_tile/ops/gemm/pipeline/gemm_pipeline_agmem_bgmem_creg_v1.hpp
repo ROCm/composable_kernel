@@ -39,14 +39,12 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
-    static constexpr auto TransposeC = Policy::TransposeC;
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
     }
-
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return Policy::IsTransposeC(); }
 
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,

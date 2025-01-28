@@ -16,8 +16,6 @@ struct UniversalGemmPipelineAgBgCrPolicy
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
 
-    static constexpr bool TransposeC = false;
-
     static constexpr auto ATileAccessPattern = tile_distribution_pattern::thread_raked;
     static constexpr auto BTileAccessPattern = tile_distribution_pattern::thread_raked;
 
@@ -549,12 +547,6 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                                       VecLoadSize,
                                                                       BTileAccessPattern>;
         return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
-    {
-        return Problem::TransposeC;
     }
 
     template <typename Problem>

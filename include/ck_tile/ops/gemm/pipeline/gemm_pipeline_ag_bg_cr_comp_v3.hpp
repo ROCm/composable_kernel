@@ -20,6 +20,8 @@ struct BaseGemmPipelineAgBgCrCompV3
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
 
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
+
     CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
@@ -73,18 +75,12 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
-    static constexpr auto TransposeC = Policy::TransposeC;
 
     using Base::PrefetchStages;
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
-    }
-
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
-    {
-        return Policy::template IsTransposeC<Problem>();
     }
 
     template <GemmPipelineScheduler Scheduler>

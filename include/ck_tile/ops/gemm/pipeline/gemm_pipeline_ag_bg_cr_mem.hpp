@@ -20,6 +20,8 @@ struct BaseGemmPipelineAgBgCrMem
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
+
     static constexpr index_t BlockSize = Problem::kBlockSize;
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
@@ -125,18 +127,12 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
-    static constexpr auto TransposeC = Policy::TransposeC;
 
     using Base::PrefetchStages;
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
-    }
-
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
-    {
-        return Policy::template IsTransposeC<Problem>();
     }
 
     template <GemmPipelineScheduler Scheduler>
