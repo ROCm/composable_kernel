@@ -72,10 +72,3 @@ inline std::ostream& operator<<(std::ostream& os, const ck_tile::TailNumber& s)
     }
     return os;
 }
-
-inline std::string GemmPipelineSchedulerToString(const ck_tile::GemmPipelineScheduler& s)
-{
-    std::ostringstream oss;
-    oss << s;
-    return oss.str();
-}

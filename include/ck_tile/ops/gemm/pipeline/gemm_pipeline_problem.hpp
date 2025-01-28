@@ -40,11 +40,15 @@ struct GemmPipelineProblemBase
 #define _TS_ std::to_string
         // clang-format off
         using _SS_ = std::string;
+        using ::operator<<;
+
+        thread_local std::ostringstream oss;
+        oss << Scheduler;
 
         return _SS_("gemm_problem_") +
                 _TS_(VectorLoadSize) + "x" + _TS_(kBlockSize) + "_" +
                 _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK) + "_" +
-                GemmPipelineSchedulerToString(Scheduler);
+                oss.str();
 #undef _TS_
         // clang-format on
     }

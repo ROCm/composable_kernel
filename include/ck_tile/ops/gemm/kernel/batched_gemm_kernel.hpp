@@ -64,7 +64,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // clang-format off
         using P_ = GemmPipeline;
 
-            auto prec_str = [&] () {
+        auto prec_str = [&] () {
             std::string base_str = _SS_(Base::template t2s<ADataType>::name);
             if (!std::is_same_v<ADataType, BDataType>) {
                 base_str += _SS_("_") + _SS_(Base::template t2s<BDataType>::name);

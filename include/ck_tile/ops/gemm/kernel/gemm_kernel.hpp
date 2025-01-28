@@ -82,7 +82,7 @@ struct GemmKernel
         using P_ = GemmPipeline;
         using _SS_ = std::string;
 
-            auto prec_str = [&] () {
+        auto prec_str = [&] () {
             std::string base_str = _SS_(t2s<ADataType>::name);
             if (!std::is_same_v<ADataType, BDataType>) {
                 base_str += _SS_("_") + _SS_(t2s<BDataType>::name);
