@@ -95,7 +95,7 @@ auto create_args(int argc, char* argv[])
                 "n or 0, no bias\n"
                 "e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s\n"
                 "a(libi) or 2, alibi with 1*h. a:1, b*h")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
+        .insert("prec", "bf16", "data type. fp16/bf16/fp8/bf8")
         .insert("mask",
                 "0",
                 "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
@@ -849,16 +849,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
         else // fmha_fwd_traits or fmha_splitkv_traits
         {
-            traits.is_group_mode       = (mode == mode_enum::group);
+            // traits.is_group_mode       = (mode == mode_enum::group);
             traits.mask_type           = mask.type;
             traits.bias_type           = bias.type;
-            traits.has_lse             = lse;
-            traits.do_fp8_static_quant = squant;
+            // traits.has_lse             = lse;
+            // traits.do_fp8_static_quant = squant;
 
-            if constexpr(std::is_same_v<fmha_fwd_traits, std::decay_t<decltype(traits)>>)
-            {
-                traits.has_dropout = (p_drop > 0.0f);
-            }
+            // if constexpr(std::is_same_v<fmha_fwd_traits, std::decay_t<decltype(traits)>>)
+            // {
+            //     traits.has_dropout = (p_drop > 0.0f);
+            // }
         }
     };
 

@@ -6,7 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/ops/fmha.hpp"
+#include "ck_tile/ops/flex_fmha.hpp"
 
 #include "bias.hpp"
 #include "mask.hpp"
@@ -782,13 +782,13 @@ struct fmha_fwd_traits
     int hdim_q;
     int hdim_v;
     std::string data_type;
-    bool is_group_mode;
+    // bool is_group_mode;
     bool is_v_rowmajor;
     mask_enum mask_type;
     bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
-    bool has_lse;
-    bool has_dropout;
-    bool do_fp8_static_quant;
+    // bool has_lse;
+    // bool has_dropout;
+    // bool do_fp8_static_quant;
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
