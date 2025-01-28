@@ -80,13 +80,13 @@ __global__ void naive_gemm_kernel(ADataType* A,
             int b_index = (std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
                               ? col * strideB + k
                               : k * strideB + col;
-            acc += static_cast<AccDataType>(A[a_index]) * static_cast<AccDataType>(B[b_index]);
+            acc += ck_tile::type_convert<AccDataType>(A[a_index]) * ck_tile::type_convert<AccDataType>(B[b_index]);
         }
 
         int c_index = (std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>)
                           ? row * strideC + col
                           : col * strideC + row;
-        C[c_index]  = acc;
+        C[c_index] = ck_tile::type_convert<CDataType>(acc);
     }
 }
 

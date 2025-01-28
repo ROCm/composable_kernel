@@ -12,7 +12,8 @@
 #include "ck_tile/host.hpp"
 #include "gemm_basic.hpp"
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType,
+          typename ALayout, typename BLayout, typename CLayout>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
@@ -29,7 +30,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     // This part comes from the Codegen
     constexpr ck_tile::index_t M_Tile = 128;
     constexpr ck_tile::index_t N_Tile = 128;
-    constexpr ck_tile::index_t K_Tile = 32;
+    constexpr ck_tile::index_t K_Tile = 64;
 
     constexpr ck_tile::index_t M_Warp = 2;
     constexpr ck_tile::index_t N_Warp = 2;
@@ -37,7 +38,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 8;
+    constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     // Whether doing the CShuffle (transpose before the global memory), depending on the output
     // layout.
@@ -110,12 +111,58 @@ int run_gemm_example(int argc, char* argv[])
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
+    std::string precision = arg_parser.get_str("prec");
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
 
+    /*
+    if(a_layout == "R" && b_layout == "R")
+    {
+        if (precision == "fp16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Row{}, Row{}, Row{});
+        }
+        else if (precision == "bf16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Row{}, Row{});
+        }
+        else if (precision == "fp8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Row{}, Row{});
+        }
+        else if (precision == "bf8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Row{}, Row{});
+        }
+        else 
+        {
+            throw std::runtime_error("Unsupported precision!");
+        }        
+    }
+    else
+    */
     if(a_layout == "R" && b_layout == "C")
     {
-        return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+        if (precision == "fp16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if (precision == "bf16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if (precision == "fp8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if (precision == "bf8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else 
+        {
+            throw std::runtime_error("Unsupported precision!");
+        }        
     }
     else
     {
