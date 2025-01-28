@@ -105,9 +105,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         prec_sy = "fp32";
     }
 
-    if((fused_quant == 1 || fused_quant == 2) && prec_o != "int8")
+    if((fused_quant == 1 || fused_quant == 2) && prec_o != "int8" && prec_o != "fp8")
     {
-        std::cout << "if fused_quant is 1, only support \"-prec_o=int8\" case" << std::endl;
+        std::cout
+            << "if fused_quant is 1 or 2, only support \"-prec_o=int8\" or \"-prec_o=fp8\" cases."
+            << std::endl;
         return false;
     }
 
@@ -248,7 +250,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
                     absmax       = a > absmax ? a : absmax;
                 }
                 // printf("cpu:absmax:%f\n", absmax);
-                ComputeDataType y_scale = absmax / static_cast<ComputeDataType>(127.0);
+                constexpr ComputeDataType kMaxY =
+                    std::is_same<YDataType, ck_tile::fp8_t>::value    ? 240.0
+                    : std::is_same<YDataType, ck_tile::int8_t>::value ? 127.0
+                                                                      : 0.0;
+                ComputeDataType y_scale = absmax / kMaxY;
                 y_scale_host_ref(m_)    = ck_tile::type_convert<YScaleDataType>(y_scale);
                 for(int n_ = 0; n_ < N_; n_++)
                 {
@@ -399,6 +405,16 @@ int main(int argc, char* argv[])
             !save_rms)
     {
         return run<ck_tile::bf16_t, ck_tile::int8_t, float, float, true>(arg_parser) ? 0 : -2;
+    }
+    else if(prec_i == "fp16" && prec_o == "fp8" && prec_sm == "fp32" && prec_sy == "fp32" &&
+            !save_rms)
+    {
+        return run<ck_tile::half_t, ck_tile::fp8_t, float, float, false>(arg_parser) ? 0 : -2;
+    }
+    else if(prec_i == "bf16" && prec_o == "fp8" && prec_sm == "fp32" && prec_sy == "fp32" &&
+            !save_rms)
+    {
+        return run<ck_tile::bf16_t, ck_tile::fp8_t, float, float, false>(arg_parser) ? 0 : -2;
     }
 
     return -3;

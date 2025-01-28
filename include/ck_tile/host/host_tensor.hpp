@@ -679,12 +679,15 @@ struct HostTensor
     Data mData;
 };
 
-template <typename TLayout>
-auto host_tensor_descriptor(std::size_t row, std::size_t col, std::size_t stride, TLayout layout)
+template <bool is_row_major>
+auto host_tensor_descriptor(std::size_t row,
+                            std::size_t col,
+                            std::size_t stride,
+                            bool_constant<is_row_major>)
 {
     using namespace ck_tile::literals;
 
-    if constexpr(std::is_same_v<decltype(layout), tensor_layout::gemm::RowMajor>)
+    if constexpr(is_row_major)
     {
         return HostTensorDescriptor({row, col}, {stride, 1_uz});
     }
@@ -693,12 +696,15 @@ auto host_tensor_descriptor(std::size_t row, std::size_t col, std::size_t stride
         return HostTensorDescriptor({row, col}, {1_uz, stride});
     }
 }
-template <typename TLayout>
-auto get_default_stride(std::size_t row, std::size_t col, std::size_t stride, TLayout layout)
+template <bool is_row_major>
+auto get_default_stride(std::size_t row,
+                        std::size_t col,
+                        std::size_t stride,
+                        bool_constant<is_row_major>)
 {
     if(stride == 0)
     {
-        if constexpr(std::is_same_v<decltype(layout), tensor_layout::gemm::RowMajor>)
+        if constexpr(is_row_major)
         {
             return col;
         }

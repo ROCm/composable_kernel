@@ -20,6 +20,14 @@ auto get_elimit<ck_tile::bf16_t>()
     return ck_tile::make_tuple(rtol, atol);
 }
 
+template <>
+auto get_elimit<ck_tile::int8_t>()
+{
+    double rtol = 1e-2;
+    double atol = 1.0;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -97,9 +105,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int xbias         = arg_parser.get_int("xbias");
     int fused_add     = arg_parser.get_int("fadd");
     int fused_quant   = arg_parser.get_int("fquant");
-    if(fused_quant == 1 && prec_o != "int8")
+    if(fused_quant == 1 && prec_o != "int8" && prec_o != "fp8")
     {
-        std::cout << "if fused_quant is 1, only support \"-prec_o=int8\" case" << std::endl;
+        std::cout
+            << "if fused_quant is 1 or 2, only support \"-prec_o=int8\" or \"-prec_o=fp8\" cases."
+            << std::endl;
         return false;
     }
 
@@ -291,7 +301,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
                     absmax       = a > absmax ? a : absmax;
                 }
                 // printf("cpu:absmax:%f\n", absmax);
-                ComputeDataType y_scale = absmax / static_cast<ComputeDataType>(127.0);
+                constexpr ComputeDataType kMaxY =
+                    std::is_same<YDataType, ck_tile::fp8_t>::value    ? 240.0
+                    : std::is_same<YDataType, ck_tile::int8_t>::value ? 127.0
+                                                                      : 0.0;
+                ComputeDataType y_scale = absmax / kMaxY;
                 y_scale_host_ref(m_)    = ck_tile::type_convert<YScaleDataType>(y_scale);
                 for(int n_ = 0; n_ < N_; n_++)
                 {
@@ -334,7 +348,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             y_residual_buf.FromDevice(y_residual_host_dev.data());
         }
 
-        auto [rtol, atol] = get_elimit<InDataType>();
+        auto [rtol, atol] = get_elimit<OutDataType>();
 
         if(x_stride == n)
         {
@@ -451,6 +465,16 @@ int main(int argc, char* argv[])
             !save_mv)
     {
         return run<ck_tile::bf16_t, ck_tile::int8_t, float, float, false>(arg_parser) ? 0 : -2;
+    }
+    else if(prec_i == "fp16" && prec_o == "fp8" && prec_sm == "fp32" && prec_sy == "fp32" &&
+            !save_mv)
+    {
+        return run<ck_tile::half_t, ck_tile::fp8_t, float, float, false>(arg_parser) ? 0 : -2;
+    }
+    else if(prec_i == "bf16" && prec_o == "fp8" && prec_sm == "fp32" && prec_sy == "fp32" &&
+            !save_mv)
+    {
+        return run<ck_tile::bf16_t, ck_tile::fp8_t, float, float, false>(arg_parser) ? 0 : -2;
     }
 
     return -3;

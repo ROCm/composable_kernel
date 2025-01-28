@@ -39,6 +39,7 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
+<<<<<<< HEAD
     CK_TILE_HOST static std::string GetName()
     {
 #define _TS_ std::to_string
@@ -64,6 +65,8 @@ struct GemmPipelineAGmemBGmemCRegV1
                    Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
     }
 
+=======
+>>>>>>> develop
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
@@ -164,7 +167,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>)
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                    Policy::template MakeShuffledARegBlockDescriptor<Problem>());
+                    Policy::template MakeShuffledARegBlockDistribution<Problem>());
                 shuffle_tile(a_shuffle_tmp, a_block_tile);
                 const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_shuffle_tmp);
                 store_tile(a_copy_lds_window, a_block_tile_tmp);
@@ -178,7 +181,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-                    Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
+                    Policy::template MakeShuffledBRegBlockDistribution<Problem>());
                 shuffle_tile(b_shuffle_tmp, b_block_tile);
                 const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_shuffle_tmp);
                 store_tile(b_copy_lds_window, b_block_tile_tmp);
@@ -215,7 +218,7 @@ struct GemmPipelineAGmemBGmemCRegV1
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
                 auto b_shuffle_tmp_loop = make_static_distributed_tensor<BDataType>(
-                    Policy::template MakeShuffledBRegBlockDescriptor<Problem>());
+                    Policy::template MakeShuffledBRegBlockDistribution<Problem>());
                 shuffle_tile(b_shuffle_tmp_loop, b_block_tile);
                 store_tile(b_copy_lds_window,
                            tile_elementwise_in(b_element_func, b_shuffle_tmp_loop));
