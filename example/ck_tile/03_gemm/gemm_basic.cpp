@@ -115,32 +115,6 @@ int run_gemm_example(int argc, char* argv[])
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
 
-    /*
-    if(a_layout == "R" && b_layout == "R")
-    {
-        if (precision == "fp16")
-        {
-            return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Row{}, Row{}, Row{});
-        }
-        else if (precision == "bf16")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Row{}, Row{});
-        }
-        else if (precision == "fp8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Row{}, Row{});
-        }
-        else if (precision == "bf8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Row{}, Row{});
-        }
-        else 
-        {
-            throw std::runtime_error("Unsupported precision!");
-        }        
-    }
-    else
-    */
     if(a_layout == "R" && b_layout == "C")
     {
         if (precision == "fp16")
