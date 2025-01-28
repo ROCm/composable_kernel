@@ -77,7 +77,7 @@ struct GemmKernel
 
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
-        return TilePartitioner::GridSize(M, N, KBatch);
+        return dim3(TilePartitioner::GridSize(M, N), 1, KBatch);
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }

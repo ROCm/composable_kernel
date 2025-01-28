@@ -70,7 +70,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     __host__ static constexpr auto
     GridSize(index_t M, index_t N, index_t KBatch, index_t batch_count)
     {
-        return TilePartitioner::GridSize(M, N, KBatch * batch_count);
+        return dim3(TilePartitioner::GridSize(M, N), 1, KBatch * batch_count);
     }
 
     __host__ static constexpr auto BlockSize() { return dim3(Base::KernelBlockSize); }
@@ -101,7 +101,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     CK_TILE_DEVICE void operator()(BatchedGemmKernelArgs kargs) const
     {
-        const auto [iM, iN] = TilePartitioner::GetOutputTileIndex(blockIdx.x, blockIdx.y);
+        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
         const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 

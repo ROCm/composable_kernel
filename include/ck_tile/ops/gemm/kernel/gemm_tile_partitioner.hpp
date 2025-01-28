@@ -17,14 +17,16 @@ struct GemmTile2DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    CK_TILE_HOST_DEVICE GemmTile2DPartitioner([[maybe_unused]] index_t M,
+                                              [[maybe_unused]] index_t N) noexcept;
+
     /** @brief Returns 3D grid size. */
-    CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t batch_size) noexcept(
+    CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N) noexcept(
         noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
         const index_t GridDimX = (M + MPerBlock - 1) / MPerBlock;
         const index_t GridDimY = (N + NPerBlock - 1) / NPerBlock;
-        const index_t GridDimZ = batch_size;
-        return dim3(GridDimX, GridDimY, GridDimZ);
+        return dim3(GridDimX, GridDimY, 1);
     }
 
     /**
@@ -68,24 +70,16 @@ struct GemmTile1DPartitioner
     constexpr GemmTile1DPartitioner() noexcept = delete;
 
     /** @brief constructs an object that does contain a N value. */
-    constexpr GemmTile1DPartitioner(index_t N) noexcept { N_ = N; }
+    constexpr GemmTile1DPartitioner([[maybe_unused]] index_t M, index_t N) noexcept { N_ = N; }
 
-    /** @brief Returns 1D grid size. */
+    /** @brief Returns grid size. */
     CK_TILE_HOST static constexpr auto
-    GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
+    GridSize(index_t M, index_t N) noexcept(
+        noexcept(MPerBlock != 0 && NPerBlock != 0)) -> index_t
     {
         const index_t GridDimX = (M + MPerBlock - 1) / MPerBlock;
         const index_t GridDimY = (N + NPerBlock - 1) / NPerBlock;
-        return dim3(GridDimX * GridDimY, 1, 1);
-    }
-
-    /**
-     * @brief Returns the number of blocks in N.
-     * @param [in] N is dimension
-     */
-    CK_TILE_HOST_DEVICE static constexpr auto GetNBlock(index_t N) noexcept -> index_t
-    {
-        return integer_divide_ceil(N, NPerBlock);
+        return GridDimX * GridDimY;
     }
 
     /**
@@ -104,7 +98,7 @@ struct GemmTile1DPartitioner
     CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx) noexcept
         -> const tuple<index_t, index_t>
     {
-        const index_t NBlock = GetNBlock(N_);
+        const index_t NBlock = integer_divide_ceil(N_, NPerBlock);
 
         const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx / NBlock);
         const index_t iN = __builtin_amdgcn_readfirstlane(blockIdx - iM * NBlock);
@@ -141,8 +135,8 @@ struct HasFnOneArgImpl<T, std::void_t<decltype(std::declval<T>().GetOutputTileIn
  * enable-if `GetOutputTileIndex`-fn is std::true_type when `GetOutputTileIndex`-fn is well-formed,
  * otherwise std::false_type.
  */
-template <typename PartitionerFn,
-          typename = typename std::enable_if_t<HasFnOneArgImpl<PartitionerFn>{}>>
+template <typename TilePartitioner,
+          typename = typename std::enable_if_t<HasFnOneArgImpl<TilePartitioner>{}>>
 struct OffsettedTile1DPartitioner
 {
     /**
@@ -151,10 +145,11 @@ struct OffsettedTile1DPartitioner
      * @return Returns a `tuple` [Im, In] shifted index, used to shift 1d-tile index.
      */
     [[nodiscard]] CK_TILE_DEVICE static constexpr auto GetOffsetedTileIndex(index_t block_start,
+                                                                            index_t M,
                                                                             index_t N) noexcept
         -> const tuple<index_t, index_t>
     {
-        const auto [iM, iN] = PartitionerFn(N).GetOutputTileIndex(blockIdx.x - block_start);
+        const auto [iM, iN] = TilePartitioner{M, N}.GetOutputTileIndex(blockIdx.x - block_start);
         return make_tuple(iM, iN);
     }
 };
@@ -182,12 +177,12 @@ struct GemmSpatiallyLocalTilePartitioner
     }
 
     /** @brief Returns 1D grid size. */
-    CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t batch_size) noexcept(
-        noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
+    CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N) noexcept(
+        noexcept(MPerBlock != 0 && NPerBlock != 0)) -> index_t
     {
         const index_t GridDimX = integer_divide_ceil(M, MPerBlock);
         const index_t GridDimY = integer_divide_ceil(N, NPerBlock);
-        return dim3(GridDimX * GridDimY, 1, batch_size);
+        return GridDimX * GridDimY;
     }
 
     /**
