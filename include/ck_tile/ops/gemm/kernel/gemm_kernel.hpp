@@ -75,12 +75,12 @@ struct GemmKernel
     static constexpr auto I1 = number<1>();
     static constexpr auto I2 = number<2>();
 
-    __host__ static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
+    CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
         return TilePartitioner::GridSize(M, N, KBatch);
     }
 
-    __host__ static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
     struct GemmKernelArgs
     {
@@ -516,7 +516,7 @@ struct GemmKernel
 
     CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const
     {
-        const auto [iM, iN] = TilePartitioner::GetOutputTileIndex(blockIdx.x, blockIdx.y);
+        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
         const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 

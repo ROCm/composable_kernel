@@ -107,7 +107,7 @@ struct GemmTile1DPartitioner
         const index_t NBlock = GetNBlock(N_);
 
         const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx / NBlock);
-        const index_t iN = __builtin_amdgcn_readfirstlane(blockIdx - (iM)*NBlock);
+        const index_t iN = __builtin_amdgcn_readfirstlane(blockIdx - iM * NBlock);
         return make_tuple(iM, iN);
     }
 
@@ -158,4 +158,143 @@ struct OffsettedTile1DPartitioner
         return make_tuple(iM, iN);
     }
 };
+
+/**
+ * @brief Class mapping 1D block index into 2D output tile space.
+ *
+ * @note It groups spatially workgroups in order to better utilize caches.
+ *       It is using grouped Rows of column-vectors WGP pattern. It's optimized
+ *       for gfx94x-like multiple-die chip.
+ */
+template <typename BlockGemmShapeType, index_t GroupNum, index_t M01>
+struct GemmSpatiallyLocalTilePartitioner
+{
+    using BlockGemmShape = remove_cvref_t<BlockGemmShapeType>;
+
+    static constexpr index_t MPerBlock = BlockGemmShape::kM;
+    static constexpr index_t NPerBlock = BlockGemmShape::kN;
+    static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
+    CK_TILE_HOST_DEVICE constexpr GemmSpatiallyLocalTilePartitioner() noexcept = delete;
+    CK_TILE_HOST_DEVICE constexpr GemmSpatiallyLocalTilePartitioner(index_t M_, index_t N_) noexcept
+        : M(M_), N(N_)
+    {
+    }
+
+    /** @brief Returns 1D grid size. */
+    CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t batch_size) noexcept(
+        noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
+    {
+        const index_t GridDimX = integer_divide_ceil(M, MPerBlock);
+        const index_t GridDimY = integer_divide_ceil(N, NPerBlock);
+        return dim3(GridDimX * GridDimY, 1, batch_size);
+    }
+
+    /**
+     * @brief Returns the number of loop over K dimension.
+     * @param [in] K    GEMM's K dimension.
+     */
+    CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K) noexcept -> index_t
+    {
+        return integer_divide_ceil(K, KPerBlock);
+    }
+
+    /**
+     * @brief The function returns 2D output tile space.
+     * @param [in] block_1d_id - 1D linear workgroup index.
+     * */
+    CK_TILE_DEVICE constexpr auto GetOutputTileIndex(index_t block_1d_id) noexcept
+        -> const tuple<index_t, index_t>
+    {
+        const auto M0 = integer_divide_ceil(M, MPerBlock);
+        const auto N0 = integer_divide_ceil(N, NPerBlock);
+
+        if(M0 == 1)
+        {
+            return make_tuple(0, block_1d_id);
+        }
+        else if(N0 == 1)
+        {
+            return make_tuple(block_1d_id, 0);
+        }
+        // block_1d_id = block_1d_id % (M0 * N0); // swallow batch index
+        else
+        {
+            const auto group_size    = integer_divide_ceil(M0 * N0, GroupNum);
+            const auto big_group_num = GroupNum - (group_size * GroupNum - M0 * N0);
+            const auto group_id_y    = block_1d_id / GroupNum;
+            const auto group_id_x    = block_1d_id - group_id_y * GroupNum;
+            const auto remap_block_1d_id =
+                group_id_x <= big_group_num
+                    ? group_id_x * group_size + group_id_y
+                    : group_id_x * group_size + big_group_num - group_id_x + group_id_y;
+
+            const index_t idx_M0 = remap_block_1d_id / N0;
+            const index_t idx_N0 = remap_block_1d_id - idx_M0 * N0;
+
+            const index_t M0_tmp     = M0 / M01;
+            const index_t M0_mod_M01 = M0 - M0_tmp * M01;
+
+            const auto M01_adapt = (idx_M0 < M0 - M0_mod_M01) ? M01 : M0_mod_M01;
+
+            const index_t idx_M00          = idx_M0 / M01;
+            const index_t idx_M01          = idx_M0 - idx_M00 * M01;
+            const index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
+
+            /**
+             *                        idxN0
+             *
+             *           |<               mtx   N                 >|
+             *
+             *             NPerBlock   NPerBlock   NPerBlock   NPerBlock
+             *                N_0         N_1        N_2         N_3
+             *       -   |-----------|-----------|-----------|-----|-----|-
+             *       ^   | -   -  0  |/---->  2  |           |     |     |
+             *           | |   |     /     |     |           |     |     |  M_0  MPerBlock
+             *           | M   |    /|     |     |           |     |     |
+             *           |-0---|---/-|-----|-----|-----------|-----|-----|-
+             *           | 1   |  /  |     |     |  blockid  |     |     |
+             * idxM0     | |   | /   |     V     |     5     |     |     |  M_1  MPerBlock
+             *           | -   V   1 |     -  3  |           |     |     |
+             *           |-----------|-----------|-----------|-----|-----|-
+             *    mtx M  |           |           |           |     |     |
+             *           |           |           |           |     |     |  M_2  MPerBlock
+             *           |           |           |           |     |     |
+             *           |-----------|-----------|-----------|-----|-----|-
+             *           |           |           |           |     |     |
+             *           |           |           |           |     |     |  M_3  MPerBlock
+             *           |           |           |           |     |     |
+             *           |-----------|-----------|-----------|-----|-----|-
+             *       V   |           |           |           |     |     |
+             *       -   |-----------|-----------|-----------|-----|-----|- M_4  MPerBlock
+             *           |           |           |           |     |     |
+             *           |-----------|-----------|-----------|-----|-----|-
+             *  Example:
+             *   assume:
+             *      M0 = 5
+             *      N0 = 4
+             *      block_1d_id = 5
+             *      M01 = 2
+             *
+             *   idx_N0 = 1
+             *   idx_M0 = 1
+             *   M01_adapt = 2
+             *   idx_M00 = 0
+             *   idx_M01 = 1
+             *   idx_N0_M01_local = 5
+             *   output {1, 2}
+             */
+
+            const index_t N_out           = idx_N0_M01_local / M01_adapt;
+            const index_t idx_loc_mod_M01 = idx_N0_M01_local - N_out * M01_adapt;
+
+            return make_tuple(idx_loc_mod_M01 + idx_M00 * M01, N_out);
+        }
+    }
+
+    private:
+    index_t M;
+    index_t N;
+};
+
 } // namespace ck_tile
