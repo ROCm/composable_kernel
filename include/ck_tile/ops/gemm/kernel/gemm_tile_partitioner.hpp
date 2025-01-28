@@ -21,8 +21,8 @@ struct GemmTile2DPartitioner
                                               [[maybe_unused]] index_t N) noexcept;
 
     /** @brief Returns 3D grid size. */
-    CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N) noexcept(
-        noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
+    CK_TILE_HOST static constexpr auto
+    GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
         const index_t GridDimX = (M + MPerBlock - 1) / MPerBlock;
         const index_t GridDimY = (N + NPerBlock - 1) / NPerBlock;
@@ -74,8 +74,7 @@ struct GemmTile1DPartitioner
 
     /** @brief Returns grid size. */
     CK_TILE_HOST static constexpr auto
-    GridSize(index_t M, index_t N) noexcept(
-        noexcept(MPerBlock != 0 && NPerBlock != 0)) -> index_t
+    GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> index_t
     {
         const index_t GridDimX = (M + MPerBlock - 1) / MPerBlock;
         const index_t GridDimY = (N + NPerBlock - 1) / NPerBlock;
@@ -98,10 +97,10 @@ struct GemmTile1DPartitioner
     CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx) noexcept
         -> const tuple<index_t, index_t>
     {
-        const index_t NBlock = integer_divide_ceil(N_, NPerBlock);
+        const index_t NBlocks = integer_divide_ceil(N_, NPerBlock);
 
-        const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx / NBlock);
-        const index_t iN = __builtin_amdgcn_readfirstlane(blockIdx - iM * NBlock);
+        const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx / NBlocks);
+        const index_t iN = __builtin_amdgcn_readfirstlane(blockIdx - iM * NBlocks);
         return make_tuple(iM, iN);
     }
 
@@ -141,12 +140,13 @@ struct OffsettedTile1DPartitioner
 {
     /**
      * @brief The function subtracts the block's start (offset) from 1D raw-indexes.
-     * @param [in] block_start is `blockIdx.x - block_start`.
-     * @return Returns a `tuple` [Im, In] shifted index, used to shift 1d-tile index.
+     * @param [in] block_start Workgroup offset.
+     * @param [in] M           Gemm's M dimension.
+     * @param [in] N           Gemm's N dimension.
+     * @return Returns a `tuple` [Im, In] with shifted index.
      */
-    [[nodiscard]] CK_TILE_DEVICE static constexpr auto GetOffsetedTileIndex(index_t block_start,
-                                                                            index_t M,
-                                                                            index_t N) noexcept
+    [[nodiscard]] CK_TILE_DEVICE static constexpr auto
+    GetOffsetedTileIndex(index_t block_start, index_t M, index_t N) noexcept
         -> const tuple<index_t, index_t>
     {
         const auto [iM, iN] = TilePartitioner{M, N}.GetOutputTileIndex(blockIdx.x - block_start);
@@ -160,6 +160,10 @@ struct OffsettedTile1DPartitioner
  * @note It groups spatially workgroups in order to better utilize caches.
  *       It is using grouped Rows of column-vectors WGP pattern. It's optimized
  *       for gfx94x-like multiple-die chip.
+ *
+ * @tparam GroupNum - The number of big groups.
+ * @tparam M01      - The number of groups in M dim within spatially local WGPs,
+ *
  */
 template <typename BlockGemmShapeType, index_t GroupNum, index_t M01>
 struct GemmSpatiallyLocalTilePartitioner
@@ -177,8 +181,8 @@ struct GemmSpatiallyLocalTilePartitioner
     }
 
     /** @brief Returns 1D grid size. */
-    CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N) noexcept(
-        noexcept(MPerBlock != 0 && NPerBlock != 0)) -> index_t
+    CK_TILE_HOST static constexpr auto
+    GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> index_t
     {
         const index_t GridDimX = integer_divide_ceil(M, MPerBlock);
         const index_t GridDimY = integer_divide_ceil(N, NPerBlock);
