@@ -407,6 +407,38 @@ struct BlockFmhaPipelineQRKSVSAsync
             __builtin_amdgcn_sched_barrier(1);
 
             // STAGE 2, scale_s, add bias, mask, softmax
+            // FlexAttention score modifier operates directly on scores
+            {
+                auto score_mod = [](auto s, 
+                               ck_tile::index_t b, 
+                               ck_tile::index_t h, 
+                               ck_tile::index_t q_idx, 
+                               ck_tile::index_t v_idx) {
+                    (void) s;
+                    (void) b;
+                    (void) h;
+                    return static_cast<decltype(s)>(q_idx - v_idx);
+                };
+                const auto k_origin = k_dram_block_window.get_window_origin();
+                constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
+
+                sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
+                        const auto tile_idx = get_x_indices_from_distributed_indices(
+                            s_acc.get_tile_distribution(), make_tuple(idx0, idx1));
+
+                        const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                        const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                        const auto b = 0;
+                        const auto h = 0;
+
+                        s_acc(i_j_idx) = score_mod(s_acc(i_j_idx), b, h, row, col);
+                    });
+                });
+            }
+
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
