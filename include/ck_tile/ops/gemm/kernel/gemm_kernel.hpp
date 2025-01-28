@@ -161,9 +161,7 @@ struct GemmKernel
     {
         constexpr bool is_output_c_reg_transposed =
             EpiloguePipeline::IsOutputTransposed() != GemmPipeline::IsTransposeC();
-        if constexpr(!((GemmPipeline::VectorSizeC % 2 == 0 &&
-                        std::is_same_v<CLayout, tensor_layout::gemm::RowMajor> &&
-                        is_output_c_reg_transposed) ||
+        if constexpr(!((GemmPipeline::VectorSizeC % 2 == 0 && is_output_c_reg_transposed) ||
                        !(std::is_same_v<CDataType, fp16_t> || std::is_same_v<CDataType, bf16_t>)))
         {
             if(kargs.KBatch != 1)
@@ -444,13 +442,11 @@ struct GemmKernel
         constexpr bool is_output_c_reg_transposed =
             EpiloguePipeline::IsOutputTransposed() != GemmPipeline::IsTransposeC();
         if constexpr((DstInMemOp == memory_operation_enum::set) || (sizeof(CDataType) > 2) ||
-                     (GemmPipeline::VectorSizeC % 2 == 0 &&
-                      std::is_same_v<CLayout, tensor_layout::gemm::RowMajor> &&
-                      is_output_c_reg_transposed))
+                     (GemmPipeline::VectorSizeC % 2 == 0 && is_output_c_reg_transposed))
         {
             EpiloguePipeline{}
                 .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
-                    c_block_window, c_block_tile);
+                    c_block_window, c_block_tile, smem_ptr);
         }
     }
 

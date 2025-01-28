@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,7 +16,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
 
-    static constexpr bool TransposeC = true;
+    static constexpr bool TransposeC = false;
 
 #if 0
     // 2d

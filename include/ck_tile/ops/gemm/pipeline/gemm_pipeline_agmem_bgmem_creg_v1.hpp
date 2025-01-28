@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -38,6 +38,8 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
+
+    static constexpr auto TransposeC = Policy::TransposeC;
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     {

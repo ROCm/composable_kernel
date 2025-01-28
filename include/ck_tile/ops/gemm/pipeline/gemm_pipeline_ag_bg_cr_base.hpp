@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -17,6 +17,8 @@ struct GemmPipelineAgBgCrImplBase
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
+    static constexpr auto TransposeC = Policy::TransposeC;
 
     template <typename DstBlockTile, typename SrcTileWindow>
     CK_TILE_DEVICE void GlobalPrefetch(DstBlockTile& dst_block_tile,

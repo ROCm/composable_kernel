@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -42,7 +42,8 @@ struct Default2DEpilogue
     template <typename ODramWindowTmp,
               typename OAccTile,
               memory_operation_enum out_memory_data_op = memory_operation_enum::set>
-    CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile)
+    CK_TILE_DEVICE auto
+    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, void*)
     {
 
         // TODO: this is ugly

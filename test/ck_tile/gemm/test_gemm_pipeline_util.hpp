@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
 #include <sstream>
@@ -61,9 +61,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
         using TilePartitioner = ck_tile::GemmTile2DPartitioner<GemmShape>;
 
-        using GemmEpilogue = ck_tile::Default2DEpilogue<
-            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
-
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
 
         using BaseGemmPipeline = std::conditional_t<
@@ -104,6 +101,18 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                              Scheduler,
                                                                              has_hot_loop_v,
                                                                              tail_number_v>>>;
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<
+                ck_tile::CShuffleEpilogueProblem<AccDataType,
+                                                 CDataType,
+                                                 GemmPipeline::BlockSize,
+                                                 TilePartitioner::MPerBlock,
+                                                 TilePartitioner::NPerBlock,
+                                                 M_Warp,
+                                                 N_Warp,
+                                                 M_Warp_Tile,
+                                                 N_Warp_Tile,
+                                                 K_Warp_Tile,
+                                                 GemmPipeline::TransposeC>>;
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
@@ -218,7 +227,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
     public:
     std::vector<int> k_batches_;
 
-    void SetUp() override { k_batches_ = {1}; }
+    void SetUp() override { k_batches_ = {1, 2}; }
 
     template <bool PadM = true, bool PadN = true, bool PadK = true>
     void Run(const int M,
