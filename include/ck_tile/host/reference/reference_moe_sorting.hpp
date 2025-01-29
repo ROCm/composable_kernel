@@ -19,7 +19,8 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
                                         HostTensor<IndexType>& sorted_expert_ids,
                                         index_t& unit_cnt,
                                         const index_t experts,
-                                        const index_t unit_size)
+                                        const index_t unit_size,
+                                        bool skip_experts_with_zero_token = true)
 {
     const index_t num_token = topk_ids.mDesc.get_lengths()[0];
     const index_t topk      = topk_ids.mDesc.get_lengths()[1];
@@ -33,8 +34,11 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
 #endif
     std::vector<std::vector<WeightType>> expert_token_weights(
         experts, std::vector<WeightType>(unit_size, 0));
+    // count number of unit-size slices in this expert
     std::vector<IndexType> expert_slices(experts, 1);
+    // count the tokens used in this expert
     std::vector<IndexType> expert_slice_idxs(experts, 0);
+    // TODO: above 2 buffer seems duplicated
 
     for(index_t t = 0; t < num_token; t++)
     {
@@ -74,6 +78,11 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
     IndexType* out_expert_id = sorted_expert_ids.data();
     for(index_t e = 0; e < experts; e++)
     {
+        if(skip_experts_with_zero_token)
+        {
+            if(expert_slice_idxs[e] == 0)
+                continue;
+        }
         memcpy(out_tokens, expert_tokens[e].data(), sizeof(index_t) * expert_slices[e] * unit_size);
         out_tokens += expert_slices[e] * unit_size;
         memcpy(out_weights,

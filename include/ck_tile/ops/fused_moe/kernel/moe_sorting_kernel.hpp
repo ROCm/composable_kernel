@@ -692,8 +692,6 @@ struct MoeSortingKernel
 
         for(int i_token = 0; i_token < tokens; i_token += sub_tokens)
         {
-#if 1
-            // __syncthreads();
             // NOTE: below for loop can't have barrier inside!!
             for(int i = tid; i < (sub_tokens * topk); i += block_size)
             {
@@ -716,7 +714,6 @@ struct MoeSortingKernel
                         smem_tokens(curr_token_id, eid)++;
                 }
                 __builtin_amdgcn_s_waitcnt(0xc07f);
-                //
             }
             __syncthreads(); // make sure different i_token iteration not overlap by different wave
                              // if(tid == 0) {
@@ -740,30 +737,6 @@ struct MoeSortingKernel
             //             e0+e1+e2+e3+e4+e5+e6+e7
             //             );
             // }
-
-#else
-            int i = tid;
-            while(true)
-            {
-                __syncthreads();
-                if(i >= (sub_tokens * topk))
-                    break;
-                uint32_t curr_token_id, curr_topk_id;
-                topk_mdiv.divmod(i, curr_token_id, curr_topk_id);
-                int i_t = i_token + curr_token_id;
-                // printf("[%d] tid:%d, (i_token:%d, curr_token_id:%d)i_t:%d, curr_topk_id:%d,
-                // tokens:%d\n",
-                //       i, tid, i_token, curr_token_id, i_t, curr_topk_id, tokens);
-                if(i_t < tokens)
-                {
-                    int eid = topk_id[i_t * topk + curr_topk_id];
-                    smem_tokens(curr_token_id, eid)++;
-                }
-
-                i += block_size;
-            }
-            __syncthreads();
-#endif
         }
 
         // counting
@@ -919,8 +892,18 @@ struct MoeSortingKernel
                     int local_cnt = smem_cumsum(i_e_ + lid + 1);
                     int blocks_pers_expert =
                         unit_size_mdiv.div(local_cnt + unit_size_mdiv.divisor - 1);
-                    int padded_tokens_per_expert =
-                        max(blocks_pers_expert, 1) * unit_size_mdiv.divisor;
+                    int padded_tokens_per_expert = [&]() {
+                        if constexpr(Problem::SkipExpertsWithZeroTokens)
+                        {
+                            // if local_cnt is zero, blocks_pers_expert will be zero
+                            return blocks_pers_expert * unit_size_mdiv.divisor;
+                        }
+                        else
+                        {
+                            return max(blocks_pers_expert, 1) * unit_size_mdiv.divisor;
+                        }
+                    }();
+
                     local_cumsum_ = padded_tokens_per_expert;
                     local_cumsum_ += pre_cumsum_; // note pre_cumsum must be added after local
                                                   // cumsum padded in case local cumsum is zero, but
@@ -952,6 +935,12 @@ struct MoeSortingKernel
             int e_end   = smem_cumsum(i_e + 1);
             // printf("i_e:%d, e_start:%d, e_end:%d\n", i_e, e_start, e_end);
             smem_cumdup(i_e) = e_start; // duplicate cumsum for later use
+            if constexpr(Problem::SkipExpertsWithZeroTokens)
+            {
+                if(e_start == e_end) // skip zero token expert
+                    continue;
+            }
+
             for(int i = e_start; i < e_end; i += unit_size_mdiv.divisor)
             {
                 p_sorted_expert_ids[unit_size_mdiv.div(i)] = i_e;
@@ -1069,6 +1058,11 @@ struct MoeSortingKernel
             int e_start = smem_cumsum(eid);
             int e_end   = smem_cumdup(eid + 1);
             // printf("--- eid:%d, e_start:%d, e_end:%d\n", eid, e_start, e_end);
+            if constexpr(Problem::SkipExpertsWithZeroTokens)
+            {
+                if(e_start == e_end) // skip zero token expert
+                    continue;
+            }
             while(e_start < e_end)
             {
 #if CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
