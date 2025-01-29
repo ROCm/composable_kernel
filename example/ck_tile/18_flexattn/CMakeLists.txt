@@ -6,6 +6,9 @@ if(FMHA_FWD_ENABLE_APIS STREQUAL "all")
   set(FMHA_FWD_ENABLE_APIS ${FMHA_FWD_KNOWN_APIS})
 endif()
 
+variable_watch(FMHA_SCORE_MOD_F)
+set(FMHA_SCORE_MOD_F [[s + static_cast<decltype(s)>(q_idx - v_idx)]])
+
 foreach(api ${FMHA_FWD_ENABLE_APIS})
   if(NOT "${api}" IN_LIST FMHA_FWD_KNOWN_APIS)
     message(FATAL_ERROR "${api} isn't a known api: ${FMHA_FWD_KNOWN_APIS}.")
@@ -21,11 +24,12 @@ string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 # generate a list of kernels, but not actually emit files at config sta
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api ${FMHA_FWD_APIS} --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt
+  --api ${FMHA_FWD_APIS} 
+  --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
-  message( FATAL_ERROR "CK Tile FMHA FAILED to genrate a list of FWD kernels via Python.")
+  message( FATAL_ERROR "CK Tile FMHA FAILED to generate a list of FWD kernels via Python.")
 endif()
 
 # NOTE: for cmake, the FMHA_FWD_GEN_BLOBS files must be in the same directory
@@ -35,7 +39,10 @@ file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt FMHA_FWD_GEN_BLOBS)
 add_custom_command(
   OUTPUT ${FMHA_FWD_GEN_BLOBS}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api ${FMHA_FWD_APIS} --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  --api ${FMHA_FWD_APIS} 
+  --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  "--score_mod_expr=${FMHA_SCORE_MOD_F}"
+  VERBATIM
 )
 
 set(EXAMPLE_FMHA_FWD "tile_example_flexattn_fwd")
@@ -79,6 +86,8 @@ endif()
 
 # Allow comparing floating points directly in order to check sentinel values
 list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-float-equal)
+
+list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS "-DCK_TILE_SCORE_MOD_F=${FMHA_SCORE_MOD_F}")
 
 target_compile_options(${EXAMPLE_FMHA_FWD} PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
 

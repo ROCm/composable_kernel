@@ -1375,9 +1375,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::identity{},
             ck_tile::identity{});
 
+        #ifndef CK_TILE_SCORE_MOD_F
+        #error "must be defined"
+        #else
+        #define XSTR(x) STR(x)
+        #define STR(x) #x   
+        #pragma message "host score_mod_f: " XSTR(CK_TILE_SCORE_MOD_F)
+        #endif
+
         auto score_mod = [] (auto s, ck_tile::index_t b, ck_tile::index_t h, ck_tile::index_t q_idx, ck_tile::index_t v_idx) {
             (void) s; (void) b; (void) h; (void) q_idx; (void) v_idx;
-            return s + static_cast<decltype(s)>(q_idx - v_idx);
+            return CK_TILE_SCORE_MOD_F;
         };
 
         s_host_ref.ForEach([&](auto& self, auto i) { 

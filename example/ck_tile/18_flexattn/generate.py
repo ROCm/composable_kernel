@@ -108,9 +108,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--score_mod_expr",
-        # default="s",
-        # test with
-        default="s + static_cast<decltype(s)>(q_idx - v_idx)",
+        default="s",
         required=False,
         help="flex attention's score mod function, a cpp expression with `s`, `b`, `h`, `q_idx`, and `v_idx` variables"
     )
