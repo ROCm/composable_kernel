@@ -271,7 +271,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
     // when mfma if fixed, remove this section and update
     // FloatAAdjusted -> ComputeTypeA, FloatBAdjusted -> ComputeTypeB,
     // throughout this file
-#if CK_WORKAROUND_DENORM_FIX
+#if CK_GFX90A_DENORM_WORKAROUND
     using FloatAAdjusted =
         conditional_t<is_same_v<ComputeTypeA, ck::half_t>, ck::bhalf_t, ComputeTypeA>;
     using FloatBAdjusted =
