@@ -65,9 +65,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
-        using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                                           TileParitionerGroupNum,
-                                                                           TileParitionerM01>;
+        using TilePartitioner = ck_tile::
+            GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
         using GemmEpilogue = ck_tile::Default2DEpilogue<
             ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
