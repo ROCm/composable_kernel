@@ -113,9 +113,9 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t VectorSizeA = Problem::VectorSizeA;
-    static constexpr index_t VectorSizeB = Problem::VectorSizeB;
-    static constexpr index_t VectorSizeC = Problem::VectorSizeC;
+    static constexpr index_t VectorSizeA = Policy::template GetVectorSizeA<Problem>();
+    static constexpr index_t VectorSizeB = Policy::template GetVectorSizeB<Problem>();
+    static constexpr index_t VectorSizeC = Policy::template GetVectorSizeC<Problem>();
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
@@ -133,7 +133,10 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
         return Policy::template GetSmemSize<Problem>();
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return Policy::IsTransposeC(); }
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
+    {
+        return Policy::template IsTransposeC<Problem>();
+    }
 
     template <GemmPipelineScheduler Scheduler>
     struct PipelineImpl : public PipelineImplBase

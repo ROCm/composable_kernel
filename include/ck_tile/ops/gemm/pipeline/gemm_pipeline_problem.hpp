@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 
 namespace ck_tile {
@@ -11,10 +12,10 @@ template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
-          typename TileGemmTraits_>
+          typename Traits_>
 struct GemmPipelineProblemBase
 {
-    using GemmTraits = remove_cvref_t<TileGemmTraits_>;
+    using Traits = remove_cvref_t<Traits_>;
 
     using ADataType = remove_cvref_t<ADataType_>;
     using BDataType = remove_cvref_t<BDataType_>;
@@ -22,19 +23,19 @@ struct GemmPipelineProblemBase
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
-    using ALayout = remove_cvref_t<typename GemmTraits::ALayout>;
-    using BLayout = remove_cvref_t<typename GemmTraits::BLayout>;
-    using CLayout = remove_cvref_t<typename GemmTraits::CLayout>;
+    using ALayout = remove_cvref_t<typename Traits::ALayout>;
+    using BLayout = remove_cvref_t<typename Traits::BLayout>;
+    using CLayout = remove_cvref_t<typename Traits::CLayout>;
 
-    static constexpr index_t VectorLoadSize = GemmTraits::_VectorSize;
-    static constexpr index_t kBlockSize     = BlockGemmShape::NumWarps * get_warp_size();
+    static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
 
-    static constexpr bool kPadM = GemmTraits::kPadM;
-    static constexpr bool kPadN = GemmTraits::kPadN;
-    static constexpr bool kPadK = GemmTraits::kPadK;
+    static constexpr bool kPadM = Traits::kPadM;
+    static constexpr bool kPadN = Traits::kPadN;
+    static constexpr bool kPadK = Traits::kPadK;
 
     static constexpr auto Scheduler = GemmPipelineScheduler::Default;
 
+    static constexpr index_t VectorLoadSize = Traits::_VectorSize;
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
     {
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
@@ -128,27 +129,43 @@ template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
-          typename TileGemmTraits_>
+          typename Traits_>
 using GemmPipelineProblem =
-    GemmPipelineProblemBase<ADataType_, BDataType_, CDataType_, BlockGemmShape_, TileGemmTraits_>;
+    GemmPipelineProblemBase<ADataType_, BDataType_, CDataType_, BlockGemmShape_, Traits_>;
 
 template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
-          typename TileGemmTraits_,
+          typename Traits_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full>
-struct UniversalGemmPipelineProblem : public GemmPipelineProblemBase<ADataType_,
-                                                                     BDataType_,
-                                                                     CDataType_,
-                                                                     BlockGemmShape_,
-                                                                     TileGemmTraits_>
+struct UniversalGemmPipelineProblem
 {
+    using Traits = remove_cvref_t<Traits_>;
+
+    using ADataType = remove_cvref_t<ADataType_>;
+    using BDataType = remove_cvref_t<BDataType_>;
+    using CDataType = remove_cvref_t<CDataType_>;
+
+    using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
+
+    using ALayout = remove_cvref_t<typename Traits::ALayout>;
+    using BLayout = remove_cvref_t<typename Traits::BLayout>;
+    using CLayout = remove_cvref_t<typename Traits::CLayout>;
+
+    static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
+
+    static constexpr bool kPadM = Traits::kPadM;
+    static constexpr bool kPadN = Traits::kPadN;
+    static constexpr bool kPadK = Traits::kPadK;
+
     static constexpr auto Scheduler  = Scheduler_;
     static constexpr auto HasHotLoop = HasHotLoop_;
     static constexpr auto TailNum    = TailNum_;
+
+    static constexpr bool TransposeC = Traits::TransposeC;
 };
 
 } // namespace ck_tile

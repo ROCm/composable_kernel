@@ -50,7 +50,6 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     using GemmKernelArgs          = typename Base::GemmKernelArgs;
 
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
-    static constexpr index_t KBatch          = 1;
 
     struct GemmTransKernelArg
     {
@@ -124,7 +123,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
                                        stride_a,
                                        stride_b,
                                        stride_c,
-                                       KBatch};
+                                       gemm_descs[i].k_batch};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }

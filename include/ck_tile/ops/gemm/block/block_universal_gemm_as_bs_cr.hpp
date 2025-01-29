@@ -80,7 +80,7 @@ struct BlockUniversalGemmAsBsCr
         static constexpr index_t InterWaveSchedulingMacClusters = 1;
 
         static constexpr index_t KPack      = WarpGemm::kKPerThread;
-        static constexpr index_t KPerThread = KPerBlock / WarpGemm::kK * KPack;
+        static constexpr index_t KPerThread = KIterPerWarp * KPack;
         static constexpr index_t KRepeat    = KPerThread / KPack;
     };
 
