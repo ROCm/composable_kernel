@@ -1400,8 +1400,79 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
  */
 inline __host__ __device__ f6_t f6_convert_rne(float x, float scale = 1.0f)
 {
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    float16_t in1{x};
+    float16_t in2{};
+
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } out{};
+
+    out.f6_vector = __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(in1, in2, scale);
+
+    return out.f6_array[0];
+#else
     return utils::sat_convert_to_type<f6_t>(x / scale);
+#endif
+}
+
+inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0f)
+{
+#if defined(__gfx950__)
+    float16_t in1{x[0],
+                  x[1],
+                  x[2],
+                  x[3],
+                  x[4],
+                  x[5],
+                  x[6],
+                  x[7],
+                  x[8],
+                  x[9],
+                  x[10],
+                  x[11],
+                  x[12],
+                  x[13],
+                  x[14],
+                  x[15]};
+    float16_t in2 = {x[16],
+                     x[17],
+                     x[18],
+                     x[19],
+                     x[20],
+                     x[21],
+                     x[22],
+                     x[23],
+                     x[24],
+                     x[25],
+                     x[26],
+                     x[27],
+                     x[28],
+                     x[29],
+                     x[30],
+                     x[31]};
+    return __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(in1, in2, scale);
+#else
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.f6_array[i] = utils::sat_convert_to_type<f6_t>(in.float_array[i] / scale);
+    });
+
+    return out.f6_vector;
+#endif
 }
 
 /**
@@ -1418,15 +1489,65 @@ inline __host__ __device__ f6_t f6_convert_sr(float x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
     uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } out{};
+
+    out.f6_vector = __builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(in.float_vector, rng, scale);
+
+    return out.f6_array[0];
+#else
     return utils::sat_convert_to_type_sr<f6_t>(x / scale, rng);
+#endif
+}
+
+inline __host__ __device__ f6x32_t f6_convert_sr(float32_t x, float scale = 1.0f)
+{
+    constexpr int seed = 1254739;
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } float_values{x};
+    uint32_t rng =
+        prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), float_values.float_array[0]);
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(x, rng, scale);
+#else
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.f6_array[i] = utils::sat_convert_to_type_sr<f6_t>(in.float_array[i] / scale, rng);
+    });
+
+    return out.f6_vector;
+#endif
 }
 
 /**
  * @brief Specializes the type conversion template for converting a float into the 6-bit float type
  * (f6_t).
  *
- * Depending on the CK_USE_SR_F4_CONVERSION flag,
+ * Depending on the CK_USE_SR_F6_CONVERSION flag,
  * the conversion uses stochastic rounding
  * or round-to-nearest-even.
  *
@@ -1436,7 +1557,17 @@ inline __host__ __device__ f6_t f6_convert_sr(float x, float scale = 1.0f)
 template <>
 inline __host__ __device__ f6_t type_convert<f6_t, float>(float x)
 {
-#if CK_USE_SR_F4_CONVERSION
+#if defined(__gfx950__)
+    return f6_convert_sr(x);
+#else
+    return f6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ f6x32_t type_convert<f6x32_t, float32_t>(float32_t x)
+{
+#if defined(__gfx950__)
     return f6_convert_sr(x);
 #else
     return f6_convert_rne(x);
@@ -1455,8 +1586,53 @@ inline __host__ __device__ f6_t type_convert<f6_t, float>(float x)
 template <>
 inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
 {
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } in{x};
+
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } out{};
+
+    out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
+        in.f6_vector, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+    return out.float_array[0];
+#else
     return utils::to_float<f6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
+#endif
+}
+
+template <>
+inline __host__ __device__ float32_t type_convert<float32_t, f6x32_t>(f6x32_t x)
+{
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
+        x, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+#else
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } in{x};
+
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.float_array[i] =
+            utils::to_float<f6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), in.f6_array[i]);
+    });
+
+    return out.float_vector;
+#endif
 }
 
 /**
@@ -1471,8 +1647,79 @@ inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
  */
 inline __host__ __device__ bf6_t bf6_convert_rne(float x, float scale = 1.0f)
 {
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    float16_t in1{x};
+    float16_t in2{};
+
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } out{};
+
+    out.bf6_vector = __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(in1, in2, scale);
+
+    return out.bf6_array[0];
+#else
     return utils::sat_convert_to_type<bf6_t>(x / scale);
+#endif
+}
+
+inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1.0f)
+{
+#if defined(__gfx950__)
+    float16_t in1{x[0],
+                  x[1],
+                  x[2],
+                  x[3],
+                  x[4],
+                  x[5],
+                  x[6],
+                  x[7],
+                  x[8],
+                  x[9],
+                  x[10],
+                  x[11],
+                  x[12],
+                  x[13],
+                  x[14],
+                  x[15]};
+    float16_t in2 = {x[16],
+                     x[17],
+                     x[18],
+                     x[19],
+                     x[20],
+                     x[21],
+                     x[22],
+                     x[23],
+                     x[24],
+                     x[25],
+                     x[26],
+                     x[27],
+                     x[28],
+                     x[29],
+                     x[30],
+                     x[31]};
+    return __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(in1, in2, scale);
+#else
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.bf6_array[i] = utils::sat_convert_to_type<bf6_t>(in.float_array[i] / scale);
+    });
+
+    return out.bf6_vector;
+#endif
 }
 
 /**
@@ -1490,14 +1737,64 @@ inline __host__ __device__ bf6_t bf6_convert_sr(float x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
     uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } out{};
+
+    out.bf6_vector = __builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(in.float_vector, rng, scale);
+
+    return out.bf6_array[0];
+#else
     return utils::sat_convert_to_type_sr<bf6_t>(x / scale, rng);
+#endif
+}
+
+inline __host__ __device__ bf6x32_t bf6_convert_sr(float32_t x, float scale = 1.0f)
+{
+    constexpr int seed = 1254739;
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } float_values{x};
+    uint32_t rng =
+        prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), float_values.float_array[0]);
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(x, rng, scale);
+#else
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.bf6_array[i] = utils::sat_convert_to_type_sr<bf6_t>(in.float_array[i] / scale, rng);
+    });
+
+    return out.bf6_vector;
+#endif
 }
 
 /**
  * @brief Specializes float-to-bf6_t conversion.
  *
- * Uses stochastic rounding if CK_USE_SR_F4_CONVERSION is defined,
+ * Uses stochastic rounding if CK_USE_SR_F6_CONVERSION is defined,
  * otherwise uses round-to-nearest-even.
  *
  * @param x Input float value to convert.
@@ -1506,7 +1803,17 @@ inline __host__ __device__ bf6_t bf6_convert_sr(float x, float scale = 1.0f)
 template <>
 inline __host__ __device__ bf6_t type_convert<bf6_t, float>(float x)
 {
-#if CK_USE_SR_F4_CONVERSION
+#if CK_USE_SR_F6_CONVERSION
+    return bf6_convert_sr(x);
+#else
+    return bf6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bf6x32_t type_convert<bf6x32_t, float32_t>(float32_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
     return bf6_convert_sr(x);
 #else
     return bf6_convert_rne(x);
@@ -1525,8 +1832,53 @@ inline __host__ __device__ bf6_t type_convert<bf6_t, float>(float x)
 template <>
 inline __host__ __device__ float type_convert<float, bf6_t>(bf6_t x)
 {
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } in{x};
+
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } out{};
+
+    out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
+        in.bf6_vector, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+    return out.float_array[0];
+#else
     return utils::to_float<bf6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
+#endif
+}
+
+template <>
+inline __host__ __device__ float32_t type_convert<float32_t, bf6x32_t>(bf6x32_t x)
+{
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
+        x, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+#else
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } in{x};
+
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.float_array[i] =
+            utils::to_float<bf6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), in.bf6_array[i]);
+    });
+
+    return out.float_vector;
+#endif
 }
 
 template <typename Y, typename X, std::size_t NumElems>
