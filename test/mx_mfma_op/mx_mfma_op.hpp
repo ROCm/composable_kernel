@@ -91,9 +91,9 @@ __device__ AFragT load_A_col_major(AType const* input_ptr)
     // BLOCK_M is a stride in A matrix
     auto startOffset = col_major(startCoord2D, BLOCK_M);
     auto kOffset     = col_major(stepCoord2D, BLOCK_M);
-
-    // kOffset == BLOCK_M
-    // This means every BLOCK_M element is loaded into output vector
+// kOffset == BLOCK_M
+// This means every BLOCK_M element is loaded into output vector
+#if 0
     auto fragA = AScalarFragT{
         bit_cast<ARawT>(input_ptr[startOffset]),                 // XXX v[0] = Reg 0 [0:7]
         bit_cast<ARawT>(input_ptr[startOffset + 1 * kOffset]),   // XXX v[1] = Reg 0 [8:15]
@@ -127,6 +127,13 @@ __device__ AFragT load_A_col_major(AType const* input_ptr)
         bit_cast<ARawT>(input_ptr[startOffset + 29 * kOffset]),  // XXX v[29] = Reg 7 [8:15]
         bit_cast<ARawT>(input_ptr[startOffset + 30 * kOffset]),  // XXX v[30] = Reg 7 [16:23]
         bit_cast<ARawT>(input_ptr[startOffset + 31 * kOffset])}; // XXX v[31] = Reg 7 [24:31]
+#else
+    auto fragA = AScalarFragT{};
+    static_for<0, VW, 1>{}([&](auto i) {
+        fragA[static_cast<int>(i)] =
+            bit_cast<ARawT>(input_ptr[startOffset + static_cast<int>(i) * kOffset]);
+    });
+#endif
     return fragA;
 }
 
