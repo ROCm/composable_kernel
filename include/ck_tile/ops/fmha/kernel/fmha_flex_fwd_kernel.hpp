@@ -20,7 +20,7 @@
 
 namespace ck_tile {
 
-template <typename FmhaPipeline_, typename EpiloguePipeline_>
+template <typename FmhaPipeline_, typename EpiloguePipeline_, typename ScoreModFunction_>
 struct FmhaFwdKernel
 {
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
@@ -1302,16 +1302,11 @@ struct FmhaFwdKernel
             }
         }();
 
-        auto score_mod_def = [](auto s, 
-                                ck_tile::index_t b, 
-                                ck_tile::index_t h, 
-                                ck_tile::index_t q_idx, 
-                                ck_tile::index_t v_idx) {
-            (void) h; (void) b;
-            return s + static_cast<decltype(s)>(q_idx - v_idx);
-        };
+        // may have state inside
+        auto score_mod_def = ScoreModFunction_{};
 
-        auto score_mod_arg = [b=i_batch, h=i_nhead, score_mod_def](auto s,
+        auto score_mod_arg = [b=i_batch, h=i_nhead, score_mod_def](
+                                 typename ScoreModFunction_::TScore s,
                                  ck_tile::index_t q_idx, 
                                  ck_tile::index_t v_idx) {
             return score_mod_def(s, b, h, q_idx, v_idx);

@@ -30,7 +30,7 @@ handlers = dict(
 )
 assert 0 < len(handlers)
 
-def write_blobs(output_dir: Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl) -> None:
+def write_blobs(output_dir: Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr) -> None:
     if output_dir is None:
         output_dir = Path(__file__).parent
     else:
@@ -40,10 +40,10 @@ def write_blobs(output_dir: Optional[str], api_list : List[str], kernel_filter :
 
     for api in api_list:
         handler = handlers[api][HandlerId.WRITE_BLOBS]
-        handler(output_dir, kernel_filter, receipt, mask_impl)
+        handler(output_dir, kernel_filter, receipt, mask_impl, score_mod_expr)
 
 # list all the files that will be generated
-def list_blobs(output_file : Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl) -> None:
+def list_blobs(output_file : Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr) -> None:
     assert output_file is not None
     file_path = Path(output_file)
 
@@ -52,7 +52,7 @@ def list_blobs(output_file : Optional[str], api_list : List[str], kernel_filter 
 
     for api in api_list:
         handler = handlers[api][HandlerId.LIST_BLOBS]
-        handler(file_path, kernel_filter, receipt, mask_impl)
+        handler(file_path, kernel_filter, receipt, mask_impl, score_mod_expr)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -106,9 +106,18 @@ if __name__ == "__main__":
              "  2: Only generate instance for Flash attention integration"
     )
 
+    parser.add_argument(
+        "--score_mod_expr",
+        default="s",
+        # test with
+        # default="s + static_cast<decltype(s)>(q_idx - v_idx)"
+        required=False,
+        help="flex attention's score mod function, a cpp expression with `s`, `b`, `h`, `q_idx`, and `v_idx` variables"
+    )
+
     args = parser.parse_args()
     api_list = args.direction.split(',')
     if args.list_blobs is not None:
-        list_blobs(args.list_blobs, api_list, args.filter, int(args.receipt), mask_impl=args.mask)
+        list_blobs(args.list_blobs, api_list, args.filter, int(args.receipt), mask_impl=args.mask, score_mod_expr=args.score_mod_expr)
     else:
-        write_blobs(args.output_dir, api_list, args.filter, int(args.receipt), mask_impl=args.mask)
+        write_blobs(args.output_dir, api_list, args.filter, int(args.receipt), mask_impl=args.mask, score_mod_expr=args.score_mod_expr)
