@@ -93,7 +93,7 @@ struct GemmKernel
         index_t stride_A;
         index_t stride_B;
         index_t stride_C;
-        index_t KBatch;
+        index_t k_batch;
     };
 
     CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(const GemmHostArgs& hostArgs)
@@ -121,7 +121,7 @@ struct GemmKernel
                                      const std::size_t k_id = blockIdx.z)
         {
             constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
-            const index_t K_t   = kargs.KBatch * K1;
+            const index_t K_t   = kargs.k_batch * K1;
             const index_t KRead = (kargs.K + K_t - 1) / K_t * K1;
 
             if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
@@ -142,13 +142,13 @@ struct GemmKernel
                 b_k_split_offset = k_id * KRead;
             }
 
-            if(k_id < static_cast<uint32_t>(kargs.KBatch - 1))
+            if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
             {
                 splitted_k = KRead;
             }
             else
             {
-                splitted_k = kargs.K - KRead * (kargs.KBatch - 1);
+                splitted_k = kargs.K - KRead * (kargs.k_batch - 1);
             }
         }
 
@@ -166,7 +166,7 @@ struct GemmKernel
                         is_output_c_reg_transposed) ||
                        !(std::is_same_v<CDataType, fp16_t> || std::is_same_v<CDataType, bf16_t>)))
         {
-            if(kargs.KBatch != 1)
+            if(kargs.k_batch != 1)
             {
                 std::cerr << "Conditions not met for Kbatch >1 !" << std::endl;
                 return false;
@@ -531,7 +531,7 @@ struct GemmKernel
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        if(kargs.KBatch == 1)
+        if(kargs.k_batch == 1)
         {
             RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
         }
