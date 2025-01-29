@@ -159,10 +159,7 @@ struct GemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
     {
-        constexpr bool is_output_c_reg_transposed =
-            EpiloguePipeline::IsOutputTransposed() || GemmPipeline::TransposeC();
-        if constexpr(!((EpiloguePipeline::GetVectorSizeC() % 2 == 0 &&
-                        is_output_c_reg_transposed) ||
+        if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 == 0 ||
                        !(std::is_same_v<CDataType, fp16_t> || std::is_same_v<CDataType, bf16_t>)))
         {
             if(kargs.KBatch != 1)
@@ -500,10 +497,8 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
-        constexpr bool is_output_c_reg_transposed =
-            EpiloguePipeline::IsOutputTransposed() || GemmPipeline::TransposeC();
-        if constexpr((DstInMemOp == memory_operation_enum::set) || (sizeof(CDataType) > 2) ||
-                     (EpiloguePipeline::GetVectorSizeC() % 2 == 0 && is_output_c_reg_transposed))
+        if constexpr(DstInMemOp == memory_operation_enum::set || sizeof(CDataType) > 2 ||
+                     EpiloguePipeline::GetVectorSizeC() % 2 == 0)
         {
             EpiloguePipeline{}
                 .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 
 namespace ck_tile {
@@ -55,8 +56,6 @@ struct Default2DEpilogue
     static constexpr bool UseRawStore = Problem::UseRawStore;
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 0; }
-
-    CK_TILE_HOST_DEVICE static constexpr bool IsOutputTransposed() { return false; }
 
     // TODO: this function assume store out vector size is the same as OAccTile last dimension size
     //       how do we fix this ?

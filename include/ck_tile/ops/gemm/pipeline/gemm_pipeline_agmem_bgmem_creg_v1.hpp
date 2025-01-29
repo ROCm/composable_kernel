@@ -33,6 +33,7 @@ struct GemmPipelineAGmemBGmemCRegV1
 
     static constexpr index_t GetVectorSizeA() { return Problem::VectorSizeA; }
     static constexpr index_t GetVectorSizeB() { return Problem::VectorSizeB; }
+    static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;

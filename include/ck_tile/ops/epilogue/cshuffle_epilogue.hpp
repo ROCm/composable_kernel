@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"
 
 namespace ck_tile {
 
@@ -43,7 +44,6 @@ struct CShuffleEpilogue
     using AccDataType                       = remove_cvref_t<typename Problem::AccDataType>;
     using ODataType                         = remove_cvref_t<typename Problem::ODataType>;
     using CLayout                           = remove_cvref_t<typename Problem::CLayout>;
-    static constexpr bool UseRawStore       = Problem::UseRawStore;
     static constexpr index_t kBlockSize     = Problem::kBlockSize;
     static constexpr index_t kMPerBlock     = Problem::kMPerBlock;
     static constexpr index_t kNPerBlock     = Problem::kNPerBlock;
@@ -67,8 +67,6 @@ struct CShuffleEpilogue
     using CWarpDstr   = typename WG::CWarpDstr;
     using CWarpTensor = typename WG::CWarpTensor;
 
-    CK_TILE_HOST_DEVICE static constexpr bool IsOutputTransposed() { return true; }
-
     /**
      * @brief Get the vector store size for C tensor.
      *
@@ -84,13 +82,8 @@ struct CShuffleEpilogue
         // N is contiguous dimension
         if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
         {
-            // In this case each thread has multiple consecutive elements in
-            // N dimension, however consecutive threads' elements have stride.
-            constexpr index_t NDimY         = CWarpDstr::NDimY;
-            constexpr auto c_warp_y_lengths = CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
-            static_assert(WG::WarpGemmAttribute::Impl::kCM1PerLane ==
-                          c_warp_y_lengths.get(number<NDimY - 1>{}));
-            return c_warp_y_lengths.get(number<NDimY - 1>{});
+            constexpr index_t MaxVectorStoreSize = 16;
+            return MaxVectorStoreSize / sizeof(ODataType);
         }
         // M is contiguous dimension
         else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
@@ -176,8 +169,6 @@ struct CShuffleEpilogue
             const auto c_out_tensor =
                 load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
 
-            move_tile_window(out_dram_window,
-                             {idx_y_start.at(number<0>{}), idx_y_start.at(number<1>{})});
             if constexpr(out_memory_data_op == memory_operation_enum::set)
             {
                 store_tile(out_dram_window, c_out_tensor);
@@ -186,8 +177,11 @@ struct CShuffleEpilogue
             {
                 update_tile(out_dram_window, c_out_tensor);
             }
-            move_tile_window(out_dram_window,
-                             {-(idx_y_start.at(number<0>{})), -(idx_y_start.at(number<1>{}))});
+            if constexpr(iAccess != num_access - 1)
+            {
+                constexpr auto step = SFC::get_forward_step(iAccess);
+                move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
+            }
         });
     }
 };
