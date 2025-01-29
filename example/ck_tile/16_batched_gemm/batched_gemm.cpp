@@ -53,6 +53,7 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
     using GemmEpilogue        = ck_tile::CShuffleEpilogue<
         ck_tile::CShuffleEpilogueProblem<AccDataType,
                                          CDataType,
+                                         CLayout,
                                          CodegenPipelineProblem::kBlockSize,
                                          TilePartitioner::MPerBlock,
                                          TilePartitioner::NPerBlock,

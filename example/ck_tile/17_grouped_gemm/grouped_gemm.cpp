@@ -75,6 +75,7 @@ template <typename ALayout, typename BLayout, typename CLayout>
 using GemmEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
     AccDataType,
     CDataType,
+    CLayout,
     CodegenPipelineProblem<ALayout, BLayout, CLayout>::kBlockSize,
     TilePartitioner::MPerBlock,
     TilePartitioner::NPerBlock,

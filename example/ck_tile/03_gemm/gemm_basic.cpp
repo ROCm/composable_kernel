@@ -50,6 +50,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     using GemmEpilogue        = ck_tile::CShuffleEpilogue<
         ck_tile::CShuffleEpilogueProblem<AccDataType,
                                          CDataType,
+                                         CLayout,
                                          CodegenPipelineProblem::kBlockSize,
                                          TilePartitioner::MPerBlock,
                                          TilePartitioner::NPerBlock,

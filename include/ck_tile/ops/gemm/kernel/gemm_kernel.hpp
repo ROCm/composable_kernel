@@ -161,10 +161,7 @@ struct GemmKernel
     {
         constexpr bool is_output_c_reg_transposed =
             EpiloguePipeline::IsOutputTransposed() || GemmPipeline::TransposeC();
-        if constexpr(!((GemmPipeline::template GetVectorSizeC<
-                                EpiloguePipeline::IsOutputTransposed()>() %
-                                2 ==
-                            0 &&
+        if constexpr(!((EpiloguePipeline::GetVectorSizeC() % 2 == 0 &&
                         is_output_c_reg_transposed) ||
                        !(std::is_same_v<CDataType, fp16_t> || std::is_same_v<CDataType, bf16_t>)))
         {
@@ -246,9 +243,7 @@ struct GemmKernel
                           << std::endl;
                 return false;
             }
-            if(kargs.N % GemmPipeline::template GetVectorSizeC<
-                             EpiloguePipeline::IsOutputTransposed()>() !=
-               0)
+            if(kargs.N % EpiloguePipeline::GetVectorSizeC() != 0)
             {
                 std::cerr << "N is not a multiple of vector load size for C tensor!" << std::endl;
                 return false;
@@ -263,9 +258,7 @@ struct GemmKernel
                           << std::endl;
                 return false;
             }
-            if(kargs.M % GemmPipeline::template GetVectorSizeC<
-                             EpiloguePipeline::IsOutputTransposed()>() !=
-               0)
+            if(kargs.M % EpiloguePipeline::GetVectorSizeC() != 0)
             {
                 std::cerr << "M is not a multiple of vector load size for C tensor!" << std::endl;
                 return false;
@@ -339,8 +332,7 @@ struct GemmKernel
                     c_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(kargs.stride_C, 1),
-                    number<GemmPipeline::template GetVectorSizeC<
-                        EpiloguePipeline::IsOutputTransposed()>()>{},
+                    number<EpiloguePipeline::GetVectorSizeC()>{},
                     number<1>{});
             }
             else
@@ -511,11 +503,7 @@ struct GemmKernel
         constexpr bool is_output_c_reg_transposed =
             EpiloguePipeline::IsOutputTransposed() || GemmPipeline::TransposeC();
         if constexpr((DstInMemOp == memory_operation_enum::set) || (sizeof(CDataType) > 2) ||
-                     (GemmPipeline::template GetVectorSizeC<
-                              EpiloguePipeline::IsOutputTransposed()>() %
-                              2 ==
-                          0 &&
-                      is_output_c_reg_transposed))
+                     (EpiloguePipeline::GetVectorSizeC() % 2 == 0 && is_output_c_reg_transposed))
         {
             EpiloguePipeline{}
                 .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(

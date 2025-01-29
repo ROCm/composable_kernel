@@ -66,11 +66,6 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
-    template <bool EpilogeWithTranspose = false>
-    static constexpr index_t GetVectorSizeC()
-    {
-        return Policy::template GetVectorSizeC<Problem, EpilogeWithTranspose>();
-    }
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;

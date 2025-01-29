@@ -113,17 +113,6 @@ struct GemmPipelineProblemBase
             return kPadK ? 1 : GetAlignmentB();
         }
     }();
-
-    static constexpr index_t VectorSizeC = []() {
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-        {
-            return kPadN ? 1 : GetAlignmentC();
-        }
-        else
-        {
-            return kPadM ? 1 : GetAlignmentC();
-        }
-    }();
 };
 
 // Alias for GemmPipelineProblem

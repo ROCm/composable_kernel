@@ -106,6 +106,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<AccDataType,
                                                  CDataType,
+                                                 CLayout,
                                                  GemmPipeline::BlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,

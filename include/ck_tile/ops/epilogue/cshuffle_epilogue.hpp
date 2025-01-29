@@ -10,6 +10,7 @@ namespace ck_tile {
 
 template <typename AccDataType_,
           typename ODataType_,
+          typename CLayout_,
           index_t kBlockSize_,
           index_t kM_,
           index_t kN_,
@@ -23,6 +24,7 @@ struct CShuffleEpilogueProblem
 {
     using AccDataType                      = remove_cvref_t<AccDataType_>;
     using ODataType                        = remove_cvref_t<ODataType_>;
+    using CLayout                          = remove_cvref_t<CLayout_>;
     static constexpr index_t kBlockSize    = kBlockSize_;
     static constexpr index_t kMPerBlock    = kM_;
     static constexpr index_t kNPerBlock    = kN_;
@@ -37,74 +39,22 @@ struct CShuffleEpilogueProblem
 template <typename Problem_, typename Policy_ = void>
 struct CShuffleEpilogue
 {
-    using Problem                          = remove_cvref_t<Problem_>;
-    using AccDataType                      = remove_cvref_t<typename Problem::AccDataType>;
-    using ODataType                        = remove_cvref_t<typename Problem::ODataType>;
-    static constexpr bool UseRawStore      = Problem::UseRawStore;
-    static constexpr index_t kBlockSize    = Problem::kBlockSize;
-    static constexpr index_t kMPerBlock    = Problem::kMPerBlock;
-    static constexpr index_t kNPerBlock    = Problem::kNPerBlock;
-    static constexpr index_t kMWave        = Problem::kMWave;
-    static constexpr index_t kNWave        = Problem::kNWave;
-    static constexpr index_t kMPerXdl      = Problem::kMPerXdl;
-    static constexpr index_t kNPerXdl      = Problem::kNPerXdl;
-    static constexpr index_t kKPerXdl      = Problem::kKPerXdl;
-    static constexpr index_t isCTransposed = Problem::isCTransposed;
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
-    {
-        return make_naive_tensor_descriptor(
-            make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
-            make_tuple(number<kNWave * kNPerXdl>{}, number<1>{}));
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeDramTileDistribution()
-    {
-        constexpr index_t MRepeat = Problem::kMPerBlock / (Problem::kMPerXdl * Problem::kMWave);
-        constexpr index_t NRepeat = Problem::kNPerBlock / (Problem::kNPerXdl * Problem::kNWave);
-        constexpr index_t kMPerIteration = Problem::kMPerBlock / MRepeat;
-        constexpr index_t kNPerIteration = Problem::kNPerBlock / NRepeat;
-
-        constexpr index_t N1 = 16 / sizeof(ODataType);
-        constexpr index_t N0 = kNPerIteration / N1;
-        constexpr index_t M2 = get_warp_size() / N0;
-        // coalesce reading for each blocks
-        if constexpr(get_warp_size() % (M2 * N0) == 0)
-        {
-            constexpr index_t M1 = kBlockSize / get_warp_size();
-            static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
-            static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");
-            constexpr index_t M0 = kMPerIteration / (M2 * M1);
-            static_assert(M0 * M1 * M2 == kMPerIteration,
-                          "Incorrect M0, M2, M1 configuration! "
-                          "M0, M1, M2 must cover whole kMPerIteration!");
-
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<M0, M1, M2>, sequence<N0, N1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<1>, sequence<2, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 1>>{});
-        }
-        else
-        {
-            constexpr index_t M0 = kBlockSize / get_warp_size();
-            constexpr index_t M1 = kMPerIteration / (M2 * M0);
-            static_assert(M0 * M1 * M2 == kMPerIteration,
-                          "Incorrect M0, M1, M2 configuration! "
-                          "M0, M1, M2 must cover whole kMPerIteration!");
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<M0, M1, M2>, sequence<N0, N1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<0>, sequence<2, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<1, 1>>{});
-        }
-    }
+    using Problem                           = remove_cvref_t<Problem_>;
+    using AccDataType                       = remove_cvref_t<typename Problem::AccDataType>;
+    using ODataType                         = remove_cvref_t<typename Problem::ODataType>;
+    using CLayout                           = remove_cvref_t<typename Problem::CLayout>;
+    static constexpr bool UseRawStore       = Problem::UseRawStore;
+    static constexpr index_t kBlockSize     = Problem::kBlockSize;
+    static constexpr index_t kMPerBlock     = Problem::kMPerBlock;
+    static constexpr index_t kNPerBlock     = Problem::kNPerBlock;
+    static constexpr index_t kMWave         = Problem::kMWave;
+    static constexpr index_t kNWave         = Problem::kNWave;
+    static constexpr index_t kMPerXdl       = Problem::kMPerXdl;
+    static constexpr index_t kNPerXdl       = Problem::kNPerXdl;
+    static constexpr index_t kKPerXdl       = Problem::kKPerXdl;
+    static constexpr index_t isCTransposed  = Problem::isCTransposed;
+    static constexpr index_t kMPerIteration = kMPerXdl * kMWave;
+    static constexpr index_t kNPerIteration = kNPerXdl * kNWave;
 
     using WG = WarpGemmMfmaDispatcher<ODataType,
                                       ODataType,
@@ -117,12 +67,55 @@ struct CShuffleEpilogue
     using CWarpDstr   = typename WG::CWarpDstr;
     using CWarpTensor = typename WG::CWarpTensor;
 
+    CK_TILE_HOST_DEVICE static constexpr bool IsOutputTransposed() { return true; }
+
+    /**
+     * @brief Get the vector store size for C tensor.
+     *
+     * @note The vector store size for output C tensor would depend on multiple factors
+     *       like its data layout and warp gemm C transposition. In general it would
+     *       be the number of consecutive elements in contiguous C dimension hold by
+     *       single thread.
+     *
+     * @return The vector store size for C tensor.
+     */
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
+    {
+        // N is contiguous dimension
+        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        {
+            // In this case each thread has multiple consecutive elements in
+            // N dimension, however consecutive threads' elements have stride.
+            constexpr index_t NDimY         = CWarpDstr::NDimY;
+            constexpr auto c_warp_y_lengths = CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
+            static_assert(WG::WarpGemmAttribute::Impl::kCM1PerLane ==
+                          c_warp_y_lengths.get(number<NDimY - 1>{}));
+            return c_warp_y_lengths.get(number<NDimY - 1>{});
+        }
+        // M is contiguous dimension
+        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
+        {
+            // In this case each thread has just a single item in Mdim
+            return WG::WarpGemmAttribute::Impl::kCNLane / WG::kN;
+        }
+        else
+        {
+            static_assert(false, "Unsupported CLayout!");
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
+    {
+        return make_naive_tensor_descriptor(
+            make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
+            make_tuple(number<kNWave * kNPerXdl>{}, number<1>{}));
+    }
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return kMWave * kNWave * kMPerXdl * kNPerXdl * sizeof(ODataType);
     }
-
-    CK_TILE_HOST_DEVICE static constexpr bool IsOutputTransposed() { return true; }
 
     template <typename ODramWindow,
               typename OAccTile,
@@ -151,6 +144,14 @@ struct CShuffleEpilogue
                                         sequence<kMPerXdl * kMWave, kNPerXdl * kNWave>>;
         constexpr index_t num_access = SFC::get_num_of_access();
 
+        using TileEncodingPattern =
+            TileDistributionEncodingPattern2D<kBlockSize,
+                                              kMPerIteration,
+                                              kNPerIteration,
+                                              GetVectorSizeC(),
+                                              tile_distribution_pattern::thread_raked>;
+        constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
+
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
@@ -173,7 +174,7 @@ struct CShuffleEpilogue
             block_sync_lds();
 
             const auto c_out_tensor =
-                load_tile(make_tile_window(out_lds_window, MakeDramTileDistribution<Problem>()));
+                load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
 
             move_tile_window(out_dram_window,
                              {idx_y_start.at(number<0>{}), idx_y_start.at(number<1>{})});
