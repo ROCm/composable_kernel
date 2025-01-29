@@ -43,7 +43,7 @@ struct Default2DEpilogue
               typename OAccTile,
               memory_operation_enum out_memory_data_op = memory_operation_enum::set>
     CK_TILE_DEVICE auto
-    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, void*)
+    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, void* = nullptr)
     {
 
         // TODO: this is ugly
