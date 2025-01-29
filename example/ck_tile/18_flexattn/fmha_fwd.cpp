@@ -1373,7 +1373,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             s_host_ref,
             ck_tile::identity{},
             ck_tile::identity{},
-            ck_tile::scales(scale_s));
+            ck_tile::identity{});
 
         auto score_mod = [] (auto s, ck_tile::index_t b, ck_tile::index_t h, ck_tile::index_t q_idx, ck_tile::index_t v_idx) {
             (void) s; (void) b; (void) h; (void) q_idx; (void) v_idx;
@@ -1382,6 +1382,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         s_host_ref.ForEach([&](auto& self, auto i) { 
             self(i) = score_mod(self(i), i[0], i[1], i[2], i[3]);
+        });
+
+        auto scale_def = ck_tile::scales(scale_s);
+        s_host_ref.ForEach([&](auto& self, auto i) {
+            scale_def(self(i));
         });
 
         if(bias.type == bias_enum::elementwise_bias)
