@@ -34,3 +34,4 @@
 #include "ck_tile/host/reference/reference_topk.hpp"
 #include "ck_tile/host/stream_config.hpp"
 #include "ck_tile/host/timer.hpp"
+#include "ck_tile/host/reference/reference_batched_transpose.hpp"
