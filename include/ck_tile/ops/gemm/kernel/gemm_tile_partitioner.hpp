@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
+/**
+ * @file
+ * GemmTilePartitioner allows customized mapping between a workgroup and the C-tile it computes.
+ */
+
 #pragma once
 
 #include "ck_tile/core.hpp"
 
 namespace ck_tile {
 
-/** @brief Struct representing 2D block index mapping into 3D output tile space. */
+/**
+ * @brief Class providing 2D workgroup index mapping into 2D output GEMM C-tile space.
+ *
+ */
 template <typename BlockGemmShapeType>
 struct GemmTile2DPartitioner
 {
@@ -20,8 +28,14 @@ struct GemmTile2DPartitioner
     CK_TILE_HOST_DEVICE GemmTile2DPartitioner([[maybe_unused]] index_t M,
                                               [[maybe_unused]] index_t N) noexcept;
 
-    /** @brief Returns 3D grid size. */
-    CK_TILE_HOST static constexpr auto
+    /**
+     * @brief Calculates GEMM kernel grid size.
+     *
+     * @param M     GEMM's M dimension.
+     * @param N     GEMM's N dimension.
+     * @return dim3 Structure holding grid's X,Y and Z dimensions.
+     */
+    CK_TILE_HOST static auto
     GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
     {
         const index_t GridDimX = (M + MPerBlock - 1) / MPerBlock;
@@ -30,10 +44,12 @@ struct GemmTile2DPartitioner
     }
 
     /**
-     * @brief Returns the number of loops.
-     * @param [in] K is dimension
+     * @brief Calculate number of loop iterations over GEMM's K dimension.
+     *
+     * @param K         GEMM's K dimension.
+     * @return index_t  The number of loop iterations over K dimension.
      */
-    CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K) noexcept -> index_t
+    CK_TILE_HOST_DEVICE static auto GetLoopNum(index_t K) noexcept -> index_t
     {
         return integer_divide_ceil(K, KPerBlock);
     }
@@ -44,8 +60,15 @@ struct GemmTile2DPartitioner
      * @param [in] blockIdy is blockIdx.y
      * @return Returns the output tile indexes.
      */
-    CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx,
-                                                            index_t blockIdy) noexcept
+
+    /**
+     * @brief Calculate workgroup 2D index mapping into 2D output C-tile space.
+     *
+     * @param blockIdx      WGP's X index.
+     * @param blockIdy      WGP's Y index.
+     * @return const tuple<index_t, index_t>    Tuple containing 2D output C-tile index.
+     */
+    CK_TILE_DEVICE static auto GetOutputTileIndex(index_t blockIdx, index_t blockIdy) noexcept
         -> const tuple<index_t, index_t>
     {
         const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx);
@@ -55,25 +78,40 @@ struct GemmTile2DPartitioner
 };
 
 /**
- * @brief Struct representing 1D block index mapping into 2D output tile space.
+ * @brief Class providing 1D WGP index mapping into 2D output C-tile space.
+ *
+ * @tparam BlockGemmShape_  A class providing basic GEMM parameters. \link TileGemmShape
  */
-template <typename BlockGemmShapeType>
+template <typename BlockGemmShape_>
 struct GemmTile1DPartitioner
 {
-    using BlockGemmShape = remove_cvref_t<BlockGemmShapeType>;
+    using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    /** @brief delete default ctr with no any object */
-    constexpr GemmTile1DPartitioner() noexcept = delete;
+    CK_TILE_HOST_DEVICE GemmTile1DPartitioner() noexcept = delete;
 
-    /** @brief constructs an object that does contain a N value. */
-    constexpr GemmTile1DPartitioner([[maybe_unused]] index_t M, index_t N) noexcept { N_ = N; }
+    /**
+     * @brief Construct a new GemmTile1DPartitioner object.
+     *
+     * @param M     GEMM's M dimension.
+     * @param N     GEMM's N dimension.
+     */
+    CK_TILE_HOST_DEVICE GemmTile1DPartitioner([[maybe_unused]] index_t M, index_t N) noexcept
+    {
+        N_ = N;
+    }
 
-    /** @brief Returns grid size. */
-    CK_TILE_HOST static constexpr auto
+    /**
+     * @brief Calculates GEMM kernel grid size.
+     *
+     * @param M     GEMM's M dimension.
+     * @param N     GEMM's N dimension.
+     * @return dim3 Structure holding grid's X,Y and Z dimensions.
+     */
+    CK_TILE_HOST static auto
     GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> index_t
     {
         const index_t GridDimX = (M + MPerBlock - 1) / MPerBlock;
@@ -82,19 +120,23 @@ struct GemmTile1DPartitioner
     }
 
     /**
-     * @brief Returns the number of loops.
-     * @param [in] K is dimension
+     * @brief Calculate number of loop iterations over GEMM's K dimension.
+     *
+     * @param K         GEMM's K dimension.
+     * @return index_t  The number of loop iterations over K dimension.
      */
-    CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K) noexcept -> index_t
+    CK_TILE_HOST_DEVICE static auto GetLoopNum(index_t K) noexcept -> index_t
     {
         return integer_divide_ceil(K, KPerBlock);
     }
 
     /**
-     * @brief The function returns 2D output tile space.
-     * @param [in] blockIdx is blockIdx.x - block_start.
-     * */
-    CK_TILE_DEVICE static constexpr auto GetOutputTileIndex(index_t blockIdx) noexcept
+     * @brief Calculate workgroup 1D index mapping into 2D output C-tile space.
+     *
+     * @param blockIdx      WGP's index.
+     * @return const tuple<index_t, index_t>    Tuple containing 2D output C-tile index.
+     */
+    CK_TILE_DEVICE static auto GetOutputTileIndex(index_t blockIdx) noexcept
         -> const tuple<index_t, index_t>
     {
         const index_t NBlocks = integer_divide_ceil(N_, NPerBlock);
@@ -145,7 +187,7 @@ struct OffsettedTile1DPartitioner
      * @param [in] N           Gemm's N dimension.
      * @return Returns a `tuple` [Im, In] with shifted index.
      */
-    [[nodiscard]] CK_TILE_DEVICE static constexpr auto
+    [[nodiscard]] CK_TILE_DEVICE static auto
     GetOffsetedTileIndex(index_t block_start, index_t M, index_t N) noexcept
         -> const tuple<index_t, index_t>
     {
@@ -174,14 +216,20 @@ struct GemmSpatiallyLocalTilePartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    CK_TILE_HOST_DEVICE constexpr GemmSpatiallyLocalTilePartitioner() noexcept = delete;
-    CK_TILE_HOST_DEVICE constexpr GemmSpatiallyLocalTilePartitioner(index_t M_, index_t N_) noexcept
+    CK_TILE_HOST_DEVICE GemmSpatiallyLocalTilePartitioner() noexcept = delete;
+    CK_TILE_HOST_DEVICE GemmSpatiallyLocalTilePartitioner(index_t M_, index_t N_) noexcept
         : M(M_), N(N_)
     {
     }
 
-    /** @brief Returns 1D grid size. */
-    CK_TILE_HOST static constexpr auto
+    /**
+     * @brief Calculates GEMM kernel grid size.
+     *
+     * @param M     GEMM's M dimension.
+     * @param N     GEMM's N dimension.
+     * @return index_t A total number of workgroups.
+     */
+    CK_TILE_HOST static auto
     GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> index_t
     {
         const index_t GridDimX = integer_divide_ceil(M, MPerBlock);
@@ -190,19 +238,23 @@ struct GemmSpatiallyLocalTilePartitioner
     }
 
     /**
-     * @brief Returns the number of loop over K dimension.
-     * @param [in] K    GEMM's K dimension.
+     * @brief Calculate number of loop iterations over GEMM's K dimension.
+     *
+     * @param K         GEMM's K dimension.
+     * @return index_t  The number of loop iterations over K dimension.
      */
-    CK_TILE_HOST_DEVICE static constexpr auto GetLoopNum(index_t K) noexcept -> index_t
+    CK_TILE_HOST_DEVICE static auto GetLoopNum(index_t K) noexcept -> index_t
     {
         return integer_divide_ceil(K, KPerBlock);
     }
 
     /**
-     * @brief The function returns 2D output tile space.
-     * @param [in] block_1d_id - 1D linear workgroup index.
-     * */
-    CK_TILE_DEVICE constexpr auto GetOutputTileIndex(index_t block_1d_id) noexcept
+     * @brief Calculate workgroup 1D index mapping into 2D output C-tile space.
+     *
+     * @param [in] block_1d_id      WGP's index.
+     * @return const tuple<index_t, index_t>    Tuple containing 2D output C-tile index.
+     */
+    CK_TILE_DEVICE auto GetOutputTileIndex(index_t block_1d_id) noexcept
         -> const tuple<index_t, index_t>
     {
         const auto M0 = integer_divide_ceil(M, MPerBlock);
