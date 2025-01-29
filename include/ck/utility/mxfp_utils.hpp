@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
+#ifdef CK_USE_NATIVE_MX_SUPPORT
+#define CK_USE_NATIVE_MX_SUPPORT 1
+#else
+#define CK_USE_NATIVE_MX_SUPPORT 0
+#endif
 
 namespace ck::utils {
 
