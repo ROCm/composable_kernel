@@ -120,6 +120,7 @@ struct BlockFmhaPipelineQRKSVS
               typename BiasElementFunction,
               typename LSEElementFunction,
               typename SAccElementFunction,
+              typename ScoreModFunction,
               typename PComputeElementFunction,
               typename OAccElementFunction,
               typename PositionEncoding>
@@ -136,6 +137,7 @@ struct BlockFmhaPipelineQRKSVS
                LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
                const LSEElementFunction& lse_element_func,
                const SAccElementFunction& s_acc_element_func,
+               const ScoreModFunction& score_mod,
                const PComputeElementFunction& p_compute_element_func,
                const OAccElementFunction& o_acc_element_func,
                FmhaMask mask,
@@ -339,16 +341,6 @@ struct BlockFmhaPipelineQRKSVS
             // STAGE 2, scale_s, add bias, mask, softmax
             // FlexAttention score modifier operates directly on scores
             {
-                auto score_mod = [](auto s, 
-                               ck_tile::index_t b, 
-                               ck_tile::index_t h, 
-                               ck_tile::index_t q_idx, 
-                               ck_tile::index_t v_idx) {
-                    (void) s;
-                    (void) b;
-                    (void) h;
-                    return static_cast<decltype(s)>(q_idx - v_idx);
-                };
                 const auto k_origin = k_dram_block_window.get_window_origin();
                 constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
 
@@ -361,10 +353,7 @@ struct BlockFmhaPipelineQRKSVS
                         const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                        const auto b = 0;
-                        const auto h = 0;
-
-                        s_acc(i_j_idx) = score_mod(s_acc(i_j_idx), b, h, row, col);
+                        s_acc(i_j_idx) = score_mod(s_acc(i_j_idx), row, col);
                     });
                 });
             }
@@ -633,47 +622,6 @@ struct BlockFmhaPipelineQRKSVS
         o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
 
         return o_acc;
-    }
-
-    template <typename QDramBlockWindowTmp,
-              typename KDramBlockWindowTmp,
-              typename VDramBlockWindowTmp,
-              typename BiasDramBlockWindowTmp,
-              typename RandValDramBlockWindowTmp,
-              typename LSEDramBlockWindowTmp,
-              typename PositionEncoding>
-    CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
-               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
-               LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
-               FmhaMask mask,
-               PositionEncoding position_encoding,
-               float scale_s,
-               void* smem_ptr,
-               DropoutType& dropout) const
-    {
-        return operator()(q_dram_block_window_tmp,
-                          identity{},
-                          k_dram_block_window_tmp,
-                          identity{},
-                          v_dram_block_window_tmp,
-                          identity{},
-                          bias_dram_block_window_tmp,
-                          identity{},
-                          randval_dram_block_window_tmp,
-                          lse_dram_block_window_tmp,
-                          identity{},
-                          identity{},
-                          identity{},
-                          identity{},
-                          mask,
-                          position_encoding,
-                          scale_s,
-                          smem_ptr,
-                          dropout);
     }
 };
 

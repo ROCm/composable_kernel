@@ -1302,6 +1302,21 @@ struct FmhaFwdKernel
             }
         }();
 
+        auto score_mod_def = [](auto s, 
+                                ck_tile::index_t b, 
+                                ck_tile::index_t h, 
+                                ck_tile::index_t q_idx, 
+                                ck_tile::index_t v_idx) {
+            (void) h; (void) b;
+            return s + static_cast<decltype(s)>(q_idx - v_idx);
+        };
+
+        auto score_mod_arg = [b=i_batch, h=i_nhead, score_mod_def](auto s,
+                                 ck_tile::index_t q_idx, 
+                                 ck_tile::index_t v_idx) {
+            return score_mod_def(s, b, h, q_idx, v_idx);
+        };
+
         auto o_acc_tile = [&]() {
             if constexpr(kDoFp8StaticQuant)
             {
@@ -1318,6 +1333,7 @@ struct FmhaFwdKernel
                     lse_dram_window,
                     identity{},                                          // lse_element_func
                     identity{},                                          // s_acc_element_func
+                    score_mod_arg,
                     scales{kargs.scale_p},                               // p_compute_element_func
                     composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
                     mask,
@@ -1329,11 +1345,20 @@ struct FmhaFwdKernel
             else
             {
                 return FmhaPipeline{}(q_dram_window,
+                                      identity{},
                                       k_dram_window,
+                                      identity{},
                                       v_dram_window,
+                                      identity{},
                                       bias_dram_window,
+                                      identity{},
                                       randval_dram_window,
                                       lse_dram_window,
+                                      identity{},
+                                      identity{},
+                                      score_mod_arg,
+                                      identity{},
+                                      identity{},
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
