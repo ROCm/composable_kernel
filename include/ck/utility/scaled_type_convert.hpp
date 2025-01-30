@@ -10,7 +10,7 @@ namespace ck {
 
 // Declare a template function for scaled conversion
 template <typename Y, typename X>
-#if CK_USE_NATIVE_MX_SUPPORT || CK_USE_OCP_FP8
+#if CK_USE_OCP_FP8
 __host__ __device__ constexpr Y scaled_type_convert(e8m0_bexp_t scale, X x);
 #else
 __host__ constexpr Y scaled_type_convert(e8m0_bexp_t scale, X x);
@@ -339,13 +339,11 @@ inline __host__ bf8x32_ocp_t scaled_type_convert<bf8x32_ocp_t, float32_t>(e8m0_b
 #endif
 }
 
+// activate for architectures with native MX support
+#if CK_USE_NATIVE_MX_SUPPORT
 // convert fp4 to fp32
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ float scaled_type_convert<float, f4_t>(e8m0_bexp_t scale, f4_t x)
-#else
-inline __host__ float scaled_type_convert<float, f4_t>(e8m0_bexp_t scale, f4_t x)
-#endif
 {
 #if defined(__gfx950__)
     union
@@ -363,12 +361,8 @@ inline __host__ float scaled_type_convert<float, f4_t>(e8m0_bexp_t scale, f4_t x
 
 // convert vector of 2 fp4 to vector of 2 fp32
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ float2_t scaled_type_convert<float2_t, f4x2_t>(e8m0_bexp_t scale,
                                                                           f4x2_t x)
-#else
-inline __host__ float2_t scaled_type_convert<float2_t, f4x2_t>(e8m0_bexp_t scale, f4x2_t x)
-#endif
 {
 #if defined(__gfx950__)
     union
@@ -389,12 +383,8 @@ inline __host__ float2_t scaled_type_convert<float2_t, f4x2_t>(e8m0_bexp_t scale
 
 // convert vector of 32 fp4 to vector of 32 fp32
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m0_bexp_t scale,
                                                                              f4x32_t x)
-#else
-inline __host__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m0_bexp_t scale, f4x32_t x)
-#endif
 {
 #if defined(__gfx950__)
     union
@@ -626,11 +616,7 @@ inline __host__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m0_bexp_t sc
 
 // convert fp32 to fp4
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ f4_t scaled_type_convert<f4_t, float>(e8m0_bexp_t scale, float x)
-#else
-inline __host__ f4_t scaled_type_convert<f4_t, float>(e8m0_bexp_t scale, float x)
-#endif
 {
 #if CK_USE_SR_F4_CONVERSION
     return f4_convert_sr(x, type_convert<float>(scale));
@@ -641,12 +627,8 @@ inline __host__ f4_t scaled_type_convert<f4_t, float>(e8m0_bexp_t scale, float x
 
 // convert vector of 2 fp32 to vector of 2 fp4
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ f4x2_t scaled_type_convert<f4x2_t, float2_t>(e8m0_bexp_t scale,
                                                                         float2_t x)
-#else
-inline __host__ f4x2_t scaled_type_convert<f4x2_t, float2_t>(e8m0_bexp_t scale, float2_t x)
-#endif
 {
 #if CK_USE_SR_F4_CONVERSION
     return f4_convert_sr(x, type_convert<float>(scale));
@@ -657,12 +639,8 @@ inline __host__ f4x2_t scaled_type_convert<f4x2_t, float2_t>(e8m0_bexp_t scale, 
 
 // convert vector of 32 fp32 to vector of 32 fp4
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ f4x32_t scaled_type_convert<f4x32_t, float32_t>(e8m0_bexp_t scale,
                                                                            float32_t x)
-#else
-inline __host__ f4x32_t scaled_type_convert<f4x32_t, float32_t>(e8m0_bexp_t scale, float32_t x)
-#endif
 {
 #if CK_USE_SR_F4_CONVERSION
     return f4_convert_sr(x, type_convert<float>(scale));
@@ -680,11 +658,7 @@ inline __host__ f4x32_t scaled_type_convert<f4x32_t, float32_t>(e8m0_bexp_t scal
  * @return      The converted 32-bit float representation of the input.
  */
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ float scaled_type_convert<float, f6_t>(e8m0_bexp_t scale, f6_t x)
-#else
-inline __host__ float scaled_type_convert<float, f6_t>(e8m0_bexp_t scale, f6_t x)
-#endif
 {
 #if defined(__gfx950__)
     union
@@ -708,12 +682,8 @@ inline __host__ float scaled_type_convert<float, f6_t>(e8m0_bexp_t scale, f6_t x
 }
 
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ float32_t scaled_type_convert<float32_t, f6x32_t>(e8m0_bexp_t scale,
                                                                              f6x32_t x)
-#else
-inline __host__ float32_t scaled_type_convert<float32_t, f6x32_t>(e8m0_bexp_t scale, f6x32_t x)
-#endif
 {
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(x, type_convert<float>(scale));
@@ -746,11 +716,7 @@ inline __host__ float32_t scaled_type_convert<float32_t, f6x32_t>(e8m0_bexp_t sc
  * @return      The converted 32-bit float representation of the input.
  */
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ float scaled_type_convert<float, bf6_t>(e8m0_bexp_t scale, bf6_t x)
-#else
-inline __host__ float scaled_type_convert<float, bf6_t>(e8m0_bexp_t scale, bf6_t x)
-#endif
 {
 #if defined(__gfx950__)
     union
@@ -774,12 +740,8 @@ inline __host__ float scaled_type_convert<float, bf6_t>(e8m0_bexp_t scale, bf6_t
 }
 
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ float32_t scaled_type_convert<float32_t, bf6x32_t>(e8m0_bexp_t scale,
                                                                               bf6x32_t x)
-#else
-inline __host__ float32_t scaled_type_convert<float32_t, bf6x32_t>(e8m0_bexp_t scale, bf6x32_t x)
-#endif
 {
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(x, type_convert<float>(scale));
@@ -815,11 +777,7 @@ inline __host__ float32_t scaled_type_convert<float32_t, bf6x32_t>(e8m0_bexp_t s
  * @return      The converted 6-bit floating-point value (f6_t).
  */
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ f6_t scaled_type_convert<f6_t, float>(e8m0_bexp_t scale, float x)
-#else
-inline __host__ f6_t scaled_type_convert<f6_t, float>(e8m0_bexp_t scale, float x)
-#endif
 {
 #if CK_USE_SR_F6_CONVERSION
     return f6_convert_sr(x, type_convert<float>(scale));
@@ -829,12 +787,8 @@ inline __host__ f6_t scaled_type_convert<f6_t, float>(e8m0_bexp_t scale, float x
 }
 
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ f6x32_t scaled_type_convert<f6x32_t, float32_t>(e8m0_bexp_t scale,
                                                                            float32_t x)
-#else
-inline __host__ f6x32_t scaled_type_convert<f6x32_t, float32_t>(e8m0_bexp_t scale, float32_t x)
-#endif
 {
 #if CK_USE_SR_F6_CONVERSION
     return f6_convert_sr(x, type_convert<float>(scale));
@@ -855,11 +809,7 @@ inline __host__ f6x32_t scaled_type_convert<f6x32_t, float32_t>(e8m0_bexp_t scal
  * @return      The converted 6-bit floating-point value (bf6_t).
  */
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ bf6_t scaled_type_convert<bf6_t, float>(e8m0_bexp_t scale, float x)
-#else
-inline __host__ bf6_t scaled_type_convert<bf6_t, float>(e8m0_bexp_t scale, float x)
-#endif
 {
 #if CK_USE_SR_F6_CONVERSION
     return bf6_convert_sr(x, type_convert<float>(scale));
@@ -869,12 +819,8 @@ inline __host__ bf6_t scaled_type_convert<bf6_t, float>(e8m0_bexp_t scale, float
 }
 
 template <>
-#if CK_USE_NATIVE_MX_SUPPORT
 inline __host__ __device__ bf6x32_t scaled_type_convert<bf6x32_t, float32_t>(e8m0_bexp_t scale,
                                                                              float32_t x)
-#else
-inline __host__ bf6x32_t scaled_type_convert<bf6x32_t, float32_t>(e8m0_bexp_t scale, float32_t x)
-#endif
 {
 #if CK_USE_SR_F6_CONVERSION
     return bf6_convert_sr(x, type_convert<float>(scale));
@@ -882,5 +828,6 @@ inline __host__ bf6x32_t scaled_type_convert<bf6x32_t, float32_t>(e8m0_bexp_t sc
     return bf6_convert_rne(x, type_convert<float>(scale));
 #endif
 }
+#endif // #if CK_USE_NATIVE_MX_SUPPORT
 
 } // namespace ck
