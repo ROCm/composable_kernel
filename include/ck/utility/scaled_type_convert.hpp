@@ -681,6 +681,14 @@ inline __host__ __device__ float scaled_type_convert<float, f6_t>(e8m0_bexp_t sc
 #endif
 }
 
+/**
+ * @brief Converts a vector of 32 6-bit floating-point values (f6x32_t) to a vector of 32 floats,
+ *        applying the specified scaling factor.
+ *
+ * @param scale The exponent scale factor (e8m0_bexp_t).
+ * @param x     The f6x32_t vector to be converted.
+ * @return      The converted float vector representation of the input.
+ */
 template <>
 inline __host__ __device__ float32_t scaled_type_convert<float32_t, f6x32_t>(e8m0_bexp_t scale,
                                                                              f6x32_t x)
@@ -739,6 +747,14 @@ inline __host__ __device__ float scaled_type_convert<float, bf6_t>(e8m0_bexp_t s
 #endif
 }
 
+/**
+ * @brief Converts a vector of 6-bit floating-point values (bf6x32_t) to a vector of 32 floats,
+ *        applying the specified scaling factor.
+ *
+ * @param scale The exponent scale factor (e8m0_bexp_t).
+ * @param x     The bf6x32_t vector to be converted.
+ * @return      The converted vector of 32 float representation of the input.
+ */
 template <>
 inline __host__ __device__ float32_t scaled_type_convert<float32_t, bf6x32_t>(e8m0_bexp_t scale,
                                                                               bf6x32_t x)
@@ -786,6 +802,17 @@ inline __host__ __device__ f6_t scaled_type_convert<f6_t, float>(e8m0_bexp_t sca
 #endif
 }
 
+/**
+ * @brief Converts a vector of 32 floats to a vector of 32 6-bit floating-point values (f6x32_t),
+ * applying the specified scale.
+ *
+ * Depending on whether CK_USE_SR_F6_CONVERSION is defined, it uses either stochastic rounding
+ * (f6_convert_sr) or round-to-nearest-even (f6_convert_rne).
+ *
+ * @param scale The exponent scale factor (e8m0_bexp_t).
+ * @param x     The float vector to convert.
+ * @return      The converted vector of 6-bit floating-point values (f6x32_t).
+ */
 template <>
 inline __host__ __device__ f6x32_t scaled_type_convert<f6x32_t, float32_t>(e8m0_bexp_t scale,
                                                                            float32_t x)
@@ -818,6 +845,17 @@ inline __host__ __device__ bf6_t scaled_type_convert<bf6_t, float>(e8m0_bexp_t s
 #endif
 }
 
+/**
+ * @brief Converts a vector of 32 floats to a vector of 32 6-bit floating-point values (bf6x32_t),
+ * applying the specified scale.
+ *
+ * Depending on whether CK_USE_SR_F6_CONVERSION is defined, it uses either stochastic rounding
+ * (bf6_convert_sr) or round-to-nearest-even (bf6_convert_rne).
+ *
+ * @param scale The exponent scale factor (e8m0_bexp_t).
+ * @param x     The float vector to convert.
+ * @return      The converted 6-bit floating-point vector (bf6x32_t).
+ */
 template <>
 inline __host__ __device__ bf6x32_t scaled_type_convert<bf6x32_t, float32_t>(e8m0_bexp_t scale,
                                                                              float32_t x)
