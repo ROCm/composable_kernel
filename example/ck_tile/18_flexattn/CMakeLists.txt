@@ -7,7 +7,7 @@ if(FMHA_FWD_ENABLE_APIS STREQUAL "all")
 endif()
 
 variable_watch(FMHA_SCORE_MOD_F)
-set(FMHA_SCORE_MOD_F [[s + static_cast<decltype(s)>(q_idx - v_idx)]])
+set(FMHA_SCORE_MOD_F [[s + static_cast<decltype(s)>((q_idx - v_idx) % 8)]])
 
 foreach(api ${FMHA_FWD_ENABLE_APIS})
   if(NOT "${api}" IN_LIST FMHA_FWD_KNOWN_APIS)

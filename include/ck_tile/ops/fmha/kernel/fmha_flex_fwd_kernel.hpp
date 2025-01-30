@@ -1309,7 +1309,10 @@ struct FmhaFwdKernel
                                  typename ScoreModFunction_::TScore s,
                                  ck_tile::index_t q_idx, 
                                  ck_tile::index_t v_idx) {
-            return score_mod_def(s, b, h, q_idx, v_idx);
+            auto new_score = score_mod_def(s, b, h, q_idx, v_idx);\
+            // printf("device score_mod at (%d %d %d %d), score before: %f, score after: %f score_clip: %f\n",
+            //     b, h, q_idx, v_idx, s, new_score, new_score_after_clip);
+            return new_score;
         };
 
         auto o_acc_tile = [&]() {

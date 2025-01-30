@@ -420,7 +420,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                             s_acc.get_tile_distribution(), make_tuple(idx0, idx1));
 
                         const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                        const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                        const auto col = k_origin.at(number<1>{}) + tile_idx.at(number<1>{});
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
                         s_acc(i_j_idx) = score_mod(s_acc(i_j_idx), row, col);

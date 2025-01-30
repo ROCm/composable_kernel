@@ -1384,17 +1384,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
         #endif
 
         auto score_mod = [] (auto s, ck_tile::index_t b, ck_tile::index_t h, ck_tile::index_t q_idx, ck_tile::index_t v_idx) {
-            (void) s; (void) b; (void) h; (void) q_idx; (void) v_idx;
+            ck_tile::detail::swallow(s, b, h, q_idx, v_idx);
             return CK_TILE_SCORE_MOD_F;
         };
 
         s_host_ref.ForEach([&](auto& self, auto i) { 
-            self(i) = score_mod(self(i), i[0], i[1], i[2], i[3]);
+            auto new_score = score_mod(self(i), wb, i[0], i[1], i[2]);
+            // printf("host score_mod at (%d %lu %lu %lu), score before: %f, score after: %f\n",
+            //     wb, i[0], i[1], i[2], self(i), new_score);
+            self(i) = new_score;
         });
 
         auto scale_def = ck_tile::scales(scale_s);
         s_host_ref.ForEach([&](auto& self, auto i) {
-            scale_def(self(i));
+            self(i) = scale_def(self(i));
         });
 
         if(bias.type == bias_enum::elementwise_bias)
