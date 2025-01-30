@@ -155,7 +155,7 @@ int run_gemm_example_with_layouts(int argc,
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
-        std::cout << "The CPU veification result is:" << (pass ? "correct" : "fail") << std::endl;
+        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
     {
@@ -212,7 +212,7 @@ int run_gemm_example_with_layouts(int argc,
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
-        std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
+        std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
     }
 
     return pass;

@@ -57,7 +57,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     using BLayout          = typename Base::BLayout;
     using CLayout          = typename Base::CLayout;
 
-    CK_TILE_HOST static std::string GetName()
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
 #define _SS_ std::string
 #define _TS_ std::to_string
@@ -65,9 +65,9 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         using P_ = GemmPipeline;
 
         auto prec_str = [&] () {
-            std::string base_str = _SS_(Base::template t2s<ADataType>::name);
+            std::string base_str = _SS_(Base::template typeToStr<ADataType>::name);
             if (!std::is_same_v<ADataType, BDataType>) {
-                base_str += _SS_("_") + _SS_(Base::template t2s<BDataType>::name);
+                base_str += _SS_("_") + _SS_(Base::template typeToStr<BDataType>::name);
             }
             return base_str;
         }();

@@ -64,7 +64,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         }
     };
 
-    CK_TILE_HOST static std::string GetName()
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
 #define _SS_ std::string
 #define _TS_ std::to_string
@@ -72,9 +72,9 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         using P_ = GemmPipeline;
 
         auto prec_str = [&] () {
-            std::string base_str = _SS_(t2s<ADataType>::name);
+            std::string base_str = _SS_(typeToStr<ADataType>::name);
             if (!std::is_same_v<ADataType, BDataType>) {
-                base_str += _SS_("_") + _SS_(t2s<BDataType>::name);
+                base_str += _SS_("_") + _SS_(typeToStr<BDataType>::name);
             }
             return base_str;
         }();

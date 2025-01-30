@@ -39,8 +39,9 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
-<<<<<<< HEAD
-    CK_TILE_HOST static std::string GetName()
+    static constexpr index_t kLdsAlignmentInBytes = 16;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
 #define _TS_ std::to_string
         // clang-format off
@@ -59,14 +60,12 @@ struct GemmPipelineAGmemBGmemCRegV1
         return integer_divide_ceil(
                    sizeof(ADataType) *
                        Policy::template MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
-                   16) *
-                   16 +
+                   kLdsAlignmentInBytes) *
+                   kLdsAlignmentInBytes +
                sizeof(BDataType) *
                    Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
     }
 
-=======
->>>>>>> develop
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
@@ -103,8 +102,9 @@ struct GemmPipelineAGmemBGmemCRegV1
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
         constexpr index_t a_lds_block_space_size_aligned =
-            integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16) *
-            16;
+            integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(),
+                                kLdsAlignmentInBytes) *
+            kLdsAlignmentInBytes;
 
         // B tile in LDS
         BDataType* p_b_lds = static_cast<BDataType*>(

@@ -76,7 +76,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
     using Base::PrefetchStages;
 
-    CK_TILE_HOST static std::string GetName()
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
 #define _TS_ std::to_string
         // clang-format off

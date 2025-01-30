@@ -25,7 +25,7 @@ struct GemmPipelineAGmemBGmemCRegV2
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    CK_TILE_HOST static std::string GetName()
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
 #define _TS_ std::to_string
         // clang-format off

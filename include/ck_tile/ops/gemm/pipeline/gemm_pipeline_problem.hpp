@@ -36,7 +36,7 @@ struct GemmPipelineProblemBase
     static constexpr auto Scheduler         = GemmPipelineScheduler::Default;
     static constexpr index_t VectorLoadSize = Traits::_VectorSize;
 
-    CK_TILE_HOST static std::string GetName()
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
 #define _TS_ std::to_string
         // clang-format off

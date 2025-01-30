@@ -75,7 +75,7 @@ struct GemmKernel
     static constexpr auto I1 = number<1>();
     static constexpr auto I2 = number<2>();
 
-    CK_TILE_HOST static std::string GetName()
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
 #define _TS_ std::to_string
         // clang-format off
@@ -83,9 +83,9 @@ struct GemmKernel
         using _SS_ = std::string;
 
         auto prec_str = [&] () {
-            std::string base_str = _SS_(t2s<ADataType>::name);
+            std::string base_str = _SS_(typeToStr<ADataType>::name);
             if (!std::is_same_v<ADataType, BDataType>) {
-                base_str += _SS_("_") + _SS_(t2s<BDataType>::name);
+                base_str += _SS_("_") + _SS_(typeToStr<BDataType>::name);
             }
             return base_str;
         }();

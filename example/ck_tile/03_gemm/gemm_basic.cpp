@@ -87,11 +87,11 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     if(s.log_level_ > 0)
     {
-        std::cout << "Launching kernel: " << Kernel::GetName()
-                  << " shape: " << CodegenGemmShape::GetName()
-                  << " problem: " << CodegenPipelineProblem::GetName()
-                  << " pipeline: " << CodegenGemmPipeline::GetName() << " with args:"
-                  << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+        std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
+                  << "shape: " << CodegenGemmShape::GetName() << '\n'
+                  << "problem: " << CodegenPipelineProblem::GetName() << '\n'
+                  << "pipeline: " << CodegenGemmPipeline::GetName() << '\n'
+                  << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                   << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                   << std::endl;
     }
