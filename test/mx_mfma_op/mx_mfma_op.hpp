@@ -11,7 +11,6 @@
 #include "ck/library/utility/check_err.hpp"
 
 namespace ck {
-namespace mx_mfma_test {
 
 // MFMA instructions supported in this test
 enum class MFMA_F8F6F4
@@ -353,7 +352,6 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
     auto storeC = store_C_col_major<CType, CFragT, BLOCK_M, BLOCK_N>{};
     storeC(c, fragC);
 }
-
 /**
  * @brief Structure to hold dimension parameters for GEMM tensors.
  *
@@ -375,6 +373,7 @@ struct GemmParams
     ck::index_t StrideC = -1;
 };
 
+namespace mfma_test {
 template <typename GemmInstance,
           typename ADataType,
           typename BDataType,
@@ -564,5 +563,5 @@ struct TestMFMA
     }
 };
 
-} // namespace mx_mfma_test
+} // namespace mfma_test
 } // namespace ck
