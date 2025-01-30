@@ -414,14 +414,14 @@ struct GemmKernel
      * @tparam DstInMemOp Destination memory operation (default: set).
      */
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
-    CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
-                                       const BDataType* b_ptr,
-                                       CDataType* c_ptr,
-                                       void* smem_ptr,
-                                       const GemmKernelArgs& kargs,
-                                       const SplitKBatchOffset& splitk_batch_offset,
-                                       const index_t block_idx_m,
-                                       const index_t block_idx_n)
+    CK_TILE_DEVICE static void RunGemmSinglePointer(const ADataType* a_ptr,
+                                                    const BDataType* b_ptr,
+                                                    CDataType* c_ptr,
+                                                    void* smem_ptr_0,
+                                                    const GemmKernelArgs& kargs,
+                                                    const SplitKBatchOffset& splitk_batch_offset,
+                                                    const index_t block_idx_m,
+                                                    const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
@@ -436,20 +436,63 @@ struct GemmKernel
         const auto& a_block_window = gemm_tile_windows.at(I0);
         const auto& b_block_window = gemm_tile_windows.at(I1);
 
-        const auto& c_block_tile = 
-        [&]() {
-            if constexpr(GemmPipeline::isDoubleSmemBuffer == true)
-            {
-                __shared__ char smem_ptr_1[GetSmemSize()];
-                return GemmPipeline{}.template operator()(
-                    a_block_window, b_block_window, num_loop, smem_ptr, smem_ptr_1);
-            }
-            else
-            {
-                return GemmPipeline{}.template operator()(
-                    a_block_window, b_block_window, num_loop, smem_ptr);
-            }
-        }();
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            a_block_window, b_block_window, num_loop, smem_ptr_0);
+
+        // Run Epilogue Pipeline
+        auto& c_block_window = gemm_tile_windows.at(I2);
+
+        constexpr bool is_output_c_reg_transposed =
+            EpiloguePipeline::IsOutputTransposed() != GemmPipeline::IsTransposeC();
+        if constexpr((DstInMemOp == memory_operation_enum::set) || (sizeof(CDataType) > 2) ||
+                     (GemmPipeline::VectorSizeC % 2 == 0 &&
+                      std::is_same_v<CLayout, tensor_layout::gemm::RowMajor> &&
+                      is_output_c_reg_transposed))
+        {
+            EpiloguePipeline{}
+                .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+                    c_block_window, c_block_tile);
+        }
+    }
+
+    /**
+     * @brief Runs single GEMM problem cooperatively by whole workgroup.
+     *
+     * @param a_ptr input A pointer
+     * @param b_ptr input B pointer
+     * @param c_ptr output C pointer
+     * @param kargs GEMM kernel arguments
+     * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
+     * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
+     *
+     * @tparam DstInMemOp Destination memory operation (default: set).
+     */
+    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
+    CK_TILE_DEVICE static void RunGemmDoublePointer(const ADataType* a_ptr,
+                                                    const BDataType* b_ptr,
+                                                    CDataType* c_ptr,
+                                                    void* smem_ptr_0,
+                                                    void* smem_ptr_1,
+                                                    const GemmKernelArgs& kargs,
+                                                    const SplitKBatchOffset& splitk_batch_offset,
+                                                    const index_t block_idx_m,
+                                                    const index_t block_idx_n)
+    {
+        // Create Gemm tensor views, pad views and tile windows
+        const auto& gemm_tensor_views_tuple =
+            MakeGemmTensorViews<DstInMemOp>(a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
+        ;
+        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
+        auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+
+        const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
+
+        // Run GEMM cooperatively by whole workgroup.
+        const auto& a_block_window = gemm_tile_windows.at(I0);
+        const auto& b_block_window = gemm_tile_windows.at(I1);
+
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
@@ -479,16 +522,48 @@ struct GemmKernel
         CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
 
         // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
+        __shared__ char smem_ptr_0[GetSmemSize()];
+        __shared__ char smem_ptr_1[GetSmemSize()];
 
         if(kargs.KBatch == 1)
         {
-            RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+            if constexpr(GemmPipeline::isDoubleSmemBuffer == true)
+            {
+                RunGemmDoublePointer(a_ptr,
+                                     b_ptr,
+                                     c_ptr,
+                                     smem_ptr_0,
+                                     smem_ptr_1,
+                                     kargs,
+                                     splitk_batch_offset,
+                                     i_m,
+                                     i_n);
+            }
+            else
+            {
+                RunGemmSinglePointer(
+                    a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+            }
         }
         else
         {
-            RunGemm<memory_operation_enum::atomic_add>(
-                a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+            if constexpr(GemmPipeline::isDoubleSmemBuffer == true)
+            {
+                RunGemmDoublePointer<memory_operation_enum::atomic_add>(a_ptr,
+                                                                        b_ptr,
+                                                                        c_ptr,
+                                                                        smem_ptr_0,
+                                                                        smem_ptr_1,
+                                                                        kargs,
+                                                                        splitk_batch_offset,
+                                                                        i_m,
+                                                                        i_n);
+            }
+            else
+            {
+                RunGemmSinglePointer<memory_operation_enum::atomic_add>(
+                    a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+            }
         }
     }
 };

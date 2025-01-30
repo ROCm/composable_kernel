@@ -268,9 +268,6 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             Base::GlobalPrefetch(a_global_load_tile, a_copy_dram_window);
             Base::GlobalPrefetch(b_global_load_tile, b_copy_dram_window);
 
-            printf("Tail Num: =====================================\n");
-            printf("%d \n", static_cast<int>(TailNum));
-
             if(HasHotLoop)
             {
                 // minus 2 because we have ping-pong double buffer.
