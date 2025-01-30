@@ -377,8 +377,6 @@ struct BlockFmhaPipelineQRKSVSAsync
             }
             else // executed by intermediate and last iteration
             {
-                clear_tile(s_acc); // initialize C
-
                 if(i_total_loops < num_total_loop - 1)
                 {
                     move_tile_window(k_dram_window, {kN0, 0});
@@ -389,6 +387,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                                            sequence<(i_k0 % NumKLdsBuffers) * kN0, 0>{},
                                            sequence<((i_k0 % NumKLdsBuffers) + 1) * kN0, kK0>{});
                         store_tile(k_lds_window_tmp, k_tiles[number<i_k0>{}]);
+
+                        if constexpr(i_k0 == 0)
+                            clear_tile(s_acc);
 
                         k_tiles[number<i_k0>{}] = load_tile(k_dram_window);
                         if constexpr(i_k0 < k0_loops - 1)
@@ -412,6 +413,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                                            sequence<(i_k0 % NumKLdsBuffers) * kN0, 0>{},
                                            sequence<((i_k0 % NumKLdsBuffers) + 1) * kN0, kK0>{});
                         store_tile(k_lds_window_tmp, k_tiles[number<i_k0>{}]);
+
+                        if constexpr(i_k0 == 0)
+                            clear_tile(s_acc);
 
                         block_sync_lds();
                         // execute last unroll of gemm_0
