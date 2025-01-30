@@ -79,30 +79,31 @@ struct CShuffleEpilogue
      */
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
-        // N is contiguous dimension
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-        {
-            constexpr index_t MaxVectorStoreSize = 16;
-            return MaxVectorStoreSize / sizeof(ODataType);
-        }
-        // M is contiguous dimension
-        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
-        {
-            // In this case each thread has just a single item in Mdim
-            return WG::WarpGemmAttribute::Impl::kCNLane / WG::kN;
-        }
-        else
-        {
-            static_assert(false, "Unsupported CLayout!");
-        }
+        constexpr index_t MaxVectorStoreSize = 16;
+        return MaxVectorStoreSize / sizeof(ODataType);
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
     {
-        return make_naive_tensor_descriptor(
-            make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
-            make_tuple(number<kNWave * kNPerXdl>{}, number<1>{}));
+        // N is contiguous dimension
+        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        {
+            return make_naive_tensor_descriptor(
+                make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
+                make_tuple(number<kNWave * kNPerXdl>{}, number<1>{}));
+        }
+        // M is contiguous dimension
+        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
+        {
+            return make_naive_tensor_descriptor(
+                make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
+                make_tuple(number<1>{}, number<kMWave * kMPerXdl>{}));
+        }
+        else
+        {
+            static_assert(false, "Unsupported CLayout!");
+        }
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()

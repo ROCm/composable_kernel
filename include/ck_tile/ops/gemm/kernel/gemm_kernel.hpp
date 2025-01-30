@@ -159,8 +159,8 @@ struct GemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
     {
-        if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 == 0 ||
-                       !(std::is_same_v<CDataType, fp16_t> || std::is_same_v<CDataType, bf16_t>)))
+        if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                     is_any_of<CDataType, fp16_t, bf16_t>::value)
         {
             if(kargs.KBatch != 1)
             {
@@ -271,14 +271,6 @@ struct GemmKernel
                                                    const GemmKernelArgs& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
     {
-        // const auto idxs = TilePartitioner{}();
-        // const auto i_m  = idxs.at(number<0>{});
-        // const auto i_n  = idxs.at(number<1>{});
-        // // options
-        // const ADataType* a_start = static_cast<const ADataType*>(kargs.a_ptr);
-        // const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr);
-        // // Convert pointers to tensor views
-        // auto a_tensor_view = [&]() {
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
@@ -497,8 +489,9 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
-        if constexpr(DstInMemOp == memory_operation_enum::set || sizeof(CDataType) > 2 ||
-                     EpiloguePipeline::GetVectorSizeC() % 2 == 0)
+        if constexpr(DstInMemOp == memory_operation_enum::set ||
+                     !(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                       is_any_of<CDataType, fp16_t, bf16_t>::value))
         {
             EpiloguePipeline{}
                 .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
