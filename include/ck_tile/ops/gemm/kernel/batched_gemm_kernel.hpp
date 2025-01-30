@@ -70,7 +70,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     __host__ static constexpr auto
     GridSize(index_t M, index_t N, index_t KBatch, index_t batch_count)
     {
-        return TilePartitioner::GridSize(M, N, KBatch * batch_count);
+        return dim3(TilePartitioner::GridSize(M, N), batch_count, KBatch);
     }
 
     __host__ static constexpr auto BlockSize() { return dim3(Base::KernelBlockSize); }
@@ -101,14 +101,14 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     CK_TILE_DEVICE void operator()(BatchedGemmKernelArgs kargs) const
     {
-        const auto [iM, iN] = TilePartitioner::GetOutputTileIndex(blockIdx.x, blockIdx.y);
+        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
         const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
-        const auto i_batch = __builtin_amdgcn_readfirstlane(blockIdx.z / kargs.KBatch);
-        const auto i_k     = __builtin_amdgcn_readfirstlane(blockIdx.z - i_batch * kargs.KBatch);
+        const auto i_batch  = __builtin_amdgcn_readfirstlane(blockIdx.y);
+        const auto i_splitk = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
-        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, i_k);
+        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, i_splitk);
 
         //  options
         const auto batch_stride_A = __builtin_amdgcn_readfirstlane(kargs.batch_stride_A);
@@ -128,7 +128,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        if(kargs.KBatch == 1)
+        if(kargs.k_batch == 1)
         {
             this->RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
         }
