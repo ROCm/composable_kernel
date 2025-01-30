@@ -10,8 +10,13 @@ using ck::f8_t;
 using ck::half_t;
 using ck::type_convert;
 
+/**
+ * @brief Run the test for the given MFMA instruction
+ *
+ * @param init - selects initialization algorithm for A and B tensors
+ */
 template <typename AType, typename BType, typename CType, ck::mx_mfma_test::MFMA_F8F6F4 mfma>
-bool run_test()
+bool run_test(ck::index_t init)
 {
     using ALayout = ck::tensor_layout::gemm::ColumnMajor;
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
@@ -41,20 +46,22 @@ bool run_test()
                                       CLayout,
                                       BLOCK_M,
                                       BLOCK_N,
-                                      BLOCK_K>{}(mx_mfma_kernel);
+                                      BLOCK_K>{}(mx_mfma_kernel, init);
 
     return pass;
 }
 
 TEST(MFMA, FP8MFMA16x16x128)
 {
-    auto pass = run_test<f8_t, f8_t, half_t, ck::mx_mfma_test::MFMA_F8F6F4::F32_16x16x128>();
+    auto AB_init = 0;
+    auto pass = run_test<f8_t, f8_t, half_t, ck::mx_mfma_test::MFMA_F8F6F4::F32_16x16x128>(AB_init);
     EXPECT_TRUE(pass);
 }
 
 TEST(MFMA, FP8MFMA32x32x64)
 {
-    auto pass = run_test<f8_t, f8_t, float, ck::mx_mfma_test::MFMA_F8F6F4::F32_32x32x64>();
+    auto AB_init = 0;
+    auto pass = run_test<f8_t, f8_t, float, ck::mx_mfma_test::MFMA_F8F6F4::F32_32x32x64>(AB_init);
     EXPECT_TRUE(pass);
 }
 
