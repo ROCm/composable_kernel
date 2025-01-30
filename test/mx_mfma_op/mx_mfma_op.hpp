@@ -129,10 +129,12 @@ __device__ AFragT load_A_col_major(AType const* input_ptr)
         bit_cast<ARawT>(input_ptr[startOffset + 31 * kOffset])}; // XXX v[31] = Reg 7 [24:31]
 #else
     auto fragA = AScalarFragT{};
-    static_for<0, VW, 1>{}([&](auto i) {
-        fragA[static_cast<int>(i)] =
-            bit_cast<ARawT>(input_ptr[startOffset + static_cast<int>(i) * kOffset]);
-    });
+#pragma unroll VW
+    for(uint32_t i = 0; i < VW; i++)
+    {
+        fragA[i] = bit_cast<ARawT>(input_ptr[startOffset + i * kOffset]);
+    }
+
 #endif
     return fragA;
 }
