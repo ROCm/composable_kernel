@@ -49,7 +49,7 @@ struct GemmPipelineAGmemBGmemCRegV1
 
         return _SS_("pipeline_AGmemBGmemCRegV1_") +
                 _TS_(kMPerBlock) + "x" + _TS_(kNPerBlock) + "x" + _TS_(kKPerBlock) + "x" + _TS_(BlockSize) + "_" +
-                _TS_(VectorSizeA) + "x" + _TS_(VectorSizeB) + "x" + _TS_(VectorSizeC) + "_" +
+                _TS_(GetVectorSizeA()) + "x" + _TS_(GetVectorSizeB()) + "x" + _TS_(GetVectorSizeC()) + "_" +
                 _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK);
 #undef _TS_
         // clang-format on

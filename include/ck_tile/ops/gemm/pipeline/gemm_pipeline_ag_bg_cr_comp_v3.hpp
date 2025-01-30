@@ -86,7 +86,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
         return _SS_("pipeline_AgBgCrCompV3_") +
                 _TS_(BlockSize) + "_" +
-                _TS_(VectorSizeA) + "x" + _TS_(VectorSizeB) + "x" + _TS_(VectorSizeC) + "_" +
+                _TS_(GetVectorSizeA()) + "x" + _TS_(GetVectorSizeB()) + "x" + _TS_(GetVectorSizeC()) + "_" +
                 _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK);
 #undef _TS_
         // clang-format on

@@ -136,7 +136,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
         return _SS_("pipeline_AgBgCrMe_") +
                 _TS_(MPerBlock) + "x" + _TS_(NPerBlock) + "x" + _TS_(KPerBlock) + "_" +
-                _TS_(VectorSizeA) + "x" + _TS_(VectorSizeB) + "x" + _TS_(VectorSizeC) + "_" +
+                _TS_(GetVectorSizeA()) + "x" + _TS_(GetVectorSizeB()) + "x" + _TS_(GetVectorSizeC()) + "_" +
                 _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK);
 #undef _TS_
         // clang-format on
