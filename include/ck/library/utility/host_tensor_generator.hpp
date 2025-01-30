@@ -89,7 +89,7 @@ struct GeneratorTensor_1<ck::pk_i4_t>
     template <typename... Is>
     ck::pk_i4_t operator()(Is...)
     {
-        int t         = value + 8;
+        int t         = value;
         ck::pk_i4_t r = ((t << 4) + t) & 0xff;
         return r;
     }
@@ -144,8 +144,8 @@ struct GeneratorTensor_2<ck::pk_i4_t>
     template <typename... Is>
     ck::pk_i4_t operator()(Is...)
     {
-        int hi        = std::rand() % (max_value - min_value) + min_value + 8;
-        int lo        = std::rand() % (max_value - min_value) + min_value + 8;
+        int hi        = std::rand() % (max_value - min_value) + min_value;
+        int lo        = std::rand() % (max_value - min_value) + min_value;
         ck::pk_i4_t r = ((hi << 4) + lo) & 0xff;
         return r;
     }

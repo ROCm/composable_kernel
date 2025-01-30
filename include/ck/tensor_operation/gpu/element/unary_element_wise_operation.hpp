@@ -12,6 +12,83 @@
 
 namespace ck {
 
+__device__ inline bhalf8_t pki4_to_bhalf8(uint32_t q)
+{
+    uint32_t i4x8 = q;
+    uint32_t bhalfx2_0, bhalfx2_1, bhalfx2_2, bhalfx2_3;
+    float tmp_0, tmp_2;
+    vector_type<bhalf_t, 8> res;
+
+    //i4x8 = 0x01000000;
+
+	asm volatile (
+        "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_0\n"
+        "v_cvt_off_f32_i4 %[v_dst_0], %[v_src], src0_sel:BYTE_2\n"
+        "v_mov_b32 %[v_dst_0], %[v_tmp_0], dst_sel:WORD_0 dst_unused:UNUSED_PRESERVE src0_sel:WORD_1\n"
+        "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_1\n"
+        "v_cvt_off_f32_i4 %[v_dst_1], %[v_src], src0_sel:BYTE_3\n"
+        "v_mov_b32 %[v_dst_1], %[v_tmp_0], dst_sel:WORD_0 dst_unused:UNUSED_PRESERVE src0_sel:WORD_1\n"
+        "v_lshrrev_b32 %[v_tmp_2], 4, %[v_src]\n"
+        "v_cvt_off_f32_i4 %[v_tmp_0], %[v_tmp_2], src0_sel:BYTE_0\n"
+        "v_cvt_off_f32_i4 %[v_dst_2], %[v_tmp_2], src0_sel:BYTE_2\n"
+        "v_mov_b32 %[v_dst_2], %[v_tmp_0], dst_sel:WORD_0 dst_unused:UNUSED_PRESERVE src0_sel:WORD_1\n"
+        "v_cvt_off_f32_i4 %[v_tmp_0], %[v_tmp_2], src0_sel:BYTE_1\n"
+        "v_cvt_off_f32_i4 %[v_dst_3], %[v_tmp_2], src0_sel:BYTE_3\n"
+        "v_mov_b32 %[v_dst_3], %[v_tmp_0], dst_sel:WORD_0 dst_unused:UNUSED_PRESERVE src0_sel:WORD_1"
+        : [v_tmp_0]"+v"(tmp_0), [v_tmp_2]"+v"(tmp_2),
+          [v_dst_0]"+v"(bhalfx2_0), [v_dst_1]"+v"(bhalfx2_1), 
+          [v_dst_2]"+v"(bhalfx2_2), [v_dst_3]"+v"(bhalfx2_3), 
+          [v_src]"+v"(i4x8)
+        : 
+    );
+
+	res.template AsType<bhalf2_t>()(Number<0>{}) = bit_cast<bhalf2_t>(bhalfx2_0);
+	res.template AsType<bhalf2_t>()(Number<1>{}) = bit_cast<bhalf2_t>(bhalfx2_1);
+	res.template AsType<bhalf2_t>()(Number<2>{}) = bit_cast<bhalf2_t>(bhalfx2_2);
+	res.template AsType<bhalf2_t>()(Number<3>{}) = bit_cast<bhalf2_t>(bhalfx2_3);
+
+    //if(threadIdx.x == 0 and blockIdx.x == 0)
+        //printf("%x %x %x %x\n", bhalfx2_0, bhalfx2_1, bhalfx2_2, bhalfx2_3);
+
+    return res.template AsType<bhalf8_t>()[Number<0>{}];
+}
+
+__device__ inline half8_t pki4_to_half8(uint32_t q)
+{
+    uint32_t i4x8 = q;
+    uint32_t halfx2_0, halfx2_1, halfx2_2, halfx2_3;
+    float tmp_0, tmp_1, tmp_2;
+    vector_type<half_t, 8> res;
+
+	asm volatile (
+        "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_0\n"
+        "v_cvt_off_f32_i4 %[v_tmp_1], %[v_src], src0_sel:BYTE_2\n"
+        "v_cvt_pkrtz_f16_f32 %[v_dst_0], %[v_tmp_0], %[v_tmp_1]\n"
+        "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_1\n"
+        "v_cvt_off_f32_i4 %[v_tmp_1], %[v_src], src0_sel:BYTE_3\n"
+        "v_cvt_pkrtz_f16_f32 %[v_dst_1], %[v_tmp_0], %[v_tmp_1]\n"
+        "v_lshrrev_b32 %[v_tmp_2], 4, %[v_src]\n"
+        "v_cvt_off_f32_i4 %[v_tmp_0], %[v_tmp_2], src0_sel:BYTE_0\n"
+        "v_cvt_off_f32_i4 %[v_tmp_1], %[v_tmp_2], src0_sel:BYTE_2\n"
+        "v_cvt_pkrtz_f16_f32 %[v_dst_2], %[v_tmp_0], %[v_tmp_1]\n"
+        "v_cvt_off_f32_i4 %[v_tmp_0], %[v_tmp_2], src0_sel:BYTE_1\n"
+        "v_cvt_off_f32_i4 %[v_tmp_1], %[v_tmp_2], src0_sel:BYTE_3\n"
+        "v_cvt_pkrtz_f16_f32 %[v_dst_3], %[v_tmp_0], %[v_tmp_1]\n"
+        : [v_tmp_0]"+v"(tmp_0), [v_tmp_1]"+v"(tmp_1), [v_tmp_2]"+v"(tmp_2),
+          [v_dst_0]"+v"(halfx2_0), [v_dst_1]"+v"(halfx2_1), 
+          [v_dst_2]"+v"(halfx2_2), [v_dst_3]"+v"(halfx2_3), 
+          [v_src]"+v"(i4x8)
+        : 
+    );
+
+	res.template AsType<half2_t>()(Number<0>{}) = bit_cast<half2_t>(halfx2_0);
+	res.template AsType<half2_t>()(Number<1>{}) = bit_cast<half2_t>(halfx2_1);
+	res.template AsType<half2_t>()(Number<2>{}) = bit_cast<half2_t>(halfx2_2);
+	res.template AsType<half2_t>()(Number<3>{}) = bit_cast<half2_t>(halfx2_3);
+
+    return res.template AsType<half8_t>()[Number<0>{}];
+}
+
 // Fast int4x4 to half8_t data type conversion based on paper
 // [Who Says Elephants Can't Run: Bringing Large Scale MoE Models into Cloud Scale Production]
 // (https://arxiv.org/abs/2211.10017) and implementation:
@@ -166,6 +243,8 @@ struct PassThroughPack8
         result.template AsType<half4_t>()(Number<1>{}) = pki4_to_half4(bit_cast<int>(x) >> 8);
 
         y = result.template AsType<half8_t>()[Number<0>{}];
+#elif 1
+        y = pki4_to_half8(bit_cast<uint32_t>(x));
 #else
         vector_type<half_t, 8> dst;
         vector_type<pk_i4_t, 4> src{x};
@@ -185,13 +264,15 @@ struct PassThroughPack8
 
     __host__ __device__ constexpr void operator()(ck::bhalf8_t& y, const ck::pk_i4x4_t& x) const
     {
-#if 1
+#if 0
         vector_type<bhalf_t, 8> result;
 
         result.template AsType<bhalf4_t>()(Number<0>{}) = pki4_to_bhalf4(bit_cast<int>(x));
         result.template AsType<bhalf4_t>()(Number<1>{}) = pki4_to_bhalf4(bit_cast<int>(x) >> 16);
 
         y = result.template AsType<bhalf8_t>()[Number<0>{}];
+#elif 1
+        y = pki4_to_bhalf8(bit_cast<uint32_t>(x));
 #else
         vector_type<bhalf_t, 8> dst;
         vector_type<pk_i4_t, 4> src{x};

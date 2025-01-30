@@ -8,16 +8,35 @@
 using ADataType        = ck::bhalf_t;
 using BDataType        = ck::pk_i4_t;
 using AccDataType      = float;
-using CShuffleDataType = ck::bhalf_t;
+using CShuffleDataType = float;
 using CDataType        = ck::bhalf_t;
 
 using ALayout = Row;
 using BLayout = Col;
 using CLayout = Row;
 
+struct Scale
+{
+    template <typename E, typename C>
+    __host__ __device__ constexpr void
+    operator()(E& e, const C& c) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::bhalf_t, float>(
+        ck::bhalf_t& e, const float& c) const
+    {
+        const float x0_f = c * scale_;
+
+        e = ck::type_convert<ck::bhalf_t>(x0_f);
+    }
+
+	float scale_ = 16.0;
+};
+
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
-using CElementOp = PassThrough;
+using CElementOp = Scale;
+//using CElementOp = PassThrough;
 
 static constexpr auto GemmDefault      = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr bool PermuteA         = false;
@@ -110,19 +129,19 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         break;
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{0, 2});
         break;
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{0, 2});
         break;
     case 3:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2, 2});
         b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{0, 2});
     }
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
@@ -149,7 +168,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             {
                 for(int jj = 0; jj < K1; jj++)
                 {
-                    b_k_n_permute(j * N * K1 + i * K1 + jj) = b_k_n(i * K + (j * K1 + jj));
+                    //b_k_n_permute(j * N * K1 + i * K1 + jj) = ck::bit_cast<uint8_t>(b_k_n(i * K + (j * K1 + jj))) + 0x88;
+                    b_k_n_permute(j * N * K1 + i * K1 + jj) = ck::bit_cast<uint8_t>(b_k_n(i * K + (j * K1 + jj)));
                 }
             }
         }
@@ -164,6 +184,57 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             }
         }
     }
+
+#if 1
+    // vector pk_i4x4 permute
+    for(int i = 0; i < N; i++)
+    {
+        for(int j = 0; j < K; j += 8)
+        {
+            int input[8];
+
+            for(int k = 0; k < 4; k++)
+            {
+                int i4x2         = b_k_n_permute(j + k * 2, i).data;
+                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
+                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
+            }
+
+            // permute 01234567->04261537
+            {
+                int hi   = input[4];
+                int lo   = input[0];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 0, i) = i4x2;
+            }
+
+            {
+                int hi   = input[6];
+                int lo   = input[2];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 2, i) = i4x2;
+            }
+
+            {
+                int hi   = input[5];
+                int lo   = input[1];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 4, i) = i4x2;
+            }
+
+            {
+                int hi   = input[7];
+                int lo   = input[3];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 6, i) = i4x2;
+            }
+        }
+    }
+#endif
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n_permute.mData.data());
