@@ -489,14 +489,9 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
-        if constexpr(DstInMemOp == memory_operation_enum::set ||
-                     !(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                       is_any_of<CDataType, fp16_t, bf16_t>::value))
-        {
-            EpiloguePipeline{}
-                .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
-                    c_block_window, c_block_tile, smem_ptr);
-        }
+        EpiloguePipeline{}
+            .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+                c_block_window, c_block_tile, smem_ptr);
     }
 
     CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const
@@ -522,8 +517,14 @@ struct GemmKernel
         }
         else
         {
-            RunGemm<memory_operation_enum::atomic_add>(
-                a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+            // Do not compile in case where we have unsupported 
+            // VectorSizeC & data type configuration.
+            if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                           is_any_of<CDataType, fp16_t, bf16_t>::value))
+            {
+                RunGemm<memory_operation_enum::atomic_add>(
+                    a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+            }
         }
     }
 };
