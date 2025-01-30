@@ -50,7 +50,9 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     constexpr bool TransposeC = false;
 
-    constexpr int kBlockPerCu = 1;
+    constexpr int kBlockPerCu                         = 1;
+    constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+    constexpr ck_tile::index_t TileParitionerM01      = 4;
 
     // ===============================================
 
@@ -58,7 +60,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
-    using TilePartitioner = ck_tile::GemmTile2DPartitioner<GemmShape>;
+    using TilePartitioner = ck_tile::
+        GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
     using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
     using GemmUniversalTraits = ck_tile::
