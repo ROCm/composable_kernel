@@ -1860,54 +1860,6 @@ struct non_native_vector_base<T, N, std::enable_if_t<sizeof(T) == 12 || sizeof(T
             return data_.dTxN; // XXX this should cause an error
         }
     }
-
-    template <typename X>
-    __host__ __device__ constexpr const auto& AsType() const
-    {
-        static_assert(is_same_v<X, data_t> || is_same_v<X, T> || is_same_v<X, data_v>,
-                      "Something went wrong, please check src and dst types.");
-
-        if constexpr(is_same_v<X, data_t>)
-        {
-            return data_.dxN;
-        }
-        else if constexpr(is_same_v<X, T>)
-        {
-            return data_.dTxN;
-        }
-        else if constexpr(is_same_v<X, data_v>)
-        {
-            return data_.dNx1;
-        }
-        else
-        {
-            return err;
-        }
-    }
-
-    template <typename X>
-    __host__ __device__ constexpr auto& AsType()
-    {
-        static_assert(is_same_v<X, data_t> || is_same_v<X, T> || is_same_v<X, data_v>,
-                      "Something went wrong, please check src and dst types.");
-
-        if constexpr(is_same_v<X, data_t>)
-        {
-            return data_.dxN;
-        }
-        else if constexpr(is_same_v<X, T>)
-        {
-            return data_.dTxN;
-        }
-        else if constexpr(is_same_v<X, data_v>)
-        {
-            return data_.dNx1;
-        }
-        else
-        {
-            return err;
-        }
-    }
 };
 
 template <typename T, index_t N>
