@@ -517,7 +517,7 @@ struct GemmKernel
         }
         else
         {
-            // Do not compile in case where we have unsupported 
+            // Do not compile in case where we have unsupported
             // VectorSizeC & data type configuration.
             if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                            is_any_of<CDataType, fp16_t, bf16_t>::value))
