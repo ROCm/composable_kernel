@@ -36,6 +36,7 @@ struct GemmPipelineAGmemBGmemCRegV2
 #undef _TS_
         // clang-format on
     }
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     {
@@ -47,8 +48,6 @@ struct GemmPipelineAGmemBGmemCRegV2
                sizeof(BDataType) *
                    Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
     }
-
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return Policy::IsTransposeC(); }
 
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,

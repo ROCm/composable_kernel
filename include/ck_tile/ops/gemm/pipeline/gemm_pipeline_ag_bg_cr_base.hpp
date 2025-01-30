@@ -21,6 +21,8 @@ struct GemmPipelineAgBgCrImplBase
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
+
     template <typename DstBlockTile, typename SrcTileWindow, typename DramTileWindowStep>
     CK_TILE_DEVICE void GlobalPrefetch(DstBlockTile& dst_block_tile,
                                        SrcTileWindow& dram_tile_window,

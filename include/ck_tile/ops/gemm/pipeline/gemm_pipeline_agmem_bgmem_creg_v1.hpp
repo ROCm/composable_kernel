@@ -31,9 +31,9 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t VectorSizeA = Problem::VectorSizeA;
-    static constexpr index_t VectorSizeB = Problem::VectorSizeB;
-    static constexpr index_t VectorSizeC = Problem::VectorSizeC;
+    static constexpr index_t GetVectorSizeA() { return Problem::VectorSizeA; }
+    static constexpr index_t GetVectorSizeB() { return Problem::VectorSizeB; }
+    static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
@@ -65,13 +65,12 @@ struct GemmPipelineAGmemBGmemCRegV1
                sizeof(BDataType) *
                    Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
     }
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
     }
-
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return Policy::IsTransposeC(); }
 
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,

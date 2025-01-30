@@ -27,6 +27,8 @@ struct GemmPipelineProblemBase
     using BLayout = remove_cvref_t<typename Traits::BLayout>;
     using CLayout = remove_cvref_t<typename Traits::CLayout>;
 
+    static constexpr bool TransposeC = Traits::TransposeC;
+
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
 
     static constexpr bool kPadM = Traits::kPadM;
@@ -129,7 +131,6 @@ struct GemmPipelineProblemBase
             return kPadK ? 1 : GetAlignmentB();
         }
     }();
-
     static constexpr index_t VectorSizeC = []() {
         if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
         {
