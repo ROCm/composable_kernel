@@ -29,12 +29,9 @@ class TestCkTileBatchedGemm : public ::testing::Test
                              const ck_tile::stream_config& s)
     {
         // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
-        constexpr bool kPadM        = false;
-        constexpr bool kPadN        = false;
-        constexpr bool kPadK        = false;
-        constexpr bool kTilePermute = false;
-        // The rank and permutation will also be generate out by the CodeGen part.
-        constexpr ck_tile::index_t kOutputRank = 2;
+        constexpr bool kPadM = false;
+        constexpr bool kPadN = false;
+        constexpr bool kPadK = false;
 
         constexpr int kBlockPerCu = 1;
 
@@ -51,32 +48,12 @@ class TestCkTileBatchedGemm : public ::testing::Test
         constexpr ck_tile::index_t N_Warp_Tile = 32;
         constexpr ck_tile::index_t K_Warp_Tile = 8;
 
-        // Whether doing the CShuffle (transpose before the global memory), depending on the output
-        // layout.
-        constexpr bool CShuffleEpilogue =
-            std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>;
-
         using CodegenGemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
         using TilePartitioner = ck_tile::GemmTile2DPartitioner<CodegenGemmShape>;
-
-        using GemmEpilogue = std::conditional_t<
-            CShuffleEpilogue,
-            ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
-                                                                       CDataType,
-                                                                       kPadM,
-                                                                       kPadN,
-                                                                       kTilePermute,
-                                                                       kOutputRank,
-                                                                       1,
-                                                                       0,
-                                                                       TilePartitioner::MPerBlock,
-                                                                       TilePartitioner::NPerBlock>>,
-            ck_tile::Default2DEpilogue<
-                ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
 
         using CodegenGemmTraits =
             ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
@@ -88,6 +65,20 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                                                     CodegenGemmTraits>;
 
         using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
+
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<AccDataType,
+                                             CDataType,
+                                             CLayout,
+                                             CodegenGemmPipeline::BlockSize,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             CodegenPipelineProblem::TransposeC>>;
         using Kernel =
             ck_tile::BatchedGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
 
