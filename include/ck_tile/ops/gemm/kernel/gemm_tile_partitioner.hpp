@@ -25,7 +25,7 @@ struct GemmTile2DPartitioner
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    CK_TILE_HOST_DEVICE GemmSpatiallyLocalTilePartitioner() noexcept = delete;
+    CK_TILE_HOST_DEVICE GemmTile2DPartitioner() noexcept = delete;
     CK_TILE_HOST_DEVICE GemmTile2DPartitioner([[maybe_unused]] index_t M,
                                               [[maybe_unused]] index_t N) noexcept;
 
