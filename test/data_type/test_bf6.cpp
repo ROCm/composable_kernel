@@ -243,24 +243,25 @@ TEST(BF6, TestAlignment)
 TEST(BF6, TestAsType16x1)
 {
     // test size
-    const int vector_size       = 1;
-    const int packed_size       = 16;
-    std::vector<bf6_t> test_vec = {bf6_t(0b000000),
-                                   bf6_t(0b100000),
-                                   bf6_t(0b000001),
-                                   bf6_t(0b100001),
-                                   bf6_t(0b000010),
-                                   bf6_t(0b100010),
-                                   bf6_t(0b000011),
-                                   bf6_t(0b100011),
-                                   bf6_t(0b000100),
-                                   bf6_t(0b100100),
-                                   bf6_t(0b000101),
-                                   bf6_t(0b100101),
-                                   bf6_t(0b000110),
-                                   bf6_t(0b100110),
-                                   bf6_t(0b001011),
-                                   bf6_t(0b101011)};
+    const int vector_size = 1;
+    const int packed_size = 16;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(16)));
+    test_vec_t test_vec = {bf6_t(0b000000),
+                           bf6_t(0b100000),
+                           bf6_t(0b000001),
+                           bf6_t(0b100001),
+                           bf6_t(0b000010),
+                           bf6_t(0b100010),
+                           bf6_t(0b000011),
+                           bf6_t(0b100011),
+                           bf6_t(0b000100),
+                           bf6_t(0b100100),
+                           bf6_t(0b000101),
+                           bf6_t(0b100101),
+                           bf6_t(0b000110),
+                           bf6_t(0b100110),
+                           bf6_t(0b001011),
+                           bf6_t(0b101011)};
     // reference vector
     vector_type<bf6x16_pk_t, vector_size> right_vec;
     // check default CTOR
@@ -271,8 +272,7 @@ TEST(BF6, TestAsType16x1)
     });
     // assign test values to the vector
     ck::static_for<0, vector_size, 1>{}([&](auto i) {
-        right_vec.template AsType<bf6x16_pk_t>()(Number<i>{}) =
-            bf6x16_pk_t{}.pack<vector_size, packed_size>(test_vec.data());
+        right_vec.template AsType<bf6x16_pk_t>()(Number<i>{}) = bf6x16_pk_t{}.pack(test_vec);
     });
     // copy the vector
     vector_type<bf6x16_pk_t, vector_size> left_vec{right_vec};
@@ -280,7 +280,7 @@ TEST(BF6, TestAsType16x1)
     ck::static_for<0, packed_size, 1>{}([&](auto i) {
         ASSERT_EQ(
             left_vec.template AsType<bf6x16_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
-            test_vec.at(i));
+            static_cast<bf6_t>(test_vec[static_cast<int>(i)]));
     });
 }
 
@@ -288,16 +288,42 @@ TEST(BF6, TestAsType16x1)
 TEST(BF6, TestAsType16x2)
 {
     // test size
-    const int vector_size       = 2;
-    const int packed_size       = 16;
-    std::vector<bf6_t> test_vec = {
-        bf6_t(0b000000), bf6_t(0b100000), bf6_t(0b000001), bf6_t(0b100001), bf6_t(0b000010),
-        bf6_t(0b100010), bf6_t(0b000011), bf6_t(0b100011), bf6_t(0b000100), bf6_t(0b100100),
-        bf6_t(0b000101), bf6_t(0b100101), bf6_t(0b000110), bf6_t(0b100110), bf6_t(0b001011),
-        bf6_t(0b101011), bf6_t(0b010000), bf6_t(0b110000), bf6_t(0b010001), bf6_t(0b110001),
-        bf6_t(0b010010), bf6_t(0b110010), bf6_t(0b010011), bf6_t(0b110011), bf6_t(0b010100),
-        bf6_t(0b110100), bf6_t(0b010101), bf6_t(0b110101), bf6_t(0b010110), bf6_t(0b110110),
-        bf6_t(0b011011), bf6_t(0b111011)};
+    const int vector_size = 2;
+    const int packed_size = 16;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(16)));
+    test_vec_t test_vec[2];
+    test_vec[0] = {bf6_t(0b000000),
+                   bf6_t(0b100000),
+                   bf6_t(0b000001),
+                   bf6_t(0b100001),
+                   bf6_t(0b000010),
+                   bf6_t(0b100010),
+                   bf6_t(0b000011),
+                   bf6_t(0b100011),
+                   bf6_t(0b000100),
+                   bf6_t(0b100100),
+                   bf6_t(0b000101),
+                   bf6_t(0b100101),
+                   bf6_t(0b000110),
+                   bf6_t(0b100110),
+                   bf6_t(0b001011),
+                   bf6_t(0b101011)};
+    test_vec[1] = {bf6_t(0b010000),
+                   bf6_t(0b110000),
+                   bf6_t(0b010001),
+                   bf6_t(0b110001),
+                   bf6_t(0b010010),
+                   bf6_t(0b110010),
+                   bf6_t(0b010011),
+                   bf6_t(0b110011),
+                   bf6_t(0b010100),
+                   bf6_t(0b110100),
+                   bf6_t(0b010101),
+                   bf6_t(0b110101),
+                   bf6_t(0b010110),
+                   bf6_t(0b110110),
+                   bf6_t(0b011011),
+                   bf6_t(0b111011)};
     // reference vector
     vector_type<bf6x16_pk_t, vector_size> right_vec;
     // check default CTOR
@@ -310,8 +336,7 @@ TEST(BF6, TestAsType16x2)
     });
     // assign test values to the vector
     ck::static_for<0, vector_size, 1>{}([&](auto i) {
-        right_vec.template AsType<bf6x16_pk_t>()(Number<i>{}) =
-            bf6x16_pk_t{}.pack<vector_size, packed_size>(test_vec.data() + i * packed_size);
+        right_vec.template AsType<bf6x16_pk_t>()(Number<i>{}) = bf6x16_pk_t{}.pack(test_vec[i]);
     });
     // copy the vector
     vector_type<bf6x16_pk_t, vector_size> left_vec{right_vec};
@@ -320,7 +345,7 @@ TEST(BF6, TestAsType16x2)
         ck::static_for<0, packed_size, 1>{}([&](auto idx_element) {
             ASSERT_EQ(left_vec.template AsType<bf6x16_pk_t>()(Number<idx_vector>{})
                           .template unpack<>(Number<idx_element>{}),
-                      test_vec.at(idx_vector * packed_size + idx_element));
+                      static_cast<bf6_t>(test_vec[idx_vector][static_cast<int>(idx_element)]));
         });
     });
 }
@@ -329,16 +354,17 @@ TEST(BF6, TestAsType16x2)
 TEST(BF6, TestAsType32x1)
 {
     // test size
-    const int vector_size       = 1;
-    const int packed_size       = 32;
-    std::vector<bf6_t> test_vec = {
-        bf6_t(0b000000), bf6_t(0b100000), bf6_t(0b000001), bf6_t(0b100001), bf6_t(0b000010),
-        bf6_t(0b100010), bf6_t(0b000011), bf6_t(0b100011), bf6_t(0b000100), bf6_t(0b100100),
-        bf6_t(0b000101), bf6_t(0b100101), bf6_t(0b000110), bf6_t(0b100110), bf6_t(0b001011),
-        bf6_t(0b101011), bf6_t(0b010000), bf6_t(0b110000), bf6_t(0b010001), bf6_t(0b110001),
-        bf6_t(0b010010), bf6_t(0b110010), bf6_t(0b010011), bf6_t(0b110011), bf6_t(0b010100),
-        bf6_t(0b110100), bf6_t(0b010101), bf6_t(0b110101), bf6_t(0b010110), bf6_t(0b110110),
-        bf6_t(0b011011), bf6_t(0b111011)};
+    const int vector_size = 1;
+    const int packed_size = 32;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(32)));
+    test_vec_t test_vec = {bf6_t(0b000000), bf6_t(0b100000), bf6_t(0b000001), bf6_t(0b100001),
+                           bf6_t(0b000010), bf6_t(0b100010), bf6_t(0b000011), bf6_t(0b100011),
+                           bf6_t(0b000100), bf6_t(0b100100), bf6_t(0b000101), bf6_t(0b100101),
+                           bf6_t(0b000110), bf6_t(0b100110), bf6_t(0b001011), bf6_t(0b101011),
+                           bf6_t(0b010000), bf6_t(0b110000), bf6_t(0b010001), bf6_t(0b110001),
+                           bf6_t(0b010010), bf6_t(0b110010), bf6_t(0b010011), bf6_t(0b110011),
+                           bf6_t(0b010100), bf6_t(0b110100), bf6_t(0b010101), bf6_t(0b110101),
+                           bf6_t(0b010110), bf6_t(0b110110), bf6_t(0b011011), bf6_t(0b111011)};
     // reference vector
     vector_type<bf6x32_pk_t, vector_size> right_vec;
     // check default CTOR
@@ -349,8 +375,7 @@ TEST(BF6, TestAsType32x1)
     });
     // assign test values to the vector
     ck::static_for<0, vector_size, 1>{}([&](auto i) {
-        right_vec.template AsType<bf6x32_pk_t>()(Number<i>{}) =
-            bf6x32_pk_t{}.pack<vector_size, packed_size>(test_vec.data());
+        right_vec.template AsType<bf6x32_pk_t>()(Number<i>{}) = bf6x32_pk_t{}.pack(test_vec);
     });
     // copy the vector
     vector_type<bf6x32_pk_t, vector_size> left_vec{right_vec};
@@ -358,6 +383,6 @@ TEST(BF6, TestAsType32x1)
     ck::static_for<0, packed_size, 1>{}([&](auto i) {
         ASSERT_EQ(
             left_vec.template AsType<bf6x32_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
-            test_vec.at(i));
+            static_cast<bf6_t>(test_vec[static_cast<int>(i)]));
     });
 }

@@ -45,6 +45,7 @@ struct f6x16_pk_t
     using element_type = uint32_t;
     using type         = StaticallyIndexedArray_v2<element_type, 3>;
     type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(16)));
     f6x16_pk_t() : data{type{}} {}
     f6x16_pk_t(type init) : data{init} {}
 
@@ -71,18 +72,13 @@ struct f6x16_pk_t
         return static_cast<f6_t>(bits & 0x3F);
     }
 
-    // V is vector_size and E is number of elements
-    template <size_t V, size_t E>
-    __host__ __device__ inline type pack(f6_t* x)
+    __host__ __device__ inline type pack(const test_vec_t& x)
     {
-        static_assert(V == 1 || V == 2, "Vector size must be 1 or 2.");
-        static_assert(E == 16, "Number of elements must be 16.");
-
         type packed{};
 
         // for each of the 16 f6_t values, place its 6 bits in the correct position
         ck::static_for<0, 16, 1>{}([&](auto i) {
-            uint32_t bits                   = static_cast<uint32_t>(x[i]) & 0x3F;
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
             constexpr int num_bits_elem     = 6;
             constexpr int num_bits_vec_elem = 32;
             constexpr int vector_size       = 3;
@@ -115,6 +111,7 @@ struct f6x32_pk_t
     using element_type = uint32_t;
     using type         = StaticallyIndexedArray_v2<element_type, 6>;
     type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(32)));
     f6x32_pk_t() : data{type{}} {}
     f6x32_pk_t(type init) : data{init} {}
 
@@ -141,18 +138,13 @@ struct f6x32_pk_t
         return static_cast<f6_t>(bits & 0x3F);
     }
 
-    // V is vector_size and E is number of elements
-    template <size_t V, size_t E>
-    __host__ __device__ inline type pack(f6_t* x)
+    __host__ __device__ inline type pack(const test_vec_t& x)
     {
-        static_assert(V == 1, "Vector size must be 1.");
-        static_assert(E == 32, "Number of elements must be 32.");
-
         type packed{};
 
         // for each of the 32 f6_t values, place its 6 bits in the correct position
         ck::static_for<0, 32, 1>{}([&](auto i) {
-            uint32_t bits                   = static_cast<uint32_t>(x[i]) & 0x3F;
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
             constexpr int num_bits_elem     = 6;
             constexpr int num_bits_vec_elem = 32;
             constexpr int vector_size       = 6;
@@ -185,6 +177,7 @@ struct bf6x16_pk_t
     using element_type = uint32_t;
     using type         = StaticallyIndexedArray_v2<element_type, 3>;
     type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(16)));
     bf6x16_pk_t() : data{type{}} {}
     bf6x16_pk_t(type init) : data{init} {}
 
@@ -211,18 +204,13 @@ struct bf6x16_pk_t
         return static_cast<bf6_t>(bits & 0x3F);
     }
 
-    // V is vector_size and E is number of elements
-    template <size_t V, size_t E>
-    __host__ __device__ inline type pack(bf6_t* x)
+    __host__ __device__ inline type pack(const test_vec_t& x)
     {
-        static_assert(V == 1 || V == 2, "Vector size must be 1 or 2.");
-        static_assert(E == 16, "Number of elements must be 16.");
-
         type packed{};
 
         // for each of the 16 bf6_t values, place its 6 bits in the correct position
         ck::static_for<0, 16, 1>{}([&](auto i) {
-            uint32_t bits                   = static_cast<uint32_t>(x[i]) & 0x3F;
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
             constexpr int num_bits_elem     = 6;
             constexpr int num_bits_vec_elem = 32;
             constexpr int vector_size       = 3;
@@ -255,6 +243,7 @@ struct bf6x32_pk_t
     using element_type = uint32_t;
     using type         = StaticallyIndexedArray_v2<element_type, 6>;
     type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(32)));
     bf6x32_pk_t() : data{type{}} {}
     bf6x32_pk_t(type init) : data{init} {}
 
@@ -281,18 +270,13 @@ struct bf6x32_pk_t
         return static_cast<bf6_t>(bits & 0x3F);
     }
 
-    // V is vector_size and E is number of elements
-    template <size_t V, size_t E>
-    __host__ __device__ inline type pack(bf6_t* x)
+    __host__ __device__ inline type pack(const test_vec_t& x)
     {
-        static_assert(V == 1, "Vector size must be 1.");
-        static_assert(E == 32, "Number of elements must be 32.");
-
         type packed{};
 
         // for each of the 32 bf6_t values, place its 6 bits in the correct position
         ck::static_for<0, 32, 1>{}([&](auto i) {
-            uint32_t bits                   = static_cast<uint32_t>(x[i]) & 0x3F;
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
             constexpr int num_bits_elem     = 6;
             constexpr int num_bits_vec_elem = 32;
             constexpr int vector_size       = 6;
