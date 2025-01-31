@@ -7,12 +7,32 @@
 #include "ck/utility/f8_utils.hpp"
 #include "ck/utility/random_gen.hpp"
 #include "ck/utility/array.hpp"
+#include "ck/utility/amd_inline_asm.hpp"
+#include "ck/utility/type.hpp"
 
 namespace ck {
 // Define the common macro for MI300 models
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
 #define __gfx94__
 #endif
+
+namespace details {
+
+__host__ half2_t pk_add_f16(const half2_t& x, const half2_t& y)
+{
+    half2_t vector_res;
+
+    vector_res.x = x.x + y.x;
+    vector_res.y = x.y + y.y;
+
+    return vector_res;
+}
+
+__device__ half2_t pk_add_f16(const half2_t& x, const half2_t& y)
+{
+    return amd_assembly_pk_add_f16(x, y);
+}
+} // namespace details
 
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
@@ -502,13 +522,40 @@ template <>
 inline __host__ __device__ float2_t type_convert<float2_t, pk_i4_t>(pk_i4_t x)
 {
     uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
-    uint8_t x_l  = (x_u8 & 0x0f) >> 0;
-    uint8_t x_h  = (x_u8 & 0xf0) >> 4;
 
-    auto l_f32 = ck::type_convert<float>(x_l);
-    auto h_f32 = ck::type_convert<float>(x_h);
+    float x_l = ((x_u8 & 0x0f) >> 0) - 8.f;
+    float x_h = ((x_u8 & 0xf0) >> 4) - 8.f;
 
-    return {l_f32, h_f32};
+    float2_t res = {x_l, x_h};
+
+    return res;
+}
+
+template <>
+inline __host__ __device__ half2_t type_convert<half2_t, pk_i4_t>(pk_i4_t x)
+{
+    uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
+    uint32_t i4s = ((x_u8 & 0xf0) << 12) | (x_u8 & 0xf);
+
+    const int EX  = 0x64006400;
+    const int SUB = 0xE408E408; //-8
+
+    int lo = i4s | EX;
+
+    return details::pk_add_f16(bit_cast<half2_t>(lo), bit_cast<half2_t>(SUB));
+}
+
+template <>
+inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, pk_i4_t>(pk_i4_t x)
+{
+    uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
+
+    float x_l = ((x_u8 & 0x0f) >> 0) - 8.f;
+    float x_h = ((x_u8 & 0xf0) >> 4) - 8.f;
+
+    bhalf2_t res = {type_convert<bhalf_t>(x_l), type_convert<bhalf_t>(x_h)};
+
+    return res;
 }
 
 template <>
