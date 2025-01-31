@@ -96,8 +96,17 @@ struct score_mod_def_{F_idx} {{
     }}
 }};
 
+struct pre_softmax_def_{F_idx} {{
+    using TScore = typename fmha_pipeline_{F_idx}::SaccDataType;
+    CK_TILE_HOST_DEVICE TScore operator()(TScore s 
+                         ) const {{
+        (void) s; 
+        return {F_pre_softmax_expr};
+    }}
+}};
+
 using fmha_kernel_{F_idx} =
-    ck_tile::FmhaFwdKernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}, score_mod_def_{F_idx}>;
+    ck_tile::FmhaFwdKernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}, score_mod_def_{F_idx}, pre_softmax_def_{F_idx}>;
 
 using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
                         {F_pipeline_enum}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
@@ -350,6 +359,7 @@ class FmhaFwdKernel:
     F_tile          : FmhaFwdTileSize
     F_pipeline      : FmhaFwdPipeline
     F_score_mod_expr: str
+    F_pre_softmax_expr:str
     mask_impl       : str
 
     @property
@@ -392,7 +402,8 @@ class FmhaFwdKernel:
                 F_mask          = get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
                 F_mode          = MODE_MAP[self.F_mode],
                 F_pipeline      = PIPELINE_MAP[self.F_pipeline.tag],
-                F_score_mod_expr = self.F_score_mod_expr)
+                F_score_mod_expr = self.F_score_mod_expr,
+                F_pre_softmax_expr = self.F_pre_softmax_expr)
 
     @property
     def name(self) -> str:
@@ -447,7 +458,7 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     else:
         return None
 
-def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr : str) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
+def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr : str, pre_softmax_expr : str) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
     def get_pipelines(dtype, hdim) -> List[FmhaFwdPipeline]:
@@ -517,6 +528,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl, score_mod_e
                                   F_tile=tile,
                                   F_pipeline=pipeline,
                                   F_score_mod_expr=score_mod_expr,
+                                  F_pre_softmax_expr=pre_softmax_expr,
                                   mask_impl=mask_impl)
                 if kernel_filter != None:
                     if not fnmatch.fnmatch(k.name, kernel_filter):
@@ -539,15 +551,15 @@ def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
 def write_fwd_api(api_pool : FmhaFwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_FWD_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr) -> None:
-    api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl, score_mod_expr)
+def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr, pre_softmax_expr) -> None:
+    api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl, score_mod_expr, pre_softmax_expr)
     for kernel in kernels:
         write_single_fwd_kernel(kernel, output_dir)
     write_fwd_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr) -> None:
+def list_blobs(file_path : Path, kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr, pre_softmax_expr) -> None:
     with file_path.open('a') as f:
-        _, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl, score_mod_expr)
+        _, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl, score_mod_expr, pre_softmax_expr)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME) + "\n")

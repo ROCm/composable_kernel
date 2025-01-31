@@ -20,7 +20,7 @@
 
 namespace ck_tile {
 
-template <typename FmhaPipeline_, typename EpiloguePipeline_, typename ScoreModFunction_>
+template <typename FmhaPipeline_, typename EpiloguePipeline_, typename ScoreModFunction_, typename PreSoftmaxFunction_>
 struct FmhaFwdKernel
 {
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
@@ -1304,7 +1304,6 @@ struct FmhaFwdKernel
 
         // may have state inside
         auto score_mod_def = ScoreModFunction_{};
-
         auto score_mod_arg = [b=i_batch, h=i_nhead, score_mod_def](
                                  typename ScoreModFunction_::TScore s,
                                  ck_tile::index_t q_idx, 
@@ -1313,6 +1312,12 @@ struct FmhaFwdKernel
             // printf("device score_mod at (%d %d %d %d), score before: %f, score after: %f score_clip: %f\n",
             //     b, h, q_idx, v_idx, s, new_score, new_score_after_clip);
             return new_score;
+        };
+
+        auto pre_softmax_def = PreSoftmaxFunction_{};
+        auto pre_softmax_arg = [pre_softmax_def](
+                                 typename PreSoftmaxFunction_::TScore s) {
+	    return pre_softmax_def(s);
         };
 
         auto o_acc_tile = [&]() {
