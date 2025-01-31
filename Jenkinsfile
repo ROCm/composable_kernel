@@ -795,7 +795,7 @@ pipeline {
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
             name: "RUN_CK_TILE_GEMM_TESTS",
-            defaultValue: false,
+            defaultValue: true,
             description: "Run the ck_tile GEMM tests (default: ON)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
