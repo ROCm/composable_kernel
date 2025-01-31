@@ -16,9 +16,10 @@ namespace ck {
 #define __gfx94__
 #endif
 
+namespace {
 namespace details {
 
-__host__ half2_t pk_add_f16(const half2_t& x, const half2_t& y)
+[[maybe_unused]] __host__ half2_t pk_add_f16(const half2_t& x, const half2_t& y)
 {
     half2_t vector_res;
 
@@ -28,11 +29,12 @@ __host__ half2_t pk_add_f16(const half2_t& x, const half2_t& y)
     return vector_res;
 }
 
-__device__ half2_t pk_add_f16(const half2_t& x, const half2_t& y)
+[[maybe_unused]] __device__ half2_t pk_add_f16(const half2_t& x, const half2_t& y)
 {
     return amd_assembly_pk_add_f16(x, y);
 }
 } // namespace details
+} // namespace
 
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
