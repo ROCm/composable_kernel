@@ -40,7 +40,7 @@ run_fp16_bf16_tests() {
     fi
 
     for prec in "bf16" ; do
-    for mode in 0 ; do
+    for mode in 0 1; do
     for perm in 0 ; do
     for vlayout in "r" ; do
     for hdim in 32 64 128 256 ; do

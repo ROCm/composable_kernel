@@ -849,7 +849,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
         else // fmha_fwd_traits or fmha_splitkv_traits
         {
-            // traits.is_group_mode       = (mode == mode_enum::group);
+            traits.is_group_mode       = (mode == mode_enum::group);
             traits.mask_type = mask.type;
             traits.bias_type = bias.type;
             // traits.has_lse             = lse;
