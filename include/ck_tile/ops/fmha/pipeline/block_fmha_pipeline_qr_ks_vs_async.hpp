@@ -179,15 +179,10 @@ struct BlockFmhaPipelineQRKSVSAsync
             make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
                              q_dram_block_window_tmp.get_window_lengths(),
                              q_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakeQDramTileDistribution<Problem>());
-        auto original_q = load_tile(q_dram_window);
+                             Policy::template MakeQRegTileDistribution<Problem>());
+        auto q = load_tile(q_dram_window);
 
         __builtin_amdgcn_sched_barrier(0);
-
-        // Q tile in LDS
-        QDataType* q_lds_ptr = static_cast<QDataType*>(smem_ptr);
-        auto q_lds           = make_tensor_view<address_space_enum::lds>(
-            q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
 
         // K tile in LDS
         KDataType* k_lds_ptr = static_cast<KDataType*>(smem_ptr);
@@ -295,31 +290,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                              {0, seqlen_k_start}, // TODO: hdim split?
                              Policy::template MakeVDramTileDistribution<Problem>());
 
-        // store Q into LDS
-        __builtin_amdgcn_sched_barrier(0);
-        auto q_lds_window_for_store = make_tile_window(
-            q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
-
-        store_tile(q_lds_window_for_store, original_q);
-        __builtin_amdgcn_sched_barrier(0);
-
-        // load Q from LDS
-        auto q_lds_window_for_load =
-            make_tile_window(q_lds,
-                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
-                             {0, 0},
-                             Policy::template MakeQRegTileDistribution<Problem>());
-        block_sync_lds();
-        auto q = load_tile(q_lds_window_for_load);
-
-        auto q_tile = tile_elementwise_in(q_element_func, q);
-
-        __builtin_amdgcn_sched_barrier(0);
-
         index_t i_total_loops = 0;
-
-        // ensure loading of Q from LDS completely done
-        block_sync_lds();
 
         do
         {
