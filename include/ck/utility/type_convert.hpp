@@ -1433,7 +1433,7 @@ inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0
 #if defined(__gfx950__)
     float16_t* in1 = reinterpret_cast<float16_t*>(&x);
     float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
-    return __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(*in1, *in2, scale);
+    return __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(*in1, *in2, scale);
 #else
     union
     {
