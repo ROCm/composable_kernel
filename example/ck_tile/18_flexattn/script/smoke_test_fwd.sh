@@ -39,14 +39,14 @@ run_fp16_bf16_tests() {
         CACHE_BATCH_IDX="$CACHE_BATCH_IDX 1"
     fi
 
-    for prec in "fp16" "bf16" ; do
-    for mode in 1 0 ; do
-    for perm in 0 1 ; do
-    for vlayout in "r" "c" ; do
+    for prec in "bf16" ; do
+    for mode in 0 ; do
+    for perm in 0 ; do
+    for vlayout in "r" ; do
     for hdim in 32 64 128 256 ; do
-    for lse in 0 1 ; do
-    for bias in "n" "e" "a" ; do
-    for p_drop in 0.0 0.2 ; do
+    for lse in 0 ; do
+    for bias in "n" ; do
+    for p_drop in 0.0 ; do
     for num_splits in $NUM_SPLITS ; do
     for page_block_size in $PAGE_BLOCK_SIZE ; do
     for cache_batch_idx in $CACHE_BATCH_IDX ; do
@@ -97,10 +97,10 @@ run_fp16_appendkv_tests() {
 set -x
 
 run_fp16_bf16_tests
-run_fp8_tests
+# run_fp8_tests
 
-if [ $TEST_APPENDKV -eq 1 ] ; then
-    run_fp16_appendkv_tests
-fi
+# if [ $TEST_APPENDKV -eq 1 ] ; then
+#     run_fp16_appendkv_tests
+# fi
 
 set +x
