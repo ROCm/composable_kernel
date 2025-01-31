@@ -411,7 +411,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             // STAGE 2, scale_s, add bias, mask, softmax
             // FlexAttention score modifier operates directly on scores
             {
-                const auto k_origin = k_dram_block_window.get_window_origin();
+                const auto k_origin    = k_dram_block_window.get_window_origin();
                 constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
 
                 sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {

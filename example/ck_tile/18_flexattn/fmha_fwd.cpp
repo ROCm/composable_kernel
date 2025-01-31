@@ -850,8 +850,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         else // fmha_fwd_traits or fmha_splitkv_traits
         {
             // traits.is_group_mode       = (mode == mode_enum::group);
-            traits.mask_type           = mask.type;
-            traits.bias_type           = bias.type;
+            traits.mask_type = mask.type;
+            traits.bias_type = bias.type;
             // traits.has_lse             = lse;
             // traits.do_fp8_static_quant = squant;
 
@@ -1375,20 +1375,24 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::identity{},
             ck_tile::identity{});
 
-        #ifndef CK_TILE_SCORE_MOD_F
-        #error "must be defined"
-        #else
-        #define XSTR(x) STR(x)
-        #define STR(x) #x   
-        #pragma message "host score_mod_f: " XSTR(CK_TILE_SCORE_MOD_F)
-        #endif
+#ifndef CK_TILE_SCORE_MOD_F
+#error "must be defined"
+#else
+#define XSTR(x) STR(x)
+#define STR(x) #x
+#pragma message "host score_mod_f: " XSTR(CK_TILE_SCORE_MOD_F)
+#endif
 
-        auto score_mod = [] (auto s, ck_tile::index_t b, ck_tile::index_t h, ck_tile::index_t q_idx, ck_tile::index_t v_idx) {
+        auto score_mod = [](auto s,
+                            ck_tile::index_t b,
+                            ck_tile::index_t h,
+                            ck_tile::index_t q_idx,
+                            ck_tile::index_t v_idx) {
             ck_tile::detail::swallow(s, b, h, q_idx, v_idx);
             return CK_TILE_SCORE_MOD_F;
         };
 
-        s_host_ref.ForEach([&](auto& self, auto i) { 
+        s_host_ref.ForEach([&](auto& self, auto i) {
             auto new_score = score_mod(self(i), wb, i[0], i[1], i[2]);
             // printf("host score_mod at (%d %lu %lu %lu), score before: %f, score after: %f\n",
             //     wb, i[0], i[1], i[2], self(i), new_score);
@@ -1396,9 +1400,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         });
 
         auto scale_def = ck_tile::scales(scale_s);
-        s_host_ref.ForEach([&](auto& self, auto i) {
-            self(i) = scale_def(self(i));
-        });
+        s_host_ref.ForEach([&](auto& self, auto i) { self(i) = scale_def(self(i)); });
 
         if(bias.type == bias_enum::elementwise_bias)
         {
