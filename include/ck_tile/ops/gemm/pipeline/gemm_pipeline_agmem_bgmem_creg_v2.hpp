@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v2_default_policy.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -27,14 +28,14 @@ struct GemmPipelineAGmemBGmemCRegV2
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
-#define _TS_ std::to_string
-        // clang-format off
-        using _SS_ = std::string;
-
-        return _SS_("pipeline_AGmemBGmemCRegV2_") +
-                _TS_(kMPerBlock) + "x" + _TS_(kNPerBlock) + "x" + _TS_(kKPerBlock) + "x" + _TS_(kBlockSize);
-#undef _TS_
-        // clang-format on
+        return concat("pipeline_AGmemBGmemCRegV2_",
+                      kMPerBlock,
+                      "x",
+                      kNPerBlock,
+                      "x",
+                      kKPerBlock,
+                      "x",
+                      kBlockSize);
     }
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 

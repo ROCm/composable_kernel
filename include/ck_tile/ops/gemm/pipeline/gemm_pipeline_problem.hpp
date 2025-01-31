@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -40,20 +41,18 @@ struct GemmPipelineProblemBase
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
-#define _TS_ std::to_string
-        // clang-format off
-        using _SS_ = std::string;
-        using ::operator<<;
-
-        thread_local std::ostringstream oss;
-        oss << Scheduler;
-
-        return _SS_("gemm_problem_") +
-                _TS_(VectorLoadSize) + "x" + _TS_(kBlockSize) + "_" +
-                _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK) + "_" +
-                oss.str();
-#undef _TS_
-        // clang-format on
+        return concat("gemm_problem_",
+                      VectorLoadSize,
+                      "x",
+                      kBlockSize,
+                      "_",
+                      kPadM,
+                      "x",
+                      kPadN,
+                      "x",
+                      kPadK,
+                      "_",
+                      Scheduler);
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()

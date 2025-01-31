@@ -7,6 +7,7 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -80,16 +81,20 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
-#define _TS_ std::to_string
-        // clang-format off
-        using _SS_ = std::string;
-
-        return _SS_("pipeline_AgBgCrCompV3_") +
-                _TS_(BlockSize) + "_" +
-                _TS_(GetVectorSizeA()) + "x" + _TS_(GetVectorSizeB()) + "x" + _TS_(GetVectorSizeC()) + "_" +
-                _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK);
-#undef _TS_
-        // clang-format on
+        return concat("pipeline_AgBgCrCompV3_",
+                      BlockSize,
+                      "_",
+                      GetVectorSizeA(),
+                      "x",
+                      GetVectorSizeB(),
+                      "x",
+                      GetVectorSizeC(),
+                      "_",
+                      kPadM,
+                      "x",
+                      kPadN,
+                      "x",
+                      kPadK);
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()

@@ -7,6 +7,7 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -130,16 +131,24 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
-#define _TS_ std::to_string
-        // clang-format off
-        using _SS_ = std::string;
-
-        return _SS_("pipeline_AgBgCrMe_") +
-                _TS_(MPerBlock) + "x" + _TS_(NPerBlock) + "x" + _TS_(KPerBlock) + "_" +
-                _TS_(GetVectorSizeA()) + "x" + _TS_(GetVectorSizeB()) + "x" + _TS_(GetVectorSizeC()) + "_" +
-                _TS_(kPadM) + "x" + _TS_(kPadN) + "x" + _TS_(kPadK);
-#undef _TS_
-        // clang-format on
+        return concat("pipeline_AgBgCrMe_",
+                      MPerBlock,
+                      "x",
+                      NPerBlock,
+                      "x",
+                      KPerBlock,
+                      "_",
+                      GetVectorSizeA(),
+                      "x",
+                      GetVectorSizeB(),
+                      "x",
+                      GetVectorSizeC(),
+                      "_",
+                      kPadM,
+                      "x",
+                      kPadN,
+                      "x",
+                      kPadK);
     }
 
     using Base::PrefetchStages;

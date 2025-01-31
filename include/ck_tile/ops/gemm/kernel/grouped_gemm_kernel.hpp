@@ -67,7 +67,6 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
 #define _SS_ std::string
-#define _TS_ std::to_string
         // clang-format off
         using P_ = GemmPipeline;
 
@@ -79,12 +78,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
             return base_str;
         }();
 
-        return _SS_("gemm_grouped_") + _SS_(prec_str) + "_" +
-                _TS_(P_::kMPerBlock) + "x" + _TS_(P_::kNPerBlock) + "x" + _TS_(P_::kKPerBlock) + "_" +
-                _TS_(P_::VectorSizeA) + "x" + _TS_(P_::VectorSizeB) + "x" + _TS_(P_::VectorSizeC) + "_" +
-                _TS_(P_::kPadM) + "x" + _TS_(P_::kPadN) + "x" + _TS_(P_::kPadK);
+        return concat("gemm_grouped_", prec_str, "_", P_::kMPerBlock, "x", P_::kNPerBlock, "x", P_::kKPerBlock, "_", P_::VectorSizeA, "x", P_::VectorSizeB, "x", P_::VectorSizeC, "_", P_::kPadM, "x", P_::kPadN, "x", P_::kPadK);
 #undef _SS_
-#undef _TS_
         // clang-format on
     }
 

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 

@@ -8,6 +8,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -77,9 +78,7 @@ struct GemmKernel
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
-#define _TS_ std::to_string
         // clang-format off
-        using P_ = GemmPipeline;
         using _SS_ = std::string;
 
         auto prec_str = [&] () {
@@ -90,8 +89,7 @@ struct GemmKernel
             return base_str;
         }();
 
-        return _SS_("gemm_") + _SS_(prec_str) + "_" + P_::GetName();
-#undef _TS_
+        return concat("gemm_", prec_str, "_", GemmPipeline::GetName());
         // clang-format on
     }
 
