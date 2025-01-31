@@ -482,10 +482,9 @@ struct intrin_mfma_f32_32x32x64f8f6f4;
 /// @brief Performs a matrix fused multiply-accumulate operation on 32x32x64 submatrices for f8, f6,
 /// and f4 data types.
 ///
-/// @note Calls scaled version of the instruction as the original instruction is not supported on
-/// the backend. As per Matthew Arsenault: "Use the scaled versions. It's not a workaround, that is
-/// the intended use. There is a backend optimization to select to the unscaled if you use 0
-/// scales."
+/// @note Calls scaled version of the instruction as the original instruction is not supported in
+/// the backend. That is the intended use. There is a backend optimization to select the unscaled
+/// operation if the scale is 0.
 template <>
 struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
 {
@@ -590,10 +589,9 @@ struct intrin_mfma_f32_16x16x128f8f6f4;
 /// @brief Performs a matrix fused multiply-accumulate operation on 16x16x128 submatrices for f8f6f4
 /// data types.
 ///
-/// @note Calls scaled version of the instruction as the original instruction is not supported on
-/// the backend. As per Matthew Arsenault: "Use the scaled versions. It's not a workaround, that is
-/// the intended use. There is a backend optimization to select to the unscaled if you use 0
-/// scales."
+/// @note Calls scaled version of the instruction as the original instruction is not supported in
+/// the backend. That is the intended use. There is a backend optimization to select the unscaled
+/// operation if the scale is 0.
 template <>
 struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
 {
