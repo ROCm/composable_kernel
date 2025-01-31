@@ -175,12 +175,11 @@ struct BlockFmhaPipelineQRKSVSAsync
         static_assert(NumKLdsBuffers >= 2);
         static_assert(NumVLdsBuffers >= 2);
 
-        auto q_dram_window =
-            make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
-                             q_dram_block_window_tmp.get_window_lengths(),
-                             q_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakeQRegTileDistribution<Problem>());
-        auto q = load_tile(q_dram_window);
+        auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+                                              q_dram_block_window_tmp.get_window_lengths(),
+                                              q_dram_block_window_tmp.get_window_origin(),
+                                              Policy::template MakeQRegTileDistribution<Problem>());
+        auto q             = load_tile(q_dram_window);
 
         __builtin_amdgcn_sched_barrier(0);
 
@@ -193,8 +192,7 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<VDataType*>(static_cast<char*>(smem_ptr) +
-                                         Policy::template GetSmemSizeK<Problem>()),
+            reinterpret_cast<VDataType*>(smem_ptr),
             Policy::template MakeVLdsBlockDescriptor<Problem>());
         auto v_lds_window = make_tile_window(
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
@@ -296,7 +294,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         {
             if(i_total_loops == 0) // executed by fist iteration
             {
-                if(i_total_loops < num_total_loop)
+                if(num_total_loop > 1) // there are multiple iterations
                 {
                     auto k_lds_window_tmp =
                         get_slice_tile(k_lds_window, sequence<0, 0>{}, sequence<kN0, kK0>{});
@@ -341,7 +339,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                                           sequence<kM0, k0_loops * kK0>{}),
                            k_lds_window_tmp);
                 }
-                else
+                else // there is only single iteration
                 {
                     auto k_lds_window_tmp =
                         get_slice_tile(k_lds_window, sequence<0, 0>{}, sequence<kN0, kK0>{});
