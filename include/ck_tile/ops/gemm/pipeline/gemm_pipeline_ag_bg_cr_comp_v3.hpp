@@ -72,8 +72,6 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
     static constexpr bool isDoubleSmemBuffer = Problem::isDoubleSmemBuffer;
 
-    static constexpr bool isDoubleSmemBuffer = Problem::isDoubleSmemBuffer;
-    
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;

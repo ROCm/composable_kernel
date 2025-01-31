@@ -33,7 +33,7 @@ struct GemmPipelineProblemBase
     static constexpr bool kPadN = Traits::kPadN;
     static constexpr bool kPadK = Traits::kPadK;
 
-    static constexpr bool isDoubleSmemBuffer = GemmTraits::isDoubleSmemBuffer;
+    static constexpr bool isDoubleSmemBuffer = Traits::isDoubleSmemBuffer;
 
     static constexpr auto Scheduler = GemmPipelineScheduler::Default;
 
@@ -162,6 +162,8 @@ struct UniversalGemmPipelineProblem
     static constexpr bool kPadM = Traits::kPadM;
     static constexpr bool kPadN = Traits::kPadN;
     static constexpr bool kPadK = Traits::kPadK;
+
+    static constexpr bool isDoubleSmemBuffer = Traits::isDoubleSmemBuffer;
 
     static constexpr auto Scheduler  = Scheduler_;
     static constexpr auto HasHotLoop = HasHotLoop_;
