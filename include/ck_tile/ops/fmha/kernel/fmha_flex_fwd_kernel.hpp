@@ -1305,15 +1305,16 @@ struct FmhaFwdKernel
         // may have state inside
         auto score_mod_def = ScoreModFunction_{};
 
-        auto score_mod_arg = [b=i_batch, h=i_nhead, score_mod_def](
-                                 typename ScoreModFunction_::TScore s,
-                                 ck_tile::index_t q_idx, 
-                                 ck_tile::index_t v_idx) {
-            auto new_score = score_mod_def(s, b, h, q_idx, v_idx);\
-            // printf("device score_mod at (%d %d %d %d), score before: %f, score after: %f score_clip: %f\n",
-            //     b, h, q_idx, v_idx, s, new_score, new_score_after_clip);
-            return new_score;
-        };
+        auto score_mod_arg =
+            [b = i_batch, h = i_nhead, score_mod_def](typename ScoreModFunction_::TScore s,
+                                                      ck_tile::index_t q_idx,
+                                                      ck_tile::index_t v_idx) {
+                auto new_score = score_mod_def(
+                    s, b, h, q_idx, v_idx); // printf("device score_mod at (%d %d %d %d), score
+                                            // before: %f, score after: %f score_clip: %f\n",
+                //     b, h, q_idx, v_idx, s, new_score, new_score_after_clip);
+                return new_score;
+            };
 
         auto o_acc_tile = [&]() {
             if constexpr(kDoFp8StaticQuant)
@@ -1329,8 +1330,8 @@ struct FmhaFwdKernel
                     identity{}, // bias_element_func
                     randval_dram_window,
                     lse_dram_window,
-                    identity{},                                          // lse_element_func
-                    identity{},                                          // s_acc_element_func
+                    identity{}, // lse_element_func
+                    identity{}, // s_acc_element_func
                     score_mod_arg,
                     scales{kargs.scale_p},                               // p_compute_element_func
                     composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
