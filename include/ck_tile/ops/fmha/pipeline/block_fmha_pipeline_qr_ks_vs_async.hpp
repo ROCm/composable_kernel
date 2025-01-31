@@ -175,11 +175,12 @@ struct BlockFmhaPipelineQRKSVSAsync
         static_assert(NumKLdsBuffers >= 2);
         static_assert(NumVLdsBuffers >= 2);
 
-        auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
-                                              q_dram_block_window_tmp.get_window_lengths(),
-                                              q_dram_block_window_tmp.get_window_origin(),
-                                              Policy::template MakeQRegTileDistribution<Problem>());
-        auto original_q    = load_tile(q_dram_window);
+        auto q_dram_window =
+            make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+                             q_dram_block_window_tmp.get_window_lengths(),
+                             q_dram_block_window_tmp.get_window_origin(),
+                             Policy::template MakeQDramTileDistribution<Problem>());
+        auto original_q = load_tile(q_dram_window);
 
         __builtin_amdgcn_sched_barrier(0);
 
