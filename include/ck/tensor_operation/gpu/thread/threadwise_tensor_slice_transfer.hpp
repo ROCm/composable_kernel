@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -212,7 +212,7 @@ template <typename SrcData,
           typename enable_if<DstDesc::IsKnownAtCompileTime(), bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_v2
 {
-    static_assert((InvalidElementAsNaN && !std::is_integral<DstData>::value) ||
+    static_assert((InvalidElementAsNaN && !ck::is_integral<DstData>::value) ||
                       (!InvalidElementAsNaN),
                   "Filling invalid element as NaN is only for floating point types");
 
