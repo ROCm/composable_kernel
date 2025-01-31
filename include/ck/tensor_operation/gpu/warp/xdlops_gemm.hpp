@@ -881,14 +881,14 @@ template <typename base_type,
           index_t MPerXdlops,
           index_t NPerXdlops,
           typename additional_type = base_type,
-          bool is_single_rate_mfma  = false>
+          bool is_single_rate_mfma = false>
 struct MfmaSelector
 {
     template <typename base_type_,
               index_t MPerXdlops_,
               index_t NPerXdlops_,
               typename additional_type_ = base_type_,
-              bool is_single_rate_mfma_  = false>
+              bool is_single_rate_mfma_ = false>
     static constexpr auto GetMfma();
 
     template <>
@@ -1127,8 +1127,8 @@ struct MfmaSelector
         return MfmaInstr::mfma_f32_16x16x32bf8f8;
     }
 
-    static constexpr auto selected_mfma =
-        mfma_type<GetMfma<base_type, MPerXdlops, NPerXdlops, additional_type, is_single_rate_mfma>()>{};
+    static constexpr auto selected_mfma = mfma_type<
+        GetMfma<base_type, MPerXdlops, NPerXdlops, additional_type, is_single_rate_mfma>()>{};
 
     __host__ __device__ constexpr MfmaSelector()
     {
@@ -1431,8 +1431,12 @@ struct XdlopsGemm
     }
 
     // Falls back to single rate instruction on gfx950 if KPack <= 4; no change on gfx942-
-    static constexpr auto mfma = MfmaSelector<base_type, MPerXdlops, NPerXdlops, additional_type,
-                                    ((is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value) && KPack <= 4) ? true : false>{};
+    static constexpr auto
+        mfma = MfmaSelector < base_type,
+        MPerXdlops, NPerXdlops, additional_type,
+        ((is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value) && KPack <= 4)
+            ? true
+            : false > {};
 
     static constexpr auto mfma_instr = mfma.selected_mfma;
 
