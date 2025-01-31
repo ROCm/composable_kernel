@@ -1431,39 +1431,9 @@ inline __host__ __device__ f6_t f6_convert_rne(float x, float scale = 1.0f)
 inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0f)
 {
 #if defined(__gfx950__)
-    float16_t in1{x[0],
-                  x[1],
-                  x[2],
-                  x[3],
-                  x[4],
-                  x[5],
-                  x[6],
-                  x[7],
-                  x[8],
-                  x[9],
-                  x[10],
-                  x[11],
-                  x[12],
-                  x[13],
-                  x[14],
-                  x[15]};
-    float16_t in2 = {x[16],
-                     x[17],
-                     x[18],
-                     x[19],
-                     x[20],
-                     x[21],
-                     x[22],
-                     x[23],
-                     x[24],
-                     x[25],
-                     x[26],
-                     x[27],
-                     x[28],
-                     x[29],
-                     x[30],
-                     x[31]};
-    return __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(in1, in2, scale);
+    float16_t* in1 = reinterpret_cast<float16_t*>(&x);
+    float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
+    return __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(*in1, *in2, scale);
 #else
     union
     {
@@ -1719,39 +1689,9 @@ inline __host__ __device__ bf6_t bf6_convert_rne(float x, float scale = 1.0f)
 inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1.0f)
 {
 #if defined(__gfx950__)
-    float16_t in1{x[0],
-                  x[1],
-                  x[2],
-                  x[3],
-                  x[4],
-                  x[5],
-                  x[6],
-                  x[7],
-                  x[8],
-                  x[9],
-                  x[10],
-                  x[11],
-                  x[12],
-                  x[13],
-                  x[14],
-                  x[15]};
-    float16_t in2 = {x[16],
-                     x[17],
-                     x[18],
-                     x[19],
-                     x[20],
-                     x[21],
-                     x[22],
-                     x[23],
-                     x[24],
-                     x[25],
-                     x[26],
-                     x[27],
-                     x[28],
-                     x[29],
-                     x[30],
-                     x[31]};
-    return __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(in1, in2, scale);
+    float16_t* in1 = reinterpret_cast<float16_t*>(&x);
+    float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
+    return __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(*in1, *in2, scale);
 #else
     union
     {
