@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
@@ -374,6 +374,16 @@ struct numeric<bfloat16_t>
     {
         return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(0));
     }
+};
+
+template <typename T>
+struct numeric_traits;
+
+template <>
+struct numeric_traits<bfloat16_t>
+{
+    static constexpr int exp  = 8;
+    static constexpr int mant = 7;
 };
 
 #if CK_TILE_USE_CUSTOM_DATA_TYPE

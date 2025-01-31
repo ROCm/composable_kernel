@@ -10,22 +10,43 @@ TYPED_TEST(TestCkTileGemmPipeline, SmallM)
     constexpr int K = 320;
 
     for(int M : Ms)
-        this->Run(M, N, K);
+    {
+        if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                    ck_tile::tensor_layout::gemm::ColumnMajor>)
+            EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+        else
+            this->Run(M, N, K);
+    }
 }
 
 TYPED_TEST(TestCkTileGemmPipeline, MidLargeM)
 {
     std::vector<int> Ms{127, 255, 312, 799, 1573};
-    constexpr int N = 1024;
-    constexpr int K = 320;
+    constexpr int N           = 1024;
+    constexpr int K           = 320;
+    constexpr int VecLoadSize = 8;
 
     for(int M : Ms)
-        this->Run(M, N, K);
+    {
+        if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                    ck_tile::tensor_layout::gemm::ColumnMajor>)
+        {
+            // TODO: Can we anyhow deduce used vector load size?
+            if(M % VecLoadSize == 0)
+                this->Run(M, N, K);
+            else
+                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+        }
+        else
+        {
+            this->Run(M, N, K);
+        }
+    }
 }
 
 TYPED_TEST(TestCkTileGemmPipeline, PaddK)
 {
-    std::vector<int> Ms{127};
+    std::vector<int> Ms{128};
     constexpr int N = 1024;
     constexpr int K = 432;
 

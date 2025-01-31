@@ -28,8 +28,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
-
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#endif
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
     // Compute friendly for Intrawave scheduler
     constexpr ck_tile::index_t M_Tile = 256;
     constexpr ck_tile::index_t N_Tile = 256;
@@ -63,6 +63,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
 
+    constexpr bool TransposeC = false;
+
     constexpr int kBlockPerCu = 1;
 
     // ===============================================
@@ -71,14 +73,21 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
-    using TilePartitioner = ck_tile::GemmTilePartitioner<GemmShape>;
+    using TilePartitioner = ck_tile::GemmTile2DPartitioner<GemmShape>;
 
     using GemmEpilogue = ck_tile::Default2DEpilogue<
         ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>;
 
     using Traits =
         ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, isDoubleSmemBuffer, ALayout, BLayout, CLayout>;
-
+    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
+                                                                 kPadN,
+                                                                 kPadK,
+                                                                 isDoubleSmemBuffer,
+                                                                 ALayout,
+                                                                 BLayout,
+                                                                 CLayout,
+                                                                 TransposeC>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -101,7 +110,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                            BDataType,
                                                                            AccDataType,
                                                                            GemmShape,
-                                                                           Traits,
+                                                                           GemmUniversalTraits,
                                                                            scheduler,
                                                                            has_hot_loop_v,
                                                                            tail_number_v>;
@@ -133,6 +142,21 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     if(has_hot_loop)
     {
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+        if(tail_num == ck_tile::TailNumber::Full)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
+        else
+        {
+            std::ostringstream err;
+            err << "For compute pipeline tail number should always be Full, but have \"" << tail_num
+                << "\" which is not supported! PrefetchStages: " << BaseGemmPipeline::PrefetchStages
+                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+            throw std::runtime_error(err.str());
+        }
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
         // Tail pipeline One to Seven
         if(tail_num == ck_tile::TailNumber::One)
         {
@@ -193,6 +217,16 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
             }
         }
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V2)
+        if constexpr(BaseGemmPipeline::PrefetchStages > 2)
+        {
+            if(tail_num == ck_tile::TailNumber::Two)
+            {
+                Run(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
+            }
+        }
+#endif
     }
     else
     {
@@ -216,5 +250,39 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 }
 
 #include "run_gemm_example.inc"
+
+int run_gemm_example(int argc, char* argv[])
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+    std::string a_layout = arg_parser.get_str("a_layout");
+    std::string b_layout = arg_parser.get_str("b_layout");
+
+    if(a_layout == "R" && b_layout == "R")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
+    }
+    else if(a_layout == "R" && b_layout == "C")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "C")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
+    }
+    else if(a_layout == "C" && b_layout == "R")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+    }
+}
 
 int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }

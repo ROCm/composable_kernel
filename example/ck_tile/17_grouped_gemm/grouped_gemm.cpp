@@ -15,7 +15,6 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
 #include "grouped_gemm.hpp"
-#include "utils.hpp"
 
 namespace {
 
@@ -89,12 +88,9 @@ using CodegenPipelineProblem =
                                  CodegenGemmShape,
                                  CodegenGemmTraits<ALayout, BLayout, CLayout>>;
 
-using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;
-
 template <typename ALayout, typename BLayout, typename CLayout>
 using CodegenGemmPipeline =
-    ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem<ALayout, BLayout, CLayout>,
-                                          CodegenGemmPolicy>;
+    ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem<ALayout, BLayout, CLayout>>;
 
 template <typename ALayout, typename BLayout, typename CLayout>
 using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner,
@@ -102,7 +98,7 @@ using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner,
                                           GemmEpilogue<CLayout>>;
 }; // namespace
 
-std::size_t GetWorkspaceSize(const std::vector<grouped_gemm_kargs>& gemm_descs)
+std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
 {
     return ::Kernel<std::nullptr_t, std::nullptr_t, std::nullptr_t>::GetWorkSpaceSize(gemm_descs);
 }

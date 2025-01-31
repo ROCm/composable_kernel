@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -28,7 +28,7 @@ struct SmoothquantPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto MakeXScaleBlockTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeSmoothScaleBlockTileDistribution()
     {
         using S = typename Problem::BlockShape;
 
