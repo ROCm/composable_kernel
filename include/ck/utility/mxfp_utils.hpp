@@ -3,12 +3,6 @@
 
 #pragma once
 
-#ifdef CK_USE_NATIVE_MX_SUPPORT
-#define CK_USE_NATIVE_MX_SUPPORT 1
-#else
-#define CK_USE_NATIVE_MX_SUPPORT 0
-#endif
-
 namespace ck::utils {
 
 union cvt

@@ -6,6 +6,12 @@
 #include "ck/utility/type_convert.hpp"
 #include "ck/utility/mxf8_utils.hpp"
 
+#ifdef CK_USE_NATIVE_MX_SUPPORT
+#define CK_USE_NATIVE_MX_SUPPORT 1
+#else
+#define CK_USE_NATIVE_MX_SUPPORT 0
+#endif
+
 namespace ck {
 
 // Declare a template function for scaled conversion
