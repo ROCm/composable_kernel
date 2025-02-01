@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -340,8 +340,8 @@ struct Bilinear
     };
 
     template <>
-    __host__ __device__ constexpr void operator()<std::int8_t, std::int32_t, std::int8_t>(
-        std::int8_t& y, const std::int32_t& x0, const std::int8_t& x1) const
+    __host__ __device__ constexpr void
+    operator()<int8_t, int32_t, int8_t>(int8_t& y, const int32_t& x0, const int8_t& x1) const
     {
         y = type_convert<int8_t>(alpha_ * type_convert<float>(x0) +
                                  beta_ * type_convert<float>(x1));

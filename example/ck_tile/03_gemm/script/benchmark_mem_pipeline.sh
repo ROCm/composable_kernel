@@ -1,6 +1,6 @@
 #!/bin/sh
 EXE="$(find . -name tile_example_gemm_universal -type f | head -n 1)"
-VALID=0
+VALID=1
 
 for prec in "fp16" "bf16" "fp8" "bf8"; do
     for b_matrix_layout in "C"; do

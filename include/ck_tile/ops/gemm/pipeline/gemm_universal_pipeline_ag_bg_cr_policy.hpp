@@ -550,12 +550,6 @@ struct UniversalGemmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
-    {
-        return Problem::TransposeC;
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
         using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;

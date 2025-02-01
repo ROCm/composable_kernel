@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#ifndef CK_CODE_GEN_RTC
 #include <ostream>
+#endif
 
 #pragma once
 
@@ -25,6 +28,7 @@ constexpr LoopScheduler make_default_loop_scheduler()
 
 } // namespace ck
 
+#ifndef CK_CODE_GEN_RTC
 inline std::ostream& operator<<(std::ostream& os, const ck::LoopScheduler& s)
 {
     switch(s)
@@ -35,3 +39,4 @@ inline std::ostream& operator<<(std::ostream& os, const ck::LoopScheduler& s)
     }
     return os;
 }
+#endif
