@@ -1314,12 +1314,6 @@ struct FmhaFwdKernel
             return new_score;
         };
 
-        auto pre_softmax_def = PreSoftmaxFunction_{};
-        auto pre_softmax_arg = [pre_softmax_def](
-                                 typename PreSoftmaxFunction_::TScore s) {
-	    return pre_softmax_def(s);
-        };
-
         auto o_acc_tile = [&]() {
             if constexpr(kDoFp8StaticQuant)
             {
