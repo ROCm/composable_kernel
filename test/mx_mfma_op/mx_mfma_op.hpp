@@ -18,7 +18,13 @@ enum class MFMA_F8F6F4
     F32_16x16x128 =
         static_cast<int>(MfmaInstr::mfma_f32_16x16x128f8f6f4), // V_MFMA_F32_16X16X128_F8F6F4
     F32_32x32x64 =
-        static_cast<int>(MfmaInstr::mfma_f32_32x32x64f8f6f4) // V_MFMA_F32_32X32X64_F8F6F4
+        static_cast<int>(MfmaInstr::mfma_f32_32x32x64f8f6f4), // V_MFMA_F32_32X32X64_F8F6F4
+
+    SCALE_F32_16x16x128 = static_cast<int>(
+        MfmaInstr::mfma_scale_f32_16x16x128f8f6f4), // V_MFMA_SCALE_F32_16X16X128_F8F6F4
+    SCALE_F32_32x32x64 = static_cast<int>(
+        MfmaInstr::mfma_scale_f32_32x32x64f8f6f4) // V_MFMA_SCALE_F32_32X32X64_F8F6F4
+
 };
 
 template <typename AFragT, typename BFragT, typename AccumFragT, int32_t BLOCK_M, int32_t BLOCK_N>
@@ -352,6 +358,24 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
     auto storeC = store_C_col_major<CType, CFragT, BLOCK_M, BLOCK_N>{};
     storeC(c, fragC);
 }
+
+template <typename AType,
+          typename BType,
+          typename ScaleType,
+          typename CType,
+          typename AccType,
+          int32_t BLOCK_M,
+          int32_t BLOCK_N,
+          int32_t BLOCK_K,
+          int32_t BLOCK_X>
+__global__ void matmul(const AType* a, const BType* b, const ScaleType* x, CType* c)
+{
+    ignore = a;
+    ignore = b;
+    ignore = x;
+    ignore = c;
+}
+
 /**
  * @brief Structure to hold dimension parameters for GEMM tensors.
  *
@@ -372,6 +396,229 @@ struct GemmParams
     ck::index_t StrideB = -1;
     ck::index_t StrideC = -1;
 };
+
+namespace mxmfma_test {
+template <typename ADataType, typename BDataType, typename ScaleType, typename CDataType>
+void RunHostGEMM(const Tensor<ADataType>& A,
+                 const Tensor<ScaleType>& a_scales,
+                 const Tensor<BDataType>& B,
+                 const Tensor<ScaleType>& b_scales,
+                 Tensor<CDataType>& C)
+{
+    using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
+    using GemmInstance = ck::tensor_operation::host::
+        ReferenceGemm<float, float, CDataType, float, PassThrough, PassThrough, PassThrough>;
+
+    Tensor<float> a_m_k(A.mDesc);
+    Tensor<float> b_k_n(B.mDesc);
+
+    const auto M       = A.mDesc.GetLengths()[0];
+    const auto N       = B.mDesc.GetLengths()[1];
+    const auto K       = A.mDesc.GetLengths()[1];
+    const auto BLOCK_X = K / a_scales.mDesc.GetLengths()[1];
+
+    for(size_t m = 0; m < M; m++)
+    {
+        for(size_t k = 0; k < K; k++)
+        {
+            a_m_k(m, k) =
+                type_convert<float>(A(m, k)) * type_convert<float>(a_scales(m, k / BLOCK_X));
+        }
+    }
+
+    for(size_t n = 0; n < N; n++)
+    {
+        for(size_t k = 0; k < K; k++)
+        {
+            b_k_n(k, n) =
+                type_convert<float>(B(k, n)) * type_convert<float>(b_scales(k / BLOCK_X, n));
+        }
+    }
+
+    auto ref_gemm    = GemmInstance{};
+    auto ref_invoker = ref_gemm.MakeInvoker();
+    auto ref_argument =
+        ref_gemm.MakeArgument(a_m_k, b_k_n, C, PassThrough{}, PassThrough{}, PassThrough{});
+
+    ref_invoker.Run(ref_argument);
+}
+
+template <typename KernelType, typename ADataType, typename BDataType, typename CDataType>
+bool RunDeviceGEMM(KernelType kernel,
+                   const Tensor<ADataType>& A,
+                   const Tensor<BDataType>& B,
+                   Tensor<CDataType>& C)
+{
+    DeviceMem a_m_k_device_buf(sizeof(ADataType) * A.mDesc.GetElementSpaceSize());
+    DeviceMem b_n_k_device_buf(sizeof(BDataType) * B.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_device_buf(sizeof(CDataType) * C.mDesc.GetElementSpaceSize());
+
+    a_m_k_device_buf.ToDevice(A.mData.data());
+    b_n_k_device_buf.ToDevice(B.mData.data());
+    kernel<<<1, 64>>>(static_cast<const ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                      static_cast<const BDataType*>(b_n_k_device_buf.GetDeviceBuffer()),
+                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()));
+    c_m_n_device_buf.FromDevice(C.mData.data());
+
+    return true;
+}
+
+template <typename DeviceMFMA,
+          typename ADataType,
+          typename BDataType,
+          typename ScaleType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          index_t BLOCK_M,
+          index_t BLOCK_N,
+          index_t BLOCK_K,
+          index_t BLOCK_X>
+struct TestMXMFMA
+{
+    auto PrepareGemmTensors(const GemmParams& params, index_t init)
+    {
+        auto f_host_tensor_descriptor =
+            [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+                if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+                {
+                    return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
+                                                std::vector<std::size_t>({stride, 1}));
+                }
+                else
+                {
+                    return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
+                                                std::vector<std::size_t>({1, stride}));
+                }
+            };
+
+        Tensor<ADataType> a_m_k(
+            f_host_tensor_descriptor(params.M, params.K, params.StrideA, ALayout{}));
+        Tensor<ScaleType> a_scales(
+            f_host_tensor_descriptor(params.M, params.K / BLOCK_X, params.K / BLOCK_X, ALayout{}));
+        Tensor<BDataType> b_n_k(
+            f_host_tensor_descriptor(params.K, params.N, params.StrideB, BLayout{}));
+        Tensor<ScaleType> b_scales(
+            f_host_tensor_descriptor(params.K / BLOCK_X, params.N, params.K / BLOCK_X, BLayout{}));
+        Tensor<CDataType> c_m_n_host_result(
+            f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
+        Tensor<CDataType> c_m_n_device_result(
+            f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
+
+        switch(init)
+        {
+        case 0:
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{0.015625f}});
+            // NOTE: not all numbers are representable in FP8, BF8, etc.
+            b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            break;
+        case 1:
+            // results in C = {K}
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            break;
+        case 2:
+            // expect small round off errors
+            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-5, 5});
+            a_scales.GenerateTensorValue(
+                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
+            b_n_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-5, 5});
+            b_scales.GenerateTensorValue(
+                GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
+            break;
+        case 3:
+            // expect small round off errors
+            a_m_k.GenerateTensorValue(GeneratorTensor_4<ADataType>(-1, 3));
+            a_scales.GenerateTensorValue(
+                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
+            b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(1, 3));
+            b_scales.GenerateTensorValue(
+                GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
+            break;
+        default:
+            // all initial values are representable in FP8, BF8
+            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6});
+            a_scales.GenerateTensorValue(GeneratorTensor_3<ScaleType>{1.0f / 32.0f, 1.0f});
+            b_n_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6});
+            b_scales.GenerateTensorValue(GeneratorTensor_3<ScaleType>{1.0f / 32.0f, 1.0f});
+
+            break;
+        }
+
+        return std::make_tuple(
+            a_m_k, a_scales, b_n_k, b_scales, c_m_n_host_result, c_m_n_device_result);
+    }
+
+    auto operator()(const DeviceMFMA& mfma_kernel, index_t init)
+    {
+        std::cout << "ALayout = " << ALayout{}.name << ", BLayout = " << BLayout{}.name
+                  << ", CLayout = " << CLayout{}.name << std::endl;
+
+        // Arrange
+        GemmParams params;
+        params.M = BLOCK_M;
+        params.N = BLOCK_N;
+        params.K = BLOCK_K;
+
+        auto f_get_default_stride = [](std::size_t row,
+                                       std::size_t col,
+                                       ck::index_t stride,
+                                       auto layout) {
+            if(stride == -1)
+            {
+                // give a chance if stride is -1, return a default packed stride
+                if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
+                {
+                    return static_cast<std::size_t>(col);
+                }
+                else
+                {
+                    return static_cast<std::size_t>(row);
+                }
+            }
+            else
+                return static_cast<std::size_t>(stride);
+        };
+
+        params.StrideA = f_get_default_stride(BLOCK_M, BLOCK_K, params.StrideA, ALayout{});
+        params.StrideB = f_get_default_stride(BLOCK_K, BLOCK_N, params.StrideB, BLayout{});
+        params.StrideC = f_get_default_stride(BLOCK_M, BLOCK_N, params.StrideC, CLayout{});
+
+        auto host_tensors = PrepareGemmTensors(params, init);
+
+        const Tensor<ADataType>& a        = std::get<0>(host_tensors);
+        const Tensor<ScaleType>& a_scales = std::get<1>(host_tensors);
+        const Tensor<BDataType>& b        = std::get<2>(host_tensors);
+        const Tensor<ScaleType>& b_scales = std::get<3>(host_tensors);
+        Tensor<CDataType>& c_host         = std::get<4>(host_tensors);
+        Tensor<CDataType>& c_device       = std::get<5>(host_tensors);
+
+        RunHostGEMM(a, a_scales, b, b_scales, c_host);
+
+        RunDeviceGEMM(mfma_kernel, a, b, c_device);
+
+        bool res = false;
+        if constexpr(std::is_same<CDataType, float>::value ||
+                     std::is_same<CDataType, half_t>::value)
+        {
+            res = ck::utils::check_err(c_device.mData, c_host.mData);
+            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+        }
+        else
+        {
+            std::cout << "UNSUPPORTED CDataType" << std::endl;
+        }
+
+        return res;
+    }
+};
+
+} // namespace mxmfma_test
 
 namespace mfma_test {
 template <typename GemmInstance,
