@@ -24,8 +24,9 @@ struct f4x2_pk_t
     f4x2_pk_t(type init) : data{init} {}
 
     template <index_t I>
-    __host__ __device__ inline type unpack() const
+    __host__ __device__ inline type unpack(Number<I>) const
     {
+        static_assert(I < 2, "Index is out of range.");
         if constexpr(I == 0)
             return data & 0b00001111;
         else
@@ -35,6 +36,270 @@ struct f4x2_pk_t
     __host__ __device__ inline type pack(const type x0, const type x1)
     {
         return (x1 << 4) | (x0 & 0b00001111);
+    }
+};
+
+struct f6x16_pk_t
+{
+    // store 16 elements of f6_t in an array of 3 uint32_t
+    using element_type = uint32_t;
+    using type         = StaticallyIndexedArray_v2<element_type, 3>;
+    type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(16)));
+    f6x16_pk_t() : data{type{}} {}
+    f6x16_pk_t(type init) : data{init} {}
+
+    template <index_t I>
+    __host__ __device__ inline f6_t unpack(Number<I>)
+    {
+        static_assert(I < 16, "Index out of range for 16 f6_t elements.");
+
+        constexpr int num_bits_elem     = 6;
+        constexpr int num_bits_vec_elem = 32;
+        constexpr int vector_size       = 3;
+        constexpr int bit_pos           = I * num_bits_elem;
+        constexpr int arr_idx           = bit_pos / num_bits_vec_elem;
+        constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+        uint32_t bits                   = data.At(Number<arr_idx>{}) >> bit_offset;
+        constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+
+        if constexpr(overhang > 0 && (arr_idx + 1) < vector_size)
+        {
+            bits |= (data.At(Number<arr_idx + 1>{}) & ((1u << overhang) - 1))
+                    << (num_bits_elem - overhang);
+        }
+
+        return static_cast<f6_t>(bits & 0x3F);
+    }
+
+    __host__ __device__ inline type pack(const test_vec_t& x)
+    {
+        type packed{};
+
+        // for each of the 16 f6_t values, place its 6 bits in the correct position
+        ck::static_for<0, 16, 1>{}([&](auto i) {
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
+            constexpr int num_bits_elem     = 6;
+            constexpr int num_bits_vec_elem = 32;
+            constexpr int vector_size       = 3;
+            constexpr int bit_pos           = i * num_bits_elem;
+            constexpr int arr_index         = bit_pos / num_bits_vec_elem;
+            constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+            constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+            uint32_t old_value              = packed.At(Number<arr_index>{});
+
+            // insert bits into the current 32-bit block
+            old_value |= (bits << bit_offset);
+            packed.At(Number<arr_index>{}) = old_value;
+
+            // if it crosses into the next block, shift the remainder
+            if constexpr(overhang > 0 && (arr_index + 1) < vector_size)
+            {
+                uint32_t next_value = packed.At(Number<arr_index + 1>{});
+                next_value |= (bits >> (num_bits_elem - overhang));
+                packed.At(Number<arr_index + 1>{}) = next_value;
+            }
+        });
+
+        return packed;
+    }
+};
+
+struct f6x32_pk_t
+{
+    // store 32 elements of f6_t in an array of 6 uint32_t
+    using element_type = uint32_t;
+    using type         = StaticallyIndexedArray_v2<element_type, 6>;
+    type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(32)));
+    f6x32_pk_t() : data{type{}} {}
+    f6x32_pk_t(type init) : data{init} {}
+
+    template <index_t I>
+    __host__ __device__ inline f6_t unpack(Number<I>)
+    {
+        static_assert(I < 32, "Index out of range for 32 f6_t elements.");
+
+        constexpr int num_bits_elem     = 6;
+        constexpr int num_bits_vec_elem = 32;
+        constexpr int vector_size       = 6;
+        constexpr int bit_pos           = I * num_bits_elem;
+        constexpr int arr_idx           = bit_pos / num_bits_vec_elem;
+        constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+        uint32_t bits                   = data.At(Number<arr_idx>{}) >> bit_offset;
+        constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+
+        if constexpr(overhang > 0 && (arr_idx + 1) < vector_size)
+        {
+            bits |= (data.At(Number<arr_idx + 1>{}) & ((1u << overhang) - 1))
+                    << (num_bits_elem - overhang);
+        }
+
+        return static_cast<f6_t>(bits & 0x3F);
+    }
+
+    __host__ __device__ inline type pack(const test_vec_t& x)
+    {
+        type packed{};
+
+        // for each of the 32 f6_t values, place its 6 bits in the correct position
+        ck::static_for<0, 32, 1>{}([&](auto i) {
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
+            constexpr int num_bits_elem     = 6;
+            constexpr int num_bits_vec_elem = 32;
+            constexpr int vector_size       = 6;
+            constexpr int bit_pos           = i * num_bits_elem;
+            constexpr int arr_index         = bit_pos / num_bits_vec_elem;
+            constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+            constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+            uint32_t old_value              = packed.At(Number<arr_index>{});
+
+            // insert bits into the current 32-bit block
+            old_value |= (bits << bit_offset);
+            packed.At(Number<arr_index>{}) = old_value;
+
+            // if it crosses into the next block, shift the remainder
+            if constexpr(overhang > 0 && (arr_index + 1) < vector_size)
+            {
+                uint32_t next_value = packed.At(Number<arr_index + 1>{});
+                next_value |= (bits >> (num_bits_elem - overhang));
+                packed.At(Number<arr_index + 1>{}) = next_value;
+            }
+        });
+
+        return packed;
+    }
+};
+
+struct bf6x16_pk_t
+{
+    // store 16 elements of bf6_t in an array of 3 uint32_t
+    using element_type = uint32_t;
+    using type         = StaticallyIndexedArray_v2<element_type, 3>;
+    type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(16)));
+    bf6x16_pk_t() : data{type{}} {}
+    bf6x16_pk_t(type init) : data{init} {}
+
+    template <index_t I>
+    __host__ __device__ inline bf6_t unpack(Number<I>)
+    {
+        static_assert(I < 16, "Index out of range for 16 f6_t elements.");
+
+        constexpr int num_bits_elem     = 6;
+        constexpr int num_bits_vec_elem = 32;
+        constexpr int vector_size       = 3;
+        constexpr int bit_pos           = I * num_bits_elem;
+        constexpr int arr_idx           = bit_pos / num_bits_vec_elem;
+        constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+        uint32_t bits                   = data.At(Number<arr_idx>{}) >> bit_offset;
+        constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+
+        if constexpr(overhang > 0 && (arr_idx + 1) < vector_size)
+        {
+            bits |= (data.At(Number<arr_idx + 1>{}) & ((1u << overhang) - 1))
+                    << (num_bits_elem - overhang);
+        }
+
+        return static_cast<bf6_t>(bits & 0x3F);
+    }
+
+    __host__ __device__ inline type pack(const test_vec_t& x)
+    {
+        type packed{};
+
+        // for each of the 16 bf6_t values, place its 6 bits in the correct position
+        ck::static_for<0, 16, 1>{}([&](auto i) {
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
+            constexpr int num_bits_elem     = 6;
+            constexpr int num_bits_vec_elem = 32;
+            constexpr int vector_size       = 3;
+            constexpr int bit_pos           = i * num_bits_elem;
+            constexpr int arr_index         = bit_pos / num_bits_vec_elem;
+            constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+            constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+            uint32_t old_value              = packed.At(Number<arr_index>{});
+
+            // insert bits into the current 32-bit block
+            old_value |= (bits << bit_offset);
+            packed.At(Number<arr_index>{}) = old_value;
+
+            // if it crosses into the next block, shift the remainder
+            if constexpr(overhang > 0 && (arr_index + 1) < vector_size)
+            {
+                uint32_t next_value = packed.At(Number<arr_index + 1>{});
+                next_value |= (bits >> (num_bits_elem - overhang));
+                packed.At(Number<arr_index + 1>{}) = next_value;
+            }
+        });
+
+        return packed;
+    }
+};
+
+struct bf6x32_pk_t
+{
+    // store 32 elements of bf6_t in an array of 6 uint32_t
+    using element_type = uint32_t;
+    using type         = StaticallyIndexedArray_v2<element_type, 6>;
+    type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(32)));
+    bf6x32_pk_t() : data{type{}} {}
+    bf6x32_pk_t(type init) : data{init} {}
+
+    template <index_t I>
+    __host__ __device__ inline bf6_t unpack(Number<I>)
+    {
+        static_assert(I < 32, "Index out of range for 32 f6_t elements.");
+
+        constexpr int num_bits_elem     = 6;
+        constexpr int num_bits_vec_elem = 32;
+        constexpr int vector_size       = 6;
+        constexpr int bit_pos           = I * num_bits_elem;
+        constexpr int arr_idx           = bit_pos / num_bits_vec_elem;
+        constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+        uint32_t bits                   = data.At(Number<arr_idx>{}) >> bit_offset;
+        constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+
+        if constexpr(overhang > 0 && (arr_idx + 1) < vector_size)
+        {
+            bits |= (data.At(Number<arr_idx + 1>{}) & ((1u << overhang) - 1))
+                    << (num_bits_elem - overhang);
+        }
+
+        return static_cast<bf6_t>(bits & 0x3F);
+    }
+
+    __host__ __device__ inline type pack(const test_vec_t& x)
+    {
+        type packed{};
+
+        // for each of the 32 bf6_t values, place its 6 bits in the correct position
+        ck::static_for<0, 32, 1>{}([&](auto i) {
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
+            constexpr int num_bits_elem     = 6;
+            constexpr int num_bits_vec_elem = 32;
+            constexpr int vector_size       = 6;
+            constexpr int bit_pos           = i * num_bits_elem;
+            constexpr int arr_index         = bit_pos / num_bits_vec_elem;
+            constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+            constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+            uint32_t old_value              = packed.At(Number<arr_index>{});
+
+            // insert bits into the current 32-bit block
+            old_value |= (bits << bit_offset);
+            packed.At(Number<arr_index>{}) = old_value;
+
+            // if it crosses into the next block, shift the remainder
+            if constexpr(overhang > 0 && (arr_index + 1) < vector_size)
+            {
+                uint32_t next_value = packed.At(Number<arr_index + 1>{});
+                next_value |= (bits >> (num_bits_elem - overhang));
+                packed.At(Number<arr_index + 1>{}) = next_value;
+            }
+        });
+
+        return packed;
     }
 };
 
@@ -56,7 +321,7 @@ inline constexpr auto next_pow2(uint32_t x)
 }
 
 // native types: double, float, _Float16, ushort, int32_t, int8_t, uint8_t, f8_fnuz_t, bf8_fnuz_t,
-// native types: bool
+// native types: bool, f4_t, f6_t, bf6_t
 template <typename T>
 inline constexpr bool is_native_type()
 {
@@ -1387,10 +1652,35 @@ struct nnvb_data_t_selector<f8_ocp_t>
 {
     using type = f8_ocp_t::data_type;
 };
+
 template <>
 struct nnvb_data_t_selector<bf8_ocp_t>
 {
     using type = bf8_ocp_t::data_type;
+};
+
+template <>
+struct nnvb_data_t_selector<f6x16_pk_t>
+{
+    using type = f6x16_pk_t::type;
+};
+
+template <>
+struct nnvb_data_t_selector<f6x32_pk_t>
+{
+    using type = f6x32_pk_t::type;
+};
+
+template <>
+struct nnvb_data_t_selector<bf6x16_pk_t>
+{
+    using type = bf6x16_pk_t::type;
+};
+
+template <>
+struct nnvb_data_t_selector<bf6x32_pk_t>
+{
+    using type = bf6x32_pk_t::type;
 };
 
 template <>
@@ -1495,6 +1785,63 @@ struct non_native_vector_base<
         else
         {
             return err;
+        }
+    }
+};
+
+// implementation for f6x16 and f6x32
+template <typename T, index_t N>
+struct non_native_vector_base<T, N, std::enable_if_t<sizeof(T) == 12 || sizeof(T) == 24>>
+{
+    using data_t =
+        typename nnvb_data_t_selector<T>::type; // select data_t based on declared base type
+    using element_t = typename T::element_type; // select element_t based on declared element type
+    static_assert(sizeof(T) == sizeof(data_t), "non_native_vector_base storage size mismatch");
+    static constexpr size_t size_factor =
+        sizeof(data_t) / sizeof(element_t); // f6x16: 12/4 = 3, f6x32: 24/4 = 6
+    using data_v = element_t __attribute__((ext_vector_type(N * size_factor)));
+    using type   = non_native_vector_base<T, N>;
+
+    union alignas(next_pow2(N * sizeof(T)))
+    {
+        data_v dN; // storage vector;
+        StaticallyIndexedArray<data_t, N> dxN;
+        StaticallyIndexedArray<T, N> dTxN;
+        StaticallyIndexedArray<data_v, 1> dNx1;
+    } data_;
+
+    __host__ __device__ constexpr non_native_vector_base(data_t a)
+        : data_{data_v(a.At(Number<0>{}))}
+    {
+    }
+    __host__ __device__ constexpr non_native_vector_base(T f)
+        : non_native_vector_base(bit_cast<data_t>(f))
+    {
+    }
+    __host__ __device__ constexpr non_native_vector_base() : non_native_vector_base(T{}){};
+    __host__ __device__ constexpr non_native_vector_base(data_v v) : data_{v} {}
+
+    __host__ __device__ constexpr operator data_v() const { return data_.dN; }
+    __host__ __device__ constexpr operator data_t() const
+    {
+        if constexpr(N == 1)
+        {
+            return data_.dxN[Number<0>{}];
+        }
+        else
+        {
+            return data_.dxN; // XXX this should cause an error
+        }
+    }
+    __host__ __device__ constexpr operator T() const
+    {
+        if constexpr(N == 1)
+        {
+            return data_.dTxN[Number<0>{}];
+        }
+        else
+        {
+            return data_.dTxN; // XXX this should cause an error
         }
     }
 };
@@ -2241,6 +2588,14 @@ using f4x8_t  = typename vector_type<f4x2_pk_t, 4>::type;
 using f4x16_t = typename vector_type<f4x2_pk_t, 8>::type;
 using f4x32_t = typename vector_type<f4x2_pk_t, 16>::type;
 using f4x64_t = typename vector_type<f4x2_pk_t, 32>::type;
+
+// f6
+using f6x16_t = typename vector_type<f6x16_pk_t, 1>::type;
+using f6x32_t = typename vector_type<f6x32_pk_t, 1>::type;
+
+// bf6
+using bf6x16_t = typename vector_type<bf6x16_pk_t, 1>::type;
+using bf6x32_t = typename vector_type<bf6x32_pk_t, 1>::type;
 
 // pack int4
 using pk_i4x2_t = typename vector_type<pk_i4_t, 2>::type;
