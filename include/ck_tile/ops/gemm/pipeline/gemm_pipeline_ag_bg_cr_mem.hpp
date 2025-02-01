@@ -174,6 +174,10 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                           "A/B block window appropriate sizes must be equal to MPerBlock/NPerblock"
                           " or KPerBlock!");
 
+            constexpr bool is_a_col_major =
+                std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+            constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+
             // ------------------------------------------------------------------------------------
             // Definitions of all needed tiles
 
@@ -216,13 +220,23 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             tuple_array<ABlockTile, PrefetchStages> a_block_tiles;
             tuple_array<BBlockTile, PrefetchStages> b_block_tiles;
 
+            using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
+            using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
+
+            constexpr ADramTileWindowStep a_dram_tile_window_step =
+                is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+            constexpr BDramTileWindowStep b_dram_tile_window_step =
+                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+
             // -----------------------------------------------------------------------------------------
             // Gemm pipeline start
 
             // prefetch
             // global read 0
-            Base::GlobalPrefetch(a_block_tiles.get(I0{}), a_copy_dram_window);
-            Base::GlobalPrefetch(b_block_tiles.get(I0{}), b_copy_dram_window);
+            Base::GlobalPrefetch(
+                a_block_tiles.get(I0{}), a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetch(
+                b_block_tiles.get(I0{}), b_copy_dram_window, b_dram_tile_window_step);
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -233,8 +247,12 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
             // Global prefetch [1, PrefetchStages]
             static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {
-                Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}), a_copy_dram_window);
-                Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}), b_copy_dram_window);
+                Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
+                                     a_copy_dram_window,
+                                     a_dram_tile_window_step);
+                Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
+                                     b_copy_dram_window,
+                                     b_dram_tile_window_step);
             });
 
             // main body
@@ -260,9 +278,11 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                             b_element_func);
 
                         Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
-                                             a_copy_dram_window);
+                                             a_copy_dram_window,
+                                             a_dram_tile_window_step);
                         Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
-                                             b_copy_dram_window);
+                                             b_copy_dram_window,
+                                             b_dram_tile_window_step);
                     });
 
                     i += PrefetchStages;
@@ -361,6 +381,10 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                           "A/B block window appropriate sizes must be equal to MPerBlock/NPerblock"
                           " or KPerBlock!");
 
+            constexpr bool is_a_col_major =
+                std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+            constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+
             // ------------------------------------------------------------------------------------
             // Definitions of all needed tiles
 
@@ -403,13 +427,23 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             tuple_array<ABlockTile, PrefetchStages> a_block_tiles;
             tuple_array<BBlockTile, PrefetchStages> b_block_tiles;
 
+            using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
+            using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
+
+            constexpr ADramTileWindowStep a_dram_tile_window_step =
+                is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+            constexpr BDramTileWindowStep b_dram_tile_window_step =
+                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+
             // -----------------------------------------------------------------------------------------
             // Gemm pipeline start
 
             // prefetch
             // global read 0
-            Base::GlobalPrefetch(a_block_tiles.get(I0{}), a_copy_dram_window);
-            Base::GlobalPrefetch(b_block_tiles.get(I0{}), b_copy_dram_window);
+            Base::GlobalPrefetch(
+                a_block_tiles.get(I0{}), a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetch(
+                b_block_tiles.get(I0{}), b_copy_dram_window, b_dram_tile_window_step);
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -420,8 +454,12 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
             // Global prefetch [1, PrefetchStages]
             static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {
-                Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}), a_copy_dram_window);
-                Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}), b_copy_dram_window);
+                Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
+                                     a_copy_dram_window,
+                                     a_dram_tile_window_step);
+                Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
+                                     b_copy_dram_window,
+                                     b_dram_tile_window_step);
             });
 
             // main body
@@ -445,9 +483,11 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                             b_element_func);
 
                         Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
-                                             a_copy_dram_window);
+                                             a_copy_dram_window,
+                                             a_dram_tile_window_step);
                         Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
-                                             b_copy_dram_window);
+                                             b_copy_dram_window,
+                                             b_dram_tile_window_step);
                     });
 
                     i += PrefetchStages;

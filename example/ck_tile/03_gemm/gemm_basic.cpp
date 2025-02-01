@@ -12,8 +12,13 @@
 #include "ck_tile/host.hpp"
 #include "gemm_basic.hpp"
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType,
-          typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
@@ -111,32 +116,32 @@ int run_gemm_example(int argc, char* argv[])
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    std::string precision = arg_parser.get_str("prec");
-    std::string a_layout = arg_parser.get_str("a_layout");
-    std::string b_layout = arg_parser.get_str("b_layout");
+    std::string data_type = arg_parser.get_str("prec");
+    std::string a_layout  = arg_parser.get_str("a_layout");
+    std::string b_layout  = arg_parser.get_str("b_layout");
 
     if(a_layout == "R" && b_layout == "C")
     {
-        if (precision == "fp16")
+        if(data_type == "fp16")
         {
             return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Row{}, Col{}, Row{});
         }
-        else if (precision == "bf16")
+        else if(data_type == "bf16")
         {
             return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Col{}, Row{});
         }
-        else if (precision == "fp8")
+        else if(data_type == "fp8")
         {
             return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Col{}, Row{});
         }
-        else if (precision == "bf8")
+        else if(data_type == "bf8")
         {
             return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Col{}, Row{});
         }
-        else 
+        else
         {
-            throw std::runtime_error("Unsupported precision!");
-        }        
+            throw std::runtime_error("Unsupported data_type!");
+        }
     }
     else
     {

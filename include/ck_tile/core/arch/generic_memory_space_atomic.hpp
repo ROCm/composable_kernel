@@ -8,7 +8,7 @@
 
 namespace ck_tile {
 
-template<typename T, typename ComputeType>
+template <typename T, typename ComputeType>
 CK_TILE_HOST_DEVICE T add(const T& a, const T& b)
 {
     return type_convert<T>(type_convert<ComputeType>(a) + type_convert<ComputeType>(b));
@@ -80,7 +80,7 @@ CK_TILE_DEVICE void atomic_add<bf16x2_t>(bf16x2_t* p_dst, const bf16x2_t& x)
     } while(cur_v.u32 != old_v);
 }
 
-template<>
+template <>
 CK_TILE_DEVICE void atomic_add<fp8x4_t>(fp8x4_t* p_dst, const fp8x4_t& x)
 {
     union U32FP84_ADDR
@@ -99,19 +99,20 @@ CK_TILE_DEVICE void atomic_add<fp8x4_t>(fp8x4_t* p_dst, const fp8x4_t& x)
     U32FP84 cur_v;
     U32FP84 new_;
     uint32_t old_v, new_v;
-    
-    dword_addr.fp84_a = p_dst;
-    cur_v.u32 = *dword_addr.u32_a;
 
-    do{
-        old_v       = cur_v.u32;
-        new_.fp84   = add_fp8x4_t(cur_v.fp84, x);
-        new_v       = new_.u32;
-        cur_v.u32   = atomicCAS(dword_addr.u32_a, old_v, new_v);
+    dword_addr.fp84_a = p_dst;
+    cur_v.u32         = *dword_addr.u32_a;
+
+    do
+    {
+        old_v     = cur_v.u32;
+        new_.fp84 = add_fp8x4_t(cur_v.fp84, x);
+        new_v     = new_.u32;
+        cur_v.u32 = atomicCAS(dword_addr.u32_a, old_v, new_v);
     } while(cur_v.u32 != old_v);
 }
 
-template<>
+template <>
 CK_TILE_DEVICE void atomic_add<bf8x4_t>(bf8x4_t* p_dst, const bf8x4_t& x)
 {
     union U32BF84_ADDR
@@ -131,14 +132,15 @@ CK_TILE_DEVICE void atomic_add<bf8x4_t>(bf8x4_t* p_dst, const bf8x4_t& x)
     U32BF84 new_;
     uint32_t old_v, new_v;
 
-    dword_addr.bf84_a   = p_dst;
-    cur_v.u32           = *dword_addr.u32_a;
+    dword_addr.bf84_a = p_dst;
+    cur_v.u32         = *dword_addr.u32_a;
 
-    do{
-        old_v       = cur_v.u32;
-        new_.bf84   = add_bf8x4_t(cur_v.bf84, x);
-        new_v       = new_.u32;
-        cur_v.u32   = atomicCAS(dword_addr.u32_a, old_v, new_v);
+    do
+    {
+        old_v     = cur_v.u32;
+        new_.bf84 = add_bf8x4_t(cur_v.bf84, x);
+        new_v     = new_.u32;
+        cur_v.u32 = atomicCAS(dword_addr.u32_a, old_v, new_v);
     } while(cur_v.u32 != old_v);
 }
 
@@ -149,9 +151,9 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
                       (std::is_same<T, uint32_t>::value && (N == 1)) ||
                       (std::is_same<T, float>::value && (N == 1 || N == 2)) ||
                       (std::is_same<T, double>::value && (N == 1 || N == 2)) ||
-                      (std::is_same<T, bf16_t>::value && (N == 2 || N == 4)) || 
-                      (std::is_same<T, fp8_t>::value && (N == 4)) || 
-                      (std::is_same<T, bf8_t>::value && (N == 4)),   
+                      (std::is_same<T, bf16_t>::value && (N == 2 || N == 4)) ||
+                      (std::is_same<T, fp8_t>::value && (N == 4)) ||
+                      (std::is_same<T, bf8_t>::value && (N == 4)),
                   "wrong! not implemented");
 
     constexpr auto I0 = number<0>{};
@@ -221,7 +223,7 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
         {
             atomic_add(c_style_pointer_cast<bf8x4_t*>(p_dst), x.template get_as<bf8x4_t>()[I0]);
         }
-    }      
+    }
 }
 
 template <typename T, index_t N>
