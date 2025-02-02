@@ -14,6 +14,15 @@ struct BlockFmhaPipelineQRKSVSAsyncDefaultPolicy
                                           /* NumPrefetchV = */ 2>
 {
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQRegTileDistribution()
+    {
+        using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+
+        return BlockGemm::template MakeABlockTileDistribution<Problem::BlockFmhaShape::kM0,
+                                                              Problem::BlockFmhaShape::kK0>();
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         // assume V can reuse the shared memory by K
