@@ -847,9 +847,14 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
     // clang-format on
 
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    __device__ void run(const FloatA& a,
+                        const int32_t& scale_a,
+                        const FloatB& b,
+                        const int32_t& scale_b,
+                        FloatC& reg_c) const
     {
-        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(
+            a, scale_a, b, scale_b, reg_c);
     }
 };
 
@@ -871,9 +876,14 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
     // clang-format on
 
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    __device__ void run(const FloatA& a,
+                        const int32_t& scale_a,
+                        const FloatB& b,
+                        const int32_t& scale_b,
+                        FloatC& reg_c) const
     {
-        intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops>::Run(
+            a, scale_a, b, scale_b, reg_c);
     }
 };
 

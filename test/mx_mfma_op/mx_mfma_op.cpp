@@ -79,9 +79,9 @@ bool run_mxmfma_test(ck::index_t init)
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-    using AccType    = float; // only MFMA_F32 instructions supported
-    using CPUAccType = AccType;
-    using ScaleType  = ck::e8m0_bexp_t; // biased exponent type
+    using AccType = float; // only MFMA_F32 instructions supported
+    // using CPUAccType = AccType;
+    using ScaleType = ck::e8m0_bexp_t; // biased exponent type
 
     ck::mfma_type<static_cast<ck::MfmaInstr>(mfma)> mfma_instr;
     constexpr auto BLOCK_M = mfma_instr.m_per_blk;
