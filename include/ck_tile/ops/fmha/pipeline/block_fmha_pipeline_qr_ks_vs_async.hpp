@@ -425,10 +425,6 @@ struct BlockFmhaPipelineQRKSVSAsync
                     else // last iteration
                     {
                         static_for<0, k0_loops, 1>{}([&](auto i_k0) {
-                            auto k_lds_window_tmp = get_slice_tile(
-                                k_lds_window,
-                                sequence<(i_k0 % NumKLdsBuffers) * kN0, 0>{},
-                                sequence<((i_k0 % NumKLdsBuffers) + 1) * kN0, kK0>{});
                             store_tile(k_lds_windows[number<i_k0 % NumKLdsBuffers>{}],
                                        k_tiles[number<i_k0>{}]);
 
