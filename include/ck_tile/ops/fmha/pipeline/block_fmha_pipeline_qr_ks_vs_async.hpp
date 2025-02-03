@@ -309,6 +309,10 @@ struct BlockFmhaPipelineQRKSVSAsync
                              {0, seqlen_k_start}, // TODO: hdim split?
                              Policy::template MakeVDramTileDistribution<Problem>());
 
+        using v_tile_type = decltype(load_tile(v_dram_window));
+
+        statically_indexed_array<v_tile_type, NumVLdsBuffers> v_tiles;
+
         index_t i_total_loops = 0;
 
         do
@@ -467,12 +471,8 @@ struct BlockFmhaPipelineQRKSVSAsync
 
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
 
-            using v_tile_type = decltype(load_tile(v_dram_window));
-
-            statically_indexed_array<v_tile_type, NumVLdsBuffers> v_tiles;
-
-            static_for<0, NumVLdsBuffers, 1>{}([&](auto i_k1) {
-                v_tiles[i_k1] = load_tile(v_dram_window);
+            static_for<0, NumVLdsBuffers, 1>{}([&](auto i_buf) {
+                v_tiles[i_buf] = load_tile(v_dram_window);
                 move_tile_window(v_dram_window, {0, kK1});
             });
 
