@@ -13,7 +13,7 @@
 namespace ck_tile {
 
 // a variation of qr/ks/vs, where we use async copy to load k (potentially v in the future)
-template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSAsyncDefaultPolicy>
+template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSAsyncDefaultPolicy, typename PreSoftmaxFunction_>
 struct BlockFmhaPipelineQRKSVSAsync
 {
     using Problem               = remove_cvref_t<Problem_>;
@@ -759,6 +759,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                void* smem_ptr,
                DropoutType& dropout) const
     {
+
         return operator()(q_dram_block_window_tmp,
                           identity{},
                           k_dram_block_window_tmp,

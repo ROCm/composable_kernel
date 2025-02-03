@@ -9,6 +9,9 @@ endif()
 variable_watch(FMHA_SCORE_MOD_F)
 set(FMHA_SCORE_MOD_F [[s + static_cast<decltype(s)>((q_idx - v_idx) % 8)]])
 
+variable_watch(FMHA_PRE_SOFTMAX_F)
+set(FMHA_PRE_SOFTMAX_F [[static_cast<decltype(s)>(tanh(s*1.0)/1.0)]])
+
 foreach(api ${FMHA_FWD_ENABLE_APIS})
   if(NOT "${api}" IN_LIST FMHA_FWD_KNOWN_APIS)
     message(FATAL_ERROR "${api} isn't a known api: ${FMHA_FWD_KNOWN_APIS}.")
@@ -42,6 +45,7 @@ add_custom_command(
   --api ${FMHA_FWD_APIS} 
   --output_dir ${CMAKE_CURRENT_BINARY_DIR}
   "--score_mod_expr=${FMHA_SCORE_MOD_F}"
+  "--pre_softmax_expr=${FMHA_PRE_SOFTMAX_F}"
   VERBATIM
 )
 
@@ -88,6 +92,7 @@ endif()
 list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-float-equal)
 
 list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS "-DCK_TILE_SCORE_MOD_F=${FMHA_SCORE_MOD_F}")
+list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS "-DCK_PRE_SOFTMAX_F=${FMHA_PRE_SOFTMAX_F}")
 
 target_compile_options(${EXAMPLE_FMHA_FWD} PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
 

@@ -20,7 +20,7 @@
 
 namespace ck_tile {
 
-template <typename FmhaPipeline_, typename EpiloguePipeline_, typename ScoreModFunction_>
+template <typename FmhaPipeline_, typename EpiloguePipeline_, typename ScoreModFunction_, typename PreSoftmaxFunction_>
 struct FmhaFwdKernel
 {
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
@@ -1316,6 +1316,12 @@ struct FmhaFwdKernel
                 return new_score;
             };
 
+        auto pre_softmax_def = PreSoftmaxFunction_{};
+        auto pre_softmax_arg = [pre_softmax_def](
+               typename PreSoftmaxFunction_::TScore s) {
+            return pre_softmax_def(s);
+        };
+
         auto o_acc_tile = [&]() {
             if constexpr(kDoFp8StaticQuant)
             {
@@ -1330,8 +1336,8 @@ struct FmhaFwdKernel
                     identity{}, // bias_element_func
                     randval_dram_window,
                     lse_dram_window,
-                    identity{}, // lse_element_func
-                    identity{}, // s_acc_element_func
+                    identity{},      // lse_element_func
+                    pre_softmax_arg, // s_acc_element_func
                     score_mod_arg,
                     scales{kargs.scale_p},                               // p_compute_element_func
                     composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
@@ -1354,7 +1360,7 @@ struct FmhaFwdKernel
                                       randval_dram_window,
                                       lse_dram_window,
                                       identity{},
-                                      identity{},
+                                      pre_softmax_arg,
                                       score_mod_arg,
                                       identity{},
                                       identity{},

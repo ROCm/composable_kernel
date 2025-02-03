@@ -30,7 +30,7 @@ handlers = dict(
 )
 assert 0 < len(handlers)
 
-def write_blobs(output_dir: Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr) -> None:
+def write_blobs(output_dir: Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr, pre_softmax_expr) -> None:
     if output_dir is None:
         output_dir = Path(__file__).parent
     else:
@@ -40,10 +40,10 @@ def write_blobs(output_dir: Optional[str], api_list : List[str], kernel_filter :
 
     for api in api_list:
         handler = handlers[api][HandlerId.WRITE_BLOBS]
-        handler(output_dir, kernel_filter, receipt, mask_impl, score_mod_expr)
+        handler(output_dir, kernel_filter, receipt, mask_impl, score_mod_expr, pre_softmax_expr)
 
 # list all the files that will be generated
-def list_blobs(output_file : Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr) -> None:
+def list_blobs(output_file : Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl, score_mod_expr, pre_softmax_expr) -> None:
     assert output_file is not None
     file_path = Path(output_file)
 
@@ -52,7 +52,7 @@ def list_blobs(output_file : Optional[str], api_list : List[str], kernel_filter 
 
     for api in api_list:
         handler = handlers[api][HandlerId.LIST_BLOBS]
-        handler(file_path, kernel_filter, receipt, mask_impl, score_mod_expr)
+        handler(file_path, kernel_filter, receipt, mask_impl, score_mod_expr, pre_softmax_expr)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -113,9 +113,16 @@ if __name__ == "__main__":
         help="flex attention's score mod function, a cpp expression with `s`, `b`, `h`, `q_idx`, and `v_idx` variables"
     )
 
+    parser.add_argument(
+        "--pre_softmax_expr",
+        default="s",
+        required=False,
+        help="flex attention's pre_softmax function, a cpp expression with `s` variable"
+    )
+
     args = parser.parse_args()
     api_list = args.direction.split(',')
     if args.list_blobs is not None:
-        list_blobs(args.list_blobs, api_list, args.filter, int(args.receipt), mask_impl=args.mask, score_mod_expr=args.score_mod_expr)
+        list_blobs(args.list_blobs, api_list, args.filter, int(args.receipt), mask_impl=args.mask, score_mod_expr=args.score_mod_expr, pre_softmax_expr=args.pre_softmax_expr)
     else:
-        write_blobs(args.output_dir, api_list, args.filter, int(args.receipt), mask_impl=args.mask, score_mod_expr=args.score_mod_expr)
+        write_blobs(args.output_dir, api_list, args.filter, int(args.receipt), mask_impl=args.mask, score_mod_expr=args.score_mod_expr, pre_softmax_expr=args.pre_softmax_expr)
