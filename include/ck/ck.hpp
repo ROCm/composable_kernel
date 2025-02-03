@@ -53,10 +53,10 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 
 // define general macros for various architectures
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
-    defined(__gfx942__)
+    defined(__gfx942__) || defined(__gfx950__)
 #define __gfx9__
 #endif
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
 #if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__)
@@ -160,6 +160,12 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 
 // set rounding to nearest even as default for f8 conversions
 #define CK_USE_SR_F8_CONVERSION 0
+
+// set rounding to nearest even as default for f6 conversions
+#define CK_USE_SR_F6_CONVERSION 0
+
+// set rounding to nearest even as default for f4 conversions
+#define CK_USE_SR_F4_CONVERSION 0
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
