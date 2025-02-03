@@ -287,14 +287,12 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     //    preload V-slice for next unroll using single LDS buffer
     static constexpr bool AsyncCopy = AsyncCopy_;
 
-    static constexpr bool KLoadOnce = AsyncCopy;
-
     using QXPolicy = BlockFmhaPipelineQXCustomPolicy<QLoadOnce_>;
 
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumKLdsBuffers()
     {
-        if constexpr(KLoadOnce)
+        if constexpr(AsyncCopy)
         {
             return 2;
         }
