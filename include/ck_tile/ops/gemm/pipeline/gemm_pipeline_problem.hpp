@@ -163,7 +163,7 @@ struct UniversalGemmPipelineProblem
     static constexpr bool kPadN = Traits::kPadN;
     static constexpr bool kPadK = Traits::kPadK;
 
-    static constexpr bool isDoubleSmemBuffer = Traits::isDoubleSmemBuffer;
+    static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
 
     static constexpr auto Scheduler  = Scheduler_;
     static constexpr auto HasHotLoop = HasHotLoop_;

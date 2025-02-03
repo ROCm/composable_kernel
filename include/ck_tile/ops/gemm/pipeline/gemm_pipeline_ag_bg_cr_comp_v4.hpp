@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
@@ -15,7 +15,7 @@ namespace ck_tile {
 template <typename Problem>
 struct BaseGemmPipelineAgBgCrCompV4
 {
-    static constexpr index_t PrefetchStages  = 3;
+    static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
 
@@ -26,11 +26,23 @@ struct BaseGemmPipelineAgBgCrCompV4
 
     CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
-        ignore = num_loop;
-        return TailNumber::Two;
+        if(num_loop % PrefetchStages == 1)
+        {
+            return TailNumber::Three;
+        }
+        else
+        {
+            return TailNumber::Two;
+        }
     }
 };
 
+// Compute optimized pipeline version 4
+// The difference between this pipeline and compute version 3 is it has two LDS window that will use
+// the ping-pong buffer to grab memory from the global memory. While one LDS is grabbing the data
+// from global memory, the other will call the warps on running the MFMA matrix multiplication. When
+// the matrix is in bigger shape, it will keep the Warp always busy and cover the memory loading
+// time.
 template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCregComputeV4DefaultPolicy>
 struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
 {
@@ -65,7 +77,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
-    static constexpr bool isDoubleSmemBuffer = Problem::isDoubleSmemBuffer;
+    static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
 
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
@@ -128,13 +140,10 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                                                     ? B_LDS_Read_Inst_Num
                                                     : B_LDS_Read_Inst_Num / 2;
 
-            constexpr auto num_ds_read_inst = num_ds_read_inst_a + num_ds_read_inst_b;
-
-            constexpr auto num_ds_write_inst = A_LDS_Write_Inst_Num + B_LDS_Write_Inst_Num;
-
+            constexpr auto num_ds_read_inst     = num_ds_read_inst_a + num_ds_read_inst_b;
+            constexpr auto num_ds_write_inst    = A_LDS_Write_Inst_Num + B_LDS_Write_Inst_Num;
             constexpr auto num_buffer_load_inst = A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num;
-
-            constexpr auto num_issue = num_buffer_load_inst;
+            constexpr auto num_issue            = num_buffer_load_inst;
 
             static_for<0, num_buffer_load_inst, 1>{}([&](auto i) {
                 ignore = i;
@@ -170,7 +179,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
                                    remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
-                "wrong!");
+                "Data Type conflict on A and B matrix input data type.");
 
             constexpr bool is_a_col_major =
                 std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
@@ -476,7 +485,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                     __builtin_amdgcn_sched_barrier(0);
                 }
             }
-            else if(TailNum == TailNumber::Two)
+            else
             {
                 // 2
                 {
@@ -494,13 +503,6 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                 // 1
                 {
                     block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                    __builtin_amdgcn_sched_barrier(0);
-                }
-            }
-            else // when tail num is one
-            {
-                {
-                    block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                     __builtin_amdgcn_sched_barrier(0);
                 }
             }

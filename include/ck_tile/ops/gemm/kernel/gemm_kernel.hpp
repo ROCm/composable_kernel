@@ -467,21 +467,24 @@ struct GemmKernel
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
      * @param c_ptr output C pointer
+     * @param smem_ptr_0 The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
+     * @param splitk_batch_offset When there are more than 1 batch needs to split the k.
+     * splitk_batch_offset stands for its the K from which batch.
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
      * @tparam DstInMemOp Destination memory operation (default: set).
      */
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
-    CK_TILE_DEVICE static void RunGemmSinglePointer(const ADataType* a_ptr,
-                                                    const BDataType* b_ptr,
-                                                    CDataType* c_ptr,
-                                                    void* smem_ptr_0,
-                                                    const GemmKernelArgs& kargs,
-                                                    const SplitKBatchOffset& splitk_batch_offset,
-                                                    const index_t block_idx_m,
-                                                    const index_t block_idx_n)
+    CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
+                                       const BDataType* b_ptr,
+                                       CDataType* c_ptr,
+                                       void* smem_ptr_0,
+                                       const GemmKernelArgs& kargs,
+                                       const SplitKBatchOffset& splitk_batch_offset,
+                                       const index_t block_idx_m,
+                                       const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
@@ -521,22 +524,26 @@ struct GemmKernel
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
      * @param c_ptr output C pointer
+     * @param smem_ptr_0 The starting pointer of 1st shared memory block.
+     * @param smem_ptr_1 The starting pointer of 2nd shared memory block.
      * @param kargs GEMM kernel arguments
+     * @param splitk_batch_offset When there are more than 1 batch needs to split the k.
+     * splitk_batch_offset stands for its the K from which batch.
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
      * @tparam DstInMemOp Destination memory operation (default: set).
      */
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
-    CK_TILE_DEVICE static void RunGemmDoublePointer(const ADataType* a_ptr,
-                                                    const BDataType* b_ptr,
-                                                    CDataType* c_ptr,
-                                                    void* smem_ptr_0,
-                                                    void* smem_ptr_1,
-                                                    const GemmKernelArgs& kargs,
-                                                    const SplitKBatchOffset& splitk_batch_offset,
-                                                    const index_t block_idx_m,
-                                                    const index_t block_idx_n)
+    CK_TILE_DEVICE static void RunGemm2LDS(const ADataType* a_ptr,
+                                           const BDataType* b_ptr,
+                                           CDataType* c_ptr,
+                                           void* smem_ptr_0,
+                                           void* smem_ptr_1,
+                                           const GemmKernelArgs& kargs,
+                                           const SplitKBatchOffset& splitk_batch_offset,
+                                           const index_t block_idx_m,
+                                           const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
@@ -590,41 +597,40 @@ struct GemmKernel
 
         if(kargs.KBatch == 1)
         {
-            if constexpr(GemmPipeline::isDoubleSmemBuffer == true)
+            if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
-                RunGemmDoublePointer(a_ptr,
-                                     b_ptr,
-                                     c_ptr,
-                                     smem_ptr_0,
-                                     smem_ptr_1,
-                                     kargs,
-                                     splitk_batch_offset,
-                                     i_m,
-                                     i_n);
+                RunGemm2LDS(a_ptr,
+                            b_ptr,
+                            c_ptr,
+                            smem_ptr_0,
+                            smem_ptr_1,
+                            kargs,
+                            splitk_batch_offset,
+                            i_m,
+                            i_n);
             }
             else
             {
-                RunGemmSinglePointer(
-                    a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+                RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
             }
         }
         else
         {
-            if constexpr(GemmPipeline::isDoubleSmemBuffer == true)
+            if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
-                RunGemmDoublePointer<memory_operation_enum::atomic_add>(a_ptr,
-                                                                        b_ptr,
-                                                                        c_ptr,
-                                                                        smem_ptr_0,
-                                                                        smem_ptr_1,
-                                                                        kargs,
-                                                                        splitk_batch_offset,
-                                                                        i_m,
-                                                                        i_n);
+                RunGemm2LDS<memory_operation_enum::atomic_add>(a_ptr,
+                                                               b_ptr,
+                                                               c_ptr,
+                                                               smem_ptr_0,
+                                                               smem_ptr_1,
+                                                               kargs,
+                                                               splitk_batch_offset,
+                                                               i_m,
+                                                               i_n);
             }
             else
             {
-                RunGemmSinglePointer<memory_operation_enum::atomic_add>(
+                RunGemm<memory_operation_enum::atomic_add>(
                     a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
             }
         }
