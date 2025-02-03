@@ -782,7 +782,7 @@ struct fmha_fwd_traits
     int hdim_q;
     int hdim_v;
     std::string data_type;
-    // bool is_group_mode;
+    bool is_group_mode;
     bool is_v_rowmajor;
     mask_enum mask_type;
     bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
