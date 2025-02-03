@@ -77,8 +77,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         index_t grid_size = 0;
         for(const auto& it_desc : gemm_descs)
         {
-            const auto dim3 = TilePartitioner::GridSize(it_desc.M, it_desc.N);
-            grid_size += dim3.x * dim3.y * 1;
+            const auto local_grid_size = TilePartitioner::GridSize(it_desc.M, it_desc.N);
+            grid_size += local_grid_size * it_desc.k_batch;
         }
         return dim3(grid_size, 1, 1);
     }
@@ -106,8 +106,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
             const index_t stride_b = gemm_descs[i].stride_B;
             const index_t stride_c = gemm_descs[i].stride_C;
 
-            const auto dim3             = TilePartitioner::GridSize(M, N);
-            const index_t grid_size_grp = dim3.x;
+            const index_t grid_size_grp = TilePartitioner::GridSize(M, N) * gemm_descs[i].k_batch;
 
             const index_t block_start = grid_size;
             const index_t block_end   = grid_size + grid_size_grp;
@@ -138,8 +137,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     CK_TILE_DEVICE void Run(const GemmTransKernelArg& kargs) const
     {
-        const auto [iM, iN] =
-            OffsetTile1DPartitioner::GetOffsetedTileIndex(kargs.block_start, kargs.group_karg.N);
+        const auto [iM, iN] = OffsetTile1DPartitioner::GetOffsetedTileIndex(
+            kargs.block_start, kargs.group_karg.M, kargs.group_karg.N);
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);

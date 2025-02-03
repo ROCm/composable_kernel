@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -25,6 +25,8 @@ struct GemmPipelineAGmemBGmemCRegV2
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     {
         return integer_divide_ceil(
@@ -35,8 +37,6 @@ struct GemmPipelineAGmemBGmemCRegV2
                sizeof(BDataType) *
                    Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
     }
-
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC() { return Policy::IsTransposeC(); }
 
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,
