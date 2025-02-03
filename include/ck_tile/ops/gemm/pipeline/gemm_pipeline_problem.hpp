@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -26,6 +26,8 @@ struct GemmPipelineProblemBase
     using ALayout = remove_cvref_t<typename Traits::ALayout>;
     using BLayout = remove_cvref_t<typename Traits::BLayout>;
     using CLayout = remove_cvref_t<typename Traits::CLayout>;
+
+    static constexpr bool TransposeC = Traits::TransposeC;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
 
@@ -111,7 +113,6 @@ struct GemmPipelineProblemBase
             return kPadK ? 1 : GetAlignmentB();
         }
     }();
-
     static constexpr index_t VectorSizeC = []() {
         if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
         {

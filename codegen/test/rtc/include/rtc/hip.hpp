@@ -1,10 +1,13 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #ifndef GUARD_HOST_TEST_RTC_INCLUDE_RTC_HIP
 #define GUARD_HOST_TEST_RTC_INCLUDE_RTC_HIP
 
 #include <hip/hip_runtime_api.h>
 #include <memory>
-#include <string>
 #include <stdexcept>
+#include <string>
 
 namespace rtc {
 

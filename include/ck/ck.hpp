@@ -5,7 +5,7 @@
 
 #include "ck/config.h"
 #include "ck/utility/env.hpp"
-
+#ifndef CK_CODE_GEN_RTC
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
@@ -14,7 +14,7 @@
 // environment variable to enable logging:
 // export CK_LOGGING=ON or CK_LOGGING=1 or CK_LOGGING=ENABLED
 CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
-
+#endif
 // to do: add various levels of logging with CK_LOG_LEVEL
 
 #ifndef CK_TIME_KERNEL
@@ -235,13 +235,18 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
 
-// denorm test fix, required to work around dissue
-#ifndef CK_WORKAROUND_DENORM_FIX
-#define CK_WORKAROUND_DENORM_FIX 0
+// denorm test fix, necessary for gfx90a
+#ifndef CK_GFX90A_DENORM_WORKAROUND
+#define CK_GFX90A_DENORM_WORKAROUND 0
+#endif // CK_GFX90A_DENORM_WORKAROUND
+// Enable only for gfx90a
+#if defined(__gfx90a__)
+#if CK_GFX90A_DENORM_WORKAROUND
+#define CK_GFX90A_DENORM_WORKAROUND 1
+#endif // CK_GFX90A_DENORM_WORKAROUND is set to 1
 #else
-// enable only for gfx90a
-#define CK_WORKAROUND_DENORM_FIX = CK_WORKAROUND_DENORM_FIX && defined(__gfx90a__)
-#endif // CK_WORKAROUND_DENORM_FIX
+#define CK_GFX90A_DENORM_WORKAROUND 0
+#endif // gfx90a
 
 // set flag to 1 to build deprecated instances
 #define CK_BUILD_DEPRECATED 1
