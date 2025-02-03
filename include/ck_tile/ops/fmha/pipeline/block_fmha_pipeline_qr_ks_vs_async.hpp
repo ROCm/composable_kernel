@@ -760,13 +760,6 @@ struct BlockFmhaPipelineQRKSVSAsync
                DropoutType& dropout) const
     {
 
-        // may have state inside
-        auto pre_softmax_def = PreSoftmaxFunction_{};
-        auto pre_softmax_arg = [](
-               typename PreSoftmaxFunction_::TScore s) {
-            return pre_softmax_def(s);
-        };
-
         return operator()(q_dram_block_window_tmp,
                           identity{},
                           k_dram_block_window_tmp,
@@ -778,7 +771,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                           randval_dram_block_window_tmp,
                           lse_dram_block_window_tmp,
                           identity{},
-                          pre_softmax_arg, // identity{},
+                          identity{},
                           identity{},
                           identity{},
                           mask,
