@@ -39,6 +39,13 @@ function(add_instance_library INSTANCE_NAME)
 
     set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
 
+    # Do not build DPP instances if DPP_KERNELS macro is not set
+    foreach(source IN LISTS ARGN)
+        if(NOT DEFINED DPP_KERNELS AND source MATCHES "_dpp")
+            message("removing dpp instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+    endforeach()
     # Do not build DL instances if DL_KERNELS macro is not set
     foreach(source IN LISTS ARGN)
         if(NOT DEFINED DL_KERNELS AND source MATCHES "_dl")
@@ -183,6 +190,10 @@ FOREACH(subdir_path ${dir_list})
             message("bf8 instance found!")
             set(add_inst 1)
         endif()
+        if(("${cmake_instance}" MATCHES "_bf16" OR "${cmake_instance}" MATCHES "_b16") AND DTYPES MATCHES "bf16")
+            message("bf16 instance found!")
+            set(add_inst 1)
+        endif()
         if(("${cmake_instance}" MATCHES "_fp16" OR "${cmake_instance}" MATCHES "_f16") AND DTYPES MATCHES "fp16")
             message("fp16 instance found!")
             set(add_inst 1)
@@ -193,10 +204,6 @@ FOREACH(subdir_path ${dir_list})
         endif()
         if(("${cmake_instance}" MATCHES "_fp64" OR "${cmake_instance}" MATCHES "_f64") AND DTYPES MATCHES "fp64")
             message("fp64 instance found!")
-            set(add_inst 1)
-        endif()
-        if("${cmake_instance}" MATCHES "_bf16" AND DTYPES MATCHES "bf16")
-            message("bf16 instance found!")
             set(add_inst 1)
         endif()
         if(("${cmake_instance}" MATCHES "_int8" OR "${cmake_instance}" MATCHES "_i8") AND DTYPES MATCHES "int8")
@@ -278,9 +285,14 @@ ENDFOREACH()
 
 
 if(CK_DEVICE_OTHER_INSTANCES)
-        add_library(device_other_operations STATIC ${CK_DEVICE_OTHER_INSTANCES})
+        add_library(device_other_operations ${CK_DEVICE_OTHER_INSTANCES})
         add_library(composablekernels::device_other_operations ALIAS device_other_operations)
         set_target_properties(device_other_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        set_target_properties(device_other_operations
+            PROPERTIES
+            VERSION ${CMAKE_PROJECT_VERSION}
+            SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
+        )
         target_include_directories(device_other_operations PUBLIC
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/utility>
@@ -309,10 +321,15 @@ if(CK_DEVICE_OTHER_INSTANCES)
         )
 endif()
 if(CK_DEVICE_GEMM_INSTANCES)
-        add_library(device_gemm_operations STATIC ${CK_DEVICE_GEMM_INSTANCES})
+        add_library(device_gemm_operations ${CK_DEVICE_GEMM_INSTANCES})
         add_library(composablekernels::device_gemm_operations ALIAS device_gemm_operations)
         target_compile_features(device_gemm_operations PUBLIC)
         set_target_properties(device_gemm_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        set_target_properties(device_gemm_operations
+            PROPERTIES
+            VERSION ${CMAKE_PROJECT_VERSION}
+            SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
+        )
         target_include_directories(device_gemm_operations PUBLIC
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
         )
@@ -325,10 +342,15 @@ if(CK_DEVICE_GEMM_INSTANCES)
         )
 endif()
 if(CK_DEVICE_CONV_INSTANCES)
-        add_library(device_conv_operations STATIC ${CK_DEVICE_CONV_INSTANCES})
+        add_library(device_conv_operations ${CK_DEVICE_CONV_INSTANCES})
         add_library(composablekernels::device_conv_operations ALIAS device_conv_operations)
         target_compile_features(device_conv_operations PUBLIC)
         set_target_properties(device_conv_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        set_target_properties(device_conv_operations
+            PROPERTIES
+            VERSION ${CMAKE_PROJECT_VERSION}
+            SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
+        )
         target_include_directories(device_conv_operations PUBLIC
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange>
@@ -347,7 +369,12 @@ endif()
 if(CK_DEVICE_MHA_INSTANCES)
         set(gpu_list ${INST_TARGETS})
 	if(gpu_list MATCHES "gfx94" OR gpu_list MATCHES "gfx90a")
-            add_library(device_mha_operations STATIC ${CK_DEVICE_MHA_INSTANCES})
+            add_library(device_mha_operations ${CK_DEVICE_MHA_INSTANCES})
+            set_target_properties(device_mha_operations
+                PROPERTIES
+                VERSION ${CMAKE_PROJECT_VERSION}
+                SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
+            )
             add_library(composablekernels::device_mha_operations ALIAS device_mha_operations)
             target_compile_features(device_mha_operations PUBLIC)
             set_target_properties(device_mha_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -362,10 +389,15 @@ if(CK_DEVICE_MHA_INSTANCES)
         endif()
 endif()
 if(CK_DEVICE_CONTRACTION_INSTANCES)
-        add_library(device_contraction_operations STATIC ${CK_DEVICE_CONTRACTION_INSTANCES})
+        add_library(device_contraction_operations ${CK_DEVICE_CONTRACTION_INSTANCES})
         add_library(composablekernels::device_contraction_operations ALIAS device_contraction_operations)
         target_compile_features(device_contraction_operations PUBLIC)
         set_target_properties(device_contraction_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        set_target_properties(device_contraction_operations
+            PROPERTIES
+            VERSION ${CMAKE_PROJECT_VERSION}
+            SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
+        )
         target_include_directories(device_contraction_operations PUBLIC
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/contraction>
@@ -379,10 +411,15 @@ if(CK_DEVICE_CONTRACTION_INSTANCES)
         )
 endif()
 if(CK_DEVICE_REDUCTION_INSTANCES)
-        add_library(device_reduction_operations STATIC ${CK_DEVICE_REDUCTION_INSTANCES})
+        add_library(device_reduction_operations ${CK_DEVICE_REDUCTION_INSTANCES})
         add_library(composablekernels::device_reduction_operations ALIAS device_reduction_operations)
         target_compile_features(device_reduction_operations PUBLIC)
         set_target_properties(device_reduction_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        set_target_properties(device_reduction_operations
+            PROPERTIES
+            VERSION ${CMAKE_PROJECT_VERSION}
+            SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
+        )
         target_include_directories(device_reduction_operations PUBLIC
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/reduce>
         )

@@ -8,6 +8,9 @@ The benifit of this fused-moe:
 * much less kernel instance, easy to maintain
 
 # Implementation and feature support
+## NOTES:
+currently gate+up in fp16 case will very easily cause accumulator overflow the fp16 max(65504), hence result in INF. Please use BF16 for gate+up case, API side will have no check for this.
+
 ## moe-sorting
 this is a common pre-process step before the actual moe-gemm. The purpose is to transform the moe loop over from token-by-token to expert-by-expert, make sure very workgroup is working for a single expert (B matrix). Besides, we extend this op to do the zeroing of the output buffer(to be used for reduce buffer with atomic)
 
