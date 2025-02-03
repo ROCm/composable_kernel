@@ -16,6 +16,7 @@ namespace ck {
 // [Who Says Elephants Can't Run: Bringing Large Scale MoE Models into Cloud Scale Production]
 // (https://arxiv.org/abs/2211.10017) and implementation:
 // https://github.com/NVIDIA/FasterTransformer/blob/main/src/fastertransformer/cutlass_extensions/include/cutlass_extensions/interleaved_numeric_conversion.h
+// Convert lower part of packed int4 -> int4 to half
 __device__ inline half4_t i4_to_half4(int q)
 {
     const int LO = 0x000f000f;
@@ -117,7 +118,7 @@ struct PassThroughPack8
 
     __host__ __device__ constexpr void operator()(ck::half8_t& y, const ck::pk_i4x4_t& x) const
     {
-#if 1
+#if CK_USE_PK4_LAYOUT_SHUFLE
         vector_type<half_t, 8> result;
 
         result.template AsType<half4_t>()(Number<0>{}) = i4_to_half4(bit_cast<int>(x));
@@ -143,7 +144,7 @@ struct PassThroughPack8
 
     __host__ __device__ constexpr void operator()(ck::bhalf8_t& y, const ck::pk_i4x4_t& x) const
     {
-#if 1
+#if CK_USE_PK4_LAYOUT_SHUFLE
         vector_type<bhalf_t, 8> result;
 
         result.template AsType<bhalf4_t>()(Number<0>{}) = i4_to_bhalf4(bit_cast<int>(x));
@@ -177,7 +178,7 @@ struct DequantPack8
     __host__ __device__ constexpr void
     operator()(ck::half8_t& y, const ck::pk_i4x4_t& x, const ck::half2_t& z) const
     {
-#if 1
+#if CK_USE_PK4_LAYOUT_SHUFLE
         vector_type<half_t, 8> result;
 
         result.template AsType<half4_t>()(Number<0>{}) = i4_to_half4_scale(bit_cast<int>(x), z);
@@ -218,7 +219,7 @@ struct PassThroughPack2
 
     __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::pk_i4_t& x) const
     {
-#if 1
+#if CK_USE_PK4_LAYOUT_SHUFLE
         uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
         uint8_t x_l  = (x_u8 & 0x0f) >> 0;
         uint8_t x_h  = (x_u8 & 0xf0) >> 4;

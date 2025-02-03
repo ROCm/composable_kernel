@@ -98,16 +98,22 @@ CK_TILE_HOST_DEVICE fp32x2_t pk_int4_t_to_fp32x2_t(const pk_int4_t& x)
     float x_l = ((x_u8 & 0x0f) >> 0) - 8.f;
     float x_h = ((x_u8 & 0xf0) >> 4) - 8.f;
 
+#ifdef CK_TILE_USE_PK4_LAYOUT_SHUFLE
+    fp32x2_t res = {x_h, x_l};
+#elif
     fp32x2_t res = {x_l, x_h};
-
+#endif
     return res;
 }
 
 CK_TILE_HOST_DEVICE fp16x2_t pk_int4_t_to_halfx2_t(const pk_int4_t& x)
 {
     uint8_t x_u8 = ck_tile::bit_cast<uint8_t>(x);
+#ifdef CK_TILE_USE_PK4_LAYOUT_SHUFLE
+    uint32_t i4s = ((x_u8 & 0x0f) << 16) | ((x_u8 & 0xf0) >> 4);
+#elif
     uint32_t i4s = ((x_u8 & 0xf0) << 12) | (x_u8 & 0xf);
-
+#endif
     const int EX  = 0x64006400;
     const int SUB = 0xE408E408; //-8
 
@@ -123,8 +129,11 @@ CK_TILE_HOST_DEVICE bf16x2_t pk_int4_t_to_bfloat16x2_t(const pk_int4_t& x)
     float x_l = ((x_u8 & 0x0f) >> 0) - 8.f;
     float x_h = ((x_u8 & 0xf0) >> 4) - 8.f;
 
+#ifdef CK_TILE_USE_PK4_LAYOUT_SHUFLE
+    bf16x2_t res = {type_convert<bf16_t>(x_h), type_convert<bf16_t>(x_l)};
+#elif
     bf16x2_t res = {type_convert<bf16_t>(x_l), type_convert<bf16_t>(x_h)};
-
+#endif
     return res;
 }
 
