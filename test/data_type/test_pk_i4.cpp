@@ -27,7 +27,7 @@ using ck::pk_i4x4_t;
 
 TEST(PackedInt4, ConvertToFloat)
 {
-#ifdef CK_USE_PK4_LAYOUT_SHUFLE
+#ifdef CK_USE_PK4_LAYOUT_SHUFFLE
     constexpr float first_input_val  = 7.f;
     constexpr float second_input_val = -1.f;
 #else
@@ -44,7 +44,7 @@ TEST(PackedInt4, ConvertToFloat)
 
 TEST(PackedInt4, ConvertToHalf)
 {
-#ifdef CK_USE_PK4_LAYOUT_SHUFLE
+#ifdef CK_USE_PK4_LAYOUT_SHUFFLE
     constexpr half_t first_input_val  = ck::type_convert<half_t>(7.f);
     constexpr half_t second_input_val = ck::type_convert<half_t>(-1.f);
 #else
@@ -61,7 +61,7 @@ TEST(PackedInt4, ConvertToHalf)
 
 TEST(PackedInt4, ConvertToBHalf)
 {
-#ifdef CK_USE_PK4_LAYOUT_SHUFLE
+#ifdef CK_USE_PK4_LAYOUT_SHUFFLE
     const bhalf_t first_input_val  = ck::type_convert<bhalf_t>(7.f);
     const bhalf_t second_input_val = ck::type_convert<bhalf_t>(-1.f);
 #else

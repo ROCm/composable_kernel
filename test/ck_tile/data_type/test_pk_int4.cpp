@@ -15,7 +15,7 @@ using ck_tile::pk_int4_t;
 
 TEST(PackedInt4, ConvertToFloat)
 {
-#ifdef CK_TILE_USE_PK4_LAYOUT_SHUFLE
+#ifdef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
     constexpr float first_input_val  = 7.f;
     constexpr float second_input_val = -1.f;
 #else
@@ -32,7 +32,7 @@ TEST(PackedInt4, ConvertToFloat)
 
 TEST(PackedInt4, ConvertToHalf)
 {
-#ifdef CK_TILE_USE_PK4_LAYOUT_SHUFLE
+#ifdef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
     const half_t first_input_val  = ck_tile::type_convert<half_t>(7.f);
     const half_t second_input_val = ck_tile::type_convert<half_t>(-1.f);
 #else
@@ -49,7 +49,7 @@ TEST(PackedInt4, ConvertToHalf)
 
 TEST(PackedInt4, ConvertToBHalf)
 {
-#ifdef CK_TILE_USE_PK4_LAYOUT_SHUFLE
+#ifdef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
     const bf16_t first_input_val  = ck_tile::type_convert<bf16_t>(7.f);
     const bf16_t second_input_val = ck_tile::type_convert<bf16_t>(-1.f);
 #else

@@ -528,7 +528,7 @@ inline __host__ __device__ float2_t type_convert<float2_t, pk_i4_t>(pk_i4_t x)
     float x_l = ((x_u8 & 0x0f) >> 0) - 8.f;
     float x_h = ((x_u8 & 0xf0) >> 4) - 8.f;
 
-#ifdef CK_USE_PK4_LAYOUT_SHUFLE
+#ifdef CK_USE_PK4_LAYOUT_SHUFFLE
     float2_t res = {x_h, x_l};
 #elif
     float2_t res = {x_l, x_h};
@@ -540,7 +540,7 @@ template <>
 inline __host__ __device__ half2_t type_convert<half2_t, pk_i4_t>(pk_i4_t x)
 {
     uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
-#ifdef CK_USE_PK4_LAYOUT_SHUFLE
+#ifdef CK_USE_PK4_LAYOUT_SHUFFLE
     uint32_t i4s = ((x_u8 & 0x0f) << 16) | ((x_u8 & 0xf0) >> 4);
 #else
     uint32_t i4s = ((x_u8 & 0xf0) << 12) | (x_u8 & 0xf);
@@ -562,7 +562,7 @@ inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, pk_i4_t>(pk_i4_t x)
     float x_l = ((x_u8 & 0x0f) >> 0) - 8.f;
     float x_h = ((x_u8 & 0xf0) >> 4) - 8.f;
 
-#ifdef CK_USE_PK4_LAYOUT_SHUFLE
+#ifdef CK_USE_PK4_LAYOUT_SHUFFLE
     bhalf2_t res = {type_convert<bhalf_t>(x_h), type_convert<bhalf_t>(x_l)};
 #else
     bhalf2_t res = {type_convert<bhalf_t>(x_l), type_convert<bhalf_t>(x_h)};

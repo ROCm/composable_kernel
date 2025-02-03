@@ -144,8 +144,8 @@
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER 1
 #endif
 
-#ifndef CK_TILE_USE_PK4_LAYOUT_SHUFLE
-#define CK_TILE_USE_PK4_LAYOUT_SHUFLE 1
+#ifndef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
+#define CK_TILE_USE_PK4_LAYOUT_SHUFFLE 1
 #endif
 
 // buffer atomic add: floating point

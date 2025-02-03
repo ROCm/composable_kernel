@@ -118,7 +118,7 @@ struct PassThroughPack8
 
     __host__ __device__ constexpr void operator()(ck::half8_t& y, const ck::pk_i4x4_t& x) const
     {
-#if CK_USE_PK4_LAYOUT_SHUFLE
+#if CK_USE_PK4_LAYOUT_SHUFFLE
         vector_type<half_t, 8> result;
 
         result.template AsType<half4_t>()(Number<0>{}) = i4_to_half4(bit_cast<int>(x));
@@ -144,7 +144,7 @@ struct PassThroughPack8
 
     __host__ __device__ constexpr void operator()(ck::bhalf8_t& y, const ck::pk_i4x4_t& x) const
     {
-#if CK_USE_PK4_LAYOUT_SHUFLE
+#if CK_USE_PK4_LAYOUT_SHUFFLE
         vector_type<bhalf_t, 8> result;
 
         result.template AsType<bhalf4_t>()(Number<0>{}) = i4_to_bhalf4(bit_cast<int>(x));
@@ -178,7 +178,7 @@ struct DequantPack8
     __host__ __device__ constexpr void
     operator()(ck::half8_t& y, const ck::pk_i4x4_t& x, const ck::half2_t& z) const
     {
-#if CK_USE_PK4_LAYOUT_SHUFLE
+#if CK_USE_PK4_LAYOUT_SHUFFLE
         vector_type<half_t, 8> result;
 
         result.template AsType<half4_t>()(Number<0>{}) = i4_to_half4_scale(bit_cast<int>(x), z);
@@ -219,7 +219,7 @@ struct PassThroughPack2
 
     __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::pk_i4_t& x) const
     {
-#if CK_USE_PK4_LAYOUT_SHUFLE
+#if CK_USE_PK4_LAYOUT_SHUFFLE
         uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
         uint8_t x_l  = (x_u8 & 0x0f) >> 0;
         uint8_t x_h  = (x_u8 & 0xf0) >> 4;
