@@ -20,38 +20,24 @@
 #define CK_USE_OCP_FP8 0
 #endif
 
-namespace {
-// https://en.cppreference.com/w/cpp/types/conditional
-template <bool B, class T, class F>
-struct conditional
-{
-    using type = T;
-};
-template <class T, class F>
-struct conditional<false, T, F>
-{
-    using type = F;
-};
-} // namespace
-
-namespace ck {
-
-using f8_fnuz_t  = _BitInt(8);
-using bf8_fnuz_t = unsigned _BitInt(8);
-
 #if(defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx1200__) || \
-    defined(__gfx1201__)) &&                                                                     \
+    defined(__gfx1201__) || defined(__gfx950__)) &&                                              \
     __HIP_DEVICE_COMPILE__
 #define CK_FP8_CVT_FAST_PATH 1
 #else
 #define CK_FP8_CVT_FAST_PATH 0
 #endif
 
-#if(defined(__gfx1200__) || defined(__gfx1201__)) && __HIP_DEVICE_COMPILE__
+#if(defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx950__)) && __HIP_DEVICE_COMPILE__
 #define CK_OCP_FP8_CVT_FAST_PATH 1
 #else
 #define CK_OCP_FP8_CVT_FAST_PATH 0
 #endif
+
+namespace ck {
+
+using f8_fnuz_t  = _BitInt(8);
+using bf8_fnuz_t = unsigned _BitInt(8);
 
 typedef unsigned char fp8_storage_t;
 
@@ -207,10 +193,11 @@ __host__ __device__ static inline T cast_from_f8(fp8_storage_t x)
         }
     }
 
-    typename conditional<
+    typename std::conditional<
         sizeof(T) == 2,
         unsigned short int,
-        typename conditional<sizeof(T) == 4, unsigned int, unsigned long long>::type>::type retval;
+        typename std::conditional<sizeof(T) == 4, unsigned int, unsigned long long>::type>::type
+        retval;
 
     if constexpr(we == 5 && is_half && !is_fnuz)
     {
@@ -303,7 +290,6 @@ static __device__ float2_t cast_to_f32x2_from_f8x2(fp8x2_storage_t v)
         return __builtin_amdgcn_cvt_pk_f32_bf8(i16val, false);
     }
 }
-
 #endif
 
 } // namespace fp8_impl
@@ -378,7 +364,7 @@ struct bf8_ocp_t
     __host__ explicit operator float() const
 #endif
     {
-#if defined(__gfx1200__) || defined(__gfx1201__)
+#if defined(__gfx950__) || defined(__gfx1200__) || defined(__gfx1201__)
         return fp8_impl::cast_to_f32_from_f8<default_interpret>(this->data);
 #else
         return fp8_impl::cast_from_f8<float, wm, we, false>(
@@ -392,7 +378,7 @@ struct bf8_ocp_t
     __host__ explicit operator _Float16() const
 #endif
     {
-#if defined(__gfx1200__) || defined(__gfx1201__)
+#if defined(__gfx950__) || defined(__gfx1200__) || defined(__gfx1201__)
         return static_cast<_Float16>(fp8_impl::cast_to_f32_from_f8<default_interpret>(this->data));
 #else
         return fp8_impl::cast_from_f8<_Float16, wm, we, false>(
@@ -553,10 +539,10 @@ __host__ __device__ static inline fp8_storage_t cast_to_f8(T _x, unsigned int rn
 
     constexpr int mfmt = (sizeof(T) == 8) ? 52 : ((sizeof(T) == 4) ? 23 : 10);
 
-    using T_bitwise = typename conditional<
+    using T_bitwise = typename std::conditional<
         sizeof(T) == 2,
         unsigned short int,
-        typename conditional<sizeof(T) == 4, unsigned int, unsigned long long>::type>::type;
+        typename std::conditional<sizeof(T) == 4, unsigned int, unsigned long long>::type>::type;
     T_bitwise x_bitwise = bit_cast<T_bitwise>(_x);
 
     unsigned long long x{x_bitwise};
