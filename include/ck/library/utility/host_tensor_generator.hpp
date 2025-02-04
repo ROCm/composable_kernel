@@ -359,6 +359,21 @@ struct GeneratorTensor_Sequential
     }
 };
 
+template <ck::index_t Dim>
+struct GeneratorTensor_Sequential<ck::e8m0_bexp_t, Dim>
+{
+    int offset = 0;
+
+    template <typename... Ts>
+    ck::e8m0_bexp_t operator()(Ts... Xs) const
+    {
+        std::array<ck::index_t, sizeof...(Ts)> dims = {{static_cast<ck::index_t>(Xs)...}};
+
+        int tmp = dims[Dim];
+        return ck::type_convert<ck::e8m0_bexp_t>(powf(2, tmp + offset));
+    }
+};
+
 template <typename T, size_t NumEffectiveDim = 2>
 struct GeneratorTensor_Diagonal
 {
