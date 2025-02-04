@@ -77,10 +77,6 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
                       P_::kMPerBlock, "x", P_::kNPerBlock, "x", P_::kKPerBlock, "_",
                       P_::VectorSizeA, "x", P_::VectorSizeB, "x", P_::VectorSizeC, "_",
                       P_::kPadM, "x", P_::kPadN, "x", P_::kPadK); 
-        //return _SS_("gemm_batched_") + _SS_(prec_str) + "_" +
-        //        _TS_(P_::kMPerBlock) + "x" + _TS_(P_::kNPerBlock) + "x" + _TS_(P_::kKPerBlock) + "_" +
-        //        _TS_(P_::VectorSizeA) + "x" + _TS_(P_::VectorSizeB) + "x" + _TS_(P_::VectorSizeC) + "_" +
-        //        _TS_(P_::kPadM) + "x" + _TS_(P_::kPadN) + "x" + _TS_(P_::kPadK);
 #undef _SS_
 #undef _TS_
         // clang-format on
