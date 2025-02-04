@@ -440,7 +440,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     };
                 };
             }
-            else
+            else // for hdim-96, hdim-160
             {
                 static_for<0, k0_loops, 1>{}([&](auto i_k0) {
                     store_tile(k_lds_windows[number<i_k0 % NumKLdsBuffers>{}],
