@@ -738,8 +738,15 @@ void RunHostGEMM(const Tensor<ADataType>& A,
                  Tensor<CDataType>& C)
 {
     using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
-    using GemmInstance = ck::tensor_operation::host::
-        ReferenceGemm<float, float, CDataType, float, PassThrough, PassThrough, PassThrough>;
+    using GemmInstance = ck::tensor_operation::host::ReferenceGemm<float,
+                                                                   float,
+                                                                   CDataType,
+                                                                   float,
+                                                                   PassThrough,
+                                                                   PassThrough,
+                                                                   PassThrough,
+                                                                   float,
+                                                                   float>;
 
     Tensor<float> a_m_k(A.mDesc);
     Tensor<float> b_k_n(B.mDesc);
@@ -753,8 +760,8 @@ void RunHostGEMM(const Tensor<ADataType>& A,
     {
         for(size_t k = 0; k < K; k++)
         {
-            a_m_k(m, k) =
-                type_convert<float>(A(m, k)) * type_convert<float>(a_scales(m, k / BLOCK_X));
+            a_m_k(m, k) = type_convert<float>(type_convert<ADataType>(
+                type_convert<float>(A(m, k)) * type_convert<float>(a_scales(m, k / BLOCK_X))));
         }
     }
 
@@ -762,8 +769,8 @@ void RunHostGEMM(const Tensor<ADataType>& A,
     {
         for(size_t k = 0; k < K; k++)
         {
-            b_k_n(k, n) =
-                type_convert<float>(B(k, n)) * type_convert<float>(b_scales(k / BLOCK_X, n));
+            b_k_n(k, n) = type_convert<float>(type_convert<BDataType>(
+                type_convert<float>(B(k, n)) * type_convert<float>(b_scales(k / BLOCK_X, n))));
         }
     }
 
@@ -862,18 +869,23 @@ struct TestMXMFMA
         case 1:
             // results in C = {K}
             a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{512.0f}});
             b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f / 512}});
             break;
         case 2:
             // expect small round off errors
-            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-5, 5});
+            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-0.5, 0.5});
+            // a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.9f});
             a_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
-            b_n_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-5, 5});
-            b_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
+                GeneratorTensor_2<ScaleType>{127, 129}); // scales: {0.5, 1, 2}
+            // a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            // b_n_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-5, 5});
+            // b_scales.GenerateTensorValue(
+            //     GeneratorTensor_2<ScaleType>{125, 128}); //  scales: {0.5, 1, 2}
+
+            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
             break;
         case 3:
             // expect small round off errors
@@ -884,12 +896,33 @@ struct TestMXMFMA
             b_scales.GenerateTensorValue(
                 GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
             break;
+        case 4:
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
+            a_scales.GenerateTensorValue(GeneratorTensor_Sequential<ScaleType, 0>{-9});
+            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            break;
+        case 5:
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
+            b_scales.GenerateTensorValue(GeneratorTensor_Sequential<ScaleType, 1>{-9});
+            break;
+
+        case 6:
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{0.00195312f});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f / 16}});
+            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
+            b_scales.GenerateTensorValue(GeneratorTensor_Sequential<ScaleType, 1>{-9});
+            break;
         default:
             // all initial values are representable in FP8, BF8
             a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6});
-            a_scales.GenerateTensorValue(GeneratorTensor_3<ScaleType>{1.0f / 32.0f, 1.0f});
+            // a_scales.GenerateTensorValue(GeneratorTensor_3<ScaleType>{1.0f / 32.0f, 1.0f});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
             b_n_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6});
-            b_scales.GenerateTensorValue(GeneratorTensor_3<ScaleType>{1.0f / 32.0f, 1.0f});
+            // b_scales.GenerateTensorValue(GeneratorTensor_3<ScaleType>{1.0f / 32.0f, 1.0f});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
 
             break;
         }
@@ -946,12 +979,79 @@ struct TestMXMFMA
 
         RunDeviceGEMM(mfma_kernel, a, a_scales, b, b_scales, c_device);
 
+#if 1
+#if 1
+        std::cout << "a:" << std::endl;
+        for(size_t i = 0; i < BLOCK_M; i++)
+        {
+            for(size_t j = 0; j < BLOCK_K; j++)
+            {
+                std::cout << type_convert<float>(a(i, j)) << " ";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << "b:" << std::endl;
+        for(size_t i = 0; i < BLOCK_K; i++)
+        {
+            for(size_t j = 0; j < BLOCK_N; j++)
+            {
+                std::cout << type_convert<float>(b(i, j)) << " ";
+            }
+            std::cout << std::endl;
+        }
+#endif
+#if 1
+        std::cout << "a_scale:" << std::endl;
+        for(size_t i = 0; i < BLOCK_M; i++)
+        {
+            for(size_t j = 0; j < BLOCK_K / BLOCK_X; j++)
+            {
+                std::cout << type_convert<float>(a_scales(i, j)) << " ";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << "b_scale:" << std::endl;
+        for(size_t i = 0; i < BLOCK_K / BLOCK_X; i++)
+        {
+            for(size_t j = 0; j < BLOCK_N; j++)
+            {
+                std::cout << type_convert<float>(b_scales(i, j)) << " ";
+            }
+            std::cout << std::endl;
+        }
+#endif
+        std::cout << "c_device:" << std::endl;
+        for(size_t i = 0; i < BLOCK_M; i++)
+        {
+            for(size_t j = 0; j < BLOCK_N; j++)
+            {
+                std::cout << type_convert<float>(c_device(i, j)) << " ";
+            }
+            std::cout << std::endl;
+        }
+
+#endif
+
         bool res = false;
         if constexpr(std::is_same<CDataType, float>::value ||
                      std::is_same<CDataType, half_t>::value)
         {
             res = ck::utils::check_err(c_device.mData, c_host.mData);
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+
+            if(!res)
+            {
+
+                std::cout << "c_host:" << std::endl;
+                for(size_t i = 0; i < BLOCK_M; i++)
+                {
+                    for(size_t j = 0; j < BLOCK_N; j++)
+                    {
+                        std::cout << type_convert<float>(c_host(i, j)) << " ";
+                    }
+                    std::cout << std::endl;
+                }
+            }
         }
         else
         {
