@@ -333,9 +333,10 @@ struct BlockFmhaPipelineQRKSVSAsync
                 {
                     if(num_total_loop > 1) // there are multiple iterations
                     {
-                        store_tile(k_lds_windows[I0], k_tiles[I0]);
-
                         static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
+                            store_tile(k_lds_windows[number<i_k0 % NumKLdsBuffers>{}],
+                                       k_tiles[number<i_k0>{}]);
+
                             k_tiles[number<i_k0 + 1>{}] = load_tile(k_dram_window);
                             move_tile_window(k_dram_window, {0, kK0});
 
@@ -347,10 +348,10 @@ struct BlockFmhaPipelineQRKSVSAsync
                             gemm_0(s_acc,
                                    q_tiles[number<i_k0>{}],
                                    k_lds_windows[number<i_k0 % NumKLdsBuffers>{}]);
-
-                            store_tile(k_lds_windows[number<(i_k0 + 1) % NumKLdsBuffers>{}],
-                                       k_tiles[number<i_k0 + 1>{}]);
                         });
+
+                        store_tile(k_lds_windows[number<(k0_loops - 1) % NumKLdsBuffers>{}],
+                                   k_tiles[number<k0_loops - 1>{}]);
 
                         move_tile_window(k_dram_window, {kN0, -k0_loops * kK0});
 
@@ -371,9 +372,10 @@ struct BlockFmhaPipelineQRKSVSAsync
                     }
                     else // there is only single iteration
                     {
-                        store_tile(k_lds_windows[I0], k_tiles[I0]);
-
                         static_for<0, k0_loops, 1>{}([&](auto i_k0) {
+                            store_tile(k_lds_windows[number<i_k0 % NumKLdsBuffers>{}],
+                                       k_tiles[number<i_k0>{}]);
+
                             if constexpr(i_k0 < k0_loops - 1)
                             {
                                 k_tiles[number<i_k0 + 1>{}] = load_tile(k_dram_window);
@@ -388,12 +390,6 @@ struct BlockFmhaPipelineQRKSVSAsync
                             gemm_0(s_acc,
                                    q_tiles[number<i_k0>{}],
                                    k_lds_windows[number<i_k0 % NumKLdsBuffers>{}]);
-
-                            if constexpr(i_k0 < k0_loops - 1)
-                            {
-                                store_tile(k_lds_windows[number<(i_k0 + 1) % NumKLdsBuffers>{}],
-                                           k_tiles[number<i_k0 + 1>{}]);
-                            };
                         });
 
                         // move_tile_window(k_dram_window, {0, -k0_loops * kK0});
@@ -443,9 +439,10 @@ struct BlockFmhaPipelineQRKSVSAsync
             }
             else
             {
-                store_tile(k_lds_windows[I0], k_tiles[I0]);
-
                 static_for<0, k0_loops, 1>{}([&](auto i_k0) {
+                    store_tile(k_lds_windows[number<i_k0 % NumKLdsBuffers>{}],
+                               k_tiles[number<i_k0 % 2>{}]);
+
                     if constexpr(i_k0 < k0_loops - 1)
                     {
                         k_tiles[number<(i_k0 + 1) % 2>{}] = load_tile(k_dram_window);
@@ -460,12 +457,6 @@ struct BlockFmhaPipelineQRKSVSAsync
                     gemm_0(s_acc,
                            q_tiles[number<i_k0>{}],
                            k_lds_windows[number<i_k0 % NumKLdsBuffers>{}]);
-
-                    if constexpr(i_k0 < k0_loops - 1)
-                    {
-                        store_tile(k_lds_windows[number<(i_k0 + 1) % NumKLdsBuffers>{}],
-                                   k_tiles[number<(i_k0 + 1) % 2>{}]);
-                    };
                 });
 
                 if(i_total_loops < num_total_loop - 1)
