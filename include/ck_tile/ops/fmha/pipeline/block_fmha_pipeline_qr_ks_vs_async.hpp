@@ -335,11 +335,12 @@ struct BlockFmhaPipelineQRKSVSAsync
                     {
                         store_tile(k_lds_windows[I0], k_tiles[I0]);
 
-                        clear_tile(s_acc); // initialize C
-
                         static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
                             k_tiles[number<i_k0 + 1>{}] = load_tile(k_dram_window);
                             move_tile_window(k_dram_window, {0, kK0});
+
+                            if constexpr(i_k0 == 0)
+                                clear_tile(s_acc);
 
                             block_sync_lds();
                             // execute current unroll of gemm_0
@@ -372,14 +373,15 @@ struct BlockFmhaPipelineQRKSVSAsync
                     {
                         store_tile(k_lds_windows[I0], k_tiles[I0]);
 
-                        clear_tile(s_acc); // initialize C
-
                         static_for<0, k0_loops, 1>{}([&](auto i_k0) {
                             if constexpr(i_k0 < k0_loops - 1)
                             {
                                 k_tiles[number<i_k0 + 1>{}] = load_tile(k_dram_window);
                                 move_tile_window(k_dram_window, {0, kK0});
                             };
+
+                            if constexpr(i_k0 == 0)
+                                clear_tile(s_acc);
 
                             block_sync_lds();
                             // execute current unroll of gemm_0
@@ -443,14 +445,15 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 store_tile(k_lds_windows[I0], k_tiles[I0]);
 
-                clear_tile(s_acc); // initialize C
-
                 static_for<0, k0_loops, 1>{}([&](auto i_k0) {
                     if constexpr(i_k0 < k0_loops - 1)
                     {
                         k_tiles[number<(i_k0 + 1) % 2>{}] = load_tile(k_dram_window);
                         move_tile_window(k_dram_window, {0, kK0});
                     };
+
+                    if constexpr(i_k0 == 0)
+                        clear_tile(s_acc);
 
                     block_sync_lds();
                     // execute current unroll of gemm_0
