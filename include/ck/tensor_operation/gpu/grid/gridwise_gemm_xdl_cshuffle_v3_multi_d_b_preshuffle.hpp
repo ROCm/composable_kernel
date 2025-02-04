@@ -9,7 +9,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_selector.hpp"
-#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1_mod8.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
@@ -175,6 +175,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     static constexpr index_t NLane   = NPerXdl;
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
     static_assert(NWave * warpSize == BlockSize);
+    // static constexpr index_t NumTokens = 1;
     static constexpr index_t Experts   = 8;
     static constexpr index_t SortedTileSize   = 32;
 
@@ -513,7 +514,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
     struct Problem
     {
-        __host__ __device__ Problem(index_t M_,
+        __host__ __device__ Problem(index_t NumTokens_,
+                                    index_t M_,
                                     index_t N_,
                                     index_t K_,
                                     index_t StrideA_,
@@ -521,7 +523,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                     std::array<index_t, NumDTensor> StrideDs_,
                                     index_t StrideC_,
                                     index_t KBatch_)
-            : M{M_},
+            : 
+              NumTokens{NumTokens_},
+              M{M_},
               N{N_},
               K{K_},
               StrideA{StrideA_},
@@ -545,6 +549,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         __host__ void Print() const
         {
             std::cout << "problem {"
+                      << "NumTokens:" << NumTokens << ", "
                       << "M:" << M << ", "
                       << "N:" << N << ", "
                       << "K:" << K << ", "
@@ -561,6 +566,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                       << "NBlock: " << NBlock << "}" << std::endl;
         }
 
+        index_t NumTokens;
         index_t M;
         index_t N;
         index_t K;
@@ -592,6 +598,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                           const BDataType* p_b_grid_,
                           std::array<const void*, NumDTensor> p_ds_grid_,
                           CDataType* p_c_grid_,
+                          index_t NumTokens_,
                           index_t M_,
                           index_t N_,
                           index_t K_,
@@ -603,7 +610,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                           AElementwiseOperation a_element_op_,
                           BElementwiseOperation b_element_op_,
                           CElementwiseOperation c_element_op_)
-            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_},
+            : Problem{NumTokens_, M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_},
             
         p_sorted_token_ids{p_sorted_token_ids_},
         p_sorted_expert_ids{p_sorted_expert_ids_},
@@ -1103,13 +1110,14 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     {
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
-            problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
+            problem.NumTokens, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
 
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(problem.BN0Shuffled, problem.BK0Shuffled);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
-
+        // printf("tido %d size %d %d MNBLOCK %d %d %d %d\n", threadIdx.x, problem.StrideC, c_grid_desc_m_n.GetElementSpaceSize(),
+        // problem.MBlock, problem.NBlock, MPerBlock, NPerBlock);
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
@@ -1125,20 +1133,23 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         static_assert(MLoadRepeats == 1, "only support 1 line per thread now!");
         const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / KLoadThreads;
 
-        index_t token_offset = __builtin_amdgcn_readfirstlane(p_sorted_token_ids[token_pos]);
-
+        index_t token_offset = p_sorted_token_ids[token_pos];
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
 
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_n_id * NPerBlock);
+            __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
+        // if(blockIdx.x==1)
+        // printf("tid %d eid %d expert_stride %d bufsize %d\n",
+        // threadIdx.x, expert_id, expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
+        
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
@@ -1151,7 +1162,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         // A matrix blockwise copy
         auto a_blockwise_copy =
-            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+            ThreadGroupTensorSliceTransfer_v4r1_mod8<ThisThreadBlock,
                                                 AElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
@@ -1450,7 +1461,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                            CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
 
             static_assert(num_access == sfc_cde_block.GetNumOfAccess(), "wrong!");
-
+            // printf("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n");
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
                 block_sync_lds();

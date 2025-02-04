@@ -305,6 +305,9 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
 
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
+                    // printf("bid %d tid %d %f %f\n", blockIdx.x, threadIdx.x,
+                    //     type_convert<float>(a_thread_buf[I0]),
+                    //     type_convert<float>(b_thread_bufs[mfma_reg_buf][I0]));
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
                             static_for<0, KRepeat, 1>{}([&](auto k0) {
@@ -320,7 +323,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
                                                      [Number<b_thread_desc_.CalculateOffset(
                                                          make_tuple(n0, I0, k0, ik))>{}];
                                 });
-
                                 using mfma_input_type =
                                     typename vector_type<ComputeDataType,
                                                          xdlops_gemm.K1PerXdlops>::type;

@@ -412,6 +412,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                              const void* p_b,
                              std::array<const void*, NumDTensor> p_ds,
                              void* p_c,
+                             index_t NumTokens,
                              index_t M,
                              index_t N,
                              index_t K,
@@ -430,6 +431,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                         static_cast<const BDataType*>(p_b),
                         p_ds,
                         static_cast<CDataType*>(p_c),
+                        NumTokens,
                         M,
                         N,
                         K,
@@ -461,13 +463,15 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                                                       index_t KBatch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      CElementwiseOperation c_element_op)
     {
+        // assert(0, "no impl");
         return std::make_unique<Argument>(nullptr, nullptr, 
                                          static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           p_ds,
                                           static_cast<CDataType*>(p_c),
+                                          M,
                                           M,
                                           N,
                                           K,

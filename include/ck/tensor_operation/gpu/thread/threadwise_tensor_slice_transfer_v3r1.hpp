@@ -98,7 +98,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
-
         static_assert(SliceLengths::At(SrcVectorDim) % SrcScalarPerVector == 0,
                       "SliceLengths[SrcVectorDim] must be divisible by SrcScalarPerVector");
 
@@ -221,7 +220,13 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<dst_vector_t>(src_data_idx_seq,
                                                   op_r_v.template AsType<dst_vector_t>()[I0]);
-
+                                                  
+            // if(1) {
+            //     using print_vec_t = typename vector_type<DstData, 1>::type;
+            //     static_for<0, SrcScalarPerVector, 1>{}([&](auto idx) {
+            //         printf("tid %d %f\n",threadIdx.x, type_convert<float>(src_vector_container.template AsType<print_vec_t>()[idx]));
+            //     });
+            // }
             constexpr auto move_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
@@ -543,7 +548,13 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 dst_coord_.GetOffset(),
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
-
+                         
+            // if(1) {
+            //     using print_vec_t = typename vector_type<DstData, 1>::type;
+            //     static_for<0, DstScalarPerVector, 1>{}([&](auto idx) {
+            //         printf("tid %d off %d valid %d val %f\n",threadIdx.x, dst_coord_.GetOffset(), is_dst_valid, type_convert<float>(dst_vector_container.template AsType<print_vec_t>()[idx]));
+            //     });
+            // }
             constexpr auto move_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;

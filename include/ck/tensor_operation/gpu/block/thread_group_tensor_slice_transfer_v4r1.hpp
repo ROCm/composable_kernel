@@ -52,7 +52,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1
 
     __device__ constexpr ThreadGroupTensorSliceTransfer_v4r1(
         const SrcDesc& src_desc,
-        const Index& src_block_slice_origin, 
+        const Index& src_block_slice_origin,
         const SrcElementwiseOperation& src_element_op,
         const DstDesc& dst_desc,
         const Index& dst_block_slice_origin,
@@ -83,7 +83,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
-                make_multi_index(ThreadGroup::GetThreadId() % 8));
+                make_multi_index(ThreadGroup::GetThreadId()));
 
             const auto thread_data_idx_begin = thread_cluster_idx * thread_slice_lengths;
 
@@ -100,7 +100,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
-                make_multi_index(ThreadGroup::GetThreadId() % 8));
+                make_multi_index(ThreadGroup::GetThreadId()));
 
             const auto thread_data_idx_begin = thread_cluster_idx * thread_slice_lengths;
 
