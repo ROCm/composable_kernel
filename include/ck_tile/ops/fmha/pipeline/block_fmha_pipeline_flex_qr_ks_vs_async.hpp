@@ -138,6 +138,7 @@ struct BlockFmhaPipelineQRKSVSAsync
               typename BiasElementFunction,
               typename LSEElementFunction,
               typename SAccElementFunction,
+              typename PSAccElementFunction,
               typename ScoreModFunction,
               typename PComputeElementFunction,
               typename OAccElementFunction,
@@ -155,6 +156,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
                const LSEElementFunction& lse_element_func,
                const SAccElementFunction& s_acc_element_func,
+               const PSAccElementFunction& ps_acc_element_func,
                const ScoreModFunction& score_mod,
                const PComputeElementFunction& p_compute_element_func,
                const OAccElementFunction& o_acc_element_func,
@@ -490,6 +492,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 }
             }
 
+            s_acc = tile_elementwise_in(ps_acc_element_func, s_acc);
             const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
                 s,

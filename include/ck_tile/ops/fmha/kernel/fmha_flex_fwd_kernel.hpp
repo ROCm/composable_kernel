@@ -1339,7 +1339,8 @@ struct FmhaFwdKernel
                     randval_dram_window,
                     lse_dram_window,
                     identity{},      // lse_element_func
-                    pre_softmax_arg, // s_acc_element_func
+                    identity{},      // s_acc_element_func
+                    pre_softmax_arg, // ps_acc_element_func
                     score_mod_arg,
                     scales{kargs.scale_p},                               // p_compute_element_func
                     composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
@@ -1362,7 +1363,8 @@ struct FmhaFwdKernel
                                       randval_dram_window,
                                       lse_dram_window,
                                       identity{},
-                                      pre_softmax_arg,
+                                      identity{},
+                                      pre_softmax_arg, // ps_acc_element_func
                                       score_mod_arg,
                                       identity{},
                                       identity{},
