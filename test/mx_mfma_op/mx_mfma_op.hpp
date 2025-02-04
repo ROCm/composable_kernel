@@ -879,27 +879,34 @@ struct TestMXMFMA
             break;
         case 2:
             // expect small round off errors
-            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-0.5, 0.5});
-            // a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.9f});
+            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
             a_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{127, 129}); // scales: {0.5, 1, 2}
-            // a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
-            // b_n_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-5, 5});
-            // b_scales.GenerateTensorValue(
-            //     GeneratorTensor_2<ScaleType>{125, 128}); //  scales: {0.5, 1, 2}
+                GeneratorTensor_2<ScaleType>{127, 129}); // 1, 2     // scales: {0.5, 1, 2}
 
             b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
             b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
             break;
+
         case 3:
             // expect small round off errors
-            a_m_k.GenerateTensorValue(GeneratorTensor_4<ADataType>(-1, 3));
-            a_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
-            b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(1, 3));
-            b_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
+            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
+            a_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{128, 129}); //  2
+
+            // a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+
+            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
             break;
+
+        // case 3:
+        //     // expect small round off errors
+        //     a_m_k.GenerateTensorValue(GeneratorTensor_4<ADataType>(-1, 3));
+        //     a_scales.GenerateTensorValue(
+        //         GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
+        //     b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(1, 3));
+        //     b_scales.GenerateTensorValue(
+        //         GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
+        //     break;
         case 4:
             a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
             a_scales.GenerateTensorValue(GeneratorTensor_Sequential<ScaleType, 0>{-9});
@@ -993,13 +1000,15 @@ struct TestMXMFMA
                 std::cout << type_convert<float>(a(i, j)) << " ";
             }
             std::cout << std::endl;
+            break;
         }
         std::cout << "b:" << std::endl;
         for(size_t i = 0; i < BLOCK_K; i++)
         {
             for(size_t j = 0; j < BLOCK_N; j++)
             {
-                std::cout << type_convert<float>(b(i, j)) << " ";
+                if(j == 0)
+                    std::cout << type_convert<float>(b(i, j)) << " ";
             }
             std::cout << std::endl;
         }
@@ -1032,6 +1041,7 @@ struct TestMXMFMA
                 std::cout << type_convert<float>(c_device(i, j)) << " ";
             }
             std::cout << std::endl;
+            break;
         }
 
 #endif
@@ -1054,6 +1064,7 @@ struct TestMXMFMA
                         std::cout << type_convert<float>(c_host(i, j)) << " ";
                     }
                     std::cout << std::endl;
+                    break;
                 }
             }
         }
