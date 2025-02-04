@@ -99,8 +99,7 @@ __global__ void
             const ComputePtrOffsetOfG compute_ptr_offset_of_groups,
             const ComputePtrOffsetOfN compute_ptr_offset_of_n)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
 
     // offset base pointer for each work-group
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
