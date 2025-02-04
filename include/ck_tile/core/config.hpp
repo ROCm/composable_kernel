@@ -144,6 +144,10 @@
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER 1
 #endif
 
+#ifndef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
+#define CK_TILE_USE_PK4_LAYOUT_SHUFFLE 1
+#endif
+
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1

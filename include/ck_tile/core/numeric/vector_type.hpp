@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -199,5 +199,22 @@ using bf8x16_t = bf8_t __attribute((ext_vector_type(16)));
 using bf8x32_t = bf8_t __attribute((ext_vector_type(32)));
 using bf8x64_t = bf8_t __attribute((ext_vector_type(64)));
 #endif
+
+__host__ fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
+{
+    fp16x2_t vector_res;
+
+    vector_res.x = x.x + y.x;
+    vector_res.y = x.y + y.y;
+
+    return vector_res;
+}
+
+__device__ fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
+{
+    fp16x2_t c;
+    asm volatile("v_pk_add_f16 %0, %1, %2" : "=v"(c) : "v"(x), "v"(y));
+    return c;
+}
 
 } // namespace ck_tile

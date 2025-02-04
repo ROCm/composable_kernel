@@ -7,12 +7,34 @@
 #include "ck/utility/f8_utils.hpp"
 #include "ck/utility/random_gen.hpp"
 #include "ck/utility/array.hpp"
+#include "ck/utility/amd_inline_asm.hpp"
+#include "ck/utility/type.hpp"
 
 namespace ck {
 // Define the common macro for MI300 models
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
 #define __gfx94__
 #endif
+
+namespace {
+namespace details {
+
+[[maybe_unused]] __host__ half2_t pk_add_f16(const half2_t& x, const half2_t& y)
+{
+    half2_t vector_res;
+
+    vector_res.x = x.x + y.x;
+    vector_res.y = x.y + y.y;
+
+    return vector_res;
+}
+
+[[maybe_unused]] __device__ half2_t pk_add_f16(const half2_t& x, const half2_t& y)
+{
+    return amd_assembly_pk_add_f16(x, y);
+}
+} // namespace details
+} // namespace
 
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
@@ -52,10 +74,10 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, half_t>(h
 // Convert X to Y, both X and Y are non-const data types.
 template <typename Y,
           typename X,
-          std::enable_if_t<!(std::is_const_v<Y> || std::is_const_v<X>), bool> = false>
+          ck::enable_if_t<!(ck::is_const_v<Y> || ck::is_const_v<X>), bool> = false>
 __host__ __device__ constexpr Y type_convert(X x)
 {
-    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+    static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
 
     return static_cast<Y>(x);
 }
@@ -63,13 +85,13 @@ __host__ __device__ constexpr Y type_convert(X x)
 // Convert X to Y, either X or Y is a const data type.
 template <typename Y,
           typename X,
-          std::enable_if_t<std::is_const_v<Y> || std::is_const_v<X>, bool> = false>
+          ck::enable_if_t<ck::is_const_v<Y> || ck::is_const_v<X>, bool> = false>
 __host__ __device__ constexpr Y type_convert(X x)
 {
-    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+    static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
 
-    using NonConstY = std::remove_const_t<Y>;
-    using NonConstX = std::remove_const_t<X>;
+    using NonConstY = ck::remove_const_t<Y>;
+    using NonConstX = ck::remove_const_t<X>;
     return static_cast<Y>(type_convert<NonConstY, NonConstX>(x));
 }
 
@@ -149,7 +171,7 @@ inline __host__ __device__ constexpr bf8_ocp_t type_convert<bf8_ocp_t, int>(int 
 template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert_sp(X x)
 {
-    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+    static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
 
     return static_cast<Y>(x);
 }
@@ -211,7 +233,11 @@ template <>
 inline __host__ __device__ f8_fnuz_t f8_convert_sr<f8_fnuz_t, float>(float x)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
+#endif
 #if defined(__gfx94__)
     union
     {
@@ -251,7 +277,12 @@ inline __host__ __device__ f8_fnuz_t f8_convert_sr<f8_fnuz_t, half_t>(half_t x)
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 1254739;
+
+#ifndef CK_CODE_GEN_RTC
     uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#else
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<size_t>(&x), x);
+#endif
     return utils::cast_to_f8<half_t,
                              f8_fnuz_t,
                              negative_zero_nan,
@@ -265,7 +296,11 @@ template <>
 inline __host__ __device__ bf8_fnuz_t f8_convert_sr<bf8_fnuz_t, float>(float x)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
+#endif
 #if defined(__gfx94__)
     union
     {
@@ -307,7 +342,12 @@ inline __host__ __device__ bf8_fnuz_t f8_convert_sr<bf8_fnuz_t, half_t>(half_t x
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 1254739;
+
+#ifndef CK_CODE_GEN_RTC
     uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#else
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<size_t>(&x), x);
+#endif
     return utils::cast_to_f8<half_t,
                              bf8_fnuz_t,
                              negative_zero_nan,
@@ -502,13 +542,51 @@ template <>
 inline __host__ __device__ float2_t type_convert<float2_t, pk_i4_t>(pk_i4_t x)
 {
     uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
-    uint8_t x_l  = (x_u8 & 0x0f) >> 0;
-    uint8_t x_h  = (x_u8 & 0xf0) >> 4;
 
-    auto l_f32 = ck::type_convert<float>(x_l);
-    auto h_f32 = ck::type_convert<float>(x_h);
+    float x_l = ((x_u8 & 0x0f) >> 0) - 8.f;
+    float x_h = ((x_u8 & 0xf0) >> 4) - 8.f;
 
-    return {l_f32, h_f32};
+#ifdef CK_USE_PK4_LAYOUT_SHUFFLE
+    float2_t res = {x_h, x_l};
+#elif
+    float2_t res = {x_l, x_h};
+#endif
+    return res;
+}
+
+template <>
+inline __host__ __device__ half2_t type_convert<half2_t, pk_i4_t>(pk_i4_t x)
+{
+    uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
+#ifdef CK_USE_PK4_LAYOUT_SHUFFLE
+    uint32_t i4s = ((x_u8 & 0x0f) << 16) | ((x_u8 & 0xf0) >> 4);
+#else
+    uint32_t i4s = ((x_u8 & 0xf0) << 12) | (x_u8 & 0xf);
+#endif
+
+    const int EX  = 0x64006400;
+    const int SUB = 0xE408E408; //-8
+
+    int lo = i4s | EX;
+
+    return details::pk_add_f16(bit_cast<half2_t>(lo), bit_cast<half2_t>(SUB));
+}
+
+template <>
+inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, pk_i4_t>(pk_i4_t x)
+{
+    uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
+
+    float x_l = ((x_u8 & 0x0f) >> 0) - 8.f;
+    float x_h = ((x_u8 & 0xf0) >> 4) - 8.f;
+
+#ifdef CK_USE_PK4_LAYOUT_SHUFFLE
+    bhalf2_t res = {type_convert<bhalf_t>(x_h), type_convert<bhalf_t>(x_l)};
+#else
+    bhalf2_t res = {type_convert<bhalf_t>(x_l), type_convert<bhalf_t>(x_h)};
+#endif
+
+    return res;
 }
 
 template <>
@@ -629,20 +707,22 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_fnuz_t>(bf8_fnuz_t x)
 #endif
 }
 
-template <typename Y, typename X, std::size_t NumElems>
+#ifndef CK_CODE_GEN_RTC
+template <typename Y, typename X, size_t NumElems>
 inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,
                                               const std::array<X, NumElems>& x)
 {
-    for(std::size_t i = 0; i < NumElems; i++)
+    for(size_t i = 0; i < NumElems; i++)
     {
         y[i] = type_convert<Y>(x[i]);
     }
 }
+#endif
 
 template <typename Y, typename X, index_t NumElems>
 inline __host__ __device__ void array_convert(Array<Y, NumElems>& y, const Array<X, NumElems>& x)
 {
-    for(std::size_t i = 0; i < NumElems; i++)
+    for(size_t i = 0; i < NumElems; i++)
     {
         y[i] = type_convert<Y>(x[i]);
     }

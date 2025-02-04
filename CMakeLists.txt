@@ -103,7 +103,7 @@ if(DPP_KERNELS)
 endif()
 option(CK_USE_CODEGEN "Enable codegen library" OFF)
 if(CK_USE_CODEGEN)
-    add_definitions(-DCK_USE_CODEGEN)
+   add_definitions(-DCK_USE_CODEGEN)
 endif()
 
 option(CK_TIME_KERNEL "Enable kernel time tracking" ON)
