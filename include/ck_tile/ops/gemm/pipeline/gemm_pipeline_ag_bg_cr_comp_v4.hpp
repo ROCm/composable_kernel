@@ -69,9 +69,9 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t VectorSizeA = Policy::template GetVectorSizeA<Problem>();
-    static constexpr index_t VectorSizeB = Policy::template GetVectorSizeB<Problem>();
-    static constexpr index_t VectorSizeC = Policy::template GetVectorSizeC<Problem>();
+    static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
+    static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
+    static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
@@ -117,9 +117,9 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             constexpr index_t B_LDS_Read_Width = KPerXDL;
 
             constexpr index_t A_Buffer_Load_Inst_Num =
-                MPerBlock * KPerBlock / (BlockSize * VectorSizeA);
+                MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
             constexpr index_t B_Buffer_Load_Inst_Num =
-                NPerBlock * KPerBlock / (BlockSize * VectorSizeB);
+                NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
 
             constexpr index_t A_LDS_Write_Inst_Num = MPerBlock * KPerBlock / (BlockSize * KPerXDL);
             constexpr index_t B_LDS_Write_Inst_Num = NPerBlock * KPerBlock / (BlockSize * KPerXDL);

@@ -490,8 +490,6 @@ struct GemmKernel
         const auto& c_block_tile = GemmPipeline{}.template operator()(
             a_block_window, b_block_window, num_loop, smem_ptr_0);
 
-
-
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
@@ -548,7 +546,7 @@ struct GemmKernel
 
         EpiloguePipeline{}
             .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
-                c_block_window, c_block_tile, smem_ptr_0, smem_ptr_1);
+                c_block_window, c_block_tile, smem_ptr_0);
     }
 
     CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const
@@ -596,14 +594,14 @@ struct GemmKernel
                 if constexpr(GemmPipeline::DoubleSmemBuffer == true)
                 {
                     RunGemm2LDS<memory_operation_enum::atomic_add>(a_ptr,
-                                                                b_ptr,
-                                                                c_ptr,
-                                                                smem_ptr_0,
-                                                                smem_ptr_1,
-                                                                kargs,
-                                                                splitk_batch_offset,
-                                                                i_m,
-                                                                i_n);
+                                                                   b_ptr,
+                                                                   c_ptr,
+                                                                   smem_ptr_0,
+                                                                   smem_ptr_1,
+                                                                   kargs,
+                                                                   splitk_batch_offset,
+                                                                   i_m,
+                                                                   i_n);
                 }
                 else
                 {
