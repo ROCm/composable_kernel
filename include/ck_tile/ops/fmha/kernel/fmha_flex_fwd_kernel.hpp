@@ -20,7 +20,10 @@
 
 namespace ck_tile {
 
-template <typename FmhaPipeline_, typename EpiloguePipeline_, typename ScoreModFunction_, typename PreSoftmaxFunction_>
+template <typename FmhaPipeline_,
+          typename EpiloguePipeline_,
+          typename ScoreModFunction_,
+          typename PreSoftmaxFunction_>
 struct FmhaFwdKernel
 {
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
@@ -1317,8 +1320,7 @@ struct FmhaFwdKernel
             };
 
         auto pre_softmax_def = PreSoftmaxFunction_{};
-        auto pre_softmax_arg = [pre_softmax_def](
-               typename PreSoftmaxFunction_::TScore s) {
+        auto pre_softmax_arg = [pre_softmax_def](typename PreSoftmaxFunction_::TScore s) {
             return pre_softmax_def(s);
         };
 
