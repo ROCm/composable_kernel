@@ -200,7 +200,7 @@ using bf8x32_t = bf8_t __attribute((ext_vector_type(32)));
 using bf8x64_t = bf8_t __attribute((ext_vector_type(64)));
 #endif
 
-__host__ fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
+CK_TILE_HOST fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
 {
     fp16x2_t vector_res;
 
@@ -210,7 +210,7 @@ __host__ fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
     return vector_res;
 }
 
-__device__ fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
+CK_TILE_DEVICE fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
 {
     fp16x2_t c;
     asm volatile("v_pk_add_f16 %0, %1, %2" : "=v"(c) : "v"(x), "v"(y));
