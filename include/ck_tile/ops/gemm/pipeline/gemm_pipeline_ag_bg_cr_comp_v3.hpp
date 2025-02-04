@@ -81,20 +81,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
-        return concat("pipeline_AgBgCrCompV3_",
-                      BlockSize,
-                      "_",
-                      GetVectorSizeA(),
-                      "x",
-                      GetVectorSizeB(),
-                      "x",
-                      GetVectorSizeC(),
-                      "_",
-                      kPadM,
-                      "x",
-                      kPadN,
-                      "x",
-                      kPadK);
+        // clang-format off
+        return concat("pipeline_AgBgCrCompV3_", BlockSize, "_",
+                      GetVectorSizeA(), "x", GetVectorSizeB(), "x", GetVectorSizeC(), "_",
+                      kPadM, "x", kPadN, "x", kPadK);
+        // clang-format on
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()

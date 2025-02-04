@@ -41,18 +41,11 @@ struct GemmPipelineProblemBase
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
-        return concat("gemm_problem_",
-                      VectorLoadSize,
-                      "x",
-                      kBlockSize,
-                      "_",
-                      kPadM,
-                      "x",
-                      kPadN,
-                      "x",
-                      kPadK,
-                      "_",
+        // clang-format off
+        return concat("gemm_problem_", VectorLoadSize, "x", kBlockSize, "_",
+                      kPadM, "x", kPadN, "x", kPadK, "_",
                       Scheduler);
+        // clang-format on
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()

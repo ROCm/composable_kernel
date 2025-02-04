@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -22,15 +23,10 @@ struct TileGemmShape
 
     CK_TILE_HOST static std::string GetName()
     {
-#define _TS_ std::to_string
         // clang-format off
-        using _SS_ = std::string;
-
-        return _SS_("tile_gemm_shape_") +
-                _TS_(kM) + "x" + _TS_(kN) + "x" + _TS_(kK) + "x" + _TS_(NumWarps) + "_" +
-                _TS_(BlockWarps::at(number<0>{})) + "x" + _TS_(BlockWarps::at(number<1>{})) + "x" + _TS_(BlockWarps::at(number<2>{})) + "_" +
-                _TS_(WarpTile::at(number<0>{})) + "x" + _TS_(WarpTile::at(number<1>{})) + "x" + _TS_(WarpTile::at(number<2>{}));
-#undef _TS_
+        return concat("tile_gemm_shape_", kM, "x", kN, "x", kK, "x", NumWarps, "_",
+                      BlockWarps::at(number<0>{}), "x", BlockWarps::at(number<1>{}), "x", BlockWarps::at(number<2>{}), "_",
+                      (WarpTile::at(number<0>{})), "x", WarpTile::at(number<1>{}), "x", WarpTile::at(number<2>{}));
         // clang-format on
     }
 };

@@ -44,26 +44,11 @@ struct GemmPipelineAGmemBGmemCRegV1
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
-        return concat("pipeline_AGmemBGmemCRegV1_",
-                      kMPerBlock,
-                      "x",
-                      kNPerBlock,
-                      "x",
-                      kKPerBlock,
-                      "x",
-                      BlockSize,
-                      "_",
-                      GetVectorSizeA(),
-                      "x",
-                      GetVectorSizeB(),
-                      "x",
-                      GetVectorSizeC(),
-                      "_",
-                      kPadM,
-                      "x",
-                      kPadN,
-                      "x",
-                      kPadK);
+        // clang-format off
+        return concat("pipeline_AGmemBGmemCRegV1_", kMPerBlock, "x", kNPerBlock, "x", kKPerBlock, "x", BlockSize, "_",
+                      GetVectorSizeA(), "x", GetVectorSizeB(), "x", GetVectorSizeC(), "_",
+                      kPadM, "x", kPadN, "x", kPadK);
+        // clang-format on
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
