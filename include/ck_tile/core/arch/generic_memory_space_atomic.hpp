@@ -32,6 +32,20 @@ CK_TILE_HOST_DEVICE fp8x4_t add_fp8x4_t(const fp8x4_t& a, const fp8x4_t& b)
     return rtn;
 }
 
+CK_TILE_HOST_DEVICE fp8x8_t add_fp8x8_t(const fp8x8_t& a, const fp8x8_t& b)
+{
+    fp8x8_t rtn;
+    rtn[0] = add<fp8_t, float>(a[0], b[0]);
+    rtn[1] = add<fp8_t, float>(a[1], b[1]);
+    rtn[2] = add<fp8_t, float>(a[2], b[2]);
+    rtn[3] = add<fp8_t, float>(a[3], b[3]);
+    rtn[4] = add<fp8_t, float>(a[4], b[4]);
+    rtn[5] = add<fp8_t, float>(a[5], b[5]);
+    rtn[6] = add<fp8_t, float>(a[6], b[6]);
+    rtn[7] = add<fp8_t, float>(a[7], b[7]);
+    return rtn;
+}
+
 CK_TILE_HOST_DEVICE bf8x4_t add_bf8x4_t(const bf8x4_t& a, const bf8x4_t& b)
 {
     bf8x4_t rtn;
@@ -39,6 +53,20 @@ CK_TILE_HOST_DEVICE bf8x4_t add_bf8x4_t(const bf8x4_t& a, const bf8x4_t& b)
     rtn[1] = add<bf8_t, float>(a[1], b[1]);
     rtn[2] = add<bf8_t, float>(a[2], b[2]);
     rtn[3] = add<bf8_t, float>(a[3], b[3]);
+    return rtn;
+}
+
+CK_TILE_HOST_DEVICE bf8x8_t add_bf8x8_t(const bf8x8_t& a, const bf8x8_t& b)
+{
+    bf8x8_t rtn;
+    rtn[0] = add<bf8_t, float>(a[0], b[0]);
+    rtn[1] = add<bf8_t, float>(a[1], b[1]);
+    rtn[2] = add<bf8_t, float>(a[2], b[2]);
+    rtn[3] = add<bf8_t, float>(a[3], b[3]);
+    rtn[4] = add<bf8_t, float>(a[4], b[4]);
+    rtn[5] = add<bf8_t, float>(a[5], b[5]);
+    rtn[6] = add<bf8_t, float>(a[6], b[6]);
+    rtn[7] = add<bf8_t, float>(a[7], b[7]);
     return rtn;
 }
 
@@ -144,6 +172,86 @@ CK_TILE_DEVICE void atomic_add<bf8x4_t>(bf8x4_t* p_dst, const bf8x4_t& x)
     } while(cur_v.u32 != old_v);
 }
 
+//
+// Atomic add for fp8x8_t
+//
+template <>
+CK_TILE_DEVICE void atomic_add<fp8x8_t>(fp8x8_t* p_dst, fp8x8_t const& x)
+{
+    // Union for addressing 64 bits as either "fp8x8_t" or a 64-bit integer.
+    union U64FP88_ADDR
+    {
+        uint64_t* u64_a; // pointer to 64-bit integer
+        fp8x8_t* fp88_a; // pointer to fp8x8_t
+    };
+
+    union U64FP88
+    {
+        uint64_t u64;
+        fp8x8_t fp88;
+    };
+
+    U64FP88_ADDR dword_addr;
+    U64FP88 cur_v;
+    U64FP88 new_v_union;
+    uint64_t old_v, new_v;
+
+    // Point to the destination as both fp8x8_t* and uint64_t*.
+    dword_addr.fp88_a = p_dst;
+    // Initial read of 64 bits from memory
+    cur_v.u64 = *dword_addr.u64_a;
+
+    do
+    {
+        old_v = cur_v.u64;
+        // Add each fp8 element using your add_fp8x8_t(...) routine
+        new_v_union.fp88 = add_fp8x8_t(cur_v.fp88, x);
+        new_v            = new_v_union.u64;
+
+        // Attempt 64-bit CAS
+        cur_v.u64 = atomicCAS(dword_addr.u64_a, old_v, new_v);
+    } while(cur_v.u64 != old_v);
+}
+
+//
+// Atomic add for bf8x8_t
+//
+template <>
+CK_TILE_DEVICE void atomic_add<bf8x8_t>(bf8x8_t* p_dst, bf8x8_t const& x)
+{
+    union U64BF88_ADDR
+    {
+        uint64_t* u64_a;
+        bf8x8_t* bf88_a;
+    };
+
+    union U64BF88
+    {
+        uint64_t u64;
+        bf8x8_t bf88;
+    };
+
+    U64BF88_ADDR dword_addr;
+    U64BF88 cur_v;
+    U64BF88 new_v_union;
+    uint64_t old_v, new_v;
+
+    dword_addr.bf88_a = p_dst;
+    // Read the original 64 bits
+    cur_v.u64 = *dword_addr.u64_a;
+
+    do
+    {
+        old_v = cur_v.u64;
+        // Add each bf8 element using your add_bf8x8_t(...) routine
+        new_v_union.bf88 = add_bf8x8_t(cur_v.bf88, x);
+        new_v            = new_v_union.u64;
+
+        // 64-bit CAS loop
+        cur_v.u64 = atomicCAS(dword_addr.u64_a, old_v, new_v);
+    } while(cur_v.u64 != old_v);
+}
+
 template <typename T, index_t N>
 CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
 {
@@ -152,9 +260,9 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
                       (std::is_same<T, float>::value && (N == 1 || N == 2)) ||
                       (std::is_same<T, double>::value && (N == 1 || N == 2)) ||
                       (std::is_same<T, bf16_t>::value && (N == 2 || N == 4)) ||
-                      (std::is_same<T, fp8_t>::value && (N == 4)) ||
-                      (std::is_same<T, bf8_t>::value && (N == 4)),
-                  "wrong! not implemented");
+                      (std::is_same<T, fp8_t>::value && (N == 4 || N == 8)) ||
+                      (std::is_same<T, bf8_t>::value && (N == 4 || N == 8)),
+                  "The granularity of the thread buffer is unsupported on the hardware!");
 
     constexpr auto I0 = number<0>{};
     constexpr auto I1 = number<1>{};
@@ -216,12 +324,21 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
         {
             atomic_add(c_style_pointer_cast<fp8x4_t*>(p_dst), x.template get_as<fp8x4_t>()[I0]);
         }
+        if constexpr(N == 8)
+        {
+            atomic_add(c_style_pointer_cast<fp8x4_t*>(p_dst), x.template get_as<fp8x4_t>()[I0]);
+            atomic_add(c_style_pointer_cast<fp8x4_t*>(p_dst) + 1, x.template get_as<fp8x4_t>()[I1]);
+        }
     }
     else if constexpr(std::is_same<T, bf8_t>::value)
     {
         if constexpr(N == 4)
         {
             atomic_add(c_style_pointer_cast<bf8x4_t*>(p_dst), x.template get_as<bf8x4_t>()[I0]);
+        }
+        if constexpr(N == 8)
+        {
+            atomic_add(c_style_pointer_cast<bf8x8_t*>(p_dst), x.template get_as<bf8x8_t>()[I0]);
         }
     }
 }

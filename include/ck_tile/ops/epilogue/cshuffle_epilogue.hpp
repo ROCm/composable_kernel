@@ -77,10 +77,22 @@ struct CShuffleEpilogue
      *
      * @return The vector store size for C tensor.
      */
+    template <typename ODataType>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
-        constexpr index_t MaxVectorStoreSize = 16;
-        return MaxVectorStoreSize / sizeof(ODataType);
+        if constexpr(sizeof(ODataType) == 1)
+        {
+            return 8;
+        }
+        else if constexpr(std::is_same_v<ODataType, bf16_t>)
+        {
+            return 4;
+        }
+        else
+        {
+            constexpr index_t MaxVectorStoreSize = 16;
+            return MaxVectorStoreSize / sizeof(ODataType);
+        }
     }
 
     template <typename Problem>
@@ -142,7 +154,7 @@ struct CShuffleEpilogue
             TileDistributionEncodingPattern2D<kBlockSize,
                                               kMPerIteration,
                                               kNPerIteration,
-                                              GetVectorSizeC(),
+                                              GetVectorSizeC<ODataType>(),
                                               tile_distribution_pattern::thread_raked>;
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 
