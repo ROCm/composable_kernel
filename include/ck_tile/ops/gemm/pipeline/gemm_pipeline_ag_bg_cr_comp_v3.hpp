@@ -103,21 +103,27 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
             constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
 
-            constexpr index_t A_LDS_Read_Width = KPerXDL;
-            constexpr index_t B_LDS_Read_Width = KPerXDL;
+            // Below should be equal to AK1|BK1
+            constexpr index_t A_LDS_Read_Width = Policy::template GetSmemPackA<Problem>();
+            constexpr index_t B_LDS_Read_Width = Policy::template GetSmemPackB<Problem>();
+
+            constexpr index_t A_LDS_Write_Width = Policy::template GetSmemPackA<Problem>();
+            constexpr index_t B_LDS_Write_Width = Policy::template GetSmemPackB<Problem>();
 
             constexpr index_t A_Buffer_Load_Inst_Num =
                 MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
             constexpr index_t B_Buffer_Load_Inst_Num =
                 NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
 
-            constexpr index_t A_LDS_Write_Inst_Num = MPerBlock * KPerBlock / (BlockSize * KPerXDL);
-            constexpr index_t B_LDS_Write_Inst_Num = NPerBlock * KPerBlock / (BlockSize * KPerXDL);
+            constexpr index_t A_LDS_Write_Inst_Num =
+                MPerBlock * KPerBlock / (BlockSize * A_LDS_Write_Width);
+            constexpr index_t B_LDS_Write_Inst_Num =
+                NPerBlock * KPerBlock / (BlockSize * B_LDS_Write_Width);
 
             constexpr index_t A_LDS_Read_Inst_Num =
-                WaveNumN * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
+                WaveNumN * MPerBlock * KPerBlock / (BlockSize * A_LDS_Read_Width);
             constexpr index_t B_LDS_Read_Inst_Num =
-                WaveNumM * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
+                WaveNumM * MPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
 
             constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
                                                 (BlockSize / WaveSize) /
