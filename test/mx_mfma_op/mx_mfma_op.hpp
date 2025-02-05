@@ -699,6 +699,82 @@ matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb,
     // Scaled Matrix multiply-accumulate using MFMA units
     // Accumulation intermediate = BLOCK_M x BLOCK_N
     __syncthreads();
+    // printf("thread: %u -- fragXa: %d\n", threadIdx.x, fragXa);
+
+    printf("thread: %u -- fragA: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x "
+           "%x %x %x %x %x %x %x %x %x %x\n",
+           threadIdx.x,
+           fragA.data_.dN[0],
+           fragA.data_.dN[1],
+           fragA.data_.dN[2],
+           fragA.data_.dN[3],
+           fragA.data_.dN[4],
+           fragA.data_.dN[5],
+           fragA.data_.dN[6],
+           fragA.data_.dN[7],
+           fragA.data_.dN[8],
+           fragA.data_.dN[9],
+           fragA.data_.dN[10],
+           fragA.data_.dN[11],
+           fragA.data_.dN[12],
+           fragA.data_.dN[13],
+           fragA.data_.dN[14],
+           fragA.data_.dN[15],
+           fragA.data_.dN[16],
+           fragA.data_.dN[17],
+           fragA.data_.dN[18],
+           fragA.data_.dN[19],
+           fragA.data_.dN[20],
+           fragA.data_.dN[21],
+           fragA.data_.dN[22],
+           fragA.data_.dN[23],
+           fragA.data_.dN[24],
+           fragA.data_.dN[25],
+           fragA.data_.dN[26],
+           fragA.data_.dN[27],
+           fragA.data_.dN[28],
+           fragA.data_.dN[29],
+           fragA.data_.dN[30],
+           fragA.data_.dN[31]);
+
+    printf("thread: %u -- fragB: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x "
+           "%x %x %x %x %x %x %x %x %x %x\n",
+           threadIdx.x,
+           fragB.data_.dN[0],
+           fragB.data_.dN[1],
+           fragB.data_.dN[2],
+           fragB.data_.dN[3],
+           fragB.data_.dN[4],
+           fragB.data_.dN[5],
+           fragB.data_.dN[6],
+           fragB.data_.dN[7],
+           fragB.data_.dN[8],
+           fragB.data_.dN[9],
+           fragB.data_.dN[10],
+           fragB.data_.dN[11],
+           fragB.data_.dN[12],
+           fragB.data_.dN[13],
+           fragB.data_.dN[14],
+           fragB.data_.dN[15],
+           fragB.data_.dN[16],
+           fragB.data_.dN[17],
+           fragB.data_.dN[18],
+           fragB.data_.dN[19],
+           fragB.data_.dN[20],
+           fragB.data_.dN[21],
+           fragB.data_.dN[22],
+           fragB.data_.dN[23],
+           fragB.data_.dN[24],
+           fragB.data_.dN[25],
+           fragB.data_.dN[26],
+           fragB.data_.dN[27],
+           fragB.data_.dN[28],
+           fragB.data_.dN[29],
+           fragB.data_.dN[30],
+           fragB.data_.dN[31]);
+
+    //__builtin_amdgcn_mfma_ld_scale_b32(fragXa, 0, 0);
+
     mfma_type_selector<AFragT, BFragT, AccumFragT, BLOCK_M, BLOCK_N>{}(
         fragA, fragXa, fragB, fragXb, fragAcc);
     __syncthreads();
@@ -707,7 +783,7 @@ matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb,
     {
         fragC[i] = type_convert<CType>(fragAcc.template AsType<RawAccumFragT>()[Number<0>{}][i]);
     }
-
+    __syncthreads();
     auto storeC = store_C_row_major<CType, CFragT, BLOCK_M, BLOCK_N>{};
     storeC(c, fragC);
 }
@@ -764,8 +840,8 @@ void RunHostGEMM(const Tensor<ADataType>& A,
     {
         for(size_t k = 0; k < K; k++)
         {
-            a_m_k(m, k) = type_convert<float>(type_convert<ADataType>(
-                type_convert<float>(A(m, k)) * type_convert<float>(a_scales(m, k / BLOCK_X))));
+            a_m_k(m, k) =
+                type_convert<float>(A(m, k)) * type_convert<float>(a_scales(m, k / BLOCK_X));
         }
     }
 
@@ -773,8 +849,8 @@ void RunHostGEMM(const Tensor<ADataType>& A,
     {
         for(size_t k = 0; k < K; k++)
         {
-            b_k_n(k, n) = type_convert<float>(type_convert<BDataType>(
-                type_convert<float>(B(k, n)) * type_convert<float>(b_scales(k / BLOCK_X, n))));
+            b_k_n(k, n) =
+                type_convert<float>(B(k, n)) * type_convert<float>(b_scales(k / BLOCK_X, n));
         }
     }
 
@@ -897,28 +973,60 @@ struct TestMXMFMA
             b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
             b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
             break;
-
-        // case 3:
-        //     // expect small round off errors
-        //     a_m_k.GenerateTensorValue(GeneratorTensor_4<ADataType>(-1, 3));
-        //     a_scales.GenerateTensorValue(
-        //         GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
-        //     b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(1, 3));
-        //     b_scales.GenerateTensorValue(
-        //         GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
-        //     break;
         case 4:
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
-            a_scales.GenerateTensorValue(GeneratorTensor_Sequential<ScaleType, 0>{-9});
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.3});
+            a_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{126, 128}); // 1, 2
+
             b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
             b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
             break;
+
         case 5:
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{0.0});
+            for(size_t i = 0; i < 32; i++)
+            {
+                a_m_k(0, i) = type_convert<ADataType>(1.0f);
+            }
+            for(size_t i = 32; i < 64; i++)
+            {
+                a_m_k(0, i) = type_convert<ADataType>(-2.0f);
+            }
+
+            // printf("f8 1: %x \n", type_convert<ADataType>(1.0f).data);
+            // printf("f8 -2: %x \n", type_convert<ADataType>(-2.0f).data);
+
             a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
-            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
-            b_scales.GenerateTensorValue(GeneratorTensor_Sequential<ScaleType, 1>{-9});
+            a_scales(0, 0) = ScaleType{1.0f};
+            a_scales(0, 1) = ScaleType{0.5f};
+
+            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{0.0f});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            for(size_t i = 0; i < 64; i++)
+            {
+                b_n_k(i, 0) = type_convert<BDataType>(1.0f);
+            }
             break;
+            // case 3:
+            //     // expect small round off errors
+            //     a_m_k.GenerateTensorValue(GeneratorTensor_4<ADataType>(-1, 3));
+            //     a_scales.GenerateTensorValue(
+            //         GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
+            //     b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(1, 3));
+            //     b_scales.GenerateTensorValue(
+            //         GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
+            //     break;
+            // case 4:
+            //     a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
+            //     a_scales.GenerateTensorValue(GeneratorTensor_Sequential<ScaleType, 0>{-9});
+            //     b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
+            //     b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            //     break;
+            // case 5:
+            //     a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
+            //     a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            //     b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
+            //     b_scales.GenerateTensorValue(GeneratorTensor_Sequential<ScaleType, 1>{-9});
+            //     break;
 
         case 6:
             a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{0.00195312f});
@@ -990,7 +1098,7 @@ struct TestMXMFMA
 
         RunDeviceGEMM(mfma_kernel, a, a_scales, b, b_scales, c_device);
 
-#if 1
+#if 0
 #if 1
         std::cout << "a:" << std::endl;
         for(size_t i = 0; i < BLOCK_M; i++)
@@ -1002,18 +1110,18 @@ struct TestMXMFMA
             std::cout << std::endl;
             break;
         }
-        std::cout << "b:" << std::endl;
-        for(size_t i = 0; i < BLOCK_K; i++)
-        {
-            for(size_t j = 0; j < BLOCK_N; j++)
-            {
-                if(j == 0)
-                    std::cout << type_convert<float>(b(i, j)) << " ";
-            }
-            std::cout << std::endl;
-        }
+        // std::cout << "b:" << std::endl;
+        // for(size_t i = 0; i < BLOCK_K; i++)
+        // {
+        //     for(size_t j = 0; j < BLOCK_N; j++)
+        //     {
+        //         if(j == 0)
+        //             std::cout << type_convert<float>(b(i, j)) << " ";
+        //     }
+        //     std::cout << std::endl;
+        // }
 #endif
-#if 1
+#if 0
         std::cout << "a_scale:" << std::endl;
         for(size_t i = 0; i < BLOCK_M; i++)
         {
@@ -1023,15 +1131,15 @@ struct TestMXMFMA
             }
             std::cout << std::endl;
         }
-        std::cout << "b_scale:" << std::endl;
-        for(size_t i = 0; i < BLOCK_K / BLOCK_X; i++)
-        {
-            for(size_t j = 0; j < BLOCK_N; j++)
-            {
-                std::cout << type_convert<float>(b_scales(i, j)) << " ";
-            }
-            std::cout << std::endl;
-        }
+        // std::cout << "b_scale:" << std::endl;
+        // for(size_t i = 0; i < BLOCK_K / BLOCK_X; i++)
+        // {
+        //     for(size_t j = 0; j < BLOCK_N; j++)
+        //     {
+        //         std::cout << type_convert<float>(b_scales(i, j)) << " ";
+        //     }
+        //     std::cout << std::endl;
+        // }
 #endif
         std::cout << "c_device:" << std::endl;
         for(size_t i = 0; i < BLOCK_M; i++)
