@@ -359,6 +359,7 @@ struct BlockFmhaPipelineQRKSVS
                 });
             }
 
+            s_acc = tile_elementwise_in(ps_acc_element_func, s_acc);
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
@@ -420,7 +421,6 @@ struct BlockFmhaPipelineQRKSVS
                 }
             }
 
-            s_acc = tile_elementwise_in(ps_acc_element_func, s_acc);
             const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
                 s,
