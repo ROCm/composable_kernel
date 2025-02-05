@@ -80,9 +80,10 @@ struct MultiplyMultiply
     // }
 };
 
+
 void preShuffleBuffer(const F16* src, F16* dst, int N, int K, int NXdl)
 {
-    int KPack = 8;
+    int KPack = 16 / sizeof(F16);
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
@@ -226,7 +227,8 @@ int main(int argc, char* argv[])
         else
             sorted_token_ids.mData[i] = tokens;
     }
-
+    expert_ids.savetxt("expert_ids.txt", "int");
+    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
