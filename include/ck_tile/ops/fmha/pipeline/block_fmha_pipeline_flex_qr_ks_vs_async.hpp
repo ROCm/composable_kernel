@@ -430,7 +430,6 @@ struct BlockFmhaPipelineQRKSVSAsync
                 });
             }
 
-            s_acc = tile_elementwise_in(ps_acc_element_func, s_acc);
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
@@ -561,6 +560,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 }
             };
 
+            s_acc = tile_elementwise_in(ps_acc_element_func, s_acc);
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
