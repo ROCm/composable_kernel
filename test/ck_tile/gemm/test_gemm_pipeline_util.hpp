@@ -14,7 +14,8 @@
 enum struct GemmPipelineType
 {
     Mem,
-    Comp
+    CompV3,
+    CompV4
 };
 
 template <typename Tuple>
@@ -52,6 +53,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr bool kPadN = PadN;
         constexpr bool kPadK = PadK;
 
+        constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
+
         // TODO: For now - but this should also be a test parameter
         constexpr bool TransposeC = false;
 
@@ -69,16 +72,24 @@ class TestCkTileGemmPipeline : public ::testing::Test
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-        using GemmUniversalTraits = ck_tile::
-            TileGemmUniversalTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, TransposeC>;
+        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
+                                                                     kPadN,
+                                                                     kPadK,
+                                                                     DoubleSmemBuffer,
+                                                                     ALayout,
+                                                                     BLayout,
+                                                                     CLayout,
+                                                                     TransposeC>;
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
-        using BaseGemmPipeline =
-            std::conditional_t<PipelineType == GemmPipelineType::Mem,
-                               ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
-                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+        using BaseGemmPipeline = std::conditional_t<
+            PipelineType == GemmPipelineType::Mem,
+            ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
+            std::conditional_t<PipelineType == GemmPipelineType::CompV3,
+                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+                               ck_tile::BaseGemmPipelineAgBgCrCompV4<GemmPipelineProblem>>>;
 
         const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
         const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
@@ -103,8 +114,11 @@ class TestCkTileGemmPipeline : public ::testing::Test
                 PipelineType == GemmPipelineType::Mem,
                 ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem,
                                                ck_tile::UniversalGemmPipelineAgBgCrPolicy>,
-                ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem,
-                                                  ck_tile::UniversalGemmPipelineAgBgCrPolicy>>;
+                std::conditional_t<
+                    PipelineType == GemmPipelineType::CompV3,
+                    ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem,
+                                                      ck_tile::UniversalGemmPipelineAgBgCrPolicy>,
+                    ck_tile::GemmPipelineAgBgCrCompV4<UniversalGemmProblem>>>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<AccDataType,
@@ -145,7 +159,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         if(has_hot_loop)
         {
-            if constexpr(PipelineType == GemmPipelineType::Comp)
+            if constexpr(PipelineType == GemmPipelineType::CompV3)
             {
                 if(tail_num == ck_tile::TailNumber::Full)
                 {
@@ -233,6 +247,22 @@ class TestCkTileGemmPipeline : public ::testing::Test
                             ck_tile::integral_constant<ck_tile::TailNumber,
                                                        ck_tile::TailNumber::Seven>{});
                     }
+                }
+            }
+
+            if constexpr(PipelineType == GemmPipelineType::CompV4)
+            {
+                if(tail_num == ck_tile::TailNumber::Three)
+                {
+                    Run(ck_tile::bool_constant<true>{},
+                        ck_tile::integral_constant<ck_tile::TailNumber,
+                                                   ck_tile::TailNumber::Three>{});
+                }
+                else
+                {
+                    Run(ck_tile::bool_constant<true>{},
+                        ck_tile::integral_constant<ck_tile::TailNumber,
+                                                   ck_tile::TailNumber::Two>{});
                 }
             }
         }

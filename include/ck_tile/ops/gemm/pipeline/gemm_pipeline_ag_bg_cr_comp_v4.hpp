@@ -42,7 +42,9 @@ struct BaseGemmPipelineAgBgCrCompV4
 // the ping-pong buffer to grab memory from the global memory. While one LDS is grabbing the data
 // from global memory, the other will call the warps on running the MFMA matrix multiplication. When
 // the matrix is in bigger shape, it will keep the Warp always busy and cover the memory loading
-// time.
+// time. It will have better performance comparing to the Compute Version 3 when they have the same
+// block tile and better performance when you have M, N, K all > 8K even when the compute V3 block
+// size is 2 times of the compute V4.
 template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCregComputeV4DefaultPolicy>
 struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
 {
