@@ -13,7 +13,7 @@
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/sequence.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_mx_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/fill.hpp"
@@ -315,40 +315,27 @@ bool run_mx_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
             std::cout << "Computing GEMM on host..." << std::endl;
         }
 
-        Tensor<CDataType> c({M, N});
-        Tensor<float> a({M, K});
-        Tensor<float> b({K, N});
-
-        for(int m = 0; m < M; m++)
-        {
-            for(int k = 0; k < K; k++)
-            {
-                a(m, k) = ck::type_convert<float>(a_m_k(m, k)) *
-                          ck::type_convert<float>(a_m_k_scale(m, k / Scale_Block_K));
-            }
-        }
-
-        for(int n = 0; n < N; n++)
-        {
-            for(int k = 0; k < K; k++)
-            {
-                b(k, n) = ck::type_convert<float>(b_k_n(k, n)) *
-                          ck::type_convert<float>(b_k_n_scale(k / Scale_Block_K, n));
-            }
-        }
-
-        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<float,
-                                                                                float,
-                                                                                CShuffleDataType,
-                                                                                CDataType,
-                                                                                PassThrough,
-                                                                                PassThrough,
-                                                                                PassThrough>;
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMXGemm<ADataType,
+                                                                                  BDataType,
+                                                                                  CDataType,
+                                                                                  AccDataType,
+                                                                                  float,
+                                                                                  PassThrough,
+                                                                                  PassThrough,
+                                                                                  PassThrough,
+                                                                                  float,
+                                                                                  float>;
         auto ref_gemm               = ReferenceGemmInstance{};
         auto ref_invoker            = ref_gemm.MakeInvoker();
 
-        auto ref_argument =
-            ref_gemm.MakeArgument(a, b, c, PassThrough{}, PassThrough{}, PassThrough{});
+        auto ref_argument = ref_gemm.MakeArgument(a_m_k,
+                                                  a_m_k_scale,
+                                                  b_k_n,
+                                                  b_k_n_scale,
+                                                  c_m_n_host_result,
+                                                  PassThrough{},
+                                                  PassThrough{},
+                                                  PassThrough{});
 
         ref_invoker.Run(ref_argument);
 
@@ -366,8 +353,9 @@ bool run_mx_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
                       << ((res_verified) ? " (PASSED!)" : " (FAILED!)") << std::endl;
         }
 
-        res_verified = res_verified &&
-                       ck::utils::check_err(c_m_n_device_result, c, "Error: Incorrect results!");
+        res_verified = res_verified && ck::utils::check_err(c_m_n_device_result,
+                                                            c_m_n_host_result,
+                                                            "Error: Incorrect results!");
 
         if(config.verbosity > 0 && res_verified)
             std::cout << "Done." << std::endl;
