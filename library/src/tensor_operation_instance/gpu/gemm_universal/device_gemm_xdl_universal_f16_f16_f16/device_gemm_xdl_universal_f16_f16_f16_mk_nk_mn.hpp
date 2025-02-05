@@ -95,6 +95,7 @@ using device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_instances = std::tuple 
         DeviceGemm_Xdl_CShuffleV3<  Row,     Col,     Row,     F16,   F16,  F16,   F32,     F16,      PassThrough, PassThrough, PassThrough,       GemmSpec,   256,    16,   64,   256,   8,   8,  16,   16,    1,    1,     S<32, 8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<32, 8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          1,           1,                   S<1, 16, 1, 16>,              4,  BlkGemmPipeSched, BlockGemmPipelineVersion::v2>
                                                                          // clang-format on
                                                                          >;
+#endif // defined(CK_USE_AMD_MFMA_GFX950)
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
