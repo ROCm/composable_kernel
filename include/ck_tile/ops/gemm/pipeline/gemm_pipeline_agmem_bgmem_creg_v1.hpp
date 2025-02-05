@@ -38,6 +38,9 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
+    
+    // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
+    static constexpr bool DoubleSmemBuffer = false;
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
