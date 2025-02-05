@@ -10,6 +10,8 @@ using ck::e8m0_bexp_t;
 using ck::f6_convert_rne;
 using ck::f6_convert_sr;
 using ck::f6_t;
+using ck::f6x16_pk_t;
+using ck::f6x32_pk_t;
 using ck::Number;
 using ck::scaled_type_convert;
 using ck::type_convert;
@@ -214,4 +216,170 @@ TEST(FP6, ScaledConvertFP32Stochastic)
     ASSERT_NEAR(neg_float * min_scale,
                 scaled_type_convert<float>(e8m0_bexp_t(min_scale), f6_convert_sr(neg_float)),
                 abs_tol);
+}
+
+TEST(FP6, TestSize)
+{
+    ASSERT_EQ(1, sizeof(f6_t));
+    ASSERT_EQ(12, sizeof(f6x16_pk_t));
+    ASSERT_EQ(24, sizeof(f6x32_pk_t));
+    ASSERT_EQ(16, sizeof(vector_type<f6x16_pk_t, 1>));
+    ASSERT_EQ(32, sizeof(vector_type<f6x16_pk_t, 2>));
+    ASSERT_EQ(32, sizeof(vector_type<f6x32_pk_t, 1>));
+}
+
+TEST(FP6, TestAlignment)
+{
+    ASSERT_EQ(1, alignof(f6_t));
+    ASSERT_EQ(4, alignof(f6x16_pk_t));
+    ASSERT_EQ(4, alignof(f6x32_pk_t));
+    ASSERT_EQ(16, alignof(vector_type<f6x16_pk_t, 1>));
+    ASSERT_EQ(32, alignof(vector_type<f6x16_pk_t, 2>));
+    ASSERT_EQ(32, alignof(vector_type<f6x32_pk_t, 1>));
+}
+
+// test vector of 1 f6x16_pk_t, contains 16 f6_t
+TEST(FP6, TestAsType16x1)
+{
+    // test size
+    const int vector_size = 1;
+    const int packed_size = 16;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(16)));
+    test_vec_t test_vec = {f6_t(0b000000),
+                           f6_t(0b100000),
+                           f6_t(0b000001),
+                           f6_t(0b100001),
+                           f6_t(0b000010),
+                           f6_t(0b100010),
+                           f6_t(0b000011),
+                           f6_t(0b100011),
+                           f6_t(0b000100),
+                           f6_t(0b100100),
+                           f6_t(0b000101),
+                           f6_t(0b100101),
+                           f6_t(0b000110),
+                           f6_t(0b100110),
+                           f6_t(0b001011),
+                           f6_t(0b101011)};
+    // reference vector
+    vector_type<f6x16_pk_t, vector_size> right_vec;
+    // check default CTOR
+    ck::static_for<0, packed_size, 1>{}([&](auto i) {
+        ASSERT_EQ(
+            right_vec.template AsType<f6x16_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}), 0);
+    });
+    // assign test values to the vector
+    ck::static_for<0, vector_size, 1>{}([&](auto i) {
+        right_vec.template AsType<f6x16_pk_t>()(Number<i>{}) = f6x16_pk_t{}.pack(test_vec);
+    });
+    // copy the vector
+    vector_type<f6x16_pk_t, vector_size> left_vec{right_vec};
+    // check if values were copied correctly
+    ck::static_for<0, packed_size, 1>{}([&](auto i) {
+        ASSERT_EQ(
+            left_vec.template AsType<f6x16_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
+            static_cast<f6_t>(test_vec[static_cast<int>(i)]));
+    });
+}
+
+// test vector of 2 f6x16_pk_t, contains 32 f6_t
+TEST(FP6, TestAsType16x2)
+{
+    // test size
+    const int vector_size = 2;
+    const int packed_size = 16;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(16)));
+    test_vec_t test_vec[2];
+    test_vec[0] = {f6_t(0b000000),
+                   f6_t(0b100000),
+                   f6_t(0b000001),
+                   f6_t(0b100001),
+                   f6_t(0b000010),
+                   f6_t(0b100010),
+                   f6_t(0b000011),
+                   f6_t(0b100011),
+                   f6_t(0b000100),
+                   f6_t(0b100100),
+                   f6_t(0b000101),
+                   f6_t(0b100101),
+                   f6_t(0b000110),
+                   f6_t(0b100110),
+                   f6_t(0b001011),
+                   f6_t(0b101011)};
+    test_vec[1] = {f6_t(0b010000),
+                   f6_t(0b110000),
+                   f6_t(0b010001),
+                   f6_t(0b110001),
+                   f6_t(0b010010),
+                   f6_t(0b110010),
+                   f6_t(0b010011),
+                   f6_t(0b110011),
+                   f6_t(0b010100),
+                   f6_t(0b110100),
+                   f6_t(0b010101),
+                   f6_t(0b110101),
+                   f6_t(0b010110),
+                   f6_t(0b110110),
+                   f6_t(0b011011),
+                   f6_t(0b111011)};
+    // reference vector
+    vector_type<f6x16_pk_t, vector_size> right_vec;
+    // check default CTOR
+    ck::static_for<0, vector_size, 1>{}([&](auto idx_vector) {
+        ck::static_for<0, packed_size, 1>{}([&](auto idx_element) {
+            ASSERT_EQ(right_vec.template AsType<f6x16_pk_t>()(Number<idx_vector>{})
+                          .template unpack<>(Number<idx_element>{}),
+                      0);
+        });
+    });
+    // assign test values to the vector
+    ck::static_for<0, vector_size, 1>{}([&](auto i) {
+        right_vec.template AsType<f6x16_pk_t>()(Number<i>{}) = f6x16_pk_t{}.pack(test_vec[i]);
+    });
+    // copy the vector
+    vector_type<f6x16_pk_t, vector_size> left_vec{right_vec};
+    // check if values were copied correctly
+    ck::static_for<0, vector_size, 1>{}([&](auto idx_vector) {
+        ck::static_for<0, packed_size, 1>{}([&](auto idx_element) {
+            ASSERT_EQ(left_vec.template AsType<f6x16_pk_t>()(Number<idx_vector>{})
+                          .template unpack<>(Number<idx_element>{}),
+                      static_cast<f6_t>(test_vec[idx_vector][static_cast<int>(idx_element)]));
+        });
+    });
+}
+
+// test vector of 1 f6x32_pk_t, contains 32 f6_t
+TEST(FP6, TestAsType32x1)
+{
+    // test size
+    const int vector_size = 1;
+    const int packed_size = 32;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(32)));
+    test_vec_t test_vec = {f6_t(0b000000), f6_t(0b100000), f6_t(0b000001), f6_t(0b100001),
+                           f6_t(0b000010), f6_t(0b100010), f6_t(0b000011), f6_t(0b100011),
+                           f6_t(0b000100), f6_t(0b100100), f6_t(0b000101), f6_t(0b100101),
+                           f6_t(0b000110), f6_t(0b100110), f6_t(0b001011), f6_t(0b101011),
+                           f6_t(0b010000), f6_t(0b110000), f6_t(0b010001), f6_t(0b110001),
+                           f6_t(0b010010), f6_t(0b110010), f6_t(0b010011), f6_t(0b110011),
+                           f6_t(0b010100), f6_t(0b110100), f6_t(0b010101), f6_t(0b110101),
+                           f6_t(0b010110), f6_t(0b110110), f6_t(0b011011), f6_t(0b111011)};
+    // reference vector
+    vector_type<f6x32_pk_t, vector_size> right_vec;
+    // check default CTOR
+    ck::static_for<0, packed_size, 1>{}([&](auto i) {
+        ASSERT_EQ(
+            right_vec.template AsType<f6x32_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}), 0);
+    });
+    // assign test values to the vector
+    ck::static_for<0, vector_size, 1>{}([&](auto i) {
+        right_vec.template AsType<f6x32_pk_t>()(Number<i>{}) = f6x32_pk_t{}.pack(test_vec);
+    });
+    // copy the vector
+    vector_type<f6x32_pk_t, vector_size> left_vec{right_vec};
+    // check if values were copied correctly
+    ck::static_for<0, packed_size, 1>{}([&](auto i) {
+        ASSERT_EQ(
+            left_vec.template AsType<f6x32_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
+            static_cast<f6_t>(test_vec[static_cast<int>(i)]));
+    });
 }

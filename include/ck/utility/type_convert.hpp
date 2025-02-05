@@ -1146,10 +1146,11 @@ inline __host__ __device__ float2_t type_convert<float2_t, f4x2_t>(f4x2_t x)
     float scale         = 1.0f;
     return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, scale, 0);
 #else
-    float2_t ret{utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                       x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>()),
-                 utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                                       x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>())};
+    float2_t ret{
+        utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
+                              x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{})),
+        utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
+                              x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}))};
     return ret;
 #endif
 }
@@ -1285,103 +1286,103 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
     // TODO: pack in a loop
     float_values.float_array[0] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[1] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[2] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[3] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[4] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[5] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[6] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[7] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
 
     float_values.float_array[0] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[1] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[2] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[3] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[4] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[5] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[6] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[7] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
 
     float_values.float_array[0] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[1] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[2] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[3] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[4] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[5] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[6] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[7] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
 
     float_values.float_array[0] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[1] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[2] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[3] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[4] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[5] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
     float_values.float_array[6] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<0>());
+        f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
     float_values.float_array[7] = utils::to_float<f4_t>(
         NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<1>());
+        f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
 
     return float_values.float32_array;
 #endif
@@ -1399,8 +1400,59 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
  */
 inline __host__ __device__ f6_t f6_convert_rne(float x, float scale = 1.0f)
 {
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    float16_t in1{x};
+    float16_t in2{};
+
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } out{};
+
+    out.f6_vector = __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(in1, in2, scale);
+
+    return out.f6_array[0];
+#else
     return utils::sat_convert_to_type<f6_t>(x / scale);
+#endif
+}
+
+/**
+ * @brief Converts a 32-element single-precision float array into a packed 6-bit representation.
+ *
+ * This function divides each input float by the provided scale value, then performs conversion with
+ * rounding to nearest / even to pack each element into 6 bits of precision.
+ *
+ * @param x     A vector of 32 floats stored in float32_t.
+ * @param scale A scaling factor for each float before conversion.
+ * @return An f6x32_t object storing the compressed 6-bit representation.
+ */
+inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0f)
+{
+#if defined(__gfx950__)
+    float16_t* in1 = reinterpret_cast<float16_t*>(&x);
+    float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
+    return __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(*in1, *in2, scale);
+#else
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.f6_array[i] = utils::sat_convert_to_type<f6_t>(in.float_array[i] / scale);
+    });
+
+    return out.f6_vector;
+#endif
 }
 
 /**
@@ -1417,15 +1469,75 @@ inline __host__ __device__ f6_t f6_convert_sr(float x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
     uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } out{};
+
+    out.f6_vector = __builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(in.float_vector, rng, scale);
+
+    return out.f6_array[0];
+#else
     return utils::sat_convert_to_type_sr<f6_t>(x / scale, rng);
+#endif
+}
+
+/**
+ * @brief Converts a 32-element single-precision float array into a packed 6-bit representation.
+ *
+ * This function divides each input float by the provided scale value, then performs conversion with
+ * stochastic rounding to pack each element into 6 bits of precision.
+ *
+ * @param x     A vector of 32 floats stored in float32_t.
+ * @param scale A scaling factor for each float before conversion.
+ * @return An f6x32_t object storing the compressed 6-bit representation.
+ */
+inline __host__ __device__ f6x32_t f6_convert_sr(float32_t x, float scale = 1.0f)
+{
+    constexpr int seed = 1254739;
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } float_values{x};
+    uint32_t rng =
+        prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), float_values.float_array[0]);
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(x, rng, scale);
+#else
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.f6_array[i] = utils::sat_convert_to_type_sr<f6_t>(in.float_array[i] / scale, rng);
+    });
+
+    return out.f6_vector;
+#endif
 }
 
 /**
  * @brief Specializes the type conversion template for converting a float into the 6-bit float type
  * (f6_t).
  *
- * Depending on the CK_USE_SR_F4_CONVERSION flag,
+ * Depending on the CK_USE_SR_F6_CONVERSION flag,
  * the conversion uses stochastic rounding
  * or round-to-nearest-even.
  *
@@ -1435,7 +1547,28 @@ inline __host__ __device__ f6_t f6_convert_sr(float x, float scale = 1.0f)
 template <>
 inline __host__ __device__ f6_t type_convert<f6_t, float>(float x)
 {
-#if CK_USE_SR_F4_CONVERSION
+#if CK_USE_SR_F6_CONVERSION
+    return f6_convert_sr(x);
+#else
+    return f6_convert_rne(x);
+#endif
+}
+
+/**
+ * @brief Specializes the type conversion template for converting a vector of 32 floats into the
+ * vector of 32 6-bit float types (f6x32_t).
+ *
+ * Depending on the CK_USE_SR_F6_CONVERSION flag,
+ * the conversion uses stochastic rounding
+ * or round-to-nearest-even.
+ *
+ * @param x Input float value to be converted.
+ * @return  The converted f6x32_t vector.
+ */
+template <>
+inline __host__ __device__ f6x32_t type_convert<f6x32_t, float32_t>(float32_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
     return f6_convert_sr(x);
 #else
     return f6_convert_rne(x);
@@ -1454,8 +1587,62 @@ inline __host__ __device__ f6_t type_convert<f6_t, float>(float x)
 template <>
 inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
 {
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } in{x};
+
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } out{};
+
+    out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
+        in.f6_vector, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+    return out.float_array[0];
+#else
     return utils::to_float<f6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
+#endif
+}
+
+/**
+ * @brief Specializes the type conversion template for converting the vector of 32 6-bit float types
+ * (f6x32_t) to vector of 32 floats.
+ *
+ * Interprets an f6_t values as floats using the default scale factor of 1.
+ *
+ * @param x The vector of 32 6-bit float (f6x32_t) values to be converted.
+ * @return  The corresponding float representation.
+ */
+template <>
+inline __host__ __device__ float32_t type_convert<float32_t, f6x32_t>(f6x32_t x)
+{
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
+        x, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+#else
+    union
+    {
+        f6x32_t f6_vector;
+        f6_t f6_array[32];
+    } in{x};
+
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.float_array[i] =
+            utils::to_float<f6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), in.f6_array[i]);
+    });
+
+    return out.float_vector;
+#endif
 }
 
 /**
@@ -1470,8 +1657,60 @@ inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
  */
 inline __host__ __device__ bf6_t bf6_convert_rne(float x, float scale = 1.0f)
 {
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    float16_t in1{x};
+    float16_t in2{};
+
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } out{};
+
+    out.bf6_vector = __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(in1, in2, scale);
+
+    return out.bf6_array[0];
+#else
     return utils::sat_convert_to_type<bf6_t>(x / scale);
+#endif
+}
+
+/**
+ * @brief Converts a vector of 32 floats to the vector of 32 6-bit BF6 types using
+ * round-to-nearest-even.
+ *
+ * Divides the input by the specified scale, then saturates and converts
+ * it to a 6-bit BF6 floating-point format.
+ *
+ * @param x     The float vector to be converted.
+ * @param scale The scaling factor applied to the input before conversion.
+ * @return      The converted bf6x32_t vector.
+ */
+inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1.0f)
+{
+#if defined(__gfx950__)
+    float16_t* in1 = reinterpret_cast<float16_t*>(&x);
+    float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
+    return __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(*in1, *in2, scale);
+#else
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.bf6_array[i] = utils::sat_convert_to_type<bf6_t>(in.float_array[i] / scale);
+    });
+
+    return out.bf6_vector;
+#endif
 }
 
 /**
@@ -1489,14 +1728,76 @@ inline __host__ __device__ bf6_t bf6_convert_sr(float x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
     uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } out{};
+
+    out.bf6_vector = __builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(in.float_vector, rng, scale);
+
+    return out.bf6_array[0];
+#else
     return utils::sat_convert_to_type_sr<bf6_t>(x / scale, rng);
+#endif
+}
+
+/**
+ * @brief Converts a vector of 32 floats to the vector of 32 6-bit BF6 types using stochastic
+ * rounding.
+ *
+ * Divides the input by the specified scale,
+ * and converts the result to a 6-bit BF6 floating-point
+ * format with stochastic rounding.
+ *
+ * @param x     The float vector to be converted.
+ * @param scale The scaling factor applied to the input before conversion.
+ * @return      The converted bf6x32_t vector.
+ */
+inline __host__ __device__ bf6x32_t bf6_convert_sr(float32_t x, float scale = 1.0f)
+{
+    constexpr int seed = 1254739;
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } float_values{x};
+    uint32_t rng =
+        prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), float_values.float_array[0]);
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(x, rng, scale);
+#else
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.bf6_array[i] = utils::sat_convert_to_type_sr<bf6_t>(in.float_array[i] / scale, rng);
+    });
+
+    return out.bf6_vector;
+#endif
 }
 
 /**
  * @brief Specializes float-to-bf6_t conversion.
  *
- * Uses stochastic rounding if CK_USE_SR_F4_CONVERSION is defined,
+ * Uses stochastic rounding if CK_USE_SR_F6_CONVERSION is defined,
  * otherwise uses round-to-nearest-even.
  *
  * @param x Input float value to convert.
@@ -1505,7 +1806,26 @@ inline __host__ __device__ bf6_t bf6_convert_sr(float x, float scale = 1.0f)
 template <>
 inline __host__ __device__ bf6_t type_convert<bf6_t, float>(float x)
 {
-#if CK_USE_SR_F4_CONVERSION
+#if CK_USE_SR_F6_CONVERSION
+    return bf6_convert_sr(x);
+#else
+    return bf6_convert_rne(x);
+#endif
+}
+
+/**
+ * @brief Specializes vector of 32 float-to-bf6_t conversion.
+ *
+ * Uses stochastic rounding if CK_USE_SR_F6_CONVERSION is defined,
+ * otherwise uses round-to-nearest-even.
+ *
+ * @param x Input float vector to convert.
+ * @return Converted bf6x32_t vector.
+ */
+template <>
+inline __host__ __device__ bf6x32_t type_convert<bf6x32_t, float32_t>(float32_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
     return bf6_convert_sr(x);
 #else
     return bf6_convert_rne(x);
@@ -1524,8 +1844,63 @@ inline __host__ __device__ bf6_t type_convert<bf6_t, float>(float x)
 template <>
 inline __host__ __device__ float type_convert<float, bf6_t>(bf6_t x)
 {
-    // currently there is no native conversion instruction
+#if defined(__gfx950__)
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } in{x};
+
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } out{};
+
+    out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
+        in.bf6_vector, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+    return out.float_array[0];
+#else
     return utils::to_float<bf6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
+#endif
+}
+
+/**
+ * @brief Specializes the type conversion template for converting a vector of 32 bf6_t values to
+ * vector of 32 floats.
+ *
+ * Interprets the bf6x32_t value using the default scale factor of 1 and returns
+ * its floating-point representation.
+ *
+ * @param x The bf6x32_t value to convert.
+ * @return  The float representation of the given vector.
+ */
+template <>
+inline __host__ __device__ float32_t type_convert<float32_t, bf6x32_t>(bf6x32_t x)
+{
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
+        x, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+#else
+    union
+    {
+        bf6x32_t bf6_vector;
+        bf6_t bf6_array[32];
+    } in{x};
+
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } out{};
+
+    ck::static_for<0, 32, 1>{}([&](auto i) {
+        out.float_array[i] =
+            utils::to_float<bf6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), in.bf6_array[i]);
+    });
+
+    return out.float_vector;
+#endif
 }
 
 template <typename Y, typename X, std::size_t NumElems>
