@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -9,8 +9,6 @@
 #include <string>
 #include <tuple>
 
-#include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
 #include "gemm_basic.hpp"
 
@@ -21,10 +19,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
-
-    constexpr bool kTilePermute = false;
-    // The rank and permutation will also be generate out by the CodeGen part.
-    constexpr ck_tile::index_t kOutputRank = 2;
 
     constexpr int kBlockPerCu = 1;
 
@@ -41,40 +35,31 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
 
-    // Whether doing the CShuffle (transpose before the global memory), depending on the output
-    // layout.
-    constexpr bool CShuffleEpilogue =
-        std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>;
-
     using CodegenGemmShape =
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-    using TilePartitioner = ck_tile::GemmTilePartitioner<CodegenGemmShape>;
-
-    using GemmEpilogue = std::conditional_t<
-        CShuffleEpilogue,
-        ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
-                                                                   CDataType,
-                                                                   kPadM,
-                                                                   kPadN,
-                                                                   kTilePermute,
-                                                                   kOutputRank,
-                                                                   1,
-                                                                   0,
-                                                                   TilePartitioner::kM,
-                                                                   TilePartitioner::kN>>,
-        ck_tile::Default2DEpilogue<
-            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
+    using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
     using CodegenGemmTraits =
         ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
-    using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;
-    using CodegenGemmPipeline =
-        ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenGemmPolicy>;
+    using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
+    using GemmEpilogue        = ck_tile::CShuffleEpilogue<
+        ck_tile::CShuffleEpilogueProblem<AccDataType,
+                                         CDataType,
+                                         CLayout,
+                                         CodegenPipelineProblem::kBlockSize,
+                                         TilePartitioner::MPerBlock,
+                                         TilePartitioner::NPerBlock,
+                                         M_Warp,
+                                         N_Warp,
+                                         M_Warp_Tile,
+                                         N_Warp_Tile,
+                                         K_Warp_Tile,
+                                         CodegenPipelineProblem::TransposeC>>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
@@ -104,5 +89,27 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 }
 
 #include "run_gemm_example.inc"
+
+int run_gemm_example(int argc, char* argv[])
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+    std::string a_layout = arg_parser.get_str("a_layout");
+    std::string b_layout = arg_parser.get_str("b_layout");
+
+    if(a_layout == "R" && b_layout == "C")
+    {
+        return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+    }
+}
 
 int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,3 +34,4 @@
 #include "ck_tile/host/reference/reference_topk.hpp"
 #include "ck_tile/host/stream_config.hpp"
 #include "ck_tile/host/timer.hpp"
+#include "ck_tile/host/reference/reference_batched_transpose.hpp"
