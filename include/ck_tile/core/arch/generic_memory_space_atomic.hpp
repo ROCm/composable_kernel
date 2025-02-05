@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include "ck_tile/core/numeric/vector_type.hpp"
@@ -19,6 +19,16 @@ CK_TILE_HOST_DEVICE bf16x2_t add_bf16x2_t(const bf16x2_t& a, const bf16x2_t& b)
     bf16x2_t rtn;
     rtn[0] = add<bf16_t, float>(a[0], b[0]);
     rtn[1] = add<bf16_t, float>(a[1], b[1]);
+    return rtn;
+}
+
+CK_TILE_HOST_DEVICE bf16x4_t add_bf16x4_t(const bf16x4_t& a, const bf16x4_t& b)
+{
+    bf16x4_t rtn;
+    rtn[0] = add<bf16_t, float>(a[0], b[0]);
+    rtn[1] = add<bf16_t, float>(a[1], b[1]);
+    rtn[2] = add<bf16_t, float>(a[2], b[2]);
+    rtn[3] = add<bf16_t, float>(a[3], b[3]);
     return rtn;
 }
 
@@ -106,6 +116,48 @@ CK_TILE_DEVICE void atomic_add<bf16x2_t>(bf16x2_t* p_dst, const bf16x2_t& x)
         new_v      = new_.u32;
         cur_v.u32  = atomicCAS(dword_addr.u32_a, old_v, new_v);
     } while(cur_v.u32 != old_v);
+}
+
+template <>
+CK_TILE_DEVICE void atomic_add<bf16x4_t>(bf16x4_t* p_dst, bf16x4_t const& x)
+{
+    // Union to treat the pointer as either bf16x4_t* or uint64_t*:
+    union U64BF164_ADDR
+    {
+        uint64_t* u64_a;
+        bf16x4_t* bf164_a;
+    };
+
+    // Union to treat the data as either bf16x4_t or 64-bit integer
+    union U64BF164
+    {
+        uint64_t u64;
+        bf16x4_t bf164;
+    };
+
+    U64BF164_ADDR addr;
+    addr.bf164_a = p_dst; // interpret p_dst as a 64-bit location
+
+    // First read (non-atomic) of the old value
+    U64BF164 cur_v;
+    cur_v.u64 = *addr.u64_a;
+
+    U64BF164 new_v_union;
+    uint64_t old_v, new_v;
+
+    do
+    {
+        // old 64 bits
+        old_v = cur_v.u64;
+
+        // Add elementwise in bf16
+        new_v_union.bf164 = add_bf16x4_t(cur_v.bf164, x);
+        new_v             = new_v_union.u64;
+
+        // Attempt the 64-bit CAS
+        cur_v.u64 = atomicCAS(addr.u64_a, old_v, new_v);
+
+    } while(cur_v.u64 != old_v);
 }
 
 template <>
@@ -259,9 +311,9 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
                       (std::is_same<T, uint32_t>::value && (N == 1)) ||
                       (std::is_same<T, float>::value && (N == 1 || N == 2)) ||
                       (std::is_same<T, double>::value && (N == 1 || N == 2)) ||
-                      (std::is_same<T, bf16_t>::value && (N == 2 || N == 4)) ||
-                      (std::is_same<T, fp8_t>::value && (N == 4 || N == 8)) ||
-                      (std::is_same<T, bf8_t>::value && (N == 4 || N == 8)),
+                      (std::is_same<T, bf16_t>::value && (N == 2 || N == 4 || N == 8)) ||
+                      (std::is_same<T, fp8_t>::value && (N == 4 || N == 8 || N == 16)) ||
+                      (std::is_same<T, bf8_t>::value && (N == 4 || N == 8 || N == 16)),
                   "The granularity of the thread buffer is unsupported on the hardware!");
 
     constexpr auto I0 = number<0>{};
@@ -313,9 +365,13 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
         }
         else if constexpr(N == 4)
         {
-            atomic_add(c_style_pointer_cast<bf16x2_t*>(p_dst), x.template get_as<bf16x2_t>()[I0]);
-            atomic_add(c_style_pointer_cast<bf16x2_t*>(p_dst) + 1,
-                       x.template get_as<bf16x2_t>()[I1]);
+            atomic_add(c_style_pointer_cast<bf16x4_t*>(p_dst), x.template get_as<bf16x4_t>()[I0]);
+        }
+        else if constexpr(N == 8)
+        {
+            atomic_add(c_style_pointer_cast<bf16x4_t*>(p_dst), x.template get_as<bf16x4_t>()[I0]);
+            atomic_add(c_style_pointer_cast<bf16x4_t*>(p_dst) + 1,
+                       x.template get_as<bf16x4_t>()[I1]);
         }
     }
     else if constexpr(std::is_same<T, fp8_t>::value)
@@ -326,8 +382,12 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
         }
         if constexpr(N == 8)
         {
-            atomic_add(c_style_pointer_cast<fp8x4_t*>(p_dst), x.template get_as<fp8x4_t>()[I0]);
-            atomic_add(c_style_pointer_cast<fp8x4_t*>(p_dst) + 1, x.template get_as<fp8x4_t>()[I1]);
+            atomic_add(c_style_pointer_cast<fp8x8_t*>(p_dst), x.template get_as<fp8x8_t>()[I0]);
+        }
+        if constexpr(N == 16)
+        {
+            atomic_add(c_style_pointer_cast<fp8x8_t*>(p_dst), x.template get_as<fp8x8_t>()[I0]);
+            atomic_add(c_style_pointer_cast<fp8x8_t*>(p_dst) + 1, x.template get_as<fp8x8_t>()[I1]);
         }
     }
     else if constexpr(std::is_same<T, bf8_t>::value)
@@ -339,6 +399,11 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
         if constexpr(N == 8)
         {
             atomic_add(c_style_pointer_cast<bf8x8_t*>(p_dst), x.template get_as<bf8x8_t>()[I0]);
+        }
+        if constexpr(N == 16)
+        {
+            atomic_add(c_style_pointer_cast<bf8x8_t*>(p_dst), x.template get_as<bf8x8_t>()[I0]);
+            atomic_add(c_style_pointer_cast<bf8x8_t*>(p_dst) + 1, x.template get_as<bf8x8_t>()[I1]);
         }
     }
 }

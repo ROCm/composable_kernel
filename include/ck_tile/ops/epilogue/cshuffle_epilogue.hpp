@@ -80,19 +80,8 @@ struct CShuffleEpilogue
     template <typename ODataType>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
-        if constexpr(sizeof(ODataType) == 1)
-        {
-            return 8;
-        }
-        else if constexpr(std::is_same_v<ODataType, bf16_t>)
-        {
-            return 4;
-        }
-        else
-        {
-            constexpr index_t MaxVectorStoreSize = 16;
-            return MaxVectorStoreSize / sizeof(ODataType);
-        }
+        constexpr index_t MaxVectorStoreSize = 16;
+        return MaxVectorStoreSize / sizeof(ODataType);
     }
 
     template <typename Problem>
