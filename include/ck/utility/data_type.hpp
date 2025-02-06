@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/amd_ck_fp8.hpp"
+#include "ck/utility/e8m0.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
 #ifdef CK_CODE_GEN_RTC
 using int8_t   = signed char;
@@ -23,6 +24,296 @@ using std::byte;
 using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
+using f4_t    = unsigned _BitInt(4);
+using f6_t    = _BitInt(6);          // e2m3 format
+using bf6_t   = unsigned _BitInt(6); // e3m2 format
+
+struct f4x2_pk_t
+{
+    using type = uint8_t;
+    type data;
+    f4x2_pk_t() : data{type{}} {}
+    f4x2_pk_t(type init) : data{init} {}
+
+    template <index_t I>
+    __host__ __device__ inline type unpack(Number<I>) const
+    {
+        static_assert(I < 2, "Index is out of range.");
+        if constexpr(I == 0)
+            return data & 0b00001111;
+        else
+            return (data >> 4);
+    }
+
+    __host__ __device__ inline type pack(const type x0, const type x1)
+    {
+        return (x1 << 4) | (x0 & 0b00001111);
+    }
+};
+
+struct f6x16_pk_t
+{
+    // store 16 elements of f6_t in an array of 3 uint32_t
+    using element_type = uint32_t;
+    using type         = StaticallyIndexedArray_v2<element_type, 3>;
+    type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(16)));
+    f6x16_pk_t() : data{type{}} {}
+    f6x16_pk_t(type init) : data{init} {}
+
+    template <index_t I>
+    __host__ __device__ inline f6_t unpack(Number<I>)
+    {
+        static_assert(I < 16, "Index out of range for 16 f6_t elements.");
+
+        constexpr int num_bits_elem     = 6;
+        constexpr int num_bits_vec_elem = 32;
+        constexpr int vector_size       = 3;
+        constexpr int bit_pos           = I * num_bits_elem;
+        constexpr int arr_idx           = bit_pos / num_bits_vec_elem;
+        constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+        uint32_t bits                   = data.At(Number<arr_idx>{}) >> bit_offset;
+        constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+
+        if constexpr(overhang > 0 && (arr_idx + 1) < vector_size)
+        {
+            bits |= (data.At(Number<arr_idx + 1>{}) & ((1u << overhang) - 1))
+                    << (num_bits_elem - overhang);
+        }
+
+        return static_cast<f6_t>(bits & 0x3F);
+    }
+
+    __host__ __device__ inline type pack(const test_vec_t& x)
+    {
+        type packed{};
+
+        // for each of the 16 f6_t values, place its 6 bits in the correct position
+        ck::static_for<0, 16, 1>{}([&](auto i) {
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
+            constexpr int num_bits_elem     = 6;
+            constexpr int num_bits_vec_elem = 32;
+            constexpr int vector_size       = 3;
+            constexpr int bit_pos           = i * num_bits_elem;
+            constexpr int arr_index         = bit_pos / num_bits_vec_elem;
+            constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+            constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+            uint32_t old_value              = packed.At(Number<arr_index>{});
+
+            // insert bits into the current 32-bit block
+            old_value |= (bits << bit_offset);
+            packed.At(Number<arr_index>{}) = old_value;
+
+            // if it crosses into the next block, shift the remainder
+            if constexpr(overhang > 0 && (arr_index + 1) < vector_size)
+            {
+                uint32_t next_value = packed.At(Number<arr_index + 1>{});
+                next_value |= (bits >> (num_bits_elem - overhang));
+                packed.At(Number<arr_index + 1>{}) = next_value;
+            }
+        });
+
+        return packed;
+    }
+};
+
+struct f6x32_pk_t
+{
+    // store 32 elements of f6_t in an array of 6 uint32_t
+    using element_type = uint32_t;
+    using type         = StaticallyIndexedArray_v2<element_type, 6>;
+    type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(32)));
+    f6x32_pk_t() : data{type{}} {}
+    f6x32_pk_t(type init) : data{init} {}
+
+    template <index_t I>
+    __host__ __device__ inline f6_t unpack(Number<I>)
+    {
+        static_assert(I < 32, "Index out of range for 32 f6_t elements.");
+
+        constexpr int num_bits_elem     = 6;
+        constexpr int num_bits_vec_elem = 32;
+        constexpr int vector_size       = 6;
+        constexpr int bit_pos           = I * num_bits_elem;
+        constexpr int arr_idx           = bit_pos / num_bits_vec_elem;
+        constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+        uint32_t bits                   = data.At(Number<arr_idx>{}) >> bit_offset;
+        constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+
+        if constexpr(overhang > 0 && (arr_idx + 1) < vector_size)
+        {
+            bits |= (data.At(Number<arr_idx + 1>{}) & ((1u << overhang) - 1))
+                    << (num_bits_elem - overhang);
+        }
+
+        return static_cast<f6_t>(bits & 0x3F);
+    }
+
+    __host__ __device__ inline type pack(const test_vec_t& x)
+    {
+        type packed{};
+
+        // for each of the 32 f6_t values, place its 6 bits in the correct position
+        ck::static_for<0, 32, 1>{}([&](auto i) {
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
+            constexpr int num_bits_elem     = 6;
+            constexpr int num_bits_vec_elem = 32;
+            constexpr int vector_size       = 6;
+            constexpr int bit_pos           = i * num_bits_elem;
+            constexpr int arr_index         = bit_pos / num_bits_vec_elem;
+            constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+            constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+            uint32_t old_value              = packed.At(Number<arr_index>{});
+
+            // insert bits into the current 32-bit block
+            old_value |= (bits << bit_offset);
+            packed.At(Number<arr_index>{}) = old_value;
+
+            // if it crosses into the next block, shift the remainder
+            if constexpr(overhang > 0 && (arr_index + 1) < vector_size)
+            {
+                uint32_t next_value = packed.At(Number<arr_index + 1>{});
+                next_value |= (bits >> (num_bits_elem - overhang));
+                packed.At(Number<arr_index + 1>{}) = next_value;
+            }
+        });
+
+        return packed;
+    }
+};
+
+struct bf6x16_pk_t
+{
+    // store 16 elements of bf6_t in an array of 3 uint32_t
+    using element_type = uint32_t;
+    using type         = StaticallyIndexedArray_v2<element_type, 3>;
+    type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(16)));
+    bf6x16_pk_t() : data{type{}} {}
+    bf6x16_pk_t(type init) : data{init} {}
+
+    template <index_t I>
+    __host__ __device__ inline bf6_t unpack(Number<I>)
+    {
+        static_assert(I < 16, "Index out of range for 16 f6_t elements.");
+
+        constexpr int num_bits_elem     = 6;
+        constexpr int num_bits_vec_elem = 32;
+        constexpr int vector_size       = 3;
+        constexpr int bit_pos           = I * num_bits_elem;
+        constexpr int arr_idx           = bit_pos / num_bits_vec_elem;
+        constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+        uint32_t bits                   = data.At(Number<arr_idx>{}) >> bit_offset;
+        constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+
+        if constexpr(overhang > 0 && (arr_idx + 1) < vector_size)
+        {
+            bits |= (data.At(Number<arr_idx + 1>{}) & ((1u << overhang) - 1))
+                    << (num_bits_elem - overhang);
+        }
+
+        return static_cast<bf6_t>(bits & 0x3F);
+    }
+
+    __host__ __device__ inline type pack(const test_vec_t& x)
+    {
+        type packed{};
+
+        // for each of the 16 bf6_t values, place its 6 bits in the correct position
+        ck::static_for<0, 16, 1>{}([&](auto i) {
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
+            constexpr int num_bits_elem     = 6;
+            constexpr int num_bits_vec_elem = 32;
+            constexpr int vector_size       = 3;
+            constexpr int bit_pos           = i * num_bits_elem;
+            constexpr int arr_index         = bit_pos / num_bits_vec_elem;
+            constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+            constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+            uint32_t old_value              = packed.At(Number<arr_index>{});
+
+            // insert bits into the current 32-bit block
+            old_value |= (bits << bit_offset);
+            packed.At(Number<arr_index>{}) = old_value;
+
+            // if it crosses into the next block, shift the remainder
+            if constexpr(overhang > 0 && (arr_index + 1) < vector_size)
+            {
+                uint32_t next_value = packed.At(Number<arr_index + 1>{});
+                next_value |= (bits >> (num_bits_elem - overhang));
+                packed.At(Number<arr_index + 1>{}) = next_value;
+            }
+        });
+
+        return packed;
+    }
+};
+
+struct bf6x32_pk_t
+{
+    // store 32 elements of bf6_t in an array of 6 uint32_t
+    using element_type = uint32_t;
+    using type         = StaticallyIndexedArray_v2<element_type, 6>;
+    type data;
+    typedef int8_t test_vec_t __attribute__((ext_vector_type(32)));
+    bf6x32_pk_t() : data{type{}} {}
+    bf6x32_pk_t(type init) : data{init} {}
+
+    template <index_t I>
+    __host__ __device__ inline bf6_t unpack(Number<I>)
+    {
+        static_assert(I < 32, "Index out of range for 32 f6_t elements.");
+
+        constexpr int num_bits_elem     = 6;
+        constexpr int num_bits_vec_elem = 32;
+        constexpr int vector_size       = 6;
+        constexpr int bit_pos           = I * num_bits_elem;
+        constexpr int arr_idx           = bit_pos / num_bits_vec_elem;
+        constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+        uint32_t bits                   = data.At(Number<arr_idx>{}) >> bit_offset;
+        constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+
+        if constexpr(overhang > 0 && (arr_idx + 1) < vector_size)
+        {
+            bits |= (data.At(Number<arr_idx + 1>{}) & ((1u << overhang) - 1))
+                    << (num_bits_elem - overhang);
+        }
+
+        return static_cast<bf6_t>(bits & 0x3F);
+    }
+
+    __host__ __device__ inline type pack(const test_vec_t& x)
+    {
+        type packed{};
+
+        // for each of the 32 bf6_t values, place its 6 bits in the correct position
+        ck::static_for<0, 32, 1>{}([&](auto i) {
+            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
+            constexpr int num_bits_elem     = 6;
+            constexpr int num_bits_vec_elem = 32;
+            constexpr int vector_size       = 6;
+            constexpr int bit_pos           = i * num_bits_elem;
+            constexpr int arr_index         = bit_pos / num_bits_vec_elem;
+            constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
+            constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+            uint32_t old_value              = packed.At(Number<arr_index>{});
+
+            // insert bits into the current 32-bit block
+            old_value |= (bits << bit_offset);
+            packed.At(Number<arr_index>{}) = old_value;
+
+            // if it crosses into the next block, shift the remainder
+            if constexpr(overhang > 0 && (arr_index + 1) < vector_size)
+            {
+                uint32_t next_value = packed.At(Number<arr_index + 1>{});
+                next_value |= (bits >> (num_bits_elem - overhang));
+                packed.At(Number<arr_index + 1>{}) = next_value;
+            }
+        });
+
+        return packed;
+    }
+};
 
 // custom data type - pack int4 data
 struct pk_i4_t
@@ -40,14 +331,15 @@ inline constexpr auto next_pow2(uint32_t x)
 }
 
 // native types: double, float, _Float16, ushort, int32_t, int8_t, uint8_t, f8_fnuz_t, bf8_fnuz_t,
-// native types: bool
+// native types: bool, f4_t, f6_t, bf6_t
 template <typename T>
 inline constexpr bool is_native_type()
 {
     return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
            is_same<T, bhalf_t>::value || is_same<T, int32_t>::value || is_same<T, int8_t>::value ||
            is_same<T, uint8_t>::value || is_same<T, f8_fnuz_t>::value ||
-           is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value;
+           is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value || is_same<T, f4_t>::value ||
+           is_same<T, f6_t>::value || is_same<T, bf6_t>::value;
 }
 
 // vector_type
@@ -1370,10 +1662,35 @@ struct nnvb_data_t_selector<f8_ocp_t>
 {
     using type = f8_ocp_t::data_type;
 };
+
 template <>
 struct nnvb_data_t_selector<bf8_ocp_t>
 {
     using type = bf8_ocp_t::data_type;
+};
+
+template <>
+struct nnvb_data_t_selector<f6x16_pk_t>
+{
+    using type = f6x16_pk_t::type;
+};
+
+template <>
+struct nnvb_data_t_selector<f6x32_pk_t>
+{
+    using type = f6x32_pk_t::type;
+};
+
+template <>
+struct nnvb_data_t_selector<bf6x16_pk_t>
+{
+    using type = bf6x16_pk_t::type;
+};
+
+template <>
+struct nnvb_data_t_selector<bf6x32_pk_t>
+{
+    using type = bf6x32_pk_t::type;
 };
 
 template <>
@@ -1478,6 +1795,63 @@ struct non_native_vector_base<
         else
         {
             return err;
+        }
+    }
+};
+
+// implementation for f6x16 and f6x32
+template <typename T, index_t N>
+struct non_native_vector_base<T, N, std::enable_if_t<sizeof(T) == 12 || sizeof(T) == 24>>
+{
+    using data_t =
+        typename nnvb_data_t_selector<T>::type; // select data_t based on declared base type
+    using element_t = typename T::element_type; // select element_t based on declared element type
+    static_assert(sizeof(T) == sizeof(data_t), "non_native_vector_base storage size mismatch");
+    static constexpr size_t size_factor =
+        sizeof(data_t) / sizeof(element_t); // f6x16: 12/4 = 3, f6x32: 24/4 = 6
+    using data_v = element_t __attribute__((ext_vector_type(N * size_factor)));
+    using type   = non_native_vector_base<T, N>;
+
+    union alignas(next_pow2(N * sizeof(T)))
+    {
+        data_v dN; // storage vector;
+        StaticallyIndexedArray<data_t, N> dxN;
+        StaticallyIndexedArray<T, N> dTxN;
+        StaticallyIndexedArray<data_v, 1> dNx1;
+    } data_;
+
+    __host__ __device__ constexpr non_native_vector_base(data_t a)
+        : data_{data_v(a.At(Number<0>{}))}
+    {
+    }
+    __host__ __device__ constexpr non_native_vector_base(T f)
+        : non_native_vector_base(bit_cast<data_t>(f))
+    {
+    }
+    __host__ __device__ constexpr non_native_vector_base() : non_native_vector_base(T{}){};
+    __host__ __device__ constexpr non_native_vector_base(data_v v) : data_{v} {}
+
+    __host__ __device__ constexpr operator data_v() const { return data_.dN; }
+    __host__ __device__ constexpr operator data_t() const
+    {
+        if constexpr(N == 1)
+        {
+            return data_.dxN[Number<0>{}];
+        }
+        else
+        {
+            return data_.dxN; // XXX this should cause an error
+        }
+    }
+    __host__ __device__ constexpr operator T() const
+    {
+        if constexpr(N == 1)
+        {
+            return data_.dTxN[Number<0>{}];
+        }
+        else
+        {
+            return data_.dTxN; // XXX this should cause an error
         }
     }
 };
@@ -2217,6 +2591,22 @@ using uint8x16_t = typename vector_type<uint8_t, 16>::type;
 using uint8x32_t = typename vector_type<uint8_t, 32>::type;
 using uint8x64_t = typename vector_type<uint8_t, 64>::type;
 
+// f4
+using f4x2_t  = typename vector_type<f4x2_pk_t, 1>::type;
+using f4x4_t  = typename vector_type<f4x2_pk_t, 2>::type;
+using f4x8_t  = typename vector_type<f4x2_pk_t, 4>::type;
+using f4x16_t = typename vector_type<f4x2_pk_t, 8>::type;
+using f4x32_t = typename vector_type<f4x2_pk_t, 16>::type;
+using f4x64_t = typename vector_type<f4x2_pk_t, 32>::type;
+
+// f6
+using f6x16_t = typename vector_type<f6x16_pk_t, 1>::type;
+using f6x32_t = typename vector_type<f6x32_pk_t, 1>::type;
+
+// bf6
+using bf6x16_t = typename vector_type<bf6x16_pk_t, 1>::type;
+using bf6x32_t = typename vector_type<bf6x32_pk_t, 1>::type;
+
 // pack int4
 using pk_i4x2_t = typename vector_type<pk_i4_t, 2>::type;
 using pk_i4x4_t = typename vector_type<pk_i4_t, 4>::type;
@@ -2571,6 +2961,118 @@ struct NumericLimits<bf8_ocp_t>
 };
 #endif
 
+template <>
+struct NumericLimits<f4_t>
+{
+    static constexpr uint8_t binary_min_normal    = 0x2; // 0b0010
+    static constexpr uint8_t binary_max_normal    = 0x7; // 0b0111
+    static constexpr uint8_t binary_lowest_normal = 0xF; // 0b1111
+    static constexpr uint8_t binary_min_subnorm   = 0x1; // 0b0001
+    static constexpr uint8_t binary_max_subnorm   = 0x1; // 0b0001
+
+    static constexpr float data_max_normal_number    = 6;
+    static constexpr float data_min_subnormal_number = 0.5;
+
+    __host__ __device__ static constexpr f4_t Min() { return f4_t(binary_min_normal); }
+    __host__ __device__ static constexpr f4_t Max() { return f4_t(binary_max_normal); }
+    __host__ __device__ static constexpr f4_t Lowest() { return f4_t(binary_lowest_normal); }
+    __host__ __device__ static constexpr f4_t MinSubnorm() { return f4_t(binary_min_subnorm); }
+    __host__ __device__ static constexpr f4_t MaxSubnorm() { return f4_t(binary_max_subnorm); }
+
+    __host__ __device__ static constexpr float DataMaxNorm() { return data_max_normal_number; }
+    __host__ __device__ static constexpr float DataMinSubnorm()
+    {
+        return data_min_subnormal_number;
+    }
+};
+
+template <>
+struct NumericLimits<f6_t>
+{
+    static constexpr uint8_t binary_min_normal    = 0x08; // 0b001000
+    static constexpr uint8_t binary_max_normal    = 0x1F; // 0b011111
+    static constexpr uint8_t binary_lowest_normal = 0x3F; // 0b111111
+    static constexpr uint8_t binary_min_subnorm   = 0x01; // 0b000001
+    static constexpr uint8_t binary_max_subnorm   = 0x07; // 0b000111
+
+    static constexpr float data_max_normal_number    = 7.5;
+    static constexpr float data_min_subnormal_number = 0.125;
+
+    __host__ __device__ static constexpr f6_t Min() { return f6_t(binary_min_normal & 0b111111); }
+    __host__ __device__ static constexpr f6_t Max() { return f6_t(binary_max_normal & 0b111111); }
+    __host__ __device__ static constexpr f6_t Lowest()
+    {
+        return f6_t(binary_lowest_normal & 0b111111);
+    }
+    __host__ __device__ static constexpr f6_t MinSubnorm()
+    {
+        return f6_t(binary_min_subnorm & 0b111111);
+    }
+    __host__ __device__ static constexpr f6_t MaxSubnorm()
+    {
+        return f6_t(binary_max_subnorm & 0b111111);
+    }
+
+    __host__ __device__ static constexpr float DataMaxNorm() { return data_max_normal_number; }
+    __host__ __device__ static constexpr float DataMinSubnorm()
+    {
+        return data_min_subnormal_number;
+    }
+};
+
+template <>
+struct NumericLimits<bf6_t>
+{
+    static constexpr uint8_t binary_min_normal    = 0x08; // 0b001000
+    static constexpr uint8_t binary_max_normal    = 0x1F; // 0b011111
+    static constexpr uint8_t binary_lowest_normal = 0x3F; // 0b111111
+    static constexpr uint8_t binary_min_subnorm   = 0x01; // 0b000001
+    static constexpr uint8_t binary_max_subnorm   = 0x03; // 0b000011
+
+    static constexpr float data_max_normal_number    = 28;
+    static constexpr float data_min_subnormal_number = 0.0625;
+
+    __host__ __device__ static constexpr bf6_t Min() { return bf6_t(binary_min_normal); }
+    __host__ __device__ static constexpr bf6_t Max() { return bf6_t(binary_max_normal); }
+    __host__ __device__ static constexpr bf6_t Lowest() { return bf6_t(binary_lowest_normal); }
+    __host__ __device__ static constexpr bf6_t MinSubnorm() { return bf6_t(binary_min_subnorm); }
+    __host__ __device__ static constexpr bf6_t MaxSubnorm() { return bf6_t(binary_max_subnorm); }
+
+    __host__ __device__ static constexpr float DataMaxNorm() { return data_max_normal_number; }
+    __host__ __device__ static constexpr float DataMinSubnorm()
+    {
+        return data_min_subnormal_number;
+    }
+};
+
+template <>
+struct NumericLimits<e8m0_bexp_t>
+{
+    static constexpr e8m0_bexp_t binary_min  = 0x00; // 0b00000000
+    static constexpr e8m0_bexp_t binary_max  = 0xFE; // 0b11111110
+    static constexpr e8m0_bexp_t binary_qnan = 0xFF; // 0b11111111
+    static constexpr e8m0_bexp_t binary_1    = 0x7F; // 0b01111111
+    static constexpr e8m0_bexp_t binary_2    = 0x80; // 0b10000000
+    static constexpr e8m0_bexp_t binary_3    = 0x82; // 0b10000010
+    static constexpr e8m0_bexp_t binary_135  = 0x87; // 0b10000111
+    static constexpr e8m0_bexp_t binary_142  = 0x8E; // 0b10001110
+
+    __host__ __device__ static constexpr e8m0_bexp_t Min() { return e8m0_bexp_t(binary_min); }
+    __host__ __device__ static constexpr e8m0_bexp_t Max() { return e8m0_bexp_t(binary_max); }
+    __host__ __device__ static constexpr e8m0_bexp_t QuietNaN() { return e8m0_bexp_t(binary_qnan); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_1() { return e8m0_bexp_t(binary_1); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_2() { return e8m0_bexp_t(binary_2); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_3() { return e8m0_bexp_t(binary_3); }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_135()
+    {
+        return e8m0_bexp_t(binary_135);
+    }
+    __host__ __device__ static constexpr e8m0_bexp_t Binary_142()
+    {
+        return e8m0_bexp_t(binary_142);
+    }
+};
+
 template <typename T>
 struct NumericUtils
 {
@@ -2590,6 +3092,7 @@ struct NumericUtils<float>
     static constexpr uint32_t NegInf    = 0xFF800000;
     static constexpr uint32_t NaN       = 0x7F800001;
     static constexpr uint32_t Neg0      = 0x80000000;
+    static constexpr bool has_inf       = true;
     using bitwise_type                  = uint32_t;
 };
 
@@ -2607,7 +3110,17 @@ struct NumericUtils<half_t>
     static constexpr uint32_t NegInf    = 0xFC00;
     static constexpr uint32_t NaN       = 0x7C01;
     static constexpr uint32_t Neg0      = 0x8000;
+    static constexpr bool has_inf       = true;
     using bitwise_type                  = uint16_t;
+};
+
+template <>
+struct NumericUtils<bhalf_t>
+{
+    static constexpr int exp  = 8;
+    static constexpr int mant = 7;
+    static constexpr int bias = 128; // negative zero nan mode
+    // static constexpr int bias = 127; // ieee mode
 };
 
 template <>
@@ -2617,6 +3130,7 @@ struct NumericUtils<f8_fnuz_t>
     static constexpr int mant = 3;
     static constexpr int bias = 8; // negative zero nan mode
     // static constexpr int bias = 7; // ieee mode
+    static constexpr bool has_inf = false;
 };
 
 template <>
@@ -2626,6 +3140,7 @@ struct NumericUtils<bf8_fnuz_t>
     static constexpr int mant = 2;
     static constexpr int bias = 16; // negative zero nan mode
     // static constexpr int bias = 15; // ieee mode
+    static constexpr bool has_inf = false;
 };
 template <>
 struct NumericUtils<f8_ocp_t>
@@ -2644,11 +3159,109 @@ struct NumericUtils<bf8_ocp_t>
 };
 
 template <>
-struct NumericUtils<bhalf_t>
+struct NumericUtils<f4_t>
+{
+    static constexpr int exp           = 2;
+    static constexpr int mant          = 1;
+    static constexpr int bias          = 1;
+    static constexpr uint32_t sr_shift = 10;
+
+    static constexpr int unbiased_exp_min = 0;
+    static constexpr int unbiased_exp_max = 2;
+    static constexpr int biased_exp_min   = 1;
+    static constexpr int biased_exp_max   = 3;
+
+    static constexpr uint8_t positive_zero_mask = 0b0000;
+    static constexpr uint8_t negative_zero_mask = 0b1000;
+
+    static constexpr uint8_t one_mask      = 0b0010;
+    static constexpr uint8_t set_sign_mask = 0b0111;
+
+    static constexpr uint8_t data_max_positive_normal_mask = 0b0111;
+    static constexpr uint8_t data_max_negative_normal_mask = 0b1111;
+
+    static constexpr uint8_t data_max_positive_subnormal_mask = 0b0001;
+    static constexpr uint8_t data_max_negative_subnormal_mask = 0b1001;
+
+    static constexpr bool has_inf = false;
+
+    using bitwise_type = uint8_t;
+};
+
+template <>
+struct NumericUtils<f6_t>
+{
+    static constexpr int exp           = 2;
+    static constexpr int mant          = 3;
+    static constexpr int bias          = 1;
+    static constexpr uint32_t sr_shift = 12;
+
+    static constexpr int unbiased_exp_min = 0;
+    static constexpr int unbiased_exp_max = 2;
+    static constexpr int biased_exp_min   = 1;
+    static constexpr int biased_exp_max   = 3;
+
+    static constexpr uint8_t positive_zero_mask = 0b000000;
+    static constexpr uint8_t negative_zero_mask = 0b100000;
+
+    static constexpr uint8_t set_sign_mask = 0b011111;
+
+    static constexpr uint8_t data_max_positive_normal_mask = 0b011111;
+    static constexpr uint8_t data_max_negative_normal_mask = 0b111111;
+
+    static constexpr uint8_t data_max_positive_subnormal_mask = 0b000111;
+    static constexpr uint8_t data_max_negative_subnormal_mask = 0b100111;
+
+    static constexpr bool has_inf  = false;
+    static constexpr bool has_nan  = false;
+    static constexpr bool has_zero = true;
+
+    using bitwise_type = uint8_t;
+};
+
+template <>
+struct NumericUtils<bf6_t>
+{
+    static constexpr int exp           = 3;
+    static constexpr int mant          = 2;
+    static constexpr int bias          = 3;
+    static constexpr uint32_t sr_shift = 11;
+
+    static constexpr int unbiased_exp_min = -2;
+    static constexpr int unbiased_exp_max = 4;
+    static constexpr int biased_exp_min   = 1;
+    static constexpr int biased_exp_max   = 7;
+
+    static constexpr uint8_t positive_zero_mask = 0b000000;
+    static constexpr uint8_t negative_zero_mask = 0b100000;
+
+    static constexpr uint8_t set_sign_mask = 0b011111;
+
+    static constexpr uint8_t data_max_positive_normal_mask = 0b011111;
+    static constexpr uint8_t data_max_negative_normal_mask = 0b111111;
+
+    static constexpr uint8_t data_max_positive_subnormal_mask = 0b000011;
+    static constexpr uint8_t data_max_negative_subnormal_mask = 0b100011;
+
+    static constexpr bool has_inf  = false;
+    static constexpr bool has_nan  = false;
+    static constexpr bool has_zero = true;
+
+    using bitwise_type = uint8_t;
+};
+
+template <>
+struct NumericUtils<e8m0_bexp_t>
 {
     static constexpr int exp  = 8;
-    static constexpr int mant = 7;
-    static constexpr int bias = 128; // negative zero nan mode
-    // static constexpr int bias = 127; // ieee mode
+    static constexpr int mant = 0;
+    static constexpr int bias = 127;
+
+    static constexpr int unbiased_exp_min = -127;
+    static constexpr int unbiased_exp_max = 127;
+    static constexpr int biased_exp_min   = 0;
+    static constexpr int biased_exp_max   = 254;
+
+    using bitwise_type = uint8_t;
 };
 } // namespace ck
