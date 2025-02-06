@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+#include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
@@ -60,25 +61,13 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
-#define _SS_ std::string
-#define _TS_ std::to_string
         // clang-format off
         using P_ = GemmPipeline;
 
-        auto prec_str = [&] () {
-            std::string base_str = _SS_(Base::template typeToStr<ADataType>::name);
-            if (!std::is_same_v<ADataType, BDataType>) {
-                base_str += _SS_("_") + _SS_(Base::template typeToStr<BDataType>::name);
-            }
-            return base_str;
-        }();
-
-        return concat("gemm_batched_", prec_str, "_",
-                      P_::kMPerBlock, "x", P_::kNPerBlock, "x", P_::kKPerBlock, "_",
-                      P_::VectorSizeA, "x", P_::VectorSizeB, "x", P_::VectorSizeC, "_",
-                      P_::kPadM, "x", P_::kPadN, "x", P_::kPadK); 
-#undef _SS_
-#undef _TS_
+        return concat('_', "gemm_batched", gemm_prec_str<ADataType, BDataType>,
+                      concat('x', P_::kMPerBlock, P_::kNPerBlock, P_::kKPerBlock), 
+                      concat('x', P_::VectorSizeA, P_::VectorSizeB, P_::VectorSizeC),
+                      concat('x', P_::kPadM, P_::kPadN, P_::kPadK));
         // clang-format on
     }
 

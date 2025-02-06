@@ -29,7 +29,8 @@ struct GemmPipelineAGmemBGmemCRegV2
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat("pipeline_AGmemBGmemCRegV2_", kMPerBlock, "x", kNPerBlock, "x", kKPerBlock, "x", kBlockSize);
+        return concat('_', "pipeline_AGmemBGmemCRegV2",
+                      concat('x', kMPerBlock, kNPerBlock, kKPerBlock, kBlockSize));
         // clang-format on
     }
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }

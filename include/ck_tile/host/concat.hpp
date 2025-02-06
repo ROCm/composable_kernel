@@ -95,4 +95,28 @@ template <typename... Ts>
     return result;
 }
 
+// Function for types convertible to std::string_view
+template <typename Sep, typename First, typename... Rest>
+[[nodiscard]] auto concat(Sep sep, const First& first, const Rest&... rest)
+    -> std::enable_if_t<AllConvertibleToStringView<First, Rest...>, std::string>
+{
+    std::string result;
+    result += first;
+    ((result += sep, result += rest), ...);
+    return result;
+}
+
+// Function for other types
+template <typename Sep, typename First, typename... Rest>
+[[nodiscard]] auto concat(Sep sep, const First& first, const Rest&... rest)
+    -> std::enable_if_t<!AllConvertibleToStringView<First, Rest...>, std::string>
+{
+    using ::operator<<;
+    thread_local std::ostringstream oss;
+    oss.str("");
+    oss << first;
+    ((oss << sep << rest), ...);
+    return oss.str();
+}
+
 } // namespace ck_tile
