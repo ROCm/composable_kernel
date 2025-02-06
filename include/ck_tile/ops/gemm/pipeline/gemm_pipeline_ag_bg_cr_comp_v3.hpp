@@ -148,9 +148,9 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
         CK_TILE_DEVICE static constexpr auto HotLoopScheduler()
         {
-            constexpr index_t MPerXDL = BlockGemmShape::WarpTile::at(I0{});
-            constexpr index_t NPerXDL = BlockGemmShape::WarpTile::at(I1{});
-            constexpr index_t KPerXDL = BlockGemmShape::WarpTile::at(I2{});
+            constexpr index_t MPerXDL = BlockGemm::WarpGemm::kM;
+            constexpr index_t NPerXDL = BlockGemm::WarpGemm::kN;
+            constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
 
             constexpr index_t WaveSize = 64;
             constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
