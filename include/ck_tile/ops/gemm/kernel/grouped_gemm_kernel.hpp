@@ -71,8 +71,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
         return concat('_', "gemm_grouped", gemm_prec_str<ADataType, BDataType>,
                       concat('x', P_::kMPerBlock, P_::kNPerBlock, P_::kKPerBlock),
-                      concat('x', P_::VectorSizeA, P_::VectorSizeB, P_::VectorSizeC),
-                      concat('x', P_::kPadM, "x", P_::kPadN, "x", P_::kPadK));
+                      concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
+                      concat('x', P_::kPadM, P_::kPadN, P_::kPadK));
         // clang-format on
     }
 
