@@ -5,34 +5,13 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/ops/layernorm2d/kernel/layernorm2d_bwd_dx_kernel.hpp"
 
 namespace ck_tile {
 
-// host side args
-struct Layernorm2dBwdGammaBetaHostArgs
-{
-    const void* p_x;
-    const void* p_dY;
-    const void* p_gamma;
-    const void* p_mean;
-    const void* p_invStd;
-
-    void* p_dGamma;
-    void* p_dBeta;
-    void* p_dX;
-
-    //tmp
-    void* p_dS;
-    void* p_dB;
-
-    index_t m;
-    index_t n;
-    index_t stride; // row_stride
-};
-
 // TODO: Extract some type to wrapper class
 template <typename Pipeline_>
-struct Layernorm2dBwdGammaBeta
+struct Layernorm2dBwdDGammaBeta
 {
     using Pipeline = remove_cvref_t<Pipeline_>;
     using Problem  = typename Pipeline::Problem;
@@ -76,7 +55,7 @@ struct Layernorm2dBwdGammaBeta
         index_t n;
         index_t stride; // row_stride
     };
-    using Hargs = Layernorm2dBwdGammaBetaHostArgs;
+    using Hargs = Layernorm2dBwdHostArgs;
 
     CK_TILE_HOST static constexpr Kargs MakeKargs(const Hargs& hargs)
     {
@@ -100,7 +79,7 @@ struct Layernorm2dBwdGammaBeta
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& hargs)
     {
-        return (hargs.m + Block_M - 1) / Block_M;
+        return (hargs.n + Block_N - 1) / Block_N;
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return Problem::BlockShape::BlockSize; }
@@ -140,7 +119,7 @@ struct Layernorm2dBwdGammaBeta
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         const auto block_id = get_block_id();
-        const auto iM = block_id * Block_M;
+        const auto iN = block_id * Block_N;
 
         // if(threadIdx.x == 0 && blockIdx.x == 0){
         //     printf("dteng block shape---WarpPerBlock_M=%d, WarpPerBlock_N=%d, ThreadPerWarp_M=%d, ThreadPerWarp_N=%d, Vector_N=%d\n", static_cast<int>(Problem::BlockShape::WarpPerBlock_M), static_cast<int>(Problem::BlockShape::WarpPerBlock_N), static_cast<int>(Problem::BlockShape::ThreadPerWarp_M), static_cast<int>(Problem::BlockShape::ThreadPerWarp_N), static_cast<int>(Problem::BlockShape::Vector_N));
@@ -159,7 +138,7 @@ struct Layernorm2dBwdGammaBeta
             const auto tmp2_ = pad_tensor_view(
                 tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<false, false>{});
             return make_tile_window(
-                tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
+                tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {0, iN});
         }();
 
         const auto dy_window = [&]() {
@@ -175,21 +154,7 @@ struct Layernorm2dBwdGammaBeta
             const auto tmp2_ = pad_tensor_view(
                 tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<false, false>{});
             return make_tile_window(
-                tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
-        }();
-                
-        const auto gamma_window = [&]() {
-            const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<const MeanDataType*>(kargs.p_gamma),
-                make_tuple(kargs.n),
-                make_tuple(1),
-                number<Vector_N>{},
-                number<1>{});
-
-            const auto tmp2_ =
-                pad_tensor_view(tmp_, make_tuple(number<Block_N>{}), sequence<false>{});
-
-            return make_tile_window(tmp2_, make_tuple(number<Block_N>{}), {0});
+                tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {0, iN});
         }();
 
         const auto mean_window = [&]() {
@@ -201,7 +166,7 @@ struct Layernorm2dBwdGammaBeta
             const auto tmp2_ =
                 pad_tensor_view(tmp_, make_tuple(number<Block_M>{}), sequence<kPadM>{});
 
-            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}), {iM});
+            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}), {0});
         }();
 
         const auto invstd_window = [&]() {
@@ -213,91 +178,46 @@ struct Layernorm2dBwdGammaBeta
             const auto tmp2_ =
                 pad_tensor_view(tmp_, make_tuple(number<Block_M>{}), sequence<kPadM>{});
 
-            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}), {iM});
+            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}), {0});
         }();
 
         auto dgamma_window = [&]() {
             const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<GammaDataType*>(kargs.p_dGamma),
-                make_tuple(gridDim.x, kargs.n),
-                make_tuple(kargs.n, 1),
+                make_tuple(kargs.n),
+                make_tuple(1),
                 number<Vector_N>{},
                 number<1>{});
 
             const auto tmp2_ =
-                pad_tensor_view(tmp_, make_tuple(number<1>{}, number<Block_N>{}), sequence<false, kPadN>{});
+                pad_tensor_view(tmp_, make_tuple(number<Block_N>{}), sequence<kPadN>{});
 
-            return make_tile_window(tmp2_, make_tuple(number<1>{}, number<Block_N>{}), {block_id, 0});
+            return make_tile_window(tmp2_, make_tuple(number<Block_N>{}), {iN});
         }();
 
         auto dbeta_window = [&]() {
             const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<BetaDataType*>(kargs.p_dBeta),
-                make_tuple(gridDim.x, kargs.n),
-                make_tuple(kargs.n, 1),
+                make_tuple(kargs.n),
+                make_tuple(1),
                 number<Vector_N>{},
                 number<1>{});
 
             const auto tmp2_ =
-                pad_tensor_view(tmp_, make_tuple(number<1>{}, number<Block_N>{}), sequence<false, kPadN>{});
-            return make_tile_window(tmp2_, make_tuple(number<1>{}, number<Block_N>{}), {block_id, 0});
+                pad_tensor_view(tmp_, make_tuple(number<Block_N>{}), sequence<kPadN>{});
+            return make_tile_window(tmp2_, make_tuple(number<Block_N>{}), {iN});
         }();
 
-        auto dx_window = [&]() {
-            const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<XDataType*>(kargs.p_dX),
-                make_tuple(kargs.m, kargs.n),
-                make_tuple(kargs.stride, 1),
-                number<Vector_N>{},
-                number<1>{});
-
-            const auto tmp2_ =
-                pad_tensor_view(tmp_, make_tuple(number<Block_M>{}, number<Block_N>{}), sequence<kPadM, kPadN>{});
-            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
-        }();
-
-        //tmp
-        const auto ds_window = [&]() {
-            const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<ComputeDataType*>(kargs.p_dS),
-                make_tuple(kargs.m),
-                make_tuple(1));
-
-            const auto tmp2_ =
-                pad_tensor_view(tmp_, make_tuple(number<Block_M>{}), sequence<kPadM>{});
-
-            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}), {iM});
-        }();
-
-        const auto db_window = [&]() {
-            const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<ComputeDataType*>(kargs.p_dB),
-                make_tuple(kargs.m),
-                make_tuple(1));
-
-            const auto tmp2_ =
-                pad_tensor_view(tmp_, make_tuple(number<Block_M>{}), sequence<kPadM>{});
-
-            return make_tile_window(tmp2_, make_tuple(number<Block_M>{}), {iM});
-        }();
-
-        // __shared__ char smem[GetSmemSize()];
-        __shared__ char smem[0];
+        __shared__ char smem[GetSmemSize()];
+        // __shared__ char smem[0];
 
         Pipeline{}(x_window,
                    dy_window,
-                   gamma_window,
                    mean_window,
                    invstd_window,
                    dgamma_window,
                    dbeta_window,
-                   dx_window,
-
-                   //tmp
-                   ds_window,
-                   db_window,
-
-                   kargs.n,
+                   kargs.m,
                    smem);
     }
 };

@@ -27,9 +27,14 @@ float layernorm2d_bwd_(const S& s, A a)
         typename Traits_::Shape,
         Traits_::kPadN>;
 
-    using Pipeline = ck_tile::Layernorm2dBwdGammaBetaPipelineTwoPass<PipelineProblem>;
+    using DXOnePassPipeline  = ck_tile::Layernorm2dBwdDXOnePassPipeline<PipelineProblem>;
+    using DXTwoPassPipeline  = ck_tile::Layernorm2dBwdDXTwoPassPipeline<PipelineProblem>;
+    using DXPipeline         = std::conditional_t<Traits_::kTwoPass, DXTwoPassPipeline, DXOnePassPipeline>;  
+    using DGammaBetaPipeline = ck_tile::Layernorm2dBwdDGammaBetaPipeline<PipelineProblem>;
 
-    using Kernel = ck_tile::Layernorm2dBwdGammaBeta<Pipeline>;
+    using DXKernel         = ck_tile::Layernorm2dBwdDX<DXPipeline>;
+    using DGammaBetaKernel = ck_tile::Layernorm2dBwdDGammaBeta<DGammaBetaPipeline>;
+    using Kernel           = std::conditional_t<Traits_::kCalData, DXKernel, DGammaBetaKernel>;
 
     const dim3 grids                       = Kernel::GridSize(a);
     constexpr dim3 blocks                  = Kernel::BlockSize();

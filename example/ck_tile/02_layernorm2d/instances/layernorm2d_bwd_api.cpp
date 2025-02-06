@@ -10,11 +10,11 @@ float layernorm2d_bwd(layernorm2d_bwd_traits t,
 {
 
     float r = -1;
-    if(t.data_type.compare("fp16") == 0)
+    if(t.DataType.compare("fp16") == 0)
     {
         return layernorm2d_bwd_b16_<ck_tile::fp16_t>{}(t, a, s);
     }
-    else if(t.data_type.compare("bf16") == 0)
+    else if(t.DataType.compare("bf16") == 0)
     {
         return layernorm2d_bwd_b16_<ck_tile::bf16_t>{}(t, a, s);
     }

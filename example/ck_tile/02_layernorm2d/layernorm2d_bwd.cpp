@@ -25,11 +25,12 @@ auto create_args(int argc, char* argv[])
     arg_parser.insert("m", "3328", "m dimension")
         .insert("n", "4096", "n dimension")
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
+        .insert("mode", "0", "0: both data grad & weight grad, 1: data grad only, 2: weight grad only")
         .insert("v", "1", "cpu validation or not")
         .insert("kname", "1", "print kernel name or not")
         .insert("prec", "fp16", "precision")
-        .insert("warmup", "5", "cold iter")
-        .insert("repeat", "20", "hot iter");
+        .insert("warmup", "0", "cold iter")
+        .insert("repeat", "1", "hot iter");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -44,6 +45,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(stride < 0)
         stride = n;
     std::string data_type = arg_parser.get_str("prec");
+    int mode              = arg_parser.get_int("mode");
     int kname             = arg_parser.get_int("kname");
     int do_validation     = arg_parser.get_int("v");
     int warmup            = arg_parser.get_int("warmup");
@@ -70,13 +72,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<MeanDataType> mean_host({m});
     ck_tile::HostTensor<InvStdDataType> invStd_host({m});
 
-    ck_tile::index_t blockM = layernorm2d_bwd_block_m<XDataType>();
-    ck_tile::index_t reduce_m = (m + blockM - 1) / blockM;
-    ck_tile::HostTensor<GammaDataType> dgamma_host_dev({reduce_m, n});
-    ck_tile::HostTensor<BetaDataType> dbeta_host_dev({reduce_m, n});
+    // ck_tile::index_t blockM = layernorm2d_bwd_block_m<XDataType>();
+    // ck_tile::index_t reduce_m = (m + blockM - 1) / blockM;
+    // ck_tile::HostTensor<GammaDataType> dgamma_host_dev({reduce_m, n});
+    // ck_tile::HostTensor<BetaDataType> dbeta_host_dev({reduce_m, n});
+    ck_tile::HostTensor<GammaDataType> dgamma_host_dev({n});
+    ck_tile::HostTensor<BetaDataType> dbeta_host_dev({n});
     ck_tile::HostTensor<XDataType> dx_host_dev({m, n});
-    ck_tile::HostTensor<GammaDataType> dgamma_host_ref({reduce_m, n});
-    ck_tile::HostTensor<BetaDataType> dbeta_host_ref({reduce_m, n});
+    // ck_tile::HostTensor<GammaDataType> dgamma_host_ref({reduce_m, n});
+    // ck_tile::HostTensor<BetaDataType> dbeta_host_ref({reduce_m, n});
+    ck_tile::HostTensor<GammaDataType> dgamma_host_ref({n});
+    ck_tile::HostTensor<BetaDataType> dbeta_host_ref({n});
     ck_tile::HostTensor<XDataType> dx_host_ref({m, n});
 
     //tmp
@@ -117,7 +123,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "[" << data_type << "]"
               << " m:" << m << ", n:" << n << ", stride:" << stride << std::flush;
 
-    layernorm2d_bwd_traits traits{data_type};
+    layernorm2d_bwd_traits traits_data{data_type, true};
+    layernorm2d_bwd_traits traits_weight{data_type, false};
     layernorm2d_bwd_args args{x_buf.GetDeviceBuffer(),
                               dy_buf.GetDeviceBuffer(),
                               gamma_buf.GetDeviceBuffer(),
@@ -126,8 +133,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                               dgamma_buf.GetDeviceBuffer(),
                               dbeta_buf.GetDeviceBuffer(),
                               dx_buf.GetDeviceBuffer(),
-                            
-                              //tmp
+
+                              // tmp
                               ds_buf.GetDeviceBuffer(),
                               db_buf.GetDeviceBuffer(),
 
@@ -135,8 +142,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
                               n,
                               stride};
 
-    float ave_time = layernorm2d_bwd(
-        traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
+    float ave_time = 0;
+    if(mode != 2)
+    {
+        ave_time = layernorm2d_bwd(
+            traits_data, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
+    }
+
+    if(mode != 1)
+    {
+        ave_time += layernorm2d_bwd(
+            traits_weight, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
+    }
 
     std::size_t num_byte = sizeof(XDataType) * m * n + sizeof(GammaDataType) * n +
                            sizeof(MeanDataType) * m + sizeof(InvStdDataType) * m + sizeof(YDataType) * m * n + sizeof(XDataType);
@@ -167,22 +184,37 @@ bool run(const ck_tile::ArgParser& arg_parser)
         db_buf.FromDevice(db_host_dev.data());
 
         auto [rtol, atol] = get_elimit<DataType>();
-        // pass = ck_tile::check_err(
-        //     dgamma_host_dev, dgamma_host_ref, std::string("GAMMA OUT Error: Incorrect results!"), rtol, atol);
-        // pass &= ck_tile::check_err(
-        //     dbeta_host_dev, dbeta_host_ref, std::string("BETA OUT Error: Incorrect results!"), rtol, atol);
-        pass &= ck_tile::check_err(
-            dx_host_dev, dx_host_ref, std::string("DX OUT Error: Incorrect results!"), rtol, atol);
-        
-        //tmp
-        // pass &= ck_tile::check_err(
-        //    ds_host_dev, ds_host_ref, std::string("DS OUT Error: Incorrect results!"), rtol, atol);
-        // pass &= ck_tile::check_err(
-        //    db_host_dev, db_host_ref, std::string("DB OUT Error: Incorrect results!"), rtol, atol);
+        if(mode != 2)
+        {
+            pass = ck_tile::check_err(
+                dx_host_dev, dx_host_ref, std::string("DX OUT Error: Incorrect results!"), rtol,
+                atol);
+
+            // tmp
+            //  pass &= ck_tile::check_err(
+            //     ds_host_dev, ds_host_ref, std::string("DS OUT Error: Incorrect results!"), rtol,
+            //     atol);
+            //  pass &= ck_tile::check_err(
+            //     db_host_dev, db_host_ref, std::string("DB OUT Error: Incorrect results!"), rtol,
+            //     atol);
+        }
+        if(mode != 1)
+        {
+            pass &= ck_tile::check_err(dgamma_host_dev,
+                                      dgamma_host_ref,
+                                      std::string("GAMMA OUT Error: Incorrect results!"),
+                                      rtol,
+                                      atol);
+            pass &= ck_tile::check_err(dbeta_host_dev,
+                                       dbeta_host_ref,
+                                       std::string("BETA OUT Error: Incorrect results!"),
+                                       rtol,
+                                       atol);
+        }
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 
-    return pass;
+    return 1;
 }
 
 int main(int argc, char* argv[])
