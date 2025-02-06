@@ -519,7 +519,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         using ALayout = remove_cvref_t<typename Problem::ALayout>;
         static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
         constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kN;
+        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
         constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
 
