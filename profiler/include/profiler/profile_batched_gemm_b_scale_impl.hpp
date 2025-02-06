@@ -8,7 +8,7 @@
 #include <typeinfo>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_fp16_int4_b_scale_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_xdl_fpAintB_b_scale.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -146,18 +146,18 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
     a_device_buf.ToDevice(a_g_m_k.mData.data());
     b1_device_buf.ToDevice(b1_g_k_n.mData.data());
 
-    using DeviceOp = ck::tensor_operation::device::DeviceBatchedGemm_BScale<ALayout,
-                                                                            BLayout,
-                                                                            CLayout,
-                                                                            ADataType,
-                                                                            BDataType,
-                                                                            BScaleDataType,
-                                                                            CDataType,
-                                                                            1,
-                                                                            ScaleBlockK,
-                                                                            AElementOp,
-                                                                            BElementOp,
-                                                                            CElementOp>;
+    using DeviceOp = ck::tensor_operation::device::DeviceBatchedGemmV2BScale<ALayout,
+                                                                             BLayout,
+                                                                             CLayout,
+                                                                             ADataType,
+                                                                             BDataType,
+                                                                             BScaleDataType,
+                                                                             CDataType,
+                                                                             1,
+                                                                             ScaleBlockK,
+                                                                             AElementOp,
+                                                                             BElementOp,
+                                                                             CElementOp>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
