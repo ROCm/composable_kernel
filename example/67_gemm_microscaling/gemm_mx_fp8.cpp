@@ -13,11 +13,15 @@ using XDataType = ck::e8m0_bexp_t;
 #endif
 using AccDataType      = float;
 using CShuffleDataType = float;
-using CDataType        = float;
+#if 1
+using CDataType = ck::half_t;
+#else
+using CDataType = float;
+#endif
 
 using ALayout = Row;
 using BLayout = Col;
-using CLayout = Row;
+using CLayout = Col;
 
 using CElementOp = PassThrough; // elementwise transformation for C matrix
 

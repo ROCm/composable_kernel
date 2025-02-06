@@ -19,8 +19,6 @@
 #include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
-using ScaleDataType = ck::e8m0_bexp_t;
-
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
