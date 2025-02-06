@@ -5,7 +5,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_fp16_int4_b_scale_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_xdl_fpAintB_b_scale.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -53,7 +53,7 @@ static constexpr ck::index_t KPerBlock = 256;
 
 // clang-format off
 using DeviceBatchedGemmV2Instance = 
-    ck::tensor_operation::device::DeviceBatchedGemm_Xdl_CShuffleV3<  
+    ck::tensor_operation::device::DeviceBatchedGemm_Xdl_CShuffleV3_BScale<  
         ALayout,   BLayout,  CLayout,   
         ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 

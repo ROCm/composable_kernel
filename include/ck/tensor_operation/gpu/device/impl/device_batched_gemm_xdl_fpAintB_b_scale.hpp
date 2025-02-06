@@ -157,18 +157,19 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           bool PermuteA                               = false,
           bool PermuteB                               = false>
-struct DeviceBatchedGemm_Xdl_CShuffleV3 : public DeviceBatchedGemm_BScale<ALayout,
-                                                                          BLayout,
-                                                                          CLayout,
-                                                                          ADataType,
-                                                                          BDataType,
-                                                                          BScaleDataType,
-                                                                          CDataType,
-                                                                          ScaleBlockN,
-                                                                          ScaleBlockK,
-                                                                          AElementwiseOperation,
-                                                                          BElementwiseOperation,
-                                                                          CElementwiseOperation>
+struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
+    : public DeviceBatchedGemmV2BScale<ALayout,
+                                       BLayout,
+                                       CLayout,
+                                       ADataType,
+                                       BDataType,
+                                       BScaleDataType,
+                                       CDataType,
+                                       ScaleBlockN,
+                                       ScaleBlockK,
+                                       AElementwiseOperation,
+                                       BElementwiseOperation,
+                                       CElementwiseOperation>
 {
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<

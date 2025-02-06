@@ -56,7 +56,7 @@ template <typename ALayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-struct DeviceBatchedGemm_BScale : public BaseOperator
+struct DeviceBatchedGemmV2BScale : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
