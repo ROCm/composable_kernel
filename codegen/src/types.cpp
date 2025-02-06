@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "ck/host/types.hpp"
 #include "ck/host/stringutils.hpp"
 #include <algorithm>
