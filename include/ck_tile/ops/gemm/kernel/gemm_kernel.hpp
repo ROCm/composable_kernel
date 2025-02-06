@@ -167,7 +167,7 @@ struct GemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
     {
-        if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+        if constexpr(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
                      is_any_of<CDataType, fp16_t, bf16_t>::value)
         {
             if(kargs.k_batch != 1)
@@ -248,7 +248,7 @@ struct GemmKernel
                           << std::endl;
                 return false;
             }
-            if(kargs.N % EpiloguePipeline::GetVectorSizeC() != 0)
+            if(kargs.N % EpiloguePipeline::template GetVectorSizeC<CDataType>() != 0)
             {
                 std::cerr << "N is not a multiple of vector load size for C tensor!" << std::endl;
                 return false;
@@ -263,7 +263,7 @@ struct GemmKernel
                           << std::endl;
                 return false;
             }
-            if(kargs.M % EpiloguePipeline::GetVectorSizeC() != 0)
+            if(kargs.M % EpiloguePipeline::template GetVectorSizeC<CDataType>() != 0)
             {
                 std::cerr << "M is not a multiple of vector load size for C tensor!" << std::endl;
                 return false;
@@ -329,7 +329,7 @@ struct GemmKernel
                     c_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(kargs.stride_C, 1),
-                    number<EpiloguePipeline::GetVectorSizeC()>{},
+                    number<EpiloguePipeline::template GetVectorSizeC<CDataType>()>{},
                     number<1>{});
             }
             else
@@ -527,7 +527,7 @@ struct GemmKernel
         {
             // Do not compile in case where we have unsupported
             // VectorSizeC & data type configuration.
-            if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+            if constexpr(!(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
                            is_any_of<CDataType, fp16_t, bf16_t>::value))
             {
                 RunGemm<memory_operation_enum::atomic_add>(

@@ -771,4 +771,4 @@
 #undef _UK_MFMA_
 #undef CK_TILE_FLATMM_UK_2B
 #undef CK_TILE_FLATMM_UK_MFMA
-// clang-format on
+    // clang-format on

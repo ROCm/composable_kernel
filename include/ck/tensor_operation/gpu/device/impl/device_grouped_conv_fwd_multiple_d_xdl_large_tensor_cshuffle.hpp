@@ -52,8 +52,7 @@ __global__ void
             const ComputePtrOffset compute_ptr_offset_of_groups,
             const ComputePtrOffset compute_ptr_offset_of_n)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id_x = __builtin_amdgcn_readfirstlane(blockIdx.x);
