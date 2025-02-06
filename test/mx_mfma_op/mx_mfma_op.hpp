@@ -777,6 +777,12 @@ matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb,
 
     mfma_type_selector<AFragT, BFragT, AccumFragT, BLOCK_M, BLOCK_N>{}(
         fragA, fragXa, fragB, fragXb, fragAcc);
+
+    if(threadIdx.x == 0 || threadIdx.x == 32)
+    {
+        printf("thread: %u -- xA: %x\n", threadIdx.x, bit_cast<uint32_t>(fragXa));
+        printf("thread: %u -- xB: %x\n", threadIdx.x, bit_cast<uint32_t>(fragXb));
+    }
     __syncthreads();
 
     for(int i = 0; i < vectorSize(fragC); ++i)
@@ -989,7 +995,7 @@ struct TestMXMFMA
             }
             for(size_t i = 32; i < 64; i++)
             {
-                a_m_k(0, i) = type_convert<ADataType>(-2.0f);
+                a_m_k(0, i) = type_convert<ADataType>(2.0f);
             }
 
             // printf("f8 1: %x \n", type_convert<ADataType>(1.0f).data);
