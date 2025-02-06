@@ -17,56 +17,6 @@ namespace ck_tile {
 struct GemmPipelineAGmemBGmemCregComputeV4DefaultPolicy : public UniversalGemmBasePolicy
 {
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
-    {
-        using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
-        using WG        = typename BlockGemm::WarpGemm;
-
-        constexpr bool TransposeC = Problem::TransposeC;
-        using CLayout             = typename Problem::CLayout;
-        using CWarpDstr           = typename WG::CWarpDstr;
-
-        // N is contiguous dimension
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-        {
-            if constexpr(TransposeC)
-            {
-                constexpr index_t NDimY = CWarpDstr::NDimY;
-                constexpr auto c_warp_y_lengths =
-                    CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
-                static_assert(WG::WarpGemmAttribute::Impl::kCM1PerLane ==
-                              c_warp_y_lengths.get(number<NDimY - 1>{}));
-                return c_warp_y_lengths.get(number<NDimY - 1>{});
-            }
-            else
-            {
-                return WG::WarpGemmAttribute::Impl::kCNLane / WG::kN;
-            }
-        }
-        // M is contiguous dimension
-        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
-        {
-            if constexpr(TransposeC)
-            {
-                return WG::WarpGemmAttribute::Impl::kCNLane / WG::kN;
-            }
-            else
-            {
-                constexpr index_t NDimY = CWarpDstr::NDimY;
-                constexpr auto c_warp_y_lengths =
-                    CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
-                static_assert(WG::WarpGemmAttribute::Impl::kCM1PerLane ==
-                              c_warp_y_lengths.get(number<NDimY - 1>{}));
-                return c_warp_y_lengths.get(number<NDimY - 1>{});
-            }
-        }
-        else
-        {
-            static_assert(false, "Unsupported CLayout!");
-        }
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
     {
         using BlockGemm         = decltype(GetBlockGemm<Problem>());

@@ -457,8 +457,8 @@ struct GemmKernel
      * @param c_ptr output C pointer
      * @param smem_ptr_0 The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
-     * @param splitk_batch_offset When there are more than 1 batch needs to split the k.
-     * splitk_batch_offset stands for its the K from which batch.
+     * @param splitk_batch_offset param splitk_batch_offset Utility structure used to calculate k
+     * batch offset per workgroup.
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
@@ -501,14 +501,16 @@ struct GemmKernel
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
      *
+     * @note RunGEMM2LDS in with two shared memory buffers using the ping pong buffer mechanism.
+     *
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
      * @param c_ptr output C pointer
      * @param smem_ptr_0 The starting pointer of 1st shared memory block.
      * @param smem_ptr_1 The starting pointer of 2nd shared memory block.
      * @param kargs GEMM kernel arguments
-     * @param splitk_batch_offset When there are more than 1 batch needs to split the k.
-     * splitk_batch_offset stands for its the K from which batch.
+     * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k batch
+     * offset per workgroup.
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
@@ -528,7 +530,6 @@ struct GemmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             MakeGemmTensorViews<DstInMemOp>(a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
-        ;
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
