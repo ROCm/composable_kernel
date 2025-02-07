@@ -185,8 +185,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
 
             using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
-            if(threadIdx.x==0)
-            printf("use tid %d num %d off %d %d\n", threadIdx.x, ordered_src_access_idx[Number<ordered_gather_dim>{}](), src_coord_.GetOffset(), gather_offset );
+            // if(threadIdx.x==0)
+            // printf("use tid %d num %d off %d %d\n", threadIdx.x, ordered_src_access_idx[Number<ordered_gather_dim>{}](), src_coord_.GetOffset(), gather_offset );
             auto src_vector_container =
                 src_vector_type{src_buf.template Get<src_vector_t>(ld_offset, true)};
 
@@ -257,8 +257,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             ();
             // move src coord
             static_for<0, nDim, 1>{}([&](auto i) {
-                if(threadIdx.x==0)
-                printf("use tid %d ori cord: %d i %d mov %d\n", threadIdx.x, src_coord_.GetOffset(), i.value, move_on_dim[i]);
+                // if(threadIdx.x==0)
+                // printf("use tid %d ori cord: %d i %d mov %d\n", threadIdx.x, src_coord_.GetOffset(), i.value, move_on_dim[i]);
                 if (move_on_dim[i])
                 {
                     if constexpr(forward_sweep[i])
@@ -272,8 +272,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                             src_desc, src_coord_, src_backward_steps[src_dim_access_order[i]]);
                     }
                 }
-                if(threadIdx.x==0)
-                printf("use tid %d moved cord: %d\n", threadIdx.x, src_coord_.GetOffset());
+                // if(threadIdx.x==0)
+                // printf("use tid %d moved cord: %d\n", threadIdx.x, src_coord_.GetOffset());
             });
             
         });
@@ -666,11 +666,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         constexpr auto reset_src_data_step = [&]() {
             Index reset_src_data_step_;
 
-            static_for<0, nDim, 1>{}([&](auto i) { reset_src_data_step_(i) = -src_data_idx[i]; });
+            static_for<0, nDim, 1>{}([&](auto i) { reset_src_data_step_(i) = i.value == GatherDim ? 0 : -src_data_idx[i]; });
 
             return reset_src_data_step_;
         }();
-
         return reset_src_data_step;
     }
 
@@ -740,7 +739,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         const auto adjusted_step_idx =
             SrcResetCoordinateAfterRun ? src_slice_origin_step_idx
                                        : src_slice_origin_step_idx + GetSrcCoordinateResetStep();
-
         // is it OK to construct a new step every time?
         const auto adjusted_step = make_tensor_coordinate_step(src_desc, adjusted_step_idx);
 

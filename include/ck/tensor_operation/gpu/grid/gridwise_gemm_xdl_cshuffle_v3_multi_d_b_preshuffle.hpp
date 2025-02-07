@@ -1137,7 +1137,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             gather_offsets(m0) = p_sorted_token_ids[token_pos + m0] * problem.K;
-            printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
+            // printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
         });
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
@@ -1224,7 +1224,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<LDSTypeA*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
-        constexpr auto a_block_slice_copy_step = make_multi_index(AK0Threads, 0, 0);
+        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, KRepeat, 0);
 
         // Blockwise GEMM pipeline
