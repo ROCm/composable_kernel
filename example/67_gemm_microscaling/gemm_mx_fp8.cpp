@@ -21,7 +21,7 @@ using CDataType = float;
 
 using ALayout = Row;
 using BLayout = Col;
-using CLayout = Col;
+using CLayout = Row;
 
 using CElementOp = PassThrough; // elementwise transformation for C matrix
 
