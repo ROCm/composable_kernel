@@ -7,7 +7,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/cluster_descriptor.hpp"
-#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_v3r1.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_v3r1_gather.hpp"
 
 namespace ck {
 
@@ -41,14 +41,15 @@ template <typename ThreadGroup,
           index_t DstScalarStrideInVector,
           bool ThreadTransferSrcResetCoordinateAfterRun,
           bool ThreadTransferDstResetCoordinateAfterRun,
+          index_t GatherDim = 1,
           index_t NumThreadScratch = 1>
 struct ThreadGroupTensorSliceTransfer_v4r1_mod8
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
-
     static constexpr auto thread_slice_lengths = BlockSliceLengths{} / ThreadClusterLengths{};
-
+    static constexpr index_t gather_num = thread_slice_lengths.At(Number<GatherDim>{});
     using Index = MultiIndex<nDim>;
+    // using GatherIndex = MultiIndex<gather_num>;
 
     __device__ constexpr ThreadGroupTensorSliceTransfer_v4r1_mod8(
         const SrcDesc& src_desc,
@@ -56,13 +57,15 @@ struct ThreadGroupTensorSliceTransfer_v4r1_mod8
         const SrcElementwiseOperation& src_element_op,
         const DstDesc& dst_desc,
         const Index& dst_block_slice_origin,
-        const DstElementwiseOperation& dst_element_op)
+        const DstElementwiseOperation& dst_element_op,
+        const StaticallyIndexedArray<index_t, gather_num> &gather_offsets)
         : threadwise_transfer_(src_desc,
                                make_zero_multi_index<nDim>(),
                                src_element_op,
                                dst_desc,
                                make_zero_multi_index<nDim>(),
-                               dst_element_op)
+                               dst_element_op,
+                               gather_offsets)
 
     {
         static_assert(nDim == remove_cvref_t<SrcDesc>::GetNumOfDimension() &&
@@ -173,7 +176,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1_mod8
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
     using ThreadwiseTransfer =
-        ThreadwiseTensorSliceTransfer_v3r1<decltype(thread_slice_lengths),
+        ThreadwiseTensorSliceTransfer_v3r1_gather<decltype(thread_slice_lengths),
                                            SrcElementwiseOperation,
                                            DstElementwiseOperation,
                                            DstInMemOp,
@@ -191,6 +194,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1_mod8
                                            DstScalarStrideInVector,
                                            ThreadTransferSrcResetCoordinateAfterRun,
                                            ThreadTransferDstResetCoordinateAfterRun,
+                                           GatherDim,
                                            NumThreadScratch>;
 
     ThreadwiseTransfer threadwise_transfer_;

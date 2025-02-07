@@ -1132,8 +1132,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         constexpr auto MLoadRepeats = MPerBlock / MLoadThreads;
         static_assert(MLoadRepeats == 1, "only support 1 line per thread now!");
         const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / KLoadThreads;
-
-        index_t token_offset = p_sorted_token_ids[token_pos];
+        StaticallyIndexedArray<index_t, MLoadRepeats> token_offsets; //= p_sorted_token_ids[token_pos];
+        static_for<0, MLoadRepeats, 1>{}([&](auto m0) {
+            token_offsets(m0) = p_sorted_token_ids[token_pos + MLoadThreads * m0] * problem.K;
+        });
+        printf("threadIdx.x %d off %d\n", threadIdx.x, token_offsets(I0));
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
@@ -1183,13 +1186,15 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                                 1,
                                                 AThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
+                                                1,
                                                 BlockwiseGemmPipe::GlobalBufferNum>(
                 a_grid_desc_ak0_m_ak1,
-                make_multi_index(0, token_offset, 0),
+                make_multi_index(0, 0, 0),
                 a_element_op,
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
-                ck::tensor_operation::element_wise::PassThrough{});
+                ck::tensor_operation::element_wise::PassThrough{},
+                token_offsets);
 
         // Thread-wise copy
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack
