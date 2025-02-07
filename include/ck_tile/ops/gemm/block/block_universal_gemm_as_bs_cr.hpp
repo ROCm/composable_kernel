@@ -79,7 +79,10 @@ struct BlockUniversalGemmAsBsCr
         // TODO: Should we have two policies? Interwave & Intrawave ??
         static constexpr index_t InterWaveSchedulingMacClusters = 1;
 
-        static constexpr index_t KPack      = WarpGemm::kKPerThread;
+        // should be at least equal to: WarpGemm::Impl::kABKPerLane
+        // and the question is how to assess upper limit or exact value?
+        // TODO: Should we introduce AK1/BK1 parameters ?
+        static constexpr index_t KPack      = 8;
         static constexpr index_t KPerThread = KIterPerWarp * KPack;
         static constexpr index_t KRepeat    = KPerThread / KPack;
     };
