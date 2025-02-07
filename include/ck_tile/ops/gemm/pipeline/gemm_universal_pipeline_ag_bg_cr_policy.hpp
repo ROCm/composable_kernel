@@ -9,6 +9,7 @@
 
 namespace ck_tile {
 
+template <typename Derived>
 struct UniversalGemmBasePolicy
 {
     static constexpr auto I0 = number<0>{};
@@ -270,15 +271,11 @@ struct UniversalGemmBasePolicy
                                                                       BTileAccessPattern>;
         return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
     }
-};
 
-// UniversalGemm Policy
-struct UniversalGemmPipelineAgBgCrPolicy : public UniversalGemmBasePolicy
-{
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
     {
-        using BlockGemm         = decltype(GetBlockGemm<Problem>());
+        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
         constexpr index_t KPack = BlockGemm::Traits::KPack;
         return KPack;
     }
@@ -286,11 +283,43 @@ struct UniversalGemmPipelineAgBgCrPolicy : public UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
     {
-        using BlockGemm         = decltype(GetBlockGemm<Problem>());
+        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
         constexpr index_t KPack = BlockGemm::Traits::KPack;
         return KPack;
     }
 
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
+    {
+        constexpr auto a_lds_desc     = Derived::template MakeALdsBlockDescriptor<Problem>();
+        constexpr index_t smem_size_a = integer_least_multiple(
+            sizeof(typename Problem::ADataType) * a_lds_desc.get_element_space_size(), 16);
+        return smem_size_a;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
+    {
+        constexpr auto b_lds_desc     = Derived::template MakeBLdsBlockDescriptor<Problem>();
+        constexpr index_t smem_size_b = integer_least_multiple(
+            sizeof(typename Problem::BDataType) * b_lds_desc.get_element_space_size(), 16);
+        return smem_size_b;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    {
+        constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
+        constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
+
+        return smem_size_a + smem_size_b;
+    }
+};
+
+// UniversalGemm Policy
+struct UniversalGemmPipelineAgBgCrPolicy
+    : public UniversalGemmBasePolicy<UniversalGemmPipelineAgBgCrPolicy>
+{
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
@@ -529,35 +558,6 @@ struct UniversalGemmPipelineAgBgCrPolicy : public UniversalGemmBasePolicy
             // return b_lds_block_desc;
         }
 #endif
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
-    {
-        constexpr index_t smem_size_a =
-            integer_least_multiple(sizeof(typename Problem::ADataType) *
-                                       MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
-                                   16);
-        return smem_size_a;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
-    {
-        constexpr index_t smem_size_b =
-            integer_least_multiple(sizeof(typename Problem::BDataType) *
-                                       MakeBLdsBlockDescriptor<Problem>().get_element_space_size(),
-                                   16);
-        return smem_size_b;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
-    {
-        constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
-        constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
-
-        return smem_size_a + smem_size_b;
     }
 
     template <typename Problem>

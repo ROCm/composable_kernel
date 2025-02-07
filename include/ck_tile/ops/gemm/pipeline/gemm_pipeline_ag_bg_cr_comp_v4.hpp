@@ -4,8 +4,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v3.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_compute_v4_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v4_default_policy.hpp"
 
 namespace ck_tile {
 
@@ -37,18 +36,23 @@ struct BaseGemmPipelineAgBgCrCompV4
     }
 };
 
-// Compute optimized pipeline version 4
-// The difference between this pipeline and compute version 3 is it has two LDS window that will use
-// the ping-pong buffer to grab memory from the global memory. While one LDS is grabbing the data
-// from global memory, the other will call the warps on running the MFMA matrix multiplication. When
-// the matrix is in bigger shape, it will keep the Warp always busy and cover the memory loading
-// time. It will have better performance comparing to the Compute Version 3 when they have the same
-// block tile and better performance when you have M, N, K all > 8K even when the compute V3 block
-// size is 2 times of the compute V4.
-template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCregComputeV4DefaultPolicy>
+/**
+ * @brief Compute optimized pipeline version 4
+ *
+ * This version introduces a dual LDS window mechanism using a ping-pong buffer approach
+ * for more efficient data handling from global memory. Unlike compute version 3, this method
+ * allows one LDS to fetch data from global memory while the other LDS executes warps for MFMA
+ * matrix multiplication. This dual operation helps in keeping the Warp unit continuously busy,
+ * thereby significantly reducing memory load times and enhancing overall performance.
+ *
+ * @note This version shows improved performance over Compute Version 3 with the same block tile.
+ * It is particularly more efficient for large matrices where M, N, and K are greater than 8K,
+ * even when Compute Version 3's block size is twice that of Compute Version 4.
+ */
+template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV4DefaultPolicy>
 struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
 {
-    using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
+    using Base             = BaseGemmPipelineAgBgCrCompV4<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;

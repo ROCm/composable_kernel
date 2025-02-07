@@ -18,6 +18,30 @@ enum struct GemmPipelineType
     CompV4
 };
 
+template <GemmPipelineType PT, typename Problem>
+struct GemmPipelineTypeSelector;
+
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::Mem, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrMem<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrMem<Problem>;
+};
+
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompV3, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompV3<Problem>;
+};
+
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompV4<Problem>;
+};
+
 template <typename Tuple>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
@@ -37,8 +61,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
-        constexpr ck_tile::index_t M_Tile = 128;
-        constexpr ck_tile::index_t N_Tile = 128;
+        constexpr ck_tile::index_t M_Tile = 256;
+        constexpr ck_tile::index_t N_Tile = 256;
         constexpr ck_tile::index_t K_Tile = 32;
 
         constexpr ck_tile::index_t M_Warp = 2;
@@ -84,12 +108,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
-        using BaseGemmPipeline = std::conditional_t<
-            PipelineType == GemmPipelineType::Mem,
-            ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
-            std::conditional_t<PipelineType == GemmPipelineType::CompV3,
-                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
-                               ck_tile::BaseGemmPipelineAgBgCrCompV4<GemmPipelineProblem>>>;
+        using BaseGemmPipeline =
+            typename GemmPipelineTypeSelector<PipelineType, GemmPipelineProblem>::base_pipeline;
 
         const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
         const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
@@ -110,15 +130,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                                has_hot_loop_v,
                                                                                tail_number_v>;
 
-            using GemmPipeline = std::conditional_t<
-                PipelineType == GemmPipelineType::Mem,
-                ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem,
-                                               ck_tile::UniversalGemmPipelineAgBgCrPolicy>,
-                std::conditional_t<
-                    PipelineType == GemmPipelineType::CompV3,
-                    ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem,
-                                                      ck_tile::UniversalGemmPipelineAgBgCrPolicy>,
-                    ck_tile::GemmPipelineAgBgCrCompV4<UniversalGemmProblem>>>;
+            using GemmPipeline =
+                typename GemmPipelineTypeSelector<PipelineType, UniversalGemmProblem>::pipeline;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<AccDataType,

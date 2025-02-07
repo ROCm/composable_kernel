@@ -17,7 +17,7 @@ using Intrawave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
 // using Interwave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
 //                                              ck_tile::GemmPipelineScheduler::Interwave>;
 // using Mem       = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
-// using CompV4    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
+using CompV4 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
 using CompV3 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
 
 // TODO: Enable Memory pipeline, when it would be updated for vector loads on non-K major tensors.

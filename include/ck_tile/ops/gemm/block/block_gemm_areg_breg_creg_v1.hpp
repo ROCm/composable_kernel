@@ -14,26 +14,51 @@ namespace ck_tile {
 template <typename Problem_, typename Policy_ = BlockGemmARegBRegCRegV1DefaultPolicy>
 struct BlockGemmARegBRegCRegV1
 {
-    using Problem        = remove_cvref_t<Problem_>;
-    using Policy         = remove_cvref_t<Policy_>;
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+    private:
+    template <typename PipelineProblem_, typename GemmPolicy_>
+    struct GemmTraits_
+    {
+        using Problem        = remove_cvref_t<PipelineProblem_>;
+        using Policy         = remove_cvref_t<GemmPolicy_>;
+        using ADataType      = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType      = remove_cvref_t<typename Problem::BDataType>;
+        using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+        using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static constexpr index_t kBlockSize   = Problem::kBlockSize;
-    static constexpr index_t MPerBlock    = BlockGemmShape::kM;
-    static constexpr index_t NPerBlock    = BlockGemmShape::kN;
-    static constexpr index_t KPerBlock    = BlockGemmShape::kK;
-    static constexpr auto config          = Policy::template GetWarpGemmMWarpNWarp<Problem>();
-    using WarpGemm                        = remove_cvref_t<decltype(config.template at<0>())>;
-    static constexpr index_t MWarp        = config.template at<1>();
-    static constexpr index_t NWarp        = config.template at<2>();
-    static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
-    static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
-    static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
+        static constexpr index_t kBlockSize = Problem::kBlockSize;
+        static constexpr auto Scheduler     = Problem::Scheduler;
 
-    static constexpr index_t KPack = WarpGemm::kKPerThread;
+        static constexpr index_t MPerBlock = BlockGemmShape::kM;
+        static constexpr index_t NPerBlock = BlockGemmShape::kN;
+        static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
+        static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm               = remove_cvref_t<decltype(config.template at<0>())>;
+
+        static constexpr index_t MWarp        = config.template at<1>();
+        static constexpr index_t NWarp        = config.template at<2>();
+        static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
+        static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
+        static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
+
+        static constexpr index_t KPack = WarpGemm::kKPerThread;
+    };
+
+    public:
+    using Traits = GemmTraits_<Problem_, Policy_>;
+
+    using WarpGemm = typename Traits::WarpGemm;
+
+    using ADataType = remove_cvref_t<typename Traits::ADataType>;
+    using BDataType = remove_cvref_t<typename Traits::BDataType>;
+    using CDataType = remove_cvref_t<typename Traits::CDataType>;
+
+    static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
+    static constexpr index_t MIterPerWarp = Traits::MIterPerWarp;
+    static constexpr index_t NIterPerWarp = Traits::NIterPerWarp;
+
+    static constexpr index_t MWarp = Traits::MWarp;
+    static constexpr index_t NWarp = Traits::NWarp;
 
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {

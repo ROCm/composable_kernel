@@ -14,24 +14,9 @@ namespace ck_tile {
 // UniversalGemm Pipeline Policy.
 // Default policy class should not be templated, put template on
 // member functions instead.
-struct GemmPipelineAGmemBGmemCregComputeV4DefaultPolicy : public UniversalGemmBasePolicy
+struct GemmPipelineAgBgCrCompV4DefaultPolicy
+    : public UniversalGemmBasePolicy<GemmPipelineAgBgCrCompV4DefaultPolicy>
 {
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
-    {
-        using BlockGemm         = decltype(GetBlockGemm<Problem>());
-        constexpr index_t KPack = BlockGemm::KPack;
-        return KPack;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
-    {
-        using BlockGemm         = decltype(GetBlockGemm<Problem>());
-        constexpr index_t KPack = BlockGemm::KPack;
-        return KPack;
-    }
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
@@ -80,35 +65,6 @@ struct GemmPipelineAGmemBGmemCregComputeV4DefaultPolicy : public UniversalGemmBa
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return b_lds_block_desc;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
-    {
-        constexpr index_t smem_size_a =
-            integer_least_multiple(sizeof(typename Problem::ADataType) *
-                                       MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
-                                   16);
-        return smem_size_a;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
-    {
-        constexpr index_t smem_size_b =
-            integer_least_multiple(sizeof(typename Problem::BDataType) *
-                                       MakeBLdsBlockDescriptor<Problem>().get_element_space_size(),
-                                   16);
-        return smem_size_b;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
-    {
-        constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
-        constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
-
-        return smem_size_a + smem_size_b;
     }
 
     template <typename Problem>
