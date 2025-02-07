@@ -52,16 +52,6 @@ struct GemmPipelineAGmemBGmemCRegV1
         // clang-format on
     }
 
-    CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
-    {
-        return integer_divide_ceil(
-                   sizeof(ADataType) *
-                       Policy::template MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
-                   kLdsAlignmentInBytes) *
-                   kLdsAlignmentInBytes +
-               sizeof(BDataType) *
-                   Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
-    }
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
