@@ -1136,7 +1136,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         static_for<0, MLoadRepeats, 1>{}([&](auto m0) {
             token_offsets(m0) = p_sorted_token_ids[token_pos + MLoadThreads * m0] * problem.K;
         });
-        printf("threadIdx.x %d off %d\n", threadIdx.x, token_offsets(I0));
+        // printf("threadIdx.x %d off %d\n", threadIdx.x, token_offsets(I0));
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
@@ -1149,9 +1149,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
-        // if(blockIdx.x==1)
+        // if(threadIdx.x==0)
         // printf("tid %d eid %d expert_stride %d bufsize %d\n",
-        // threadIdx.x, expert_id, expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
+        // threadIdx.x, expert_id, expert_stride, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());

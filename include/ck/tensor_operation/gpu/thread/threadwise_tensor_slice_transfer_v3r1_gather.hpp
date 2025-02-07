@@ -174,20 +174,21 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             constexpr auto src_data_idx_seq = generate_sequence_v2(
                 [&](auto i) { return Number<src_data_idx[i]>{}; }, Number<src_data_idx.Size()>{});
 
-            auto gather_offset = gather_offsets_(I0);//ordered_src_access_idx[Number<ordered_gather_dim>{}]);
+            auto gather_offset = gather_offsets_(ordered_src_access_idx[Number<ordered_gather_dim>{}]);
 
             // maintain a container record is_src_valid, waiting for RunWrite use.
-            const bool is_src_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_) && (gather_offset < 32*512);
+            const index_t ld_offset = src_coord_.GetOffset() + gather_offset;
+            const bool is_src_valid = ld_offset < src_desc.GetElementSpaceSize() * sizeof(SrcData);//hack felix, todo use coord
+                //coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_) && (gather_offset < 32*512);
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, is_src_valid);
 
             using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
-            if(blockIdx.x+blockIdx.y==0)
-            printf("tid %d off %d %d\n", threadIdx.x, src_coord_.GetOffset(), gather_offset );
+            // if(blockIdx.x+blockIdx.y==0)
+            // printf("tid %d off %d %d\n", threadIdx.x, src_coord_.GetOffset(), gather_offset );
             auto src_vector_container =
-                src_vector_type{src_buf.template Get<src_vector_t>(src_coord_.GetOffset() + gather_offset, true)};
+                src_vector_type{src_buf.template Get<src_vector_t>(ld_offset, true)};
 
             using dst_vector_type = vector_type_maker_t<DstData, SrcScalarPerVector>;
             using dst_vector_t    = typename dst_vector_type::type;
