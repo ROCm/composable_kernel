@@ -176,8 +176,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
     static_assert(NWave * warpSize == BlockSize);
     // static constexpr index_t NumTokens = 1;
-    static constexpr index_t Experts   = 8;
-    static constexpr index_t SortedTileSize   = 32;
+    static constexpr index_t SortedTileSize   = MPerBlock;
 
 
     static constexpr auto MakeDsGridPointer()

@@ -29,15 +29,17 @@ struct ReferenceMoeGemm : public device::BaseOperator
     struct Argument : public device::BaseArgument
     {
         Argument(const Tensor<ck::index_t>& sorted_token_ids,
-        const Tensor<ck::index_t>& expert_ids,
-        const Tensor<ADataType>& a_t_k,
+                 const Tensor<ck::index_t>& expert_ids,
+                 const index_t sorted_tile_size,
+                 const Tensor<ADataType>& a_t_k,
                  const Tensor<BDataType>& b_e_n_k,
                  Tensor<CDataType>& c_m_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
-            : expert_ids_{expert_ids},
-              sorted_token_ids_{sorted_token_ids},
+            : sorted_token_ids_{sorted_token_ids},
+              expert_ids_{expert_ids},
+              sorted_tile_size_{sorted_tile_size},
               a_t_k_{a_t_k},
               b_e_n_k_{b_e_n_k},
               c_m_n_{c_m_n},
@@ -56,7 +58,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
-        index_t sorted_tile_size = 32;
+        index_t sorted_tile_size_;
     };
 
     // Invoker
@@ -73,7 +75,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
                 const int t = arg.sorted_token_ids_(m);
-                const int e = arg.expert_ids_(m / arg.sorted_tile_size);
+                const int e = arg.expert_ids_(m / arg.sorted_tile_size_);
                 const int token_cnt = arg.a_t_k_.mDesc.GetLengths()[0];
                 if(t < token_cnt) {
                     for(int k = 0; k < K; ++k)
@@ -135,6 +137,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
 
     static auto MakeArgument(const Tensor<ck::index_t>& sorted_token_ids,
                              const Tensor<ck::index_t>& expert_ids,
+                             const index_t sorted_tile_size,
                              const Tensor<ADataType>& a_t_k,
                              const Tensor<BDataType>& b_e_n_k,
                              Tensor<CDataType>& c_m_n,
@@ -142,7 +145,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{sorted_token_ids, expert_ids, a_t_k, b_e_n_k, c_m_n, a_element_op, b_element_op, c_element_op};
+        return Argument{sorted_token_ids, expert_ids, sorted_tile_size, a_t_k, b_e_n_k, c_m_n, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

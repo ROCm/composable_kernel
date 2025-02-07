@@ -133,13 +133,13 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
                //threadnum, mblock, nblock, kblock
-               256,   32,   128,    128,
+               256,   64,   128,    128,
                // ak1, bk1
                8,   8,
                // mn_perxdl
                32,   32,
                // mn_xdlperwave 
-               1,    1,
+               2,    1,
                // a,b: loadtranfer cluster, cluster order, srcorder, srcpervec, dstpervec, lds_extra
             //    S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
             //    S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
@@ -169,8 +169,8 @@ int main(int argc, char* argv[])
     ck::index_t N = 6144;
     ck::index_t K = 8192;
     ck::index_t experts = 8;
-    ck::index_t sorted_tile_num = 8;
-    ck::index_t sorted_tile_size = 32;
+    ck::index_t sorted_tile_num = 1;
+    ck::index_t sorted_tile_size = 64;
     ck::index_t SORTED_SIZE = sorted_tile_num * sorted_tile_size;
     ck::index_t tokens = 64;
 
@@ -368,7 +368,7 @@ int main(int argc, char* argv[])
         auto ref_invoker            = ref_moe_gemm.MakeInvoker();
 
         auto ref_argument = ref_moe_gemm.MakeArgument(
-           sorted_token_ids, expert_ids, a0_t_k, b0_e_n_k, c_m_n, PassThrough{}, PassThrough{}, PassThrough{});
+           sorted_token_ids, expert_ids, sorted_tile_size, a0_t_k, b0_e_n_k, c_m_n, PassThrough{}, PassThrough{}, PassThrough{});
 
         ref_invoker.Run(ref_argument);
         for(int m = 0; m < SORTED_SIZE; ++m)
