@@ -1127,16 +1127,18 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         const index_t expert_id = __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[block_m_id]);
         
         // constexpr auto M0 = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
-        constexpr auto MLoadThreads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
-        constexpr auto KLoadThreads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0) * ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I2);
-        constexpr auto MLoadRepeats = MPerBlock / MLoadThreads;
-        static_assert(MLoadRepeats == 1, "only support 1 line per thread now!");
-        const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / KLoadThreads;
-        StaticallyIndexedArray<index_t, MLoadRepeats> token_offsets; //= p_sorted_token_ids[token_pos];
-        static_for<0, MLoadRepeats, 1>{}([&](auto m0) {
-            token_offsets(m0) = p_sorted_token_ids[token_pos + MLoadThreads * m0] * problem.K;
+        constexpr auto AMThreads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
+        constexpr auto AK0Threads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);
+        constexpr auto AK1Threads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I2);
+        constexpr auto AKThreads = AK0Threads * AK1Threads;
+        constexpr auto AMRepeats = MPerBlock / AMThreads;
+        // static_assert(MLoadRepeats == 1, "only support 1 line per thread now!");
+        const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
+        StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
+        static_for<0, AMRepeats, 1>{}([&](auto m0) {
+            gather_offsets(m0) = p_sorted_token_ids[token_pos + m0] * problem.K;
+            printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
         });
-        // printf("threadIdx.x %d off %d\n", threadIdx.x, token_offsets(I0));
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
@@ -1194,7 +1196,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{},
-                token_offsets);
+                gather_offsets);
 
         // Thread-wise copy
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack
@@ -1222,7 +1224,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<LDSTypeA*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
-        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
+        constexpr auto a_block_slice_copy_step = make_multi_index(AK0Threads, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, KRepeat, 0);
 
         // Blockwise GEMM pipeline

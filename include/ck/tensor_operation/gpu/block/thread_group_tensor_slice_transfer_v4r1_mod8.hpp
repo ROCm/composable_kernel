@@ -45,11 +45,12 @@ template <typename ThreadGroup,
           index_t NumThreadScratch = 1>
 struct ThreadGroupTensorSliceTransfer_v4r1_mod8
 {
+    static constexpr auto I0 = Number<0>{};
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
     static constexpr auto thread_slice_lengths = BlockSliceLengths{} / ThreadClusterLengths{};
     static constexpr index_t gather_num = thread_slice_lengths.At(Number<GatherDim>{});
+    static constexpr index_t mod_num = ThreadClusterLengths{}.At(I0); // Dirty HACK FELIX, TODO fix
     using Index = MultiIndex<nDim>;
-    // using GatherIndex = MultiIndex<gather_num>;
 
     __device__ constexpr ThreadGroupTensorSliceTransfer_v4r1_mod8(
         const SrcDesc& src_desc,
@@ -86,7 +87,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1_mod8
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             const auto src_thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
-                make_multi_index(ThreadGroup::GetThreadId() % 8));
+                make_multi_index(ThreadGroup::GetThreadId() % mod_num));
             threadwise_transfer_.SetSrcSliceOrigin(src_desc,
                                                    src_block_slice_origin + src_thread_cluster_idx * thread_slice_lengths);
 
@@ -104,7 +105,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1_mod8
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
-                make_multi_index(ThreadGroup::GetThreadId() % 8));
+                make_multi_index(ThreadGroup::GetThreadId() % mod_num));
 
             const auto thread_data_idx_begin = thread_cluster_idx * thread_slice_lengths;
             threadwise_transfer_.SetSrcSliceOrigin(src_desc,

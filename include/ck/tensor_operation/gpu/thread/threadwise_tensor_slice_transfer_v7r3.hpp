@@ -423,14 +423,14 @@ struct ThreadwiseTensorSliceTransfer_v7r3
                     dst_coords_[i].GetOffset(),
                     is_dst_valid,
                     dst_vectors[i].template AsType<dst_vector_t>()[I0]);
-                if(1) {
-                    static_for<0, DstScalarPerVector, 1>{}([&](auto idx) {
-                        using DstData = remove_cvref_t<tuple_element_t<0, DstDatas>>;
-                        using print_vec_t = typename vector_type<DstData, 1>::type;
-                        // printf("tid %d off %d valid %d %f\n",threadIdx.x, dst_coords_[i].GetOffset(), is_dst_valid, 
-                        // type_convert<float>(dst_vectors[i].template AsType<print_vec_t>()[idx]));
-                    });
-                }
+                // if(1) {
+                //     static_for<0, DstScalarPerVector, 1>{}([&](auto idx) {
+                //         using DstData = remove_cvref_t<tuple_element_t<0, DstDatas>>;
+                //         using print_vec_t = typename vector_type<DstData, 1>::type;
+                //         printf("tid %d off %d valid %d %f\n",threadIdx.x, dst_coords_[i].GetOffset(), is_dst_valid, 
+                //         type_convert<float>(dst_vectors[i].template AsType<print_vec_t>()[idx]));
+                //     });
+                // }
             });
 
             // move coordinate

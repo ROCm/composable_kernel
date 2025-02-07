@@ -178,15 +178,15 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
 
             // maintain a container record is_src_valid, waiting for RunWrite use.
             const index_t ld_offset = src_coord_.GetOffset() + gather_offset;
-            const bool is_src_valid = ld_offset < src_desc.GetElementSpaceSize() * sizeof(SrcData);//hack felix, todo use coord
+            const bool is_src_valid = ld_offset < src_desc.GetElementSpaceSize();//hack felix, todo use coord
                 //coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_) && (gather_offset < 32*512);
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, is_src_valid);
 
             using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
-            // if(blockIdx.x+blockIdx.y==0)
-            // printf("tid %d off %d %d\n", threadIdx.x, src_coord_.GetOffset(), gather_offset );
+            if(threadIdx.x==0)
+            printf("use tid %d num %d off %d %d\n", threadIdx.x, ordered_src_access_idx[Number<ordered_gather_dim>{}](), src_coord_.GetOffset(), gather_offset );
             auto src_vector_container =
                 src_vector_type{src_buf.template Get<src_vector_t>(ld_offset, true)};
 
@@ -235,7 +235,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             //         printf("tid %d %f\n",threadIdx.x, type_convert<float>(src_vector_container.template AsType<print_vec_t>()[idx]));
             //     });
             // }
-            constexpr auto move_on_dim = [&]() constexpr
+            auto move_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
@@ -246,15 +246,20 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                         move_on_dim_(i) &=
                             ordered_src_access_idx[j] == ordered_src_access_lengths[j] - 1;
                     });
+                    move_on_dim_(i) &= i.value != ordered_gather_dim;
+                    
+                    // if(threadIdx.x==0)
+                    //     printf("i %d %d ordered_gather_dim %d\n", i.value, move_on_dim_(i), ordered_gather_dim);
                 });
 
                 return move_on_dim_;
             }
             ();
-
             // move src coord
             static_for<0, nDim, 1>{}([&](auto i) {
-                if constexpr(move_on_dim[i])
+                if(threadIdx.x==0)
+                printf("use tid %d ori cord: %d i %d mov %d\n", threadIdx.x, src_coord_.GetOffset(), i.value, move_on_dim[i]);
+                if (move_on_dim[i])
                 {
                     if constexpr(forward_sweep[i])
                     {
@@ -267,7 +272,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                             src_desc, src_coord_, src_backward_steps[src_dim_access_order[i]]);
                     }
                 }
+                if(threadIdx.x==0)
+                printf("use tid %d moved cord: %d\n", threadIdx.x, src_coord_.GetOffset());
             });
+            
         });
 
         // move src coordinate back to slice origin (or not)
