@@ -1132,7 +1132,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         constexpr auto MLoadRepeats = MPerBlock / MLoadThreads;
         static_assert(MLoadRepeats == 1, "only support 1 line per thread now!");
         const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / KLoadThreads;
-
+        const index_t t0 = (p_sorted_token_ids[block_m_id * MPerBlock] & 0xffffff);
+        if(t0 >= problem.NumTokens)
+            return;
         index_t token_offset = p_sorted_token_ids[token_pos];
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
