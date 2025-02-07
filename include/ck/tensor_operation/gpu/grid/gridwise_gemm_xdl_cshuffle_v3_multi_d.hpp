@@ -1220,38 +1220,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         return c_grid_desc_mblock_mperblock_nblock_nperblock;
     }
 
-    __device__ static constexpr auto EpilogueScheduler()
-    {
-        constexpr auto epilogue_tile = MPerBlock * NPerBlock * CShuffleMXdlPerWavePerShuffle *
-                                       CShuffleNXdlPerWavePerShuffle / (MXdlPerWave * NXdlPerWave);
-        constexpr auto num_mfma_inst = BlockwiseGemmPipe::HotLoopInstList::C_MFMA_Inst_Num *
-                                       CShuffleMXdlPerWavePerShuffle *
-                                       CShuffleNXdlPerWavePerShuffle / (MXdlPerWave * NXdlPerWave);
-        constexpr auto num_ds_write_inst =
-            epilogue_tile / BlockSize; // DefaultMFMA, per-element write
-        constexpr auto num_ds_read_inst =
-            epilogue_tile / BlockSize / CShuffleBlockTransferScalarPerVector_NPerBlock;
-        constexpr auto num_buffer_store_inst = num_ds_read_inst;
-
-        // MFMA:ds_write=1:2
-        constexpr auto num_ds_write_issue  = num_ds_write_inst / 2;
-        constexpr auto num_mfma_block_sync = (num_mfma_inst - num_ds_write_issue) / 2;
-        constexpr auto mfma_ds_write_rate  = MXdlPerWave == 16 ? 2 : 4;
-
-        // Hide ds_write issue latency
-        static_for<0, num_ds_write_issue, 1>{}([&](auto i) {
-            ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                  // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x200, mfma_ds_write_rate, 0); // DS write
-        });
-        // Hide block_sync + ds_read latency
-        __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_block_sync, 0); // MFMA
-        __builtin_amdgcn_sched_group_barrier(0x100, num_ds_read_inst, 0);    // DS read
-        // Hide block_sync latency
-        __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_block_sync, 0);   // MFMA
-        __builtin_amdgcn_sched_group_barrier(0x040, num_buffer_store_inst, 0); // VMEM write
-    }
-
     // return block_id to C matrix tile idx (m0, n0) mapping
     // if arch = gfx942
     using Block2CTileMapDefault = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
@@ -1429,15 +1397,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
         auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
 
-        constexpr auto a_thread_desc = blockwise_gemm_pipeline.a_thread_desc_;
-        constexpr auto b_thread_desc = blockwise_gemm_pipeline.b_thread_desc_;
-        constexpr auto c_thread_desc = blockwise_gemm_pipeline.c_thread_desc_;
-
-        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
-            a_thread_desc.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
-            b_thread_desc.GetElementSpaceSize());
-
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
@@ -1455,16 +1414,10 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                                                          b_block_buf,
                                                                          b_block_slice_copy_step,
                                                                          c_thread_buf,
-                                                                         a_thread_buf,
-                                                                         b_thread_buf,
                                                                          num_k_block_main_loop);
 
         // shuffle C and write out
         {
-            // Last block MFMA
-            auto xdlops_gemm       = blockwise_gemm_pipeline.xdlops_gemm;
-            constexpr auto KRepeat = blockwise_gemm_pipeline.KRepeat;
-
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
@@ -1624,9 +1577,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
 
-            // C: LDS -> VGPR
-            // D: Global -> VGPR
-            // E: =Epilogue(C, D), VGPR -> Global
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7r3<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -1685,83 +1635,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
             static_assert(num_access == sfc_cde_block.GetNumOfAccess(), "wrong!");
 
-            constexpr auto KPerInnerLoop = blockwise_gemm_pipeline.KPerInnerLoop;
-
-            static_for<0, CShuffleMXdlPerWavePerShuffle, 1>{}([&](auto m0) {
-                static_for<0, CShuffleNXdlPerWavePerShuffle, 1>{}([&](auto n0) {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
-                            vector_type<ComputeTypeA, KPack> a_thread_vec;
-                            vector_type<ComputeTypeB, KPack> b_thread_vec;
-
-                            static_for<0, KPack, 1>{}([&](auto ik) {
-                                a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                    a_thread_buf[Number<a_thread_desc.CalculateOffset(
-                                        make_tuple(m0, I0, k0, k_ + ik))>{}];
-                                b_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                    b_thread_buf[Number<b_thread_desc.CalculateOffset(
-                                        make_tuple(n0, I0, k0, k_ + ik))>{}];
-                            });
-
-                            using mfma_input_type =
-                                typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
-
-                            constexpr index_t c_offset =
-                                c_thread_desc.CalculateOffset(make_tuple(m0, n0, 0));
-
-                            xdlops_gemm.Run(
-                                a_thread_vec.template AsType<mfma_input_type>(),
-                                b_thread_vec.template AsType<mfma_input_type>(),
-                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                        });
-                    });
-                });
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
                 block_sync_lds();
-
-                if constexpr(access_id < num_access - 1)
-                {
-                    constexpr auto shuffle_m0 =
-                        sfc_c_vgpr.GetIndexTupleOfNumber(access_id + Number<1>{})[Number<0>{}];
-                    constexpr auto shuffle_n0 =
-                        sfc_c_vgpr.GetIndexTupleOfNumber(access_id + Number<1>{})[Number<1>{}];
-
-                    static_for<0, CShuffleMXdlPerWavePerShuffle, 1>{}([&](auto m0) {
-                        static_for<0, CShuffleNXdlPerWavePerShuffle, 1>{}([&](auto n0) {
-                            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
-                                    vector_type<ComputeTypeA, KPack> a_thread_vec;
-                                    vector_type<ComputeTypeB, KPack> b_thread_vec;
-
-                                    static_for<0, KPack, 1>{}([&](auto ik) {
-                                        a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                            a_thread_buf[Number<a_thread_desc.CalculateOffset(
-                                                make_tuple(shuffle_m0 + m0, I0, k0, k_ + ik))>{}];
-                                        b_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                            b_thread_buf[Number<b_thread_desc.CalculateOffset(
-                                                make_tuple(shuffle_n0 + n0, I0, k0, k_ + ik))>{}];
-                                    });
-
-                                    using mfma_input_type =
-                                        typename vector_type<ComputeTypeA,
-                                                             xdlops_gemm.K1PerXdlops>::type;
-
-                                    constexpr index_t c_offset = c_thread_desc.CalculateOffset(
-                                        make_tuple(shuffle_m0 + m0, shuffle_n0 + n0, 0));
-
-                                    xdlops_gemm.Run(
-                                        a_thread_vec.template AsType<mfma_input_type>(),
-                                        b_thread_vec.template AsType<mfma_input_type>(),
-                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                                });
-                            });
-                        });
-                    });
-                }
 
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
@@ -1796,8 +1672,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                         tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                         I0,
                         cde_lds_and_global_step);
-
-                    // EpilogueScheduler();
                 }
             });
         }
@@ -1990,15 +1864,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
         auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
 
-        constexpr auto a_thread_desc = blockwise_gemm_pipeline.a_thread_desc_;
-        constexpr auto b_thread_desc = blockwise_gemm_pipeline.b_thread_desc_;
-        constexpr auto c_thread_desc = blockwise_gemm_pipeline.c_thread_desc_;
-
-        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
-            a_thread_desc.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
-            b_thread_desc.GetElementSpaceSize());
-
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
@@ -2016,16 +1881,10 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                                                          b_block_bufs,
                                                                          b_block_slice_copy_step,
                                                                          c_thread_buf,
-                                                                         a_thread_buf,
-                                                                         b_thread_buf,
                                                                          num_k_block_main_loop);
 
         // shuffle C and write out
         {
-            // Last block MFMA
-            auto xdlops_gemm       = blockwise_gemm_pipeline.xdlops_gemm;
-            constexpr auto KRepeat = blockwise_gemm_pipeline.KRepeat;
-
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
@@ -2243,83 +2102,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
             static_assert(num_access == sfc_cde_block.GetNumOfAccess(), "wrong!");
 
-            constexpr auto KPerInnerLoop = blockwise_gemm_pipeline.KPerInnerLoop;
-
-            static_for<0, CShuffleMXdlPerWavePerShuffle, 1>{}([&](auto m0) {
-                static_for<0, CShuffleNXdlPerWavePerShuffle, 1>{}([&](auto n0) {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
-                            vector_type<ComputeTypeA, KPack> a_thread_vec;
-                            vector_type<ComputeTypeB, KPack> b_thread_vec;
-
-                            static_for<0, KPack, 1>{}([&](auto ik) {
-                                a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                    a_thread_buf[Number<a_thread_desc.CalculateOffset(
-                                        make_tuple(m0, I0, k0, k_ + ik))>{}];
-                                b_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                    b_thread_buf[Number<b_thread_desc.CalculateOffset(
-                                        make_tuple(n0, I0, k0, k_ + ik))>{}];
-                            });
-
-                            using mfma_input_type =
-                                typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
-
-                            constexpr index_t c_offset =
-                                c_thread_desc.CalculateOffset(make_tuple(m0, n0, 0));
-
-                            xdlops_gemm.Run(
-                                a_thread_vec.template AsType<mfma_input_type>(),
-                                b_thread_vec.template AsType<mfma_input_type>(),
-                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                        });
-                    });
-                });
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
                 block_sync_lds();
-
-                if constexpr(access_id < num_access - 1)
-                {
-                    constexpr auto shuffle_m0 =
-                        sfc_c_vgpr.GetIndexTupleOfNumber(access_id + Number<1>{})[Number<0>{}];
-                    constexpr auto shuffle_n0 =
-                        sfc_c_vgpr.GetIndexTupleOfNumber(access_id + Number<1>{})[Number<1>{}];
-
-                    static_for<0, CShuffleMXdlPerWavePerShuffle, 1>{}([&](auto m0) {
-                        static_for<0, CShuffleNXdlPerWavePerShuffle, 1>{}([&](auto n0) {
-                            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
-                                    vector_type<ComputeTypeA, KPack> a_thread_vec;
-                                    vector_type<ComputeTypeB, KPack> b_thread_vec;
-
-                                    static_for<0, KPack, 1>{}([&](auto ik) {
-                                        a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                            a_thread_buf[Number<a_thread_desc.CalculateOffset(
-                                                make_tuple(shuffle_m0 + m0, I0, k0, k_ + ik))>{}];
-                                        b_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                            b_thread_buf[Number<b_thread_desc.CalculateOffset(
-                                                make_tuple(shuffle_n0 + n0, I0, k0, k_ + ik))>{}];
-                                    });
-
-                                    using mfma_input_type =
-                                        typename vector_type<ComputeTypeA,
-                                                             xdlops_gemm.K1PerXdlops>::type;
-
-                                    constexpr index_t c_offset = c_thread_desc.CalculateOffset(
-                                        make_tuple(shuffle_m0 + m0, shuffle_n0 + n0, 0));
-
-                                    xdlops_gemm.Run(
-                                        a_thread_vec.template AsType<mfma_input_type>(),
-                                        b_thread_vec.template AsType<mfma_input_type>(),
-                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                                });
-                            });
-                        });
-                    });
-                }
 
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
@@ -2354,8 +2139,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                         tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                         I0,
                         cde_lds_and_global_step);
-
-                    // EpilogueScheduler();
                 }
             });
         }
