@@ -13,7 +13,7 @@ using XDataType = ck::e8m0_bexp_t;
 #endif
 using AccDataType      = float;
 using CShuffleDataType = float;
-#if 1
+#if 0
 using CDataType = ck::half_t;
 #else
 using CDataType = float;
