@@ -11,7 +11,7 @@ set(FMHA_SCORE_MOD_F [[s + static_cast<decltype(s)>((q_idx - v_idx) % 8)]])
 # set(FMHA_SCORE_MOD_F [[s]])
 
 variable_watch(FMHA_PRE_SOFTMAX_F)
-set(FMHA_PRE_SOFTMAX_F [[static_cast<decltype(s)>(tanh(s*1.0)/1.0)]])
+set(FMHA_PRE_SOFTMAX_F [[static_cast<decltype(s)>( tanh(1.1f * s) / 1.1f )]])
 #set(FMHA_PRE_SOFTMAX_F [[s]])
 
 foreach(api ${FMHA_FWD_ENABLE_APIS})

@@ -430,6 +430,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 });
             }
 
+	    s_acc = tile_elementwise_in(ps_acc_element_func, s_acc);
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
@@ -472,7 +473,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
 #endif
             }
-            move_tile_window(bias_dram_window, {0, kN0});
+            
+            
+	    move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 const auto k_origin      = k_dram_block_window.get_window_origin();
@@ -560,7 +563,6 @@ struct BlockFmhaPipelineQRKSVSAsync
                 }
             };
 
-            s_acc = tile_elementwise_in(ps_acc_element_func, s_acc);
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
