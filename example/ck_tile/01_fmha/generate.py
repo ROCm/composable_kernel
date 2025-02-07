@@ -64,7 +64,7 @@ if __name__ == "__main__":
         "--direction", # we keep 'direction' option for backward compatibility
         "-a",
         "--api",
-        default='fwd',
+        default='bwd',
         required=False,
         help="supply API(s) to generate (default: fwd). separated by comma."
     )
