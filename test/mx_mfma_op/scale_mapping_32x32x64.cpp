@@ -12,7 +12,7 @@ __host__ __device__ constexpr Y bit_cast(const X& x)
     return __builtin_bit_cast(Y, x);
 }
 
-__global__ void kernel()
+__global__ void kernel_a_scale_mapping()
 {
     using dataAB = uint8_t __attribute__((ext_vector_type(32)));
     using dataC  = float __attribute__((ext_vector_type(16)));
@@ -44,16 +44,18 @@ __global__ void kernel()
     dataX xb(0);
 #endif
 
-    for(int rowId = 1; rowId < 2; rowId++)
+    // fill first column of B with 1.0
+    if(threadIdx.x == 0 || threadIdx.x == 32)
     {
-        if(threadIdx.x == 0 || threadIdx.x == 32)
+        for(size_t i = 0; i < 32; i++)
         {
-            for(size_t i = 0; i < 32; i++)
-            {
-                regB[i] = 0x38; // 1.0
-            }
+            regB[i] = 0x38; // 1.0
         }
+    }
 
+    // verify scale mapping for each row
+    for(int rowId = 0; rowId < 32; rowId++)
+    {
         for(int testId = 0; testId < 64; testId++)
         {
             if(threadIdx.x == 0 && false)
@@ -166,12 +168,60 @@ __global__ void kernel()
                 printf(
                     "thread: %u -- xB: %x\n", threadIdx.x, bit_cast<int32_t>(xb[threadIdx.x / 32]));
             }
-
-            if(threadIdx.x == 0)
+            // Size              |   BLOCK_N  |   BLOCK_N   |
+            // N                 | 0  ...  31 |  0  ...  31 |
+            // Thread Id         | 0  ...  31 | 32  ...  63 | Vector
+            // Register Element   ------------ -------------  Element
+            // Reg0              |     M0     |     M4      | v[0]
+            // Reg1              |     M1     |     M5      | v[1]
+            // Reg2              |     M2     |     M6      | v[2]
+            // Reg3              |     M3     |     M7      | v[3]
+            //                    ____________ _____________
+            // Reg4              |     M8     |     M12     | v[4]
+            // Reg5              |     M9     |     M13     | v[5]
+            // Reg6              |     M10    |     M14     | v[6]
+            // Reg7              |     M11    |     M15     | v[7]
+            //                    ____________ _____________
+            // Reg8              |     M16    |     M20     | v[8]
+            // Reg9              |     M17    |     M21     | v[9]
+            // Reg10             |     M18    |     M22     | v[10]
+            // Reg11             |     M19    |     M23     | v[11]
+            //                    ____________ _____________
+            // Reg12             |     M24    |     M28     | v[12]
+            // Reg13             |     M25    |     M29     | v[13]
+            // Reg14             |     M26    |     M30     | v[14]
+            // Reg15             |     M27    |     M31     | v[15]
+            if(threadIdx.x == 0 || threadIdx.x == 32)
             {
-                printf("a(%d,%d) is scaled from thread %f\n", rowId, testId, log2f(regC[rowId]));
+                auto majChunkId = rowId / 8; //{0,1,2,3}
+                auto minChunkId = rowId % 8; //{0,1,2,3,4,5,6,7}
+
+                if(minChunkId < 4 && threadIdx.x == 0)
+                {
+                    printf("a(%d,%d) is scaled from thread %f\n",
+                           rowId,
+                           testId,
+                           log2f(regC[4 * majChunkId + minChunkId]));
+
+                    // printf("ax(%.0f)*a(%d,%d) ",
+                    //        log2f(regC[4 * majChunkId + minChunkId]),
+                    //        rowId,
+                    //        testId);
+                }
+                else if(minChunkId >= 4 && threadIdx.x == 32)
+                {
+                    // printf("ax(%.0f)*a(%d,%d) ",
+                    //        log2f(regC[4 * majChunkId + minChunkId - 4]),
+                    //        rowId,
+                    //        testId);
+
+                    printf("a(%d,%d) is scaled from thread %f\n",
+                           rowId,
+                           testId,
+                           log2f(regC[4 * majChunkId + minChunkId - 4]));
+                }
             }
-#if 1
+#if 0
             printf("thread: %u -- regC: %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n",
                    threadIdx.x,
                    regC[0],
@@ -192,11 +242,27 @@ __global__ void kernel()
                    regC[15]);
 #endif
         }
+        if(threadIdx.x == 32)
+        {
+            printf("\n");
+        }
     }
+}
+
+__global__ void kernel_b_scale_mapping()
+{
+    using dataAB = uint8_t __attribute__((ext_vector_type(32)));
+    using dataC  = float __attribute__((ext_vector_type(16)));
+    using dataX  = int32_t __attribute__((ext_vector_type(2)));
+
+    dataAB regA(0);
+    dataAB regB(0);
+    dataC regC(0.0f);
 }
 
 int main()
 {
-    kernel<<<1, 64>>>();
+    kernel_a_scale_mapping<<<1, 64>>>();
+    kernel_b_scale_mapping<<<1, 64>>>();
     return 0;
 }
