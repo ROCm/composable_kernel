@@ -30,8 +30,13 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType, 
-          typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
                   ck_tile::DeviceMem& c_m_n_dev_buf,
@@ -57,9 +62,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_B = stride_B;
     args.stride_C = stride_C;
 
-    float ave_time = gemm_calc<ADataType, BDataType, AccDataType, CDataType, 
-                               ALayout, BLayout, CLayout>(
-        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+    float ave_time =
+        gemm_calc<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
@@ -69,14 +74,11 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
 
     std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " A_Layout =" << ALayout::name 
-              << " B_Layout =" << BLayout::name 
-              << " C_Layout =" << CLayout::name
-              << " A Type = " << DataTypeTraits<ADataType>::name 
-              << " B Type = " << DataTypeTraits<BDataType>::name 
-              << " C Type = " << DataTypeTraits<CDataType>::name                             
-              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
+              << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
+              << " C_Layout =" << CLayout::name << " A Type = " << DataTypeTraits<ADataType>::name
+              << " B Type = " << DataTypeTraits<BDataType>::name
+              << " C Type = " << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
+              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
     return ave_time;
 }
@@ -92,10 +94,10 @@ int run_gemm_example_with_layouts(int argc,
     if(!result)
         return -1;
 
-    using ADataType = typename GemmBasicTypeConfig<PrecType>::ADataType;
-    using BDataType = typename GemmBasicTypeConfig<PrecType>::BDataType;
-    using CDataType = typename GemmBasicTypeConfig<PrecType>::CDataType;
-    using AccDataType = typename GemmBasicTypeConfig<PrecType>::AccDataType;        
+    using ADataType   = typename GemmBasicTypeConfig<PrecType>::ADataType;
+    using BDataType   = typename GemmBasicTypeConfig<PrecType>::BDataType;
+    using CDataType   = typename GemmBasicTypeConfig<PrecType>::CDataType;
+    using AccDataType = typename GemmBasicTypeConfig<PrecType>::AccDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -133,19 +135,19 @@ int run_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<ADataType, BDataType, AccDataType, CDataType, 
-                ALayout, BLayout, CLayout>(a_m_k_dev_buf,
-                                           b_k_n_dev_buf,
-                                           c_m_n_dev_buf,
-                                           M,
-                                           N,
-                                           K,
-                                           stride_A,
-                                           stride_B,
-                                           stride_C,
-                                           kbatch,
-                                           n_warmup,
-                                           n_repeat);
+    invoke_gemm<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+        a_m_k_dev_buf,
+        b_k_n_dev_buf,
+        c_m_n_dev_buf,
+        M,
+        N,
+        K,
+        stride_A,
+        stride_B,
+        stride_C,
+        kbatch,
+        n_warmup,
+        n_repeat);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
@@ -160,9 +162,9 @@ int run_gemm_example_with_layouts(int argc,
             a_m_k, b_k_n, c_m_n_host_ref);
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>
-                                    (K, kbatch, max_accumulated_value);
-        pass                 = ck_tile::check_err(c_m_n_dev_result,
+        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, kbatch, max_accumulated_value);
+        pass = ck_tile::check_err(c_m_n_dev_result,
                                   c_m_n_host_ref,
                                   "Error: Incorrect results!",
                                   rtol_atol.at(ck_tile::number<0>{}),
@@ -218,9 +220,9 @@ int run_gemm_example_with_layouts(int argc,
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
         const float max_accumulated_value =
             *std::max_element(c_m_n_gpu_ref.mData.begin(), c_m_n_gpu_ref.mData.end());
-        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>
-                                    (K, kbatch, max_accumulated_value);
-        pass                 = ck_tile::check_err(c_m_n_dev_result,
+        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, kbatch, max_accumulated_value);
+        pass = ck_tile::check_err(c_m_n_dev_result,
                                   c_m_n_gpu_ref,
                                   "Error: Incorrect results!",
                                   rtol_atol.at(ck_tile::number<0>{}),
