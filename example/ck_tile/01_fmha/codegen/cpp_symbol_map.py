@@ -126,3 +126,9 @@ BOOL_MAP = {
     "t" : "true",
     "f" : "false"
 }
+
+BF16_CVT_MAP = {
+    0 : "rtne",
+    1 : "rtna",
+    2 : "rtz",
+}
