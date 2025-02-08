@@ -1115,8 +1115,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             MakeBGridDescriptor_Preshuffled(problem.BN0Shuffled, problem.BK0Shuffled);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
             problem.NumTokens, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
-        // printf("tido %d size %d %d MNBLOCK %d %d %d %d\n", threadIdx.x, problem.StrideC, c_grid_desc_m_n.GetElementSpaceSize(),
-        // problem.MBlock, problem.NBlock, MPerBlock, NPerBlock);
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
@@ -1393,14 +1391,16 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
             constexpr auto EMThreads = CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
             constexpr auto EMRepeats = MPerBlock / EMThreads;
+            constexpr auto ENThreads = CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
             static_assert(EMRepeats == 1, "only support 1 line per thread now!");
-            const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / EMThreads * EMRepeats;
+            const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats;
             StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[token_pos];
             static_for<0, EMRepeats, 1>{}([&](auto m0) {
                 scatter_offsets(m0) = (p_sorted_token_ids[token_pos + m0] & 0xffffff) * problem.N;
-                // printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
+                printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
             });
 
+            // printf("tid %d pos %d offset %d size %d\n", threadIdx.x, token_pos, scatter_offsets(I0), c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7r3<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -1433,7 +1433,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                  make_tuple(make_multi_index(0, 0, block_n_id, 0)),
                  c_element_op};
             // if(threadIdx.x== 0)
-            //     printf("offset %d size %d\n", scatter_offsets(I0), c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
             auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_c_grid + scatter_offsets(I0), c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize() - scatter_offsets(I0));
             // space filling curve for threadwise C in VGPR
@@ -1461,7 +1460,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                            CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
 
             static_assert(num_access == sfc_cde_block.GetNumOfAccess(), "wrong!");
-            // printf("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n");
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
                 block_sync_lds();

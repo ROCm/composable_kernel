@@ -101,17 +101,16 @@ struct ThreadGroupTensorSliceTransfer_v7r3
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
-                make_multi_index(ThreadGroup::GetThreadId() % mod_num));
-
-            const auto thread_data_idx_begin = thread_cluster_idx * thread_slice_lengths;
-
+            const auto src_thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
+                make_multi_index(ThreadGroup::GetThreadId()));
             const auto src_thread_slice_origins = generate_tuple(
-                [&](auto i) { return src_block_slice_origins[i] + thread_data_idx_begin; },
+                [&](auto i) { return src_block_slice_origins[i] + src_thread_cluster_idx * thread_slice_lengths; },
                 Number<nSrc>{});
 
+            const auto dst_thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
+                make_multi_index(ThreadGroup::GetThreadId() % mod_num));
             const auto dst_thread_slice_origins = generate_tuple(
-                [&](auto i) { return dst_block_slice_origins[i] + thread_data_idx_begin; },
+                [&](auto i) { return dst_block_slice_origins[i] + dst_thread_cluster_idx * thread_slice_lengths; },
                 Number<nDst>{});
 
             threadwise_transfer_.SetSrcSliceOrigins(src_descs, src_thread_slice_origins);

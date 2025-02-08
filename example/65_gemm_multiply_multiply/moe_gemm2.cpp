@@ -119,6 +119,7 @@ using CDEElementOp = MultiplyMultiply;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 32;
+static constexpr ck::index_t MNPerXDL = 32;
 static constexpr ck::index_t KPerBlock = 256 / sizeof(A0DataType);
 static constexpr ck::index_t MXDLPerWave = MPerBlock / 32; //todo fix this constraint
 static constexpr ck::index_t AK1 = 16 / sizeof(A0DataType);
@@ -142,7 +143,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
                // ak1, bk1
                AK1,   BK1,
                // mn_perxdl
-               32,   32,
+               MNPerXDL,   MNPerXDL,
                // mn_xdlperwave 
                MXDLPerWave,    1,
                // a,b: loadtranfer cluster, cluster order, srcorder,VECDIM, srcpervec, dstpervec, lds_extra
@@ -173,11 +174,11 @@ int main(int argc, char* argv[])
     // GEMM shape
     ck::index_t N = 128;
     ck::index_t K = 1024;
-    ck::index_t experts = 1;
-    ck::index_t sorted_tile_num = 1;
+    ck::index_t experts = 8;
+    ck::index_t sorted_tile_num = 2;
     ck::index_t sorted_tile_size = MPerBlock;
     ck::index_t SORTED_SIZE = sorted_tile_num * sorted_tile_size;
-    ck::index_t tokens = 1;
+    ck::index_t tokens = 32;
 
     if(argc == 1)
     {
@@ -251,7 +252,7 @@ int main(int argc, char* argv[])
     Tensor<D1DataType> d1_t_n(f_host_tensor_descriptor(tokens, N, StrideD, D1Layout{}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
-
+    e_t_n_device_result.SetZero();
     std::cout << "a0_m_k: " << a0_m_k.mDesc << std::endl;
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
     std::cout << "d1_t_n: " << d1_t_n.mDesc << std::endl;
@@ -358,8 +359,7 @@ int main(int argc, char* argv[])
     {
         invoker.Run(argument, StreamConfig{nullptr, false, 0 ,0,1});
 
-        e_device_buf.FromDevice(e_t_n_device_result.mData.data());
-
+        // e_device_buf.FromDevice(e_t_n_device_result.mData.data());
         Tensor<CShuffleDataType> c_t_n({tokens, N});
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMoeGemm2<A0DataType,
@@ -376,10 +376,11 @@ int main(int argc, char* argv[])
            sorted_token_ids, expert_ids, sorted_tile_size, a0_m_k, b0_e_n_k, c_t_n, PassThrough{}, PassThrough{}, PassThrough{});
 
         ref_invoker.Run(ref_argument);
-        for(int m = 0; m < SORTED_SIZE; ++m)
+
+        for(int t = 0; t < tokens; ++t)
         {
             
-            const int t = sorted_token_ids(m);
+            // const int t = sorted_token_ids(m);
             for(int n = 0; n < N; ++n)
             {
                 cde_element_op(e_t_n_host_result(t, n), c_t_n(t, n), d0_t_n(t, n), d1_t_n(t, n));
@@ -389,6 +390,7 @@ int main(int argc, char* argv[])
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
         e_t_n_device_result.savetxt("out.txt");
         e_t_n_host_result.savetxt("ref.txt");
+
         return ck::utils::check_err(
                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
                    ? 0

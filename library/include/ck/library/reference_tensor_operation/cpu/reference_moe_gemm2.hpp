@@ -71,13 +71,13 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
             arg.c_t_n_.SetZero();
             auto f_mk_kn_mn = [&](auto m, auto n) {
                 const int K = arg.a_m_k_.mDesc.GetLengths()[1];
-
                 AccDataType v_acc{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
                 const int t = arg.sorted_token_ids_(m);
                 const int e = arg.expert_ids_(m / arg.sorted_tile_size_);
-                const int token_cnt = arg.a_m_k_.mDesc.GetLengths()[0];
+                const int token_cnt = arg.c_t_n_.mDesc.GetLengths()[0];
+
                 if(t < token_cnt) {
                     for(int k = 0; k < K; ++k)
                     {
@@ -105,17 +105,17 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                         v_acc +=
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                     }
+                    CDataType v_c{0};
+
+                    arg.c_element_op_(v_c, v_acc);
+
+                    arg.c_t_n_(t, n) += v_c;
                 }
 
-                CDataType v_c{0};
-
-                arg.c_element_op_(v_c, v_acc);
-
-                arg.c_t_n_(t, n) += v_c;
             };
             make_ParallelTensorFunctor(
-                f_mk_kn_mn, arg.c_t_n_.mDesc.GetLengths()[0], arg.c_t_n_.mDesc.GetLengths()[1])(
-                std::thread::hardware_concurrency());
+                f_mk_kn_mn, arg.a_m_k_.mDesc.GetLengths()[0], arg.c_t_n_.mDesc.GetLengths()[1])(
+                1);
 
             return 0;
         }
