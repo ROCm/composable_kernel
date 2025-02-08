@@ -26,7 +26,6 @@ struct BlockGemmARegBRegCRegV1
         using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
         static constexpr index_t kBlockSize = Problem::kBlockSize;
-        static constexpr auto Scheduler     = Problem::Scheduler;
 
         static constexpr index_t MPerBlock = BlockGemmShape::kM;
         static constexpr index_t NPerBlock = BlockGemmShape::kN;
@@ -45,9 +44,13 @@ struct BlockGemmARegBRegCRegV1
     };
 
     public:
-    using Traits = GemmTraits_<Problem_, Policy_>;
+    using Problem        = remove_cvref_t<Problem_>;
+    using Policy         = remove_cvref_t<Policy_>;
+
+    using Traits = GemmTraits_<Problem, Policy>;
 
     using WarpGemm = typename Traits::WarpGemm;
+    using BlockGemmShape = typename Traits::BlockGemmShape;
 
     using ADataType = remove_cvref_t<typename Traits::ADataType>;
     using BDataType = remove_cvref_t<typename Traits::BDataType>;
