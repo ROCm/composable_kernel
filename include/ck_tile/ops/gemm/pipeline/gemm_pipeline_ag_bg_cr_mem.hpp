@@ -123,7 +123,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
-    static constexpr bool isDoubleSmemBuffer = Problem::isDoubleSmemBuffer;
+    static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
 
     // Where is the right place for HasHotLoop and TailNum ???
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
