@@ -1135,7 +1135,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
         StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
-            gather_offsets(m0) = p_sorted_token_ids[token_pos + m0] * problem.K;
+            gather_offsets(m0) = (p_sorted_token_ids[token_pos + m0] & 0xffffff) * problem.K;
             // printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
         });
         const index_t m_block_data_idx_on_grid =
