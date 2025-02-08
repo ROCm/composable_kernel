@@ -9,7 +9,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_selector.hpp"
-#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1_mod8.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
@@ -1109,12 +1109,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     {
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
-            problem.NumTokens, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
+            problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
 
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(problem.BN0Shuffled, problem.BK0Shuffled);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
-            problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
+            problem.NumTokens, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
         // printf("tido %d size %d %d MNBLOCK %d %d %d %d\n", threadIdx.x, problem.StrideC, c_grid_desc_m_n.GetElementSpaceSize(),
         // problem.MBlock, problem.NBlock, MPerBlock, NPerBlock);
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
@@ -1125,19 +1125,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         const index_t block_m_id = __builtin_amdgcn_readfirstlane(blockIdx.y);
         const index_t expert_id = __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[block_m_id]);
         
-        // constexpr auto M0 = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
-        constexpr auto AMThreads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
-        constexpr auto AK0Threads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);
-        constexpr auto AK1Threads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I2);
-        constexpr auto AKThreads = AK0Threads * AK1Threads;
-        constexpr auto AMRepeats = MPerBlock / AMThreads;
-        // static_assert(MLoadRepeats == 1, "only support 1 line per thread now!");
-        const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
-        StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
-        static_for<0, AMRepeats, 1>{}([&](auto m0) {
-            gather_offsets(m0) = (p_sorted_token_ids[token_pos + m0] & 0xffffff) * problem.K;
-            // printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
-        });
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
@@ -1153,10 +1140,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         // if(threadIdx.x==0)
         // printf("tid %d eid %d expert_stride %d bufsize %d\n",
         // threadIdx.x, expert_id, expert_stride, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
@@ -1166,7 +1149,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         // A matrix blockwise copy
         auto a_blockwise_copy =
-            ThreadGroupTensorSliceTransfer_v4r1_mod8<ThisThreadBlock,
+            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
                                                 AElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
@@ -1187,15 +1170,13 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                                 1,
                                                 AThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
-                                                1,
                                                 BlockwiseGemmPipe::GlobalBufferNum>(
                 a_grid_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
                 a_element_op,
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
-                ck::tensor_operation::element_wise::PassThrough{},
-                gather_offsets);
+                ck::tensor_operation::element_wise::PassThrough{});
 
         // Thread-wise copy
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack
@@ -1406,9 +1387,19 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
                 c_grid_desc_mblock_mperblock_nblock_nperblock;
 
-            using CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
+            using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
+
+            constexpr auto EMThreads = CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
+            constexpr auto EMRepeats = MPerBlock / EMThreads;
+            static_assert(EMRepeats == 1, "only support 1 line per thread now!");
+            const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / EMThreads * EMRepeats;
+            StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[token_pos];
+            static_for<0, EMRepeats, 1>{}([&](auto m0) {
+                scatter_offsets(m0) = (p_sorted_token_ids[token_pos + m0] & 0xffffff) * problem.N;
+                // printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
+            });
 
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7r3<
                 ThisThreadBlock,
@@ -1423,7 +1414,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                          CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
                          1,
                          CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
-                CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                CDEBlockTransferCluster,
                 Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                 Sequence<0, 1, 2, 3>, // typename SrcDimAccessOrder,
                 Sequence<0, 1, 2, 3>, // typename DstDimAccessOrder,
@@ -1439,9 +1430,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                 {c_ds_desc_refs,
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                 make_tuple(make_multi_index(block_m_id, 0, block_n_id, 0)),
+                 make_tuple(make_multi_index(0, 0, block_n_id, 0)),
                  c_element_op};
-
+            // if(threadIdx.x== 0)
+            //     printf("offset %d size %d\n", scatter_offsets(I0), c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+            auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                p_c_grid + scatter_offsets(I0), c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize() - scatter_offsets(I0));
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
                 SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,

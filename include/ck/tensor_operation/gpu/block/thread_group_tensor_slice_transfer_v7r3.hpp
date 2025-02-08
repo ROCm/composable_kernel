@@ -48,6 +48,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
     static constexpr index_t nDim =
         remove_cvref_t<tuple_element_t<0, SrcDescs>>::GetNumOfDimension();
 
+    static constexpr index_t mod_num = ThreadClusterLengths{}.At( Number<3>{}); // Dirty HACK FELIX, TODO fix
     static constexpr index_t nSrc = remove_cvref_t<SrcDescs>::Size();
     static constexpr index_t nDst = remove_cvref_t<DstDescs>::Size();
 
@@ -101,7 +102,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
-                make_multi_index(ThreadGroup::GetThreadId()));
+                make_multi_index(ThreadGroup::GetThreadId() % mod_num));
 
             const auto thread_data_idx_begin = thread_cluster_idx * thread_slice_lengths;
 
