@@ -32,7 +32,7 @@ namespace ck_tile {
 //  (only for reference)    exp-0  exp-1     exp-2   exp-3          exp-4  exp-5
 // weight_id_per_expert is: [[a], [g, j, m], [d, k], [b, e, h, l, n], [], [c, f, i, o]]
 //
-// max_num_tokens_padded : topk * input_tokens + num_experts * (M_a - 1)
+// max_num_tokens_padded : topk * input_tokens + num_experts * M_a - topk (updated)
 // * this could be larger than actual, since actual tokens are on GPU
 //
 // sorted_token_ids_ptr   : [0, 6, 6, 6, 2, 3, 4, 6, 1, 3, 6, 6, 0, 1, 2, 3, 4, 6, 6, 6, 6, 6, 6, 6, 0, 1, 2, 5]
@@ -58,6 +58,34 @@ namespace ck_tile {
 //
 // num_tokens_post_padded_ptr : [28]
 // num_sorted_tiles_ptr : [7]
+//
+// skip_experts_with_zero_tokens(SkipExpertsWithZeroTokens)
+// if enabled, the expert with no tokens will be skipped, in stead of padding to at least 1 unit_size(M_a)
+//
+//                                            (pack below tensor, skip element marked with `-`)
+//                           Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  -  -  -  -  Y  Y  Y  Y
+// sorted_token_ids_ptr   : [0, 6, 6, 6, 2, 3, 4, 6, 1, 3, 6, 6, 0, 1, 2, 3, 4, 6, 6, 6, 6, 6, 6, 6, 0, 1, 2, 5]
+//                          |-  exp-0  -|-  exp-1  -|-  exp-2  -|-      exp-3          -|-  exp-4 -|-  exp-5  -|
+// sorted_weight_ptr      : [a, *, *, *, g, j, m, *, d, k, *, *, b, e, h, l, n, *, *, *, *, *, *, *, c, f, i, o]
+//                          
+//
+// sorted_expert_ids_ptr  : [0, 1, 2, 3, 3, 5]
+// num_tokens_post_padded_ptr : [24]
+// 
+// * local_expert_mask : indicate local expert mask used on current GPU (used for EP case)
+//   and modify the output expert-ID, because we will only have enbaled expert on specific GPU.
+//   we call expert input to this kernel as "global expert id", output as "local expert id"
+//
+// * local_expert_mask : [1, 0, 1, 1, 0, 1] (mask out expert-id=1, 4)
+//
+//                                            (pack below tensor, skip element marked with `-`)
+//                         Y  Y  Y  Y  -  -  -  -  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  Y  -  -  -  -  Y  Y  Y  Y
+// sorted_token_ids_ptr : [0, 6, 6, 6, 2, 3, 4, 6, 1, 3, 6, 6, 0, 1, 2, 3, 4, 6, 6, 6, 6, 6, 6, 6, 0, 1, 2, 5]
+//                        |-  exp-0  -|-  exp-1  -|-  exp-2  -|-      exp-3          -|-  exp-4 -|-  exp-5  -|
+// sorted_weight_ptr    : [a, *, *, *, g, j, m, *, d, k, *, *, b, e, h, l, n, *, *, *, *, *, *, *, c, f, i, o]
+//
+// sorted_expert_ids_ptr  : [0, 1, 2, 2, 3] (note original it was exper-id= 0, 2, 3, 5, but we produce "local expert id")
+// num_tokens_post_padded_ptr : [20]
 //
 // * different from vLLM
 //   1) token_id stored in sorted_token_ids_ptr is actual token_id, not token_id*top_K expanded id
@@ -142,6 +170,9 @@ struct MoeSortingHostArgs
 {
     const void* p_topk_ids;     // [token, topk]
     const void* p_weights;      // [token, topk]
+
+    const void* p_local_expert_mask;
+
     void* p_sorted_token_ids;
     void* p_sorted_weights;
     void* p_sorted_expert_ids;
@@ -172,6 +203,7 @@ struct MoeSortingKernel
     {
         const void* p_topk_ids;
         const void* p_weights;
+        const void* p_local_expert_mask;
         void* p_sorted_token_ids;
         void* p_sorted_weights;
         void* p_sorted_expert_ids;
@@ -182,12 +214,9 @@ struct MoeSortingKernel
         index_t moe_buf_bytes;
 
         index_t tokens_per_thread;
-
         index_t smem_rows;
-
         mdiv unit_size_mdiv;
         mdiv topk_mdiv;
-
         mdiv expert_mdiv;
         // mdiv sub_tokens_mdiv;
     };
@@ -226,6 +255,7 @@ struct MoeSortingKernel
         Kargs k;
         k.p_topk_ids              = h.p_topk_ids;
         k.p_weights               = h.p_weights;
+        k.p_local_expert_mask     = h.p_local_expert_mask;
         k.p_sorted_token_ids      = h.p_sorted_token_ids;
         k.p_sorted_weights        = h.p_sorted_weights;
         k.p_sorted_expert_ids     = h.p_sorted_expert_ids;
@@ -643,22 +673,24 @@ struct MoeSortingKernel
         CK_TILE_DEVICE index_t& operator()(index_t idx) { return smem[idx]; }
     };
 
-    CK_TILE_DEVICE void moe_align_block_size_kernel_ex(const IndexType* __restrict__ topk_id,
-                                                       const WeightType* __restrict__ weights,
-                                                       index_t* p_sorted_token_ids,
-                                                       WeightType* p_sorted_weights,
-                                                       index_t* p_sorted_expert_ids,
-                                                       index_t* p_total_tokens_post_pad,
-                                                       const index_t num_experts,
-                                                       const index_t tokens,
-                                                       // const index_t tokens_per_thread,
-                                                       // const index_t numel,
-                                                       const mdiv unit_size_mdiv,
-                                                       const mdiv topk_mdiv,
-                                                       const mdiv expert_mdiv,
-                                                       // const mdiv sub_tokens_mdiv,
-                                                       const index_t smem_rows,
-                                                       void* smem) const
+    CK_TILE_DEVICE void
+    moe_align_block_size_kernel_ex(const IndexType* __restrict__ topk_id,
+                                   const WeightType* __restrict__ weights,
+                                   const IndexType* __restrict__ local_expert_mask,
+                                   index_t* p_sorted_token_ids,
+                                   WeightType* p_sorted_weights,
+                                   index_t* p_sorted_expert_ids,
+                                   index_t* p_total_tokens_post_pad,
+                                   const index_t num_experts,
+                                   const index_t tokens,
+                                   // const index_t tokens_per_thread,
+                                   // const index_t numel,
+                                   const mdiv unit_size_mdiv,
+                                   const mdiv topk_mdiv,
+                                   const mdiv expert_mdiv,
+                                   // const mdiv sub_tokens_mdiv,
+                                   const index_t smem_rows,
+                                   void* smem) const
     {
         const index_t tid            = static_cast<index_t>(threadIdx.x);
         const index_t wid            = __builtin_amdgcn_readfirstlane(tid / warpSize);
@@ -858,6 +890,18 @@ struct MoeSortingKernel
             }
         }
 #endif
+
+        if constexpr(Problem::LocalExpertMasking)
+        {
+            smem_cumdup(0) = 0;
+            for(int i_e = tid; i_e < num_experts; i_e += block_size)
+            {
+                // reuse this buffer
+                // printf("tid:%d, m:%d\n", tid, local_expert_mask[i_e]);
+                smem_cumdup(i_e + 1) = local_expert_mask[i_e];
+            }
+        }
+
         __syncthreads();
 #if 0
         if(tid == 0)
@@ -892,16 +936,38 @@ struct MoeSortingKernel
                     int local_cnt = smem_cumsum(i_e_ + lid + 1);
                     int blocks_pers_expert =
                         unit_size_mdiv.div(local_cnt + unit_size_mdiv.divisor - 1);
+
+                    int pre_cumsum_masking = [&]() {
+                        if constexpr(Problem::LocalExpertMasking)
+                            return smem_cumdup(lid == 0 ? i_e_ : 0);
+                        else
+                            return 0; // not used
+                    }();
+                    int local_masking = [&]() {
+                        if constexpr(Problem::LocalExpertMasking)
+                            return smem_cumdup(i_e_ + lid + 1);
+                        else
+                            return 0; // not used
+                    }();
                     int padded_tokens_per_expert = [&]() {
-                        if constexpr(Problem::SkipExpertsWithZeroTokens)
+                        int x_ = [&]() {
+                            if constexpr(Problem::SkipExpertsWithZeroTokens)
+                            {
+                                // if local_cnt is zero, blocks_pers_expert will be zero
+                                // this is what we want to achieve
+                                return blocks_pers_expert * unit_size_mdiv.divisor;
+                            }
+                            else
+                            {
+                                return max(blocks_pers_expert, 1) * unit_size_mdiv.divisor;
+                            }
+                        }();
+                        if constexpr(Problem::LocalExpertMasking)
                         {
-                            // if local_cnt is zero, blocks_pers_expert will be zero
-                            return blocks_pers_expert * unit_size_mdiv.divisor;
+                            return local_masking ? x_ : 0;
                         }
                         else
-                        {
-                            return max(blocks_pers_expert, 1) * unit_size_mdiv.divisor;
-                        }
+                            return x_;
                     }();
 
                     local_cumsum_ = padded_tokens_per_expert;
@@ -910,10 +976,20 @@ struct MoeSortingKernel
                                                   // pre_sumsum has value, which will result int
                                                   // zero local cumsum(but we want at least padded)
                     wave_cumsum<int, warpSize>(local_cumsum_);
-                    //  printf(" lid:%d(%d), local_cnt:%d,pre_cumsum_:%d, %d--> %d\n", lid, i_e_ +
-                    //  lid, local_cnt, pre_cumsum_, padded_tokens_per_expert,local_cumsum_ );
+                    // printf(" lid:%d(%d), local_cnt:%d,pre_cumsum_:%d, %d--> %d (m:%d)\n", lid,
+                    // i_e_ +
+                    //  lid, local_cnt, pre_cumsum_, padded_tokens_per_expert,local_cumsum_
+                    //  ,local_masking);
                     if((i_e_ + lid) < num_experts)
                         smem_cumsum(i_e_ + lid + 1) = local_cumsum_;
+
+                    if constexpr(Problem::LocalExpertMasking)
+                    {
+                        local_masking += pre_cumsum_masking;
+                        wave_cumsum<int, warpSize>(local_masking);
+                        if((i_e_ + lid) < num_experts)
+                            smem_cumdup(i_e_ + lid + 1) = local_masking;
+                    }
 
                     // NOTE: this waitcnt is a must, compiler will not generate waitcnt lgkmcnt()
                     // for above write however __syncthreads will cause barrier with waves other
@@ -933,7 +1009,20 @@ struct MoeSortingKernel
         {
             int e_start = smem_cumsum(i_e);
             int e_end   = smem_cumsum(i_e + 1);
-            // printf("i_e:%d, e_start:%d, e_end:%d\n", i_e, e_start, e_end);
+
+            int expert_id = [&]() {
+                if constexpr(Problem::LocalExpertMasking)
+                {
+                    // local expert id from cumsum
+                    return smem_cumdup(i_e);
+                }
+                else
+                    return i_e;
+            }();
+
+            // printf("i_e:%d, e_start:%d, e_end:%d, expert_id:%d (%d-%d, m:%d)\n", i_e, e_start,
+            // e_end, expert_id, e_start, e_end, local_expert_mask[i_e]);
+
             smem_cumdup(i_e) = e_start; // duplicate cumsum for later use
             if constexpr(Problem::SkipExpertsWithZeroTokens)
             {
@@ -941,9 +1030,15 @@ struct MoeSortingKernel
                     continue;
             }
 
+            if constexpr(Problem::LocalExpertMasking)
+            {
+                if(local_expert_mask[i_e] == 0)
+                    continue;
+            }
+
             for(int i = e_start; i < e_end; i += unit_size_mdiv.divisor)
             {
-                p_sorted_expert_ids[unit_size_mdiv.div(i)] = i_e;
+                p_sorted_expert_ids[unit_size_mdiv.div(i)] = expert_id;
             }
         }
         // if (tid == 0)
@@ -1014,6 +1109,11 @@ struct MoeSortingKernel
                 constexpr int lane_group_nm = block_size / lane_group_sz;
                 for(int eid = lane_group_id; eid < num_experts; eid += lane_group_nm)
                 {
+                    if constexpr(Problem::LocalExpertMasking)
+                    {
+                        if(local_expert_mask[eid] == 0)
+                            continue;
+                    }
                     int position = smem_cumsum(eid);
                     for(int i_sub_token = lane_group_os; i_sub_token < sub_tokens;
                         i_sub_token += lane_group_sz)
@@ -1094,6 +1194,7 @@ struct MoeSortingKernel
         return moe_align_block_size_kernel_ex(
             static_cast<const IndexType*>(kargs.p_topk_ids),
             static_cast<const WeightType*>(kargs.p_weights),
+            static_cast<const IndexType*>(kargs.p_local_expert_mask),
             static_cast<IndexType*>(kargs.p_sorted_token_ids),
             static_cast<WeightType*>(kargs.p_sorted_weights),
             static_cast<IndexType*>(kargs.p_sorted_expert_ids),
