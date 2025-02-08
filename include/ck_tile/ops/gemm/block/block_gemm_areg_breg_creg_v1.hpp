@@ -44,12 +44,12 @@ struct BlockGemmARegBRegCRegV1
     };
 
     public:
-    using Problem        = remove_cvref_t<Problem_>;
-    using Policy         = remove_cvref_t<Policy_>;
+    using Problem = remove_cvref_t<Problem_>;
+    using Policy  = remove_cvref_t<Policy_>;
 
     using Traits = GemmTraits_<Problem, Policy>;
 
-    using WarpGemm = typename Traits::WarpGemm;
+    using WarpGemm       = typename Traits::WarpGemm;
     using BlockGemmShape = typename Traits::BlockGemmShape;
 
     using ADataType = remove_cvref_t<typename Traits::ADataType>;
