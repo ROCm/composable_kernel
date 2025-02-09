@@ -1392,7 +1392,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             constexpr auto EMThreads = CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
             constexpr auto EMRepeats = MPerBlock / EMThreads;
             constexpr auto ENThreads = CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
-            static_assert(EMRepeats == 1, "only support 1 line per thread now!");
+            // static_assert(EMRepeats == 1, "only support 1 line per thread now!");
             const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats;
             StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[token_pos];
             static_for<0, EMRepeats, 1>{}([&](auto m0) {
@@ -1431,10 +1431,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                  make_tuple(make_multi_index(0, 0, block_n_id, 0)),
-                 c_element_op};
+                 c_element_op,
+                 scatter_offsets};
             // if(threadIdx.x== 0)
             auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_c_grid + scatter_offsets(I0), c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize() - scatter_offsets(I0));
+                p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
                 SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,

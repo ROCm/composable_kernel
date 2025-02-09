@@ -7,7 +7,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/cluster_descriptor.hpp"
-#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_v7r3.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_v7r3_scatter.hpp"
 #include "ck/utility/is_detected.hpp"
 
 namespace ck {
@@ -42,6 +42,7 @@ template <typename ThreadGroup,
           index_t DstScalarPerVector,
           typename ThreadTransferSrcResetCoordinateAfterRunFlags,
           typename ThreadTransferDstResetCoordinateAfterRunFlags,
+          index_t ScatterDim = 1,
           index_t NumThreadScratch = 1>
 struct ThreadGroupTensorSliceTransfer_v7r3
 {
@@ -55,18 +56,21 @@ struct ThreadGroupTensorSliceTransfer_v7r3
     using Index = MultiIndex<nDim>;
 
     static constexpr auto thread_slice_lengths = SliceLengths{} / ThreadClusterLengths{};
+    static constexpr index_t scatter_num = thread_slice_lengths.At(Number<ScatterDim>{});
 
     __device__ constexpr ThreadGroupTensorSliceTransfer_v7r3(
         const SrcDescs& src_descs,
         const StaticallyIndexedArray<Index, nSrc>& src_block_slice_origins,
         const DstDescs& dst_descs,
         const StaticallyIndexedArray<Index, nDst>& dst_block_slice_origins,
-        const ElementwiseOperation& element_op)
+        const ElementwiseOperation& element_op,
+        const StaticallyIndexedArray<index_t, scatter_num> &scatter_offsets)
         : threadwise_transfer_(src_descs,
                                StaticallyIndexedArray<Index, nSrc>{},
                                dst_descs,
                                StaticallyIndexedArray<Index, nDst>{},
-                               element_op)
+                               element_op,
+                               scatter_offsets)
     {
         static_assert(nSrc == SrcDatas::Size() && nSrc == SrcDescs::Size() &&
                           nSrc == ThreadTransferSrcResetCoordinateAfterRunFlags::Size() &&
@@ -197,7 +201,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
     using ThreadwiseTransfer =
-        ThreadwiseTensorSliceTransfer_v7r3<SrcDatas,
+        ThreadwiseTensorSliceTransfer_v7r3_scatter<SrcDatas,
                                            DstDatas,
                                            SrcDescs,
                                            DstDescs,
@@ -212,6 +216,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
                                            DstScalarPerVector,
                                            ThreadTransferSrcResetCoordinateAfterRunFlags,
                                            ThreadTransferDstResetCoordinateAfterRunFlags,
+                                           ScatterDim,
                                            NumThreadScratch>;
 
     ThreadwiseTransfer threadwise_transfer_;
