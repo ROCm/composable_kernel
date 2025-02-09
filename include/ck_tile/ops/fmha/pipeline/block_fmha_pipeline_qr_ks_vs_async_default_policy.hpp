@@ -89,11 +89,39 @@ struct BlockFmhaPipelineQRKSVSAsyncDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t IsPreloadWholeNextIterationK()
+    {
+        if constexpr(Problem::BlockFmhaShape::kM0 <= 64)
+            return true;
+        else
+            return false;
+    };
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetExclusiveKLdsBytes()
+    {
+        if constexpr(IsPreloadWholeNextIterationK<Problem>())
+        {
+            return 0;
+        }
+        else
+        {
+            constexpr index_t unreusable_k_lds_bytes =
+                GetSmemSizeK<Problem>() / GetNumKLdsBuffers<Problem>();
+            constexpr index_t unreusable_k_lds_bytes_aligned =
+                ((unreusable_k_lds_bytes + 127) / 128) * 128;
+
+            return unreusable_k_lds_bytes_aligned;
+        };
+    };
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        // assume V can reuse the shared memory by K
+        // assume V can reuse the other shared memory by K except the first
         // assume Dropout can reuse the shared memory by V
-        return max(GetSmemSizeK<Problem>(),
+        return GetExclusiveKLdsBytes<Problem>() +
+               max(GetSmemSizeK<Problem>() - GetExclusiveKLdsBytes<Problem>(),
                    max(GetSmemSizeV<Problem>(), GetSmemSizeDropout<Problem>(0)));
     }
 };
