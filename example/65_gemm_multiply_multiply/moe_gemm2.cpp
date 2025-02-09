@@ -33,8 +33,8 @@ using F32  = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using A0DataType       = F16;
-using B0DataType       = F16;
+using A0DataType       = F8;
+using B0DataType       = F8;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using D0DataType       = F32;
@@ -172,10 +172,10 @@ int main(int argc, char* argv[])
 // experts = 8
 // per expert: 
     // GEMM shape
-    ck::index_t N = 128;
-    ck::index_t K = 1024;
+    ck::index_t N = 6144;
+    ck::index_t K = 8192;
     ck::index_t experts = 8;
-    ck::index_t sorted_tile_num = 2;
+    ck::index_t sorted_tile_num = 8;
     ck::index_t sorted_tile_size = MPerBlock;
     ck::index_t SORTED_SIZE = sorted_tile_num * sorted_tile_size;
     ck::index_t tokens = 32;
@@ -341,6 +341,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
     if (time_kernel) {
+        // not result correct here because output buf not setzero
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
         std::size_t flop = std::size_t(2) * SORTED_SIZE * N * K;
@@ -357,9 +358,10 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
+        //gemm2 use atomic, so need to reinit outputs
+        e_device_buf.ToDevice(e_t_n_device_result.mData.data());
         invoker.Run(argument, StreamConfig{nullptr, false, 0 ,0,1});
 
-        // e_device_buf.FromDevice(e_t_n_device_result.mData.data());
         Tensor<CShuffleDataType> c_t_n({tokens, N});
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMoeGemm2<A0DataType,

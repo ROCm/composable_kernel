@@ -279,7 +279,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                             const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
                                 GridwiseGemm,
                                 true,
-                                InMemoryDataOperationEnum::Set,
+                                InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
                                 TailNumber::Odd>;
                             Run(kernel);
@@ -289,7 +289,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                             const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle<
                                 GridwiseGemm,
                                 true,
-                                InMemoryDataOperationEnum::Set,
+                                InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
                                 TailNumber::Even>;
                             Run(kernel);

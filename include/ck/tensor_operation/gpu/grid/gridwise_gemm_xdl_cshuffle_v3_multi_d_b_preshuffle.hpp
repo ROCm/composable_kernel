@@ -1170,7 +1170,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                                 true,
                                                 BlockwiseGemmPipe::GlobalBufferNum>(
                 a_grid_desc_ak0_m_ak1,
-                make_multi_index(0, 0, 0),
+                make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
@@ -1397,7 +1397,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[token_pos];
             static_for<0, EMRepeats, 1>{}([&](auto m0) {
                 scatter_offsets(m0) = (p_sorted_token_ids[token_pos + m0] & 0xffffff) * problem.N;
-                printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
+                // printf("init off bid %d tid %d m %d off %d\n", blockIdx.y, threadIdx.x, m0(), scatter_offsets(m0));
             });
 
             // printf("tid %d pos %d offset %d size %d\n", threadIdx.x, token_pos, scatter_offsets(I0), c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
