@@ -83,12 +83,8 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[6]);
     const bool time_kernel     = std::stoi(argv[7]);
 
-    // const int M = std::stoi(argv[8]);
-    // const int N = std::stoi(argv[9]);
     const int K = std::stoi(argv[10]);
 
-    // const int StrideA     = std::stoi(argv[11]);
-    // const int StrideB     = std::stoi(argv[12]);
     const int StrideC     = std::stoi(argv[13]);
     const int Streamk_sel = std::stoi(argv[14]);
     const int Grid_size   = std::stoi(argv[15]);
