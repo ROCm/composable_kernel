@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "ck/host/device_gemm_multiple_d/problem.hpp"
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "ck/host/headers.hpp"

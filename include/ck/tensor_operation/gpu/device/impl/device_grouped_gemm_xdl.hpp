@@ -1,6 +1,6 @@
 #pragma once
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -38,8 +38,7 @@ __global__ void
                                 const BElementwiseOperation b_element_op,
                                 const CDEElementwiseOperation c_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -557,12 +556,12 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 }
             }
 
-            hipGetErrorString(hipMemcpyWithStream(arg.p_workspace_,
-                                                  arg.gemm_desc_kernel_arg_.data(),
-                                                  arg.gemm_desc_kernel_arg_.size() *
-                                                      sizeof(GemmBiasTransKernelArg),
-                                                  hipMemcpyHostToDevice,
-                                                  stream_config.stream_id_));
+            hipGetErrorString(
+                hipMemcpyAsync(arg.p_workspace_,
+                               arg.gemm_desc_kernel_arg_.data(),
+                               arg.gemm_desc_kernel_arg_.size() * sizeof(GemmBiasTransKernelArg),
+                               hipMemcpyHostToDevice,
+                               stream_config.stream_id_));
 
             float ave_time = 0;
 
@@ -717,7 +716,24 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
 
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
-        return dynamic_cast<const Argument*>(p_arg)->group_count_ * sizeof(GemmBiasTransKernelArg);
+        auto p_arg_ = dynamic_cast<const Argument*>(p_arg);
+        if(p_arg_)
+        {
+            return p_arg_->group_count_ * sizeof(GemmBiasTransKernelArg);
+        }
+        else
+            throw std::runtime_error("The argument pointer is not an object of "
+                                     "DeviceGroupedGemmMultipleDXdlCShuffle::Argument structure!");
+    }
+
+    size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override
+    {
+        return GetWorkSpaceSize(p_arg);
+    }
+
+    void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const override
+    {
+        return this->SetWorkSpacePointer(p_arg, p_dev_kernel_args);
     }
 };
 

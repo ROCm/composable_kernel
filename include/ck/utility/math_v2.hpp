@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,7 +19,7 @@ extern "C" __device__ float __ocml_native_recip_f32(float);
 #endif
 
 // math functions for the host,  some are implemented by calling C++ std functions
-
+#ifndef CK_CODE_GEN_RTC
 static inline __host__ float abs(float x) { return std::abs(x); };
 
 static inline __host__ double abs(double x) { return std::abs(x); };
@@ -80,7 +80,7 @@ static inline __host__ bool isnan(half_t x)
     return (xx & 0x7FFF) > 0x7C00;
 };
 
-static inline __host__ bool isnan(f8_t x) { return (x & 0x80); };
+static inline __host__ bool isnan(f8_t x) { return ck::fp8_is_nan(x); };
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 static inline __host__ bool isnan(int4_t x)
@@ -459,7 +459,7 @@ inline __host__ double expm1<double>(double x)
 {
     return std::expm1(x);
 }
-
+#endif
 // math functions for the HIP kernel,  some are implemented by calling hip builtin functions
 
 static inline __device__ float abs(float x) { return ::abs(x); };
@@ -531,7 +531,7 @@ static inline __device__ bool isnan(half_t x)
     return (xx & 0x7FFF) > 0x7C00;
 };
 
-static inline __device__ bool isnan(f8_t x) { return (x & 0x80); };
+static inline __device__ bool isnan(f8_t x) { return ck::fp8_is_nan(x); };
 
 static inline __device__ half_t sqrt(half_t x)
 {
@@ -611,7 +611,7 @@ inline __device__ int8_t neg<int8_t>(int8_t x)
 template <>
 inline __device__ half_t neg<half_t>(half_t x)
 {
-    return __hneg(x);
+    return __hneg(static_cast<__half>(x));
 };
 
 template <typename T>

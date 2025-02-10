@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -101,7 +101,7 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
     using GridwiseGemmPipe = remove_cvref_t<
         decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
-#if CK_WORKAROUND_DENORM_FIX
+#if CK_GFX90A_DENORM_WORKAROUND
     using AComputeDataType =
         conditional_t<is_same_v<AComputeDataType_, ck::half_t>, ck::bhalf_t, AComputeDataType_>;
     using BComputeDataType =
@@ -423,10 +423,17 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
     }
 
     template <typename AsLayout, GemmSpecialization GemmSpec>
-    __host__ __device__ static auto
-    MakeAsGridDescriptor_M_K(const std::array<index_t, NumATensor>& MRaws,
-                             const std::array<index_t, NumATensor>& KRaws,
-                             const std::array<index_t, NumATensor>& AsStride)
+    __host__ __device__ static auto MakeAsGridDescriptor_M_K(
+#ifdef CK_CODE_GEN_RTC
+        const ck::Array<index_t, NumATensor>& MRaws,
+        const ck::Array<index_t, NumATensor>& KRaws,
+        const ck::Array<index_t, NumATensor>& AsStride
+#else
+        const std::array<index_t, NumATensor>& MRaws,
+        const std::array<index_t, NumATensor>& KRaws,
+        const std::array<index_t, NumATensor>& AsStride
+#endif
+    )
     {
         return generate_tuple(
             [&](auto i) {
@@ -462,10 +469,17 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
     }
 
     template <typename BsLayout, GemmSpecialization GemmSpec>
-    __host__ __device__ static auto
-    MakeBsGridDescriptor_N_K(const std::array<index_t, NumBTensor>& NRaws,
-                             const std::array<index_t, NumBTensor>& KRaws,
-                             const std::array<index_t, NumBTensor>& BsStride)
+    __host__ __device__ static auto MakeBsGridDescriptor_N_K(
+#ifdef CK_CODE_GEN_RTC
+        const ck::Array<index_t, NumBTensor>& NRaws,
+        const ck::Array<index_t, NumBTensor>& KRaws,
+        const ck::Array<index_t, NumBTensor>& BsStride
+#else
+        const std::array<index_t, NumBTensor>& NRaws,
+        const std::array<index_t, NumBTensor>& KRaws,
+        const std::array<index_t, NumBTensor>& BsStride
+#endif
+    )
     {
         return generate_tuple(
             [&](auto i) {
@@ -500,10 +514,17 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
     }
 
     template <typename DsLayout, GemmSpecialization GemmSpec>
-    __host__ __device__ static auto
-    MakeDsGridDescriptor_M_N(const std::array<index_t, NumDTensor>& MRaws,
-                             const std::array<index_t, NumDTensor>& NRaws,
-                             const std::array<index_t, NumDTensor>& DsStride)
+    __host__ __device__ static auto MakeDsGridDescriptor_M_N(
+#ifdef CK_CODE_GEN_RTC
+        const ck::Array<index_t, NumDTensor>& MRaws,
+        const ck::Array<index_t, NumDTensor>& NRaws,
+        const ck::Array<index_t, NumDTensor>& DsStride
+#else
+        const std::array<index_t, NumDTensor>& MRaws,
+        const std::array<index_t, NumDTensor>& NRaws,
+        const std::array<index_t, NumDTensor>& DsStride
+#endif
+    )
     {
         return generate_tuple(
             [&](auto i) {
@@ -969,9 +990,15 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
                                const index_t M,
                                const index_t N,
                                const index_t K,
+#ifdef CK_CODE_GEN_RTC
+                               const ck::Array<index_t, NumATensor> StrideAs,
+                               const ck::Array<index_t, NumBTensor> StrideBs,
+                               const ck::Array<index_t, NumDTensor> StrideDs,
+#else
                                const std::array<index_t, NumATensor> StrideAs,
                                const std::array<index_t, NumBTensor> StrideBs,
                                const std::array<index_t, NumDTensor> StrideDs,
+#endif
                                const index_t StrideE,
                                const Block2ETileMap& block_2_etile_map)
     {

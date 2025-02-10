@@ -6,7 +6,7 @@ set(CK_TILE_SRC_FOLDER ${CMAKE_SOURCE_DIR}/include/ck_tile/)
 # CK Codegen requires dataclass which is added in Python 3.7
 # Python version 3.8 is required for general good practice as it is default for Ubuntu 20.04
 if(NOT CK_USE_ALTERNATIVE_PYTHON)
-   find_package(PythonInterp 3 REQUIRED)
+   find_package(Python3 COMPONENTS Interpreter Development)
 else()
    message("Using alternative python version")
    set(EXTRA_PYTHON_PATH)
@@ -33,7 +33,7 @@ set(FMHA_KNOWN_APIS "fwd,fwd_splitkv,fwd_appendkv,bwd")
 # Note: The receipt 3 arg filters the generated backwards instances to reduce compilation time.
 # With receipt 3 set, we are generating instances for datatype == {fp16 || bfp16}, bias == {no || alibi}, deterministic == off, and dpad == dvpad.
 execute_process(
-  COMMAND ${PYTHON_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
+  COMMAND ${Python3_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
   --list_blobs ${FMHA_CPP_FOLDER}/blob_list.txt
   --api ${FMHA_KNOWN_APIS}
   --receipt 3
@@ -50,7 +50,7 @@ endif()
 # With receipt 3 set, we are generating instances for datatype == {fp16 || bfp16}, bias == {no || alibi}, deterministic == off, and dpad == dvpad.
 add_custom_command(
   OUTPUT ${FMHA_GEN_BLOBS}
-  COMMAND ${PYTHON_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
+  COMMAND ${Python3_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
   --output_dir ${FMHA_CPP_FOLDER}
   --api ${FMHA_KNOWN_APIS}
   --receipt 3
