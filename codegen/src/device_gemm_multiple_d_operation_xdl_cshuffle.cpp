@@ -62,12 +62,11 @@ void Operation_Xdl_CShuffle::update_epilogue(const std::string& epi)
 // accounts for all possible combinations of Row/Col major
 static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
 
-
-
+// clang-format off
 // DeviceGemmMultipleD_Xdl_CShuffle<    Col,    Row, Row_Row_Tuple,    Row,   F16,   F16,     F32,      F32, F16_F16_Tuple,   F16, PassThrough, PassThrough, AddAddFastGelu, GemmMNKPadding,        1,    64,    16,    16,    32,   8,   8,   16,   16,    1,    1,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,         1,           1,           1,               S<1, 16, 1, 4>,               1,
 
 // DeviceGemmMultipleD_Xdl_CShuffle<    Row,    Col, Row_Row_Tuple,    Row,   F16,   F16,     F32,      F32, F16_F16_Tuple,   F16, PassThrough, PassThrough, AddAddFastGelu, GemmMNKPadding,        1,    64,    16,    16,    32,   8,   8,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1,           1,           1,               S<1, 16, 1, 4>,               1, LoopScheduler::Default,        PipelineVersion::v1>
-
+// clang-format on
 
 // Hard-code tuning parameters in modularized fashion, string them together into a vector of
 // instances
@@ -251,8 +250,8 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
                                                 x.tile_desc.m_per_block,
                                                 x.tile_desc.n_per_block,
                                                 x.tile_desc.k_per_block);
-            x.loop_scheduler = loop_scheduler;
-            x.pipeline_version = pipeline_version;
+            x.loop_scheduler      = loop_scheduler;
+            x.pipeline_version    = pipeline_version;
             x.update_prologue(prologue);
             x.update_epilogue(epilogue);
             result.push_back(x);
