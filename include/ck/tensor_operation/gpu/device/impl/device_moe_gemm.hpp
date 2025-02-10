@@ -301,7 +301,6 @@ struct DeviceMoeGemm
                 // Tail number always full
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    using meme
                     // if(arg.KBatch > 1)
                     // {
                     //     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -435,7 +434,7 @@ struct DeviceMoeGemm
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return -1;//Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

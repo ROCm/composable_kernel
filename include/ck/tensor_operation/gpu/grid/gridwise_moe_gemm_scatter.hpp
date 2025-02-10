@@ -60,39 +60,39 @@ __global__ void
 #endif // end of if (defined(__gfx9__))
 }
 
-template <typename GridwiseGemm,
-          bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Even>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
-#endif
-    // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_moe_gemm_scatter_2lds(typename GridwiseGemm::Argument karg)
-{
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+// template <typename GridwiseGemm,
+//           bool HasMainKBlockLoop,
+//           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+//           index_t MinimumOccupancy = 1,
+//           TailNumber TailNum       = TailNumber::Even>
+// __global__ void
+// #if CK_USE_LAUNCH_BOUNDS
+//     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+// #endif
+//     // __attribute__((amdgpu_waves_per_eu(1, 1)))
+//     kernel_moe_gemm_scatter_2lds(typename GridwiseGemm::Argument karg)
+// {
+// #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+//     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+//     __shared__ char p_shared1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
+//     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_ds_grid,
-        karg.p_c_grid,
-        p_shared,
-        p_shared1,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op);
-#else
-    ignore = karg;
-#endif // end of if (defined(__gfx9__))
-}
+//     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+//         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+//         karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+//         karg.p_ds_grid,
+//         karg.p_c_grid,
+//         p_shared,
+//         p_shared1,
+//         karg,
+//         karg.a_element_op,
+//         karg.b_element_op,
+//         karg.c_element_op);
+// #else
+//     ignore = karg;
+// #endif // end of if (defined(__gfx9__))
+// }
 
 template <typename ALayout,
           typename BLayout,
@@ -1506,52 +1506,52 @@ struct GridwiseMoeGemmScatter
         }
     }
 
-    template <bool HasMainKBlockLoop,
-              InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-              TailNumber TailNum = TailNumber::Odd>
-    __device__ static void Run_2Lds(const ADataType* p_a_grid,
-                                    const BDataType* p_b_grid,
-                                    DsGridPointer& p_ds_grid,
-                                    CDataType* p_c_grid,
-                                    void* p_shared,
-                                    void* p_shared1,
-                                    const Problem& problem,
-                                    AElementwiseOperation a_element_op,
-                                    BElementwiseOperation b_element_op,
-                                    CElementwiseOperation c_element_op)
-    {
-        // const auto block_2_ctile_map = Block2CTileMapDefault{problem.M, problem.N, 4};
-        // Run_2Lds<Block2CTileMapDefault, HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        //     p_a_grid,
-        //     p_b_grid,
-        //     p_ds_grid,
-        //     p_c_grid,
-        //     p_shared,
-        //     p_shared1,
-        //     problem,
-        //     a_element_op,
-        //     b_element_op,
-        //     c_element_op,
-        //     block_2_ctile_map);
-    }
+    // template <bool HasMainKBlockLoop,
+    //           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+    //           TailNumber TailNum = TailNumber::Odd>
+    // __device__ static void Run_2Lds(const ADataType* p_a_grid,
+    //                                 const BDataType* p_b_grid,
+    //                                 DsGridPointer& p_ds_grid,
+    //                                 CDataType* p_c_grid,
+    //                                 void* p_shared,
+    //                                 void* p_shared1,
+    //                                 const Problem& problem,
+    //                                 AElementwiseOperation a_element_op,
+    //                                 BElementwiseOperation b_element_op,
+    //                                 CElementwiseOperation c_element_op)
+    // {
+    //     // const auto block_2_ctile_map = Block2CTileMapDefault{problem.M, problem.N, 4};
+    //     // Run_2Lds<Block2CTileMapDefault, HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+    //     //     p_a_grid,
+    //     //     p_b_grid,
+    //     //     p_ds_grid,
+    //     //     p_c_grid,
+    //     //     p_shared,
+    //     //     p_shared1,
+    //     //     problem,
+    //     //     a_element_op,
+    //     //     b_element_op,
+    //     //     c_element_op,
+    //     //     block_2_ctile_map);
+    // }
 
-    template <typename Block2CTileMap,
-              bool HasMainKBlockLoop,
-              InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-              TailNumber TailNum = TailNumber::Odd>
-    __device__ static void Run_2Lds(const ADataType* p_a_grid,
-                                    const BDataType* p_b_grid,
-                                    DsGridPointer& p_ds_grid,
-                                    CDataType* p_c_grid,
-                                    void* p_shared,
-                                    void* p_shared1,
-                                    const Problem& problem,
-                                    AElementwiseOperation a_element_op,
-                                    BElementwiseOperation b_element_op,
-                                    CElementwiseOperation c_element_op,
-                                    const Block2CTileMap& block_2_ctile_map)
-    {
-    }
+    // template <typename Block2CTileMap,
+    //           bool HasMainKBlockLoop,
+    //           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+    //           TailNumber TailNum = TailNumber::Odd>
+    // __device__ static void Run_2Lds(const ADataType* p_a_grid,
+    //                                 const BDataType* p_b_grid,
+    //                                 DsGridPointer& p_ds_grid,
+    //                                 CDataType* p_c_grid,
+    //                                 void* p_shared,
+    //                                 void* p_shared1,
+    //                                 const Problem& problem,
+    //                                 AElementwiseOperation a_element_op,
+    //                                 BElementwiseOperation b_element_op,
+    //                                 CElementwiseOperation c_element_op,
+    //                                 const Block2CTileMap& block_2_ctile_map)
+    // {
+    // }
 };
 
 } // namespace ck
