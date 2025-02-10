@@ -99,7 +99,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-r",
         "--receipt",
-        default=0,
+        default=3,
         required=False,
         help="codegen receipt. 0: generate only 8xhdim coverage\n"  + \
              "  1: generate more instance to cover all hdim\n"  + \
