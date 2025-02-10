@@ -317,7 +317,6 @@ bool run_mx_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
             std::cout << "Computing GEMM on host..." << std::endl;
         }
 
-
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMXGemm<ADataType,
                                                                                   BDataType,
                                                                                   CDataType,
@@ -340,7 +339,6 @@ bool run_mx_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
                                                   PassThrough{},
                                                   PassThrough{});
 
-
         ref_invoker.Run(ref_argument);
 
         if(config.verbosity > 0)
@@ -357,11 +355,9 @@ bool run_mx_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
                       << ((res_verified) ? " (PASSED!)" : " (FAILED!)") << std::endl;
         }
 
-
         res_verified = res_verified && ck::utils::check_err(c_m_n_device_result,
                                                             c_m_n_host_result,
                                                             "Error: Incorrect results!");
-
 
         if(config.verbosity > 0 && res_verified)
             std::cout << "Done." << std::endl;

@@ -224,12 +224,12 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         }();
 
         // Pad both M and K to be multiples of the block sizes
-        const auto a_grid_desc_m_k = transform_tensor_descriptor(
-            a_grid_desc_mraw_kraw,
-            make_tuple(make_right_pad_transform(M, MPad - M),
-                       make_right_pad_transform(K, KPad - K)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
+        const auto a_grid_desc_m_k =
+            transform_tensor_descriptor(a_grid_desc_mraw_kraw,
+                                        make_tuple(make_right_pad_transform(M, MPad - M),
+                                                   make_right_pad_transform(K, KPad - K)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
             a_grid_desc_m_k,
@@ -322,14 +322,14 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 return make_naive_tensor_descriptor(make_tuple(N, K), make_tuple(StrideB, I1));
             }
         }();
-        
+
         // Pad both N and K to be multiples of the block sizes
-        const auto b_grid_desc_n_k = transform_tensor_descriptor(
-            b_grid_desc_nraw_kraw,
-            make_tuple(make_right_pad_transform(N, NPad - N),
-                       make_right_pad_transform(K, KPad - K)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
+        const auto b_grid_desc_n_k =
+            transform_tensor_descriptor(b_grid_desc_nraw_kraw,
+                                        make_tuple(make_right_pad_transform(N, NPad - N),
+                                                   make_right_pad_transform(K, KPad - K)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
             b_grid_desc_n_k,
@@ -990,7 +990,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)  &&
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
                      !(is_same<tensor_layout::gemm::RowMajor, ALayout>::value))
         {
             if(!(karg.M % MPerBlock == 0))
@@ -1008,7 +1008,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)  &&
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
                      (is_same<tensor_layout::gemm::RowMajor, BLayout>::value))
         {
             if(!(karg.N % NPerBlock == 0))
@@ -1075,7 +1075,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                               << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
                               << __LINE__ << ", in function: " << __func__ << std::endl;
                 }
-                
 
                 return false;
             }
@@ -1093,9 +1092,9 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                               << __LINE__ << ", in function: " << __func__ << std::endl;
                 }
                 std::cout << "Arg N (" << karg.N
-                              << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
-                              << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                          << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
+                          << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
                 return false;
             }
         }
@@ -1110,7 +1109,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                               << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
                               << __LINE__ << ", in function: " << __func__ << std::endl;
                 }
-             
+
                 return false;
             }
         }
@@ -1128,7 +1127,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
                               << std::endl;
                 }
-             
+
                 return false;
             }
         }
@@ -1145,7 +1144,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
                               << std::endl;
                 }
-               
+
                 return false;
             }
         }
