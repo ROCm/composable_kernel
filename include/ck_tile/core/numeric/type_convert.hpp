@@ -11,6 +11,7 @@
 #include "ck_tile/core/numeric/bfloat16.hpp"
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/int8.hpp"
+#include "ck_tile/core/numeric/int4.hpp"
 
 namespace ck_tile {
 
@@ -63,6 +64,9 @@ CK_TILE_TYPE_CONVERT(bf8_t, bf8, float, float)
 
 CK_TILE_TYPE_CONVERT(float, float, int8_t, int8)
 CK_TILE_TYPE_CONVERT(int8_t, int8, float, float)
+
+CK_TILE_TYPE_CONVERT(fp32x2_t, floatx2, int4x2_t, int4x2)
+CK_TILE_TYPE_CONVERT(int4x2_t, int4x2, fp32x2_t, floatx2)
 
 #undef CK_TILE_TYPE_CONVERT
 #endif
