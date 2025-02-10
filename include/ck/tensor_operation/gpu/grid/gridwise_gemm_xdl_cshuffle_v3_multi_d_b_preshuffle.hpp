@@ -1126,7 +1126,10 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
-
+                
+        const index_t t0 = (p_sorted_token_ids[block_m_id * MPerBlock] & 0xffffff);
+        if(t0 >= problem.NumTokens)
+            return;
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
