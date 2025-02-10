@@ -664,9 +664,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                     k_tiles[I0] = load_tile(k_dram_window);
                     move_tile_window(k_dram_window, {0, kK0});
                 };
-            }
 
-            __builtin_amdgcn_sched_barrier(0);
+                __builtin_amdgcn_sched_barrier(0);
+            }
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
