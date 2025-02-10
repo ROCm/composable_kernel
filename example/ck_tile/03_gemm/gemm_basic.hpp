@@ -8,6 +8,27 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/ops/epilogue.hpp"
+#include "ck_tile/ops/gemm.hpp"
+
+#define CK_TILE_PIPELINE_COMPUTE 1
+#define CK_TILE_PIPELINE_MEMORY 2
+
+#ifndef CK_TILE_PIPELINE_DEFAULT
+#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE
+#endif
+
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrMem
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrMem
+#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Interwave
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV3
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV3
+#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
+#else
+#error "unsupported CK_TILE_PIPELINE_DEFAULT value"
+#endif
 
 template <typename DataType>
 struct GemmBasicTypeConfig;
@@ -20,6 +41,33 @@ struct GemmBasicTypeConfig<ck_tile::half_t>
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
     // ToDo: Add more bias config to support different categories of GEMM.
+};
+
+template <>
+struct GemmBasicTypeConfig<ck_tile::bf16_t>
+{
+    using ADataType   = ck_tile::bf16_t;
+    using BDataType   = ck_tile::bf16_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::bf16_t;
+};
+
+template <>
+struct GemmBasicTypeConfig<ck_tile::fp8_t>
+{
+    using ADataType   = ck_tile::fp8_t;
+    using BDataType   = ck_tile::fp8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <>
+struct GemmBasicTypeConfig<ck_tile::bf8_t>
+{
+    using ADataType   = ck_tile::bf8_t;
+    using BDataType   = ck_tile::bf8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <typename T>
@@ -43,37 +91,32 @@ struct DataTypeTraits<ck_tile::half_t>
     static constexpr const char* name = "fp16";
 };
 
-using Types = GemmBasicTypeConfig<ck_tile::half_t>;
-
-// Specific type aliases for easy access
-using ADataType   = Types::ADataType;
-using BDataType   = Types::BDataType;
-using AccDataType = Types::AccDataType;
-using CDataType   = Types::CDataType;
-
-struct gemm_basic_args
+template <>
+struct DataTypeTraits<ck_tile::bf16_t>
 {
-    const void* p_a;
-    const void* p_b;
-    void* p_c;
-    ck_tile::index_t kbatch;
-    ck_tile::index_t M;
-    ck_tile::index_t N;
-    ck_tile::index_t K;
-    ck_tile::index_t stride_A;
-    ck_tile::index_t stride_B;
-    ck_tile::index_t stride_C;
+    static constexpr const char* name = "bf16";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::fp8_t>
+{
+    static constexpr const char* name = "fp8";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::bf8_t>
+{
+    static constexpr const char* name = "bf8";
 };
 
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("b", "1", "batch size")
-        .insert("m", "3840", "m dimension")
+    arg_parser.insert("m", "3840", "m dimension")
         .insert("n", "4096", "n dimension")
         .insert("k", "2048", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("b_layout", "R", "B tensor data layout - Row by default")
+        .insert("b_layout", "C", "B tensor data layout - Column by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_b", "0", "Tensor B stride")
@@ -82,11 +125,12 @@ auto create_args(int argc, char* argv[])
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer");
+        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
+        .insert("split_k", "1", "splitK value");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
 // host API
-float gemm_calc(gemm_basic_args args, const ck_tile::stream_config& s);
+float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);

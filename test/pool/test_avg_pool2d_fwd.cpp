@@ -138,7 +138,7 @@ TYPED_TEST_SUITE(AvgPool2D_BF16, AvgPool2D_BF16_Types);
 TYPED_TEST_SUITE(AvgPool2D_I8, AvgPool2D_I8_Types);
 TYPED_TEST_SUITE(AvgPool2D_F8, AvgPool2D_F8_Types);
 
-TYPED_TEST(AvgPool2D_F32, AvgPool2D_I8_Test) { this->Run(); }
+TYPED_TEST(AvgPool2D_F32, AvgPool2D_F32_Test) { this->Run(); }
 TYPED_TEST(AvgPool2D_F16, AvgPool2D_F16_Test) { this->Run(); }
 TYPED_TEST(AvgPool2D_BF16, AvgPool2D_BF16_Test) { this->Run(); }
 TYPED_TEST(AvgPool2D_I8, AvgPool2D_I8_Test) { this->Run(); }

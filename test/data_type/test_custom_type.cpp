@@ -51,8 +51,11 @@ TEST(Custom_bool, TestAsType)
     ck::static_for<0, size, 1>{}([&](auto i) {
         right_vec.template AsType<custom_bool_t>()(Number<i>{}) = custom_bool_t{test_vec.at(i)};
     });
-    // copy the vector
-    vector_type<custom_bool_t, size> left_vec{right_vec};
+    vector_type<custom_bool_t, size> left_vec;
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<custom_bool_t, size>{};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_bool_t>()(Number<i>{}).data, test_vec.at(i));
@@ -129,8 +132,11 @@ TEST(Custom_int8, TestAsType)
     ck::static_for<0, size, 1>{}([&](auto i) {
         right_vec.template AsType<custom_int8_t>()(Number<i>{}) = custom_int8_t{test_vec.at(i)};
     });
-    // copy the vector
-    vector_type<custom_int8_t, size> left_vec{right_vec};
+    vector_type<custom_int8_t, size> left_vec;
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<custom_int8_t, size>{};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_int8_t>()(Number<i>{}).data, test_vec.at(i));
@@ -207,8 +213,11 @@ TEST(Custom_uint8, TestAsType)
     ck::static_for<0, size, 1>{}([&](auto i) {
         right_vec.template AsType<custom_uint8_t>()(Number<i>{}) = custom_uint8_t{test_vec.at(i)};
     });
-    // copy the vector
-    vector_type<custom_uint8_t, size> left_vec{right_vec};
+    vector_type<custom_uint8_t, size> left_vec;
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<custom_uint8_t, size>{};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_uint8_t>()(Number<i>{}).data, test_vec.at(i));
@@ -287,8 +296,11 @@ TEST(Custom_f8, TestAsType)
     ck::static_for<0, size, 1>{}([&](auto i) {
         right_vec.template AsType<custom_f8_t>()(Number<i>{}) = custom_f8_t{test_vec.at(i)};
     });
-    // copy the vector
-    vector_type<custom_f8_t, size> left_vec{right_vec};
+    vector_type<custom_f8_t, size> left_vec;
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<custom_f8_t, size>{};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_f8_t>()(Number<i>{}).data, test_vec.at(i));
@@ -369,8 +381,11 @@ TEST(Custom_bf8, TestAsType)
     ck::static_for<0, size, 1>{}([&](auto i) {
         right_vec.template AsType<custom_bf8_t>()(Number<i>{}) = custom_bf8_t{test_vec.at(i)};
     });
-    // copy the vector
-    vector_type<custom_bf8_t, size> left_vec{right_vec};
+    vector_type<custom_bf8_t, size> left_vec;
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<custom_bf8_t, size>{};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_bf8_t>()(Number<i>{}).data, test_vec.at(i));
@@ -450,8 +465,11 @@ TEST(Custom_half, TestAsType)
     ck::static_for<0, size, 1>{}([&](auto i) {
         right_vec.template AsType<custom_half_t>()(Number<i>{}) = custom_half_t{test_vec.at(i)};
     });
-    // copy the vector
-    vector_type<custom_half_t, size> left_vec{right_vec};
+    vector_type<custom_half_t, size> left_vec;
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<custom_half_t, size>{};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_half_t>()(Number<i>{}).data, test_vec.at(i));
@@ -533,8 +551,11 @@ TEST(Custom_bhalf, TestAsType)
     ck::static_for<0, size, 1>{}([&](auto i) {
         right_vec.template AsType<custom_bhalf_t>()(Number<i>{}) = custom_bhalf_t{test_vec.at(i)};
     });
-    // copy the vector
-    vector_type<custom_bhalf_t, size> left_vec{right_vec};
+    vector_type<custom_bhalf_t, size> left_vec;
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<custom_bhalf_t, size>{};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_bhalf_t>()(Number<i>{}).data, test_vec.at(i));
@@ -615,8 +636,11 @@ TEST(Custom_float, TestAsType)
     ck::static_for<0, size, 1>{}([&](auto i) {
         right_vec.template AsType<custom_float_t>()(Number<i>{}) = custom_float_t{test_vec.at(i)};
     });
-    // copy the vector
-    vector_type<custom_float_t, size> left_vec{right_vec};
+    vector_type<custom_float_t, size> left_vec;
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<custom_float_t, size>{};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_float_t>()(Number<i>{}).data, test_vec.at(i));
@@ -693,8 +717,11 @@ TEST(Custom_double, TestAsType)
     ck::static_for<0, size, 1>{}([&](auto i) {
         right_vec.template AsType<custom_double_t>()(Number<i>{}) = custom_double_t{test_vec.at(i)};
     });
-    // copy the vector
-    vector_type<custom_double_t, size> left_vec{right_vec};
+    vector_type<custom_double_t, size> left_vec;
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<custom_double_t, size>{};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_double_t>()(Number<i>{}).data, test_vec.at(i));
@@ -813,8 +840,11 @@ TEST(Complex_half, TestAsType)
         right_vec.template AsType<complex_half_t>()(Number<i>{}) =
             complex_half_t{test_vec.at(num_elem * i), test_vec.at(num_elem * i + 1)};
     });
-    // copy the vector
-    vector_type<complex_half_t, size> left_vec{right_vec};
+    vector_type<complex_half_t, size> left_vec;
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<complex_half_t, size>{};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<complex_half_t>()(Number<i>{}).real,
@@ -872,3 +902,167 @@ TEST(Complex_half, TestAsTypeReshape)
                   test_vec.at(num_elem * i + 1));
     });
 }
+
+#if CK_USE_OCP_FP8
+
+TEST(FP8OCP, TestSize)
+{
+    static_assert(std::is_same_v<f8_t, ck::f8_ocp_t>, "OCP FP8 is not enabled");
+    ASSERT_EQ(sizeof(f8_t), sizeof(ck::fp8_storage_t));
+    ASSERT_EQ(sizeof(vector_type<f8_t, 2>), sizeof(vector_type<ck::fp8_storage_t, 2>));
+    ASSERT_EQ(sizeof(vector_type<f8_t, 4>), sizeof(vector_type<ck::fp8_storage_t, 4>));
+    ASSERT_EQ(sizeof(vector_type<f8_t, 8>), sizeof(vector_type<ck::fp8_storage_t, 8>));
+    ASSERT_EQ(sizeof(vector_type<f8_t, 16>), sizeof(vector_type<ck::fp8_storage_t, 16>));
+    ASSERT_EQ(sizeof(vector_type<f8_t, 32>), sizeof(vector_type<ck::fp8_storage_t, 32>));
+    ASSERT_EQ(sizeof(vector_type<f8_t, 64>), sizeof(vector_type<ck::fp8_storage_t, 64>));
+}
+
+TEST(FP8OCP, TestAsType)
+{
+    static_assert(std::is_same_v<f8_t, ck::f8_ocp_t>, "OCP FP8 is not enabled");
+
+    // test size
+    std::array<float, 8> test_vec = {-4, -2, -0.5, -0.25, 1.0 / 8.0, 1, 1.5, 16};
+    constexpr int size            = test_vec.size();
+
+    // reference vector
+    vector_type<f8_t, size> right_vec;
+
+    // check default CTOR
+    ck::static_for<0, size, 1>{}(
+        [&](auto i) { ASSERT_EQ(right_vec.template AsType<f8_t>()(Number<i>{}), f8_t{0}); });
+
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<f8_t>()(Number<i>{}) = ck::type_convert<f8_t>(test_vec.at(i));
+    });
+
+    vector_type<f8_t, size> left_vec;
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<f8_t, size>{};
+
+    // check if values were copied correctly
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<f8_t>()(Number<i>{}),
+                  ck::type_convert<f8_t>(test_vec.at(i)));
+    });
+
+    ck::non_native_vector_base<ck::f8_ocp_t, 2> nnvb_f8x2(ck::type_convert<f8_t>(-10.0f));
+    ASSERT_EQ(nnvb_f8x2.template AsType<f8_t>()(Number<0>{}), ck::type_convert<f8_t>(-10.0f));
+    ASSERT_EQ(nnvb_f8x2.template AsType<f8_t>()(Number<1>{}), ck::type_convert<f8_t>(-10.0f));
+}
+
+TEST(FP8OCP, TestAsTypeReshape)
+{
+    static_assert(std::is_same_v<f8_t, ck::f8_ocp_t>, "OCP FP8 is not enabled");
+
+    // test size
+    std::array<float, 8> test_vec = {-8, -0.5, -0.25, 1.0 / 8.0, 1 / 256, 1, 1.5, 16};
+    constexpr int size            = test_vec.size();
+
+    // reference vector
+    vector_type<f8_t, size> right_vec;
+
+    // check default CTOR
+    ck::static_for<0, size, 1>{}(
+        [&](auto i) { ASSERT_EQ(right_vec.template AsType<f8_t>()(Number<i>{}), f8_t{0}); });
+
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<f8_t>()(Number<i>{}) = ck::type_convert<f8_t>(test_vec.at(i));
+    });
+
+    // copy the first half of a vector
+    vector_type<f8_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<f8_t, size / 2>::type>()(Number<0>{})};
+
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<f8_t>()(Number<i>{}),
+                  ck::type_convert<f8_t>(test_vec.at(i)));
+    });
+}
+
+TEST(BF8OCP, TestSize)
+{
+    static_assert(std::is_same_v<bf8_t, ck::bf8_ocp_t>, "OCP BF8 is not enabled");
+    ASSERT_EQ(sizeof(bf8_t), sizeof(ck::fp8_storage_t));
+    ASSERT_EQ(sizeof(vector_type<bf8_t, 2>), sizeof(vector_type<ck::fp8_storage_t, 2>));
+    ASSERT_EQ(sizeof(vector_type<bf8_t, 4>), sizeof(vector_type<ck::fp8_storage_t, 4>));
+    ASSERT_EQ(sizeof(vector_type<bf8_t, 8>), sizeof(vector_type<ck::fp8_storage_t, 8>));
+    ASSERT_EQ(sizeof(vector_type<bf8_t, 16>), sizeof(vector_type<ck::fp8_storage_t, 16>));
+    ASSERT_EQ(sizeof(vector_type<bf8_t, 32>), sizeof(vector_type<ck::fp8_storage_t, 32>));
+    ASSERT_EQ(sizeof(vector_type<bf8_t, 64>), sizeof(vector_type<ck::fp8_storage_t, 64>));
+}
+
+TEST(BF8OCP, TestAsType)
+{
+    static_assert(std::is_same_v<bf8_t, ck::bf8_ocp_t>, "OCP BF8 is not enabled");
+
+    // test size
+    std::array<float, 8> test_vec = {-4, -2, -0.5, -0.25, 1.0 / 8.0, 1, 1.5, 16};
+    constexpr int size            = test_vec.size();
+
+    // reference vector
+    vector_type<bf8_t, size> right_vec;
+
+    // check default CTOR
+    ck::static_for<0, size, 1>{}(
+        [&](auto i) { ASSERT_EQ(right_vec.template AsType<bf8_t>()(Number<i>{}), bf8_t{0}); });
+
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<bf8_t>()(Number<i>{}) = ck::type_convert<bf8_t>(test_vec.at(i));
+    });
+
+    vector_type<bf8_t, size> left_vec{right_vec};
+    // check copy assignment op
+    left_vec = right_vec;
+    // overwrite right_vec with 0s
+    right_vec = vector_type<bf8_t, size>{};
+
+    // check if values were copied correctly
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<bf8_t>()(Number<i>{}),
+                  ck::type_convert<bf8_t>(test_vec.at(i)));
+    });
+
+    ck::non_native_vector_base<bf8_t, 2> nnvb_bf8x2(ck::type_convert<bf8_t>(-10.0f));
+    ASSERT_EQ(nnvb_bf8x2.template AsType<bf8_t>()(Number<0>{}), ck::type_convert<bf8_t>(-10.0f));
+    ASSERT_EQ(nnvb_bf8x2.template AsType<bf8_t>()(Number<1>{}), ck::type_convert<bf8_t>(-10.0f));
+}
+
+TEST(BF8OCP, TestAsTypeReshape)
+{
+    static_assert(std::is_same_v<bf8_t, ck::bf8_ocp_t>, "OCP BF8 is not enabled");
+
+    // test size
+    std::array<float, 8> test_vec = {-8, -0.5, -0.25, 1.0 / 8.0, 1 / 256, 1, 1.5, 16};
+    constexpr int size            = test_vec.size();
+
+    // reference vector
+    vector_type<bf8_t, size> right_vec;
+
+    // check default CTOR
+    ck::static_for<0, size, 1>{}(
+        [&](auto i) { ASSERT_EQ(right_vec.template AsType<bf8_t>()(Number<i>{}), bf8_t{0}); });
+
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<bf8_t>()(Number<i>{}) = ck::type_convert<bf8_t>(test_vec.at(i));
+    });
+
+    // copy the first half of a vector
+    vector_type<bf8_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<bf8_t, size / 2>::type>()(Number<0>{})};
+
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<bf8_t>()(Number<i>{}),
+                  ck::type_convert<bf8_t>(test_vec.at(i)));
+    });
+}
+
+#endif

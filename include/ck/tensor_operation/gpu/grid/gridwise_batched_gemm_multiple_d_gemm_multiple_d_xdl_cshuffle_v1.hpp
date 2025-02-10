@@ -856,11 +856,18 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             static_cast<A0B0B1DataType*>(p_shared) + SharedMemTrait::b1_block_space_offset,
             b1_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-        constexpr index_t Gemm1KPack = math::max(
-            math::lcm(
-                MfmaSelector<A0B0B1DataType, Gemm0MPerXdl, Gemm0NPerXdl>::selected_mfma.group_size,
-                B1K1),
-            MfmaSelector<A0B0B1DataType, Gemm0MPerXdl, Gemm0NPerXdl>::selected_mfma.k_per_blk);
+        // selected_mfma.group_size or B1K1 <= Gemm1KPack <= selected_mfma.group_size
+        // selected_mfma.k_per_blk <= Gemm1KPack
+        //
+        // Following similar rationale behind Gemm0KPack, let Gemm1KPack be the lowest common
+        // multiples of A1K1 (predetermined by selected_mfma.group_size) and B1K1. But in this case
+        // Gemm1KPack can't be higher than A1K1 itself because A1 matrix is distributed in VGPRs
+        // with 'group_size' amount of contiguous elements. Having Gemm1KPack greater than A1K1 will
+        // cause mismatch in summation index for example c[0:7] = a1[[0:3, 8:11]] * b1[0:7].
+        // therefore we may just as well assign Gemm1KPack = group_size
+
+        constexpr index_t Gemm1KPack =
+            MfmaSelector<A0B0B1DataType, Gemm0MPerXdl, Gemm0NPerXdl>::selected_mfma.group_size;
 
         auto blockwise_gemm1 = BlockwiseGemmXdlops_v2<
             BlockSize,

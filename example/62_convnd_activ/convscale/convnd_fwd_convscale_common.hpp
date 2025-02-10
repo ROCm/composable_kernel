@@ -172,12 +172,13 @@ bool run_grouped_conv_fwd(bool do_verification,
     {
     case 0: break;
     case 1:
-        in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+        // values generated: -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5
+        in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 6});
+        wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-1.0, 1.0});
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
-        wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{-5.0, 5.0});
+        wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-1.0, 1.0});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());

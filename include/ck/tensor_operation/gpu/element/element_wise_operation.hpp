@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -533,7 +533,7 @@ struct NormalizeInInfer
                                                   const T3& gamma,
                                                   const T4& beta) const
     {
-        static_assert(std::is_same<T2, float>::value || std::is_same<T2, double>::value,
+        static_assert(is_same<T2, float>::value || is_same<T2, double>::value,
                       "Data type is not supported by this operation!");
 
         using ck::type_convert;

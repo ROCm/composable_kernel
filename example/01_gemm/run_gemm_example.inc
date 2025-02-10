@@ -5,88 +5,6 @@
 
 #include "ck/tensor_operation/gpu/device/device_gemm_streamk.hpp"
 
-template <typename DataType>
-inline __host__ __device__ constexpr double get_rtol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 2e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 2e-1;
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
-
-template <typename DataType>
-inline __host__ __device__ constexpr double get_atol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 2e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 2e-1;
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
-
 template <typename ProblemType>
 bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 {
@@ -143,8 +61,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     switch(config.init_method)
     {
     case 0:
-        ck::utils::FillConstant<ADataType>{static_cast<ADataType>(1.f)}(a_m_k);
-        ck::utils::FillConstant<BDataType>{static_cast<BDataType>(1.f)}(b_k_n);
+        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.f)}(a_m_k);
+        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(1.f)}(b_k_n);
         break;
     case 1:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);

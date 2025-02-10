@@ -46,9 +46,7 @@ using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipelineProbl
 using fmha_pipeline_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipeline<
     fmha_pipeline_problem_{F_idx}>;
 
-using fmha_kernel_{F_idx} =
-    ck_tile::FmhaFwdAppendKVKernel<ck_tile::FmhaFwdAppendKVTilePartitioner<{F_bs}, {F_bsk}, {F_bd}, {F_bdv}>,
-                  fmha_pipeline_{F_idx}>;
+using fmha_kernel_{F_idx} = ck_tile::FmhaFwdAppendKVKernel<fmha_pipeline_{F_idx}>;
 
 using trait_{F_idx} = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout},
                         {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
@@ -181,7 +179,7 @@ class FmhaFwdAppendKVApiPool:
                     inners = inners + FMHA_FWD_APPENDKV_API_INNER_DISPATCH.format(F_if=if_k, F_vlayout=LAYOUT_MAP[trait.vlayout],
                                    F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_rope_check=ROPE_CHECK_MAP[trait.rope],
                                    F_pagedkv=BOOL_MAP[trait.pagedkv], F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
-                                   F_rope=ROPE_MAP[trait.rope], F_bs=trait.bs, F_bsk=trait.bsk, F_bd=trait.bd, F_bdv=trait.bdv, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
+                                   F_rope=ROPE_MAP[trait.rope], F_bs=trait.bs, F_bsk=trait.bsk, F_bd=trait.bd, F_bdv=trait.bdv, F_hdim=hdim, F_dtype=FWD_DTYPE_MAP[dtype])
                 if_j = 'if' if j == 0 else 'else if'
                 per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
             if_i = 'if' if i == 0 else 'else if'
@@ -216,7 +214,7 @@ class FmhaFwdAppendKVKernel:
             FMHA_FWD_APPENDKV_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
                 F_hdim          = self.F_hdim,
-                F_dtype         = DTYPE_MAP[self.F_dtype],
+                F_dtype         = FWD_DTYPE_MAP[self.F_dtype],
                 F_bs            = self.F_tile.F_bs,
                 F_bsk           = self.F_tile.F_bsk,
                 F_bd            = self.F_tile.F_bd,
@@ -301,6 +299,9 @@ def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
         elif dtype in ['fp8', 'bf8']:
             # rope/paged-kv is not supported
             pipelines.append(FmhaFwdAppendKVPipeline('col', 't', 't', 't', 't', 'no', 'f'))
+        elif dtype in ['fp8fp16', 'fp8bf16']:
+            # TODO
+            None
         else:
             assert False
         return pipelines
@@ -308,7 +309,7 @@ def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
     gen = list()
     api_pool = FmhaFwdAppendKVApiPool(mask_impl)
 
-    for dtype in DTYPE_MAP.keys():
+    for dtype in FWD_DTYPE_MAP.keys():
         d = get_fmha_fwd_appendkv_tile_dict_from_dtype(dtype)
         if d == None:
             continue
