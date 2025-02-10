@@ -79,6 +79,15 @@ __device__ inline half4_t i4_to_half4_scale(int q, const ck::half2_t& scale)
     return res.template AsType<half4_t>()[Number<0>{}];
 }
 
+__device__ inline f8x8_t i4_to_fp8x8(int q)
+{
+    vector_type<f8_t, 8> res;
+
+    res.template AsType<f8x8_t>()(Number<0>{}) = amd_assembly_i4_to_fp8x2(q);
+
+    return res.template AsType<f8x8_t>()[Number<0>{}];
+}
+
 __device__ inline bhalf4_t i4_to_bhalf4(int q)
 {
     uint32_t i8s = (q & 0xf) | ((q & 0xf0) << 4) | ((q & 0xf00) << 8) | ((q & 0xf000) << 12);
@@ -139,6 +148,19 @@ struct PassThroughPack8
             type_convert<half2_t>(src.template AsType<pk_i4_t>()[Number<3>{}]);
 
         y = dst.template AsType<half8_t>()[Number<0>{}];
+#endif
+    }
+
+    __host__ __device__ constexpr void operator()(ck::f8x8_t& y, const ck::pk_i4x4_t& x) const
+    {
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+        vector_type<f8_t, 8> result;
+
+        result.template AsType<f8x8_t>()(Number<0>{}) = i4_to_fp8x8(bit_cast<int>(x));
+
+        y = result.template AsType<f8x8_t>()[Number<0>{}];
+#else
+        // Added pk_i4_t to f8x2_fnuz_t conversion
 #endif
     }
 

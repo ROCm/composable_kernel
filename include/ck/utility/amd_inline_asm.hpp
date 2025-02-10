@@ -32,6 +32,44 @@ inline __device__ half2_t amd_assembly_pk_add_f16(half2_t a, half2_t b)
     return c;
 }
 
+inline __device__ f8x8_t amd_assembly_i4_to_fp8x2(int a)
+{
+    uint32_t i4x8 = static_cast<uint32_t>(a);
+    uint32_t fp8x4_0;
+    uint32_t fp8x4_1;
+    float tmp_0, tmp_1, tmp_2;
+
+    asm volatile("v_cvt_off_f32_i4 %[v_tmp_0], %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_src], src0_sel:BYTE_2\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_0], %[v_tmp_0], %[v_tmp_1]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_1\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_src], src0_sel:BYTE_3\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_1], %[v_tmp_0], %[v_tmp_1]\n"
+                 "v_lshrrev_b32 %[v_tmp_2], 4, %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_tmp_2]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_tmp_2], src0_sel:BYTE_2\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_0], %[v_tmp_0], %[v_tmp_1], op_sel:[0, 0, 1]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_tmp_2], src0_sel:BYTE_1\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_tmp_2], src0_sel:BYTE_3\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_1], %[v_tmp_0], %[v_tmp_1], op_sel:[0, 0, 1]\n"
+                 : [v_tmp_0] "+v"(tmp_0),
+                   [v_tmp_1] "+v"(tmp_1),
+                   [v_tmp_2] "+v"(tmp_2),
+                   [v_dst_0] "+v"(fp8x4_0),
+                   [v_dst_1] "+v"(fp8x4_1),
+                   [v_src] "+v"(i4x8)
+                 :);
+
+    union
+    {
+        uint64_t as_uint64;
+        f8x8_t as_f8x8;
+    } convert;
+
+    convert.as_uint64 = (static_cast<uint64_t>(fp8x4_1) << 32) | fp8x4_0;
+    return convert.as_f8x8;
+}
+
 // c0 += inner_product(a, b0)
 // c1 += inner_product(a, b1)
 __device__ void amd_assembly_outer_product_1x2(float a, float b0, float b1, float& c0, float& c1)
