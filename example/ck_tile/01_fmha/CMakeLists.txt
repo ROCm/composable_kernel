@@ -114,6 +114,15 @@ list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-float-equal)
 target_compile_options(${EXAMPLE_FMHA_FWD} PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
 target_compile_options(${EXAMPLE_FMHA_BWD} PRIVATE ${EXAMPLE_FMHA_BWD_COMPILE_OPTIONS})
 
+set(STANDALONE_EXAMPLE_FA_BWD_COMPILE_OPTIONS)
+list(APPEND STANDALONE_EXAMPLE_FA_BWD_COMPILE_OPTIONS -Wno-undefined-func-template -fgpu-flush-denormals-to-zero)
+list(APPEND STANDALONE_EXAMPLE_FA_BWD_COMPILE_OPTIONS -Wno-float-equal)
+list(APPEND STANDALONE_EXAMPLE_FA_BWD_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
+
+set(STANDALONE_EXAMPLE_FA_BWD "standalone_example_fa_bwd")
+add_executable(${STANDALONE_EXAMPLE_FA_BWD} EXCLUDE_FROM_ALL example_bwd_fmha_bf16.cpp)
+target_compile_options(${STANDALONE_EXAMPLE_FA_BWD} PRIVATE ${STANDALONE_EXAMPLE_FA_BWD_COMPILE_OPTIONS})
+
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long
 # however, this property may affect global
