@@ -127,8 +127,41 @@ BOOL_MAP = {
     "f" : "false"
 }
 
+BWD_V3_HDIM_MAP = {
+    "64": "64",
+    "128": "128"
+}
+
 BF16_CVT_MAP = {
     0 : "rtne",
     1 : "rtna",
     2 : "rtz",
+}
+
+BWD_V3_MASK_MAP = {
+    "t": "((t.mask_type != mask_enum::no_mask) && ((a.window_size_left == -1) && (a.window_size_right == 0)))",
+    "f": "(t.mask_type == mask_enum::no_mask)"
+}
+
+BWD_V3_ATOMIC32_MAP = {
+    "t": "((t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc >= a.stride_dq_acc /*dq_acc only support BHSD*/))",
+    "f": "(t.is_v3_atomic_fp32 == false)"
+}
+
+BWD_V3_HDIM_CASE_MAP = {
+    0: "(a.hdim_q == 128)",
+    1: "(a.hdim_q == 64)",
+    2: "((a.hdim_q > 64) && (a.hdim_q < 128))"
+}
+
+BWD_V3_HDIM_CASE_CHECK_MAP = {
+    0: 128,
+    1: 64,
+    2: 128
+}
+
+BWD_V3_PADDING_CHECK_MAP = {
+    0: "false",
+    1: "false",
+    2: "true"
 }
