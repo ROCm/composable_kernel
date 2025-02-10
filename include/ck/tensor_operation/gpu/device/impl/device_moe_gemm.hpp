@@ -85,7 +85,7 @@ struct DeviceMoeGemm
                                                   CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
-    using GridwiseGemm = std::conditional_t< IsGatherGemm,
+    using GridwiseGemm = std::conditional_t<IsGatherGemm,
         GridwiseMoeGemmGather<
             ALayout,
             BLayout,
@@ -218,7 +218,7 @@ struct DeviceMoeGemm
 
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
-            const auto Run = [&](const auto& kernel) {
+            const auto RunKernel = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
 
@@ -301,6 +301,7 @@ struct DeviceMoeGemm
                 // Tail number always full
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
+                    using meme
                     // if(arg.KBatch > 1)
                     // {
                     //     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -311,7 +312,7 @@ struct DeviceMoeGemm
                     //             InMemoryDataOperationEnum::AtomicAdd,
                     //             minimum_occupancy,
                     //             TailNumber::Odd>;
-                    //         Run(kernel);
+                    //         RunKernel(kernel);
                     //     }
                     //     else
                     //     {
@@ -321,30 +322,50 @@ struct DeviceMoeGemm
                     //             InMemoryDataOperationEnum::AtomicAdd,
                     //             minimum_occupancy,
                     //             TailNumber::Even>;
-                    //         Run(kernel);
+                    //         RunKernel(kernel);
                     //     }
                     // }
                     // else
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
-                            const auto kernel = kernel_moe_gemm_gather<
-                                GridwiseGemm,
-                                true,
-                                ScatterOutput? InMemoryDataOperationEnum::AtomicAdd : InMemoryDataOperationEnum::Set,
-                                minimum_occupancy,
-                                TailNumber::Odd>;
-                            Run(kernel);
+                            if constexpr (IsGatherGemm) {
+                                const auto kernel = kernel_moe_gemm_gather<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::Set,
+                                    minimum_occupancy,
+                                    TailNumber::Odd>;
+                                RunKernel(kernel);
+                            } else {
+                                const auto kernel = kernel_moe_gemm_scatter<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::AtomicAdd,
+                                    minimum_occupancy,
+                                    TailNumber::Odd>;
+                                RunKernel(kernel);
+                            }
                         }
                         else
                         {
-                            const auto kernel = kernel_moe_gemm_gather<
-                                GridwiseGemm,
-                                true,
-                                ScatterOutput? InMemoryDataOperationEnum::AtomicAdd : InMemoryDataOperationEnum::Set,
-                                minimum_occupancy,
-                                TailNumber::Even>;
-                            Run(kernel);
+                            if constexpr (IsGatherGemm) {
+                                const auto kernel = kernel_moe_gemm_gather<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::Set,
+                                    minimum_occupancy,
+                                    TailNumber::Even>;
+                                RunKernel(kernel);
+                            } else {
+                                const auto kernel = kernel_moe_gemm_scatter<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::AtomicAdd,
+                                    minimum_occupancy,
+                                    TailNumber::Even>;
+                                RunKernel(kernel);
+                            }
                         }
                     }
                 }
@@ -361,7 +382,7 @@ struct DeviceMoeGemm
                 //                     InMemoryDataOperationEnum::AtomicAdd,
                 //                     minimum_occupancy,
                 //                     TailNumber::Odd>;
-                //             Run(kernel);
+                //             RunKernel(kernel);
                 //         }
                 //         else
                 //         {
@@ -372,7 +393,7 @@ struct DeviceMoeGemm
                 //                     InMemoryDataOperationEnum::AtomicAdd,
                 //                     minimum_occupancy,
                 //                     TailNumber::Even>;
-                //             Run(kernel);
+                //             RunKernel(kernel);
                 //         }
                 //     }
                 //     else
@@ -383,10 +404,10 @@ struct DeviceMoeGemm
                 //                 kernel_moe_gemm_gather_2lds<
                 //                     GridwiseGemm,
                 //                     true,
-                                // ScatterOutput? InMemoryDataOperationEnum::AtomicAdd : InMemoryDataOperationEnum::Set,
+                //                IsGatherGemm? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd,
                 //                     minimum_occupancy,
                 //                     TailNumber::Odd>;
-                //             Run(kernel);
+                //             RunKernel(kernel);
                 //         }
                 //         else
                 //         {
@@ -394,10 +415,10 @@ struct DeviceMoeGemm
                 //                 kernel_moe_gemm_gather_2lds<
                 //                     GridwiseGemm,
                 //                     true,
-                                // ScatterOutput? InMemoryDataOperationEnum::AtomicAdd : InMemoryDataOperationEnum::Set,
+                //                IsGatherGemm? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd,
                 //                     minimum_occupancy,
                 //                     TailNumber::Even>;
-                //             Run(kernel);
+                //             RunKernel(kernel);
                 //         }
                 //     }
                 // }
@@ -414,7 +435,7 @@ struct DeviceMoeGemm
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
+            return -1;//Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
