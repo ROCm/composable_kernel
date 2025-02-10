@@ -55,8 +55,7 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
         printf("arg18: memory for rotating buffer (default 0, size in MB)\n");
         exit(1);
     }
-    
-    
+
     int M;
     int N;
     int StrideA;
@@ -76,7 +75,7 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
         N       = std::stoi(argv[9]);
         StrideB = std::stoi(argv[12]);
     }
-    
+
     const auto data_type       = static_cast<GemmDataType>(std::stoi(argv[2]));
     const auto layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[3]));
     const bool do_verification = std::stoi(argv[4]);
