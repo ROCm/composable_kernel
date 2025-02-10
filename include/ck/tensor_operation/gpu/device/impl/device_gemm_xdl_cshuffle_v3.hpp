@@ -138,6 +138,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             if(stream_config.log_level_ > 0)
             {
                 arg.Print();
+                GridwiseGemm::BlockwiseGemmPipe::HotLoopInstList::Print();
             }
 
             if(!GridwiseGemm::CheckValidity(arg))
@@ -733,7 +734,9 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
+            << "Kpack: "
+            << GridwiseGemm::BlockwiseGemmPipe::AMmaKStride;
         // clang-format on
 
         return str.str();
