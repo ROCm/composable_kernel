@@ -131,8 +131,6 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(weights_host);
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(moe_buf_host);
     topid_unique_gen<IndexType>(topk_ids_host.mData, tokens, topk, num_experts, seed);
-    // std::cout << "topk_id:" << topk_ids_host << std::endl;
-    // std::cout << "local_expert_masking:" << local_expert_masking_host << std::endl;
 
     ck_tile::DeviceMem topk_ids_dev(topk_ids_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem weights_dev(weights_host.get_element_space_size_in_bytes());
@@ -177,15 +175,22 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                               warmup,
                               repeat};
     auto ms = moe_sorting(trait, karg, sc);
-    printf("[%s|%s]tokens:%d, num_experts:%d, topk:%d,  ms:%f , ",
+    printf("[%s|%s]tokens:%d, num_experts:%d, topk:%d, ",
            index_prec.c_str(),
            weight_prec.c_str(),
            tokens,
            num_experts,
-           topk,
-           ms);
+           topk);
+
+    if(local_expert_masking)
+    {
+        printf("local_eid:%s, ", args.get_str("local_eid").c_str());
+    }
+
     if(ms < 0)
         printf("not supported\n");
+    else
+        printf("ms:%f, ", ms);
     fflush(stdout);
     if(ms < 0)
     {
@@ -221,19 +226,16 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                                                               local_expert_masking);
         rtn &= ck_tile::check_err(
             sorted_ids_host, sorted_ids_ref, std::string("OUT Error: Incorrect ids!"), 1e-6, 1e-6);
-        // std::cout << "sorted_ids_ref:"<<sorted_ids_ref<<std::endl;
         rtn &= ck_tile::check_err(sorted_weights_host,
                                   sorted_weights_ref,
                                   std::string("OUT Error: Incorrect w!"),
                                   1e-6,
                                   1e-6);
-        // std::cout << "sorted_weights_ref:"<<sorted_weights_ref<<std::endl;
         rtn &= ck_tile::check_err(sorted_expert_ids_host,
                                   sorted_expert_ids_ref,
                                   std::string("OUT Error: Incorrect eid!"),
                                   1e-6,
                                   1e-6);
-        // std::cout << "sorted_expert_ids_ref:"<<sorted_expert_ids_ref<<std::endl;
         if(moe_buf_size)
         {
             ck_tile::HostTensor<WeightType> moe_buf_ref({moe_buf_size});

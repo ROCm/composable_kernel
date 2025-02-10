@@ -104,7 +104,6 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
 
         for(index_t s = 0; s < expert_slices[e]; s++)
         {
-            // out_expert_id[s] = e;
             out_expert_id[s] = curr_expert_id;
             unit_cnt++;
         }
