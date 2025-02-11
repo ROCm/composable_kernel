@@ -5,6 +5,7 @@
 
 #include "ck_tile/host/arg_parser.hpp"
 #include "ck_tile/host/check_err.hpp"
+#include "ck_tile/host/concat.hpp"
 #include "ck_tile/host/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/host/device_memory.hpp"

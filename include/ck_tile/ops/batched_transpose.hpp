@@ -9,3 +9,4 @@
 #include "ck_tile/ops/batched_transpose/pipeline/batched_transpose_problem.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/common/utils.hpp"
