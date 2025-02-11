@@ -174,7 +174,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                                                                                 src_coords_[i]);
 
                 oob_val = oob_val & is_src_valid;
-                if (i.value == 2) 
+                if (i.value == 3) 
                 {
                     static_assert(SrcScalarPerVectors{}[Number<2>{}] == 1, "scatter weight dim, should only one vec");
                     constexpr auto iScatter = SrcSpaceFillingCurve::GetIndex(iAccess)(Number<ScatterDim>{});
@@ -187,7 +187,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                     using DataType  = remove_cvref_t<decltype(data_types[i])>;
                     const auto tmp =
                         src_bufs[i].template Get<DataType>(src_coords_[i].GetOffset(), true);
-                    // printf("tid %d srcid %d off %d v %f\n", threadIdx.x, i.value, src_coords_[i].GetOffset(), tmp);
+                    // if(i.value == 2)
+                        // printf("tid %d srcid %d off %d v %f\n", threadIdx.x, i.value, src_coords_[i].GetOffset(), tmp);
                     static_for<0, SrcScalarPerVector, 1>{}(
                         [&](auto j) { src_vectors(i).template AsType<DataType>()(j) = tmp; });
                 }

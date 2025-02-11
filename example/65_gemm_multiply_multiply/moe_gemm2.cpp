@@ -132,7 +132,6 @@ static constexpr ck::index_t EVec = 16 / sizeof(EDataType);
 static constexpr ck::index_t D0Vec = 1;
 static constexpr ck::index_t D1Vec = 1;
 static constexpr ck::index_t D2Vec = 1;
-// using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
 ///######|  ALayout|  BLayout| DsLayout| ELayout|      AData|      BData|     DsData|     EData|     AccData|         CShuffle|           A|           B|          CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
@@ -185,7 +184,7 @@ int main(int argc, char* argv[])
     ck::index_t sorted_tile_num = 8;
     ck::index_t sorted_tile_size = MPerBlock;
     ck::index_t SORTED_SIZE = sorted_tile_num * sorted_tile_size;
-    ck::index_t tokens = 32;
+    ck::index_t tokens = 64;
 
     if(argc == 1)
     {
@@ -234,14 +233,13 @@ int main(int argc, char* argv[])
         else
             sorted_token_ids.mData[i] = tokens;
     }
-    expert_ids.savetxt("expert_ids.txt", "int");
-    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
+
     Tensor<A0DataType> a0_m_k(HostTensorDescriptor({SORTED_SIZE, K}, {K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
     Tensor<D0DataType> d0_m_n(HostTensorDescriptor({SORTED_SIZE, N}, {StrideDs[0], 0}));
     Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
-    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({experts, N}, {1, 0}));
+    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({SORTED_SIZE, N}, {1, 0}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     e_t_n_device_result.SetZero();
@@ -285,6 +283,11 @@ int main(int argc, char* argv[])
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
     a0_m_k.savetxt("a.txt");
+    expert_ids.savetxt("expert_ids.txt", "int");
+    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
+    d0_m_n.savetxt("d0_m_n.txt", "int");
+    d1_e_n.savetxt("d1_e_n.txt", "int");
+    d2_e_n.savetxt("d2_e_n.txt", "int");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     a0_device_buf.ToDevice(a0_m_k.mData.data());

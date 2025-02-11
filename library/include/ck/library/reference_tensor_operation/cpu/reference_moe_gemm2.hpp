@@ -89,6 +89,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                 const int t = arg.sorted_token_ids_(m);
                 const int e = arg.expert_ids_(m / arg.sorted_tile_size_);
                 const int token_cnt = arg.c_t_n_.mDesc.GetLengths()[0];
+                D2DataType v_topk_w = arg.d2_(m, 0);  //expert
 
                 if(t < token_cnt) {
                     for(int k = 0; k < K; ++k)
@@ -120,9 +121,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                     CDataType v_c{0};
                     D0DataType v_d0 = arg.d0_(m, n);  // a
                     D0DataType v_d1 = arg.d1_(e, n);  // b
-                    D0DataType v_d2 = arg.d2_(e, 0);  //expert
-                    arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_d2);
-
+                    arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_topk_w);
                     arg.c_t_n_(t, n) += v_c;
                 }
 

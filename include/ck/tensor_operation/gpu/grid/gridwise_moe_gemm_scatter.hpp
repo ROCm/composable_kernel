@@ -1382,10 +1382,12 @@ struct GridwiseMoeGemmScatter
                     // ascale M, 1; bscale E, N, 1, move ptr to E
                     if (i.value == 1) 
                     {
-                        ptr_ += expert_id * problem.StrideDs[1] * problem.N;
+                        ptr_ += expert_id * (problem.StrideDs[1]? problem.StrideDs[1] * problem.N : 1);
+                        // if ( threadIdx.x  ==0)
+                        //     printf("bid %d eid %d b eoff %d %f\n", blockIdx.y, expert_id, expert_id * (problem.StrideDs[1]? problem.StrideDs[1] * problem.N : 1), ptr_[0]);
                     }
                     return make_dynamic_buffer<AddressSpaceEnum::Global>(
-                        p_ds_grid[i], ds_grid_desc_m_n[i].GetElementSpaceSize());
+                        ptr_, ds_grid_desc_m_n[i].GetElementSpaceSize());
                 },
                 Number<NumDTensor>{});
 
