@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1_default_policy.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -38,6 +39,18 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
+
+    static constexpr index_t kLdsAlignmentInBytes = 16;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "pipeline_AGmemBGmemCRegV1", 
+                      concat('x', kMPerBlock, kNPerBlock, kKPerBlock,  BlockSize),
+                      concat('x', GetVectorSizeA(), GetVectorSizeB(), GetVectorSizeC()),
+                      concat('x', kPadM, kPadN, kPadK));
+        // clang-format on
+    }
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
@@ -75,8 +88,9 @@ struct GemmPipelineAGmemBGmemCRegV1
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
         constexpr index_t a_lds_block_space_size_aligned =
-            integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16) *
-            16;
+            integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(),
+                                kLdsAlignmentInBytes) *
+            kLdsAlignmentInBytes;
 
         // B tile in LDS
         BDataType* p_b_lds = static_cast<BDataType*>(
