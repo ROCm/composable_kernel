@@ -7,6 +7,9 @@ add_executable(${TILE_ADD_RMSNORM2D_RDQUANT_FWD} EXCLUDE_FROM_ALL add_rmsnorm2d_
 target_include_directories(${TILE_ADD_RMSNORM2D_RDQUANT_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${TILE_ADD_RMSNORM2D_RDQUANT_FWD} PRIVATE ${INSTANCE_SRCS})
 
+add_dependencies(examples_ck_tile ${TILE_ADD_RMSNORM2D_RDQUANT_FWD})
+rocm_install(TARGETS ${TILE_ADD_RMSNORM2D_RDQUANT_FWD} COMPONENT examples_ck_tile)
+
 set(TILE_ADD_RMSNORM2D_RDQUANT_FWD_COMPILE_OPTIONS)
 
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
@@ -17,6 +20,9 @@ target_compile_options(${TILE_ADD_RMSNORM2D_RDQUANT_FWD} PRIVATE ${TILE_ADD_RMSN
 set(EXAMPLE_ADD_RMSNORM2D_RDQUANT_FWD "tile_example_add_rmsnorm2d_rdquant_fwd")
 add_executable(${EXAMPLE_ADD_RMSNORM2D_RDQUANT_FWD} EXCLUDE_FROM_ALL example_add_rmsnorm2d_rdquant_fwd.cpp)
 target_compile_options(${EXAMPLE_ADD_RMSNORM2D_RDQUANT_FWD} PRIVATE ${TILE_ADD_RMSNORM2D_RDQUANT_FWD_COMPILE_OPTIONS})
+
+add_dependencies(examples_ck_tile ${EXAMPLE_ADD_RMSNORM2D_RDQUANT_FWD})
+rocm_install(TARGETS ${EXAMPLE_ADD_RMSNORM2D_RDQUANT_FWD} COMPONENT examples_ck_tile)
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long

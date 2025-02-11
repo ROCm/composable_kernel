@@ -189,7 +189,7 @@ def cmake_build(Map conf=[:]){
     def package_build = (conf.get("package_build","") == "true")
 
     if (package_build == true) {
-        config_targets = "package"
+        config_targets = "examples_ck_tile package"
     }
 
     if(conf.get("build_install","") == "true")
@@ -523,7 +523,7 @@ def Build_CK(Map conf=[:]){
                         if (params.RUN_FULL_QA && arch_type == 1 ){
                             // build deb packages for all gfx9 targets on gfx90a system and prepare to export
                             echo "Build ckProfiler package"
-                            sh 'make -j package'
+                            sh 'make -j examples_ck_tile package'
                             archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
                             sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
                             stash includes: "ckprofiler_0.2.0_amd64.deb", name: "ckprofiler_0.2.0_amd64.deb"

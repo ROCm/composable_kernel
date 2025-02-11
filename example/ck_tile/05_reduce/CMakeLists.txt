@@ -7,6 +7,9 @@ add_executable(${EXAMPLE_REDUCE} EXCLUDE_FROM_ALL reduce.cpp)
 target_include_directories(${EXAMPLE_REDUCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 set(EXAMPLE_REDUCE_COMPILE_OPTIONS)
 
+add_dependencies(examples_ck_tile ${EXAMPLE_REDUCE})
+rocm_install(TARGETS ${EXAMPLE_REDUCE} COMPONENT examples_ck_tile)
+
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
 list(APPEND EXAMPLE_REDUCE_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
 

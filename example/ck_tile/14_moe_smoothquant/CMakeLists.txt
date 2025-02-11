@@ -5,6 +5,9 @@ function (add_moe_smoothquant_example TARGET_NAME MAIN_SRC)
     add_executable(${TARGET_NAME} EXCLUDE_FROM_ALL ${MAIN_SRC})
     target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
+    add_dependencies(examples_ck_tile ${TARGET_NAME})
+    rocm_install(TARGETS ${TARGET_NAME} COMPONENT examples_ck_tile)
+
     foreach(source IN LISTS ARGN)
         list(APPEND INSTANCE_SRCS ${source})
     endforeach()

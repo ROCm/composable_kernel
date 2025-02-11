@@ -37,6 +37,9 @@ list(APPEND EXAMPLE_LAYERNORM2D_FWD_COMPILE_OPTIONS -Wno-undefined-func-template
 
 target_compile_options(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${EXAMPLE_LAYERNORM2D_FWD_COMPILE_OPTIONS})
 
+add_dependencies(examples_ck_tile ${EXAMPLE_LAYERNORM2D_FWD})
+rocm_install(TARGETS ${EXAMPLE_LAYERNORM2D_FWD} COMPONENT examples_ck_tile)
+
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long
 # however, this property may affect global

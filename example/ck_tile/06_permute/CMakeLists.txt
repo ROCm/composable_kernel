@@ -2,6 +2,9 @@
 # to be included in "make all/install/check"
 add_executable(tile_example_permute EXCLUDE_FROM_ALL permute.cpp)
 
+add_dependencies(examples_ck_tile tile_example_permute)
+rocm_install(TARGETS tile_example_permute COMPONENT examples_ck_tile)
+
 if(NOT DEFINED PERMUTE_USE_ALTERNATIVE_IMPL)
 # set(PERMUTE_USE_ALTERNATIVE_IMPL false)
 set(PERMUTE_USE_ALTERNATIVE_IMPL true)
