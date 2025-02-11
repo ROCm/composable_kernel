@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_b_preshuffle.hpp"
 
 using F8 = ck::f8_t;
 using I4  = ck::pk_i4_t;
@@ -63,7 +63,7 @@ static constexpr ck::index_t KPerBlock = 128;
 
 // clang-format off
 using DeviceGemmV2Instance = 
-    ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3<
+    ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3_BPreshuffle<
         ALayout,   BLayout,  CLayout,   
         ADataType, BDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 
@@ -77,7 +77,7 @@ using DeviceGemmV2Instance =
         S<4, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
         1, 1, S<1, 16, 1, 8>, 4,
-        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ADataType, ADataType, PermuteA, PermuteB>;
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, F8, F8, PermuteA, PermuteB>;
 
 // clang-format on
 
@@ -174,8 +174,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
-    // int NperXdl= 16;
-    // preShuffleBuffer(b_k_n.mData.data(), b_k_n_preshuffled.mData.data(), N, K, NperXdl);
+    int NperXdl = GetPreShuffleParameters;
+    preShuffleBuffer(b_k_n.mData.data(), b_k_n_preshuffled.mData.data(), N, K, NperXdl);
 
     // weight permute
     if constexpr(PermuteB)
@@ -190,7 +190,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             {
                 for(int jj = 0; jj < K1; jj++)
                 {
-                    b_k_n_permute(j * N * K1 + i * K1 + jj) = b_k_n(i * K + (j * K1 + jj));
+                    b_k_n_permute(j * N * K1 + i * K1 + jj) = b_k_n_preshuffled(i * K + (j * K1 + jj));
                 }
             }
         }
@@ -201,7 +201,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         {
             for(int j = 0; j < K; j++)
             {
-                b_k_n_permute(i * K + j) = b_k_n(i * K + j);
+                b_k_n_permute(i * K + j) = b_k_n_preshuffled(i * K + j);
             }
         }
     }

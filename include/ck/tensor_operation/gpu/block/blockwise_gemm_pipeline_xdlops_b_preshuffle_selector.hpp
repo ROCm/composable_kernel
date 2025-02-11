@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v1.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v2.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v3.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v4.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v5.hpp"
+
 namespace ck {
 
 template <BlockGemmPipelineVersion BlkGemmPipelineVer,
@@ -100,6 +103,52 @@ constexpr auto BlockGemmBPreshufflePipeline_Selector()
                                                            MRepeat,
                                                            NRepeat,
                                                            KPack>{};
+    }
+    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+    {
+        return BlockwiseGemmXdlops_pipeline_v4<BlkGemmPipeSche,
+                                               BlockSize,
+                                               ADataType,
+                                               BDataType,
+                                               ComputeDataType,
+                                               AccDataType,
+                                               ATileDesc,
+                                               BTileDesc,
+                                               AMmaTileDesc,
+                                               BMmaTileDesc,
+                                               ABlockTransferSrcScalarPerVector,
+                                               BBlockTransferSrcScalarPerVector,
+                                               MPerBlock,
+                                               NPerBlock,
+                                               KPerBlock,
+                                               MPerXDL,
+                                               NPerXDL,
+                                               MRepeat,
+                                               NRepeat,
+                                               KPack>{};
+    }
+    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v5)
+    {
+        return BlockwiseGemmXdlops_pipeline_v5<BlkGemmPipeSche,
+                                               BlockSize,
+                                               ADataType,
+                                               BDataType,
+                                               ComputeDataType,
+                                               AccDataType,
+                                               ATileDesc,
+                                               BTileDesc,
+                                               AMmaTileDesc,
+                                               BMmaTileDesc,
+                                               ABlockTransferSrcScalarPerVector,
+                                               BBlockTransferSrcScalarPerVector,
+                                               MPerBlock,
+                                               NPerBlock,
+                                               KPerBlock,
+                                               MPerXDL,
+                                               NPerXDL,
+                                               MRepeat,
+                                               NRepeat,
+                                               KPack>{};
     }
     else
     {
