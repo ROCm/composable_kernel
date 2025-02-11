@@ -1064,14 +1064,14 @@ struct FmhaFwdKernel
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kSubQKHeaddim>{}),
-                    sequence<false, kPadHeadDimQ>{});
+                    sequence<kPadSeqLenQ, kPadHeadDimQ>{});
             }
             else
             {
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0>{}),
-                    sequence<false, kPadHeadDimQ>{});
+                    sequence<kPadSeqLenQ, kPadHeadDimQ>{});
             }
         }();
         const auto k_dram = [&]() {
