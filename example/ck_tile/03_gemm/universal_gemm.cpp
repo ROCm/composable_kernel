@@ -23,24 +23,101 @@ int run_gemm_example(int argc, char* argv[])
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    std::string a_layout = arg_parser.get_str("a_layout");
-    std::string b_layout = arg_parser.get_str("b_layout");
+    std::string data_type = arg_parser.get_str("prec");
+    std::string a_layout  = arg_parser.get_str("a_layout");
+    std::string b_layout  = arg_parser.get_str("b_layout");
 
     if(a_layout == "R" && b_layout == "R")
     {
-        return run_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
+        if(data_type == "fp16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Row{}, Row{}, Row{});
+        }
+        else if(data_type == "bf16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Row{}, Row{});
+        }
+        else if(data_type == "fp8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Row{}, Row{});
+        }
+        else if(data_type == "bf8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Row{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data_type!");
+        }
     }
     else if(a_layout == "R" && b_layout == "C")
     {
-        return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+        if(data_type == "fp16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(data_type == "bf16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(data_type == "fp8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(data_type == "bf8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data_type!");
+        }
     }
     else if(a_layout == "C" && b_layout == "C")
     {
-        return run_gemm_example_with_layouts(argc, argv, Col{}, Col{}, Row{});
+        if(data_type == "fp16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Col{}, Col{}, Row{});
+        }
+        else if(data_type == "bf16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Col{}, Col{}, Row{});
+        }
+        else if(data_type == "fp8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Col{}, Col{}, Row{});
+        }
+        else if(data_type == "bf8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Col{}, Col{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data_type!");
+        }
     }
     else if(a_layout == "C" && b_layout == "R")
     {
-        return run_gemm_example_with_layouts(argc, argv, Col{}, Row{}, Row{});
+        if(data_type == "fp16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Col{}, Row{}, Row{});
+        }
+        else if(data_type == "bf16")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Col{}, Row{}, Row{});
+        }
+        else if(data_type == "fp8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Col{}, Row{}, Row{});
+        }
+        else if(data_type == "bf8")
+        {
+            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Col{}, Row{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data_type!");
+        }
     }
     else
     {

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -27,15 +28,27 @@ struct GemmPipelineProblemBase
     using BLayout = remove_cvref_t<typename Traits::BLayout>;
     using CLayout = remove_cvref_t<typename Traits::CLayout>;
 
+    static constexpr bool TransposeC = Traits::TransposeC;
+
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
 
     static constexpr bool kPadM = Traits::kPadM;
     static constexpr bool kPadN = Traits::kPadN;
     static constexpr bool kPadK = Traits::kPadK;
 
-    static constexpr auto Scheduler = GemmPipelineScheduler::Default;
-
+    static constexpr auto Scheduler         = GemmPipelineScheduler::Default;
     static constexpr index_t VectorLoadSize = Traits::_VectorSize;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "gemm_problem", 
+                      concat('x', VectorLoadSize, kBlockSize),
+                      concat('x', kPadM, kPadN, kPadK),
+                      Scheduler);
+        // clang-format on
+    }
+
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
     {
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
@@ -111,7 +124,6 @@ struct GemmPipelineProblemBase
             return kPadK ? 1 : GetAlignmentB();
         }
     }();
-
     static constexpr index_t VectorSizeC = []() {
         if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
         {

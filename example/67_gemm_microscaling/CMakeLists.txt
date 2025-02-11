@@ -1,0 +1,5 @@
+add_custom_target(example_gemm_mx)
+
+add_example_executable(example_gemm_mx_fp8 gemm_mx_fp8.cpp)
+add_example_dependencies(example_gemm_mx example_gemm_mx_fp8)
+
