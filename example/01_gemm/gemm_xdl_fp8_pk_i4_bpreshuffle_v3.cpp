@@ -22,7 +22,7 @@ using CLayout = Row;
 
 void preShuffleBuffer(const I4* src, I4* dst, int N, int K, int NXdl)
 {
-    int KPack = 32;
+    int KPack = 32; // int4 -> 32, fp8 -> 16, fp16 -> 8
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
@@ -174,7 +174,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
-    int NperXdl = GetPreShuffleParameters;
+    // do GEMM
+    auto gemm      = DeviceGemmV2Instance{};
+
+    int NperXdl = gemm.GetPreShuffleParameters();
     preShuffleBuffer(b_k_n.mData.data(), b_k_n_preshuffled.mData.data(), N, K, NperXdl);
 
     // weight permute
@@ -263,8 +266,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto b_element_op = BElementOp{};
     auto c_element_op = CElementOp{};
 
-    // do GEMM
-    auto gemm      = DeviceGemmV2Instance{};
     auto invoker   = gemm.MakeInvoker();
     float ave_time = 0;
 
