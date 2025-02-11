@@ -624,6 +624,26 @@ struct BlockFmhaPipelineQRKSVSAsync
                 });
             });
 
+            __builtin_amdgcn_sched_barrier(0x7f);
+
+            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+            {
+                auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
+                    Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+                shuffle_tile(v_shuffle_tmp, v_tiles[I0]);
+
+                store_tile(
+                    v_lds_windows[I0],
+                    tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
+            }
+            else
+            {
+                store_tile(v_lds_windows[I0],
+                           tile_elementwise_in(v_element_func, v_tiles[I0])); // store the prefetch
+            }
+
+            __builtin_amdgcn_sched_barrier(0);
+
             auto rowsum_p = block_tile_reduce<SMPLComputeDataType>(
                 p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
@@ -665,26 +685,6 @@ struct BlockFmhaPipelineQRKSVSAsync
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
             }
-
-            __builtin_amdgcn_sched_barrier(0x7f);
-
-            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            {
-                auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
-                    Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
-                shuffle_tile(v_shuffle_tmp, v_tiles[I0]);
-
-                store_tile(
-                    v_lds_windows[I0],
-                    tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
-            }
-            else
-            {
-                store_tile(v_lds_windows[I0],
-                           tile_elementwise_in(v_element_func, v_tiles[I0])); // store the prefetch
-            }
-
-            __builtin_amdgcn_sched_barrier(0);
 
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
