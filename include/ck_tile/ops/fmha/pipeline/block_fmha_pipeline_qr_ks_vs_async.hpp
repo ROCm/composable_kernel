@@ -666,7 +666,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
             }
 
-            __builtin_amdgcn_sched_barrier(0);
+            __builtin_amdgcn_sched_barrier(0x7f);
 
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
