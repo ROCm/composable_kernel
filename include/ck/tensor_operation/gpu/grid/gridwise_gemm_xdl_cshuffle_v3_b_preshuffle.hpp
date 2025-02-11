@@ -1134,7 +1134,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         const AElementwiseOperation a_element_op{};
-        const BElementwiseOperation b_element_op{};
+        // const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
@@ -1514,7 +1514,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         const AElementwiseOperation a_element_op{};
-        const BElementwiseOperation b_element_op{};
+        // const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
@@ -1614,7 +1614,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(, 0, KRepeat, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, KRepeat, 0);
 
         // Blockwise GEMM pipeline
         static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
