@@ -17,6 +17,9 @@ namespace host {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename D0DataType,
+          typename D1DataType,
+          typename D2DataType,
           typename AccDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -33,6 +36,9 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                  const index_t sorted_tile_size,
                  const Tensor<ADataType>& a_m_k,
                  const Tensor<BDataType>& b_e_n_k,
+                 const Tensor<D0DataType>& d0,
+                 const Tensor<D1DataType>& d1,
+                 const Tensor<D2DataType>& d2,
                  Tensor<CDataType>& c_t_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -42,6 +48,9 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
               sorted_tile_size_{sorted_tile_size},
               a_m_k_{a_m_k},
               b_e_n_k_{b_e_n_k},
+              d0_{d0},
+              d1_{d1},
+              d2_{d2},
               c_t_n_{c_t_n},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
@@ -49,16 +58,19 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
         {
         }
 
-        const Tensor<ck::index_t>& expert_ids_;
         const Tensor<ck::index_t>& sorted_token_ids_;
+        const Tensor<ck::index_t>& expert_ids_;
+        index_t sorted_tile_size_;
         const Tensor<ADataType>& a_m_k_;
         const Tensor<BDataType>& b_e_n_k_;
+        const Tensor<D0DataType>& d0_;
+        const Tensor<D1DataType>& d1_;
+        const Tensor<D2DataType>& d2_;
         Tensor<CDataType>& c_t_n_;
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
-        index_t sorted_tile_size_;
     };
 
     // Invoker
@@ -106,8 +118,10 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                     }
                     CDataType v_c{0};
-
-                    arg.c_element_op_(v_c, v_acc);
+                    D0DataType v_d0 = arg.d0_(m, n);  // a
+                    D0DataType v_d1 = arg.d1_(e, n);  // b
+                    D0DataType v_d2 = arg.d2_(e, 0);  //expert
+                    arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_d2);
 
                     arg.c_t_n_(t, n) += v_c;
                 }
@@ -140,12 +154,15 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                              const index_t sorted_tile_size,
                              const Tensor<ADataType>& a_m_k,
                              const Tensor<BDataType>& b_e_n_k,
+                             const Tensor<D0DataType>& d0,
+                             const Tensor<D1DataType>& d1,
+                             const Tensor<D2DataType>& d2,
                              Tensor<CDataType>& c_t_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{sorted_token_ids, expert_ids, sorted_tile_size, a_m_k, b_e_n_k, c_t_n, a_element_op, b_element_op, c_element_op};
+        return Argument{sorted_token_ids, expert_ids, sorted_tile_size, a_m_k, b_e_n_k, d0, d1, d2, c_t_n, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

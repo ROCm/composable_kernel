@@ -535,7 +535,7 @@ struct DeviceMoeGemm
                                                       index_t KBatch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op)
+                                                      CElementwiseOperation c_element_op) override
     {
         // assert(0, "no impl");
         return std::make_unique<Argument>(nullptr, nullptr, 

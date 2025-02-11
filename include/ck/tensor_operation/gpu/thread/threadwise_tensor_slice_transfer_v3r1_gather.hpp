@@ -901,9 +901,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;
-    StaticallyIndexedArray<index_t, gather_num> gather_offsets_;
     const SrcElementwiseOperation src_element_op_;
     const DstElementwiseOperation dst_element_op_;
+    StaticallyIndexedArray<index_t, gather_num> gather_offsets_;
 };
 
 } // namespace ck

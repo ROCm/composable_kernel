@@ -40,9 +40,8 @@ using AccDataType      = F32;
 using CShuffleDataType = F32;
 using D0DataType       = F32;
 using D1DataType       = F32;
-using D2DataType       = EDataType;
-// using DsDataTypeGate       = ck::Tuple<D0DataType, D1DataType>;
-using DsDataTypeUp       = ck::Tuple<D0DataType, D1DataType, D2DataType>;
+using D2DataType       = F32;
+using DsDataType       = ck::Tuple<D0DataType, D1DataType, D2DataType>;
 
 using A0Layout = Row;
 using B0Layout = Col;
@@ -51,35 +50,39 @@ using D0Layout = Row;
 using D1Layout = Col;
 using D2Layout = ELayout;
 // using DsLayoutGate = ck::Tuple<D0Layout, D1Layout>;
-using DsLayoutUp = ck::Tuple<D0Layout, D1Layout, D2Layout>;
+using DsLayout = ck::Tuple<D0Layout, D1Layout, D2Layout>;
 
-struct MultiplyMultiply
+// d0: ascale, d1: bscale, d2:expert weight
+struct MulABScaleExpertWeight
 {
     template <typename E, typename C, typename D0, typename D1, typename D2>
     __host__ __device__ constexpr void
     operator()(E& e, const C& c, const D0& d0, const D1& d1, const D2& d2) const;
-
+    //gpu
     template <>
-    __host__ __device__ constexpr void operator()<EDataType, float, float, float, D2DataType>
+    __host__ __device__ constexpr void operator()<EDataType, float, float, float, float>
                                                                            (EDataType& e,
                                                                             const float& c,
                                                                             const float& d0,
                                                                             const float& d1,
-                                                                            const D2DataType& d2) const
+                                                                            const float& d2) const
     {
-        // const float x0_f = c * d0 * d1;
-        (void)d0; (void)d1; (void)d2;
-        const float x0_f =  c;
-        e = ck::type_convert<EDataType>(x0_f);
+        e = ck::type_convert<EDataType>(c * d0 * d1 * d2);
     }
-
+    // for reference
+    template <>
+    __host__ __device__ constexpr void operator()<float, float, float, float, float>
+                                                                           (float& e,
+                                                                            const float& c,
+                                                                            const float& d0,
+                                                                            const float& d1,
+                                                                            const float& d2) const
+    {
+        e = ck::type_convert<EDataType>(c * d0 * d1 * d2);
+    }
 };
 
-// using DsLayout = DsLayoutGate;
-// using DsDataType       = DsDataTypeGate;
-using DsLayout = DsLayoutUp;
-using DsDataType       = DsDataTypeUp;
-using CDEElementOp = MultiplyMultiply;
+using CDEElementOp = MulABScaleExpertWeight;
 
 void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int NXdl)
 {
@@ -115,7 +118,7 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
-using CDEElementOp = MultiplyMultiply;
+using CDEElementOp = MulABScaleExpertWeight;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 32;
@@ -126,6 +129,9 @@ static constexpr ck::index_t CShuffleMXDLPerWave = MPerBlock / 32;
 static constexpr ck::index_t AK1 = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1 = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec = 16 / sizeof(EDataType);
+static constexpr ck::index_t D0Vec = 1;
+static constexpr ck::index_t D1Vec = 1;
+static constexpr ck::index_t D2Vec = 1;
 // using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
@@ -155,7 +161,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
                //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-               CShuffleMXDLPerWave,    1,   S<1, 16, 1, 16>, S<EVec, EVec, 1, EVec>,
+               CShuffleMXDLPerWave,    1,   S<1, 16, 1, 16>, S<EVec, D0Vec, D1Vec, D2Vec>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, A0DataType>;
         // kernel 2: 128->32x128x128
         //  <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   128,   32,   128,    128,  16,  16,  32,   32,    1,    2,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 16, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, EDataType>;
@@ -232,16 +238,16 @@ int main(int argc, char* argv[])
     Tensor<A0DataType> a0_m_k(HostTensorDescriptor({SORTED_SIZE, K}, {K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
-    Tensor<D0DataType> d0_t_n(HostTensorDescriptor({N, 1}, {1, 0}));
-    Tensor<D1DataType> d1_m_n(HostTensorDescriptor({SORTED_SIZE, N}, {N, 1}));
-    Tensor<D2DataType> d2_m_n(HostTensorDescriptor({SORTED_SIZE, N}, {N, 1}));
+    Tensor<D0DataType> d0_t_n(HostTensorDescriptor({SORTED_SIZE, N}, {0, 0}));
+    Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {0, 0}));
+    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({experts, 1}, {1, 0}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     e_t_n_device_result.SetZero();
     std::cout << "a0_m_k: " << a0_m_k.mDesc << std::endl;
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
-    std::cout << "d2_m_n: " << d2_m_n.mDesc << std::endl;
-    std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
+    std::cout << "d2_e_n: " << d2_e_n.mDesc << std::endl;
+    std::cout << "d1_e_n: " << d1_e_n.mDesc << std::endl;
     std::cout << "d0_t_n: " << d0_t_n.mDesc << std::endl;
     std::cout << "e_t_n: " << e_t_n_host_result.mDesc << std::endl;
 
@@ -252,38 +258,38 @@ int main(int argc, char* argv[])
         a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 2});
         d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
-        d2_m_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
         break;
     case 2:
         a0_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
-        d2_m_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
         d0_t_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
-        d2_m_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
     }
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize());
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_t_n.mDesc.GetElementSpaceSize());
-    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem d2_device_buf(sizeof(D2DataType) * d2_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
+    DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
     a0_m_k.savetxt("a.txt");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     a0_device_buf.ToDevice(a0_m_k.mData.data());
     d0_device_buf.ToDevice(d0_t_n.mData.data());
-    d1_device_buf.ToDevice(d1_m_n.mData.data());
-    d2_device_buf.ToDevice(d2_m_n.mData.data());
+    d1_device_buf.ToDevice(d1_e_n.mData.data());
+    d2_device_buf.ToDevice(d2_e_n.mData.data());
     e_device_buf.ToDevice(e_t_n_device_result.mData.data());
 
     auto a_element_op   = AElementOp{};
@@ -358,26 +364,26 @@ int main(int argc, char* argv[])
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMoeGemm2<A0DataType,
                                                                                 B0DataType,
+                                                                                D0DataType,
+                                                                                D1DataType,
+                                                                                D2DataType,
                                                                                 CShuffleDataType,
                                                                                 AccDataType,
                                                                                 PassThrough,
                                                                                 PassThrough,
-                                                                                PassThrough>;
+                                                                                CDEElementOp>;
         auto ref_moe_gemm           = ReferenceGemmInstance{};
         auto ref_invoker            = ref_moe_gemm.MakeInvoker();
-
         auto ref_argument = ref_moe_gemm.MakeArgument(
-           sorted_token_ids, expert_ids, sorted_tile_size, a0_m_k, b0_e_n_k, c_t_n, PassThrough{}, PassThrough{}, PassThrough{});
+           sorted_token_ids, expert_ids, sorted_tile_size, a0_m_k, b0_e_n_k, d0_t_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
 
         ref_invoker.Run(ref_argument);
 
         for(int t = 0; t < tokens; ++t)
         {
-            
-            // const int t = sorted_token_ids(m);
             for(int n = 0; n < N; ++n)
             {
-                cde_element_op(e_t_n_host_result(t, n), c_t_n(t, n), d0_t_n(t, n),  d1_m_n(t, n), d2_m_n(t, n));
+                e_t_n_host_result(t, n) = ck::type_convert<EDataType>(c_t_n(t, n));
             }
         }
 

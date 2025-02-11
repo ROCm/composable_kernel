@@ -687,10 +687,10 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
     using OOBVectorTuple = StaticallyIndexedArray<bool, src_num_access>;
     StaticallyIndexedArray<OOBVectorTuple, NumThreadScratch> oob_vectors_tuple_;
 
-    StaticallyIndexedArray<index_t, scatter_num> scatter_offsets_;
     SrcCoords src_coords_;
     DstCoords dst_coords_;
     const ElementwiseOperation element_op_;
+    StaticallyIndexedArray<index_t, scatter_num> scatter_offsets_;
 };
 
 } // namespace ck
