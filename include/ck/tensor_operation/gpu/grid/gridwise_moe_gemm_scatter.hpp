@@ -486,13 +486,36 @@ struct GridwiseMoeGemmScatter
                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
     }
 
+    template <typename DLayout>
+    __host__ __device__ static auto
+    MakeDGridDescriptor_M_N(index_t M, index_t MPad, index_t N, index_t NPad, index_t StrideC)
+    {
+        const auto c_grid_desc_mraw_nraw = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I0));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I0, StrideC));
+            }
+        }();
+
+        // pad M and N
+        return transform_tensor_descriptor(c_grid_desc_mraw_nraw,
+                                           make_tuple(make_right_pad_transform(M, MPad - M),
+                                                      make_right_pad_transform(N, NPad - N)),
+                                           make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                           make_tuple(Sequence<0>{}, Sequence<1>{}));
+    }
+
     __host__ __device__ static auto MakeDsGridDescriptor_M_N(
         index_t M, index_t MPad, index_t N, index_t NPad, std::array<index_t, NumDTensor> StrideDs)
     {
         return generate_tuple(
             [&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-                return MakeCGridDescriptor_M_N<DLayout>(M, MPad, N, NPad, StrideDs[i]);
+                return MakeDGridDescriptor_M_N<DLayout>(M, MPad, N, NPad, StrideDs[i]);
             },
             Number<NumDTensor>{});
     }
@@ -509,7 +532,6 @@ struct GridwiseMoeGemmScatter
             Number<NumDTensor>{});
     }
 
-    using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(0, 0, 0, 0, {}))>;
 
     struct Problem
     {
@@ -1354,6 +1376,14 @@ struct GridwiseMoeGemmScatter
 
             const auto ds_grid_buf = generate_tuple(
                 [&](auto i) {
+                    using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                    const DDataType *ptr_ = p_ds_grid[i];
+                    // hack logic here to support different kind of strides. todo fix it.
+                    // ascale M, 1; bscale E, N, 1, move ptr to E
+                    if (i.value == 1) 
+                    {
+                        ptr_ += expert_id * problem.StrideDs[1] * problem.N;
+                    }
                     return make_dynamic_buffer<AddressSpaceEnum::Global>(
                         p_ds_grid[i], ds_grid_desc_m_n[i].GetElementSpaceSize());
                 },
@@ -1398,8 +1428,12 @@ struct GridwiseMoeGemmScatter
             // static_assert(EMRepeats == 1, "only support 1 line per thread now!");
             const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats;
             StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[token_pos];
+            StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
+            // too hack here, 2 specific for topk weights, fixme
+            const float *p_sorted_weights = p_ds_grid[I2];
             static_for<0, EMRepeats, 1>{}([&](auto m0) {
                 scatter_offsets(m0) = (p_sorted_token_ids[token_pos + m0] & 0xffffff) * problem.N;
+                scatter_weights(m0) = p_sorted_weights[token_pos + m0];
                 // printf("init off bid %d tid %d m %d off %d\n", blockIdx.y, threadIdx.x, m0(), scatter_offsets(m0));
             });
 
@@ -1435,7 +1469,8 @@ struct GridwiseMoeGemmScatter
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                  make_tuple(make_multi_index(0, 0, block_n_id, 0)),
                  c_element_op,
-                 scatter_offsets};
+                 scatter_offsets,
+                 scatter_weights};
             // if(threadIdx.x== 0)
             auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());

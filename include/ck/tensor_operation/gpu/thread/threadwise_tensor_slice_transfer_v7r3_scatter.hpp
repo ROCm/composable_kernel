@@ -99,11 +99,13 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
         const DstDescs& dst_descs,
         const StaticallyIndexedArray<Index, nDst>& dst_slice_origins,
         const ElementwiseOperation& element_op,
-        const StaticallyIndexedArray<index_t, scatter_num> &scatter_offsets)
+        const StaticallyIndexedArray<index_t, scatter_num> &scatter_offsets,
+        const StaticallyIndexedArray<float, scatter_num> &scatter_weights)
         : src_coords_(MakeCoordinates(src_descs, src_slice_origins)),
           dst_coords_(MakeCoordinates(dst_descs, dst_slice_origins)),
           element_op_(element_op),
-          scatter_offsets_(scatter_offsets)
+          scatter_offsets_(scatter_offsets),
+          scatter_weights_(scatter_weights)
     {
         static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
                       "wrong! cannot evenly divide");
@@ -172,14 +174,20 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                                                                                 src_coords_[i]);
 
                 oob_val = oob_val & is_src_valid;
-
-                if constexpr(SrcScalarPerVectors{}[i] == 1)
+                if (i.value == 2) 
+                {
+                    static_assert(SrcScalarPerVectors{}[Number<2>{}] == 1, "scatter weight dim, should only one vec");
+                    constexpr auto iScatter = SrcSpaceFillingCurve::GetIndex(iAccess)(Number<ScatterDim>{});
+                    static_for<0, SrcScalarPerVector, 1>{}(
+                        [&](auto j) { src_vectors(i).template AsType<float>()(j) = scatter_weights_(Number<iScatter>{}); });
+                }
+                else if constexpr(SrcScalarPerVectors{}[i] == 1)
                 {
                     auto data_types = SrcDatas{};
                     using DataType  = remove_cvref_t<decltype(data_types[i])>;
                     const auto tmp =
                         src_bufs[i].template Get<DataType>(src_coords_[i].GetOffset(), true);
-
+                    // printf("tid %d srcid %d off %d v %f\n", threadIdx.x, i.value, src_coords_[i].GetOffset(), tmp);
                     static_for<0, SrcScalarPerVector, 1>{}(
                         [&](auto j) { src_vectors(i).template AsType<DataType>()(j) = tmp; });
                 }
@@ -691,6 +699,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
     DstCoords dst_coords_;
     const ElementwiseOperation element_op_;
     StaticallyIndexedArray<index_t, scatter_num> scatter_offsets_;
+    StaticallyIndexedArray<float, scatter_num> scatter_weights_;
 };
 
 } // namespace ck

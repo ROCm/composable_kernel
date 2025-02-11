@@ -58,7 +58,7 @@ struct MulABScaleExpertWeight
     template <typename E, typename C, typename D0, typename D1, typename D2>
     __host__ __device__ constexpr void
     operator()(E& e, const C& c, const D0& d0, const D1& d1, const D2& d2) const;
-    //gpu
+    //real kernel use
     template <>
     __host__ __device__ constexpr void operator()<EDataType, float, float, float, float>
                                                                            (EDataType& e,
@@ -211,8 +211,9 @@ int main(int argc, char* argv[])
 
     ck::index_t StrideA = K;
     ck::index_t StrideB = K;
-    // ck::index_t StrideD = 0;
     ck::index_t StrideE = N;
+    constexpr ck::index_t NumDTensor = DsDataType::Size();
+    constexpr auto StrideDs = std::array<ck::index_t, NumDTensor>{0, 0, 0};
 
     ck::index_t KBatch = 1;
 
@@ -238,9 +239,9 @@ int main(int argc, char* argv[])
     Tensor<A0DataType> a0_m_k(HostTensorDescriptor({SORTED_SIZE, K}, {K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
-    Tensor<D0DataType> d0_t_n(HostTensorDescriptor({SORTED_SIZE, N}, {0, 0}));
-    Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {0, 0}));
-    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({experts, 1}, {1, 0}));
+    Tensor<D0DataType> d0_m_n(HostTensorDescriptor({SORTED_SIZE, N}, {StrideDs[0], 0}));
+    Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
+    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({experts, N}, {1, 0}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     e_t_n_device_result.SetZero();
@@ -248,7 +249,7 @@ int main(int argc, char* argv[])
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
     std::cout << "d2_e_n: " << d2_e_n.mDesc << std::endl;
     std::cout << "d1_e_n: " << d1_e_n.mDesc << std::endl;
-    std::cout << "d0_t_n: " << d0_t_n.mDesc << std::endl;
+    std::cout << "d0_m_n: " << d0_m_n.mDesc << std::endl;
     std::cout << "e_t_n: " << e_t_n_host_result.mDesc << std::endl;
 
     switch(init_method)
@@ -257,21 +258,21 @@ int main(int argc, char* argv[])
     case 1:
         a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 2});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
         d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
         d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
         break;
     case 2:
         a0_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
         d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
         d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
         d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
     }
@@ -279,7 +280,7 @@ int main(int argc, char* argv[])
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize());
-    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_t_n.mDesc.GetElementSpaceSize());
+    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
@@ -287,7 +288,7 @@ int main(int argc, char* argv[])
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     a0_device_buf.ToDevice(a0_m_k.mData.data());
-    d0_device_buf.ToDevice(d0_t_n.mData.data());
+    d0_device_buf.ToDevice(d0_m_n.mData.data());
     d1_device_buf.ToDevice(d1_e_n.mData.data());
     d2_device_buf.ToDevice(d2_e_n.mData.data());
     e_device_buf.ToDevice(e_t_n_device_result.mData.data());
@@ -296,9 +297,6 @@ int main(int argc, char* argv[])
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
 
-    constexpr ck::index_t NumDTensor = DsDataType::Size();
-
-    constexpr auto I0 = ck::Number<0>{};
 
     // do GEMM
     auto device_op = DeviceOpInstance{};
@@ -325,7 +323,7 @@ int main(int argc, char* argv[])
                                K,
                                StrideA,
                                StrideB,
-                               std::array<ck::index_t, NumDTensor>{I0, I0, I0},
+                               StrideDs,
                                StrideE,
                                KBatch,
                                a_element_op,
@@ -375,7 +373,7 @@ int main(int argc, char* argv[])
         auto ref_moe_gemm           = ReferenceGemmInstance{};
         auto ref_invoker            = ref_moe_gemm.MakeInvoker();
         auto ref_argument = ref_moe_gemm.MakeArgument(
-           sorted_token_ids, expert_ids, sorted_tile_size, a0_m_k, b0_e_n_k, d0_t_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
+           sorted_token_ids, expert_ids, sorted_tile_size, a0_m_k, b0_e_n_k, d0_m_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
 
         ref_invoker.Run(ref_argument);
 

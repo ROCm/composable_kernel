@@ -64,13 +64,15 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
         const DstDescs& dst_descs,
         const StaticallyIndexedArray<Index, nDst>& dst_block_slice_origins,
         const ElementwiseOperation& element_op,
-        const StaticallyIndexedArray<index_t, scatter_num> &scatter_offsets)
+        const StaticallyIndexedArray<index_t, scatter_num> &scatter_offsets,
+        const StaticallyIndexedArray<float, scatter_num> &scatter_weights)
         : threadwise_transfer_(src_descs,
                                StaticallyIndexedArray<Index, nSrc>{},
                                dst_descs,
                                StaticallyIndexedArray<Index, nDst>{},
                                element_op,
-                               scatter_offsets)
+                               scatter_offsets,
+                               scatter_weights)
     {
         static_assert(nSrc == SrcDatas::Size() && nSrc == SrcDescs::Size() &&
                           nSrc == ThreadTransferSrcResetCoordinateAfterRunFlags::Size() &&

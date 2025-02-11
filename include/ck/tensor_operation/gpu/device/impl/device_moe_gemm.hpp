@@ -305,23 +305,43 @@ struct DeviceMoeGemm
                     // {
                     //     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     //     {
-                    //         const auto kernel = kernel_moe_gemm_gather<
-                    //             GridwiseGemm,
-                    //             true,
-                    //             InMemoryDataOperationEnum::AtomicAdd,
-                    //             minimum_occupancy,
-                    //             TailNumber::Odd>;
-                    //         RunKernel(kernel);
+                    //         if constexpr (IsGatherGemm) {
+                    //             const auto kernel = kernel_moe_gemm_gather<
+                    //                 GridwiseGemm,
+                    //                 true,
+                    //                 InMemoryDataOperationEnum::AtomicAdd,
+                    //                 minimum_occupancy,
+                    //                 TailNumber::Odd>;
+                    //             RunKernel(kernel);
+                    //         else {
+                    //             const auto kernel = kernel_moe_gemm_scatter<
+                    //                 GridwiseGemm,
+                    //                 true,
+                    //                 InMemoryDataOperationEnum::AtomicAdd,
+                    //                 minimum_occupancy,
+                    //                 TailNumber::Odd>;
+                    //             RunKernel(kernel);
+                    //         }
                     //     }
                     //     else
                     //     {
-                    //         const auto kernel = kernel_moe_gemm_gather<
-                    //             GridwiseGemm,
-                    //             true,
-                    //             InMemoryDataOperationEnum::AtomicAdd,
-                    //             minimum_occupancy,
-                    //             TailNumber::Even>;
-                    //         RunKernel(kernel);
+                    //         if constexpr (IsGatherGemm) {
+                    //             const auto kernel = kernel_moe_gemm_gather<
+                    //                 GridwiseGemm,
+                    //                 true,
+                    //                 InMemoryDataOperationEnum::AtomicAdd,
+                    //                 minimum_occupancy,
+                    //                 TailNumber::Even>;
+                    //             RunKernel(kernel);
+                    //         else {
+                    //             const auto kernel = kernel_moe_gemm_scatter<
+                    //                 GridwiseGemm,
+                    //                 true,
+                    //                 InMemoryDataOperationEnum::AtomicAdd,
+                    //                 minimum_occupancy,
+                    //                 TailNumber::Even>;
+                    //             RunKernel(kernel);
+                    //         }
                     //     }
                     // }
                     // else
