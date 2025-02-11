@@ -194,7 +194,7 @@ def cmake_build(Map conf=[:]){
 
     if(conf.get("build_install","") == "true")
     {
-        config_targets = 'install ' + config_targets
+        config_targets = 'examples_ck_tile install ' + config_targets
         setup_args = ' -DBUILD_DEV=On -DCMAKE_INSTALL_PREFIX=../install' + setup_args
     } else{
         setup_args = ' -DBUILD_DEV=On' + setup_args
