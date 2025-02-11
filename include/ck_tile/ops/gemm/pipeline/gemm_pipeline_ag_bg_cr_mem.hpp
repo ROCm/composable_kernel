@@ -7,6 +7,7 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -127,6 +128,16 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "pipeline_AgBgCrMe",
+                      concat('x', MPerBlock, NPerBlock, KPerBlock),
+                      concat('x', GetVectorSizeA(), GetVectorSizeB(), GetVectorSizeC()),
+                      concat('x', kPadM, kPadN, kPadK));
+        // clang-format on
+    }
 
     using Base::PrefetchStages;
 

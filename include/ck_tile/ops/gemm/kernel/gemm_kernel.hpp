@@ -8,6 +8,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -74,6 +75,13 @@ struct GemmKernel
     static constexpr auto I0 = number<0>();
     static constexpr auto I1 = number<1>();
     static constexpr auto I2 = number<2>();
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "gemm", gemm_prec_str<ADataType, BDataType>, GemmPipeline::GetName());
+        // clang-format on
+    }
 
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
