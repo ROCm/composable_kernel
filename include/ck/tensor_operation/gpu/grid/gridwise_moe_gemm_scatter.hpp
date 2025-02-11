@@ -532,7 +532,6 @@ struct GridwiseMoeGemmScatter
             Number<NumDTensor>{});
     }
 
-
     struct Problem
     {
         __host__ __device__ Problem(index_t NumTokens_,
@@ -1427,15 +1426,14 @@ struct GridwiseMoeGemmScatter
             constexpr auto EMThreads = CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
             constexpr auto EMRepeats = MPerBlock / EMThreads;
             constexpr auto ENThreads = CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
-            // static_assert(EMRepeats == 1, "only support 1 line per thread now!");
-            const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats;
-            StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[token_pos];
+            const index_t c_token_pos = block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats;
+            StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[c_token_pos];
             StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
             // too hack here, 2 specific for topk weights, fixme
             const float *p_sorted_weights = p_ds_grid[I2];
             static_for<0, EMRepeats, 1>{}([&](auto m0) {
-                scatter_offsets(m0) = (p_sorted_token_ids[token_pos + m0] & 0xffffff) * problem.N;
-                scatter_weights(m0) = p_sorted_weights[token_pos + m0];
+                scatter_offsets(m0) = (p_sorted_token_ids[c_token_pos + m0] & 0xffffff) * problem.N;
+                scatter_weights(m0) = p_sorted_weights[c_token_pos + m0];
                 // printf("init off bid %d tid %d m %d off %d\n", blockIdx.y, threadIdx.x, m0(), scatter_offsets(m0));
             });
 

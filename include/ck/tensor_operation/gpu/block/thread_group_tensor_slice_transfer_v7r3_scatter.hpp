@@ -43,13 +43,15 @@ template <typename ThreadGroup,
           typename ThreadTransferSrcResetCoordinateAfterRunFlags,
           typename ThreadTransferDstResetCoordinateAfterRunFlags,
           index_t ScatterDim = 1,
+          bool OutputScatter = true,
+          index_t ScatterWeightIdx = 3,
           index_t NumThreadScratch = 1>
 struct ThreadGroupTensorSliceTransfer_v7r3_scatter
 {
     static constexpr index_t nDim =
         remove_cvref_t<tuple_element_t<0, SrcDescs>>::GetNumOfDimension();
 
-    static constexpr index_t mod_num = ThreadClusterLengths{}.At( Number<3>{}); // Dirty HACK FELIX, TODO fix
+    static constexpr index_t mod_num = ThreadClusterLengths{}.At( Number<3>{}) ; // Dirty HACK FELIX, TODO fix
     static constexpr index_t nSrc = remove_cvref_t<SrcDescs>::Size();
     static constexpr index_t nDst = remove_cvref_t<DstDescs>::Size();
 
@@ -114,7 +116,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
                 Number<nSrc>{});
 
             const auto dst_thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
-                make_multi_index(ThreadGroup::GetThreadId() % mod_num));
+                make_multi_index( OutputScatter ? ThreadGroup::GetThreadId() % mod_num : ThreadGroup::GetThreadId()));
             const auto dst_thread_slice_origins = generate_tuple(
                 [&](auto i) { return dst_block_slice_origins[i] + dst_thread_cluster_idx * thread_slice_lengths; },
                 Number<nDst>{});
@@ -219,6 +221,8 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
                                            ThreadTransferSrcResetCoordinateAfterRunFlags,
                                            ThreadTransferDstResetCoordinateAfterRunFlags,
                                            ScatterDim,
+                                           OutputScatter,
+                                           ScatterWeightIdx,
                                            NumThreadScratch>;
 
     ThreadwiseTransfer threadwise_transfer_;

@@ -35,7 +35,7 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using A0DataType       = F8;
 using B0DataType       = F8;
-using EDataType        = F16;
+using EDataType        = F32;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using D0DataType       = F32;
@@ -68,9 +68,11 @@ struct MulABScale
                                                                             const float& d1,
                                                                             const D2DataType& d2) const
     {
-        // const float x0_f = c * d0 * d1;
-        (void)d0; (void)d1; (void)d2;
-        const float x0_f =  c;
+        (void)d2;  // for gate, no d2 needed
+        (void)d0;
+        (void)d1;
+        const float x0_f = c;
+        // const float x0_f =  c;
         e = ck::type_convert<EDataType>(x0_f);
     }
 };
@@ -91,8 +93,10 @@ struct MulABScaleSiluMulGate
                                                                             const D2DataType& d2) const
     {
         // act
+        (void)d0;
+        (void)d1;
         (void)d2;
-        float x0;
+        float x0 = 0;
         ck::tensor_operation::element_wise::Silu{}(x0, c * d1 * d0);
         // fuse mul
         e = ck::type_convert<EDataType>(x0);
@@ -145,7 +149,7 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr ck::index_t MPerBlock = 128;
+static constexpr ck::index_t MPerBlock = 32;
 static constexpr ck::index_t MNPerXDL = 32;
 static constexpr ck::index_t KPerBlock = 256 / sizeof(A0DataType);
 static constexpr ck::index_t MXDLPerWave = MPerBlock / 32; //todo fix this constraint
@@ -208,7 +212,7 @@ int main(int argc, char* argv[])
     ck::index_t sorted_tile_num = 8;
     ck::index_t sorted_tile_size = MPerBlock;
     ck::index_t SORTED_SIZE = sorted_tile_num * sorted_tile_size;
-    ck::index_t tokens = 512;
+    ck::index_t tokens = 32;
 
     if(argc == 1)
     {
@@ -236,6 +240,8 @@ int main(int argc, char* argv[])
     ck::index_t StrideB = K;
     // ck::index_t StrideD = 0;
     ck::index_t StrideE = N;
+    constexpr ck::index_t NumDTensor = DsDataType::Size();
+    constexpr auto StrideDs = std::array<ck::index_t, NumDTensor>{0, 0, 0};
 
     ck::index_t KBatch = 1;
 
@@ -261,15 +267,15 @@ int main(int argc, char* argv[])
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
-    Tensor<D0DataType> d0_t_n(HostTensorDescriptor({N, 1}, {1, 0}));
-    Tensor<D1DataType> d1_m_n(HostTensorDescriptor({SORTED_SIZE, N}, {N, 1}));
+    Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
+    Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
     Tensor<D2DataType> d2_m_n(HostTensorDescriptor({SORTED_SIZE, N}, {N, 1}));
     Tensor<EDataType> e_m_n_host_result(HostTensorDescriptor({SORTED_SIZE, N}, {N, 1}));
     Tensor<EDataType> e_m_n_device_result(HostTensorDescriptor({SORTED_SIZE, N}, {N, 1}));
 
     std::cout << "a0_t_k: " << a0_t_k.mDesc << std::endl;
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
-    std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
+    std::cout << "d1_e_n: " << d1_e_n.mDesc << std::endl;
     std::cout << "d2_m_n: " << d2_m_n.mDesc << std::endl;
     std::cout << "d0_t_n: " << d0_t_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_host_result.mDesc << std::endl;
@@ -281,21 +287,21 @@ int main(int argc, char* argv[])
         a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 2});
         d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
         d2_m_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
         break;
     case 2:
         a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
         d2_m_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     default:
         a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
         d0_t_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
         d2_m_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
     }
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.mDesc.GetElementSpaceSize());
@@ -303,7 +309,7 @@ int main(int argc, char* argv[])
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_t_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize());
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_t_n.mDesc.GetElementSpaceSize());
-    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_m_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
     a0_t_k.savetxt("a.txt");
@@ -311,15 +317,13 @@ int main(int argc, char* argv[])
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     a0_device_buf.ToDevice(a0_t_k.mData.data());
     d0_device_buf.ToDevice(d0_t_n.mData.data());
-    d1_device_buf.ToDevice(d1_m_n.mData.data());
+    d1_device_buf.ToDevice(d1_e_n.mData.data());
     d2_device_buf.ToDevice(d2_m_n.mData.data());
     e_device_buf.ToDevice(e_m_n_device_result.mData.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
-
-    constexpr ck::index_t NumDTensor = DsDataType::Size();
 
     constexpr auto I0 = ck::Number<0>{};
 
@@ -404,7 +408,7 @@ int main(int argc, char* argv[])
             const int t = sorted_token_ids(m);
             for(int n = 0; n < N; ++n)
             {
-                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d0_t_n(t, n), d1_m_n(m, n), d2_m_n(m, n));
+                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d0_t_n(t, n), d1_e_n(m, n), d2_m_n(m, n));
             }
         }
 

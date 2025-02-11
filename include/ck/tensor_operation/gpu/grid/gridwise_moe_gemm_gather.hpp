@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r3.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r3_scatter.hpp"
 
 #define DEBUG_LOG 0
 
@@ -486,13 +486,36 @@ struct GridwiseMoeGemmGather
                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
     }
 
+    template <typename DLayout>
+    __host__ __device__ static auto
+    MakeDGridDescriptor_M_N(index_t M, index_t MPad, index_t N, index_t NPad, index_t StrideC)
+    {
+        const auto c_grid_desc_mraw_nraw = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, DLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I0));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I0, StrideC));
+            }
+        }();
+
+        // pad M and N
+        return transform_tensor_descriptor(c_grid_desc_mraw_nraw,
+                                           make_tuple(make_right_pad_transform(M, MPad - M),
+                                                      make_right_pad_transform(N, NPad - N)),
+                                           make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                           make_tuple(Sequence<0>{}, Sequence<1>{}));
+    }
+
     __host__ __device__ static auto MakeDsGridDescriptor_M_N(
         index_t M, index_t MPad, index_t N, index_t NPad, std::array<index_t, NumDTensor> StrideDs)
     {
         return generate_tuple(
             [&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-                return MakeCGridDescriptor_M_N<DLayout>(M, MPad, N, NPad, StrideDs[i]);
+                return MakeDGridDescriptor_M_N<DLayout>(M, MPad, N, NPad, StrideDs[i]);
             },
             Number<NumDTensor>{});
     }
@@ -508,8 +531,6 @@ struct GridwiseMoeGemmGather
             },
             Number<NumDTensor>{});
     }
-
-    using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(0, 0, 0, 0, {}))>;
 
     struct Problem
     {
@@ -1158,10 +1179,6 @@ struct GridwiseMoeGemmGather
         // if(threadIdx.x==0)
         // printf("tid %d eid %d expert_stride %d bufsize %d\n",
         // threadIdx.x, expert_id, expert_stride, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
@@ -1377,8 +1394,18 @@ struct GridwiseMoeGemmGather
 
             const auto ds_grid_buf = generate_tuple(
                 [&](auto i) {
+                    using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                    const DDataType *ptr_ = p_ds_grid[i];
+                    // hack logic here to support different kind of strides. todo fix it.
+                    // ascale t, 1; bscale E, N, 1, move ptr to E
+                    if (i.value == 1) 
+                    {
+                        ptr_ += expert_id * (problem.StrideDs[1]? problem.StrideDs[1] * problem.N : 1);
+                        // if ( threadIdx.x  ==0)
+                        //     printf("bid %d eid %d b eoff %d %f\n", blockIdx.y, expert_id, expert_id * (problem.StrideDs[1]? problem.StrideDs[1] * problem.N : 1), ptr_[0]);
+                    }
                     return make_dynamic_buffer<AddressSpaceEnum::Global>(
-                        p_ds_grid[i], ds_grid_desc_m_n[i].GetElementSpaceSize());
+                        ptr_, ds_grid_desc_m_n[i].GetElementSpaceSize());
                 },
                 Number<NumDTensor>{});
 
@@ -1411,11 +1438,23 @@ struct GridwiseMoeGemmGather
             const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
                 c_grid_desc_mblock_mperblock_nblock_nperblock;
 
-            using CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
+            using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-
-            auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7r3<
+            constexpr auto EMThreads = CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
+            constexpr auto EMRepeats = MPerBlock / EMThreads;
+            constexpr auto ENThreads = CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
+            const index_t c_token_pos = block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats;
+            StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[c_token_pos];
+            StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
+            // too hack here, 2 specific for topk weights, fixme
+            const float *p_sorted_weights = p_ds_grid[I2];
+            static_for<0, EMRepeats, 1>{}([&](auto m0) {
+                scatter_offsets(m0) = 0;
+                scatter_weights(m0) = p_sorted_weights[c_token_pos + m0];
+                // printf("init off bid %d tid %d m %d off %d\n", blockIdx.y, threadIdx.x, m0(), scatter_offsets(m0));
+            });
+            auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
                 Tuple<EDataType>,
@@ -1428,7 +1467,7 @@ struct GridwiseMoeGemmGather
                          CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
                          1,
                          CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
-                CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                CDEBlockTransferCluster,
                 Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                 Sequence<0, 1, 2, 3>, // typename SrcDimAccessOrder,
                 Sequence<0, 1, 2, 3>, // typename DstDimAccessOrder,
@@ -1440,13 +1479,21 @@ struct GridwiseMoeGemmGather
                     Sequence<true>,
                     uniform_sequence_gen_t<NumDTensor,
                                            false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
-                Sequence<false>>                    // ThreadTransferDstResetCoordinateAfterRunFlags
+                Sequence<false>,      // ThreadTransferDstResetCoordinateAfterRunFlags
+                1,                    //ScatterDim
+                false,                //OutputScatter: false, only use scatter weights
+                1                     // ScatterWeightIdx: ascale
+                >                    
                 {c_ds_desc_refs,
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                  make_tuple(make_multi_index(block_m_id, 0, block_n_id, 0)),
-                 c_element_op};
+                 c_element_op,
+                 scatter_offsets,
+                 scatter_weights};
 
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
                 SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
@@ -1472,7 +1519,6 @@ struct GridwiseMoeGemmGather
                                            CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
 
             static_assert(num_access == sfc_cde_block.GetNumOfAccess(), "wrong!");
-            // printf("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n");
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
                 block_sync_lds();

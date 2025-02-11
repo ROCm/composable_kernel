@@ -49,8 +49,9 @@ struct ReferenceMoeGemm : public device::BaseOperator
         {
         }
 
-        const Tensor<ck::index_t>& expert_ids_;
         const Tensor<ck::index_t>& sorted_token_ids_;
+        const Tensor<ck::index_t>& expert_ids_;
+        index_t sorted_tile_size_;
         const Tensor<ADataType>& a_t_k_;
         const Tensor<BDataType>& b_e_n_k_;
         Tensor<CDataType>& c_m_n_;
@@ -58,7 +59,6 @@ struct ReferenceMoeGemm : public device::BaseOperator
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
-        index_t sorted_tile_size_;
     };
 
     // Invoker
