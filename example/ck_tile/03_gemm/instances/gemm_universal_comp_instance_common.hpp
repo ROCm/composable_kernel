@@ -10,34 +10,54 @@ using S = ck_tile::stream_config;
 template <typename Traits_>
 float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
+    constexpr bool TransposeC = false;
+
+    constexpr int kBlockPerCu                         = 1;
+    constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+    constexpr ck_tile::index_t TileParitionerM01      = 4;
+
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<Traits_::M_Tile, Traits_::N_Tile, Traits_::K_Tile>,
         ck_tile::sequence<Traits_::M_Warp, Traits_::N_Warp, Traits_::K_Warp>,
         ck_tile::sequence<Traits_::M_Warp_Tile, Traits_::N_Warp_Tile, Traits_::K_Warp_Tile>>;
-    using TilePartitioner = ck_tile::GemmTile2DPartitioner<GemmShape>;
+    using TilePartitioner = ck_tile::
+        GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-    using GemmEpilogue =
-        ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename Traits_::AccDataType,
-                                                                     typename Traits_::CDataType,
-                                                                     Traits_::kPadM,
-                                                                     Traits_::kPadN>>;
-    constexpr bool TransposeC = false;
-    using GemmUniversalTraits = ck_tile::
-        TileGemmUniversalTraits<Traits_::kPadM, Traits_::kPadN, Traits_::kPadK, Traits_::ALayout, Traits_::BLayout, Traits_::CLayout, TransposeC>;
-    using GemmTraits       = ck_tile::TileGemmTraits<Traits_::kPadM,
+    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<Traits_::kPadM,
+                                                                 Traits_::kPadN,
+                                                                 Traits_::kPadK,
+                                                                 typename Traits_::ALayout,
+                                                                 typename Traits_::BLayout,
+                                                                 typename Traits_::CLayout,
+                                                                 TransposeC>;
+    using GemmTraits          = ck_tile::TileGemmTraits<Traits_::kPadM,
                                                Traits_::kPadN,
                                                Traits_::kPadK,
                                                typename Traits_::ALayout,
                                                typename Traits_::BLayout,
                                                typename Traits_::CLayout>;
-    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<
-        ck_tile::GemmPipelineProblem<typename Traits_::ADataType,
-                                     typename Traits_::BDataType,
-                                     typename Traits_::AccDataType,
-                                     GemmShape,
-                                     GemmTraits>>;
 
-    constexpr int kBlockPerCu = 1;
+    using GemmPipelineProblem = ck_tile::GemmPipelineProblem<typename Traits_::ADataType,
+                                                             typename Traits_::BDataType,
+                                                             typename Traits_::AccDataType,
+                                                             GemmShape,
+                                                             GemmTraits>;
+
+    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+
+    using GemmEpilogue =
+        ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<typename Traits_::AccDataType,
+                                                                   typename Traits_::CDataType,
+                                                                   typename Traits_::CLayout,
+                                                                   GemmPipelineProblem::kBlockSize,
+                                                                   TilePartitioner::MPerBlock,
+                                                                   TilePartitioner::NPerBlock,
+                                                                   Traits_::M_Warp,
+                                                                   Traits_::N_Warp,
+                                                                   Traits_::M_Warp_Tile,
+                                                                   Traits_::N_Warp_Tile,
+                                                                   Traits_::K_Warp_Tile,
+                                                                   TransposeC>>;
 
     const ck_tile::index_t k_grain     = args.k_batch * Traits_::K_Tile;
     const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * Traits_::K_Tile;
@@ -59,7 +79,8 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                                   GemmUniversalTraits,
                                                   ck_tile::GemmPipelineScheduler::Intrawave,
                                                   has_hot_loop_v,
-                                                  tail_number_v>, ck_tile::UniversalGemmPipelineAgBgCrPolicy>;
+                                                  tail_number_v>,
+            ck_tile::UniversalGemmPipelineAgBgCrPolicy>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
