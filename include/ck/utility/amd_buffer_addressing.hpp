@@ -49,210 +49,17 @@ __device__ int32x4_t make_wave_buffer_resource_with_default_range(T* p_wave)
     return wave_buffer_resource.content;
 }
 
-// buffer load i8
-__device__ int8_t
-llvm_amdgcn_raw_buffer_load_i8(int32x4_t srsrc,
-                               index_t voffset,
-                               index_t soffset,
-                               index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.i8");
+template <typename T>
+__device__ __amdgpu_buffer_rsrc_t make_wave_buffer_resource_new(T* p_wave, index_t element_space_size)
+{
+    // wavewise base address (64 bit)
+    auto p = const_cast<remove_cv_t<T>*>(p_wave);
+    int32_t stride = 0;
+    int32_t num = element_space_size * sizeof(T);
+    auto flags = CK_BUFFER_RESOURCE_3RD_DWORD;
 
-__device__ int8x2_t
-llvm_amdgcn_raw_buffer_load_i8x2(int32x4_t srsrc,
-                                 index_t voffset,
-                                 index_t soffset,
-                                 index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v2i8");
-
-__device__ int8x4_t
-llvm_amdgcn_raw_buffer_load_i8x4(int32x4_t srsrc,
-                                 index_t voffset,
-                                 index_t soffset,
-                                 index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v4i8");
-
-// buffer load i16
-__device__ bhalf_t
-llvm_amdgcn_raw_buffer_load_i16(int32x4_t srsrc,
-                                index_t voffset,
-                                index_t soffset,
-                                index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.i16");
-
-__device__ bhalf2_t
-llvm_amdgcn_raw_buffer_load_i16x2(int32x4_t srsrc,
-                                  index_t voffset,
-                                  index_t soffset,
-                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v2i16");
-
-__device__ bhalf4_t
-llvm_amdgcn_raw_buffer_load_i16x4(int32x4_t srsrc,
-                                  index_t voffset,
-                                  index_t soffset,
-                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v4i16");
-
-// buffer load i32
-__device__ int32_t
-llvm_amdgcn_raw_buffer_load_i32(int32x4_t srsrc,
-                                index_t voffset,
-                                index_t soffset,
-                                index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.i32");
-
-__device__ int32x2_t
-llvm_amdgcn_raw_buffer_load_i32x2(int32x4_t srsrc,
-                                  index_t voffset,
-                                  index_t soffset,
-                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v2i32");
-
-__device__ int32x4_t
-llvm_amdgcn_raw_buffer_load_i32x4(int32x4_t srsrc,
-                                  index_t voffset,
-                                  index_t soffset,
-                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v4i32");
-
-// buffer load fp16
-__device__ half_t
-llvm_amdgcn_raw_buffer_load_fp16(int32x4_t srsrc,
-                                 index_t voffset,
-                                 index_t soffset,
-                                 index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.f16");
-
-__device__ half2_t
-llvm_amdgcn_raw_buffer_load_fp16x2(int32x4_t srsrc,
-                                   index_t voffset,
-                                   index_t soffset,
-                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v2f16");
-
-__device__ half4_t
-llvm_amdgcn_raw_buffer_load_fp16x4(int32x4_t srsrc,
-                                   index_t voffset,
-                                   index_t soffset,
-                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v4f16");
-
-// buffer load fp32
-__device__ float
-llvm_amdgcn_raw_buffer_load_fp32(int32x4_t srsrc,
-                                 index_t voffset,
-                                 index_t soffset,
-                                 index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.f32");
-
-__device__ float2_t
-llvm_amdgcn_raw_buffer_load_fp32x2(int32x4_t srsrc,
-                                   index_t voffset,
-                                   index_t soffset,
-                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v2f32");
-
-__device__ float4_t
-llvm_amdgcn_raw_buffer_load_fp32x4(int32x4_t srsrc,
-                                   index_t voffset,
-                                   index_t soffset,
-                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v4f32");
-
-// buffer store i8
-__device__ void
-llvm_amdgcn_raw_buffer_store_i8(int8_t vdata,
-                                int32x4_t rsrc,
-                                index_t voffset,
-                                index_t soffset,
-                                index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.i8");
-
-__device__ void
-llvm_amdgcn_raw_buffer_store_i8x2(int8x2_t vdata,
-                                  int32x4_t rsrc,
-                                  index_t voffset,
-                                  index_t soffset,
-                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2i8");
-
-__device__ void
-llvm_amdgcn_raw_buffer_store_i8x4(int8x4_t vdata,
-                                  int32x4_t rsrc,
-                                  index_t voffset,
-                                  index_t soffset,
-                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4i8");
-
-// buffer store i16
-__device__ void
-llvm_amdgcn_raw_buffer_store_i16(bhalf_t vdata,
-                                 int32x4_t rsrc,
-                                 index_t voffset,
-                                 index_t soffset,
-                                 index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.i16");
-
-__device__ void
-llvm_amdgcn_raw_buffer_store_i16x2(bhalf2_t vdata,
-                                   int32x4_t rsrc,
-                                   index_t voffset,
-                                   index_t soffset,
-                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2i16");
-
-__device__ void
-llvm_amdgcn_raw_buffer_store_i16x4(bhalf4_t vdata,
-                                   int32x4_t rsrc,
-                                   index_t voffset,
-                                   index_t soffset,
-                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4i16");
-
-// buffer store i32
-__device__ void
-llvm_amdgcn_raw_buffer_store_i32(int32_t vdata,
-                                 int32x4_t rsrc,
-                                 index_t voffset,
-                                 index_t soffset,
-                                 index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.i32");
-
-__device__ void
-llvm_amdgcn_raw_buffer_store_i32x2(int32x2_t vdata,
-                                   int32x4_t rsrc,
-                                   index_t voffset,
-                                   index_t soffset,
-                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2i32");
-
-__device__ void
-llvm_amdgcn_raw_buffer_store_i32x4(int32x4_t vdata,
-                                   int32x4_t rsrc,
-                                   index_t voffset,
-                                   index_t soffset,
-                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4i32");
-
-// buffer store fp16
-__device__ void
-llvm_amdgcn_raw_buffer_store_fp16(half_t vdata,
-                                  int32x4_t rsrc,
-                                  index_t voffset,
-                                  index_t soffset,
-                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.f16");
-
-__device__ void
-llvm_amdgcn_raw_buffer_store_fp16x2(half2_t vdata,
-                                    int32x4_t rsrc,
-                                    index_t voffset,
-                                    index_t soffset,
-                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2f16");
-
-__device__ void
-llvm_amdgcn_raw_buffer_store_fp16x4(half4_t vdata,
-                                    int32x4_t rsrc,
-                                    index_t voffset,
-                                    index_t soffset,
-                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4f16");
-
-// buffer store fp32
-__device__ void
-llvm_amdgcn_raw_buffer_store_fp32(float vdata,
-                                  int32x4_t rsrc,
-                                  index_t voffset,
-                                  index_t soffset,
-                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.f32");
-
-__device__ void
-llvm_amdgcn_raw_buffer_store_fp32x2(float2_t vdata,
-                                    int32x4_t rsrc,
-                                    index_t voffset,
-                                    index_t soffset,
-                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2f32");
-
-__device__ void
-llvm_amdgcn_raw_buffer_store_fp32x4(float4_t vdata,
-                                    int32x4_t rsrc,
-                                    index_t voffset,
-                                    index_t soffset,
-                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4f32");
+    return __builtin_amdgcn_make_buffer_rsrc(p, stride, num, flags);
+}
 
 // buffer atomic-add fp16
 __device__ half2_t llvm_amdgcn_raw_buffer_atomic_add_fp16x2(
@@ -312,7 +119,7 @@ enum struct AmdBufferCoherenceEnum
 
 template <index_t N, AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 __device__ typename vector_type<int8_t, N>::type
-amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
+amd_buffer_load_impl_raw(__amdgpu_buffer_rsrc_t src_wave_buffer_resource,
                          index_t src_thread_addr_offset,
                          index_t src_wave_addr_offset)
 {
@@ -321,7 +128,7 @@ amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
 
     if constexpr(N == 1)
     {
-        return llvm_amdgcn_raw_buffer_load_i8(src_wave_buffer_resource,
+        return __builtin_amdgcn_raw_buffer_load_b8(src_wave_buffer_resource,
                                               src_thread_addr_offset,
                                               src_wave_addr_offset,
                                               static_cast<index_t>(coherence));
@@ -329,7 +136,7 @@ amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
     else if constexpr(N == 2)
     {
 
-        int16_t tmp = llvm_amdgcn_raw_buffer_load_i16(src_wave_buffer_resource,
+        int16_t tmp = __builtin_amdgcn_raw_buffer_load_b16(src_wave_buffer_resource,
                                                       src_thread_addr_offset,
                                                       src_wave_addr_offset,
                                                       static_cast<index_t>(coherence));
@@ -338,7 +145,7 @@ amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
     }
     else if constexpr(N == 4)
     {
-        int32_t tmp = llvm_amdgcn_raw_buffer_load_i32(src_wave_buffer_resource,
+        int32_t tmp = __builtin_amdgcn_raw_buffer_load_b32(src_wave_buffer_resource,
                                                       src_thread_addr_offset,
                                                       src_wave_addr_offset,
                                                       static_cast<index_t>(coherence));
@@ -347,7 +154,7 @@ amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
     }
     else if constexpr(N == 8)
     {
-        int32x2_t tmp = llvm_amdgcn_raw_buffer_load_i32x2(src_wave_buffer_resource,
+        int32x2_t tmp = __builtin_amdgcn_raw_buffer_load_b64(src_wave_buffer_resource,
                                                           src_thread_addr_offset,
                                                           src_wave_addr_offset,
                                                           static_cast<index_t>(coherence));
@@ -356,7 +163,7 @@ amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
     }
     else if constexpr(N == 16)
     {
-        int32x4_t tmp = llvm_amdgcn_raw_buffer_load_i32x4(src_wave_buffer_resource,
+        int32x4_t tmp = __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
                                                           src_thread_addr_offset,
                                                           src_wave_addr_offset,
                                                           static_cast<index_t>(coherence));
@@ -364,12 +171,12 @@ amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
     }
     else if constexpr(N == 32)
     {
-        int32x4_t tmp0 = llvm_amdgcn_raw_buffer_load_i32x4(src_wave_buffer_resource,
+        int32x4_t tmp0 = __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
                                                            src_thread_addr_offset,
                                                            src_wave_addr_offset,
                                                            static_cast<index_t>(coherence));
         int32x4_t tmp1 =
-            llvm_amdgcn_raw_buffer_load_i32x4(src_wave_buffer_resource,
+            __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
                                               src_thread_addr_offset,
                                               src_wave_addr_offset + 4 * sizeof(int32_t),
                                               static_cast<index_t>(coherence));
@@ -382,22 +189,22 @@ amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
     }
     else if constexpr(N == 64)
     {
-        int32x4_t tmp0 = llvm_amdgcn_raw_buffer_load_i32x4(src_wave_buffer_resource,
+        int32x4_t tmp0 = __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
                                                            src_thread_addr_offset,
                                                            src_wave_addr_offset,
                                                            static_cast<index_t>(coherence));
         int32x4_t tmp1 =
-            llvm_amdgcn_raw_buffer_load_i32x4(src_wave_buffer_resource,
+            __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
                                               src_thread_addr_offset,
                                               src_wave_addr_offset + 4 * sizeof(int32_t),
                                               static_cast<index_t>(coherence));
         int32x4_t tmp2 =
-            llvm_amdgcn_raw_buffer_load_i32x4(src_wave_buffer_resource,
+            __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
                                               src_thread_addr_offset,
                                               src_wave_addr_offset + 8 * sizeof(int32_t),
                                               static_cast<index_t>(coherence));
         int32x4_t tmp3 =
-            llvm_amdgcn_raw_buffer_load_i32x4(src_wave_buffer_resource,
+            __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
                                               src_thread_addr_offset,
                                               src_wave_addr_offset + 12 * sizeof(int32_t),
                                               static_cast<index_t>(coherence));
@@ -416,7 +223,7 @@ amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
 template <typename T,
           index_t N,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
-__device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_wave_buffer_resource,
+__device__ typename vector_type<T, N>::type amd_buffer_load_impl(__amdgpu_buffer_rsrc_t src_wave_buffer_resource,
                                                                  index_t src_thread_addr_offset,
                                                                  index_t src_wave_addr_offset)
 {
@@ -442,7 +249,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
 template <index_t N, AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 __device__ void
 amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread_data,
-                          int32x4_t dst_wave_buffer_resource,
+                          __amdgpu_buffer_rsrc_t dst_wave_buffer_resource,
                           index_t dst_thread_addr_offset,
                           index_t dst_wave_addr_offset)
 {
@@ -451,7 +258,7 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
 
     if constexpr(N == 1)
     {
-        llvm_amdgcn_raw_buffer_store_i8(src_thread_data,
+        __builtin_amdgcn_raw_buffer_store_b8(src_thread_data,
                                         dst_wave_buffer_resource,
                                         dst_thread_addr_offset,
                                         dst_wave_addr_offset,
@@ -460,7 +267,7 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
     else if constexpr(N == 2)
     {
 
-        llvm_amdgcn_raw_buffer_store_i16(bit_cast<int16_t>(src_thread_data),
+        __builtin_amdgcn_raw_buffer_store_b16(bit_cast<int16_t>(src_thread_data),
                                          dst_wave_buffer_resource,
                                          dst_thread_addr_offset,
                                          dst_wave_addr_offset,
@@ -468,7 +275,7 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
     }
     else if constexpr(N == 4)
     {
-        llvm_amdgcn_raw_buffer_store_i32(bit_cast<int32_t>(src_thread_data),
+        __builtin_amdgcn_raw_buffer_store_b32(bit_cast<int32_t>(src_thread_data),
                                          dst_wave_buffer_resource,
                                          dst_thread_addr_offset,
                                          dst_wave_addr_offset,
@@ -476,7 +283,7 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
     }
     else if constexpr(N == 8)
     {
-        llvm_amdgcn_raw_buffer_store_i32x2(bit_cast<int32x2_t>(src_thread_data),
+        __builtin_amdgcn_raw_buffer_store_b64(bit_cast<int32x2_t>(src_thread_data),
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
                                            dst_wave_addr_offset,
@@ -484,7 +291,7 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
     }
     else if constexpr(N == 16)
     {
-        llvm_amdgcn_raw_buffer_store_i32x4(bit_cast<int32x4_t>(src_thread_data),
+        __builtin_amdgcn_raw_buffer_store_b128(bit_cast<int32x4_t>(src_thread_data),
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
                                            dst_wave_addr_offset,
@@ -494,13 +301,13 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
     {
         vector_type<int32_t, 8> tmp{bit_cast<int32x8_t>(src_thread_data)};
 
-        llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<0>{}],
+        __builtin_amdgcn_raw_buffer_store_b128(tmp.template AsType<int32x4_t>()[Number<0>{}],
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
                                            dst_wave_addr_offset,
                                            static_cast<index_t>(coherence));
 
-        llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<1>{}],
+        __builtin_amdgcn_raw_buffer_store_b128(tmp.template AsType<int32x4_t>()[Number<1>{}],
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
                                            dst_wave_addr_offset + sizeof(int32_t) * 4,
@@ -510,25 +317,25 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
     {
         vector_type<int32_t, 16> tmp{bit_cast<int32x16_t>(src_thread_data)};
 
-        llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<0>{}],
+        __builtin_amdgcn_raw_buffer_store_b128(tmp.template AsType<int32x4_t>()[Number<0>{}],
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
                                            dst_wave_addr_offset,
                                            static_cast<index_t>(coherence));
 
-        llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<1>{}],
+        __builtin_amdgcn_raw_buffer_store_b128(tmp.template AsType<int32x4_t>()[Number<1>{}],
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
                                            dst_wave_addr_offset + sizeof(int32_t) * 4,
                                            static_cast<index_t>(coherence));
 
-        llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<2>{}],
+        __builtin_amdgcn_raw_buffer_store_b128(tmp.template AsType<int32x4_t>()[Number<2>{}],
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
                                            dst_wave_addr_offset + sizeof(int32_t) * 8,
                                            static_cast<index_t>(coherence));
 
-        llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<3>{}],
+        __builtin_amdgcn_raw_buffer_store_b128(tmp.template AsType<int32x4_t>()[Number<3>{}],
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
                                            dst_wave_addr_offset + sizeof(int32_t) * 12,
@@ -540,7 +347,7 @@ template <typename T,
           index_t N,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src_thread_data,
-                                      int32x4_t dst_wave_buffer_resource,
+                                      __amdgpu_buffer_rsrc_t dst_wave_buffer_resource,
                                       index_t dst_thread_addr_offset,
                                       index_t dst_wave_addr_offset)
 {
@@ -829,8 +636,8 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
                                             bool src_thread_element_valid,
                                             index_t src_element_space_size)
 {
-    const int32x4_t src_wave_buffer_resource =
-        make_wave_buffer_resource(p_src_wave, src_element_space_size);
+    const __amdgpu_buffer_rsrc_t src_wave_buffer_resource =
+        make_wave_buffer_resource_new(p_src_wave, src_element_space_size);
 
     index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
 
@@ -866,8 +673,8 @@ amd_buffer_load_invalid_element_return_customized_value(const T* p_src_wave,
                                                         index_t src_element_space_size,
                                                         T customized_value)
 {
-    const int32x4_t src_wave_buffer_resource =
-        make_wave_buffer_resource(p_src_wave, src_element_space_size);
+    const __amdgpu_buffer_rsrc_t src_wave_buffer_resource =
+        make_wave_buffer_resource_new(p_src_wave, src_element_space_size);
 
     index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
 
@@ -895,8 +702,8 @@ __device__ void amd_buffer_store(const typename vector_type_maker<T, N>::type::t
                                  const bool dst_thread_element_valid,
                                  const index_t dst_element_space_size)
 {
-    const int32x4_t dst_wave_buffer_resource =
-        make_wave_buffer_resource(p_dst_wave, dst_element_space_size);
+    const __amdgpu_buffer_rsrc_t dst_wave_buffer_resource =
+        make_wave_buffer_resource_new(p_dst_wave, dst_element_space_size);
 
     index_t dst_thread_addr_offset = dst_thread_element_offset * sizeof(T);
 
