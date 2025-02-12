@@ -92,6 +92,7 @@ endif()
 add_compile_options(-Wno-bit-int-extension)
 add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
+add_compile_options(-Wno-unique-object-duplication)
 
 if(DL_KERNELS)
     add_definitions(-DDL_KERNELS)
