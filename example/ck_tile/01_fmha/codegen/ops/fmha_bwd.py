@@ -506,6 +506,14 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= deterministic == "f"
                     if not cond:
                         continue
+            if receipt == 4:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= bias in ['no', 'bias']
+                    cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
+                    cond &= dpad == dvpad
+                    cond &= deterministic == "f"
+                    if not cond:
+                        continue
             api_pool.register_dq_dk_dv_traits(k.api_trait())
             gen.append(k)
 

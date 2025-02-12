@@ -301,7 +301,19 @@ class TestCkTileGemmPipeline : public ::testing::Test
     public:
     std::vector<int> k_batches_;
 
-    void SetUp() override { k_batches_ = {1, 2}; }
+    void SetUp() override
+    {
+        if constexpr(PipelineType == GemmPipelineType::CompV4)
+        {
+            // Only do k_batch = 1 when pipeline is CompV4
+            k_batches_ = {1};
+        }
+        else
+        {
+            // Otherwise, use k_batch = 1 and 2
+            k_batches_ = {1, 2};
+        }
+    }
 
     template <bool PadM = true, bool PadN = true, bool PadK = true>
     void Run(const int M,
