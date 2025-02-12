@@ -1205,7 +1205,8 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
 
         auto b_blockwise_copy = ThreadwiseTensorSliceTransfer_v2<
             BDataType,
-            BDataType,
+            // BDataType,
+            ADataType,
             decltype(b_grid_desc_bpreshuffled),
             decltype(b_block_desc_bk0_n_bk1),
             Sequence<Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}>,
@@ -1220,7 +1221,6 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
                                    KPack * (get_thread_local_1d_id() % warpSize)));
 
         // LDS allocation for A and B: be careful of alignment
-
 
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
