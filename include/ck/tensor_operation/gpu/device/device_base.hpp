@@ -16,6 +16,7 @@
 
 #include "ck/stream_config.hpp"
 #endif
+#endif
 
 namespace ck {
 namespace tensor_operation {

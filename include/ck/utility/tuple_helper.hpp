@@ -173,6 +173,7 @@ using is_tuple = decltype(ck::declval<T&>().IsTuple());
 template <typename... Ts>
 __host__ __device__ constexpr auto IsNestedTuple(const Tuple<Ts...>&)
 {
+#ifndef __HIPCC_RTC__
 #ifndef CK_CODE_GEN_RTC
     return (is_detected<is_tuple, Ts>::value || ...);
 #endif

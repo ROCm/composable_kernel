@@ -17,6 +17,7 @@
 #include <limits>
 #include <stdlib.h>
 #endif
+#endif
 
 namespace ck {
 

@@ -465,6 +465,7 @@ inline __host__ double expm1<double>(double x)
     return std::expm1(x);
 }
 #endif
+#endif
 // math functions for the HIP kernel,  some are implemented by calling hip builtin functions
 
 static inline __device__ float abs(float x) { return ::abs(x); };

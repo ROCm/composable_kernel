@@ -2624,6 +2624,7 @@ using pk_i4x2_t = typename vector_type<pk_i4_t, 2>::type;
 using pk_i4x4_t = typename vector_type<pk_i4_t, 4>::type;
 using pk_i4x8_t = typename vector_type<pk_i4_t, 8>::type;
 
+#ifdef __HIPCC_RTC__
 #ifdef CK_CODE_GEN_RTC
 template <typename T>
 struct NumericLimits;
@@ -2971,7 +2972,6 @@ struct NumericLimits<bf8_ocp_t>
         return bit_cast<bf8_ocp_t>(binary_qnan);
     }
 };
-#endif
 
 template <>
 struct NumericLimits<f4_t>
@@ -3084,6 +3084,7 @@ struct NumericLimits<e8m0_bexp_t>
         return e8m0_bexp_t(binary_142);
     }
 };
+#endif
 #endif
 
 template <typename T>
