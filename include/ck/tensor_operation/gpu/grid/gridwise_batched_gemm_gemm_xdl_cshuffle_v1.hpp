@@ -448,8 +448,16 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         //   acc1[m][o] += acc[m][n] * B1[n][o]
 
         // sanity check
+        constexpr auto lcm_AK1_BK1 = math::lcm(AK1, BK1);
+        constexpr bool is_single_rate_mfma =
+            ((is_same<FloatAB, half_t>::value || is_same<FloatAB, bhalf_t>::value) &&
+             lcm_AK1_BK1 <= 4)
+                ? true
+                : false;
         constexpr index_t KPack = math::max(
-            math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+            lcm_AK1_BK1,
+            MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, is_single_rate_mfma>::selected_mfma
+                .k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_v2<
             BlockSize,
