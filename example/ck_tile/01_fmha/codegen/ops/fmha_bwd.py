@@ -317,6 +317,9 @@ struct fmha_bwd_dq_dk_dv_v3_traits_
     static constexpr bool kIsHDPad            = kIsHDPad_;
 }};
 
+template <typename fmha_bwd_dq_dk_dv_v3_traits_> struct FmhaBwdV3Name;
+template <typename fmha_bwd_dq_dk_dv_v3_traits_> struct FmhaBwdV3Buf;
+template <typename fmha_bwd_dq_dk_dv_v3_traits_> struct FmhaBwdV3Ts;
 {F_template}
 
 class fmha_bwd_v3_kernel
