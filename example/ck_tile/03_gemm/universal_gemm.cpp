@@ -240,8 +240,19 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
 #include "run_gemm_example.inc"
 
-void run_gemm_instance(std::string data_type, std::string a_layout, std::string b_layout)
+int run_gemm_example(int argc, char* argv[])
 {
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+    std::string data_type = arg_parser.get_str("prec");
+    std::string a_layout  = arg_parser.get_str("a_layout");
+    std::string b_layout  = arg_parser.get_str("b_layout");
+
     if(a_layout == "R" && b_layout == "R")
     {
         if(data_type == "fp16")
@@ -338,22 +349,6 @@ void run_gemm_instance(std::string data_type, std::string a_layout, std::string 
     {
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
     }
-}
-
-int run_gemm_example(int argc, char* argv[])
-{
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
-
-    std::string data_type = arg_parser.get_str("prec");
-    std::string a_layout  = arg_parser.get_str("a_layout");
-    std::string b_layout  = arg_parser.get_str("b_layout");
-
-    return run_gemm_instance(data_type, a_layout, b_layout);
 }
 
 int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }

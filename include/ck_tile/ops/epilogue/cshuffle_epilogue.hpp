@@ -142,7 +142,7 @@ struct CShuffleEpilogue
             TileDistributionEncodingPattern2D<kBlockSize,
                                               kMPerIteration,
                                               kNPerIteration,
-                                              GetVectorSizeC<ODataType>(),
+                                              GetVectorSizeC(),
                                               tile_distribution_pattern::thread_raked>;
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 

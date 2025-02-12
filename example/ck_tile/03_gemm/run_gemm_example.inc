@@ -94,10 +94,10 @@ int run_gemm_example_with_layouts(int argc,
     if(!result)
         return -1;
 
-    using ADataType   = typename GemmBasicTypeConfig<PrecType>::ADataType;
-    using BDataType   = typename GemmBasicTypeConfig<PrecType>::BDataType;
-    using CDataType   = typename GemmBasicTypeConfig<PrecType>::CDataType;
-    using AccDataType = typename GemmBasicTypeConfig<PrecType>::AccDataType;
+    using ADataType   = typename GemmTypeConfig<PrecType>::ADataType;
+    using BDataType   = typename GemmTypeConfig<PrecType>::BDataType;
+    using CDataType   = typename GemmTypeConfig<PrecType>::CDataType;
+    using AccDataType = typename GemmTypeConfig<PrecType>::AccDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
