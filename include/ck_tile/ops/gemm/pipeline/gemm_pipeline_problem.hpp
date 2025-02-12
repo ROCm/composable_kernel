@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -35,9 +36,19 @@ struct GemmPipelineProblemBase
     static constexpr bool kPadN = Traits::kPadN;
     static constexpr bool kPadK = Traits::kPadK;
 
-    static constexpr auto Scheduler = GemmPipelineScheduler::Default;
-
+    static constexpr auto Scheduler         = GemmPipelineScheduler::Default;
     static constexpr index_t VectorLoadSize = Traits::_VectorSize;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "gemm_problem", 
+                      concat('x', VectorLoadSize, kBlockSize),
+                      concat('x', kPadM, kPadN, kPadK),
+                      Scheduler);
+        // clang-format on
+    }
+
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
     {
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)

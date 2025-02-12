@@ -79,8 +79,11 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
 
     if(s.log_level_ > 0)
     {
-        std::cout << "Launching kernel with args:"
-                  << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+        std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
+                  << "shape: " << CodegenGemmShape::GetName() << '\n'
+                  << "problem: " << CodegenPipelineProblem::GetName() << '\n'
+                  << "pipeline: " << CodegenGemmPipeline::GetName() << '\n'
+                  << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                   << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                   << std::endl;
     }

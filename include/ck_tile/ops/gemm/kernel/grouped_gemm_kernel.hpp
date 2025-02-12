@@ -64,6 +64,18 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         }
     };
 
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        using P_ = GemmPipeline;
+
+        return concat('_', "gemm_grouped", gemm_prec_str<ADataType, BDataType>,
+                      concat('x', P_::kMPerBlock, P_::kNPerBlock, P_::kKPerBlock),
+                      concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
+                      concat('x', P_::kPadM, P_::kPadN, P_::kPadK));
+        // clang-format on
+    }
+
     __host__ static auto GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs>& gemm_descs)
         -> std::size_t
     {

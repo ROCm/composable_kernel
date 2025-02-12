@@ -1495,10 +1495,13 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         // if workspace is not allocated
         if(!arg.p_workspace_)
         {
-            std::cerr << "Warning: Workspace for "
-                         "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
-                         "allocated, use SetWorkSpacePointer."
-                      << std::endl;
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Warning: Workspace for "
+                             "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
+                             "allocated, use SetWorkSpacePointer."
+                          << std::endl;
+            }
             return false;
         }
         if(!ck::is_xdl_supported())
