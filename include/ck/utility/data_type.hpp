@@ -32,8 +32,8 @@ struct f4x2_pk_t
 {
     using type = uint8_t;
     type data;
-    f4x2_pk_t() : data{type{}} {}
-    f4x2_pk_t(type init) : data{init} {}
+    __host__ __device__ f4x2_pk_t() : data{type{}} {}
+    __host__ __device__ f4x2_pk_t(type init) : data{init} {}
 
     template <index_t I>
     __host__ __device__ inline type unpack(Number<I>) const
