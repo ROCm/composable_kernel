@@ -20,37 +20,6 @@ using ALayout = Row;
 using BLayout = Col;
 using CLayout = Row;
 
-void preShuffleBuffer(const I4* src, I4* dst, int N, int K, int NXdl)
-{
-    int KPack = 32; // int4 -> 32, fp8 -> 16, fp16 -> 8
-    int NLane = NXdl;
-    int KLane = 64 / NLane;
-
-    int K0 = K / (KLane * KPack);
-    // K -> K0 KLane KPack
-    // N -> N0 NLane
-    // N, K -> N0 K0 KLane NLane KPack
-    int tempk;
-    for(int n = 0; n < N; ++n)
-    {
-        for(int k = 0; k < K; ++k)
-        {
-            int n0 = n / NLane;
-            int n1 = n % NLane;
-
-            int k0 = k / (KLane * KPack);
-            tempk  = k % (KLane * KPack);
-            int k1 = tempk / KPack;
-            int k2 = tempk % KPack;
-
-            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
-                              k1 * KPack * NLane + n1 * KPack + k2;
-
-            dst[outputIndex] = src[n * K + k];
-        }
-    }
-}
-
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 using CElementOp = PassThrough;
@@ -180,9 +149,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     // N -> N0 NLane
     // N, K -> N0 K0 KLane NLane KPack
     int tempk;
-    for(int n=0;n<N;++n)
+    for(int n = 0; n < N; ++n)
     {
-        for(int k=0;k<K;++k)
+        for(int k = 0; k < K; ++k)
         {
             int n0 = n / NLane;
             int n1 = n % NLane;
