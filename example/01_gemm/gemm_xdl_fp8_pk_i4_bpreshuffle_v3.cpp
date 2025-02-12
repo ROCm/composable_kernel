@@ -58,7 +58,7 @@ using CElementOp = PassThrough;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 static constexpr bool PermuteA         = false;
-static constexpr bool PermuteB         = true;
+static constexpr bool PermuteB         = false;
 static constexpr ck::index_t KPerBlock = 128;
 
 // clang-format off
@@ -131,7 +131,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<BDataType> b_k_n_preshuffled(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<BDataType> b_k_n_permute(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
 
     switch(config.init_method)
     {
@@ -161,51 +160,42 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
+    std::cout << "b_k_n_preshuffled:" << b_k_n_preshuffled.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
-    // std::cout << "a_m_K size: " << sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize()
-    //           << std::endl;
-    // std::cout << "BDataType size: " << sizeof(BDataType) << std::endl;
-    // std::cout << "b_k_n size: " << sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize()
-    //           << std::endl;
-    // std::cout << "c_m_n size: " << sizeof(CDataType) * c_m_n_host_result.mDesc.GetElementSpaceSize()
-    //           << std::endl;
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n_preshuffled.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
     // do GEMM
-    auto gemm      = DeviceGemmV2Instance{};
+    auto gemm = DeviceGemmV2Instance{};
 
-    int NperXdl = gemm.GetPreShuffleParameters();
-    preShuffleBuffer(b_k_n.mData.data(), b_k_n_preshuffled.mData.data(), N, K, NperXdl);
+    // weight pre-shuffle
+    int KPack = 32; // int4 -> 32, fp8 -> 16, fp16 -> 8
+    int NLane = gemm.GetPreShuffleParameters();
+    int KLane = 64 / NLane;
 
-    // weight permute
-    if constexpr(PermuteB)
+    int K0 = K / (KLane * KPack);
+    // K -> K0 KLane KPack
+    // N -> N0 NLane
+    // N, K -> N0 K0 KLane NLane KPack
+    int tempk;
+    for(int n=0;n<N;++n)
     {
-        int K1 = KPerBlock;
-        int K0 = K / KPerBlock;
+        for(int k=0;k<K;++k)
+        {
+            int n0 = n / NLane;
+            int n1 = n % NLane;
 
-        // int K0, N, K1
-        for(int j = 0; j < K0; j++)
-        {
-            for(int i = 0; i < N; i++)
-            {
-                for(int jj = 0; jj < K1; jj++)
-                {
-                    b_k_n_permute(j * N * K1 + i * K1 + jj) = b_k_n_preshuffled(i * K + (j * K1 + jj));
-                }
-            }
-        }
-    }
-    else
-    {
-        for(int i = 0; i < N; i++)
-        {
-            for(int j = 0; j < K; j++)
-            {
-                b_k_n_permute(i * K + j) = b_k_n_preshuffled(i * K + j);
-            }
+            int k0 = k / (KLane * KPack);
+            tempk  = k % (KLane * KPack);
+            int k1 = tempk / KPack;
+            int k2 = tempk % KPack;
+
+            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                              k1 * KPack * NLane + n1 * KPack + k2;
+
+            b_k_n_preshuffled(outputIndex) = b_k_n(n * K + k);
         }
     }
 
@@ -218,7 +208,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
             for(int k = 0; k < 4; k++)
             {
-                int i4x2         = b_k_n_permute(j + k * 2, i).data;
+                int i4x2         = b_k_n_preshuffled(j + k * 2, i).data;
                 input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
                 input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
             }
@@ -229,7 +219,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                 int lo   = input[0];
                 int i4x2 = (hi << 4) | lo;
 
-                b_k_n_permute(j + 0, i) = i4x2;
+                b_k_n_preshuffled(j + 0, i) = i4x2;
             }
 
             {
@@ -237,7 +227,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                 int lo   = input[4];
                 int i4x2 = (hi << 4) | lo;
 
-                b_k_n_permute(j + 2, i) = i4x2;
+                b_k_n_preshuffled(j + 2, i) = i4x2;
             }
 
             {
@@ -245,7 +235,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                 int lo   = input[1];
                 int i4x2 = (hi << 4) | lo;
 
-                b_k_n_permute(j + 4, i) = i4x2;
+                b_k_n_preshuffled(j + 4, i) = i4x2;
             }
 
             {
@@ -253,13 +243,13 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                 int lo   = input[5];
                 int i4x2 = (hi << 4) | lo;
 
-                b_k_n_permute(j + 6, i) = i4x2;
+                b_k_n_preshuffled(j + 6, i) = i4x2;
             }
         }
     }
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n_permute.mData.data());
+    b_k_n_device_buf.ToDevice(b_k_n_preshuffled.mData.data());
     DeviceMem workspace;
 
     auto a_element_op = AElementOp{};
