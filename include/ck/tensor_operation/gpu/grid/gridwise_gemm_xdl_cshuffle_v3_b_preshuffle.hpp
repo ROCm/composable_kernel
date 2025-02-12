@@ -1134,7 +1134,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         const AElementwiseOperation a_element_op{};
-        // const BElementwiseOperation b_element_op{};
+        const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
@@ -1205,8 +1205,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
 
         auto b_blockwise_copy = ThreadwiseTensorSliceTransfer_v2<
             BDataType,
-            // BDataType,
-            ADataType,
+            BDataType,
             decltype(b_grid_desc_bpreshuffled),
             decltype(b_block_desc_bk0_n_bk1),
             Sequence<Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}>,
@@ -1220,17 +1219,23 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
                                    0,
                                    KPack * (get_thread_local_1d_id() % warpSize)));
 
+        // B: VGRP->VGPR dequantization
+        auto b_thread_dequant_copy = ThreadwiseTensorSliceTransfer_StaticToStatic<
+            BDataType,
+            ComputeTypeA,
+            decltype(b_block_desc_bk0_n_bk1),
+            decltype(b_block_desc_bk0_n_bk1),
+            tensor_operation::element_wise::PassThrough,
+            Sequence<Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}>,
+            Sequence<0, 1, 2, 3>,
+            3,
+            BK1Number>(b_element_op);
+
         // LDS allocation for A and B: be careful of alignment
 
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
-
-        // auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-        //     reinterpret_cast<BDataType*>(static_cast<char*>(p_shared) + a_block_space_size_aligned *
-        //                                                                     sizeof(ADataType) /
-        //                                                                     APackedSize),
-        //     b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, KRepeat, 0);
@@ -1255,6 +1260,9 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
                                                                          b_grid_buf,
                                                                          b_block_buf,
                                                                          b_block_slice_copy_step,
+
+                                                                         // B: VGRP->VGPR dequantization
+                                                                         b_thread_dequant_copy,
                                                                          c_thread_buf,
                                                                          num_k_block_main_loop);
 
@@ -1514,7 +1522,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         const AElementwiseOperation a_element_op{};
-        // const BElementwiseOperation b_element_op{};
+        const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
@@ -1604,6 +1612,18 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
                                    0,
                                    KPack * (get_thread_local_1d_id() % warpSize)));
 
+        // B: VGRP->VGPR dequantization
+        auto b_thread_dequant_copy = ThreadwiseTensorSliceTransfer_StaticToStatic<
+            BDataType,
+            ComputeTypeA,
+            decltype(b_block_desc_bk0_n_bk1),
+            decltype(b_block_desc_bk0_n_bk1),
+            tensor_operation::element_wise::PassThrough,
+            Sequence<Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}>,
+            Sequence<0, 1, 2, 3>,
+            3,
+            BK1Number>(b_element_op);
+
         // LDS allocation for A and B: be careful of alignment
         auto a_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<ADataType*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -1636,6 +1656,9 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
                                                                          b_grid_buf,
                                                                          b_block_bufs,
                                                                          b_block_slice_copy_step,
+
+                                                                         // B: VGRP->VGPR dequantization
+                                                                         b_thread_dequant_copy,
                                                                          c_thread_buf,
                                                                          num_k_block_main_loop);
 
