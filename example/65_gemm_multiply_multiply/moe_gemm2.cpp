@@ -121,7 +121,7 @@ using BElementOp   = PassThrough;
 using CDEElementOp = MulABScaleExpertWeight;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr ck::index_t MPerBlock = 32;
+static constexpr ck::index_t MPerBlock = 64;
 static constexpr ck::index_t MNPerXDL = 32;
 static constexpr ck::index_t KPerBlock = 256 / sizeof(A0DataType);
 static constexpr ck::index_t MXDLPerWave = MPerBlock / 32; //todo fix this constraint
