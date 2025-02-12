@@ -15,7 +15,7 @@
 #define CK_TILE_PIPELINE_MEMORY 2
 
 #ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE
+#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_MEMORY
 #endif
 
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
@@ -31,10 +31,10 @@
 #endif
 
 template <typename DataType>
-struct GemmBasicTypeConfig;
+struct GemmTypeConfig;
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::half_t>
+struct GemmTypeConfig<ck_tile::half_t>
 {
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::half_t;
@@ -44,7 +44,7 @@ struct GemmBasicTypeConfig<ck_tile::half_t>
 };
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::bf16_t>
+struct GemmTypeConfig<ck_tile::bf16_t>
 {
     using ADataType   = ck_tile::bf16_t;
     using BDataType   = ck_tile::bf16_t;
@@ -53,7 +53,7 @@ struct GemmBasicTypeConfig<ck_tile::bf16_t>
 };
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::fp8_t>
+struct GemmTypeConfig<ck_tile::fp8_t>
 {
     using ADataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
@@ -62,7 +62,7 @@ struct GemmBasicTypeConfig<ck_tile::fp8_t>
 };
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::bf8_t>
+struct GemmTypeConfig<ck_tile::bf8_t>
 {
     using ADataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;

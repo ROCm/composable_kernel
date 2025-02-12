@@ -167,7 +167,7 @@ struct GemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
     {
-        if constexpr(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
+        if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                      is_any_of<CDataType, fp16_t, bf16_t>::value)
         {
             if(kargs.k_batch != 1)

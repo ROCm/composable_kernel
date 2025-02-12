@@ -77,7 +77,6 @@ struct CShuffleEpilogue
      *
      * @return The vector store size for C tensor.
      */
-    template <typename ODataType>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
         constexpr index_t MaxVectorStoreSize = 16;
