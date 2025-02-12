@@ -9,8 +9,8 @@
 
 namespace ck_tile {
 
-// UniversalGemm Policy
-struct UniversalGemmPipelineAgBgCrPolicy
+template <typename Derived>
+struct UniversalGemmBasePolicy
 {
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -113,7 +113,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
-        using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
+        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
         using WG        = typename BlockGemm::WarpGemm;
 
         constexpr bool TransposeC = Problem::TransposeC;
@@ -167,9 +167,115 @@ struct UniversalGemmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
+    {
+        return Problem::TransposeC;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
+    {
+        using ALayout = remove_cvref_t<typename Problem::ALayout>;
+
+        constexpr index_t BlockSize   = Problem::kBlockSize;
+        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
+
+        // Tile: MPerBlock X KPerBlock
+        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                          MPerBlock,
+                                                                          KPerBlock,
+                                                                          VecLoadSize,
+                                                                          ATileAccessPattern>;
+            return TileEncodingPattern::Make2DStaticTileDistribution();
+        }
+        // Tile: KPerBlock X MPerBlock
+        else
+        {
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                          KPerBlock,
+                                                                          MPerBlock,
+                                                                          VecLoadSize,
+                                                                          ATileAccessPattern>;
+            return TileEncodingPattern::Make2DStaticTileDistribution();
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
+    {
+        using BLayout = remove_cvref_t<typename Problem::BLayout>;
+
+        constexpr index_t BlockSize   = Problem::kBlockSize;
+        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
+
+        // Tile: KPerBlock X NPerBlock
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                          KPerBlock,
+                                                                          NPerBlock,
+                                                                          VecLoadSize,
+                                                                          BTileAccessPattern>;
+            return TileEncodingPattern::Make2DStaticTileDistribution();
+        }
+        // Tile: NPerBlock X KPerBlock
+        else
+        {
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                          NPerBlock,
+                                                                          KPerBlock,
+                                                                          VecLoadSize,
+                                                                          BTileAccessPattern>;
+            return TileEncodingPattern::Make2DStaticTileDistribution();
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledARegTileDistribution()
+    {
+        using ALayout = remove_cvref_t<typename Problem::ALayout>;
+        static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
+        constexpr index_t BlockSize   = Problem::kBlockSize;
+        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
+
+        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                      KPerBlock,
+                                                                      MPerBlock,
+                                                                      VecLoadSize,
+                                                                      ATileAccessPattern>;
+        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledBRegTileDistribution()
+    {
+        using BLayout = remove_cvref_t<typename Problem::BLayout>;
+        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>);
+        constexpr index_t BlockSize   = Problem::kBlockSize;
+        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
+
+        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                      KPerBlock,
+                                                                      NPerBlock,
+                                                                      VecLoadSize,
+                                                                      BTileAccessPattern>;
+        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
     {
-        using BlockGemm         = decltype(GetBlockGemm<Problem>());
+        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
         constexpr index_t KPack = BlockGemm::Traits::KPack;
         return KPack;
     }
@@ -177,11 +283,43 @@ struct UniversalGemmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
     {
-        using BlockGemm         = decltype(GetBlockGemm<Problem>());
+        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
         constexpr index_t KPack = BlockGemm::Traits::KPack;
         return KPack;
     }
 
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
+    {
+        constexpr auto a_lds_desc     = Derived::template MakeALdsBlockDescriptor<Problem>();
+        constexpr index_t smem_size_a = integer_least_multiple(
+            sizeof(typename Problem::ADataType) * a_lds_desc.get_element_space_size(), 16);
+        return smem_size_a;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
+    {
+        constexpr auto b_lds_desc     = Derived::template MakeBLdsBlockDescriptor<Problem>();
+        constexpr index_t smem_size_b = integer_least_multiple(
+            sizeof(typename Problem::BDataType) * b_lds_desc.get_element_space_size(), 16);
+        return smem_size_b;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    {
+        constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
+        constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
+
+        return smem_size_a + smem_size_b;
+    }
+};
+
+// UniversalGemm Policy
+struct UniversalGemmPipelineAgBgCrPolicy
+    : public UniversalGemmBasePolicy<UniversalGemmPipelineAgBgCrPolicy>
+{
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
@@ -419,133 +557,6 @@ struct UniversalGemmPipelineAgBgCrPolicy
             // return b_lds_block_desc;
         }
 #endif
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
-    {
-        constexpr index_t smem_size_a = sizeof(typename Problem::ADataType) *
-                                        MakeALdsBlockDescriptor<Problem>().get_element_space_size();
-        return smem_size_a;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
-    {
-        constexpr index_t smem_size_b = sizeof(typename Problem::BDataType) *
-                                        MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
-        return smem_size_b;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
-    {
-        constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
-        constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
-        index_t smem_size             = 0;
-        smem_size += smem_size_a + smem_size_b;
-
-        return smem_size;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
-    {
-        using ALayout = remove_cvref_t<typename Problem::ALayout>;
-
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
-
-        // Tile: MPerBlock X KPerBlock
-        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                          MPerBlock,
-                                                                          KPerBlock,
-                                                                          VecLoadSize,
-                                                                          ATileAccessPattern>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
-        }
-        // Tile: KPerBlock X MPerBlock
-        else
-        {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                          KPerBlock,
-                                                                          MPerBlock,
-                                                                          VecLoadSize,
-                                                                          ATileAccessPattern>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
-        }
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
-    {
-        using BLayout = remove_cvref_t<typename Problem::BLayout>;
-
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
-
-        // Tile: KPerBlock X NPerBlock
-        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                          KPerBlock,
-                                                                          NPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
-        }
-        // Tile: NPerBlock X KPerBlock
-        else
-        {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                          NPerBlock,
-                                                                          KPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
-        }
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledARegTileDistribution()
-    {
-        using ALayout = remove_cvref_t<typename Problem::ALayout>;
-        static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
-
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      KPerBlock,
-                                                                      MPerBlock,
-                                                                      VecLoadSize,
-                                                                      ATileAccessPattern>;
-        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledBRegTileDistribution()
-    {
-        using BLayout = remove_cvref_t<typename Problem::BLayout>;
-        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
-
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      KPerBlock,
-                                                                      NPerBlock,
-                                                                      VecLoadSize,
-                                                                      BTileAccessPattern>;
-        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
     }
 
     template <typename Problem>
