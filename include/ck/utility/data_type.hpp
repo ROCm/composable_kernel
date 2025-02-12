@@ -7,7 +7,6 @@
 #define CK_CODE_GEN_RTC
 #endif
 
-
 #include "ck/utility/amd_ck_fp8.hpp"
 #include "ck/utility/e8m0.hpp"
 #include "ck/utility/statically_indexed_array.hpp"

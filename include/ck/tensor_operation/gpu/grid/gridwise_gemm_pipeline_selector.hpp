@@ -7,7 +7,6 @@
 #define CK_CODE_GEN_RTC
 #endif
 
-
 #ifndef __HIPCC_RTC__
 #ifndef CK_CODE_GEN_RTC
 #include <iostream>
