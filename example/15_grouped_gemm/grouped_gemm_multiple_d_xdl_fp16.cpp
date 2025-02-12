@@ -63,7 +63,8 @@ using DeviceGemmInstance =
 //######|        |        |         |        |      Type|      Type|        Type|         DataType|       Type|      Type| Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
 //######|        |        |         |        |          |          |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
 //######|        |        |         |        |          |          |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp, GemmMNKPadding,        1,   256,    64,   128,    32,   8,   8,   32,   32,    1,    2,    S<4, 64, 1>,     S<1, 0, 2>,      S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,       S<4,4,4>>;
+     ///< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp, GemmMNKPadding,        1,   256,    64,   128,    32,   8,   8,   32,   32,    1,    2,    S<4, 64, 1>,     S<1, 0, 2>,      S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,       S<4,4,4>>;
+        < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp, GemmMNKPadding,        1,   256,   128,   128,    32,   8,   8,   32,   32,    2,    2,    S<4, 64, 1>,     S<1, 0, 2>,      S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,       S<4,4,4>>;
 // clang-format on
 
 struct ProblemSize final
@@ -349,14 +350,15 @@ int main(int argc, char* argv[])
 
     if(argc < 10)
     {
-        std::vector<ck::index_t> Ms{64, 127, 255, 129, 260, 190, 77};
+        std::vector<ck::index_t> Ms{64, 64, 64, 1024, 64, 64, 2048, 64};
+
         problem_size.group_count = Ms.size();
 
         for(int i = 0; i < problem_size.group_count; i++)
         {
             problem_size.Ms.push_back(Ms[i]);
-            problem_size.Ns.push_back(252);
-            problem_size.Ks.push_back(4608);
+            problem_size.Ns.push_back(5120);
+            problem_size.Ks.push_back(1024);
 
             problem_size.stride_As.push_back(problem_size.Ks[i]);
             problem_size.stride_Bs.push_back(problem_size.Ks[i]);

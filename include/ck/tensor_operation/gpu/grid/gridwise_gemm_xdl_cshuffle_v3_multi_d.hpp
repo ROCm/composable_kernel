@@ -155,6 +155,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
+    static constexpr auto MPerBlock_ = MPerBlock;
+    static constexpr auto NPerBlock_ = NPerBlock;
+
     static constexpr auto CShuffleBlockTransferScalarPerVector_NPerBlock =
         CDEShuffleBlockTransferScalarPerVectors{}[I0];
 

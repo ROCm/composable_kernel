@@ -63,7 +63,8 @@ template <typename GridwiseGemm0,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
-          BlockGemmPipelineVersion BlkGemmPipelineVer>
+          BlockGemmPipelineVersion BlkGemmPipelineVer,
+          index_t M_thres>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -123,7 +124,7 @@ __global__ void
                 continue;
             }
 
-            use_gemm_0 = gemm_desc_ptr[group_id].M < 128 ? true : false;
+            use_gemm_0 = gemm_desc_ptr[group_id].M < M_thres ? true : false;
 
             if(use_gemm_0)
             {
@@ -315,6 +316,7 @@ template <typename ALayout,
           GemmSpecialization GemmSpec,
           ck::index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
+          ck::index_t M_thres,
           ck::index_t MPerBlock0,
           ck::index_t MPerBlock1,
           ck::index_t NPerBlock,
@@ -618,7 +620,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoopV2
                                                                    BElementwiseOperation,
                                                                    CDEElementwiseOperation,
                                                                    BlkGemmPipeSched,
-                                                                   BlkGemmPipelineVer>;
+                                                                   BlkGemmPipelineVer,
+                                                                   M_thres>;
             return LaunchKernel(kernel, arg, dev_gemm_args, stream_config);
         }
 
@@ -762,7 +765,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoopV2
                                                                BElementwiseOperation,
                                                                CDEElementwiseOperation,
                                                                BlkGemmPipeSched,
-                                                               BlkGemmPipelineVer>;
+                                                               BlkGemmPipelineVer,
+                                                               M_thres>;
         int occupancy, num_cu;
         hip_check_error(
             hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
@@ -816,7 +820,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoopV2
                                                                BElementwiseOperation,
                                                                CDEElementwiseOperation,
                                                                BlkGemmPipeSched,
-                                                               BlkGemmPipelineVer>;
+                                                               BlkGemmPipelineVer,
+                                                               M_thres>;
         int occupancy, num_cu;
         hip_check_error(
             hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
