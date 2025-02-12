@@ -264,11 +264,6 @@ TEST(MXFP4, DeviceScaledConvert)
     device_completed.FromDevice(&completed);
     device_out.FromDevice(out.data());
 
-    for(ck::index_t id = 0; id < 256 * 16; id++)
-    {
-        printf("%f\n", out.data()[id]);
-    }
-
     // V = X * P; X - E8M0 scale, P - FP4
 
     // If X = NaN, then V = NaN regardless of P
@@ -279,32 +274,14 @@ TEST(MXFP4, DeviceScaledConvert)
         ASSERT_TRUE(std::isnan(out[idx])) << "idx: " << idx << " out[idx]: " << out[idx];
     }
 
-    // If P in {Inf, NaN}, then V = P
-    std::set<uint8_t> fp4_nan_ids;
-    fp4_nan_ids.insert(0b11111111); //-NaN
-    fp4_nan_ids.insert(0b01111111); // +NaN
     for(ck::index_t exp_id = 0; exp_id < 256; exp_id++)
     {
         if(exp_id == e8m0_nan_id)
             continue;
-        for(auto fp4_nan_id : fp4_nan_ids)
+        for(ck::index_t fp4_id = 0; fp4_id < 16; fp4_id++)
         {
-            auto idx = exp_id * 256 + fp4_nan_id;
-            ASSERT_TRUE(std::isnan(out[idx])) << "idx: " << idx << " out[idx]: " << out[idx];
-        }
-    }
-
-    for(ck::index_t exp_id = 0; exp_id < 256; exp_id++)
-    {
-        if(exp_id == e8m0_nan_id)
-            continue;
-        for(ck::index_t fp4_id = 0; fp4_id < 256; fp4_id++)
-        {
-            if(fp4_nan_ids.find(fp4_id) != fp4_nan_ids.end())
-                continue;
-
             uint8_t fp4_uid = static_cast<uint8_t>(fp4_id);
-            auto idx        = exp_id * 256 + fp4_uid;
+            auto idx        = exp_id * 16 + fp4_uid;
             ASSERT_FLOAT_EQ(out[idx],
                             type_convert<float>(e8m0_bexp_t(exp_id)) *
                                 type_convert<float>(f4_t(fp4_uid & 0b00001111)))
@@ -319,19 +296,19 @@ TEST(MXFP4, DeviceScaledConvert)
     auto i = 256 * 16;
 
     // f4x2 -> f32x2
-    EXPECT_EQ(out[i++], -powf(2.0f, -5.0f));
-    EXPECT_EQ(out[i++], powf(2.0f, -8.0f));
+    EXPECT_EQ(out[i++], 1.0f);
+    EXPECT_EQ(out[i++], -4.0f);
 
     // f32x2 -> f4x2
     // RNE
-    EXPECT_EQ(out[i++], -4.0f);
-    EXPECT_EQ(out[i++], 2.0f);
-    // SR
+    EXPECT_EQ(out[i++], 0.5f);
     EXPECT_EQ(out[i++], -2.0f);
-    EXPECT_EQ(out[i++], 1.0f);
+    // SR
+    EXPECT_EQ(out[i++], 0.5f);
+    EXPECT_EQ(out[i++], -2.0f);
 
     /// Test round to nearest even
-    EXPECT_EQ(out[i++], 1024.0f / 4.0f) << "out[i-1]: " << out[i - 1];
+    EXPECT_EQ(out[i++], 24.0f / 4.0f) << "out[i-1]: " << out[i - 1];
     EXPECT_TRUE(std::isnan(out[i++])) << "out[i-1]: " << out[i - 1];
 #if 1
     EXPECT_TRUE(std::isnan(out[i++])) << "out[i-1]: " << out[i - 1];
@@ -347,7 +324,7 @@ TEST(MXFP4, DeviceScaledConvert)
     EXPECT_EQ(out[i++], type_convert<float>(ck::NumericLimits<f4_t>::Lowest()))
         << "out[i-1]: " << out[i - 1];
 #endif
-    EXPECT_EQ(out[i++], type_convert<float>(type_convert<f4_t>(312.5f)))
+    EXPECT_EQ(out[i++], type_convert<float>(type_convert<f4_t>(5.0f)))
         << "out[i-1]: " << out[i - 1];
 
     EXPECT_EQ(test_size, completed);
