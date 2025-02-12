@@ -176,10 +176,12 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                                                                                 src_coords_[i]);
 
                 oob_val = oob_val & is_src_valid;
-                if (i.value == ScatterWeightIdx) 
+                if (i.value == ScatterWeightIdx)
                 {
-                    static_assert(SrcScalarPerVectors{}[Number<2>{}] == 1, "scatter weight dim, should only one vec");
+                    static_assert(SrcScalarPerVectors{}[Number<ScatterWeightIdx>{}] == 1, "scatter weight dim, should only one vec");
                     constexpr auto iScatter = SrcSpaceFillingCurve::GetIndex(iAccess)(Number<ScatterDim>{});
+                    // if(threadIdx.x % 8 ==0 )
+                    // printf("bid %d tid %d srcid %d sv %f\n", blockIdx.y, threadIdx.x, i.value, scatter_weights_(Number<iScatter>{}));
                     static_for<0, SrcScalarPerVector, 1>{}(
                         [&](auto j) { src_vectors(i).template AsType<float>()(j) = scatter_weights_(Number<iScatter>{}); });
                 }
@@ -189,11 +191,15 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                     using DataType  = remove_cvref_t<decltype(data_types[i])>;
                     const auto tmp =
                         src_bufs[i].template Get<DataType>(src_coords_[i].GetOffset(), true);
+                    // if(threadIdx.x % 8 ==0 )
+                    // printf("bid %d tid %d srcid %d off %d v %f\n", blockIdx.y, threadIdx.x, i.value, src_coords_[i].GetOffset(), tmp);
                     static_for<0, SrcScalarPerVector, 1>{}(
                         [&](auto j) { src_vectors(i).template AsType<DataType>()(j) = tmp; });
                 }
                 else
                 {
+                    // if(threadIdx.x % 8 ==0 )
+                    // printf("bid %d tid %d srcid %d vn\n", blockIdx.y, threadIdx.x, i.value);
                     src_vectors(i).template AsType<src_vector_t>()(I0) =
                         src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(), true);
                 }

@@ -71,7 +71,7 @@ struct MulABScale
         (void)d2;  // for gate, no d2 needed
         (void)d0;
         (void)d1;
-        const float x0_f = c;
+        const float x0_f = c * d1 * d0;
         // const float x0_f =  c;
         e = ck::type_convert<EDataType>(x0_f);
     }
@@ -286,9 +286,9 @@ int main(int argc, char* argv[])
     case 1:
         a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 2});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
-        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
-        d2_m_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{1, 3});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{1, 3});
+        d2_m_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{1, 3});
         break;
     case 2:
         a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
@@ -304,6 +304,9 @@ int main(int argc, char* argv[])
         d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
         d2_m_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
     }
+    d0_t_n.savetxt("d0_t_n.txt", "int");
+    d1_e_n.savetxt("d1_e_n.txt", "int");
+    d2_m_n.savetxt("d2_m_n.txt", "int");
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_t_k.mDesc.GetElementSpaceSize());
@@ -324,8 +327,6 @@ int main(int argc, char* argv[])
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
-
-    constexpr auto I0 = ck::Number<0>{};
 
     // do GEMM
     auto device_op = DeviceOpInstance{};
@@ -352,7 +353,7 @@ int main(int argc, char* argv[])
                                K,
                                StrideA,
                                StrideB,
-                               std::array<ck::index_t, NumDTensor>{I0, I0, I0},
+                               StrideDs,
                                StrideE,
                                KBatch,
                                a_element_op,
@@ -406,9 +407,10 @@ int main(int argc, char* argv[])
         {
             
             const int t = sorted_token_ids(m);
+            const int e = expert_ids(m / sorted_tile_size);
             for(int n = 0; n < N; ++n)
             {
-                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d0_t_n(t, n), d1_e_n(m, n), d2_m_n(m, n));
+                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d0_t_n(t, n), d1_e_n(e, n), d2_m_n(m, n));
             }
         }
 

@@ -1401,7 +1401,7 @@ struct GridwiseMoeGemmGather
                     if (i.value == 1) 
                     {
                         ptr_ += expert_id * (problem.StrideDs[1]? problem.StrideDs[1] * problem.N : 1);
-                        // if ( threadIdx.x  ==0)
+                        // if ( threadIdx.x  % 16 ==0)
                         //     printf("bid %d eid %d b eoff %d %f\n", blockIdx.y, expert_id, expert_id * (problem.StrideDs[1]? problem.StrideDs[1] * problem.N : 1), ptr_[0]);
                     }
                     return make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1448,10 +1448,11 @@ struct GridwiseMoeGemmGather
             StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[c_token_pos];
             StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
             // too hack here, 2 specific for topk weights, fixme
-            const float *p_sorted_weights = p_ds_grid[I2];
+            const float *p_sorted_weights = p_ds_grid[I0];
             static_for<0, EMRepeats, 1>{}([&](auto m0) {
                 scatter_offsets(m0) = 0;
-                scatter_weights(m0) = p_sorted_weights[c_token_pos + m0];
+                scatter_weights(m0) = p_sorted_weights[(c_token_pos + m0) * problem.StrideDs[0]];
+                // if(threadIdx.x % 16 == 0)
                 // printf("init off bid %d tid %d m %d off %d\n", blockIdx.y, threadIdx.x, m0(), scatter_offsets(m0));
             });
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7r3_scatter<
