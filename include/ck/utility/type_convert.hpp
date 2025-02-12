@@ -742,8 +742,8 @@ inline __host__ __device__ f4x2_t f4_convert_rne(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    uint8_t l     = utils::sat_convert_to_type<f4_t>(x[1] / scale);
-    uint8_t h     = utils::sat_convert_to_type<f4_t>(x[0] / scale);
+    uint8_t l     = utils::sat_convert_to_type<f4_t>(x[0] / scale);
+    uint8_t h     = utils::sat_convert_to_type<f4_t>(x[1] / scale);
     value.bitwise = (h << 4) | l;
     return value.f4x2_array[0];
 #endif
@@ -969,8 +969,8 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
-    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
+    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
+    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
     value.bitwise = (h << 4) | l;
     return value.f4x2_array[0];
 #endif
