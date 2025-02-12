@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #ifndef GUARD_HOST_TEST_RTC_INCLUDE_RTC_MANAGE_POINTER
 #define GUARD_HOST_TEST_RTC_INCLUDE_RTC_MANAGE_POINTER
 

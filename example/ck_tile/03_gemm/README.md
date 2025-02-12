@@ -11,9 +11,9 @@ sh ../script/cmake-ck-dev.sh  ../ <arch>
 # The basic pipeline method on the gemm calculation
 make tile_example_gemm_basic -j
 # The memory bound pipeline on the gemm calculation
-make tile_example_gemm_mem_pipeline -j
+make tile_example_gemm_universal -j
 ```
-This will result in an executable `build/bin/tile_example_gemm_basic`
+This will result in an executable `build/bin/tile_example_gemm_basic` & `build/bin/tile_example_gemm_universal`
 
 ## example
 ```
@@ -22,6 +22,9 @@ args:
           -m    m dimension (default:1024)
           -n    n dimension (default:2048)
           -k    k dimension (default:64)
+   -a_layout    Tensor A data layout (default: R)
+   -b_layout    Tensor B data layout (default: R)
+   -c_layout    Tensor C data layout (default: R)
    -stride_a    Tensor A stride (default:0)
    -stride_b    Tensor B stride (default:0)
    -stride_c    Tensor C stride (default:0)

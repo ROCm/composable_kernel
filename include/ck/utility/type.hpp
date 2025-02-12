@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#ifdef _HIPCC_RTC_
+#define CK_CODE_GEN_RTC
+#endif
+
 #include "ck/ck.hpp"
-#include "ck/utility/integral_constant.hpp"
 #include "ck/utility/enable_if.hpp"
+#include "ck/utility/integral_constant.hpp"
 
 namespace ck {
 #ifdef __HIPCC_RTC__
-
-template <bool B>
-using bool_constant = integral_constant<bool, B>;
-
-using true_type  = bool_constant<true>;
-using false_type = bool_constant<false>;
-
+#ifdef CK_CODE_GEN_RTC
 // NOLINTNEXTLINE
 #define CK_BUILTIN_TYPE_TRAIT1(name)         \
     template <class T>                       \
@@ -75,7 +73,6 @@ struct remove_reference<T&&>
 {
     typedef T type;
 };
-
 template <class T>
 struct remove_pointer
 {
@@ -107,7 +104,6 @@ constexpr T&& forward(typename remove_reference<T>::type& t_) noexcept
 {
     return static_cast<T&&>(t_);
 }
-
 template <typename T>
 constexpr T&& forward(typename remove_reference<T>::type&& t_) noexcept
 {
@@ -115,17 +111,17 @@ constexpr T&& forward(typename remove_reference<T>::type&& t_) noexcept
 }
 
 template <class T>
-struct is_const : false_type
+struct is_const : public integral_constant<bool, false>
 {
 };
 template <class T>
-struct is_const<const T> : true_type
+struct is_const<const T> : public integral_constant<bool, true>
 {
 };
 template <class T>
 inline constexpr bool is_const_v = is_const<T>::value;
 
-template <class T>
+template <typename T>
 inline constexpr bool is_reference_v = is_reference<T>::value;
 
 template <class T>
@@ -140,15 +136,13 @@ struct remove_const<const T>
 };
 template <class T>
 using remove_const_t = typename remove_const<T>::type;
-
 template <class T>
 inline constexpr bool is_class_v = is_class<T>::value;
 
 template <class T>
 inline constexpr bool is_trivially_copyable_v = is_trivially_copyable<T>::value;
-
-template <class...>
-using void_t = void;
+// template <typename T>
+// T&& declval() noexcept;
 
 template <class T, class U = T&&>
 U private_declval(int);
@@ -159,12 +153,12 @@ T private_declval(long);
 template <class T>
 auto declval() noexcept -> decltype(private_declval<T>(0));
 
+template <class...>
+using void_t = void;
 #else
-
 #include <utility>
 #include <type_traits>
 using std::declval;
-using std::false_type;
 using std::forward;
 using std::is_base_of;
 using std::is_class;
@@ -180,9 +174,8 @@ using std::remove_const_t;
 using std::remove_cv;
 using std::remove_pointer;
 using std::remove_reference;
-using std::true_type;
 using std::void_t;
-
+#endif
 #endif
 
 template <typename X, typename Y>
@@ -195,15 +188,117 @@ struct is_same<X, X> : public integral_constant<bool, true>
 {
 };
 
+template <typename X>
+struct is_floating_point : public integral_constant<bool, false>
+{
+};
+
+template <>
+struct is_floating_point<float> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_floating_point<double> : public integral_constant<bool, true>
+{
+};
+template <>
+struct is_floating_point<long double> : public integral_constant<bool, true>
+{
+};
+
+template <typename X>
+struct is_integral : public integral_constant<bool, false>
+{
+};
+
+template <>
+struct is_integral<int> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<unsigned int> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<long> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<unsigned long> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<short> : public integral_constant<bool, true>
+{
+};
+template <>
+struct is_integral<unsigned short> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<long long> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<unsigned long long> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<char> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<signed char> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<unsigned char> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<wchar_t> : public integral_constant<bool, true>
+{
+};
+template <>
+struct is_integral<char16_t> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<char32_t> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<bool> : public integral_constant<bool, true>
+{
+};
+
 template <typename X, typename Y>
 inline constexpr bool is_same_v = is_same<X, Y>::value;
+
+template <typename X, typename Y>
+inline constexpr bool is_base_of_v = is_base_of<X, Y>::value;
+
+template <typename T>
+inline constexpr bool is_unsigned_v = is_unsigned<T>::value;
 
 template <typename T>
 using remove_reference_t = typename remove_reference<T>::type;
 
 template <typename T>
 using remove_cv_t = typename remove_cv<T>::type;
-
 template <typename T>
 using remove_cvref_t = remove_cv_t<remove_reference_t<T>>;
 
@@ -221,5 +316,4 @@ __host__ __device__ constexpr Y bit_cast(const X& x)
 
     return __builtin_bit_cast(Y, x);
 }
-
 } // namespace ck

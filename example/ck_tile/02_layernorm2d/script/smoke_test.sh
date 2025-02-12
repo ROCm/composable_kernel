@@ -1,7 +1,7 @@
 #!/bin/sh
 EXE="$(find . -name tile_example_layernorm2d_fwd -type f | head -n 1)"
 
-for fquant in "" "-fquant=1 -prec_o=int8"; do
+for fquant in "" "-fquant=1 -prec_o=int8" "-fquant=1 -prec_o=fp8"; do
 for pr_i in "fp16" "bf16" ; do
 for fadd in "0" "1"; do
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=99  -n=13
@@ -27,7 +27,8 @@ $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=7   -n=2734
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=1   -n=3182
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=9   -n=4096
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=3   -n=8192
-#$EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=1   -n=10547
+$EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=3   -n=9120
+$EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=1   -n=10547
 #$EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=3   -n=17134
 done
 done

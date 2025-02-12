@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#ifdef _HIPCC_RTC_
+#define CK_CODE_GEN_RTC
+#endif
+
 #ifndef __HIPCC_RTC__
+#ifndef CK_CODE_GEN_RTC
 #include <ostream>
+#endif
 #endif
 
 #include "ck/utility/integral_constant.hpp"
@@ -903,6 +909,7 @@ using uniform_sequence_gen_t = typename uniform_sequence_gen<NSize, I>::type;
 } // namespace ck
 
 #ifndef __HIPCC_RTC__
+#ifndef CK_CODE_GEN_RTC
 template <ck::index_t... Is>
 std::ostream& operator<<(std::ostream& os, const ck::Sequence<Is...>)
 {
@@ -913,4 +920,5 @@ std::ostream& operator<<(std::ostream& os, const ck::Sequence<Is...>)
     os << S::At(S::Size() - ck::Number<1>{}).value << "}";
     return os;
 }
+#endif
 #endif

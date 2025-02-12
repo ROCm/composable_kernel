@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
+#ifdef _HIPCC_RTC_
+#define CK_CODE_GEN_RTC
+#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
@@ -100,7 +104,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     using GridwiseGemmPipe = remove_cvref_t<
         decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
-#if CK_WORKAROUND_DENORM_FIX
+#if CK_GFX90A_DENORM_WORKAROUND
     using AComputeDataType =
         conditional_t<is_same_v<AComputeDataType_, ck::half_t>, ck::bhalf_t, AComputeDataType_>;
     using BComputeDataType =
@@ -473,11 +477,20 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
     }
 
+#ifdef CK_CODE_GEN_RTC
     template <typename DsLayout, GemmSpecialization GemmSpec>
     __host__ __device__ static auto
-    MakeDsGridDescriptor_M_N(const Array<index_t, NumDTensor>& MRaws,
-                             const Array<index_t, NumDTensor>& NRaws,
-                             const Array<index_t, NumDTensor>& DsStride)
+    MakeDsGridDescriptor_M_N(const ck::Array<index_t, NumDTensor>& MRaws,
+                             const ck::Array<index_t, NumDTensor>& NRaws,
+                             const ck::Array<index_t, NumDTensor>& DsStride)
+#else
+    template <typename DsLayout, GemmSpecialization GemmSpec>
+    __host__ __device__ static auto
+    MakeDsGridDescriptor_M_N(const std::array<index_t, NumDTensor>& MRaws,
+                             const std::array<index_t, NumDTensor>& NRaws,
+                             const std::array<index_t, NumDTensor>& DsStride)
+#endif
+
     {
         return generate_tuple(
             [&](auto i) {
@@ -941,7 +954,11 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const index_t K,
                                const index_t StrideA,
                                const index_t StrideB,
-                               const Array<index_t, NumDTensor> StrideDs,
+#ifdef CK_CODE_GEN_RTC
+                               const ck::Array<index_t, NumDTensor> StrideDs,
+#else
+                               const std::array<index_t, NumDTensor> StrideDs,
+#endif
                                const index_t StrideE,
                                const Block2ETileMap& block_2_etile_map)
     {

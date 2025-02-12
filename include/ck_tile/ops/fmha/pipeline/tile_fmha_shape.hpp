@@ -43,8 +43,6 @@ struct TileFmhaShape
 
     static constexpr index_t NumWarps = max(NumGemm0Warps, NumGemm1Warps);
 
-    static_assert(std::is_same_v<Gemm0WarpTile, Gemm1WarpTile>);
-
     static constexpr index_t kM0 = BlockTile::at(number<0>{}); // tile size along q seqlen
     static constexpr index_t kN0 = BlockTile::at(number<1>{}); // tile size along k seqlen
     static constexpr index_t kK0 = BlockTile::at(number<2>{}); // tile size along qk gemm unroll

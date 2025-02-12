@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#ifdef _HIPCC_RTC_
+#define CK_CODE_GEN_RTC
+#endif
+
 #include "functional4.hpp"
 #include "tuple.hpp"
+#ifndef CK_CODE_GEN_RTC
 #include "is_detected.hpp"
+#endif
 
 namespace ck {
 
@@ -158,13 +164,18 @@ __host__ __device__ constexpr auto TupleReduce(F&& f, const Tuple<Ts...>& tuple)
 }
 
 #ifndef __HIPCC_RTC__
+#ifndef CK_CODE_GEN_RTC
 template <typename T>
-using is_tuple = decltype(std::declval<T&>().IsTuple());
+using is_tuple = decltype(ck::declval<T&>().IsTuple());
+#endif
+#endif
 
 template <typename... Ts>
 __host__ __device__ constexpr auto IsNestedTuple(const Tuple<Ts...>&)
 {
+#ifndef CK_CODE_GEN_RTC
     return (is_detected<is_tuple, Ts>::value || ...);
+#endif
 }
 #endif
 

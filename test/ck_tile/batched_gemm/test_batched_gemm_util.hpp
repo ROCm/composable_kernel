@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
 #include <sstream>
@@ -24,20 +24,14 @@ class TestCkTileBatchedGemm : public ::testing::Test
     using AccDataType = std::tuple_element_t<5, Tuple>;
     using CDataType   = std::tuple_element_t<6, Tuple>;
 
-    struct batched_gemm_kargs : public ck_tile::BatchedGemmHostArgs
-    {
-    };
-
     template <typename ALayout, typename BLayout, typename CLayout>
-    void invoke_batched_gemm(const batched_gemm_kargs& args, const ck_tile::stream_config& s)
+    void invoke_batched_gemm(const ck_tile::BatchedGemmHostArgs& args,
+                             const ck_tile::stream_config& s)
     {
         // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
-        constexpr bool kPadM        = false;
-        constexpr bool kPadN        = false;
-        constexpr bool kPadK        = false;
-        constexpr bool kTilePermute = false;
-        // The rank and permutation will also be generate out by the CodeGen part.
-        constexpr ck_tile::index_t kOutputRank = 2;
+        constexpr bool kPadM = false;
+        constexpr bool kPadN = false;
+        constexpr bool kPadK = false;
 
         constexpr int kBlockPerCu = 1;
 
@@ -54,32 +48,12 @@ class TestCkTileBatchedGemm : public ::testing::Test
         constexpr ck_tile::index_t N_Warp_Tile = 32;
         constexpr ck_tile::index_t K_Warp_Tile = 8;
 
-        // Whether doing the CShuffle (transpose before the global memory), depending on the output
-        // layout.
-        constexpr bool CShuffleEpilogue =
-            std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>;
-
         using CodegenGemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-        using TilePartitioner = ck_tile::GemmTilePartitioner<CodegenGemmShape>;
-
-        using GemmEpilogue = std::conditional_t<
-            CShuffleEpilogue,
-            ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
-                                                                       CDataType,
-                                                                       kPadM,
-                                                                       kPadN,
-                                                                       kTilePermute,
-                                                                       kOutputRank,
-                                                                       1,
-                                                                       0,
-                                                                       TilePartitioner::kM,
-                                                                       TilePartitioner::kN>>,
-            ck_tile::Default2DEpilogue<
-                ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
+        using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
         using CodegenGemmTraits =
             ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
@@ -91,12 +65,26 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                                                     CodegenGemmTraits>;
 
         using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
+
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<AccDataType,
+                                             CDataType,
+                                             CLayout,
+                                             CodegenGemmPipeline::BlockSize,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             CodegenPipelineProblem::TransposeC>>;
         using Kernel =
             ck_tile::BatchedGemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
 
-        auto kargs = Kernel::MakeKargs(args);
+        auto kargs = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args);
+        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch, args.batch_count);
         constexpr dim3 blocks = Kernel::BlockSize();
 
         if(s.log_level_ > 0)
@@ -185,21 +173,23 @@ class TestCkTileBatchedGemm : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        batched_gemm_kargs kargs{a_m_k_dev_buf.GetDeviceBuffer(),
-                                 b_k_n_dev_buf.GetDeviceBuffer(),
-                                 c_m_n_dev_buf.GetDeviceBuffer(),
-                                 M,
-                                 N,
-                                 K,
-                                 StrideA,
-                                 StrideB,
-                                 StrideC,
-                                 BatchStrideA,
-                                 BatchStrideB,
-                                 BatchStrideC,
-                                 BatchCount};
+        ck_tile::BatchedGemmHostArgs args;
+        args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
+        args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
+        args.c_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
+        args.k_batch        = 1;
+        args.M              = M;
+        args.N              = N;
+        args.K              = K;
+        args.stride_A       = StrideA;
+        args.stride_B       = StrideB;
+        args.stride_C       = StrideC;
+        args.batch_stride_A = BatchStrideA;
+        args.batch_stride_B = BatchStrideB;
+        args.batch_stride_C = BatchStrideC;
+        args.batch_count    = BatchCount;
 
-        invoke_batched_gemm<ALayout, BLayout, CLayout>(kargs,
+        invoke_batched_gemm<ALayout, BLayout, CLayout>(args,
                                                        ck_tile::stream_config{nullptr, false});
 
         std::cout << "Run kernel with M =" << M << " N =" << N << " K =" << K

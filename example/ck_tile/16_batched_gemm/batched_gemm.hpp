@@ -29,10 +29,6 @@ using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
 using CDataType   = Types::CDataType;
 
-struct batched_gemm_kargs : public ck_tile::BatchedGemmHostArgs
-{
-};
-
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -43,7 +39,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("b_layout", "R", "B tensor data layout - Row by default")
+        .insert("b_layout", "C", "B tensor data layout - Row by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("batch_stride_a", "32768", "Batch A stride")
         .insert("batch_stride_b", "16384", "Batch B stride")
@@ -53,11 +49,12 @@ auto create_args(int argc, char* argv[])
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer");
+        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
+        .insert("split_k", "1", "splitK value");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
 // host API
-float batched_gemm(batched_gemm_kargs args, const ck_tile::stream_config& s);
+float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stream_config& s);

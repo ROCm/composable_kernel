@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
+#include "ck/utility/integral_constant.hpp"
 
 namespace ck {
 
@@ -9,14 +11,14 @@ namespace detail {
 template <class Default, class AlwaysVoid, template <class...> class Op, class... Args>
 struct detector
 {
-    using value_t = ck::false_type;
+    using value_t = integral_constant<bool, false>;
     using type    = Default;
 };
 
 template <class Default, template <class...> class Op, class... Args>
 struct detector<Default, ck::void_t<Op<Args...>>, Op, Args...>
 {
-    using value_t = ck::true_type;
+    using value_t = integral_constant<bool, true>;
     using type    = Op<Args...>;
 };
 } // namespace detail
