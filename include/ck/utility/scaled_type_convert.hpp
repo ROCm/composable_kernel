@@ -377,7 +377,11 @@ inline __host__ __device__ float2_t scaled_type_convert<float2_t, f4x2_t>(e8m0_b
         f4x2_t f4x2_array[4];
     } value{};
     value.f4x2_array[0] = x;
-    return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, type_convert<float>(scale), 0);
+    float2_t tmp =
+        __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, type_convert<float>(scale), 0);
+    // intrinsic packs vector as {element1, element0}, so we should repack it as {element0,
+    // element1}
+    return float2_t{tmp[1], tmp[0]};
 #else
     float2_t ret{utils::to_float<f4_t>(
                      scale, x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{})),
