@@ -372,10 +372,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
                     // B VGPR->VGPR dequant
                     b_thread_dequant_copy.Run(b_block_desc_n0_n1_k0_k1,
                                               b_block_origin_idx,
-                                              b_thread_bufs(mfma_reg_buf),
+                                              b_thread_bufs(local_read_buf),
                                               b_thread_desc_,
                                               make_tuple(I0, I0, I0, I0),
-                                              b_thread_dequant_bufs(mfma_reg_buf));
+                                              b_thread_dequant_bufs(local_read_buf));
 
                     HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
