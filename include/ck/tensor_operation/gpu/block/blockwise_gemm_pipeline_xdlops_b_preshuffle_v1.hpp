@@ -230,7 +230,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
               typename BBlockTransfer,
               typename BGridBuffer,
               typename BBlockBuffer,
-              typename BThreadTransfer,
               typename BBlockTransferStep,
               typename CThreadBuffer>
     __device__ void Run(const AGridDesc& a_grid_desc,
@@ -244,7 +243,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
                         const BGridBuffer& b_grid_buf,
                         BBlockBuffer& b_block_buf,
                         const BBlockTransferStep& b_block_copy_step,
-                        BThreadTransfer& b_thread_dequant_copy,
+                        // BThreadTransfer& b_thread_dequant_copy,
                         CThreadBuffer& c_thread_buf,
                         index_t num_loop) const
     {
@@ -295,7 +294,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
             });
         });
         // B VGPR->VGPR dequant
-        b_thread_dequant_copy.Run(b_block_desc_n0_n1_k0_k1,
+        b_thread_dequant_copy_.Run(b_block_desc_n0_n1_k0_k1,
                                    b_block_origin_idx,
                                    b_thread_bufs(I0),
                                    b_thread_desc_,
@@ -370,12 +369,12 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
                         });
                     });
                     // B VGPR->VGPR dequant
-                    b_thread_dequant_copy.Run(b_block_desc_n0_n1_k0_k1,
-                                              b_block_origin_idx,
-                                              b_thread_bufs(local_read_buf),
-                                              b_thread_desc_,
-                                              make_tuple(I0, I0, I0, I0),
-                                              b_thread_dequant_bufs(local_read_buf));
+                    b_thread_dequant_copy_.Run(b_block_desc_n0_n1_k0_k1,
+                                               b_block_origin_idx,
+                                               b_thread_bufs(local_read_buf),
+                                               b_thread_desc_,
+                                               make_tuple(I0, I0, I0, I0),
+                                               b_thread_dequant_bufs(local_read_buf));
 
                     HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
@@ -440,7 +439,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
                 });
             });
             // B VGPR->VGPR dequant
-            b_thread_dequant_copy.Run(b_block_desc_n0_n1_k0_k1,
+            b_thread_dequant_copy_.Run(b_block_desc_n0_n1_k0_k1,
                                        b_block_origin_idx,
                                        b_thread_bufs(I1),
                                        b_thread_desc_,
@@ -536,6 +535,22 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
     static constexpr BTileDesc b_block_desc_n0_n1_k0_k1;
 
     using Base::c_thread_desc_;
+
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+    
+    using BThreadDequantCopy = ThreadwiseTensorSliceTransfer_StaticToStatic<
+        BDataType,
+        ComputeDataType,
+        decltype(b_block_desc_n0_n1_k0_k1),
+        decltype(b_block_desc_n0_n1_k0_k1),
+        tensor_operation::element_wise::PassThrough,
+        Sequence<Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}>,
+        Sequence<1, 2, 0, 3>,
+        3,
+        KPack>;
+
+    const PassThrough b_element_op{};
+    BThreadDequantCopy b_thread_dequant_copy_{b_element_op};
 };
 
 } // namespace ck
