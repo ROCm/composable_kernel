@@ -64,7 +64,7 @@ if __name__ == "__main__":
         "--direction", # we keep 'direction' option for backward compatibility
         "-a",
         "--api",
-        default='bwd',
+        default='fwd',
         required=False,
         help="supply API(s) to generate (default: fwd). separated by comma."
     )
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-r",
         "--receipt",
-        default=3,
+        default=0,
         required=False,
         help="codegen receipt. 0: generate only 8xhdim coverage\n"  + \
              "  1: generate more instance to cover all hdim\n"  + \
