@@ -116,11 +116,16 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
+            //@Emin Look At This Part
             // copy data from dst_vector into dst_buf
             dst_buf.template Update<DstInMemOp, dst_vector_t>(
                 dst_coord_.GetOffset(),
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
+
+            // copy data from dst_vector into dst_buf
+            // DstDataType converted_v = ck::type_convert<DstDataType>(v);
+            // dst_buf.template Update<DstInMemOp>(dst_coord_.GetOffset(), is_dst_valid, converted_v);
 
             // move coordinate
             if constexpr(idx_1d.value != num_access - 1)
