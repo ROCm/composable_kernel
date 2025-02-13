@@ -377,14 +377,14 @@ struct ThreadwiseTensorSliceTransfer_v2
 
                     if constexpr(InvalidElementAsNaN)
                     {
-                        dst_buf(Number<dst_offset / PackedSize>{}) =
+                        dst_buf(Number<dst_offset>{}) =
                             is_src_valid
                                 ? type_convert<DstData>(src_vector.template AsType<SrcData>()[i])
                                 : NumericLimits<DstData>::QuietNaN();
                     }
                     else
                     {
-                        dst_buf(Number<dst_offset / PackedSize>{}) =
+                        dst_buf(Number<dst_offset>{}) =
                             type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
                     }
                 });
@@ -1619,7 +1619,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
                     constexpr index_t src_offset = src_desc.CalculateOffset(
                         src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
 
-                    src_tmp_vector.template AsType<SrcData>()(i) = src_buf[Number<src_offset / PackedSize>{}];
+                    src_tmp_vector.template AsType<SrcData>()(i) = src_buf[Number<src_offset>{}];
                 });
 
                 // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
