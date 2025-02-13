@@ -309,21 +309,14 @@ TEST(MXFP4, DeviceScaledConvert)
 
     /// Test round to nearest even
     EXPECT_EQ(out[i++], 24.0f / 4.0f) << "out[i-1]: " << out[i - 1];
-    EXPECT_TRUE(std::isnan(out[i++])) << "out[i-1]: " << out[i - 1];
-#if 1
-    EXPECT_TRUE(std::isnan(out[i++])) << "out[i-1]: " << out[i - 1];
-    EXPECT_TRUE(std::isnan(out[i++])) << "out[i-1]: " << out[i - 1];
-    EXPECT_TRUE(std::isnan(out[i++])) << "out[i-1]: " << out[i - 1];
-#else
-    // NOTE: Host and Device have different behavior.
-    // Device returns NaN, while Host returns Max (saturation to finite value).
+    EXPECT_EQ(out[i++], type_convert<float>(ck::NumericLimits<f4_t>::Max()))
+        << "out[i-1]: " << out[i - 1];
     EXPECT_EQ(out[i++], type_convert<float>(ck::NumericLimits<f4_t>::Max()))
         << "out[i-1]: " << out[i - 1];
     EXPECT_EQ(out[i++], type_convert<float>(ck::NumericLimits<f4_t>::Max()))
         << "out[i-1]: " << out[i - 1];
     EXPECT_EQ(out[i++], type_convert<float>(ck::NumericLimits<f4_t>::Lowest()))
         << "out[i-1]: " << out[i - 1];
-#endif
     EXPECT_EQ(out[i++], type_convert<float>(type_convert<f4_t>(5.0f)))
         << "out[i-1]: " << out[i - 1];
 
