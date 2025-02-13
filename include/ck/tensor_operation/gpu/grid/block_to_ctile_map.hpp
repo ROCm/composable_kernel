@@ -1412,10 +1412,18 @@ struct BlockToCTileMap_GemmStreamK
     }
 };
 
+// template <uint32_t MPerBlock_,
+//           uint32_t NPerBlock_,
+//           uint32_t KPerBlock_,
+//           StreamKReductionStrategy ReductionStrategy_ = StreamKReductionStrategy::Atomic,
+//           uint32_t TileSwizzleSubM_                   = 8,
+//           index_t GroupNum                            = 8,
+//           index_t M01_                                = 4>
+
 template <uint32_t MPerBlock_,
           uint32_t NPerBlock_,
           uint32_t KPerBlock_,
-          StreamKReductionStrategy ReductionStrategy_ = StreamKReductionStrategy::Atomic,
+          StreamKReductionStrategy ReductionStrategy_ = StreamKReductionStrategy::Reduction,
           uint32_t TileSwizzleSubM_                   = 8,
           index_t GroupNum                            = 8,
           index_t M01_                                = 4>
