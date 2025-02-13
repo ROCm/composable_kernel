@@ -167,6 +167,11 @@ struct GemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
     {
+        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        {
+            std::cout << "Testing CK_TILE_ENV logging... " << __FILE__ << ":" << __LINE__
+                      << ", in function: " << __func__ << std::endl;
+        }
         if constexpr(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
                      is_any_of<CDataType, fp16_t, bf16_t>::value)
         {
