@@ -11,20 +11,25 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 
-#define CK_TILE_PIPELINE_COMPUTE 1
+#define CK_TILE_PIPELINE_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_MEMORY 2
+#define CK_TILE_PIPELINE_COMPUTE_V4 3
 
 #ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE
+#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V3
 #endif
 
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrMem
 #define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrMem
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Interwave
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV3
 #define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV3
+#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
+#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV4
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV4
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
 #else
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
@@ -126,7 +131,8 @@ auto create_args(int argc, char* argv[])
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("split_k", "1", "splitK value");
+        .insert("split_k", "1", "splitK value")
+        .insert("init", "0", "0:random, 1:linear, 2:constant(1)");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

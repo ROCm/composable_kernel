@@ -5,3 +5,6 @@ add_dependencies(examples_ck_tile tile_example_gemm_basic)
 rocm_install(TARGETS tile_example_gemm_basic COMPONENT examples_ck_tile)
 add_dependencies(examples_ck_tile tile_example_gemm_universal)
 rocm_install(TARGETS tile_example_gemm_universal COMPONENT examples_ck_tile)
+target_compile_options(tile_example_gemm_universal PRIVATE
+  -mllvm -enable-noalias-to-md-conversion=0
+)
