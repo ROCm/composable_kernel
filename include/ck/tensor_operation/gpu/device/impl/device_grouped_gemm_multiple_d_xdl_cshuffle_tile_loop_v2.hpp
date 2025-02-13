@@ -67,13 +67,13 @@ template <typename GridwiseGemm0,
           index_t M_thres>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_multiple_d_xdl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                           const index_t group_count,
-                                           const AElementwiseOperation a_element_op,
-                                           const BElementwiseOperation b_element_op,
-                                           const CDEElementwiseOperation cde_element_op)
+    kernel_grouped_gemm_multiple_d_xdl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                       const index_t group_count,
+                                       const AElementwiseOperation a_element_op,
+                                       const BElementwiseOperation b_element_op,
+                                       const CDEElementwiseOperation cde_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
 
@@ -131,25 +131,23 @@ __global__ void
                 b2c_tile_map0 = OffsettedBlockToCTileMap0(
                     LocalBlock2ETileMap0(M, N, 4), group_offset, tile_offset);
                 grid_size_grp = b2c_tile_map0.CalculateGridSize(M, N);
-
-                // Update tile offset if we have moved within group
-                b2c_tile_map0.UpdateTileOffset(tile_offset);
             }
             else
             {
                 b2c_tile_map1 = OffsettedBlockToCTileMap1(
                     LocalBlock2ETileMap1(M, N, 4), group_offset, tile_offset);
                 grid_size_grp = b2c_tile_map1.CalculateGridSize(M, N);
-
-                // Update tile offset if we have moved within group
-                b2c_tile_map1.UpdateTileOffset(tile_offset);
             }
+
             gemm_tile_id_start = group_offset;
             gemm_tile_id_end   = group_offset + grid_size_grp;
         }
 
         if(use_gemm_0)
         {
+            // Update tile offset if we have moved within group
+            b2c_tile_map0.UpdateTileOffset(tile_offset);
+
             using DsGridPointer = decltype(GridwiseGemm0::MakeDsGridPointer());
             DsGridPointer p_ds_grid;
 
@@ -177,48 +175,43 @@ __global__ void
 
             if(has_main_k_block_loop)
             {
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
-                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-                {
-                    GridwiseGemm0::template Run<OffsettedBlockToCTileMap0,
-                                                true,
-                                                InMemoryDataOperationEnum::Set,
-                                                TailNumber::Full>(
-                        static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
-                        static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
-                        p_ds_grid,
-                        static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
-                        static_cast<void*>(p_shared),
-                        problem,
-                        a_element_op,
-                        b_element_op,
-                        cde_element_op,
-                        b2c_tile_map0);
-                }
+                GridwiseGemm0::template Run<OffsettedBlockToCTileMap0,
+                                            true,
+                                            InMemoryDataOperationEnum::Set,
+                                            TailNumber::Full>(
+                    static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
+                    static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
+                    p_ds_grid,
+                    static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
+                    static_cast<void*>(p_shared),
+                    problem,
+                    a_element_op,
+                    b_element_op,
+                    cde_element_op,
+                    b2c_tile_map0);
             }
             else
             {
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-                {
-                    GridwiseGemm0::template Run<OffsettedBlockToCTileMap0,
-                                                false,
-                                                InMemoryDataOperationEnum::Set,
-                                                TailNumber::Full>(
-                        static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
-                        static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
-                        p_ds_grid,
-                        static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
-                        static_cast<void*>(p_shared),
-                        problem,
-                        a_element_op,
-                        b_element_op,
-                        cde_element_op,
-                        b2c_tile_map0);
-                }
+                GridwiseGemm0::template Run<OffsettedBlockToCTileMap0,
+                                            false,
+                                            InMemoryDataOperationEnum::Set,
+                                            TailNumber::Full>(
+                    static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
+                    static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
+                    p_ds_grid,
+                    static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
+                    static_cast<void*>(p_shared),
+                    problem,
+                    a_element_op,
+                    b_element_op,
+                    cde_element_op,
+                    b2c_tile_map0);
             }
         }
         else
         {
+            // Update tile offset if we have moved within group
+            b2c_tile_map1.UpdateTileOffset(tile_offset);
 
             using DsGridPointer = decltype(GridwiseGemm1::MakeDsGridPointer());
             DsGridPointer p_ds_grid;
@@ -247,44 +240,37 @@ __global__ void
 
             if(has_main_k_block_loop)
             {
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
-                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-                {
-                    GridwiseGemm1::template Run<OffsettedBlockToCTileMap1,
-                                                true,
-                                                InMemoryDataOperationEnum::Set,
-                                                TailNumber::Full>(
-                        static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
-                        static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
-                        p_ds_grid,
-                        static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
-                        static_cast<void*>(p_shared),
-                        problem,
-                        a_element_op,
-                        b_element_op,
-                        cde_element_op,
-                        b2c_tile_map1);
-                }
+                GridwiseGemm1::template Run<OffsettedBlockToCTileMap1,
+                                            true,
+                                            InMemoryDataOperationEnum::Set,
+                                            TailNumber::Full>(
+                    static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
+                    static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
+                    p_ds_grid,
+                    static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
+                    static_cast<void*>(p_shared),
+                    problem,
+                    a_element_op,
+                    b_element_op,
+                    cde_element_op,
+                    b2c_tile_map1);
             }
             else
             {
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-                {
-                    GridwiseGemm1::template Run<OffsettedBlockToCTileMap1,
-                                                false,
-                                                InMemoryDataOperationEnum::Set,
-                                                TailNumber::Full>(
-                        static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
-                        static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
-                        p_ds_grid,
-                        static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
-                        static_cast<void*>(p_shared),
-                        problem,
-                        a_element_op,
-                        b_element_op,
-                        cde_element_op,
-                        b2c_tile_map1);
-                }
+                GridwiseGemm1::template Run<OffsettedBlockToCTileMap1,
+                                            false,
+                                            InMemoryDataOperationEnum::Set,
+                                            TailNumber::Full>(
+                    static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
+                    static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
+                    p_ds_grid,
+                    static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
+                    static_cast<void*>(p_shared),
+                    problem,
+                    a_element_op,
+                    b_element_op,
+                    cde_element_op,
+                    b2c_tile_map1);
             }
         }
         tile_id += get_grid_size();
@@ -551,8 +537,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoopV2
             if(dev_gemm_args == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm arguments device buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm arguments device buffer is not allocated!" << " In " << __FILE__
+                    << ":" << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
@@ -580,8 +566,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoopV2
             if(arg.p_dev_gemm_args_ == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm arguments device buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm arguments device buffer is not allocated!" << " In " << __FILE__
+                    << ":" << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
