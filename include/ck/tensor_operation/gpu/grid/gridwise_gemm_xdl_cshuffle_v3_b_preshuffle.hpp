@@ -1620,7 +1620,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
             decltype(b_block_desc_bk0_n_bk1),
             tensor_operation::element_wise::PassThrough,
             Sequence<Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}>,
-            Sequence<0, 1, 2, 3>,
+            Sequence<1, 2, 0, 3>,
             3,
             BK1Number>(b_element_op);
 
