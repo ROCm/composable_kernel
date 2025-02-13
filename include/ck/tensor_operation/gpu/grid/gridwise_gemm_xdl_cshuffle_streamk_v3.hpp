@@ -539,10 +539,18 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         const ADataType* p_a_grid;
         const BDataType* p_b_grid;
         CDataType* p_c_grid;
+        // BlockToCTileMap_GemmStreamK_v2<MPerBlock,
+        //                                NPerBlock,
+        //                                KPerBlock,
+        //                                StreamKReductionStrategy::Atomic,
+        //                                8,
+        //                                4>
+        //     block_2_ctile_map_streamk;
+
         BlockToCTileMap_GemmStreamK_v2<MPerBlock,
                                        NPerBlock,
                                        KPerBlock,
-                                       StreamKReductionStrategy::Atomic,
+                                       StreamKReductionStrategy::Reduction,
                                        8,
                                        4>
             block_2_ctile_map_streamk;
@@ -1176,10 +1184,18 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         }();
         return c_partial_acc_block_m_n;
     }
+    // using Block2CTileMap_streamk = BlockToCTileMap_GemmStreamK_v2<MPerBlock,
+    //                                                               NPerBlock,
+    //                                                               KPerBlock,
+    //                                                               StreamKReductionStrategy::Atomic,
+    //                                                               8,
+    //                                                               4>;
+
+
     using Block2CTileMap_streamk = BlockToCTileMap_GemmStreamK_v2<MPerBlock,
                                                                   NPerBlock,
                                                                   KPerBlock,
-                                                                  StreamKReductionStrategy::Atomic,
+                                                                  StreamKReductionStrategy::Reduction,
                                                                   8,
                                                                   4>;
 
