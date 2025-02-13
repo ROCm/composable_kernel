@@ -339,19 +339,21 @@ struct DeviceGemm_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmV2BPreshuffle<AL
                     if(arg.KBatch > 1)
                     {
                         const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                        kernel_gemm_xdl_cshuffle_v3_b_preshuffle<GridwiseGemm,
                                                         false,
                                                         InMemoryDataOperationEnum::AtomicAdd,
-                                                        minimum_occupancy>;
+                                                        minimum_occupancy,
+                                                        TailNumber::Odd>;
                         Run(kernel);
                     }
                     else
                     {
                         const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                        kernel_gemm_xdl_cshuffle_v3_b_preshuffle<GridwiseGemm,
                                                         false,
                                                         InMemoryDataOperationEnum::Set,
-                                                        minimum_occupancy>;
+                                                        minimum_occupancy,
+                                                        TailNumber::Odd>;
                         Run(kernel);
                     }
                 }
