@@ -10,6 +10,7 @@
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/pk_int4.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
@@ -34,7 +35,11 @@ template <typename T_, index_t N_>
 struct ext_vector
 {
     static constexpr index_t N = N_;
-    using value_type           = typename native_t<remove_cvref_t<T_>>::type;
+    // struct type is not supported for ext_vector
+    using value_type =
+        std::conditional_t<std::is_same_v<typename native_t<remove_cvref_t<T_>>::type, pk_int4_t>,
+                           int8_t,
+                           typename native_t<remove_cvref_t<T_>>::type>;
     static_assert(!std::is_class_v<value_type>);
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
@@ -58,7 +63,8 @@ using ext_vector_t = typename impl::ext_vector<T, N>::type;
 template <typename T>
 struct vector_traits
 {
-    using scalar_type                    = remove_cvref_t<T>;
+    using scalar_type =
+        std::conditional_t<std::is_same_v<remove_cvref_t<T>, pk_int4_t>, int8_t, remove_cvref_t<T>>;
     static constexpr index_t vector_size = 1;
 };
 
@@ -66,7 +72,7 @@ struct vector_traits
 template <typename T, index_t N>
 struct vector_traits<T __attribute__((ext_vector_type(N)))>
 {
-    using scalar_type                    = T;
+    using scalar_type = std::conditional_t<std::is_same_v<T, pk_int4_t>, int8_t, T>;
     static constexpr index_t vector_size = N;
 };
 
@@ -200,21 +206,12 @@ using bf8x32_t = bf8_t __attribute((ext_vector_type(32)));
 using bf8x64_t = bf8_t __attribute((ext_vector_type(64)));
 #endif
 
-CK_TILE_HOST fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
-{
-    fp16x2_t vector_res;
-
-    vector_res.x = x.x + y.x;
-    vector_res.y = x.y + y.y;
-
-    return vector_res;
-}
-
-CK_TILE_DEVICE fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
-{
-    fp16x2_t c;
-    asm volatile("v_pk_add_f16 %0, %1, %2" : "=v"(c) : "v"(x), "v"(y));
-    return c;
-}
-
+// pk_int4_t
+// using pk_int4_t
+using pk_int4x2_t  = int8_t __attribute((ext_vector_type(2)));
+using pk_int4x4_t  = int8_t __attribute((ext_vector_type(4)));
+using pk_int4x8_t  = int8_t __attribute((ext_vector_type(8)));
+using pk_int4x16_t = int8_t __attribute((ext_vector_type(16)));
+using pk_int4x32_t = int8_t __attribute((ext_vector_type(32)));
+using pk_int4x64_t = int8_t __attribute((ext_vector_type(64)));
 } // namespace ck_tile

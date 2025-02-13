@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -156,7 +156,7 @@ struct vector_traits;
 template <typename T, index_t N>
 struct vector_traits<thread_buffer<T, N>>
 {
-    using scalar_type                    = T;
+    using scalar_type = std::conditional_t<std::is_same_v<T, pk_int4_t>, int8_t, T>;
     static constexpr index_t vector_size = N;
 };
 
