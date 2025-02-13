@@ -103,10 +103,12 @@ if __name__ == "__main__":
         required=False,
         help="codegen receipt. 0: generate only 8xhdim coverage\n"  + \
              "  1: generate more instance to cover all hdim\n"  + \
-             "  2: Only generate instance for Flash attention integration"  + \
-             " 10: Only generate instance for Aiter(mha_fwd, mha_bwd) integration"
-             " 11: Only generate instance for Aiter(mha_varlen_fwd, mha_varlen_bwd) integration"
+             "  2: Only generate instance for Flash attention integration\n"  + \
+             "  4: Only generate instance for PyTorch integration\n" + \
+             " 10: Only generate instance for Aiter(mha_fwd, mha_bwd) integration\n" + \
+             " 11: Only generate instance for Aiter(mha_varlen_fwd, mha_varlen_bwd) integration\n" + \
              " 12: Only generate instance for Aiter(mha_fwd_kvcache) integration"
+      
     )
 
     args = parser.parse_args()

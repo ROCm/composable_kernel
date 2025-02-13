@@ -3,6 +3,13 @@
 
 #pragma once
 
+template <typename Layout>
+static constexpr inline auto is_row_major(Layout layout_)
+{
+    return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
+                                                 ck_tile::tensor_layout::gemm::RowMajor>>{};
+}
+
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
                          const float max_accumulated_value)
@@ -128,16 +135,16 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const ck_tile::index_t N = Ns[i];
         const ck_tile::index_t K = Ks[i];
 
-        stride_As[i] = ck_tile::get_default_stride(M, N, stride_As[i], a_layout);
-        stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], b_layout);
-        stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], CLayout{});
+        stride_As[i] = ck_tile::get_default_stride(M, N, stride_As[i], is_row_major(a_layout));
+        stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
+        stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
 
         a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
-            ck_tile::host_tensor_descriptor(M, K, stride_As[i], a_layout)));
+            ck_tile::host_tensor_descriptor(M, K, stride_As[i], is_row_major(a_layout))));
         b_k_n_tensors.push_back(ck_tile::HostTensor<BDataType>(
-            ck_tile::host_tensor_descriptor(K, N, stride_Bs[i], b_layout)));
+            ck_tile::host_tensor_descriptor(K, N, stride_Bs[i], is_row_major(b_layout))));
         c_m_n_tensors.push_back(ck_tile::HostTensor<CDataType>(
-            ck_tile::host_tensor_descriptor(M, N, stride_Cs[i], CLayout{})));
+            ck_tile::host_tensor_descriptor(M, N, stride_Cs[i], is_row_major(CLayout{}))));
 
         std::cout << "gemm[" << i << "]"
                   << " a_m_k: " << a_m_k_tensors[i].mDesc << " b_k_n: " << b_k_n_tensors[i].mDesc
@@ -177,8 +184,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
     {
         for(int i = 0; i < group_count; ++i)
         {
-            ck_tile::HostTensor<CDataType> c_m_n_host_ref(
-                ck_tile::host_tensor_descriptor(Ms[i], Ns[i], stride_Cs[i], CLayout{}));
+            ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
+                Ms[i], Ns[i], stride_Cs[i], is_row_major(CLayout{})));
             c_m_n_host_ref.SetZero();
             ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
                 a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
@@ -195,7 +202,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
                       << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                       << std::endl;
         }
-        std::cout << "The CPU veification result is:" << (pass ? "correct" : "fail") << std::endl;
+        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
 
     return pass;
@@ -219,10 +226,10 @@ int run_grouped_gemm_example(int argc, char* argv[])
     {
         return run_grouped_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
     }
-    else if(a_layout == "R" && b_layout == "R")
-    {
-        return run_grouped_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
-    }
+    // else if(a_layout == "R" && b_layout == "R")
+    // {
+    //     return run_grouped_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
+    // }
     else
     {
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");

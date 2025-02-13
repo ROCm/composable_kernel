@@ -212,7 +212,7 @@ int run_batched_gemm_example_with_layouts(int argc,
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
 
-        std::cout << "The CPU veification result is:" << (pass ? "correct" : "fail") << std::endl;
+        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
     {
@@ -301,11 +301,11 @@ int run_batched_gemm_example(int argc, char* argv[])
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
 
-    if(a_layout == "R" && b_layout == "R")
-    {
-        return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
-    }
-    else if(a_layout == "R" && b_layout == "C")
+    // if(a_layout == "R" && b_layout == "R")
+    // {
+    //     return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
+    // }
+    if(a_layout == "R" && b_layout == "C")
     {
         return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
     }

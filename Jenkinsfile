@@ -117,7 +117,7 @@ def getDockerImage(Map conf=[:]){
     {
         echo "Pulling down image: ${image}"
         retimage = docker.image("${image}")
-        withDockerRegistry([ credentialsId: "docker_test_cred", url: "" ]) {
+        withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
             retimage.pull()
         }
     }
@@ -148,7 +148,7 @@ def buildDocker(install_prefix){
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs)
-            withDockerRegistry([ credentialsId: "docker_test_cred", url: "" ]) {
+            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
                 retimage.push()
             }
             sh 'docker images -q -f dangling=true | xargs --no-run-if-empty docker rmi'
@@ -162,7 +162,7 @@ def buildDocker(install_prefix){
     catch(Exception ex){
         echo "Unable to locate image: ${image_name}. Building image now"
         retimage = docker.build("${image_name}", dockerArgs + ' .')
-        withDockerRegistry([ credentialsId: "docker_test_cred", url: "" ]) {
+        withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
             retimage.push()
         }
     }
@@ -795,8 +795,8 @@ pipeline {
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
             name: "RUN_CK_TILE_GEMM_TESTS",
-            defaultValue: false,
-            description: "Run the ck_tile GEMM tests (default: OFF)")
+            defaultValue: true,
+            description: "Run the ck_tile GEMM tests (default: ON)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,

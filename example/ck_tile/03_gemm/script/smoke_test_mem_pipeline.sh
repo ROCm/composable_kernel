@@ -7,22 +7,20 @@ export CK_REPEAT=1
 
 COMMON_ARGS='-v=2 -warmup=0 -repeat=1'
 
-run_fp16_tests() {
-    for batch in 1 2; do
-        for m in 128 1024; do
-            for n in 128 2048; do
-                for k in 32 64; do
+run_tests() {
+    for m in 512 1024; do
+        for n in 512 2048; do
+            for k in 512 1024; do
 
-                    $EXE -b=$batch -m=$m -n=$n -k=$k -stride_a=0 -stride_b=0 -stride_c=0 -e=1e-5 -prec=fp16 $COMMON_ARGS
-                    if [ $? -eq 0 ]; then
-                        echo "Success: Test with batch=$batch, m=$m, n=$n, k=$k executed successfully."
-                    else
-                        echo "Error: Test with batch=$batch, m=$m, n=$n, k=$k failed to execute properly."
-                        # Optionally, exit or break if you need to halt further execution
-                        # exit 1
-                    fi
+                $EXE -m=$m -n=$n -k=$k -stride_a=0 -stride_b=0 -stride_c=0 -prec=$1 $COMMON_ARGS
+                if [ $? -eq 0 ]; then
+                    echo "Success: Test with batch=$batch, m=$m, n=$n, k=$k executed successfully."
+                else
+                    echo "Error: Test with batch=$batch, m=$m, n=$n, k=$k failed to execute properly."
+                    # Optionally, exit or break if you need to halt further execution
+                    # exit 1
+                fi
 
-                done
             done
         done
     done
@@ -30,6 +28,9 @@ run_fp16_tests() {
 
 set -x
 
-run_fp16_tests
+run_tests "fp16"
+run_tests "bf16"
+run_tests "fp8"
+run_tests "bf8"
 
 set +x

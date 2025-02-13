@@ -9,6 +9,7 @@
 #include <numeric>
 #include <sstream>
 
+#include "ck/library/utility/numeric.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -98,8 +99,7 @@ __global__ void
             const ComputePtrOffsetOfG compute_ptr_offset_of_groups,
             const ComputePtrOffsetOfN compute_ptr_offset_of_n)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
 
     // offset base pointer for each work-group
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
@@ -212,9 +212,13 @@ __global__ void
 }
 
 } // namespace
-
+#ifdef CK_CODE_GEN_RTC
+template <typename T>
+using is_tuple = decltype(ck::declval<T&>().IsTuple());
+#else
 template <typename T>
 using is_tuple = decltype(std::declval<T&>().IsTuple());
+#endif
 
 //
 // @brief      Device Convolution operation.
