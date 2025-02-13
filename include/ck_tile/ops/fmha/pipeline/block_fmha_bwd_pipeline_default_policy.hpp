@@ -204,7 +204,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
         constexpr index_t kVecLoad = ((total_pixels / kMaxVecLoad) >= kMinVecLoad)
                                          ? kMaxVecLoad
-                                         : (total_pixels / kMinVecLoad);
+                                         : kMinVecLoad;
 
         return kVecLoad;
     }
@@ -262,7 +262,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
         constexpr index_t kVecLoad = ((total_pixels / kMaxVecLoad) >= kMinVecLoad)
                                          ? kMaxVecLoad
-                                         : (total_pixels / kMinVecLoad);
+                                         : kMinVecLoad;
 
         return kVecLoad;
     }
@@ -1292,7 +1292,6 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<1>{});
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kVHeaddim;
-        // constexpr index_t kNPerBlock = 32;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
@@ -1673,7 +1672,8 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             // Mem: Q, LSE, OGrad, D global load, OGrad^T LDS load
             // Comp: Q x K
             constexpr index_t VMEM_READ_INST =
-                Q_VMEM_READ + OGrad_VMEM_READ + LSE_VMEM_READ + D_VMEM_READ;
+                // Q_VMEM_READ + OGrad_VMEM_READ + LSE_VMEM_READ + D_VMEM_READ;
+                Q_VMEM_READ + OGrad_VMEM_READ;
             constexpr index_t LDS_READ_INST = OGradT_LDS_READ;
             constexpr index_t MFMA_INST     = Gemm0MFMA;
 
@@ -1681,17 +1681,18 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             constexpr index_t MFMA_PER_VMEM_READ = MFMA_INST / VMEM_READ_INST;
             constexpr index_t MFMA_Remainder     = MFMA_INST - MFMA_PER_VMEM_READ * VMEM_READ_INST;
             // To hide instruction issue latency
-            constexpr index_t LDS_READ_PER_MFMA = LDS_READ_INST / MFMA_INST;
+            constexpr index_t LDS_READ_PER_MFMA = ck_tile::integer_divide_ceil(LDS_READ_INST, MFMA_INST);
 
             static_for<0, VMEM_READ_INST, 1>{}([&](auto i) {
-                ignore = i;
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
                 static_for<0, MFMA_PER_VMEM_READ, 1>{}([&](auto j) {
-                    ignore = j;
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                 // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                     // MFMA
+                    if constexpr (i * MFMA_PER_VMEM_READ + j<LDS_READ_INST){
+                        __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS read
+                    }
                 });
             });
+
             static_for<0, MFMA_Remainder, 1>{}([&](auto i) {
                 ignore = i;
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                 // MFMA
@@ -1708,12 +1709,13 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             constexpr index_t MFMA_INST     = Gemm1MFMA;
 
             // To hide instruction issue latency
-            constexpr index_t LDS_READ_PER_MFMA = LDS_READ_INST / MFMA_INST;
+            constexpr index_t LDS_READ_PER_MFMA = ck_tile::integer_divide_ceil(LDS_READ_INST, MFMA_INST);
 
             static_for<0, MFMA_INST, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                 // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                    // MFMA
+                if constexpr (i <LDS_READ_INST){
+                    __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS read
+                }
             });
         }
 
@@ -1727,12 +1729,13 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             constexpr index_t MFMA_INST = Gemm2MFMA;
 
             // To hide instruction issue latency
-            constexpr index_t LDS_WRITE_PER_MFMA = LDS_WRITE_INST / MFMA_INST;
+            constexpr index_t LDS_WRITE_PER_MFMA = ck_tile::integer_divide_ceil(LDS_WRITE_INST, MFMA_INST);
 
             static_for<0, MFMA_INST, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                  // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x200, LDS_WRITE_PER_MFMA, 0); // DS write
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                      // MFMA
+                if constexpr (i < LDS_WRITE_INST){
+                    __builtin_amdgcn_sched_group_barrier(0x200, LDS_WRITE_PER_MFMA, 0); // DS write
+                }
             });
         }
 

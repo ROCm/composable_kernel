@@ -117,6 +117,7 @@ target_compile_options(${EXAMPLE_FMHA_BWD} PRIVATE ${EXAMPLE_FMHA_BWD_COMPILE_OP
 set(STANDALONE_EXAMPLE_FA_BWD_COMPILE_OPTIONS)
 list(APPEND STANDALONE_EXAMPLE_FA_BWD_COMPILE_OPTIONS -Wno-undefined-func-template -fgpu-flush-denormals-to-zero)
 list(APPEND STANDALONE_EXAMPLE_FA_BWD_COMPILE_OPTIONS -Wno-float-equal)
+list(APPEND STANDALONE_EXAMPLE_FA_BWD_COMPILE_OPTIONS -mllvm -greedy-reverse-local-assignment=1)
 list(APPEND STANDALONE_EXAMPLE_FA_BWD_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
 
 set(STANDALONE_EXAMPLE_FA_BWD "standalone_example_fa_bwd")

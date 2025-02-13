@@ -532,20 +532,21 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         // Hot loop
         while(i_total_loops < (num_total_loop - 1))
         {
-            // STAGE 1, Q@K Gemm0
+            // STAGE 1, Q@K Gemm0            
+            d_block_tile = load_tile(d_dram_window);
+            move_tile_window(d_dram_window, {kM0});
+
+            lse_block_tile = load_tile(lse_dram_window);
+            move_tile_window(lse_dram_window, {kM0});
+            __builtin_amdgcn_sched_barrier(0);
+
             auto s_acc = SPBlockTileType{};
 
             q_block_tile = load_tile(q_dram_window);
             move_tile_window(q_dram_window, {kM0, 0});
 
-            lse_block_tile = load_tile(lse_dram_window);
-            move_tile_window(lse_dram_window, {kM0});
-
             do_block_tile = load_tile(do_dram_window);
             move_tile_window(do_dram_window, {kM0, 0});
-
-            d_block_tile = load_tile(d_dram_window);
-            move_tile_window(d_dram_window, {kM0});
 
             s_acc = gemm_0(q_reg_tensor, k_reg_tensor);
 
@@ -658,12 +659,13 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             }();
 
             // STAGE 3, P^T@OGrad^T Gemm1
-            Policy::template PTFromGemm0CToGemm1A<Problem,
-                                                  decltype(pt_reg_tensor),
-                                                  decltype(p_gemm)>(pt_reg_tensor, p_gemm);
-            gemm_1(dv_acc, pt_reg_tensor, dot_reg_tensor);
+            // Policy::template PTFromGemm0CToGemm1A<Problem,
+            //                                       decltype(pt_reg_tensor),
+            //                                       decltype(p_gemm)>(pt_reg_tensor, p_gemm);
 
+            pt_reg_tensor.get_thread_buffer() = p_gemm.get_thread_buffer();
             auto qt_reg_tensor = load_tile(qt_lds_read_window);
+            gemm_1(dv_acc, pt_reg_tensor, dot_reg_tensor);
 
             HotLoopScheduler::template GemmStagedScheduler<1>();
             __builtin_amdgcn_sched_barrier(0);
