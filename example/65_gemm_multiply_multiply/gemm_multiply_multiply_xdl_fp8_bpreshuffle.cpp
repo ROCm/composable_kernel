@@ -136,7 +136,6 @@ using CDEElementOp = MultiplyMultiply;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
-// using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
     // clang-format off
     <   Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
