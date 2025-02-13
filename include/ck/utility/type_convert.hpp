@@ -962,7 +962,8 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
         f4x2_t f4x2_array[4];
     } value{0};
     printf("%f, %f\n", x[0], x[1]);
-    value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(value.bitwise, x, rng, scale, 0);
+    value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
+        value.bitwise, float2_t{x[1], x[0]}, rng, scale, 0);
     return value.f4x2_array[0];
 #else
     union
