@@ -989,21 +989,6 @@ class FmhaBwdV3DQDKDVKernel:
     F_bf16_cvt      : int
     F_is_hdpad      : str
 
-    # @property
-    # def gen_bwd_v3_template(self) -> str:
-    #     hdim_template = 64 if self.F_hdim == 64 else 128
-    #     Ts_qo = 32 if hdim_template == 64 else 16
-    #     padding = "t" if self.F_hdim % 64 == 0 else "f"
-    #     padding_suffix = "_hdp" if padding == "t" else ""
-    #     hdim_name = "_hd64" if hdim_template == 64 else ""
-    #     dtype_name = "_{}".format(self.F_dtype)
-    #     causal_name = "_causal" if self.F_is_causal == "t" else ""
-    #     atomic_name = "_a32" if self.F_is_atomic == "t" else "_a16"
-    #     bf16_cvt_name = "_{}".format(BF16_CVT_MAP[self.F_bf16_cvt])
-    #     return FMHA_BWD_V3_TEMPLATE.format(F_hdim=hdim_template, F_dtype=BWD_DTYPE_MAP[self.F_dtype], F_is_atomic=BOOL_MAP[self.F_is_atomic],
-    #                     F_is_causal=BOOL_MAP[self.F_is_causal], F_bf16_cvt=self.F_bf16_cvt, F_hdpad=BOOL_MAP[padding], F_Ts_qo = Ts_qo, F_hdim_name=hdim_name,
-    #                     F_dtype_name=dtype_name, F_causal_name=causal_name, F_atomic_name=atomic_name, F_bf16_cvt_name=bf16_cvt_name)
-
     def v3_api_trait(self) -> FmhaBwdV3DQDKDVApiTrait:
         return FmhaBwdV3DQDKDVApiTrait(hdim=str(self.F_hdim),
                 dtype=self.F_dtype,
