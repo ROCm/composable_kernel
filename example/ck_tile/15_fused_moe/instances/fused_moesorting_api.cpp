@@ -30,10 +30,10 @@
     constexpr bool sub_token_onshot           = sub_token_onshot_;                                      \
     constexpr bool local_expert_masking       = local_expert_masking_;                                  \
     using ms_problem                          = ck_tile::MoeSortingProblemEx<index_t,                   \
-                                                                             ms_weight_type,            \
-                                                                             sub_token_tile,            \
-                                                                             sub_token_onshot,          \
-                                                                             local_expert_masking>;     \
+                                                    ms_weight_type,            \
+                                                    sub_token_tile,            \
+                                                    sub_token_onshot,          \
+                                                    local_expert_masking>;     \
     using kernel                              = ck_tile::MoeSortingKernel<ms_problem>;                  \
     auto kargs                                = kernel::MakeKargs(a);                                   \
     const dim3 grids                          = kernel::GridSize(a);                                    \
