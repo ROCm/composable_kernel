@@ -60,6 +60,8 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
+    static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
+
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
     static constexpr index_t BPackedSize =
