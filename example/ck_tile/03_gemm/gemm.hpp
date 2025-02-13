@@ -38,7 +38,7 @@ struct GemmBasicTypeConfig<ck_tile::fp8_t>
     using ADataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
     using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
+    using CDataType   = ck_tile::fp8_t;
 };
 
 template <>
@@ -47,7 +47,7 @@ struct GemmBasicTypeConfig<ck_tile::bf8_t>
     using ADataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;
     using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
+    using CDataType   = ck_tile::bf8_t;
 };
 
 template <typename T>

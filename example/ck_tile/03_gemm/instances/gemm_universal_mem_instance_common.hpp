@@ -10,7 +10,8 @@ using S = ck_tile::stream_config;
 template <typename Traits_>
 float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
-    constexpr bool TransposeC = false;
+    constexpr bool TransposeC       = false;
+    constexpr bool DoubleSmemBuffer = false;
 
     constexpr int kBlockPerCu                         = 1;
     constexpr ck_tile::index_t TileParitionerGroupNum = 8;
@@ -26,6 +27,7 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<Traits_::kPadM,
                                                                  Traits_::kPadN,
                                                                  Traits_::kPadK,
+                                                                 DoubleSmemBuffer,
                                                                  typename Traits_::ALayout,
                                                                  typename Traits_::BLayout,
                                                                  typename Traits_::CLayout,

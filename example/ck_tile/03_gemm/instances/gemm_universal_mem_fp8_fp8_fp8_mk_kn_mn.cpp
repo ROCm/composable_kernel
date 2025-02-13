@@ -6,5 +6,5 @@
 using Row = ck_tile::tensor_layout::gemm::RowMajor;
 
 // clang-format off
-template float gemm_<gemm_traits_<ck_tile::fp8_t, ck_tile::fp8_t, float, ck_tile::fp8_t, Row, Row, Row, 128, 128, 64, 2, 2, 1, 32, 32, 16, false, false, false>>(const A&, const S&);
+template float gemm_<gemm_traits_<ck_tile::fp8_t, ck_tile::fp8_t, float, ck_tile::fp8_t, Row, Row, Row, 256, 256, 64, 2, 2, 1, 32, 32, 16, false, false, false>>(const A&, const S&);
 // clang-format on
