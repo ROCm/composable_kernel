@@ -5,7 +5,7 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_b_preshuffle.hpp"
 
-using F8 = ck::f8_t;
+using F8  = ck::f8_t;
 using I4  = ck::pk_i4_t;
 using F16 = ck::half_t;
 using F32 = float;
