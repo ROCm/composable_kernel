@@ -46,6 +46,7 @@ __global__ void
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_sorted_token_ids,
         karg.p_sorted_expert_ids,
+        karg.p_max_token_id,
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
         karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
         karg.p_ds_grid,
@@ -614,6 +615,7 @@ struct GridwiseMoeGemmGather
         __host__ Argument(
                           const index_t* p_sorted_token_ids_,
                           const index_t* p_sorted_expert_ids_,
+                          const index_t* p_max_token_id_,
                           const ADataType* p_a_grid_,
                           const BDataType* p_b_grid_,
                           std::array<const void*, NumDTensor> p_ds_grid_,
@@ -634,6 +636,7 @@ struct GridwiseMoeGemmGather
             
         p_sorted_token_ids{p_sorted_token_ids_},
         p_sorted_expert_ids{p_sorted_expert_ids_},
+        p_max_token_id{p_max_token_id_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
               p_ds_grid{},
@@ -654,6 +657,8 @@ struct GridwiseMoeGemmGather
 
         const index_t * p_sorted_token_ids;
         const index_t * p_sorted_expert_ids;
+        const index_t * p_max_token_id;
+        
         const ADataType* p_a_grid;
         const BDataType* p_b_grid;
         DsGridPointer p_ds_grid;
@@ -1118,6 +1123,7 @@ struct GridwiseMoeGemmGather
     __device__ static void Run(
                                const index_t* p_sorted_token_ids,
                                const index_t* p_sorted_expert_ids,
+                               const index_t* p_max_token_id,
                                const ADataType* p_a_grid,
                                const BDataType* p_b_grid,
                                DsGridPointer& p_ds_grid,
@@ -1145,6 +1151,8 @@ struct GridwiseMoeGemmGather
         const index_t block_n_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
         const index_t block_m_id = __builtin_amdgcn_readfirstlane(blockIdx.y);
         const index_t expert_id = __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[block_m_id]);
+        const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);     
+        const index_t token0 = __builtin_amdgcn_readfirstlane(p_sorted_token_ids[block_m_id * MPerBlock] & 0xffffff);
         
         // constexpr auto M0 = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
         constexpr auto AMThreads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
@@ -1153,15 +1161,15 @@ struct GridwiseMoeGemmGather
         constexpr auto AKThreads = AK0Threads * AK1Threads;
         constexpr auto AMRepeats = MPerBlock / AMThreads;
         // static_assert(MLoadRepeats == 1, "only support 1 line per thread now!");
-        const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
-        
-        const index_t t0 = (p_sorted_token_ids[block_m_id * MPerBlock] & 0xffffff);
-        if(t0 >= problem.NumTokens)
+        const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats; 
+        if(token_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
 
         StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
-            gather_offsets(m0) = (p_sorted_token_ids[token_pos + m0] & 0xffffff) * problem.K;
+            const index_t token_offset = (token_pos + m0 < max_token_id) ?
+                                            (p_sorted_token_ids[token_pos + m0] & 0xffffff) : problem.NumTokens;
+            gather_offsets(m0) = token_offset * problem.K;
             // printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
         });
         // const index_t m_block_data_idx_on_grid =

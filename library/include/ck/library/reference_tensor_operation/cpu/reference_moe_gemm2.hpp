@@ -33,6 +33,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
     {
         Argument(const Tensor<ck::index_t>& sorted_token_ids,
                  const Tensor<ck::index_t>& expert_ids,
+                 const Tensor<ck::index_t>& max_token_id,
                  const index_t sorted_tile_size,
                  const Tensor<ADataType>& a_m_k,
                  const Tensor<BDataType>& b_e_n_k,
@@ -45,6 +46,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                  CElementwiseOperation c_element_op)
             : sorted_token_ids_{sorted_token_ids},
               expert_ids_{expert_ids},
+              max_token_id_{max_token_id},
               sorted_tile_size_{sorted_tile_size},
               a_m_k_{a_m_k},
               b_e_n_k_{b_e_n_k},
@@ -60,6 +62,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
 
         const Tensor<ck::index_t>& sorted_token_ids_;
         const Tensor<ck::index_t>& expert_ids_;
+        const Tensor<ck::index_t>& max_token_id_;
         index_t sorted_tile_size_;
         const Tensor<ADataType>& a_m_k_;
         const Tensor<BDataType>& b_e_n_k_;
@@ -126,9 +129,11 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                 }
 
             };
+
+            const ck::index_t max_token_id = arg.max_token_id_(0);
             make_ParallelTensorFunctor(
-                f_mk_kn_mn, arg.a_m_k_.mDesc.GetLengths()[0], arg.c_t_n_.mDesc.GetLengths()[1])(
-                1);
+                f_mk_kn_mn, max_token_id, arg.c_t_n_.mDesc.GetLengths()[1])(
+                std::thread::hardware_concurrency());
 
             return 0;
         }
@@ -150,6 +155,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
 
     static auto MakeArgument(const Tensor<ck::index_t>& sorted_token_ids,
                              const Tensor<ck::index_t>& expert_ids,
+                             const Tensor<ck::index_t>& max_token_id,
                              const index_t sorted_tile_size,
                              const Tensor<ADataType>& a_m_k,
                              const Tensor<BDataType>& b_e_n_k,
@@ -161,7 +167,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{sorted_token_ids, expert_ids, sorted_tile_size, a_m_k, b_e_n_k, d0, d1, d2, c_t_n, a_element_op, b_element_op, c_element_op};
+        return Argument{sorted_token_ids, expert_ids, max_token_id, sorted_tile_size, a_m_k, b_e_n_k, d0, d1, d2, c_t_n, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

@@ -500,6 +500,7 @@ struct DeviceMoeGemm
 
     static auto MakeArgument(const void* p_sorted_token_ids,
                             const void* p_sorted_expert_ids,
+                            const void* p_max_token_id,
                             const void* p_a,
                              const void* p_b,
                              std::array<const void*, NumDTensor> p_ds,
@@ -519,6 +520,7 @@ struct DeviceMoeGemm
     {
         return Argument{static_cast<const index_t*>(p_sorted_token_ids),
                         static_cast<const index_t*>(p_sorted_expert_ids), 
+                        static_cast<const index_t*>(p_max_token_id), 
                         static_cast<const ADataType*>(p_a),
                         static_cast<const BDataType*>(p_b),
                         p_ds,
@@ -558,7 +560,7 @@ struct DeviceMoeGemm
                                                       CElementwiseOperation c_element_op) override
     {
         // assert(0, "no impl");
-        return std::make_unique<Argument>(nullptr, nullptr, 
+        return std::make_unique<Argument>(nullptr, nullptr, nullptr,
                                          static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           p_ds,
