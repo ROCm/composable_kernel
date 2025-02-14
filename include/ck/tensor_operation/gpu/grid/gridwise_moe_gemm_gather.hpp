@@ -545,6 +545,7 @@ struct GridwiseMoeGemmGather
                                     index_t KBatch_)
             : 
               NumTokens{NumTokens_},
+              TopK{TopK_},
               M{M_},
               N{N_},
               K{K_},
@@ -570,6 +571,7 @@ struct GridwiseMoeGemmGather
         {
             std::cout << "problem {"
                       << "NumTokens:" << NumTokens << ", "
+                      << "TopK:" << TopK << ", "
                       << "M:" << M << ", "
                       << "N:" << N << ", "
                       << "K:" << K << ", "
@@ -587,6 +589,7 @@ struct GridwiseMoeGemmGather
         }
 
         index_t NumTokens;
+        index_t TopK;
         index_t M;
         index_t N;
         index_t K;
@@ -619,6 +622,7 @@ struct GridwiseMoeGemmGather
                           std::array<const void*, NumDTensor> p_ds_grid_,
                           CDataType* p_c_grid_,
                           index_t NumTokens_,
+                          index_t TopK_,
                           index_t M_,
                           index_t N_,
                           index_t K_,
@@ -630,7 +634,7 @@ struct GridwiseMoeGemmGather
                           AElementwiseOperation a_element_op_,
                           BElementwiseOperation b_element_op_,
                           CElementwiseOperation c_element_op_)
-            : Problem{NumTokens_, M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_},
+            : Problem{NumTokens_, TopK_, M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_},
             
         p_sorted_token_ids{p_sorted_token_ids_},
         p_sorted_expert_ids{p_sorted_expert_ids_},
@@ -1155,10 +1159,10 @@ struct GridwiseMoeGemmGather
         // static_assert(MLoadRepeats == 1, "only support 1 line per thread now!");
         const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
         
-        const index_t t0 = (p_sorted_token_ids[block_m_id * MPerBlock] & 0xffffff);
-        if(t0 >= problem.NumTokens)
+        const index_t t0 = p_sorted_token_ids[block_m_id * MPerBlock];
+        if((t0  & 0xffffff) >= problem.NumTokens)
             return;
-
+        const index_t topk_id = (t0 & 0xff000000) >> 24;
         StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             gather_offsets(m0) = (p_sorted_token_ids[token_pos + m0] & 0xffffff) * problem.K;
@@ -1450,7 +1454,7 @@ struct GridwiseMoeGemmGather
             // too hack here, 2 specific for topk weights, fixme
             const float *p_sorted_weights = p_ds_grid[I0];
             static_for<0, EMRepeats, 1>{}([&](auto m0) {
-                scatter_offsets(m0) = 0;
+                scatter_offsets(m0) = ((p_sorted_token_ids[c_token_pos + m0] & 0xffffff) * problem.TopK + topk_id) * problem.N;
                 scatter_weights(m0) = p_sorted_weights[(c_token_pos + m0) * problem.StrideDs[0]];
                 // if(threadIdx.x % 16 == 0)
                 // printf("init off bid %d tid %d m %d off %d\n", blockIdx.y, threadIdx.x, m0(), scatter_offsets(m0));
@@ -1482,13 +1486,13 @@ struct GridwiseMoeGemmGather
                                            false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
                 Sequence<false>,      // ThreadTransferDstResetCoordinateAfterRunFlags
                 1,                    //ScatterDim
-                false,                //OutputScatter: false, only use scatter weights
+                true,                 //OutputScatter: false, only use scatter weights
                 1                     // ScatterWeightIdx: ascale
                 >                    
                 {c_ds_desc_refs,
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                 make_tuple(make_multi_index(block_m_id, 0, block_n_id, 0)),
+                 make_tuple(make_multi_index(0, 0, block_n_id, 0)),
                  c_element_op,
                  scatter_offsets,
                  scatter_weights};

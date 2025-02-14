@@ -33,7 +33,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                  const index_t sorted_tile_size,
                  const Tensor<ADataType>& a_t_k,
                  const Tensor<BDataType>& b_e_n_k,
-                 Tensor<CDataType>& c_m_n,
+                 Tensor<CDataType>& c_t_k_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
@@ -42,7 +42,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
               sorted_tile_size_{sorted_tile_size},
               a_t_k_{a_t_k},
               b_e_n_k_{b_e_n_k},
-              c_m_n_{c_m_n},
+              c_t_k_n_{c_t_k_n},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
@@ -54,7 +54,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
         index_t sorted_tile_size_;
         const Tensor<ADataType>& a_t_k_;
         const Tensor<BDataType>& b_e_n_k_;
-        Tensor<CDataType>& c_m_n_;
+        Tensor<CDataType>& c_t_k_n_;
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -74,7 +74,8 @@ struct ReferenceMoeGemm : public device::BaseOperator
                 AccDataType v_acc{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
-                const int t = arg.sorted_token_ids_(m);
+                const int t = arg.sorted_token_ids_(m) & 0xffffff;
+                const int topk_id = (arg.sorted_token_ids_(m) & 0xff000000) >> 24;
                 const int e = arg.expert_ids_(m / arg.sorted_tile_size_);
                 const int token_cnt = arg.a_t_k_.mDesc.GetLengths()[0];
                 if(t < token_cnt) {
@@ -110,11 +111,11 @@ struct ReferenceMoeGemm : public device::BaseOperator
 
                 arg.c_element_op_(v_c, v_acc);
 
-                arg.c_m_n_(m, n) = v_c;
+                arg.c_t_k_n_(t, topk_id, n) = v_c;
             };
 
             make_ParallelTensorFunctor(
-                f_mk_kn_mn, arg.c_m_n_.mDesc.GetLengths()[0], arg.c_m_n_.mDesc.GetLengths()[1])(
+                f_mk_kn_mn, arg.sorted_tile_size_, arg.c_t_k_n_.mDesc.GetLengths()[2])(
                 std::thread::hardware_concurrency());
 
             return 0;
@@ -140,12 +141,12 @@ struct ReferenceMoeGemm : public device::BaseOperator
                              const index_t sorted_tile_size,
                              const Tensor<ADataType>& a_t_k,
                              const Tensor<BDataType>& b_e_n_k,
-                             Tensor<CDataType>& c_m_n,
+                             Tensor<CDataType>& c_t_k_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{sorted_token_ids, expert_ids, sorted_tile_size, a_t_k, b_e_n_k, c_m_n, a_element_op, b_element_op, c_element_op};
+        return Argument{sorted_token_ids, expert_ids, sorted_tile_size, a_t_k, b_e_n_k, c_t_k_n, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
