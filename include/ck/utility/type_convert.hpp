@@ -978,6 +978,33 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
 #endif
 }
 
+// convert vector of 2 fp32 to vector of 2 fp4 with sr
+inline __host__ __device__ f4x2_t f4_convert_sr_repro(float2_t x, float scale = 1.0f)
+{
+    constexpr int seed = 1254739;
+    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+#if defined(__gfx950__)
+    union
+    {
+        uint32_t bitwise;
+        f4x2_t f4x2_array[4];
+    } value{0};
+    value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
+        value.bitwise, float2_t{x[1], x[0]}, rng, scale, 0);
+    return value.f4x2_array[0];
+#else
+    union
+    {
+        uint32_t bitwise;
+        f4x2_t f4x2_array[4];
+    } value{0};
+    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
+    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
+    value.bitwise = (h << 4) | l;
+    return value.f4x2_array[0];
+#endif
+}
+
 // convert vector of 32 fp32 to vector of 32 fp4 with sr
 inline __host__ __device__ f4x32_t f4_convert_sr(float32_t x, float scale = 1.0f)
 {

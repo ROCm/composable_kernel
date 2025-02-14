@@ -63,6 +63,23 @@ __host__ __device__ void test_mx_fp32_to_fp4_sr(float* p_test)
 
 __global__ void run_test_mx_fp32_to_fp4_sr(float* p_test) { test_mx_fp32_to_fp4_sr(p_test); }
 
+__host__ __device__ void test_mx_fp32_to_fp4_sr_failing(float* p_test)
+{
+    float2_t f32x2 = {1.0f, -4.0f};
+    auto scale2    = e8m0_bexp_t(2.0f);
+    f4x2_t f4x2 = ck::f4_convert_sr_repro(f32x2, type_convert<float>(scale2)); // expect {0.5, -2}
+
+    p_test[0] = type_convert<float>(
+        f4_t(f4x2.AsType<f4x2_pk_t>()(ck::Number<0>{}).unpack<>(ck::Number<0>{}))); // 0.5f
+    p_test[1] = type_convert<float>(
+        f4_t(f4x2.AsType<f4x2_pk_t>()(ck::Number<0>{}).unpack<>(ck::Number<1>{}))); // -2.0f
+}
+
+__global__ void run_test_mx_fp32_to_fp4_sr_failing(float* p_test)
+{
+    test_mx_fp32_to_fp4_sr_failing(p_test);
+}
+
 TEST(MXFP4, FP4ToFP32)
 {
     std::vector<float> out(2, -1.0f);
@@ -111,6 +128,24 @@ TEST(MXFP4, FP32ToFP4SR)
     // DeviceMem device_completed(sizeof(uint64_t));
 
     run_test_mx_fp32_to_fp4_sr<<<1, 1>>>(static_cast<float*>(device_out.GetDeviceBuffer()));
+
+    // uint64_t completed = 0;
+    // device_completed.FromDevice(&completed);
+    device_out.FromDevice(out.data());
+
+    // SR
+    EXPECT_EQ(out[0], 0.5f);
+    EXPECT_EQ(out[1], -2.0f);
+}
+
+TEST(MXFP4, FP32ToFP4SRFailing)
+{
+    std::vector<float> out(2, -1.0f);
+
+    DeviceMem device_out(2 * sizeof(float));
+    // DeviceMem device_completed(sizeof(uint64_t));
+
+    run_test_mx_fp32_to_fp4_sr_failing<<<1, 1>>>(static_cast<float*>(device_out.GetDeviceBuffer()));
 
     // uint64_t completed = 0;
     // device_completed.FromDevice(&completed);
