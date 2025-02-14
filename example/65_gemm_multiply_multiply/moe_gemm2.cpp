@@ -185,9 +185,11 @@ int main(int argc, char* argv[])
     ck::index_t N = 6144;
     ck::index_t K = 8192;
     ck::index_t experts = 8;
-    ck::index_t sorted_tile_num = 8;
+    ck::index_t sorted_tile_num = 9;
+    ck::index_t valid_tile_num = 8;
     ck::index_t sorted_tile_size = MPerBlock;
-    ck::index_t SORTED_SIZE = sorted_tile_num * sorted_tile_size;
+    ck::index_t sorted_size = sorted_tile_num * sorted_tile_size;
+    ck::index_t valid_size = valid_tile_num * sorted_tile_size;
     ck::index_t tokens = 64;
 
     if(argc == 1)
@@ -223,14 +225,16 @@ int main(int argc, char* argv[])
 
     // const ck::index_t experts = 8;
     Tensor<ck::index_t> expert_ids(HostTensorDescriptor({experts}, {1}));
-    Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({SORTED_SIZE}, {1}));
+    Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
+    Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
+    max_token_id.mData[0] = valid_size;
     for (int i = 0; i < sorted_tile_num; i++) {
         expert_ids.mData[i] = i;
     }
     int token_per_tile = tokens / sorted_tile_num;
     int tokenid = 0;
     // sorted_token_ids.mData[0] = 0;
-    for (int i = 0; i < SORTED_SIZE; i++) {
+    for (int i = 0; i < sorted_size; i++) {
         int tile_off = i % sorted_tile_size;
         if(tile_off < token_per_tile)
             sorted_token_ids.mData[i] = tokenid++;
@@ -238,12 +242,12 @@ int main(int argc, char* argv[])
             sorted_token_ids.mData[i] = tokens;
     }
 
-    Tensor<A0DataType> a0_m_k(HostTensorDescriptor({SORTED_SIZE, K}, {K, 1}));
+    Tensor<A0DataType> a0_m_k(HostTensorDescriptor({sorted_size, K}, {K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
-    Tensor<D0DataType> d0_m_n(HostTensorDescriptor({SORTED_SIZE, N}, {StrideDs[0], 0}));
+    Tensor<D0DataType> d0_m_n(HostTensorDescriptor({sorted_size, N}, {StrideDs[0], 0}));
     Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
-    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({SORTED_SIZE, N}, {1, 0}));
+    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     e_t_n_device_result.SetZero();
@@ -280,6 +284,7 @@ int main(int argc, char* argv[])
     }
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
+    DeviceMem max_token_id_dev(sizeof(ck::index_t) * max_token_id.mDesc.GetElementSpaceSize());
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize());
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
@@ -294,6 +299,7 @@ int main(int argc, char* argv[])
     d2_e_n.savetxt("d2_e_n.txt", "int");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
+    max_token_id_dev.ToDevice(max_token_id.mData.data());
     a0_device_buf.ToDevice(a0_m_k.mData.data());
     d0_device_buf.ToDevice(d0_m_n.mData.data());
     d1_device_buf.ToDevice(d1_e_n.mData.data());
@@ -318,6 +324,7 @@ int main(int argc, char* argv[])
     auto argument =
         device_op.MakeArgument(sorted_token_ids_dev.GetDeviceBuffer(),
                                 expert_ids_dev.GetDeviceBuffer(),
+                                max_token_id_dev.GetDeviceBuffer(),
                                 a0_device_buf.GetDeviceBuffer(),
                                b0_device_buf.GetDeviceBuffer(),
                                std::array<const void*, NumDTensor>{d0_device_buf.GetDeviceBuffer(),
@@ -325,7 +332,7 @@ int main(int argc, char* argv[])
                                                                    d2_device_buf.GetDeviceBuffer()},
                                e_device_buf.GetDeviceBuffer(),
                                tokens,
-                               SORTED_SIZE,
+                               sorted_size,
                                N,
                                K,
                                StrideA,
@@ -347,9 +354,9 @@ int main(int argc, char* argv[])
         // not result correct here because output buf not setzero
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-        std::size_t flop = std::size_t(2) * SORTED_SIZE * N * K;
+        std::size_t flop = std::size_t(2) * sorted_size * N * K;
         std::size_t num_btype =
-            sizeof(A0DataType) * SORTED_SIZE * K + sizeof(B0DataType) * K * N * experts + sizeof(EDataType) * SORTED_SIZE * N;
+            sizeof(A0DataType) * sorted_size * K + sizeof(B0DataType) * K * N * experts + sizeof(EDataType) * sorted_size * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -380,7 +387,7 @@ int main(int argc, char* argv[])
         auto ref_moe_gemm           = ReferenceGemmInstance{};
         auto ref_invoker            = ref_moe_gemm.MakeInvoker();
         auto ref_argument = ref_moe_gemm.MakeArgument(
-           sorted_token_ids, expert_ids, sorted_tile_size, a0_m_k, b0_e_n_k, d0_m_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
+           sorted_token_ids, expert_ids, max_token_id, sorted_tile_size, a0_m_k, b0_e_n_k, d0_m_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
 
         ref_invoker.Run(ref_argument);
 

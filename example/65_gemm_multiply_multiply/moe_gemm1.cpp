@@ -192,9 +192,10 @@ int main(int argc, char* argv[])
     ck::index_t N = 6144;
     ck::index_t K = 8192;
     ck::index_t experts = 8;
-    ck::index_t sorted_tile_num = 8;
-    ck::index_t sorted_tile_size = MPerBlock;
-    ck::index_t SORTED_SIZE = sorted_tile_num * sorted_tile_size;
+    ck::index_t sorted_tile_num = 9;
+    ck::index_t valid_tile_num = 8;
+    ck::index_t sorted_size = sorted_tile_num * MPerBlock;
+    ck::index_t valid_size = valid_tile_num * MPerBlock;
     ck::index_t batch = 64;
     ck::index_t topk = 2;
 
@@ -234,15 +235,17 @@ int main(int argc, char* argv[])
 
     // const ck::index_t experts = 8;
     Tensor<ck::index_t> expert_ids(HostTensorDescriptor({experts}, {1}));
-    Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({SORTED_SIZE}, {1}));
+    Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
+    Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
+    max_token_id.mData[0] = valid_size;
     for (int i = 0; i < sorted_tile_num; i++) {
         expert_ids.mData[i] = i;
     }
-    int token_per_tile = tokens / sorted_tile_num;
+    int token_per_tile = tokens / valid_tile_num;
     int tokenid = 0;
     // sorted_token_ids.mData[0] = 0;
-    for (int i = 0; i < SORTED_SIZE; i++) {
-        int tile_off = i % sorted_tile_size;
+    for (int i = 0; i < sorted_size; i++) {
+        int tile_off = i % valid_size;
         if(tile_off < token_per_tile)
         {
             sorted_token_ids.mData[i] = (tokenid % batch) | ((tokenid / batch) << 24);
@@ -294,6 +297,7 @@ int main(int argc, char* argv[])
     d1_e_n.savetxt("d1_e_n.txt", "int");
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
+    DeviceMem max_token_id_dev(sizeof(ck::index_t) * max_token_id.mDesc.GetElementSpaceSize());
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_t_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize());
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_t_n.mDesc.GetElementSpaceSize());
@@ -302,6 +306,7 @@ int main(int argc, char* argv[])
     a0_t_k.savetxt("a.txt");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
+    max_token_id_dev.ToDevice(max_token_id.mData.data());
     a0_device_buf.ToDevice(a0_t_k.mData.data());
     d0_device_buf.ToDevice(d0_t_n.mData.data());
     d1_device_buf.ToDevice(d1_e_n.mData.data());
@@ -323,15 +328,16 @@ int main(int argc, char* argv[])
     auto invoker = device_op.MakeInvoker();
     auto argument =
         device_op.MakeArgument(sorted_token_ids_dev.GetDeviceBuffer(),
-                                expert_ids_dev.GetDeviceBuffer(),
-                                a0_device_buf.GetDeviceBuffer(),
+                               expert_ids_dev.GetDeviceBuffer(),
+                               max_token_id_dev.GetDeviceBuffer(),
+                               a0_device_buf.GetDeviceBuffer(),
                                b0_device_buf.GetDeviceBuffer(),
                                std::array<const void*, NumDTensor>{d0_device_buf.GetDeviceBuffer(),
                                                                    d1_device_buf.GetDeviceBuffer()},
                                e_device_buf.GetDeviceBuffer(),
                                tokens,
                                topk,
-                               SORTED_SIZE,
+                               sorted_size,
                                N,
                                K,
                                StrideA,
@@ -352,9 +358,9 @@ int main(int argc, char* argv[])
     if (time_kernel) {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-        std::size_t flop = std::size_t(2) * SORTED_SIZE * N * K;
+        std::size_t flop = std::size_t(2) * sorted_size * N * K;
         std::size_t num_btype =
-            sizeof(A0DataType) * SORTED_SIZE * K + sizeof(B0DataType) * K * N * experts + sizeof(EDataType) * SORTED_SIZE * N;
+            sizeof(A0DataType) * sorted_size * K + sizeof(B0DataType) * K * N * experts + sizeof(EDataType) * sorted_size * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -383,26 +389,26 @@ int main(int argc, char* argv[])
         auto ref_invoker            = ref_moe_gemm.MakeInvoker();
 
         auto ref_argument = ref_moe_gemm.MakeArgument(
-           sorted_token_ids, expert_ids, sorted_tile_size, a0_t_k, b0_e_n_k, c_t_k_n, PassThrough{}, PassThrough{}, PassThrough{});
+           sorted_token_ids, expert_ids, max_token_id, MPerBlock, a0_t_k, b0_e_n_k, c_t_k_n, PassThrough{}, PassThrough{}, PassThrough{});
 
         ref_invoker.Run(ref_argument);
-        for(int m = 0; m < SORTED_SIZE; ++m)
+        for(int m = 0; m < valid_size; ++m)
         {
             
             const int fuse_t = sorted_token_ids.mData[m];
             const int t = fuse_t & 0xffffff;
             const int topk_id = (fuse_t & 0xff000000) >> 24;
-                printf("m %d fuset %d %d %d\n",m, fuse_t, t, topk_id);
+                // printf("m %d fuset %d %d %d\n",m, fuse_t, t, topk_id);
 
             if (t >= tokens)
             {
                 continue;
             }
-            const int e = expert_ids(m / sorted_tile_size);
+            const int e = expert_ids(m / MPerBlock);
             for(int n = 0; n < N; ++n)
             {
                 cde_element_op(e_t_n_host_result(t, topk_id, n), c_t_k_n(t, topk_id, n), d0_t_n(t, n), d1_e_n(e, n));
-                printf("m %d n %d topk %d token %d %f %f\n",m, n,topk_id, t,  e_t_n_host_result(t, topk_id, n), c_t_k_n(t, topk_id, n));
+                // printf("m %d n %d topk %d token %d %f %f\n",m, n,topk_id, t,  e_t_n_host_result(t, topk_id, n), c_t_k_n(t, topk_id, n));
             }
         }
 
