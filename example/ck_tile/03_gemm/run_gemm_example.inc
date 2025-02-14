@@ -110,6 +110,7 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t kbatch = arg_parser.get_int("split_k");
     int n_warmup            = arg_parser.get_int("warmup");
     int n_repeat            = arg_parser.get_int("repeat");
+    ck_tile::index_t init_method = arg_parser.get_int("init");  
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -122,9 +123,19 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
-    // TODO: add different init types
-    ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
-    ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
+    if (init_method == 0) {
+        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+    } else if (init_method == 1) {
+        ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
+        ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
+    } else if (init_method == 2) {
+        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
+        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
+    } else {
+        a_m_k.SetZero();
+        b_k_n.SetZero();
+    }
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
