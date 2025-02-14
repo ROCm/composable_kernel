@@ -212,12 +212,12 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                             arg.block_2_ctile_map_streamk.get_workspace_size_for_acc(
                                 sizeof(GemmAccDataType));
                         auto preprocess = [&]() {
-                            hipMemsetAsync(
+                            auto status = hipMemsetAsync(
                                 workspace_semaphore,
                                 0,
-                                // sizeof(uint32_t),
                                 arg.block_2_ctile_map_streamk.get_workspace_size_for_semaphore(),
                                 stream_config.stream_id_);
+                            hip_check_error(status);
                         };
 
                         ave_time = launch_and_time_kernel_with_preprocess(
