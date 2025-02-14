@@ -41,20 +41,26 @@ struct GemmPipelineAgBgCrImplBase
         store_tile(lds_tile_window, block_tile_tmp);
     }
 
+    template <typename DstBlockTile, typename SrcTileWindow>
+    CK_TILE_DEVICE void LocalPrefetch(DstBlockTile& dst_block_tile,
+                                      const SrcTileWindow& lds_tile_window) const
+    {
+        load_tile(dst_block_tile, lds_tile_window);
+    }
+
     CK_TILE_DEVICE auto GetABLdsTensorViews(void* p_smem) const
     {
         // A tile in LDS
-        ADataType* p_a_lds              = static_cast<ADataType*>(p_smem);
+        ADataType* __restrict__ p_a_lds = static_cast<ADataType*>(p_smem);
         constexpr auto a_lds_block_desc = Policy::template MakeALdsBlockDescriptor<Problem>();
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
         // TODO: LDS alignment should come from Policy!
-        constexpr index_t a_lds_block_space_size_aligned =
-            integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16) *
-            16;
+        constexpr index_t a_lds_block_space_size_aligned = integer_least_multiple(
+            sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16);
 
         // B tile in LDS
-        BDataType* p_b_lds = static_cast<BDataType*>(
+        BDataType* __restrict__ p_b_lds = static_cast<BDataType*>(
             static_cast<void*>(static_cast<char*>(p_smem) + a_lds_block_space_size_aligned));
         constexpr auto b_lds_block_desc = Policy::template MakeBLdsBlockDescriptor<Problem>();
         auto b_lds_block = make_tensor_view<address_space_enum::lds>(p_b_lds, b_lds_block_desc);

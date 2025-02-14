@@ -118,7 +118,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
     if(s.log_level_ > 0)
     {
-        std::cout << "Launching kernel with args:"
+        std::cout << "Launching kernel: " << GroupedGemmKernel::GetName() << " with args:"
                   << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                   << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                   << std::endl;

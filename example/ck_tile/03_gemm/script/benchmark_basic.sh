@@ -2,7 +2,6 @@
 EXE="$(find . -name tile_example_gemm_basic -type f | head -n 1)"
 VALID=1
 
-
 for b_matrix_layout in "C"; do
     for m in "64" "512" "1024" "2048"; do
         for n in "512" "1024" "2048"; do

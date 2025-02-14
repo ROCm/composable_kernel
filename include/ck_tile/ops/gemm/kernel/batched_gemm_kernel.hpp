@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+#include "ck_tile/ops/common.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -56,6 +58,18 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     using ALayout          = typename Base::ALayout;
     using BLayout          = typename Base::BLayout;
     using CLayout          = typename Base::CLayout;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        using P_ = GemmPipeline;
+
+        return concat('_', "gemm_batched", gemm_prec_str<ADataType, BDataType>,
+                      concat('x', P_::kMPerBlock, P_::kNPerBlock, P_::kKPerBlock), 
+                      concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
+                      concat('x', P_::kPadM, P_::kPadN, P_::kPadK));
+        // clang-format on
+    }
 
     struct BatchedGemmKernelArgs : GemmKernelArgs
     {
