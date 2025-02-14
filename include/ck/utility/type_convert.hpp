@@ -707,17 +707,6 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_fnuz_t>(bf8_fnuz_t x)
 #endif
 }
 
-#ifndef __HIPCC_RTC__
-template <typename Y, typename X, std::size_t NumElems>
-inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,
-                                              const std::array<X, NumElems>& x)
-{
-    for(std::size_t i = 0; i < NumElems; i++)
-    {
-        y[i] = type_convert<Y>(x[i]);
-    }
-}
-#endif
 // convert fp32 to fp4 with rounding to nearest even
 inline __host__ __device__ f4_t f4_convert_rne(float x, float scale = 1.0f)
 {
@@ -1990,7 +1979,7 @@ inline __host__ __device__ float32_t type_convert<float32_t, bf6x32_t>(bf6x32_t 
 #endif
 }
 
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <typename Y, typename X, size_t NumElems>
 inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,
                                               const std::array<X, NumElems>& x)
