@@ -343,6 +343,8 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         // moving k_dram_window is an in-page-block operation, so there is
         // no need to invoke k_page_block_navigator.move_tile_window() here.
         move_tile_window(k_dram_window, {0, kK0});
+        // ensure LDS access by Q is done before the over-writting by K
+        block_sync_lds();
         store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
 
         do
