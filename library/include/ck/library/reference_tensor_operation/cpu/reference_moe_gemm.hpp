@@ -74,8 +74,6 @@ struct ReferenceMoeGemm : public device::BaseOperator
                 AccDataType v_acc{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
-                if(m >= max_sorted_num)
-                    return;
                 const int t = arg.sorted_token_ids_(m) & 0xffffff;
                 const int topk_id = (arg.sorted_token_ids_(m) & 0xff000000) >> 24;
                 const int e = arg.expert_ids_(m / arg.sorted_tile_size_);
@@ -112,6 +110,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                     arg.c_element_op_(v_c, v_acc);
 
                     arg.c_t_k_n_(t, topk_id, n) = v_c;
+                    printf("ref m %d n %d t %d topk %d v %f\n", m, n, t, topk_id, v_c);
                 }
             };
 
