@@ -3,12 +3,7 @@
 
 #pragma once
 
-#ifdef _HIPCC_RTC_
-#define CK_CODE_GEN_RTC
-#endif
-
-#ifndef __HIPCC_RTC__
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include <string>
 #include <sstream>
 #include <regex>
@@ -16,14 +11,12 @@
 
 #include "ck/stream_config.hpp"
 #endif
-#endif
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
-#ifndef __HIPCC_RTC__
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #define GET_OBJECT_NAME_IMLP                                                  \
     std::optional<std::string> GetObjectName() const override                 \
     {                                                                         \
@@ -51,7 +44,6 @@ namespace device {
     }
 
 #define REGISTER_EXTRA_PRINTING_METHODS GET_OBJECT_NAME_IMLP GET_TEMPLATE_INFO_IMPL
-#endif
 #endif
 
 #ifndef CK_CODE_GEN_RTC
@@ -86,9 +78,7 @@ struct BaseOperator
     BaseOperator()                    = default;
     BaseOperator(const BaseOperator&) = default;
     BaseOperator& operator=(const BaseOperator&) = default;
-#ifndef __HIPCC_RTC__
-#ifndef CK_CODE_GEN_RTC
-
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
     virtual std::string GetTypeString() const { return ""; }
 
@@ -116,7 +106,6 @@ struct BaseOperator
         assert(p_arg);
         p_arg->p_workspace_ = p_workspace;
     }
-#endif
 #endif
     virtual ~BaseOperator() {}
 };

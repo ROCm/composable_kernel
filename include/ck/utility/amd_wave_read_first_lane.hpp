@@ -3,21 +3,15 @@
 
 #pragma once
 
-#ifdef _HIPCC_RTC_
-#define CK_CODE_GEN_RTC
-#endif
-
 #include "ck/ck.hpp"
 #include "ck/utility/functional2.hpp"
 #include "ck/utility/math.hpp"
 
-#ifndef __HIPCC_RTC__
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
-#endif
 #endif
 
 namespace ck {

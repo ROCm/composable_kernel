@@ -3,10 +3,6 @@
 
 #pragma once
 
-#ifdef _HIPCC_RTC_
-#define CK_CODE_GEN_RTC
-#endif
-
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/math.hpp"
 #include "ck/utility/math_v2.hpp"
@@ -695,8 +691,7 @@ struct FastGelu
 
     template <typename Y, typename X>
     __device__ void operator()(Y& y, const X& x) const;
-#ifndef __HIPCC_RTC__
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
     template <>
     __host__ void operator()<float, float>(float& y, const float& x) const
     {
@@ -707,7 +702,6 @@ struct FastGelu
         const float emu = exp(u);
         y               = x / (1.f + emu);
     }
-#endif
 #endif
     // device code, use lower precision "__ocml_exp_f32" and "rcp"
     template <>

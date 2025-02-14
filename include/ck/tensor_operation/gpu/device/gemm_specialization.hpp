@@ -3,10 +3,6 @@
 
 #pragma once
 
-#ifdef _HIPCC_RTC_
-#define CK_CODE_GEN_RTC
-#endif
-
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -32,8 +28,7 @@ enum struct GemmSpecialization
     NKOPadding,
     MNKOPadding,
 };
-#ifndef __HIPCC_RTC__
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 inline std::string getGemmSpecializationString(const GemmSpecialization& s)
 {
     switch(s)
@@ -57,7 +52,6 @@ inline std::string getGemmSpecializationString(const GemmSpecialization& s)
     default: return "Unrecognized specialization!";
     }
 }
-#endif
 #endif
 
 } // namespace device

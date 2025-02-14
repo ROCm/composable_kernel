@@ -3,10 +3,6 @@
 
 #pragma once
 
-#ifdef _HIPCC_RTC_
-#define CK_CODE_GEN_RTC
-#endif
-
 #ifndef __HIP_DEVICE_COMPILE__
 #include <cmath>
 #endif
@@ -22,9 +18,8 @@ namespace math {
 extern "C" __device__ float __ocml_native_recip_f32(float);
 #endif
 
-#ifndef __HIPCC_RTC__
 // math functions for the host,  some are implemented by calling C++ std functions
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 static inline __host__ float abs(float x) { return std::abs(x); };
 
 static inline __host__ double abs(double x) { return std::abs(x); };
@@ -464,7 +459,6 @@ inline __host__ double expm1<double>(double x)
 {
     return std::expm1(x);
 }
-#endif
 #endif
 // math functions for the HIP kernel,  some are implemented by calling hip builtin functions
 

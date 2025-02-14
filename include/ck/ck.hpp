@@ -2,19 +2,14 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-#ifdef _HIPCC_RTC_
-#define CK_CODE_GEN_RTC
-#endif
 
 #include "ck/config.h"
 
-#ifndef __HIPCC_RTC__
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include "ck/utility/env.hpp"
-#ifndef CK_CODE_GEN_RTC
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
-#endif
 #endif
 
 // environment variable to enable logging:

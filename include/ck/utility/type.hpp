@@ -3,17 +3,12 @@
 
 #pragma once
 
-#ifdef _HIPCC_RTC_
-#define CK_CODE_GEN_RTC
-#endif
-
 #include "ck/ck.hpp"
 #include "ck/utility/enable_if.hpp"
 #include "ck/utility/integral_constant.hpp"
 
 namespace ck {
-#ifdef __HIPCC_RTC__
-#ifdef CK_CODE_GEN_RTC
+#if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
 // NOLINTNEXTLINE
 #define CK_BUILTIN_TYPE_TRAIT1(name)         \
     template <class T>                       \
@@ -175,7 +170,6 @@ using std::remove_cv;
 using std::remove_pointer;
 using std::remove_reference;
 using std::void_t;
-#endif
 #endif
 
 template <typename X, typename Y>

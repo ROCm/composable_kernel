@@ -3,34 +3,26 @@
 
 #pragma once
 
-#ifdef _HIPCC_RTC_
-#define CK_CODE_GEN_RTC
-#endif
-
 #include "ck/utility/amd_ck_fp8.hpp"
 #include "ck/utility/e8m0.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
 
-#ifdef __HIPCC_RTC__
 /// Definitions from <cstdint>, <cmath> conflict with
 /// /opt/rocm/include/hip/amd_detail/amd_hip_vector_types.h.
 
-#ifdef CK_CODE_GEN_RTC
+#if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
 using int8_t   = signed char;
 using uint8_t  = unsigned char;
 using int16_t  = signed short;
 using uint16_t = unsigned short;
 using float_t  = float;
-#endif
 #endif // __HIPCC_RTC__
 
 namespace ck {
-#ifdef __HIPCC_RTC__
-#ifdef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 using byte = unsigned char;
 #else
 using std::byte;
-#endif
 #endif
 
 using bhalf_t = ushort;

@@ -3,10 +3,6 @@
 
 #pragma once
 
-#ifdef _HIPCC_RTC_
-#define CK_CODE_GEN_RTC
-#endif
-
 #include "functional4.hpp"
 #include "tuple.hpp"
 #ifndef CK_CODE_GEN_RTC
@@ -163,22 +159,18 @@ __host__ __device__ constexpr auto TupleReduce(F&& f, const Tuple<Ts...>& tuple)
     }
 }
 
-#ifndef __HIPCC_RTC__
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <typename T>
 using is_tuple = decltype(ck::declval<T&>().IsTuple());
-#endif
 #endif
 
 template <typename... Ts>
 __host__ __device__ constexpr auto IsNestedTuple(const Tuple<Ts...>&)
 {
-#ifndef __HIPCC_RTC__
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
     return (is_detected<is_tuple, Ts>::value || ...);
 #endif
 }
-#endif
 
 template <index_t depth = 0, typename T>
 __host__ __device__ constexpr auto TupleDepth(const T&)

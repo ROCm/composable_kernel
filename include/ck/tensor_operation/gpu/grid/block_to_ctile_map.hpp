@@ -3,20 +3,14 @@
 
 #pragma once
 
-#ifdef _HIPCC_RTC_
-#define CK_CODE_GEN_RTC
-#endif
-
 #include "ck/utility/math.hpp"
 #include "ck/utility/number.hpp"
 #include "ck/utility/tuple.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
-#ifndef __HIPCC_RTC__
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include <limits>
 #include <stdlib.h>
-#endif
 #endif
 
 namespace ck {
