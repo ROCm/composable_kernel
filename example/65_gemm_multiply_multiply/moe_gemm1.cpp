@@ -245,7 +245,7 @@ int main(int argc, char* argv[])
         int tile_off = i % sorted_tile_size;
         if(tile_off < token_per_tile)
         {
-            sorted_token_ids.mData[i] = (tokenid % batch) & ((tokenid / batch) << 24);
+            sorted_token_ids.mData[i] = (tokenid % batch) | ((tokenid / batch) << 24);
             tokenid++;
         }
         else
@@ -389,17 +389,20 @@ int main(int argc, char* argv[])
         for(int m = 0; m < SORTED_SIZE; ++m)
         {
             
-            const int fuse_t = sorted_token_ids(m);
+            const int fuse_t = sorted_token_ids.mData[m];
             const int t = fuse_t & 0xffffff;
+            const int topk_id = (fuse_t & 0xff000000) >> 24;
+                printf("m %d fuset %d %d %d\n",m, fuse_t, t, topk_id);
+
             if (t >= tokens)
             {
                 continue;
             }
-            const int topk_id = (fuse_t & 0xff000000) >> 24;
             const int e = expert_ids(m / sorted_tile_size);
             for(int n = 0; n < N; ++n)
             {
                 cde_element_op(e_t_n_host_result(t, topk_id, n), c_t_k_n(m, topk_id, n), d0_t_n(t, n), d1_e_n(e, n));
+                printf("m %d fuset %d %d %d %f %f\n",m, topk_id, t, n, e_t_n_host_result(t, topk_id, n), c_t_k_n(m, topk_id, n));
             }
         }
 

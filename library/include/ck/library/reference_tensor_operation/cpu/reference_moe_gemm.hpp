@@ -74,6 +74,8 @@ struct ReferenceMoeGemm : public device::BaseOperator
                 AccDataType v_acc{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
+                if(m >= max_sorted_num)
+                    return;
                 const int t = arg.sorted_token_ids_(m) & 0xffffff;
                 const int topk_id = (arg.sorted_token_ids_(m) & 0xff000000) >> 24;
                 const int e = arg.expert_ids_(m / arg.sorted_tile_size_);
@@ -105,17 +107,16 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         v_acc +=
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                     }
+                    CDataType v_c{0};
+
+                    arg.c_element_op_(v_c, v_acc);
+
+                    arg.c_t_k_n_(t, topk_id, n) = v_c;
                 }
-
-                CDataType v_c{0};
-
-                arg.c_element_op_(v_c, v_acc);
-
-                arg.c_t_k_n_(t, topk_id, n) = v_c;
             };
 
             make_ParallelTensorFunctor(
-                f_mk_kn_mn, arg.sorted_tile_size_, arg.c_t_k_n_.mDesc.GetLengths()[2])(
+                f_mk_kn_mn, arg.sorted_token_ids_.GetLengths()[0], arg.c_t_k_n_.mDesc.GetLengths()[2])(
                 std::thread::hardware_concurrency());
 
             return 0;

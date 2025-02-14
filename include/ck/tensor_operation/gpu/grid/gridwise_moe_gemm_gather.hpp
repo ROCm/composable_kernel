@@ -535,6 +535,7 @@ struct GridwiseMoeGemmGather
     struct Problem
     {
         __host__ __device__ Problem(index_t NumTokens_,
+                                    index_t TopK_,
                                     index_t M_,
                                     index_t N_,
                                     index_t K_,
