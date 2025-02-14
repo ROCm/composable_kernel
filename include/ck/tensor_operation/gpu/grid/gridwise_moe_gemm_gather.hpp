@@ -638,10 +638,9 @@ struct GridwiseMoeGemmGather
                           BElementwiseOperation b_element_op_,
                           CElementwiseOperation c_element_op_)
             : Problem{NumTokens_, TopK_, M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_},
-            
-        p_sorted_token_ids{p_sorted_token_ids_},
-        p_sorted_expert_ids{p_sorted_expert_ids_},
-        p_max_token_id{p_max_token_id_},
+              p_sorted_token_ids{p_sorted_token_ids_},
+              p_sorted_expert_ids{p_sorted_expert_ids_},
+              p_max_token_id{p_max_token_id_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
               p_ds_grid{},
@@ -663,7 +662,6 @@ struct GridwiseMoeGemmGather
         const index_t * p_sorted_token_ids;
         const index_t * p_sorted_expert_ids;
         const index_t * p_max_token_id;
-        
         const ADataType* p_a_grid;
         const BDataType* p_b_grid;
         DsGridPointer p_ds_grid;
@@ -1146,7 +1144,7 @@ struct GridwiseMoeGemmGather
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(problem.BN0Shuffled, problem.BK0Shuffled);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
-            problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
+            problem.NumTokens * problem.TopK, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
         // printf("tido %d size %d %d MNBLOCK %d %d %d %d\n", threadIdx.x, problem.StrideC, c_grid_desc_m_n.GetElementSpaceSize(),
         // problem.MBlock, problem.NBlock, MPerBlock, NPerBlock);
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
@@ -1165,7 +1163,6 @@ struct GridwiseMoeGemmGather
         constexpr auto AK1Threads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I2);
         constexpr auto AKThreads = AK0Threads * AK1Threads;
         constexpr auto AMRepeats = MPerBlock / AMThreads;
-        // static_assert(MLoadRepeats == 1, "only support 1 line per thread now!");
         const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
         
         if(token_pos >= max_token_id || token0 >= problem.NumTokens)
@@ -1177,8 +1174,6 @@ struct GridwiseMoeGemmGather
             gather_offsets(m0) = token_offset * problem.K;
             // printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
         });
-        // const index_t m_block_data_idx_on_grid =
-        //     __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
 
         // N0, K0, Blocksize*KPack

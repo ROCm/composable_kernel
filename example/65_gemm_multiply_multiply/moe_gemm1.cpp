@@ -35,7 +35,7 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using A0DataType       = F8;
 using B0DataType       = F8;
-using EDataType        = F32;
+using EDataType        = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using D0DataType       = F32;
@@ -133,6 +133,8 @@ using BElementOp   = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 32;
+static constexpr ck::index_t BLOCKSIZE = 256;
+static constexpr ck::index_t NPerBlock = 128;
 static constexpr ck::index_t MNPerXDL = 32;
 static constexpr ck::index_t CShuffleMXDLPerWave = MPerBlock / 32;
 static constexpr ck::index_t KPerBlock = 256 / sizeof(A0DataType);
@@ -156,7 +158,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
                //threadnum, mblock, nblock, kblock
-               256,   MPerBlock,   128,    KPerBlock,
+               BLOCKSIZE,   MPerBlock,   NPerBlock,    KPerBlock,
                // ak1, bk1
                AK1,   BK1,
                // mn_perxdl
@@ -196,10 +198,10 @@ int main(int argc, char* argv[])
     ck::index_t valid_tile_num = 8;
     ck::index_t sorted_size = sorted_tile_num * MPerBlock;
     ck::index_t valid_size = valid_tile_num * MPerBlock;
-    ck::index_t batch = 64;
+    ck::index_t tokens = 64;
     ck::index_t topk = 2;
 
-    ck::index_t tokens = batch * topk;
+    // ck::index_t tokens = batch * topk;
 
     if(argc == 1)
     {
@@ -225,7 +227,6 @@ int main(int argc, char* argv[])
 
     ck::index_t StrideA = K;
     ck::index_t StrideB = K;
-    // ck::index_t StrideD = 0;
     ck::index_t StrideE = N;
     constexpr ck::index_t NumDTensor = DsDataType::Size();
     constexpr auto StrideDs = std::array<ck::index_t, NumDTensor>{0, 0};
@@ -241,14 +242,14 @@ int main(int argc, char* argv[])
     for (int i = 0; i < sorted_tile_num; i++) {
         expert_ids.mData[i] = i;
     }
-    int token_per_tile = tokens / valid_tile_num;
+    int token_per_tile = tokens * topk / valid_tile_num;
     int tokenid = 0;
     // sorted_token_ids.mData[0] = 0;
     for (int i = 0; i < sorted_size; i++) {
         int tile_off = i % valid_size;
         if(tile_off < token_per_tile)
         {
-            sorted_token_ids.mData[i] = (tokenid % batch) | ((tokenid / batch) << 24);
+            sorted_token_ids.mData[i] = (tokenid % tokens) | ((tokenid / tokens) << 24);
             tokenid++;
         }
         else
@@ -258,13 +259,13 @@ int main(int argc, char* argv[])
     }
     expert_ids.savetxt("expert_ids.txt", "int");
     sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
-    Tensor<A0DataType> a0_t_k(HostTensorDescriptor({batch, K}, {K, 1}));
+    Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
-    Tensor<D0DataType> d0_t_n(HostTensorDescriptor({batch, N}, {StrideDs[0], 0}));
+    Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
     Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
-    Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({batch, topk, N}, {topk * N, N, 1}));
-    Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({batch, topk, N}, {topk * N, N, 1}));
+    Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
+    Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
 
     std::cout << "a0_t_k: " << a0_t_k.mDesc << std::endl;
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
@@ -293,8 +294,6 @@ int main(int argc, char* argv[])
         d0_t_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
         d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
-    d0_t_n.savetxt("d0_t_n.txt", "int");
-    d1_e_n.savetxt("d1_e_n.txt", "int");
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem max_token_id_dev(sizeof(ck::index_t) * max_token_id.mDesc.GetElementSpaceSize());
@@ -304,13 +303,14 @@ int main(int argc, char* argv[])
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
     a0_t_k.savetxt("a.txt");
+    d0_t_n.savetxt("d0_t_n.txt", "int");
+    d1_e_n.savetxt("d1_e_n.txt", "int");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     max_token_id_dev.ToDevice(max_token_id.mData.data());
     a0_device_buf.ToDevice(a0_t_k.mData.data());
     d0_device_buf.ToDevice(d0_t_n.mData.data());
     d1_device_buf.ToDevice(d1_e_n.mData.data());
-    // e_device_buf.ToDevice(e_t_n_device_result.mData.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -358,9 +358,9 @@ int main(int argc, char* argv[])
     if (time_kernel) {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-        std::size_t flop = std::size_t(2) * sorted_size * N * K;
+        std::size_t flop = std::size_t(2) * valid_size * N * K;
         std::size_t num_btype =
-            sizeof(A0DataType) * sorted_size * K + sizeof(B0DataType) * K * N * experts + sizeof(EDataType) * sorted_size * N;
+            sizeof(A0DataType) * valid_size * K + sizeof(B0DataType) * K * N * experts + sizeof(EDataType) * valid_size * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -376,7 +376,7 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-        Tensor<CShuffleDataType> c_t_k_n({batch, topk, N}, {topk * N, N, 1});
+        Tensor<CShuffleDataType> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMoeGemm<A0DataType,
                                                                                 B0DataType,

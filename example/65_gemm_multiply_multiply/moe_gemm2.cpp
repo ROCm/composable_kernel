@@ -67,7 +67,9 @@ struct MulABScaleExpertWeight
                                                                             const float& d1,
                                                                             const float& d2) const
     {
-        e = ck::type_convert<EDataType>(c * d0 * d1 * d2);
+        // e = ck::type_convert<EDataType>(c * d0 * d1 * d2);
+        (void) d2;
+        e = ck::type_convert<EDataType>(c * d0 * d1);
     }
     // for reference
     template <>
@@ -78,7 +80,8 @@ struct MulABScaleExpertWeight
                                                                             const float& d1,
                                                                             const float& d2) const
     {
-        e = ck::type_convert<EDataType>(c * d0 * d1 * d2);
+        (void) d2;
+        e = ck::type_convert<EDataType>(c * d0 * d1);
     }
 };
 
@@ -187,10 +190,12 @@ int main(int argc, char* argv[])
     ck::index_t experts = 8;
     ck::index_t sorted_tile_num = 9;
     ck::index_t valid_tile_num = 8;
-    ck::index_t sorted_tile_size = MPerBlock;
-    ck::index_t sorted_size = sorted_tile_num * sorted_tile_size;
-    ck::index_t valid_size = valid_tile_num * sorted_tile_size;
-    ck::index_t tokens = 64;
+    ck::index_t sorted_size = sorted_tile_num * MPerBlock;
+    ck::index_t valid_size = valid_tile_num * MPerBlock;
+    ck::index_t batch = 64;
+    ck::index_t topk = 2;
+
+    ck::index_t tokens = batch;
 
     if(argc == 1)
     {
@@ -231,77 +236,83 @@ int main(int argc, char* argv[])
     for (int i = 0; i < sorted_tile_num; i++) {
         expert_ids.mData[i] = i;
     }
-    int token_per_tile = tokens / sorted_tile_num;
+    int token_per_tile = tokens * topk / valid_tile_num;
     int tokenid = 0;
     // sorted_token_ids.mData[0] = 0;
     for (int i = 0; i < sorted_size; i++) {
-        int tile_off = i % sorted_tile_size;
+        int tile_off = i % valid_size;
         if(tile_off < token_per_tile)
-            sorted_token_ids.mData[i] = tokenid++;
+        {
+            sorted_token_ids.mData[i] = (tokenid % batch) | ((tokenid / batch) << 24);
+            tokenid++;
+        }
         else
+        {
             sorted_token_ids.mData[i] = tokens;
+        }
     }
-
-    Tensor<A0DataType> a0_m_k(HostTensorDescriptor({sorted_size, K}, {K, 1}));
+    expert_ids.savetxt("expert_ids.txt", "int");
+    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
+    Tensor<A0DataType> a0_t_k(HostTensorDescriptor({batch, K}, {K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
-    Tensor<D0DataType> d0_m_n(HostTensorDescriptor({sorted_size, N}, {StrideDs[0], 0}));
+    Tensor<D0DataType> d0_t_n(HostTensorDescriptor({batch, N}, {StrideDs[0], 0}));
     Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
     Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     e_t_n_device_result.SetZero();
-    std::cout << "a0_m_k: " << a0_m_k.mDesc << std::endl;
+    std::cout << "a0_t_k: " << a0_t_k.mDesc << std::endl;
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
     std::cout << "d2_e_n: " << d2_e_n.mDesc << std::endl;
     std::cout << "d1_e_n: " << d1_e_n.mDesc << std::endl;
-    std::cout << "d0_m_n: " << d0_m_n.mDesc << std::endl;
+    std::cout << "d0_t_n: " << d0_t_n.mDesc << std::endl;
     std::cout << "e_t_n: " << e_t_n_host_result.mDesc << std::endl;
 
     switch(init_method)
     {
     case 0: break;
     case 1:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 2});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
         d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
         d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
         break;
     case 2:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
         d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     default:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+        a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
         d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
         d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
     }
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem max_token_id_dev(sizeof(ck::index_t) * max_token_id.mDesc.GetElementSpaceSize());
-    DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem a0_device_buf(sizeof(A0DataType) * a0_t_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize());
-    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_t_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
-    a0_m_k.savetxt("a.txt");
+    a0_t_k.savetxt("a.txt");
     expert_ids.savetxt("expert_ids.txt", "int");
     sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
-    d0_m_n.savetxt("d0_m_n.txt", "int");
+    d0_t_n.savetxt("d0_t_n.txt", "int");
     d1_e_n.savetxt("d1_e_n.txt", "int");
     d2_e_n.savetxt("d2_e_n.txt", "int");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     max_token_id_dev.ToDevice(max_token_id.mData.data());
-    a0_device_buf.ToDevice(a0_m_k.mData.data());
-    d0_device_buf.ToDevice(d0_m_n.mData.data());
+    a0_device_buf.ToDevice(a0_t_k.mData.data());
+    d0_device_buf.ToDevice(d0_t_n.mData.data());
     d1_device_buf.ToDevice(d1_e_n.mData.data());
     d2_device_buf.ToDevice(d2_e_n.mData.data());
     e_device_buf.ToDevice(e_t_n_device_result.mData.data());
@@ -332,6 +343,7 @@ int main(int argc, char* argv[])
                                                                    d2_device_buf.GetDeviceBuffer()},
                                e_device_buf.GetDeviceBuffer(),
                                tokens,
+                               topk,
                                sorted_size,
                                N,
                                K,
@@ -354,9 +366,9 @@ int main(int argc, char* argv[])
         // not result correct here because output buf not setzero
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-        std::size_t flop = std::size_t(2) * sorted_size * N * K;
+        std::size_t flop = std::size_t(2) * valid_size * N * K;
         std::size_t num_btype =
-            sizeof(A0DataType) * sorted_size * K + sizeof(B0DataType) * K * N * experts + sizeof(EDataType) * sorted_size * N;
+            sizeof(A0DataType) * valid_size * K + sizeof(B0DataType) * K * N * experts + sizeof(EDataType) * valid_size * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -387,12 +399,12 @@ int main(int argc, char* argv[])
         auto ref_moe_gemm           = ReferenceGemmInstance{};
         auto ref_invoker            = ref_moe_gemm.MakeInvoker();
         auto ref_argument = ref_moe_gemm.MakeArgument(
-           sorted_token_ids, expert_ids, max_token_id, sorted_tile_size, a0_m_k, b0_e_n_k, d0_m_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
+           sorted_token_ids, expert_ids, max_token_id, MPerBlock, a0_t_k, b0_e_n_k, d0_t_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
 
         ref_invoker.Run(ref_argument);
-
         for(int t = 0; t < tokens; ++t)
         {
+
             for(int n = 0; n < N; ++n)
             {
                 e_t_n_host_result(t, n) = ck::type_convert<EDataType>(c_t_n(t, n));
@@ -402,7 +414,6 @@ int main(int argc, char* argv[])
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
         e_t_n_device_result.savetxt("out.txt");
         e_t_n_host_result.savetxt("ref.txt");
-
         return ck::utils::check_err(
                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
                    ? 0

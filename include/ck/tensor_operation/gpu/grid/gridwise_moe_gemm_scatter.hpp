@@ -9,7 +9,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_selector.hpp"
-#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1_mod8.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
@@ -536,6 +536,7 @@ struct GridwiseMoeGemmScatter
     struct Problem
     {
         __host__ __device__ Problem(index_t NumTokens_,
+                                    index_t TopK_,
                                     index_t M_,
                                     index_t N_,
                                     index_t K_,
@@ -546,6 +547,7 @@ struct GridwiseMoeGemmScatter
                                     index_t KBatch_)
             : 
               NumTokens{NumTokens_},
+              TopK{TopK_},
               M{M_},
               N{N_},
               K{K_},
@@ -571,6 +573,7 @@ struct GridwiseMoeGemmScatter
         {
             std::cout << "problem {"
                       << "NumTokens:" << NumTokens << ", "
+                      << "TopK:" << TopK << ", "
                       << "M:" << M << ", "
                       << "N:" << N << ", "
                       << "K:" << K << ", "
@@ -588,6 +591,7 @@ struct GridwiseMoeGemmScatter
         }
 
         index_t NumTokens;
+        index_t TopK;
         index_t M;
         index_t N;
         index_t K;
@@ -621,6 +625,7 @@ struct GridwiseMoeGemmScatter
                           std::array<const void*, NumDTensor> p_ds_grid_,
                           CDataType* p_c_grid_,
                           index_t NumTokens_,
+                          index_t TopK_,
                           index_t M_,
                           index_t N_,
                           index_t K_,
@@ -632,11 +637,10 @@ struct GridwiseMoeGemmScatter
                           AElementwiseOperation a_element_op_,
                           BElementwiseOperation b_element_op_,
                           CElementwiseOperation c_element_op_)
-            : Problem{NumTokens_, M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_},
-            
-        p_sorted_token_ids{p_sorted_token_ids_},
-        p_sorted_expert_ids{p_sorted_expert_ids_},
-        p_max_token_id{p_max_token_id_},
+            : Problem{NumTokens_, TopK_, M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_},
+              p_sorted_token_ids{p_sorted_token_ids_},
+              p_sorted_expert_ids{p_sorted_expert_ids_},
+              p_max_token_id{p_max_token_id_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
               p_ds_grid{},
@@ -1135,7 +1139,7 @@ struct GridwiseMoeGemmScatter
     {
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
-            problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
+            problem.NumTokens, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
 
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(problem.BN0Shuffled, problem.BK0Shuffled);
@@ -1151,12 +1155,25 @@ struct GridwiseMoeGemmScatter
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);     
         const index_t token0 = __builtin_amdgcn_readfirstlane(p_sorted_token_ids[block_m_id * MPerBlock] & 0xffffff);
         
-        const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
-        const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
+        // constexpr auto M0 = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
+        constexpr auto AMThreads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
+        constexpr auto AK0Threads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);
+        constexpr auto AK1Threads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I2);
+        constexpr auto AKThreads = AK0Threads * AK1Threads;
+        constexpr auto AMRepeats = MPerBlock / AMThreads;
+        const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
                 
-        if(m_block_data_idx_on_grid >= max_token_id || token0 >= problem.NumTokens)
+        if(token_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
+        StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
+        static_for<0, AMRepeats, 1>{}([&](auto m0) {
+            const index_t token_offset = (token_pos + m0 < max_token_id) ?
+                                            (p_sorted_token_ids[token_pos + m0] & 0xffffff) : problem.NumTokens;
+            gather_offsets(m0) = token_offset * problem.K;
+            // printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
+        });
+        const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
+
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
@@ -1177,7 +1194,7 @@ struct GridwiseMoeGemmScatter
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         // A matrix blockwise copy
         auto a_blockwise_copy =
-            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+            ThreadGroupTensorSliceTransfer_v4r1_mod8<ThisThreadBlock,
                                                 AElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
@@ -1198,13 +1215,15 @@ struct GridwiseMoeGemmScatter
                                                 1,
                                                 AThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
+                                                1,
                                                 BlockwiseGemmPipe::GlobalBufferNum>(
                 a_grid_desc_ak0_m_ak1,
-                make_multi_index(0, m_block_data_idx_on_grid, 0),
+                make_multi_index(0, 0, 0),
                 a_element_op,
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
-                ck::tensor_operation::element_wise::PassThrough{});
+                ck::tensor_operation::element_wise::PassThrough{},
+                gather_offsets);
 
         // Thread-wise copy
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack
@@ -1384,11 +1403,11 @@ struct GridwiseMoeGemmScatter
                     using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
                     const DDataType *ptr_ = p_ds_grid[i];
                     // hack logic here to support different kind of strides. todo fix it.
-                    // ascale M, 1; bscale E, N, 1, move ptr to E
+                    // ascale t, 1; bscale E, N, 1, move ptr to E
                     if (i.value == 1) 
                     {
                         ptr_ += expert_id * (problem.StrideDs[1]? problem.StrideDs[1] * problem.N : 1);
-                        // if ( threadIdx.x  ==0)
+                        // if ( threadIdx.x  % 16 ==0)
                         //     printf("bid %d eid %d b eoff %d %f\n", blockIdx.y, expert_id, expert_id * (problem.StrideDs[1]? problem.StrideDs[1] * problem.N : 1), ptr_[0]);
                     }
                     return make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1428,7 +1447,6 @@ struct GridwiseMoeGemmScatter
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-
             constexpr auto EMThreads = CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
             constexpr auto EMRepeats = MPerBlock / EMThreads;
             constexpr auto ENThreads = CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
@@ -1436,10 +1454,12 @@ struct GridwiseMoeGemmScatter
             StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[c_token_pos];
             StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
             // too hack here, 2 specific for topk weights, fixme
-            const float *p_sorted_weights = p_ds_grid[I2];
+            const float *p_sorted_weights_2 = p_ds_grid[I2];
+            const float *p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, EMRepeats, 1>{}([&](auto m0) {
                 scatter_offsets(m0) = (p_sorted_token_ids[c_token_pos + m0] & 0xffffff) * problem.N;
-                scatter_weights(m0) = p_sorted_weights[c_token_pos + m0];
+                scatter_weights(m0) = p_sorted_weights_2[c_token_pos + m0] 
+                    * p_sorted_weights_0[(c_token_pos + m0) * problem.StrideDs[0]];
                 // printf("init off bid %d tid %d m %d off %d\n", blockIdx.y, threadIdx.x, m0(), scatter_offsets(m0));
             });
 
