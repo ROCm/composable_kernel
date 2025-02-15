@@ -17,13 +17,16 @@ namespace host {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename D0DataType,
+          typename D1DataType,
+          typename D2DataType,
           typename AccDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename ComputeTypeA = CDataType,
           typename ComputeTypeB = ComputeTypeA>
-struct ReferenceMoeGemm : public device::BaseOperator
+struct ReferenceMoeGemm2 : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
@@ -31,18 +34,24 @@ struct ReferenceMoeGemm : public device::BaseOperator
         Argument(const Tensor<ck::index_t>& sorted_token_ids,
                  const Tensor<ck::index_t>& expert_ids,
                  const index_t sorted_tile_size,
-                 const Tensor<ADataType>& a_t_k,
+                 const Tensor<ADataType>& a_m_k,
                  const Tensor<BDataType>& b_e_n_k,
-                 Tensor<CDataType>& c_m_n,
+                 const Tensor<D0DataType>& d0,
+                 const Tensor<D1DataType>& d1,
+                 const Tensor<D2DataType>& d2,
+                 Tensor<CDataType>& c_t_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
             : sorted_token_ids_{sorted_token_ids},
               expert_ids_{expert_ids},
               sorted_tile_size_{sorted_tile_size},
-              a_t_k_{a_t_k},
+              a_m_k_{a_m_k},
               b_e_n_k_{b_e_n_k},
-              c_m_n_{c_m_n},
+              d0_{d0},
+              d1_{d1},
+              d2_{d2},
+              c_t_n_{c_t_n},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
@@ -52,9 +61,12 @@ struct ReferenceMoeGemm : public device::BaseOperator
         const Tensor<ck::index_t>& sorted_token_ids_;
         const Tensor<ck::index_t>& expert_ids_;
         index_t sorted_tile_size_;
-        const Tensor<ADataType>& a_t_k_;
+        const Tensor<ADataType>& a_m_k_;
         const Tensor<BDataType>& b_e_n_k_;
-        Tensor<CDataType>& c_m_n_;
+        const Tensor<D0DataType>& d0_;
+        const Tensor<D1DataType>& d1_;
+        const Tensor<D2DataType>& d2_;
+        Tensor<CDataType>& c_t_n_;
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -64,20 +76,21 @@ struct ReferenceMoeGemm : public device::BaseOperator
     // Invoker
     struct Invoker : public device::BaseInvoker
     {
-        using Argument = ReferenceMoeGemm::Argument;
+        using Argument = ReferenceMoeGemm2::Argument;
 
         float Run(const Argument& arg)
         {
+            arg.c_t_n_.SetZero();
             auto f_mk_kn_mn = [&](auto m, auto n) {
-                const int K = arg.a_t_k_.mDesc.GetLengths()[1];
-
+                const int K = arg.a_m_k_.mDesc.GetLengths()[1];
                 AccDataType v_acc{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
                 const int t = arg.sorted_token_ids_(m);
                 const int e = arg.expert_ids_(m / arg.sorted_tile_size_);
-                const int token_cnt = arg.a_t_k_.mDesc.GetLengths()[0];
-                
+                const int token_cnt = arg.c_t_n_.mDesc.GetLengths()[0];
+                D2DataType v_topk_w = arg.d2_(m, 0);  //expert
+
                 if(t < token_cnt) {
                     for(int k = 0; k < K; ++k)
                     {
@@ -85,11 +98,11 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         // if constexpr(is_same_v<AElementwiseOperation,
                         //                     ck::tensor_operation::element_wise::ConvertBF16RTN>)
                         // {
-                        //     ck::tensor_operation::element_wise::PassThrough{}(v_a, arg.a_t_k_(t, k));
+                        //     ck::tensor_operation::element_wise::PassThrough{}(v_a, arg.a_m_k_(m, k));
                         // }
                         if constexpr(is_same_v<ADataType, pk_i4_t>)
                         {
-                            uint8_t i4x2 = arg.a_t_k_(t, k).data;
+                            uint8_t i4x2 = arg.a_t_k_(m, k).data;
                             uint8_t i4    = 0;
                             if(k % 2 == 1)
                                 i4 = (i4x2 >> 0) & 0xf;
@@ -99,9 +112,9 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         }
                         else
                         {
-                            arg.a_element_op_(v_a, arg.a_t_k_(t, k));
+                            arg.a_element_op_(v_a, arg.a_m_k_(m, k));
                         }
-                        // // same for B matrix
+                        // same for B matrix
                         // if constexpr(is_same_v<BElementwiseOperation,
                         //                     ck::tensor_operation::element_wise::ConvertBF16RTN>)
                         // {
@@ -125,18 +138,17 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         v_acc +=
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                     }
+                    CDataType v_c{0};
+                    D0DataType v_d0 = arg.d0_(m, n);  // a
+                    D0DataType v_d1 = arg.d1_(e, n);  // b
+                    arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_topk_w);
+                    arg.c_t_n_(t, n) += v_c;
                 }
 
-                CDataType v_c{0};
-
-                arg.c_element_op_(v_c, v_acc);
-
-                arg.c_m_n_(m, n) = v_c;
             };
-
             make_ParallelTensorFunctor(
-                f_mk_kn_mn, arg.c_m_n_.mDesc.GetLengths()[0], arg.c_m_n_.mDesc.GetLengths()[1])(
-                std::thread::hardware_concurrency());
+                f_mk_kn_mn, arg.a_m_k_.mDesc.GetLengths()[0], arg.c_t_n_.mDesc.GetLengths()[1])(
+                1);
 
             return 0;
         }
@@ -159,14 +171,17 @@ struct ReferenceMoeGemm : public device::BaseOperator
     static auto MakeArgument(const Tensor<ck::index_t>& sorted_token_ids,
                              const Tensor<ck::index_t>& expert_ids,
                              const index_t sorted_tile_size,
-                             const Tensor<ADataType>& a_t_k,
+                             const Tensor<ADataType>& a_m_k,
                              const Tensor<BDataType>& b_e_n_k,
-                             Tensor<CDataType>& c_m_n,
+                             const Tensor<D0DataType>& d0,
+                             const Tensor<D1DataType>& d1,
+                             const Tensor<D2DataType>& d2,
+                             Tensor<CDataType>& c_t_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{sorted_token_ids, expert_ids, sorted_tile_size, a_t_k, b_e_n_k, c_m_n, a_element_op, b_element_op, c_element_op};
+        return Argument{sorted_token_ids, expert_ids, sorted_tile_size, a_m_k, b_e_n_k, d0, d1, d2, c_t_n, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -181,7 +196,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
         auto str = std::stringstream();
 
         // clang-format off
-        str << "ReferenceMoeGemm"
+        str << "ReferenceMoeGemm2"
             << std::endl;
         // clang-format on
 
