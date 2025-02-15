@@ -6,3 +6,4 @@ add_example_executable(example_gemm_multiply_multiply_xdl_int8 gemm_multiply_mul
 add_example_executable(example_moe_gemm1 moe_gemm1.cpp)
 add_example_executable(example_moe_gemm2 moe_gemm2.cpp)
 add_example_executable(example_moe_pk_i4_gemm1 moe_pk_i4_gemm1.cpp)
+add_example_executable(example_moe_pk_i4_gemm2 moe_pk_i4_gemm2.cpp)

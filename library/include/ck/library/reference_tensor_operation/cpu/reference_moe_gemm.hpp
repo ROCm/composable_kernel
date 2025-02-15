@@ -110,7 +110,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         }
                         else
                         {
-                            arg.b_element_op_(v_b, arg.b_e_n_k_(e, n, k));
+                            arg.b_element_op_(v_b, arg.b_e_n_k_(e, k, n));
                         }
 
                         v_acc +=

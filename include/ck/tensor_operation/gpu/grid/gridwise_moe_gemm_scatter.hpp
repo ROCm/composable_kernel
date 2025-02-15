@@ -194,6 +194,20 @@ struct GridwiseMoeGemmScatter
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
+    static constexpr index_t APackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     __host__ static auto CalculateGridSize(index_t M, index_t N)
     {
         return std::make_tuple(math::integer_divide_ceil(N, NPerBlock),
@@ -380,6 +394,10 @@ struct GridwiseMoeGemmScatter
         }();
 
         using GemmSpecialization = tensor_operation::device::GemmSpecialization;
+
+        static_assert(!(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> &&
+                        GemmSpec != GemmSpecialization::Default),
+                      "pk_i4_t does not support padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -670,7 +688,7 @@ struct GridwiseMoeGemmScatter
         {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = k_id * karg.KRead;
+                a_k_split_offset = k_id * karg.KRead / APackedSize;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
@@ -684,7 +702,7 @@ struct GridwiseMoeGemmScatter
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
                 // KPack * NLane * KLane * K0 * N0
-                b_k_split_offset = k_id * karg.KRead * NLane;
+                b_k_split_offset = k_id * karg.KRead * NLane / BPackedSize;
             }
 
             if(k_id < karg.KBatch - 1)
@@ -714,7 +732,7 @@ struct GridwiseMoeGemmScatter
         // in some cases.
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            constexpr auto MLdsLayer        = 32 * 4 / KPerBlock / sizeof(LDSTypeA) < 1
+            constexpr auto MLdsLayer        = 32 * 4 / KPerBlock / sizeof(LDSTypeA) / APackedSize < 1
                                                   ? 1
                                                   : 32 * 4 / KPerBlock / sizeof(LDSTypeA);
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
@@ -864,8 +882,8 @@ struct GridwiseMoeGemmScatter
                                 BlkGemmPipelineVer,
                                 BlkGemmPipeSched,
                                 BlockSize,
-                                LDSTypeA,
-                                LDSTypeB,
+                                ADataType,
+                                BDataType,
                                 ComputeTypeA,
                                 AccDataType,
                                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
@@ -1158,7 +1176,7 @@ struct GridwiseMoeGemmScatter
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
+            p_b_grid + expert_id * expert_stride / BPackedSize, b_grid_desc_bpreshuffled.GetElementSpaceSize());
         // if(threadIdx.x==0)
         // printf("tid %d eid %d expert_stride %d bufsize %d\n",
         // threadIdx.x, expert_id, expert_stride, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -1211,7 +1229,8 @@ struct GridwiseMoeGemmScatter
             decltype(b_grid_desc_bpreshuffled),
             decltype(b_block_desc_bk0_n_bk1),
             Sequence<Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}>,
-            Sequence<0, 1, 2, 3>,
+            // Sequence<0, 1, 2, 3>,
+            Sequence<1, 2, 0, 3>,
             3,
             BBlockTransferSrcScalarPerVector,
             BThreadTransferSrcResetCoordinateAfterRun,

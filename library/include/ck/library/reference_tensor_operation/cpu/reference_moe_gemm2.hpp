@@ -98,21 +98,29 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                 if(t < token_cnt) {
                     for(int k = 0; k < K; ++k)
                     {
-                        // use PassThrough instead of ConvertBF16RTN for reference calculation
-                        if constexpr(is_same_v<AElementwiseOperation,
-                                            ck::tensor_operation::element_wise::ConvertBF16RTN>)
+                        if constexpr(is_same_v<ADataType, pk_i4_t>)
                         {
-                            ck::tensor_operation::element_wise::PassThrough{}(v_a, arg.a_t_k_k_(t, topk_id, k));
+                            uint8_t i4x2 = arg.a_t_k_(m, k).data;
+                            uint8_t i4   = 0;
+                            if(k % 2 == 1)
+                                i4 = (i4x2 >> 0) & 0xf;
+                            else
+                                i4 = (i4x2 >> 4) & 0xf;
+                            v_a = i4_to_f32_gfx9(i4);
                         }
                         else
                         {
                             arg.a_element_op_(v_a, arg.a_t_k_k_(t, topk_id, k));
                         }
-                        // same for B matrix
-                        if constexpr(is_same_v<BElementwiseOperation,
-                                            ck::tensor_operation::element_wise::ConvertBF16RTN>)
+                        if constexpr(is_same_v<BDataType, pk_i4_t>)
                         {
-                            ck::tensor_operation::element_wise::PassThrough{}(v_b, arg.b_e_n_k_(e, n, k));
+                            uint8_t i4x2 = arg.b_e_n_k_(e, k, n).data;
+                            uint8_t i4   = 0;
+                            if(k % 2 == 1)
+                                i4 = (i4x2 >> 0) & 0xf;
+                            else
+                                i4 = (i4x2 >> 4) & 0xf;
+                            v_b = i4_to_f32_gfx9(i4);
                         }
                         else
                         {
@@ -188,6 +196,28 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
         // clang-format on
 
         return str.str();
+    }
+
+    static float i4_to_f32_gfx9(uint8_t i4)
+    {
+        static std::unordered_map<uint8_t, float> u = {{0b1000, -0.5000f},
+                                                       {0b1001, -0.4375f},
+                                                       {0b1010, -0.3750f},
+                                                       {0b1011, -0.3125f},
+                                                       {0b1100, -0.2500f},
+                                                       {0b1101, -0.1875f},
+                                                       {0b1110, -0.1250f},
+                                                       {0b1111, -0.0625f},
+                                                       {0b0, +0.0000f},
+                                                       {0b1, +0.0625f},
+                                                       {0b10, +0.1250f},
+                                                       {0b11, +0.1875f},
+                                                       {0b100, +0.2500f},
+                                                       {0b101, +0.3125f},
+                                                       {0b110, +0.3750f},
+                                                       {0b111, +0.4375f}};
+
+        return u[i4];
     }
 };
 

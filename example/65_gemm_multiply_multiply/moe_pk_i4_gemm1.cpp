@@ -92,7 +92,7 @@ struct MulABScaleSilu
 using CDEElementOp = MulABScale;
 
 #if 1
-void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int NXdl)
+void preShuffleBuffer(const I4* src, I4* dst, int N, int K, int NXdl)
 {
     int KPack = 32;
     int NLane = NXdl;
@@ -124,6 +124,7 @@ void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int 
 }
 #endif
 
+#if 0
 float i4_to_f32_gfx9(uint8_t i4)
 {
     static std::unordered_map<uint8_t, float> u = {{0b1000, -0.5000f},
@@ -145,6 +146,7 @@ float i4_to_f32_gfx9(uint8_t i4)
 
     return u[i4];
 }
+#endif
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
