@@ -200,13 +200,14 @@ int main(int argc, char* argv[])
     {
         // use default case
     }
-    else if(argc == 6)
+    else if(argc == 7)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
         N = std::stoi(argv[4]);
         K = std::stoi(argv[5]);
+        tokens = std::stoi(argv[6]);
     }
     else
     {
@@ -214,7 +215,7 @@ int main(int argc, char* argv[])
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
         printf(
-            "arg4 to 5: N, K\n");
+            "arg4 to 6: N, K, tokens\n");
         exit(0);
     }
 
@@ -244,7 +245,7 @@ int main(int argc, char* argv[])
     int tokenid = 0;
     // sorted_token_ids.mData[0] = 0;
     for (int i = 0; i < sorted_size; i++) {
-        int tile_off = i % valid_size;
+        int tile_off = i % MPerBlock;
         if(tile_off < token_per_tile)
         {
             sorted_token_ids.mData[i] = (tokenid % tokens) | ((tokenid / tokens) << 24);
