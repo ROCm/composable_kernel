@@ -1139,7 +1139,7 @@ struct GridwiseMoeGemmScatter
     {
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
-            problem.NumTokens, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
+            problem.NumTokens * problem.TopK, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
 
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(problem.BN0Shuffled, problem.BK0Shuffled);
@@ -1459,7 +1459,7 @@ struct GridwiseMoeGemmScatter
             static_for<0, EMRepeats, 1>{}([&](auto m0) {
                 scatter_offsets(m0) = (p_sorted_token_ids[c_token_pos + m0] & 0xffffff) * problem.N;
                 scatter_weights(m0) = p_sorted_weights_2[c_token_pos + m0] 
-                    * p_sorted_weights_0[(c_token_pos + m0) * problem.StrideDs[0]];
+                     * p_sorted_weights_0[(c_token_pos + m0) * problem.StrideDs[0]];
                 // printf("init off bid %d tid %d m %d off %d\n", blockIdx.y, threadIdx.x, m0(), scatter_offsets(m0));
             });
 

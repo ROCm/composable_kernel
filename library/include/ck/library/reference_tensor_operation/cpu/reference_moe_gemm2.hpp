@@ -125,7 +125,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                     CDataType v_c{0};
                     D0DataType v_d0 = arg.d0_(m, n);  // a
                     D0DataType v_d1 = arg.d1_(e, n);  // b
-                    arg.c_element_op_(v_c, v_acc, v_d0 * v_topk_w, v_d1, v_topk_w);
+                    arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_topk_w);
                     arg.c_t_n_(t, n) += v_c;
                 }
 
