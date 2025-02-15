@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// clang-format off
+
+// define the CK_TILE_** macro before include this file to change kernel variation
+// we will undef everything defined in this file
+
 #ifndef CK_TILE_FLATMM_UK_MFMA
 #define CK_TILE_FLATMM_UK_MFMA CK_TILE_FLATMM_UK_MFMA_BF16
 #endif
@@ -159,199 +166,208 @@
     " ds_write_b64 %[v_sfl_sst], [%[c6],%[c7]] offset:23168  \n"
     " s_mov_b32 s80, 0 \n"
     " s_waitcnt vmcnt(24) \n"
-    "label_0AA6: \n"
+    "coreloop_top_%=: \n"
     " s_waitcnt vmcnt(30) & lgkmcnt(0)  \n"
-    " s_barrier \n" _UK_MFMA_ " [%[c0], %[c1], %[c2], %[c3]], acc[0:1], v[128:129], 0  \n"
+    " s_barrier \n"
+    _UK_MFMA_ " [%[c0], %[c1], %[c2], %[c3]], acc[0:1], v[128:129], 0  \n"
     " ds_read_b32 v10, %[v_sfl_sld] offset:16640  \n"
     " ds_read_b32 v11, %[v_sfl_sld] offset:16672  \n"
-    " ds_write_b64 %[v_sfl_sst], [%[c16],%[c17]] offset:25344  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[2:3], v[130:131], v[64:67]  \n"
+    " ds_write_b64 %[v_sfl_sst], [%[c16],%[c17]] offset:25344  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[2:3], v[130:131], v[64:67]  \n"
     " buffer_load_dwordx4 acc[128:131],  %[v_os_b0], s[12:15], 0 offen  \n"
-    " ds_write_b64 %[v_sfl_sst], [%[c18],%[c19]] offset:29696  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[4:5], v[132:133], v[64:67]  \n"
+    " ds_write_b64 %[v_sfl_sst], [%[c18],%[c19]] offset:29696  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[4:5], v[132:133], v[64:67]  \n"
     " ds_read_b32 v12, %[v_sfl_sld] offset:16704  \n"
     " ds_read_b32 v13, %[v_sfl_sld] offset:16736  \n"
-    " ds_write_b64 %[v_sfl_sst], [%[c20],%[c21]] offset:27520  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[6:7], v[134:135], v[64:67]  \n"
-    " ds_write_b64 %[v_sfl_sst], [%[c22],%[c23]] offset:31872  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[8:9], v[136:137], v[64:67]  \n"
+    " ds_write_b64 %[v_sfl_sst], [%[c20],%[c21]] offset:27520  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[6:7], v[134:135], v[64:67]  \n"
+    " ds_write_b64 %[v_sfl_sst], [%[c22],%[c23]] offset:31872  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[8:9], v[136:137], v[64:67]  \n"
     " ds_read_b32 v14, %[v_sfl_sld] offset:20992  \n"
-    " ds_read_b32 v15, %[v_sfl_sld] offset:21024  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[10:11], v[138:139], v[64:67]  \n"
-    " buffer_load_dwordx4 acc[132:135],  %[v_os_b0], s[12:15], 0 offen offset:1024  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[12:13], v[140:141], v[64:67]  \n"
+    " ds_read_b32 v15, %[v_sfl_sld] offset:21024  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[10:11], v[138:139], v[64:67]  \n"
+    " buffer_load_dwordx4 acc[132:135],  %[v_os_b0], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[12:13], v[140:141], v[64:67]  \n"
     " ds_read_b32 v16, %[v_sfl_sld] offset:21056  \n"
-    " ds_read_b32 v17, %[v_sfl_sld] offset:21088  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[14:15], v[142:143], v[64:67]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[0:1], v[192:193], 0  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[2:3], v[194:195], v[68:71]  \n"
-    " buffer_load_dwordx4 acc[136:139],  %[v_os_b0], s[12:15], 0 offen offset:2048  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[4:5], v[196:197], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[6:7], v[198:199], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[8:9], v[200:201], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[10:11], v[202:203], v[68:71]  \n"
-    " buffer_load_dwordx4 acc[140:143],  %[v_os_b0], s[12:15], 0 offen offset:3072  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[12:13], v[204:205], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[14:15], v[206:207], v[68:71]  \n"
+    " ds_read_b32 v17, %[v_sfl_sld] offset:21088  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[14:15], v[142:143], v[64:67]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[0:1], v[192:193], 0  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[2:3], v[194:195], v[68:71]  \n"
+    " buffer_load_dwordx4 acc[136:139],  %[v_os_b0], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[4:5], v[196:197], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[6:7], v[198:199], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[8:9], v[200:201], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[10:11], v[202:203], v[68:71]  \n"
+    " buffer_load_dwordx4 acc[140:143],  %[v_os_b0], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[12:13], v[204:205], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[14:15], v[206:207], v[68:71]  \n"
     " s_waitcnt lgkmcnt(0) \n"
-    " s_mov_b64 exec, %[s_execflag_0] \n" _UK_ATOMIC_ADD_ " %[v_os_o0], v10, s[8:9] \n"
-    "  s_mov_b64     exec, s[38:39]                           \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[16:17], v[128:129], 0  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[18:19], v[130:131], v[72:75]  \n"
-    " buffer_load_dwordx4 acc[144:147],  %[v_os_b1], s[12:15], 0 offen  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[20:21], v[132:133], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[22:23], v[134:135], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[24:25], v[136:137], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[26:27], v[138:139], v[72:75]  \n"
-    " buffer_load_dwordx4 acc[148:151],  %[v_os_b1], s[12:15], 0 offen offset:1024  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[28:29], v[140:141], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[30:31], v[142:143], v[72:75]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[16:17], v[192:193], 0  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[18:19], v[194:195], v[76:79]  \n"
-    " buffer_load_dwordx4 acc[152:155],  %[v_os_b1], s[12:15], 0 offen offset:2048  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[20:21], v[196:197], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[22:23], v[198:199], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[24:25], v[200:201], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[26:27], v[202:203], v[76:79]  \n"
-    " buffer_load_dwordx4 acc[156:159],  %[v_os_b1], s[12:15], 0 offen offset:3072  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[28:29], v[204:205], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[30:31], v[206:207], v[76:79]  \n"
-    " s_mov_b64 exec, %[s_execflag_1] \n" _UK_ATOMIC_ADD_ " %[v_os_o1], v11, s[8:9] \n"
-    "  s_mov_b64     exec, s[38:39]  \n"
-    " s_waitcnt vmcnt(30)   \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[32:33], v[144:145], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[34:35], v[146:147], v[64:67]  \n"
-    " buffer_load_dwordx4 acc[160:163],  %[v_os_b2], s[12:15], 0 offen  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[36:37], v[148:149], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[38:39], v[150:151], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[40:41], v[152:153], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[42:43], v[154:155], v[64:67]  \n"
-    " buffer_load_dwordx4 acc[164:167],  %[v_os_b2], s[12:15], 0 offen offset:1024  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[44:45], v[156:157], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[46:47], v[158:159], v[64:67]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[32:33], v[208:209], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[34:35], v[210:211], v[68:71]  \n"
-    " buffer_load_dwordx4 acc[168:171],  %[v_os_b2], s[12:15], 0 offen offset:2048  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[36:37], v[212:213], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[38:39], v[214:215], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[40:41], v[216:217], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[42:43], v[218:219], v[68:71]  \n"
-    " buffer_load_dwordx4 acc[172:175],  %[v_os_b2], s[12:15], 0 offen offset:3072  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[44:45], v[220:221], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[46:47], v[222:223], v[68:71]  \n"
-    " s_mov_b64 exec, %[s_execflag_2] \n" _UK_ATOMIC_ADD_ " %[v_os_o2], v12, s[8:9] \n"
-    "  s_mov_b64     exec, s[38:39]                           \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[48:49], v[144:145], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[50:51], v[146:147], v[72:75]  \n"
-    " buffer_load_dwordx4 acc[176:179],  %[v_os_b3], s[12:15], 0 offen  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[52:53], v[148:149], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[54:55], v[150:151], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[56:57], v[152:153], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[58:59], v[154:155], v[72:75]  \n"
-    " buffer_load_dwordx4 acc[180:183],  %[v_os_b3], s[12:15], 0 offen offset:1024  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[60:61], v[156:157], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[62:63], v[158:159], v[72:75]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[48:49], v[208:209], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[50:51], v[210:211], v[76:79]  \n"
-    " buffer_load_dwordx4 acc[184:187],  %[v_os_b3], s[12:15], 0 offen offset:2048  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[52:53], v[212:213], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[54:55], v[214:215], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[56:57], v[216:217], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[58:59], v[218:219], v[76:79]  \n"
-    " buffer_load_dwordx4 acc[188:191],  %[v_os_b3], s[12:15], 0 offen offset:3072  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[60:61], v[220:221], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[62:63], v[222:223], v[76:79]  \n"
-    " s_mov_b64 exec, %[s_execflag_3] \n" _UK_ATOMIC_ADD_ " %[v_os_o3], v13, s[8:9] \n"
-    "  s_mov_b64     exec, s[38:39]    \n"
-    " s_waitcnt vmcnt(30)   \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[64:65], v[160:161], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[66:67], v[162:163], v[64:67]  \n"
-    " buffer_load_dwordx4 acc[192:195],  %[v_os_b4], s[12:15], 0 offen  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[68:69], v[164:165], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[70:71], v[166:167], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[72:73], v[168:169], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[74:75], v[170:171], v[64:67]  \n"
-    " buffer_load_dwordx4 acc[196:199],  %[v_os_b4], s[12:15], 0 offen offset:1024  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[76:77], v[172:173], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[78:79], v[174:175], v[64:67]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[64:65], v[224:225], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[66:67], v[226:227], v[68:71]  \n"
-    " buffer_load_dwordx4 acc[200:203],  %[v_os_b4], s[12:15], 0 offen offset:2048  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[68:69], v[228:229], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[70:71], v[230:231], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[72:73], v[232:233], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[74:75], v[234:235], v[68:71]  \n"
-    " buffer_load_dwordx4 acc[204:207],  %[v_os_b4], s[12:15], 0 offen offset:3072  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[76:77], v[236:237], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[78:79], v[238:239], v[68:71]  \n"
-    " s_mov_b64 exec, %[s_execflag_4] \n" _UK_ATOMIC_ADD_ " %[v_os_o4], v14, s[8:9] \n"
-    "  s_mov_b64     exec, s[38:39]                           \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[80:81], v[160:161], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[82:83], v[162:163], v[72:75]  \n"
-    " buffer_load_dwordx4 acc[208:211],  %[v_os_b5], s[12:15], 0 offen  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[84:85], v[164:165], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[86:87], v[166:167], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[88:89], v[168:169], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[90:91], v[170:171], v[72:75]  \n"
-    " buffer_load_dwordx4 acc[212:215],  %[v_os_b5], s[12:15], 0 offen offset:1024  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[92:93], v[172:173], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[94:95], v[174:175], v[72:75]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[80:81], v[224:225], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[82:83], v[226:227], v[76:79]  \n"
-    " buffer_load_dwordx4 acc[216:219],  %[v_os_b5], s[12:15], 0 offen offset:2048  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[84:85], v[228:229], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[86:87], v[230:231], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[88:89], v[232:233], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[90:91], v[234:235], v[76:79]  \n"
-    " buffer_load_dwordx4 acc[220:223],  %[v_os_b5], s[12:15], 0 offen offset:3072  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[92:93], v[236:237], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[94:95], v[238:239], v[76:79]  \n"
-    " s_mov_b64 exec, %[s_execflag_5] \n" _UK_ATOMIC_ADD_ " %[v_os_o5], v15, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_0] \n"
+    _UK_ATOMIC_ADD_ " %[v_os_o0], v10, s[8:9] \n"
     "  s_mov_b64     exec, s[38:39]                           \n"
-    " s_waitcnt vmcnt(30)   \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[96:97], v[176:177], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[98:99], v[178:179], v[64:67]  \n"
-    " buffer_load_dwordx4 acc[224:227],  %[v_os_b6], s[12:15], 0 offen  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[100:101], v[180:181], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[102:103], v[182:183], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[104:105], v[184:185], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[106:107], v[186:187], v[64:67]  \n"
-    " buffer_load_dwordx4 acc[228:231],  %[v_os_b6], s[12:15], 0 offen offset:1024  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[108:109], v[188:189], v[64:67]  \n" _UK_MFMA_
-    " [%[c0], %[c1], %[c2], %[c3]], acc[110:111], v[190:191], v[64:67]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[96:97], v[240:241], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[98:99], v[242:243], v[68:71]  \n"
-    " buffer_load_dwordx4 acc[232:235],  %[v_os_b6], s[12:15], 0 offen offset:2048  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[100:101], v[244:245], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[102:103], v[246:247], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[104:105], v[248:249], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[106:107], v[250:251], v[68:71]  \n"
-    " buffer_load_dwordx4 acc[236:239],  %[v_os_b6], s[12:15], 0 offen offset:3072  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[108:109], v[252:253], v[68:71]  \n" _UK_MFMA_
-    " [%[c4], %[c5], %[c6], %[c7]], acc[110:111], v[254:255], v[68:71]  \n"
-    " s_mov_b64 exec, %[s_execflag_6] \n" _UK_ATOMIC_ADD_ " %[v_os_o6], v16, s[8:9] \n"
-    "  s_mov_b64     exec, s[38:39]                           \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[112:113], v[176:177], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[114:115], v[178:179], v[72:75]  \n"
-    " buffer_load_dwordx4 acc[240:243],  %[v_os_b7], s[12:15], 0 offen  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[116:117], v[180:181], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[118:119], v[182:183], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[120:121], v[184:185], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[122:123], v[186:187], v[72:75]  \n"
-    " buffer_load_dwordx4 acc[244:247],  %[v_os_b7], s[12:15], 0 offen offset:1024  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[124:125], v[188:189], v[72:75]  \n" _UK_MFMA_
-    " [%[c8], %[c9], %[c10], %[c11]], acc[126:127], v[190:191], v[72:75]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[112:113], v[240:241], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[114:115], v[242:243], v[76:79]  \n"
-    " buffer_load_dwordx4 acc[248:251],  %[v_os_b7], s[12:15], 0 offen offset:2048  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[116:117], v[244:245], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[118:119], v[246:247], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[120:121], v[248:249], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[122:123], v[250:251], v[76:79]  \n"
-    " buffer_load_dwordx4 acc[252:255],  %[v_os_b7], s[12:15], 0 offen offset:3072  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[124:125], v[252:253], v[76:79]  \n" _UK_MFMA_
-    " [%[c12], %[c13], %[c14], %[c15]], acc[126:127], v[254:255], v[76:79]  \n"
-    " s_mov_b64 exec, %[s_execflag_7] \n" _UK_ATOMIC_ADD_ " %[v_os_o7], v17, s[8:9] \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[16:17], v[128:129], 0  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[18:19], v[130:131], v[72:75]  \n"
+    " buffer_load_dwordx4 acc[144:147],  %[v_os_b1], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[20:21], v[132:133], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[22:23], v[134:135], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[24:25], v[136:137], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[26:27], v[138:139], v[72:75]  \n"
+    " buffer_load_dwordx4 acc[148:151],  %[v_os_b1], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[28:29], v[140:141], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[30:31], v[142:143], v[72:75]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[16:17], v[192:193], 0  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[18:19], v[194:195], v[76:79]  \n"
+    " buffer_load_dwordx4 acc[152:155],  %[v_os_b1], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[20:21], v[196:197], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[22:23], v[198:199], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[24:25], v[200:201], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[26:27], v[202:203], v[76:79]  \n"
+    " buffer_load_dwordx4 acc[156:159],  %[v_os_b1], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[28:29], v[204:205], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[30:31], v[206:207], v[76:79]  \n"
+    " s_mov_b64 exec, %[s_execflag_1] \n"
+    _UK_ATOMIC_ADD_ " %[v_os_o1], v11, s[8:9] \n"
+    "  s_mov_b64     exec, s[38:39]  \n"
+    " s_waitcnt vmcnt(30)   \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[32:33], v[144:145], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[34:35], v[146:147], v[64:67]  \n"
+    " buffer_load_dwordx4 acc[160:163],  %[v_os_b2], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[36:37], v[148:149], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[38:39], v[150:151], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[40:41], v[152:153], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[42:43], v[154:155], v[64:67]  \n"
+    " buffer_load_dwordx4 acc[164:167],  %[v_os_b2], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[44:45], v[156:157], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[46:47], v[158:159], v[64:67]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[32:33], v[208:209], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[34:35], v[210:211], v[68:71]  \n"
+    " buffer_load_dwordx4 acc[168:171],  %[v_os_b2], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[36:37], v[212:213], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[38:39], v[214:215], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[40:41], v[216:217], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[42:43], v[218:219], v[68:71]  \n"
+    " buffer_load_dwordx4 acc[172:175],  %[v_os_b2], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[44:45], v[220:221], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[46:47], v[222:223], v[68:71]  \n"
+    " s_mov_b64 exec, %[s_execflag_2] \n"
+    _UK_ATOMIC_ADD_ " %[v_os_o2], v12, s[8:9] \n"
+    "  s_mov_b64     exec, s[38:39]                           \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[48:49], v[144:145], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[50:51], v[146:147], v[72:75]  \n"
+    " buffer_load_dwordx4 acc[176:179],  %[v_os_b3], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[52:53], v[148:149], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[54:55], v[150:151], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[56:57], v[152:153], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[58:59], v[154:155], v[72:75]  \n"
+    " buffer_load_dwordx4 acc[180:183],  %[v_os_b3], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[60:61], v[156:157], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[62:63], v[158:159], v[72:75]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[48:49], v[208:209], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[50:51], v[210:211], v[76:79]  \n"
+    " buffer_load_dwordx4 acc[184:187],  %[v_os_b3], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[52:53], v[212:213], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[54:55], v[214:215], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[56:57], v[216:217], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[58:59], v[218:219], v[76:79]  \n"
+    " buffer_load_dwordx4 acc[188:191],  %[v_os_b3], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[60:61], v[220:221], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[62:63], v[222:223], v[76:79]  \n"
+    " s_mov_b64 exec, %[s_execflag_3] \n"
+    _UK_ATOMIC_ADD_ " %[v_os_o3], v13, s[8:9] \n"
+    "  s_mov_b64     exec, s[38:39]    \n"
+    " s_waitcnt vmcnt(30)   \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[64:65], v[160:161], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[66:67], v[162:163], v[64:67]  \n"
+    " buffer_load_dwordx4 acc[192:195],  %[v_os_b4], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[68:69], v[164:165], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[70:71], v[166:167], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[72:73], v[168:169], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[74:75], v[170:171], v[64:67]  \n"
+    " buffer_load_dwordx4 acc[196:199],  %[v_os_b4], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[76:77], v[172:173], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[78:79], v[174:175], v[64:67]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[64:65], v[224:225], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[66:67], v[226:227], v[68:71]  \n"
+    " buffer_load_dwordx4 acc[200:203],  %[v_os_b4], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[68:69], v[228:229], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[70:71], v[230:231], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[72:73], v[232:233], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[74:75], v[234:235], v[68:71]  \n"
+    " buffer_load_dwordx4 acc[204:207],  %[v_os_b4], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[76:77], v[236:237], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[78:79], v[238:239], v[68:71]  \n"
+    " s_mov_b64 exec, %[s_execflag_4] \n"
+    _UK_ATOMIC_ADD_ " %[v_os_o4], v14, s[8:9] \n"
+    "  s_mov_b64     exec, s[38:39]                           \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[80:81], v[160:161], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[82:83], v[162:163], v[72:75]  \n"
+    " buffer_load_dwordx4 acc[208:211],  %[v_os_b5], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[84:85], v[164:165], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[86:87], v[166:167], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[88:89], v[168:169], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[90:91], v[170:171], v[72:75]  \n"
+    " buffer_load_dwordx4 acc[212:215],  %[v_os_b5], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[92:93], v[172:173], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[94:95], v[174:175], v[72:75]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[80:81], v[224:225], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[82:83], v[226:227], v[76:79]  \n"
+    " buffer_load_dwordx4 acc[216:219],  %[v_os_b5], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[84:85], v[228:229], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[86:87], v[230:231], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[88:89], v[232:233], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[90:91], v[234:235], v[76:79]  \n"
+    " buffer_load_dwordx4 acc[220:223],  %[v_os_b5], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[92:93], v[236:237], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[94:95], v[238:239], v[76:79]  \n"
+    " s_mov_b64 exec, %[s_execflag_5] \n"
+    _UK_ATOMIC_ADD_ " %[v_os_o5], v15, s[8:9] \n"
+    "  s_mov_b64     exec, s[38:39]                           \n"
+    " s_waitcnt vmcnt(30)   \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[96:97], v[176:177], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[98:99], v[178:179], v[64:67]  \n"
+    " buffer_load_dwordx4 acc[224:227],  %[v_os_b6], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[100:101], v[180:181], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[102:103], v[182:183], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[104:105], v[184:185], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[106:107], v[186:187], v[64:67]  \n"
+    " buffer_load_dwordx4 acc[228:231],  %[v_os_b6], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[108:109], v[188:189], v[64:67]  \n"
+    _UK_MFMA_    " [%[c0], %[c1], %[c2], %[c3]], acc[110:111], v[190:191], v[64:67]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[96:97], v[240:241], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[98:99], v[242:243], v[68:71]  \n"
+    " buffer_load_dwordx4 acc[232:235],  %[v_os_b6], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[100:101], v[244:245], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[102:103], v[246:247], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[104:105], v[248:249], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[106:107], v[250:251], v[68:71]  \n"
+    " buffer_load_dwordx4 acc[236:239],  %[v_os_b6], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[108:109], v[252:253], v[68:71]  \n"
+    _UK_MFMA_    " [%[c4], %[c5], %[c6], %[c7]], acc[110:111], v[254:255], v[68:71]  \n"
+    " s_mov_b64 exec, %[s_execflag_6] \n"
+    _UK_ATOMIC_ADD_ " %[v_os_o6], v16, s[8:9] \n"
+    "  s_mov_b64     exec, s[38:39]                           \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[112:113], v[176:177], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[114:115], v[178:179], v[72:75]  \n"
+    " buffer_load_dwordx4 acc[240:243],  %[v_os_b7], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[116:117], v[180:181], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[118:119], v[182:183], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[120:121], v[184:185], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[122:123], v[186:187], v[72:75]  \n"
+    " buffer_load_dwordx4 acc[244:247],  %[v_os_b7], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[124:125], v[188:189], v[72:75]  \n"
+    _UK_MFMA_    " [%[c8], %[c9], %[c10], %[c11]], acc[126:127], v[190:191], v[72:75]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[112:113], v[240:241], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[114:115], v[242:243], v[76:79]  \n"
+    " buffer_load_dwordx4 acc[248:251],  %[v_os_b7], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[116:117], v[244:245], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[118:119], v[246:247], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[120:121], v[248:249], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[122:123], v[250:251], v[76:79]  \n"
+    " buffer_load_dwordx4 acc[252:255],  %[v_os_b7], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[124:125], v[252:253], v[76:79]  \n"
+    _UK_MFMA_    " [%[c12], %[c13], %[c14], %[c15]], acc[126:127], v[254:255], v[76:79]  \n"
+    " s_mov_b64 exec, %[s_execflag_7] \n"
+    _UK_ATOMIC_ADD_ " %[v_os_o7], v17, s[8:9] \n"
     "  s_mov_b64     exec, s[38:39]                           \n"
     " s_add_u32 s60, 0x00000100, s80  \n"
     " s_cmp_lt_u32 s60, %[s_loop_cnt]  \n"
@@ -377,393 +393,333 @@
     " v_mul_f32 %[c12], %[scale_1], %[c12] \n"
     " v_mul_f32 %[c13], %[scale_1], %[c13] \n"
     " v_mul_f32 %[c14], %[scale_1], %[c14] \n"
-    " v_mul_f32 %[c15], %[scale_1], %[c15] \n" _UK_PK_CVT_("%[c0]", "%[c1]", "%[c0]") _UK_PK_CVT_(
-        "%[c2]",
-        "%[c3]",
-        "%[c1]") _UK_PK_CVT_("%[c4]",
-                             "%[c5]",
-                             "%[c2]") _UK_PK_CVT_("%[c6]",
-                                                  "%[c7]",
-                                                  "%[c3]") _UK_PK_CVT_("%[c8]",
-                                                                       "%[c9]",
-                                                                       "%[c4]") _UK_PK_CVT_("%["
-                                                                                            "c10]",
-                                                                                            "%["
-                                                                                            "c11]",
-                                                                                            "%[c5]")
-        _UK_PK_CVT_("%[c12]", "%[c13]", "%[c6]") _UK_PK_CVT_(
-            "%[c14]",
-            "%[c15]",
-            "%[c7]") " s_addk_i32 s80, 0x0080  \n"
-                     " s_cmp_lt_i32 s80, %[s_loop_cnt]  \n"
-                     " s_cbranch_scc0 label_0EC1  \n"
-                     " s_waitcnt vmcnt(30) & lgkmcnt(0)  \n"
-                     " s_barrier  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[128:129], v[128:129], 0  \n"
-                     " ds_read_b32 v10, %[v_sfl_sld] offset:25344  \n"
-                     " ds_read_b32 v11, %[v_sfl_sld] offset:25376  \n"
-                     " ds_write_b64 v3, v[64:65] offset:16640  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[130:131], v[130:131], v[80:83]  \n"
-                     " buffer_load_dwordx4 acc[0:3],  %[v_os_b0], s[12:15], 0 offen  \n"
-                     " ds_write_b64 v3, v[66:67] offset:20992  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[132:133], v[132:133], v[80:83]  \n"
-                     " ds_read_b32 v12, %[v_sfl_sld] offset:25408  \n"
-                     " ds_read_b32 v13, %[v_sfl_sld] offset:25440  \n"
-                     " ds_write_b64 v3, v[68:69] offset:18816  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[134:135], v[134:135], v[80:83]  \n"
-                     " ds_write_b64 v3, v[70:71] offset:23168  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[136:137], v[136:137], v[80:83]  \n"
-                     " ds_read_b32 v14, %[v_sfl_sld] offset:29696  \n"
-                     " ds_read_b32 v15, %[v_sfl_sld] offset:29728  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[138:139], v[138:139], v[80:83]  \n"
-                     " buffer_load_dwordx4 acc[4:7],  %[v_os_b0], s[12:15], 0 offen offset:1024  "
-                     "\n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[140:141], v[140:141], v[80:83]  \n"
-                     " ds_read_b32 v16, %[v_sfl_sld] offset:29760  \n"
-                     " ds_read_b32 v17, %[v_sfl_sld] offset:29792  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[142:143], v[142:143], v[80:83]  "
-                     "\n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[128:129], v[192:193], 0  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[130:131], v[194:195], v[84:87]  \n"
-                     " buffer_load_dwordx4 acc[8:11],  %[v_os_b0], s[12:15], 0 offen offset:2048  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[132:133], v[196:197], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[134:135], v[198:199], v[84:87]  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[136:137], v[200:201], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[138:139], v[202:203], v[84:87]  \n"
-                     " buffer_load_dwordx4 acc[12:15],  %[v_os_b0], s[12:15], 0 offen offset:3072  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[140:141], v[204:205], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[142:143], v[206:207], v[84:87]  \n"
-                     " s_waitcnt lgkmcnt(0) \n"
-                     " s_mov_b64 exec, %[s_execflag_0] \n" _UK_ATOMIC_ADD_
-                     " %[v_os_o0], v10, s[8:9] \n"
-                     "  s_mov_b64     exec, s[38:39]                           \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[144:145], v[128:129], 0  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[146:147], v[130:131], v[88:91]  \n"
-                     " buffer_load_dwordx4 acc[16:19],  %[v_os_b1], s[12:15], 0 offen  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[148:149], v[132:133], v[88:91]  "
-                     "\n" _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[150:151], v[134:135], "
-                     "v[88:91]  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[152:153], v[136:137], v[88:91]  "
-                     "\n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[154:155], v[138:139], v[88:91]  \n"
-                     " buffer_load_dwordx4 acc[20:23],  %[v_os_b1], s[12:15], 0 offen offset:1024  "
-                     "\n" _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[156:157], v[140:141], "
-                     "v[88:91]  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[158:159], v[142:143], v[88:91]  "
-                     "\n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[144:145], v[192:193], 0  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[146:147], v[194:195], v[92:95]  \n"
-                     " buffer_load_dwordx4 acc[24:27],  %[v_os_b1], s[12:15], 0 offen offset:2048  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[148:149], v[196:197], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[150:151], v[198:199], v[92:95]  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[152:153], v[200:201], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[154:155], v[202:203], v[92:95]  \n"
-                     " buffer_load_dwordx4 acc[28:31],  %[v_os_b1], s[12:15], 0 offen offset:3072  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[156:157], v[204:205], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[158:159], v[206:207], v[92:95]  \n"
-                     " s_mov_b64 exec, %[s_execflag_1] \n" _UK_ATOMIC_ADD_
-                     " %[v_os_o1], v11, s[8:9] \n"
-                     "  s_mov_b64     exec, s[38:39]                           \n"
-                     " s_waitcnt vmcnt(30) \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[160:161], v[144:145], v[80:83]  "
-                     "\n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[162:163], v[146:147], v[80:83]  \n"
-                     " buffer_load_dwordx4 acc[32:35],  %[v_os_b2], s[12:15], 0 offen  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[164:165], v[148:149], v[80:83]  "
-                     "\n" _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[166:167], v[150:151], "
-                     "v[80:83]  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[168:169], v[152:153], v[80:83]  "
-                     "\n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[170:171], v[154:155], v[80:83]  \n"
-                     " buffer_load_dwordx4 acc[36:39],  %[v_os_b2], s[12:15], 0 offen offset:1024  "
-                     "\n" _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[172:173], v[156:157], "
-                     "v[80:83]  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[174:175], v[158:159], v[80:83]  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[160:161], v[208:209], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[162:163], v[210:211], v[84:87]  \n"
-                     " buffer_load_dwordx4 acc[40:43],  %[v_os_b2], s[12:15], 0 offen offset:2048  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[164:165], v[212:213], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[166:167], v[214:215], v[84:87]  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[168:169], v[216:217], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[170:171], v[218:219], v[84:87]  \n"
-                     " buffer_load_dwordx4 acc[44:47],  %[v_os_b2], s[12:15], 0 offen offset:3072  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[172:173], v[220:221], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[174:175], v[222:223], v[84:87]  \n"
-                     " s_mov_b64 exec, %[s_execflag_2] \n" _UK_ATOMIC_ADD_
-                     " %[v_os_o2], v12, s[8:9] \n"
-                     "  s_mov_b64     exec, s[38:39]                           \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[176:177], v[144:145], v[88:91]  "
-                     "\n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[178:179], v[146:147], v[88:91]  \n"
-                     " buffer_load_dwordx4 acc[48:51],  %[v_os_b3], s[12:15], 0 offen  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[180:181], v[148:149], v[88:91]  "
-                     "\n" _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[182:183], v[150:151], "
-                     "v[88:91]  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[184:185], v[152:153], v[88:91]  "
-                     "\n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[186:187], v[154:155], v[88:91]  \n"
-                     " buffer_load_dwordx4 acc[52:55],  %[v_os_b3], s[12:15], 0 offen offset:1024  "
-                     "\n" _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[188:189], v[156:157], "
-                     "v[88:91]  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[190:191], v[158:159], v[88:91]  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[176:177], v[208:209], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[178:179], v[210:211], v[92:95]  \n"
-                     " buffer_load_dwordx4 acc[56:59],  %[v_os_b3], s[12:15], 0 offen offset:2048  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[180:181], v[212:213], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[182:183], v[214:215], v[92:95]  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[184:185], v[216:217], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[186:187], v[218:219], v[92:95]  \n"
-                     " buffer_load_dwordx4 acc[60:63],  %[v_os_b3], s[12:15], 0 offen offset:3072  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[188:189], v[220:221], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[190:191], v[222:223], v[92:95]  \n"
-                     " s_mov_b64 exec, %[s_execflag_3] \n" _UK_ATOMIC_ADD_
-                     " %[v_os_o3], v13, s[8:9] \n"
-                     "  s_mov_b64     exec, s[38:39]                           \n"
-                     " s_waitcnt vmcnt(30) \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[192:193], v[160:161], v[80:83]  "
-                     "\n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[194:195], v[162:163], v[80:83]  \n"
-                     " buffer_load_dwordx4 acc[64:67],  %[v_os_b4], s[12:15], 0 offen  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[196:197], v[164:165], v[80:83]  "
-                     "\n" _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[198:199], v[166:167], "
-                     "v[80:83]  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[200:201], v[168:169], v[80:83]  "
-                     "\n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[202:203], v[170:171], v[80:83]  \n"
-                     " buffer_load_dwordx4 acc[68:71],  %[v_os_b4], s[12:15], 0 offen offset:1024  "
-                     "\n" _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[204:205], v[172:173], "
-                     "v[80:83]  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[206:207], v[174:175], v[80:83]  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[192:193], v[224:225], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[194:195], v[226:227], v[84:87]  \n"
-                     " buffer_load_dwordx4 acc[72:75],  %[v_os_b4], s[12:15], 0 offen offset:2048  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[196:197], v[228:229], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[198:199], v[230:231], v[84:87]  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[200:201], v[232:233], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[202:203], v[234:235], v[84:87]  \n"
-                     " buffer_load_dwordx4 acc[76:79],  %[v_os_b4], s[12:15], 0 offen offset:3072  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[204:205], v[236:237], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[206:207], v[238:239], v[84:87]  \n"
-                     " s_mov_b64 exec, %[s_execflag_4] \n" _UK_ATOMIC_ADD_
-                     " %[v_os_o4], v14, s[8:9] \n"
-                     "  s_mov_b64     exec, s[38:39]                           \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[208:209], v[160:161], v[88:91]  "
-                     "\n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[210:211], v[162:163], v[88:91]  \n"
-                     " buffer_load_dwordx4 acc[80:83],  %[v_os_b5], s[12:15], 0 offen  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[212:213], v[164:165], v[88:91]  "
-                     "\n" _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[214:215], v[166:167], "
-                     "v[88:91]  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[216:217], v[168:169], v[88:91]  "
-                     "\n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[218:219], v[170:171], v[88:91]  \n"
-                     " buffer_load_dwordx4 acc[84:87],  %[v_os_b5], s[12:15], 0 offen offset:1024  "
-                     "\n" _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[220:221], v[172:173], "
-                     "v[88:91]  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[222:223], v[174:175], v[88:91]  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[208:209], v[224:225], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[210:211], v[226:227], v[92:95]  \n"
-                     " buffer_load_dwordx4 acc[88:91],  %[v_os_b5], s[12:15], 0 offen offset:2048  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[212:213], v[228:229], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[214:215], v[230:231], v[92:95]  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[216:217], v[232:233], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[218:219], v[234:235], v[92:95]  \n"
-                     " buffer_load_dwordx4 acc[92:95],  %[v_os_b5], s[12:15], 0 offen offset:3072  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[220:221], v[236:237], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[222:223], v[238:239], v[92:95]  \n"
-                     " s_mov_b64 exec, %[s_execflag_5] \n" _UK_ATOMIC_ADD_
-                     " %[v_os_o5], v15, s[8:9] \n"
-                     "  s_mov_b64     exec, s[38:39]                           \n"
-                     " s_waitcnt vmcnt(30)  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[224:225], v[176:177], v[80:83]  "
-                     "\n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[226:227], v[178:179], v[80:83]  \n"
-                     " buffer_load_dwordx4 acc[96:99],  %[v_os_b6], s[12:15], 0 offen  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[228:229], v[180:181], v[80:83]  "
-                     "\n" _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[230:231], v[182:183], "
-                     "v[80:83]  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[232:233], v[184:185], v[80:83]  "
-                     "\n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[234:235], v[186:187], v[80:83]  \n"
-                     " buffer_load_dwordx4 acc[100:103],  %[v_os_b6], s[12:15], 0 offen "
-                     "offset:1024  \n" _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[236:237], "
-                     "v[188:189], v[80:83]  \n" _UK_MFMA_
-                     " [%[c16], %[c17], %[c18], %[c19]], acc[238:239], v[190:191], v[80:83]  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[224:225], v[240:241], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[226:227], v[242:243], v[84:87]  \n"
-                     " buffer_load_dwordx4 acc[104:107],  %[v_os_b6], s[12:15], 0 offen "
-                     "offset:2048  \n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[228:229], "
-                     "v[244:245], v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[230:231], v[246:247], v[84:87]  "
-                     "\n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[232:233], v[248:249], "
-                     "v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[234:235], v[250:251], v[84:87]  \n"
-                     " buffer_load_dwordx4 acc[108:111],  %[v_os_b6], s[12:15], 0 offen "
-                     "offset:3072  \n" _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[236:237], "
-                     "v[252:253], v[84:87]  \n" _UK_MFMA_
-                     " [%[c20], %[c21], %[c22], %[c23]], acc[238:239], v[254:255], v[84:87]  \n"
-                     " s_mov_b64 exec, %[s_execflag_6] \n" _UK_ATOMIC_ADD_
-                     " %[v_os_o6], v16, s[8:9] \n"
-                     "  s_mov_b64     exec, s[38:39]                           \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[240:241], v[176:177], v[88:91]  "
-                     "\n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[242:243], v[178:179], v[88:91]  \n"
-                     " buffer_load_dwordx4 acc[112:115],  %[v_os_b7], s[12:15], 0 offen  "
-                     "\n" _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[244:245], v[180:181], "
-                     "v[88:91]  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[246:247], v[182:183], v[88:91]  "
-                     "\n" _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[248:249], v[184:185], "
-                     "v[88:91]  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[250:251], v[186:187], v[88:91]  \n"
-                     " buffer_load_dwordx4 acc[116:119],  %[v_os_b7], s[12:15], 0 offen "
-                     "offset:1024  \n" _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[252:253], "
-                     "v[188:189], v[88:91]  \n" _UK_MFMA_
-                     " [%[c24], %[c25], %[c26], %[c27]], acc[254:255], v[190:191], v[88:91]  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[240:241], v[240:241], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[242:243], v[242:243], v[92:95]  \n"
-                     " buffer_load_dwordx4 acc[120:123],  %[v_os_b7], s[12:15], 0 offen "
-                     "offset:2048  \n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[244:245], "
-                     "v[244:245], v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[246:247], v[246:247], v[92:95]  "
-                     "\n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[248:249], v[248:249], "
-                     "v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[250:251], v[250:251], v[92:95]  \n"
-                     " buffer_load_dwordx4 acc[124:127],  %[v_os_b7], s[12:15], 0 offen "
-                     "offset:3072  \n" _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[252:253], "
-                     "v[252:253], v[92:95]  \n" _UK_MFMA_
-                     " [%[c28], %[c29], %[c30], %[c31]], acc[254:255], v[254:255], v[92:95]  \n"
-                     " s_mov_b64 exec, %[s_execflag_7] \n" _UK_ATOMIC_ADD_
-                     " %[v_os_o7], v17, s[8:9] \n"
-                     "  s_mov_b64     exec, s[38:39]                           \n"
-                     " s_add_u32 s60, 0x00000100, s80  \n"
-                     " s_cmp_lt_u32 s60, %[s_loop_cnt]  \n"
-                     " s_cselect_b32 s56, s56, 0  \n"
-                     " s_add_u32 s12, s56, s12  \n"
-                     " s_addc_u32 s13, 0, s13  \n"
-                     " s_cmp_ge_u32 s80, 0x00000100  \n"
-                     " s_cselect_b32 s59, 0x00000100, s59  \n"
-                     " s_add_u32 s8, s59, s8  \n"
-                     " s_addc_u32 s9, 0, s9  \n"
-                     " v_mul_f32 %[c16], %[scale_0], %[c16] \n"
-                     " v_mul_f32 %[c17], %[scale_0], %[c17] \n"
-                     " v_mul_f32 %[c18], %[scale_0], %[c18] \n"
-                     " v_mul_f32 %[c19], %[scale_0], %[c19] \n"
-                     " v_mul_f32 %[c20], %[scale_1], %[c20] \n"
-                     " v_mul_f32 %[c21], %[scale_1], %[c21] \n"
-                     " v_mul_f32 %[c22], %[scale_1], %[c22] \n"
-                     " v_mul_f32 %[c23], %[scale_1], %[c23] \n"
-                     " v_mul_f32 %[c24], %[scale_0], %[c24] \n"
-                     " v_mul_f32 %[c25], %[scale_0], %[c25] \n"
-                     " v_mul_f32 %[c26], %[scale_0], %[c26] \n"
-                     " v_mul_f32 %[c27], %[scale_0], %[c27] \n"
-                     " v_mul_f32 %[c28], %[scale_1], %[c28] \n"
-                     " v_mul_f32 %[c29], %[scale_1], %[c29] \n"
-                     " v_mul_f32 %[c30], %[scale_1], %[c30] \n"
-                     " v_mul_f32 %[c31], %[scale_1], %[c31] \n" _UK_PK_CVT_(
-                         "%[c16]", "%[c17]", "%[c16]") _UK_PK_CVT_("%[c18]", "%[c19]", "%[c17]")
-                         _UK_PK_CVT_("%[c20]", "%[c21]", "%[c18]") _UK_PK_CVT_(
-                             "%[c22]", "%[c23]", "%[c19]") _UK_PK_CVT_("%[c24]", "%[c25]", "%[c20]")
-                             _UK_PK_CVT_("%[c26]", "%[c27]", "%[c21]")
-                                 _UK_PK_CVT_("%[c28]", "%[c29]", "%[c22]") _UK_PK_CVT_(
-                                     "%[c30]",
-                                     "%[c31]",
-                                     "%[c23]") " s_addk_i32 s80, 0x0080  \n"
-                                               " s_cmp_lt_i32 s80, %[s_loop_cnt]  \n"
-                                               " s_cbranch_scc0 label_0EC1  \n"
-                                               " s_branch label_0AA6  \n"
-                                               " label_0EC1: \n"
-                                               " s_waitcnt lgkmcnt(0)  \n"
-                                               " s_barrier  \n"
-                                               " ds_read_b32 v10, %[v_sfl_sld] offset:16640  \n"
-                                               " ds_read_b32 v11, %[v_sfl_sld] offset:16672  \n"
-                                               " ds_read_b32 v12, %[v_sfl_sld] offset:16704  \n"
-                                               " ds_read_b32 v13, %[v_sfl_sld] offset:16736  \n"
-                                               " ds_read_b32 v14, %[v_sfl_sld] offset:20992  \n"
-                                               " ds_read_b32 v15, %[v_sfl_sld] offset:21024  \n"
-                                               " ds_read_b32 v16, %[v_sfl_sld] offset:21056  \n"
-                                               " ds_read_b32 v17, %[v_sfl_sld] offset:21088  \n"
-                                               " s_waitcnt lgkmcnt(0)  \n"
-                                               " s_mov_b64 exec, %[s_execflag_0] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o0], v10, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_1] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o1], v11, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_2] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o2], v12, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_3] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o3], v13, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_4] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o4], v14, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_5] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o5], v15, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_6] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o6], v16, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_7] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o7], v17, s[8:9] \n"
-                                               "  s_mov_b64     exec, s[38:39]                     "
-                                               "      \n"
-                                               " s_add_u32 s8, s59, s8  \n"
-                                               " s_addc_u32 s9, 0, s9  \n"
-                                               " ds_write_b64 %[v_sfl_sst], [%[c16],%[c17]] "
-                                               "offset:25344  \n"
-                                               " ds_write_b64 %[v_sfl_sst], [%[c18],%[c19]] "
-                                               "offset:29696  \n"
-                                               " ds_write_b64 %[v_sfl_sst], [%[c20],%[c21]] "
-                                               "offset:27520  \n"
-                                               " ds_write_b64 %[v_sfl_sst], [%[c22],%[c23]] "
-                                               "offset:31872  \n"
-                                               " s_waitcnt lgkmcnt(0)  \n"
-                                               " s_barrier  \n"
-                                               " ds_read_b32 v10, %[v_sfl_sld] offset:25344  \n"
-                                               " ds_read_b32 v11, %[v_sfl_sld] offset:25376  \n"
-                                               " ds_read_b32 v12, %[v_sfl_sld] offset:25408  \n"
-                                               " ds_read_b32 v13, %[v_sfl_sld] offset:25440  \n"
-                                               " ds_read_b32 v14, %[v_sfl_sld] offset:29696  \n"
-                                               " ds_read_b32 v15, %[v_sfl_sld] offset:29728  \n"
-                                               " ds_read_b32 v16, %[v_sfl_sld] offset:29760  \n"
-                                               " ds_read_b32 v17, %[v_sfl_sld] offset:29792  \n"
-                                               " s_waitcnt lgkmcnt(0)  \n"
-                                               " s_mov_b64 exec, %[s_execflag_0] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o0], v10, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_1] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o1], v11, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_2] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o2], v12, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_3] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o3], v13, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_4] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o4], v14, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_5] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o5], v15, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_6] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o6], v16, s[8:9] \n"
-                                               " s_mov_b64 exec, %[s_execflag_7] \n" _UK_ATOMIC_ADD_
-                                               " %[v_os_o7], v17, s[8:9] \n"
-                                               "  s_mov_b64     exec, s[38:39]  \n"
+    " v_mul_f32 %[c15], %[scale_1], %[c15] \n"
+    _UK_PK_CVT_("%[c0]","%[c1]","%[c0]")
+    _UK_PK_CVT_("%[c2]","%[c3]","%[c1]")
+    _UK_PK_CVT_("%[c4]","%[c5]","%[c2]")
+    _UK_PK_CVT_("%[c6]","%[c7]","%[c3]")
+    _UK_PK_CVT_("%[c8]","%[c9]","%[c4]")
+    _UK_PK_CVT_("%[c10]","%[c11]","%[c5]")
+    _UK_PK_CVT_("%[c12]", "%[c13]", "%[c6]")
+    _UK_PK_CVT_("%[c14]","%[c15]","%[c7]")
+    " s_addk_i32 s80, 0x0080  \n"
+    " s_cmp_lt_i32 s80, %[s_loop_cnt]  \n"
+    " s_cbranch_scc0 loop_atomic_%=  \n"
+    " s_waitcnt vmcnt(30) & lgkmcnt(0)  \n"
+    " s_barrier  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[128:129], v[128:129], 0  \n"
+    " ds_read_b32 v10, %[v_sfl_sld] offset:25344  \n"
+    " ds_read_b32 v11, %[v_sfl_sld] offset:25376  \n"
+    " ds_write_b64 %[v_sfl_sst], v[64:65] offset:16640  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[130:131], v[130:131], v[80:83]  \n"
+     " buffer_load_dwordx4 acc[0:3],  %[v_os_b0], s[12:15], 0 offen  \n"
+     " ds_write_b64 %[v_sfl_sst], v[66:67] offset:20992  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[132:133], v[132:133], v[80:83]  \n"
+     " ds_read_b32 v12, %[v_sfl_sld] offset:25408  \n"
+     " ds_read_b32 v13, %[v_sfl_sld] offset:25440  \n"
+     " ds_write_b64 %[v_sfl_sst], v[68:69] offset:18816  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[134:135], v[134:135], v[80:83]  \n"
+     " ds_write_b64 %[v_sfl_sst], v[70:71] offset:23168  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[136:137], v[136:137], v[80:83]  \n"
+     " ds_read_b32 v14, %[v_sfl_sld] offset:29696  \n"
+     " ds_read_b32 v15, %[v_sfl_sld] offset:29728  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[138:139], v[138:139], v[80:83]  \n"
+     " buffer_load_dwordx4 acc[4:7],  %[v_os_b0], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[140:141], v[140:141], v[80:83]  \n"
+     " ds_read_b32 v16, %[v_sfl_sld] offset:29760  \n"
+     " ds_read_b32 v17, %[v_sfl_sld] offset:29792  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[142:143], v[142:143], v[80:83]  \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[128:129], v[192:193], 0  \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[130:131], v[194:195], v[84:87]  \n"
+     " buffer_load_dwordx4 acc[8:11],  %[v_os_b0], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[132:133], v[196:197], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[134:135], v[198:199], v[84:87]  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[136:137], v[200:201], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[138:139], v[202:203], v[84:87]  \n"
+     " buffer_load_dwordx4 acc[12:15],  %[v_os_b0], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[140:141], v[204:205], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[142:143], v[206:207], v[84:87]  \n"
+     " s_waitcnt lgkmcnt(0) \n"
+     " s_mov_b64 exec, %[s_execflag_0] \n"
+    _UK_ATOMIC_ADD_     " %[v_os_o0], v10, s[8:9] \n"
+     "  s_mov_b64     exec, s[38:39]                           \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[144:145], v[128:129], 0  \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[146:147], v[130:131], v[88:91]  \n"
+     " buffer_load_dwordx4 acc[16:19],  %[v_os_b1], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[148:149], v[132:133], v[88:91]  \n"
+    _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[150:151], v[134:135], v[88:91]      \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[152:153], v[136:137], v[88:91]  \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[154:155], v[138:139], v[88:91]  \n"
+     " buffer_load_dwordx4 acc[20:23],  %[v_os_b1], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[156:157], v[140:141], v[88:91]      \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[158:159], v[142:143], v[88:91]  \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[144:145], v[192:193], 0  \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[146:147], v[194:195], v[92:95]  \n"
+     " buffer_load_dwordx4 acc[24:27],  %[v_os_b1], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[148:149], v[196:197], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[150:151], v[198:199], v[92:95]  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[152:153], v[200:201], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[154:155], v[202:203], v[92:95]  \n"
+     " buffer_load_dwordx4 acc[28:31],  %[v_os_b1], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[156:157], v[204:205], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[158:159], v[206:207], v[92:95]  \n"
+     " s_mov_b64 exec, %[s_execflag_1] \n"
+    _UK_ATOMIC_ADD_     " %[v_os_o1], v11, s[8:9] \n"
+     "  s_mov_b64     exec, s[38:39]                           \n"
+     " s_waitcnt vmcnt(30) \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[160:161], v[144:145], v[80:83]  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[162:163], v[146:147], v[80:83]  \n"
+     " buffer_load_dwordx4 acc[32:35],  %[v_os_b2], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[164:165], v[148:149], v[80:83]  \n"
+    _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[166:167], v[150:151], v[80:83]      \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[168:169], v[152:153], v[80:83]  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[170:171], v[154:155], v[80:83]  \n"
+     " buffer_load_dwordx4 acc[36:39],  %[v_os_b2], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[172:173], v[156:157], v[80:83]      \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[174:175], v[158:159], v[80:83]  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[160:161], v[208:209], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[162:163], v[210:211], v[84:87]  \n"
+     " buffer_load_dwordx4 acc[40:43],  %[v_os_b2], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[164:165], v[212:213], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[166:167], v[214:215], v[84:87]  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[168:169], v[216:217], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[170:171], v[218:219], v[84:87]  \n"
+     " buffer_load_dwordx4 acc[44:47],  %[v_os_b2], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[172:173], v[220:221], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[174:175], v[222:223], v[84:87]  \n"
+     " s_mov_b64 exec, %[s_execflag_2] \n"
+    _UK_ATOMIC_ADD_     " %[v_os_o2], v12, s[8:9] \n"
+     "  s_mov_b64     exec, s[38:39]                           \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[176:177], v[144:145], v[88:91]  \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[178:179], v[146:147], v[88:91]  \n"
+     " buffer_load_dwordx4 acc[48:51],  %[v_os_b3], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[180:181], v[148:149], v[88:91]  \n"
+    _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[182:183], v[150:151], v[88:91]      \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[184:185], v[152:153], v[88:91]  \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[186:187], v[154:155], v[88:91]  \n"
+     " buffer_load_dwordx4 acc[52:55],  %[v_os_b3], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[188:189], v[156:157], v[88:91]      \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[190:191], v[158:159], v[88:91]  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[176:177], v[208:209], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[178:179], v[210:211], v[92:95]  \n"
+     " buffer_load_dwordx4 acc[56:59],  %[v_os_b3], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[180:181], v[212:213], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[182:183], v[214:215], v[92:95]  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[184:185], v[216:217], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[186:187], v[218:219], v[92:95]  \n"
+     " buffer_load_dwordx4 acc[60:63],  %[v_os_b3], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[188:189], v[220:221], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[190:191], v[222:223], v[92:95]  \n"
+     " s_mov_b64 exec, %[s_execflag_3] \n"
+    _UK_ATOMIC_ADD_     " %[v_os_o3], v13, s[8:9] \n"
+     "  s_mov_b64     exec, s[38:39]                           \n"
+     " s_waitcnt vmcnt(30) \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[192:193], v[160:161], v[80:83]  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[194:195], v[162:163], v[80:83]  \n"
+     " buffer_load_dwordx4 acc[64:67],  %[v_os_b4], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[196:197], v[164:165], v[80:83]  \n"
+    _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[198:199], v[166:167], v[80:83]      \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[200:201], v[168:169], v[80:83]  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[202:203], v[170:171], v[80:83]  \n"
+     " buffer_load_dwordx4 acc[68:71],  %[v_os_b4], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[204:205], v[172:173], v[80:83]      \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[206:207], v[174:175], v[80:83]  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[192:193], v[224:225], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[194:195], v[226:227], v[84:87]  \n"
+     " buffer_load_dwordx4 acc[72:75],  %[v_os_b4], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[196:197], v[228:229], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[198:199], v[230:231], v[84:87]  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[200:201], v[232:233], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[202:203], v[234:235], v[84:87]  \n"
+     " buffer_load_dwordx4 acc[76:79],  %[v_os_b4], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[204:205], v[236:237], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[206:207], v[238:239], v[84:87]  \n"
+     " s_mov_b64 exec, %[s_execflag_4] \n"
+    _UK_ATOMIC_ADD_     " %[v_os_o4], v14, s[8:9] \n"
+     "  s_mov_b64     exec, s[38:39]                           \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[208:209], v[160:161], v[88:91]  \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[210:211], v[162:163], v[88:91]  \n"
+     " buffer_load_dwordx4 acc[80:83],  %[v_os_b5], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[212:213], v[164:165], v[88:91]  \n"
+    _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[214:215], v[166:167], v[88:91]      \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[216:217], v[168:169], v[88:91]  \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[218:219], v[170:171], v[88:91]  \n"
+     " buffer_load_dwordx4 acc[84:87],  %[v_os_b5], s[12:15], 0 offen offset:1024  \n"
+    _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[220:221], v[172:173], v[88:91]      \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[222:223], v[174:175], v[88:91]  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[208:209], v[224:225], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[210:211], v[226:227], v[92:95]  \n"
+     " buffer_load_dwordx4 acc[88:91],  %[v_os_b5], s[12:15], 0 offen offset:2048  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[212:213], v[228:229], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[214:215], v[230:231], v[92:95]  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[216:217], v[232:233], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[218:219], v[234:235], v[92:95]  \n"
+     " buffer_load_dwordx4 acc[92:95],  %[v_os_b5], s[12:15], 0 offen offset:3072  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[220:221], v[236:237], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[222:223], v[238:239], v[92:95]  \n"
+     " s_mov_b64 exec, %[s_execflag_5] \n"
+    _UK_ATOMIC_ADD_     " %[v_os_o5], v15, s[8:9] \n"
+     "  s_mov_b64     exec, s[38:39]                           \n"
+     " s_waitcnt vmcnt(30)  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[224:225], v[176:177], v[80:83]  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[226:227], v[178:179], v[80:83]  \n"
+     " buffer_load_dwordx4 acc[96:99],  %[v_os_b6], s[12:15], 0 offen  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[228:229], v[180:181], v[80:83]  \n"
+    _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[230:231], v[182:183], v[80:83]      \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[232:233], v[184:185], v[80:83]  \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[234:235], v[186:187], v[80:83]  \n"
+     " buffer_load_dwordx4 acc[100:103],  %[v_os_b6], s[12:15], 0 offen "
+     "offset:1024  \n"
+    _UK_MFMA_ " [%[c16], %[c17], %[c18], %[c19]], acc[236:237], v[188:189], v[80:83]      \n"
+    _UK_MFMA_    " [%[c16], %[c17], %[c18], %[c19]], acc[238:239], v[190:191], v[80:83]  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[224:225], v[240:241], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[226:227], v[242:243], v[84:87]  \n"
+     " buffer_load_dwordx4 acc[104:107],  %[v_os_b6], s[12:15], 0 offen "
+     "offset:2048  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[228:229], v[244:245], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[230:231], v[246:247], v[84:87]  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[232:233], v[248:249], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[234:235], v[250:251], v[84:87]  \n"
+     " buffer_load_dwordx4 acc[108:111],  %[v_os_b6], s[12:15], 0 offen "
+     "offset:3072  \n"
+    _UK_MFMA_ " [%[c20], %[c21], %[c22], %[c23]], acc[236:237], v[252:253], v[84:87]      \n"
+    _UK_MFMA_    " [%[c20], %[c21], %[c22], %[c23]], acc[238:239], v[254:255], v[84:87]  \n"
+     " s_mov_b64 exec, %[s_execflag_6] \n"
+    _UK_ATOMIC_ADD_     " %[v_os_o6], v16, s[8:9] \n"
+     "  s_mov_b64     exec, s[38:39]                           \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[240:241], v[176:177], v[88:91]  \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[242:243], v[178:179], v[88:91]  \n"
+     " buffer_load_dwordx4 acc[112:115],  %[v_os_b7], s[12:15], 0 offen  \n"
+    _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[244:245], v[180:181], v[88:91]      \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[246:247], v[182:183], v[88:91]  \n"
+    _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[248:249], v[184:185], v[88:91]      \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[250:251], v[186:187], v[88:91]  \n"
+     " buffer_load_dwordx4 acc[116:119],  %[v_os_b7], s[12:15], 0 offen "
+     "offset:1024  \n"
+    _UK_MFMA_ " [%[c24], %[c25], %[c26], %[c27]], acc[252:253], v[188:189], v[88:91]      \n"
+    _UK_MFMA_    " [%[c24], %[c25], %[c26], %[c27]], acc[254:255], v[190:191], v[88:91]  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[240:241], v[240:241], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[242:243], v[242:243], v[92:95]  \n"
+     " buffer_load_dwordx4 acc[120:123],  %[v_os_b7], s[12:15], 0 offen "
+     "offset:2048  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[244:245], v[244:245], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[246:247], v[246:247], v[92:95]  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[248:249], v[248:249], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[250:251], v[250:251], v[92:95]  \n"
+     " buffer_load_dwordx4 acc[124:127],  %[v_os_b7], s[12:15], 0 offen "
+     "offset:3072  \n"
+    _UK_MFMA_ " [%[c28], %[c29], %[c30], %[c31]], acc[252:253], v[252:253], v[92:95]      \n"
+    _UK_MFMA_    " [%[c28], %[c29], %[c30], %[c31]], acc[254:255], v[254:255], v[92:95]  \n"
+     " s_mov_b64 exec, %[s_execflag_7] \n"
+    _UK_ATOMIC_ADD_     " %[v_os_o7], v17, s[8:9] \n"
+     "  s_mov_b64     exec, s[38:39]                           \n"
+     " s_add_u32 s60, 0x00000100, s80  \n"
+     " s_cmp_lt_u32 s60, %[s_loop_cnt]  \n"
+     " s_cselect_b32 s56, s56, 0  \n"
+     " s_add_u32 s12, s56, s12  \n"
+     " s_addc_u32 s13, 0, s13  \n"
+     " s_cmp_ge_u32 s80, 0x00000100  \n"
+     " s_cselect_b32 s59, 0x00000100, s59  \n"
+     " s_add_u32 s8, s59, s8  \n"
+     " s_addc_u32 s9, 0, s9  \n"
+     " v_mul_f32 %[c16], %[scale_0], %[c16] \n"
+     " v_mul_f32 %[c17], %[scale_0], %[c17] \n"
+     " v_mul_f32 %[c18], %[scale_0], %[c18] \n"
+     " v_mul_f32 %[c19], %[scale_0], %[c19] \n"
+     " v_mul_f32 %[c20], %[scale_1], %[c20] \n"
+     " v_mul_f32 %[c21], %[scale_1], %[c21] \n"
+     " v_mul_f32 %[c22], %[scale_1], %[c22] \n"
+     " v_mul_f32 %[c23], %[scale_1], %[c23] \n"
+     " v_mul_f32 %[c24], %[scale_0], %[c24] \n"
+     " v_mul_f32 %[c25], %[scale_0], %[c25] \n"
+     " v_mul_f32 %[c26], %[scale_0], %[c26] \n"
+     " v_mul_f32 %[c27], %[scale_0], %[c27] \n"
+     " v_mul_f32 %[c28], %[scale_1], %[c28] \n"
+     " v_mul_f32 %[c29], %[scale_1], %[c29] \n"
+     " v_mul_f32 %[c30], %[scale_1], %[c30] \n"
+     " v_mul_f32 %[c31], %[scale_1], %[c31] \n"
+    _UK_PK_CVT_("%[c16]", "%[c17]", "%[c16]")
+    _UK_PK_CVT_("%[c18]", "%[c19]", "%[c17]")
+    _UK_PK_CVT_("%[c20]", "%[c21]", "%[c18]")
+    _UK_PK_CVT_("%[c22]", "%[c23]", "%[c19]")
+    _UK_PK_CVT_("%[c24]", "%[c25]", "%[c20]")
+    _UK_PK_CVT_("%[c26]", "%[c27]", "%[c21]")
+    _UK_PK_CVT_("%[c28]", "%[c29]", "%[c22]")
+    _UK_PK_CVT_("%[c30]","%[c31]","%[c23]")
+    " s_addk_i32 s80, 0x0080  \n"
+    " s_cmp_lt_i32 s80, %[s_loop_cnt]  \n"
+    " s_cbranch_scc0 loop_atomic_%=  \n"
+    " s_branch coreloop_top_%=  \n"
+    " loop_atomic_%=: \n"
+    " s_waitcnt lgkmcnt(0)  \n"
+    " s_barrier  \n"
+    " ds_read_b32 v10, %[v_sfl_sld] offset:16640  \n"
+    " ds_read_b32 v11, %[v_sfl_sld] offset:16672  \n"
+    " ds_read_b32 v12, %[v_sfl_sld] offset:16704  \n"
+    " ds_read_b32 v13, %[v_sfl_sld] offset:16736  \n"
+    " ds_read_b32 v14, %[v_sfl_sld] offset:20992  \n"
+    " ds_read_b32 v15, %[v_sfl_sld] offset:21024  \n"
+    " ds_read_b32 v16, %[v_sfl_sld] offset:21056  \n"
+    " ds_read_b32 v17, %[v_sfl_sld] offset:21088  \n"
+    " s_waitcnt lgkmcnt(0)  \n"
+    " s_mov_b64 exec, %[s_execflag_0] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o0], v10, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_1] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o1], v11, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_2] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o2], v12, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_3] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o3], v13, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_4] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o4], v14, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_5] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o5], v15, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_6] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o6], v16, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_7] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o7], v17, s[8:9] \n"
+    "  s_mov_b64     exec, s[38:39]              \n"
+    " s_add_u32 s8, s59, s8  \n"
+    " s_addc_u32 s9, 0, s9  \n"
+    " ds_write_b64 %[v_sfl_sst], [%[c16],%[c17]] "
+    "offset:25344  \n"
+    " ds_write_b64 %[v_sfl_sst], [%[c18],%[c19]] "
+    "offset:29696  \n"
+    " ds_write_b64 %[v_sfl_sst], [%[c20],%[c21]] "
+    "offset:27520  \n"
+    " ds_write_b64 %[v_sfl_sst], [%[c22],%[c23]] "
+    "offset:31872  \n"
+    " s_waitcnt lgkmcnt(0)  \n"
+    " s_barrier  \n"
+    " ds_read_b32 v10, %[v_sfl_sld] offset:25344  \n"
+    " ds_read_b32 v11, %[v_sfl_sld] offset:25376  \n"
+    " ds_read_b32 v12, %[v_sfl_sld] offset:25408  \n"
+    " ds_read_b32 v13, %[v_sfl_sld] offset:25440  \n"
+    " ds_read_b32 v14, %[v_sfl_sld] offset:29696  \n"
+    " ds_read_b32 v15, %[v_sfl_sld] offset:29728  \n"
+    " ds_read_b32 v16, %[v_sfl_sld] offset:29760  \n"
+    " ds_read_b32 v17, %[v_sfl_sld] offset:29792  \n"
+    " s_waitcnt lgkmcnt(0)  \n"
+    " s_mov_b64 exec, %[s_execflag_0] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o0], v10, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_1] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o1], v11, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_2] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o2], v12, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_3] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o3], v13, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_4] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o4], v14, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_5] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o5], v15, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_6] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o6], v16, s[8:9] \n"
+    " s_mov_b64 exec, %[s_execflag_7] \n"
+    _UK_ATOMIC_ADD_    " %[v_os_o7], v17, s[8:9] \n"
+    "  s_mov_b64     exec, s[38:39]  \n"
 
 #undef _UK_MFMA_
 #undef _UK_PK_CVT_
 #undef _UK_ATOMIC_ADD_
+#undef CK_TILE_FLATMM_UK_MFMA
+    // clang-format on

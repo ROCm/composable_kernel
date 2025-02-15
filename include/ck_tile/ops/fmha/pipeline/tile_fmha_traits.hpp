@@ -43,7 +43,8 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kDoFp8StaticQuant_,
           bool kIsPagedKV_,
           bool kHasUnevenSplits_,
-          index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
+          bool kMergeNumHeadGroupsSeqLenQ_ = false,
+          index_t kBlockPerCu_             = -1 /* overwrite occupancy if not -1 */>
 struct TileFmhaFwdSplitKVTraits
 {
     static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;
@@ -56,8 +57,9 @@ struct TileFmhaFwdSplitKVTraits
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
     static constexpr bool kIsPagedKV        = kIsPagedKV_;
     // determine if some split (length) is not divisible by tile size
-    static constexpr bool kHasUnevenSplits = kHasUnevenSplits_;
-    static constexpr index_t kBlockPerCu   = kBlockPerCu_;
+    static constexpr bool kHasUnevenSplits           = kHasUnevenSplits_;
+    static constexpr bool kMergeNumHeadGroupsSeqLenQ = kMergeNumHeadGroupsSeqLenQ_;
+    static constexpr index_t kBlockPerCu             = kBlockPerCu_;
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,

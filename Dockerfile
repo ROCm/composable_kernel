@@ -94,7 +94,7 @@ RUN pip install --upgrade cmake==3.27.5 && \
     dpkg -i dumb-init_*.deb && rm dumb-init_*.deb && \
 # Install packages for processing the performance results
     pip3 install --upgrade pip && \
-    pip3 install sqlalchemy==2.0.36 pymysql pandas==2.2.3 setuptools-rust sshtunnel==0.4.0 && \
+    pip3 install --upgrade pytest sqlalchemy==2.0.36 pymysql pandas==2.2.3 setuptools-rust setuptools>=75 sshtunnel==0.4.0 && \
 # Add render group
     groupadd -f render && \
 # Install the new rocm-cmake version

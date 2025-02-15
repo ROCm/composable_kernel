@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/host/arg_parser.hpp"
 #include "ck_tile/host/check_err.hpp"
+#include "ck_tile/host/concat.hpp"
 #include "ck_tile/host/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/host/device_memory.hpp"
@@ -20,6 +21,7 @@
 #include "ck_tile/host/reference/reference_batched_masking.hpp"
 #include "ck_tile/host/reference/reference_batched_rotary_position_embedding.hpp"
 #include "ck_tile/host/reference/reference_batched_softmax.hpp"
+#include "ck_tile/host/reference/reference_batched_transpose.hpp"
 #include "ck_tile/host/reference/reference_elementwise.hpp"
 #include "ck_tile/host/reference/reference_fused_moe.hpp"
 #include "ck_tile/host/reference/reference_gemm.hpp"
