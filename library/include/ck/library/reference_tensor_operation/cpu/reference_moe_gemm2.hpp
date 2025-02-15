@@ -35,7 +35,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                  const Tensor<ck::index_t>& expert_ids,
                  const Tensor<ck::index_t>& max_token_id,
                  const index_t sorted_tile_size,
-                 const Tensor<ADataType>& a_t_k,
+                 const Tensor<ADataType>& a_t_k_k,
                  const Tensor<BDataType>& b_e_n_k,
                  const Tensor<D0DataType>& d0,
                  const Tensor<D1DataType>& d1,
@@ -48,7 +48,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
               expert_ids_{expert_ids},
               max_token_id_{max_token_id},
               sorted_tile_size_{sorted_tile_size},
-              a_t_k_{a_t_k},
+              a_t_k_k_{a_t_k_k},
               b_e_n_k_{b_e_n_k},
               d0_{d0},
               d1_{d1},
@@ -64,7 +64,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
         const Tensor<ck::index_t>& expert_ids_;
         const Tensor<ck::index_t>& max_token_id_;
         index_t sorted_tile_size_;
-        const Tensor<ADataType>& a_t_k_;
+        const Tensor<ADataType>& a_t_k_k_;
         const Tensor<BDataType>& b_e_n_k_;
         const Tensor<D0DataType>& d0_;
         const Tensor<D1DataType>& d1_;
@@ -85,11 +85,12 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
         {
             arg.c_t_n_.SetZero();
             auto f_mk_kn_mn = [&](auto m, auto n) {
-                const int K = arg.a_t_k_.mDesc.GetLengths()[1];
+                const int K = arg.a_t_k_k_.mDesc.GetLengths()[2];
                 AccDataType v_acc{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
-                const int t = arg.sorted_token_ids_(m);
+                const int t = arg.sorted_token_ids_(m) & 0xffffff;
+                const int topk_id = arg.sorted_token_ids_(m) >> 24;
                 const int e = arg.expert_ids_(m / arg.sorted_tile_size_);
                 const int token_cnt = arg.c_t_n_.mDesc.GetLengths()[0];
                 D2DataType v_topk_w = arg.d2_(m, 0);  //expert
@@ -101,11 +102,11 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                         if constexpr(is_same_v<AElementwiseOperation,
                                             ck::tensor_operation::element_wise::ConvertBF16RTN>)
                         {
-                            ck::tensor_operation::element_wise::PassThrough{}(v_a, arg.a_t_k_(t, k));
+                            ck::tensor_operation::element_wise::PassThrough{}(v_a, arg.a_t_k_k_(t, topk_id, k));
                         }
                         else
                         {
-                            arg.a_element_op_(v_a, arg.a_t_k_(t, k));
+                            arg.a_element_op_(v_a, arg.a_t_k_k_(t, topk_id, k));
                         }
                         // same for B matrix
                         if constexpr(is_same_v<BElementwiseOperation,
@@ -124,7 +125,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                     CDataType v_c{0};
                     D0DataType v_d0 = arg.d0_(m, n);  // a
                     D0DataType v_d1 = arg.d1_(e, n);  // b
-                    arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_topk_w);
+                    arg.c_element_op_(v_c, v_acc, v_d0 * v_topk_w, v_d1, v_topk_w);
                     arg.c_t_n_(t, n) += v_c;
                 }
 
@@ -157,7 +158,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                              const Tensor<ck::index_t>& expert_ids,
                              const Tensor<ck::index_t>& max_token_id,
                              const index_t sorted_tile_size,
-                             const Tensor<ADataType>& a_t_k,
+                             const Tensor<ADataType>& a_t_k_k,
                              const Tensor<BDataType>& b_e_n_k,
                              const Tensor<D0DataType>& d0,
                              const Tensor<D1DataType>& d1,
@@ -167,7 +168,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{sorted_token_ids, expert_ids, max_token_id, sorted_tile_size, a_t_k, b_e_n_k, d0, d1, d2, c_t_n, a_element_op, b_element_op, c_element_op};
+        return Argument{sorted_token_ids, expert_ids, max_token_id, sorted_tile_size, a_t_k_k, b_e_n_k, d0, d1, d2, c_t_n, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

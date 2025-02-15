@@ -1167,8 +1167,8 @@ struct GridwiseMoeGemmScatter
             return;
         StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
-            const index_t token_offset = (token_pos + m0 < max_token_id) ?
-                                            (p_sorted_token_ids[token_pos + m0] & 0xffffff) : problem.NumTokens;
+            const index_t fused_token = p_sorted_token_ids[token_pos + m0];
+            const index_t token_offset = (fused_token & 0xffffff) * problem.TopK + (fused_token >> 24);
             gather_offsets(m0) = token_offset * problem.K;
             // printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
         });

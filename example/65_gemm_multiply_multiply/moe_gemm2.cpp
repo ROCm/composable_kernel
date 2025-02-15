@@ -69,7 +69,7 @@ struct MulABScaleExpertWeight
     {
         // e = ck::type_convert<EDataType>(c * d0 * d1 * d2);
         (void) d2;
-        e = ck::type_convert<EDataType>(c * d0 * d1);
+        e = ck::type_convert<EDataType>(c);
     }
     // for reference
     template <>
@@ -81,7 +81,7 @@ struct MulABScaleExpertWeight
                                                                             const float& d2) const
     {
         (void) d2;
-        e = ck::type_convert<EDataType>(c * d0 * d1);
+        e = ck::type_convert<EDataType>(c);
     }
 };
 
@@ -253,7 +253,7 @@ int main(int argc, char* argv[])
     }
     expert_ids.savetxt("expert_ids.txt", "int");
     sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
-    Tensor<A0DataType> a0_t_k(HostTensorDescriptor({batch, K}, {K, 1}));
+    Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({batch, topk, K}, {topk*K, K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, N, K}, {N*K, K, 1}));
     Tensor<D0DataType> d0_t_n(HostTensorDescriptor({batch, N}, {StrideDs[0], 0}));
@@ -262,7 +262,7 @@ int main(int argc, char* argv[])
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     e_t_n_device_result.SetZero();
-    std::cout << "a0_t_k: " << a0_t_k.mDesc << std::endl;
+    std::cout << "a0_t_k_k: " << a0_t_k_k.mDesc << std::endl;
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
     std::cout << "d2_e_n: " << d2_e_n.mDesc << std::endl;
     std::cout << "d1_e_n: " << d1_e_n.mDesc << std::endl;
@@ -273,21 +273,21 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 2});
         d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
         d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
         d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
         break;
     case 2:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
         d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     default:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
         d0_t_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
         d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
@@ -296,13 +296,13 @@ int main(int argc, char* argv[])
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem max_token_id_dev(sizeof(ck::index_t) * max_token_id.mDesc.GetElementSpaceSize());
-    DeviceMem a0_device_buf(sizeof(A0DataType) * a0_t_k.mDesc.GetElementSpaceSize());
+    DeviceMem a0_device_buf(sizeof(A0DataType) * a0_t_k_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize());
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_t_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
-    a0_t_k.savetxt("a.txt");
+    a0_t_k_k.savetxt("a.txt");
     expert_ids.savetxt("expert_ids.txt", "int");
     sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
     d0_t_n.savetxt("d0_t_n.txt", "int");
@@ -311,7 +311,7 @@ int main(int argc, char* argv[])
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     max_token_id_dev.ToDevice(max_token_id.mData.data());
-    a0_device_buf.ToDevice(a0_t_k.mData.data());
+    a0_device_buf.ToDevice(a0_t_k_k.mData.data());
     d0_device_buf.ToDevice(d0_t_n.mData.data());
     d1_device_buf.ToDevice(d1_e_n.mData.data());
     d2_device_buf.ToDevice(d2_e_n.mData.data());
@@ -387,19 +387,19 @@ int main(int argc, char* argv[])
         Tensor<CShuffleDataType> c_t_n({tokens, N});
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMoeGemm2<A0DataType,
-                                                                                B0DataType,
-                                                                                D0DataType,
-                                                                                D1DataType,
-                                                                                D2DataType,
-                                                                                CShuffleDataType,
-                                                                                AccDataType,
-                                                                                PassThrough,
-                                                                                PassThrough,
-                                                                                CDEElementOp>;
+                                                                                    B0DataType,
+                                                                                    D0DataType,
+                                                                                    D1DataType,
+                                                                                    D2DataType,
+                                                                                    CShuffleDataType,
+                                                                                    AccDataType,
+                                                                                    PassThrough,
+                                                                                    PassThrough,
+                                                                                    CDEElementOp>;
         auto ref_moe_gemm           = ReferenceGemmInstance{};
         auto ref_invoker            = ref_moe_gemm.MakeInvoker();
         auto ref_argument = ref_moe_gemm.MakeArgument(
-           sorted_token_ids, expert_ids, max_token_id, MPerBlock, a0_t_k, b0_e_n_k, d0_t_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
+           sorted_token_ids, expert_ids, max_token_id, MPerBlock, a0_t_k_k, b0_e_n_k, d0_t_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
 
         ref_invoker.Run(ref_argument);
         for(int t = 0; t < tokens; ++t)
