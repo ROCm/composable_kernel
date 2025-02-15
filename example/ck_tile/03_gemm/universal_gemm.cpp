@@ -21,90 +21,42 @@ template <typename ADataType,
           typename CLayout>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-    // Memory friendly for Interwave scheduler
-    constexpr ck_tile::index_t M_Tile = 128;
-    constexpr ck_tile::index_t N_Tile = 32;
-    constexpr ck_tile::index_t K_Tile = 64;
+    using GemmShape = ck_tile::TileGemmShape<
+        ck_tile::
+            sequence<GemmBasicConfig::M_Tile, GemmBasicConfig::N_Tile, GemmBasicConfig::K_Tile>,
+        ck_tile::
+            sequence<GemmBasicConfig::M_Warp, GemmBasicConfig::N_Warp, GemmBasicConfig::K_Warp>,
+        ck_tile::sequence<GemmBasicConfig::M_Warp_Tile,
+                          GemmBasicConfig::N_Warp_Tile,
+                          GemmBasicConfig::K_Warp_Tile>,
+        GemmBasicConfig::PermuteA,
+        GemmBasicConfig::PermuteB>;
+    using TilePartitioner =
+        ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+                                                   GemmBasicConfig::TileParitionerGroupNum,
+                                                   GemmBasicConfig::TileParitionerM01>;
 
-    constexpr ck_tile::index_t M_Warp = 4;
-    constexpr ck_tile::index_t N_Warp = 1;
-    constexpr ck_tile::index_t K_Warp = 1;
-
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 8;
-
-    constexpr bool DoubleSmemBuffer = false;
-#endif
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
-    // Compute friendly for Intrawave scheduler
-    constexpr ck_tile::index_t M_Tile = 256;
-    constexpr ck_tile::index_t N_Tile = 256;
-    constexpr ck_tile::index_t K_Tile = 64;
-
-    constexpr ck_tile::index_t M_Warp = 2;
-    constexpr ck_tile::index_t N_Warp = 2;
-    constexpr ck_tile::index_t K_Warp = 1;
-
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
-
-    constexpr bool DoubleSmemBuffer = false;
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
-    // Compute friendly for Intrawave scheduler
-    // Using the ping pong reader in the lds level
-    constexpr ck_tile::index_t M_Tile = 256;
-    constexpr ck_tile::index_t N_Tile = 256;
-    constexpr ck_tile::index_t K_Tile = 32;
-
-    constexpr ck_tile::index_t M_Warp = 2;
-    constexpr ck_tile::index_t N_Warp = 2;
-    constexpr ck_tile::index_t K_Warp = 1;
-
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
-
-    constexpr bool DoubleSmemBuffer = true;
-#endif
-
-    constexpr bool kPadM = false;
-    constexpr bool kPadN = false;
-    constexpr bool kPadK = false;
-
-    constexpr bool TransposeC = false;
-
-    constexpr int kBlockPerCu                         = 1;
-    constexpr ck_tile::index_t TileParitionerGroupNum = 8;
-    constexpr ck_tile::index_t TileParitionerM01      = 4;
-
-    // ===============================================
-
-    using GemmShape =
-        ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
-                               ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
-                               ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
-    using TilePartitioner = ck_tile::
-        GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
-
-    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
-                                                                 kPadN,
-                                                                 kPadK,
-                                                                 DoubleSmemBuffer,
+    using Traits              = ck_tile::TileGemmTraits<GemmBasicConfig::kPadM,
+                                           GemmBasicConfig::kPadN,
+                                           GemmBasicConfig::kPadK,
+                                           ALayout,
+                                           BLayout,
+                                           CLayout>;
+    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmBasicConfig::kPadM,
+                                                                 GemmBasicConfig::kPadN,
+                                                                 GemmBasicConfig::kPadK,
+                                                                 GemmBasicConfig::DoubleSmemBuffer,
                                                                  ALayout,
                                                                  BLayout,
                                                                  CLayout,
-                                                                 TransposeC>;
+                                                                 GemmBasicConfig::TransposeC>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
     using BaseGemmPipeline = UNIVERSAL_GEMM_PIPELINE<GemmPipelineProblem>;
 
-    const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
-    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
+    const ck_tile::index_t k_grain     = args.k_batch * GemmBasicConfig::K_Tile;
+    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmBasicConfig::K_Tile;
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
@@ -133,11 +85,11 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                              GemmPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
+                                             GemmBasicConfig::M_Warp,
+                                             GemmBasicConfig::N_Warp,
+                                             GemmBasicConfig::M_Warp_Tile,
+                                             GemmBasicConfig::N_Warp_Tile,
+                                             GemmBasicConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC>>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
@@ -158,8 +110,10 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                       << std::endl;
         }
 
-        ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        ave_time =
+            ck_tile::launch_kernel(s,
+                                   ck_tile::make_kernel<blocks.x, GemmBasicConfig::kBlockPerCu>(
+                                       Kernel{}, grids, blocks, 0, kargs));
         return ave_time;
     };
 

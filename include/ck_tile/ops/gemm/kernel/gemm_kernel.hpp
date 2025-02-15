@@ -279,6 +279,7 @@ struct GemmKernel
                                                    const GemmKernelArgs& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
     {
+        static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
@@ -303,21 +304,63 @@ struct GemmKernel
         const auto& b_tensor_view = [&]() {
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
-                return make_naive_tensor_view<address_space_enum::global>(
-                    b_ptr,
-                    make_tuple(splitk_batch_offset.splitted_k, kargs.N),
-                    make_tuple(kargs.stride_B, 1),
-                    number<GemmPipeline::GetVectorSizeB()>{},
-                    number<1>{});
+                if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
+                {
+                    const index_t K1 = TilePartitioner::BlockGemmShape::kK;
+                    const index_t K0 =
+                        splitk_batch_offset.splitted_k / TilePartitioner::BlockGemmShape::kK;
+                    const auto b_k0_n_k1_desc =
+                        make_naive_tensor_descriptor(make_tuple(K0, kargs.N, K1),
+                                                     make_tuple(kargs.N * K1, K1, I1),
+                                                     number<GemmPipeline::GetVectorSizeB()>{},
+                                                     number<1>{});
+                    const auto b_n_k_desc = transform_tensor_descriptor(
+                        b_k0_n_k1_desc,
+                        make_tuple(make_merge_transform(make_tuple(K0, K1)),
+                                   make_pass_through_transform(kargs.N)),
+                        make_tuple(sequence<0, 2>{}, sequence<1>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                    return make_tensor_view<address_space_enum::global>(b_ptr, b_n_k_desc);
+                }
+                else
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        b_ptr,
+                        make_tuple(splitk_batch_offset.splitted_k, kargs.N),
+                        make_tuple(kargs.stride_B, 1),
+                        number<GemmPipeline::GetVectorSizeB()>{},
+                        number<1>{});
+                }
             }
             else
             {
-                return make_naive_tensor_view<address_space_enum::global>(
-                    b_ptr,
-                    make_tuple(kargs.N, splitk_batch_offset.splitted_k),
-                    make_tuple(kargs.stride_B, 1),
-                    number<GemmPipeline::GetVectorSizeB()>{},
-                    number<1>{});
+                if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
+                {
+                    const index_t K1 = TilePartitioner::BlockGemmShape::kK;
+                    const index_t K0 =
+                        splitk_batch_offset.splitted_k / TilePartitioner::BlockGemmShape::kK;
+                    const auto b_k0_n_k1_desc =
+                        make_naive_tensor_descriptor(make_tuple(K0, kargs.N, K1),
+                                                     make_tuple(kargs.N * K1, K1, I1),
+                                                     number<GemmPipeline::GetVectorSizeB()>{},
+                                                     number<1>{});
+                    const auto b_n_k_desc = transform_tensor_descriptor(
+                        b_k0_n_k1_desc,
+                        make_tuple(make_merge_transform(make_tuple(K0, K1)),
+                                   make_pass_through_transform(kargs.N)),
+                        make_tuple(sequence<0, 2>{}, sequence<1>{}),
+                        make_tuple(sequence<1>{}, sequence<0>{}));
+                    return make_tensor_view<address_space_enum::global>(b_ptr, b_n_k_desc);
+                }
+                else
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        b_ptr,
+                        make_tuple(kargs.N, splitk_batch_offset.splitted_k),
+                        make_tuple(kargs.stride_B, 1),
+                        number<GemmPipeline::GetVectorSizeB()>{},
+                        number<1>{});
+                }
             }
         }();
 
