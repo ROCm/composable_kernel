@@ -446,6 +446,34 @@ struct DeviceMoeGemm
                     throw std::runtime_error("todo: only v1 & v2 support now");
                 }
             }
+#if 1
+            else
+            {
+                // Tail number always 1
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                {
+                    // if(arg.KBatch > 1)
+                    // {
+                    //     const auto kernel = kernel_gemm_xdl_cshuffle_v3_b_preshuffle<
+                    //         GridwiseGemm,
+                    //         false,
+                    //         InMemoryDataOperationEnum::AtomicAdd,
+                    //         minimum_occupancy,
+                    //         TailNumber::Odd>;
+                    //     Run(kernel);
+                    // }
+                    // else
+                    {
+                        const auto kernel = kernel_moe_gemm_gather<GridwiseGemm,
+                                                                   true,
+                                                                   InMemoryDataOperationEnum::Set,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                }
+            }
+#endif
 
             return ave_time;
         }

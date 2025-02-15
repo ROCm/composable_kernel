@@ -109,7 +109,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         // }
                         if constexpr(is_same_v<BDataType, pk_i4_t>)
                         {
-                            uint8_t i4x2 = arg.b_e_n_k_(e, n, k).data;
+                            uint8_t i4x2 = arg.b_e_n_k_(e, k, n).data;
                             uint8_t i4    = 0;
                             if(k % 2 == 1)
                                 i4 = (i4x2 >> 0) & 0xf;
