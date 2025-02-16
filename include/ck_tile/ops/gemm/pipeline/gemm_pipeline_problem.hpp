@@ -36,6 +36,8 @@ struct GemmPipelineProblemBase
     static constexpr bool kPadN = Traits::kPadN;
     static constexpr bool kPadK = Traits::kPadK;
 
+    static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
+
     static constexpr auto Scheduler         = GemmPipelineScheduler::Default;
     static constexpr index_t VectorLoadSize = Traits::_VectorSize;
 
@@ -172,6 +174,8 @@ struct UniversalGemmPipelineProblem
     static constexpr bool kPadM = Traits::kPadM;
     static constexpr bool kPadN = Traits::kPadN;
     static constexpr bool kPadK = Traits::kPadK;
+
+    static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
 
     static constexpr auto Scheduler  = Scheduler_;
     static constexpr auto HasHotLoop = HasHotLoop_;
