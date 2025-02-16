@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -1156,7 +1156,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             }
         }
 
-        if(!ck::is_xdl_supported() || !is_bf16_atomic_supported())
+        if(!ck::is_xdl_supported())
         {
             return false;
         }
@@ -1202,8 +1202,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                 }
             }
         }
-
-        if(!(arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0 &&
+        if(!(ABlockTransferSrcVectorDim == 2 && BBlockTransferSrcVectorDim == 2 &&
+             arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0 &&
              arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0))
         {
             return false;
