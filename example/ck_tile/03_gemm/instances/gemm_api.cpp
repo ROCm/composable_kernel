@@ -239,6 +239,81 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
             throw std::runtime_error("Wrong! ColumnMajor layout not supported for C Matrix!\n");
         }
     }
+    else if(t.data_type.compare("bf8") == 0)
+    {
+        if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+        {
+            if(a.M > 512)
+            {
+                // clang-format off
+                //                        ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout, M_Tile, N_Tile, K_Tile, M_Warp, N_Warp, K_Warp, M_Warp_Tile, N_Warp_Tile, K_Warp_Tile,  PadM,  PadN,  PadK
+                return gemm_<gemm_traits_<      BF8,       BF8,        FP32,       BF8,     Row,     Row,     Row,    256,    256,     64,      2,      2,      1,          32,          32,          16, false, false, false>>(a, s);
+                // clang-format on
+            }
+            if(a.M < 512)
+            {
+                // clang-format off
+                //                        ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout, M_Tile, N_Tile, K_Tile, M_Warp, N_Warp, K_Warp, M_Warp_Tile, N_Warp_Tile, K_Warp_Tile,  PadM,  PadN,  PadK
+                return gemm_<gemm_traits_<      BF8,       BF8,        FP32,       BF8,     Row,     Row,     Row,    256,    256,     64,      2,      2,      1,          32,          32,          16, false, false, false>>(a, s);
+                // clang-format on
+            }
+        }
+        else if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        {
+            if(a.M > 512)
+            {
+                // clang-format off
+                //                        ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout, M_Tile, N_Tile, K_Tile, M_Warp, N_Warp, K_Warp, M_Warp_Tile, N_Warp_Tile, K_Warp_Tile,  PadM,  PadN,  PadK
+                return gemm_<gemm_traits_<      BF8,       BF8,        FP32,       BF8,     Row,     Col,     Row,    256,    256,     64,      2,      2,      1,          32,          32,          16, false, false, false>>(a, s);
+                // clang-format on
+            }
+            else
+            {
+                // clang-format off
+                //                        ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout, M_Tile, N_Tile, K_Tile, M_Warp, N_Warp, K_Warp, M_Warp_Tile, N_Warp_Tile, K_Warp_Tile,  PadM,  PadN,  PadK
+                return gemm_<gemm_traits_<      BF8,       BF8,        FP32,       BF8,     Row,     Col,     Row,    256,    256,     64,      2,      2,      1,          32,          32,          16, false, false, false>>(a, s);
+                // clang-format on
+            }
+        }
+        else if(!t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+        {
+            if(a.M > 512)
+            {
+                // clang-format off
+                //                        ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout, M_Tile, N_Tile, K_Tile, M_Warp, N_Warp, K_Warp, M_Warp_Tile, N_Warp_Tile, K_Warp_Tile,  PadM,  PadN,  PadK
+                return gemm_<gemm_traits_<      BF8,       BF8,        FP32,       BF8,     Col,     Row,     Row,    256,    256,     64,      2,      2,      1,          32,          32,          16, false, false, false>>(a, s);
+                // clang-format on
+            }
+            else
+            {
+                // clang-format off
+                //                        ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout, M_Tile, N_Tile, K_Tile, M_Warp, N_Warp, K_Warp, M_Warp_Tile, N_Warp_Tile, K_Warp_Tile,  PadM,  PadN,  PadK
+                return gemm_<gemm_traits_<      BF8,       BF8,        FP32,       BF8,     Col,     Row,     Row,    256,    256,     64,      2,      2,      1,          32,          32,          16, false, false, false>>(a, s);
+                // clang-format on
+            }
+        }
+        else if(!t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        {
+            if(a.M > 512)
+            {
+                // clang-format off
+                //                        ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout, M_Tile, N_Tile, K_Tile, M_Warp, N_Warp, K_Warp, M_Warp_Tile, N_Warp_Tile, K_Warp_Tile,  PadM,  PadN,  PadK
+                return gemm_<gemm_traits_<      BF8,       BF8,        FP32,       BF8,     Col,     Col,     Row,    256,    256,     64,      2,      2,      1,          32,          32,          16, false, false, false>>(a, s);
+                // clang-format on
+            }
+            else
+            {
+                // clang-format off
+                //                        ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout, M_Tile, N_Tile, K_Tile, M_Warp, N_Warp, K_Warp, M_Warp_Tile, N_Warp_Tile, K_Warp_Tile,  PadM,  PadN,  PadK
+                return gemm_<gemm_traits_<      BF8,       BF8,        FP32,       BF8,     Col,     Col,     Row,    256,    256,     64,      2,      2,      1,          32,          32,          16, false, false, false>>(a, s);
+                // clang-format on
+            }
+        }
+        else
+        {
+            throw std::runtime_error("Wrong! ColumnMajor layout not supported for C Matrix!\n");
+        }
+    }
     else
     {
         throw std::runtime_error("Wrong! DataTypes not supported!\n");

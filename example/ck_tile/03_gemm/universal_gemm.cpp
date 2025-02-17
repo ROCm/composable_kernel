@@ -37,14 +37,17 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Row{}, Row{});
         }
-        else if(data_type == "fp8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Row{}, Row{});
-        }
-        else if(data_type == "bf8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Row{}, Row{});
-        }
+        // fp8 and bf8 are disabled for now due to incorrect results
+        // else if(data_type == "fp8")
+        // {
+        //     return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Row{},
+        //     Row{});
+        // }
+        // else if(data_type == "bf8")
+        // {
+        //     return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Row{},
+        //     Row{});
+        // }
         else
         {
             throw std::runtime_error("Unsupported data_type!");
@@ -60,14 +63,17 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Col{}, Row{});
         }
-        else if(data_type == "fp8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(data_type == "bf8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Col{}, Row{});
-        }
+        // fp8 and bf8 are disabled for now due to incorrect results
+        // else if(data_type == "fp8")
+        // {
+        //     return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Col{},
+        //     Row{});
+        // }
+        // else if(data_type == "bf8")
+        // {
+        //     return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Col{},
+        //     Row{});
+        // }
         else
         {
             throw std::runtime_error("Unsupported data_type!");
@@ -83,14 +89,17 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Col{}, Col{}, Row{});
         }
-        else if(data_type == "fp8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Col{}, Col{}, Row{});
-        }
-        else if(data_type == "bf8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Col{}, Col{}, Row{});
-        }
+        // fp8 and bf8 are disabled for now due to incorrect results
+        // else if(data_type == "fp8")
+        // {
+        //     return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Col{}, Col{},
+        //     Row{});
+        // }
+        // else if(data_type == "bf8")
+        // {
+        //     return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Col{}, Col{},
+        //     Row{});
+        // }
         else
         {
             throw std::runtime_error("Unsupported data_type!");
@@ -106,14 +115,17 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Col{}, Row{}, Row{});
         }
-        else if(data_type == "fp8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Col{}, Row{}, Row{});
-        }
-        else if(data_type == "bf8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Col{}, Row{}, Row{});
-        }
+        // fp8 and bf8 are disabled for now due to incorrect results
+        // else if(data_type == "fp8")
+        // {
+        //     return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Col{}, Row{},
+        //     Row{});
+        // }
+        // else if(data_type == "bf8")
+        // {
+        //     return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Col{}, Row{},
+        //     Row{});
+        // }
         else
         {
             throw std::runtime_error("Unsupported data_type!");
