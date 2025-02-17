@@ -186,19 +186,26 @@ int main(int argc, char* argv[])
 // experts = 8
 // per expert: 
     // GEMM shape
-    ck::index_t N = 6144;
-    ck::index_t K = 8192;
+    ck::index_t N = 4096;
+    ck::index_t K = 14336;
     ck::index_t experts = 8;
-    ck::index_t sorted_tile_num = 10;
-    ck::index_t valid_tile_num = 8;
+    ck::index_t sorted_tile_num = 16;
+    ck::index_t valid_tile_num = 13;
     ck::index_t sorted_size = sorted_tile_num * MPerBlock;
     ck::index_t valid_size = valid_tile_num * MPerBlock;
-    ck::index_t tokens = 64;
+    ck::index_t tokens = 512;
     ck::index_t topk = 2;
 
     if(argc == 1)
     {
         // use default case
+    }
+    else if(argc == 3)
+    {
+        // use default case
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 7)
     {
@@ -233,8 +240,9 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
     max_token_id.mData[0] = valid_size;
+    int eids[] = {0, 0,1, 2,3, 3, 4,4, 5, 5, 6, 7, 7, 3, 3, 3};
     for (int i = 0; i < sorted_tile_num; i++) {
-        expert_ids.mData[i] = i;
+        expert_ids.mData[i] = eids[i];
     }
     if (tokens * topk > valid_size)
     {

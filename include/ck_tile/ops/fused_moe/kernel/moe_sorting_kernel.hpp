@@ -573,9 +573,11 @@ struct MoeSortingKernel
         {
             int e_start = cumsum[tid];
             int e_end   = cumsum[tid + 1];
+            int e_size = unit_size_mdiv.div(e_end - e_start + unit_size_mdiv.divisor - 1);
             for(int i = e_start; i < e_end; i += unit_size_mdiv.divisor)
             {
                 p_sorted_expert_ids[unit_size_mdiv.div(i)] = tid;
+                p_sorted_expert_cnts[]
             }
         }
 

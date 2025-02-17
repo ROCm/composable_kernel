@@ -197,8 +197,8 @@ struct GridwiseMoeGemmGather
 
     __host__ static auto CalculateGridSize(index_t M, index_t N)
     {
-        return std::make_tuple(math::integer_divide_ceil(N, NPerBlock),
-                               math::integer_divide_ceil(M, MPerBlock),
+        return std::make_tuple(math::integer_divide_ceil(N, NPerBlock) * math::integer_divide_ceil(M, MPerBlock),
+                               1,
                                1);
     }
 
@@ -1140,7 +1140,6 @@ struct GridwiseMoeGemmGather
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             problem.NumTokens, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
-
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(problem.BN0Shuffled, problem.BK0Shuffled);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
@@ -1150,13 +1149,23 @@ struct GridwiseMoeGemmGather
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
-
-        const index_t block_n_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
-        const index_t block_m_id = __builtin_amdgcn_readfirstlane(blockIdx.y);
-        const index_t expert_id = __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[block_m_id]);
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);     
-        const index_t token0 = __builtin_amdgcn_readfirstlane(p_sorted_token_ids[block_m_id * MPerBlock] & 0xffffff);
+        // constexpr int expert_tile_cnt[8] = {2, 1, 1, 2, 2, 2, 1, 2};
+        const index_t expert_block_id = blockIdx.x / problem.NBlock;
+        // const index_t b_block_id = blockIdx.x % problem.NBlock;
+        const index_t expert_id = __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[expert_block_id]);
+        const index_t es = __builtin_amdgcn_readfirstlane(p_max_token_id[expert_block_id + 1]);
+        const index_t expert_swizzle = es > 0 ? es : 1; //p_max_token_id[expert_id + 1];
+        const index_t expert_block_swizzle = expert_block_id / expert_swizzle;
+        const index_t b_block_id_swizzle = blockIdx.x % (problem.NBlock * expert_swizzle);
+        const index_t block_n_id = __builtin_amdgcn_readfirstlane(b_block_id_swizzle % 8 +  b_block_id_swizzle / (8 * expert_swizzle) * 8);
+        const index_t block_m_id = __builtin_amdgcn_readfirstlane(expert_block_swizzle * expert_swizzle + b_block_id_swizzle / 8 % expert_swizzle);
         
+        if (threadIdx.x==0) {
+            printf("bid %d, eid %d,  es %d, esi %d, bsi %d, m %d, n %d\n", blockIdx.x, expert_id, expert_swizzle, expert_block_swizzle, b_block_id_swizzle, block_m_id, block_n_id);
+        }
+        const index_t token0 = __builtin_amdgcn_readfirstlane(p_sorted_token_ids[block_m_id * MPerBlock] & 0xffffff);
+
         // constexpr auto M0 = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
         constexpr auto AMThreads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
         constexpr auto AK0Threads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);

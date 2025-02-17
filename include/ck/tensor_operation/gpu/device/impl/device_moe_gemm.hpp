@@ -346,27 +346,27 @@ struct DeviceMoeGemm
                     // }
                     // else
                     {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                        {
-                            if constexpr (IsGatherGemm) {
-                                const auto kernel = kernel_moe_gemm_gather<
-                                    GridwiseGemm,
-                                    true,
-                                    InMemoryDataOperationEnum::Set,
-                                    minimum_occupancy,
-                                    TailNumber::Odd>;
-                                RunKernel(kernel);
-                            } else {
-                                const auto kernel = kernel_moe_gemm_scatter<
-                                    GridwiseGemm,
-                                    true,
-                                    InMemoryDataOperationEnum::AtomicAdd,
-                                    minimum_occupancy,
-                                    TailNumber::Odd>;
-                                RunKernel(kernel);
-                            }
-                        }
-                        else
+                        // if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        // {
+                        //     if constexpr (IsGatherGemm) {
+                        //         const auto kernel = kernel_moe_gemm_gather<
+                        //             GridwiseGemm,
+                        //             true,
+                        //             InMemoryDataOperationEnum::Set,
+                        //             minimum_occupancy,
+                        //             TailNumber::Odd>;
+                        //         RunKernel(kernel);
+                        //     } else {
+                        //         const auto kernel = kernel_moe_gemm_scatter<
+                        //             GridwiseGemm,
+                        //             true,
+                        //             InMemoryDataOperationEnum::AtomicAdd,
+                        //             minimum_occupancy,
+                        //             TailNumber::Odd>;
+                        //         RunKernel(kernel);
+                        //     }
+                        // }
+                        // else
                         {
                             if constexpr (IsGatherGemm) {
                                 const auto kernel = kernel_moe_gemm_gather<
