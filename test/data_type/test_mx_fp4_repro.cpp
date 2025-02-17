@@ -85,15 +85,9 @@ TEST(MXFP4, FP4ToFP32)
     std::vector<float> out(2, -1.0f);
 
     DeviceMem device_out(2 * sizeof(float));
-    // DeviceMem device_completed(sizeof(uint64_t));
-
-    // device_out.SetValue(-21.0f);
-    // device_completed.SetValue(-21.0f);
 
     run_test_mx_fp4_to_fp32<<<1, 1>>>(static_cast<float*>(device_out.GetDeviceBuffer()));
 
-    // uint64_t completed = 0;
-    // device_completed.FromDevice(&completed);
     device_out.FromDevice(out.data());
 
     // f4x2 -> f32x2
@@ -106,12 +100,9 @@ TEST(MXFP4, FP32ToFP4RNE)
     std::vector<float> out(2, -1.0f);
 
     DeviceMem device_out(2 * sizeof(float));
-    // DeviceMem device_completed(sizeof(uint64_t));
 
     run_test_mx_fp32_to_fp4_rne<<<1, 1>>>(static_cast<float*>(device_out.GetDeviceBuffer()));
 
-    // uint64_t completed = 0;
-    // device_completed.FromDevice(&completed);
     device_out.FromDevice(out.data());
 
     // f32x2 -> f4x2
@@ -125,12 +116,9 @@ TEST(MXFP4, FP32ToFP4SR)
     std::vector<float> out(2, -1.0f);
 
     DeviceMem device_out(2 * sizeof(float));
-    // DeviceMem device_completed(sizeof(uint64_t));
 
     run_test_mx_fp32_to_fp4_sr<<<1, 1>>>(static_cast<float*>(device_out.GetDeviceBuffer()));
 
-    // uint64_t completed = 0;
-    // device_completed.FromDevice(&completed);
     device_out.FromDevice(out.data());
 
     // SR
@@ -143,12 +131,9 @@ TEST(MXFP4, FP32ToFP4SRFailing)
     std::vector<float> out(2, -1.0f);
 
     DeviceMem device_out(2 * sizeof(float));
-    // DeviceMem device_completed(sizeof(uint64_t));
 
     run_test_mx_fp32_to_fp4_sr_failing<<<1, 1>>>(static_cast<float*>(device_out.GetDeviceBuffer()));
 
-    // uint64_t completed = 0;
-    // device_completed.FromDevice(&completed);
     device_out.FromDevice(out.data());
 
     // SR
