@@ -963,62 +963,6 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_
                                                            PassThrough,
                                                            BF8,
                                                            F8>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_default_pipev2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           BF8,
-                                                           F8>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_default_pipev5_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           BF8,
-                                                           F8>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_pad0_pipev2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           BF8,
-                                                           F8>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_pad0_pipev5_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           BF8,
-                                                           F8>>>& instances);
 #endif
 
 } // namespace instance
