@@ -17,41 +17,33 @@
 #include <utility>
 #include <vector>
 
-
 // Convert DQ
 using fmha_dtype_0 = FmhaBwdFp16;
 
-using fmha_bwd_convert_dq_trait_0 =
-    ck_tile::TileFmhaBwdConvertQGradTraits<false, false, 2>;
+using fmha_bwd_convert_dq_trait_0 = ck_tile::TileFmhaBwdConvertQGradTraits<false, false, 2>;
 
-using fmha_bwd_convert_dq_pipeline_problem_0 =
-    ck_tile::BlockFmhaBwdConvertQGradPipelineProblem<
-        typename FmhaBwdTypeConfig<fmha_dtype_0>::AccDataType,
-        typename FmhaBwdTypeConfig<fmha_dtype_0>::QGradDataType,
-        /* BlockSize = */ 256,
-        64,
-        128,
-        128,
-        false,
-        false,
-        fmha_bwd_convert_dq_trait_0>;
+using fmha_bwd_convert_dq_pipeline_problem_0 = ck_tile::BlockFmhaBwdConvertQGradPipelineProblem<
+    typename FmhaBwdTypeConfig<fmha_dtype_0>::AccDataType,
+    typename FmhaBwdTypeConfig<fmha_dtype_0>::QGradDataType,
+    /* BlockSize = */ 256,
+    64,
+    128,
+    128,
+    false,
+    false,
+    fmha_bwd_convert_dq_trait_0>;
 
 using fmha_bwd_convert_dq_0 =
     typename ck_tile::BlockFmhaBwdConvertQGrad<fmha_bwd_convert_dq_pipeline_problem_0>;
 
-using fmha_bwd_convert_dq_kernel_0 =
-    ck_tile::FmhaBwdConvertQGradKernel<fmha_bwd_convert_dq_0>;
+using fmha_bwd_convert_dq_kernel_0 = ck_tile::FmhaBwdConvertQGradKernel<fmha_bwd_convert_dq_0>;
 
-using convert_dq_trait_0 = fmha_bwd_convert_dq_traits_<128,
-                                                             FmhaBwdFp16,
-                                                             false,
-                                                             false,
-                                                             false,
-                                                             false>;
+using convert_dq_trait_0 =
+    fmha_bwd_convert_dq_traits_<128, FmhaBwdFp16, false, false, false, false>;
 
 template <>
 void fmha_bwd_convert_dq_oneshot_<convert_dq_trait_0>(const ck_tile::stream_config& s,
-                                                            fmha_bwd_args a)
+                                                      fmha_bwd_args a)
 {
     using k_                               = fmha_bwd_convert_dq_kernel_0;
     auto [kargs, grids]                    = fmha_bwd_convert_dq_create_kargs_and_grids<k_>(a);
@@ -69,8 +61,7 @@ std::string fmha_bwd_convert_dq_get_name_<convert_dq_trait_0>()
 }
 
 // dq_dk_dv
-using fmha_block_tile_0 = ck_tile::
-    sequence<16, 128, 128, 16, 128, 16, 32, 128, 128>;
+using fmha_block_tile_0   = ck_tile::sequence<16, 128, 128, 16, 128, 16, 32, 128, 128>;
 using fmha_block_warps0_0 = ck_tile::sequence<1, 4, 1>;
 using fmha_block_warps1_0 = ck_tile::sequence<4, 1, 1>;
 using fmha_block_warps2_0 = ck_tile::sequence<1, 4, 1>;
@@ -82,29 +73,29 @@ using fmha_warp_tile1_0   = ck_tile::sequence<16, 16, 16>;
 //       G1&G3 -> GdKV
 //       G4    -> GdQ
 using fmha_bwd_shape_0 = ck_tile::TileFmhaBwdShape<fmha_block_tile_0,
-                                                         fmha_block_warps0_0,
-                                                         fmha_warp_tile0_0,
-                                                         fmha_block_warps1_0,
-                                                         fmha_warp_tile1_0,
-                                                         fmha_block_warps0_0,
-                                                         fmha_warp_tile0_0,
-                                                         fmha_block_warps1_0,
-                                                         fmha_warp_tile1_0,
-                                                         fmha_block_warps2_0,
-                                                         fmha_warp_tile0_0>;
+                                                   fmha_block_warps0_0,
+                                                   fmha_warp_tile0_0,
+                                                   fmha_block_warps1_0,
+                                                   fmha_warp_tile1_0,
+                                                   fmha_block_warps0_0,
+                                                   fmha_warp_tile0_0,
+                                                   fmha_block_warps1_0,
+                                                   fmha_warp_tile1_0,
+                                                   fmha_block_warps2_0,
+                                                   fmha_warp_tile0_0>;
 
 using fmha_bwd_trait_0 = ck_tile::TileFmhaTraits<false,
-                                                       false,
-                                                       false,
-                                                       false,
-                                                       ck_tile::BlockAttentionBiasEnum::NO_BIAS,
-                                                       false,
-                                                       false,
-                                                       false,
-                                                       false,
-                                                       1>;
+                                                 false,
+                                                 false,
+                                                 false,
+                                                 ck_tile::BlockAttentionBiasEnum::NO_BIAS,
+                                                 false,
+                                                 false,
+                                                 false,
+                                                 false,
+                                                 1>;
 using fmha_mask_0      = ck_tile::SimplifiedGenericAttentionMask<false>;
-using fmha_dropout_0   = ck_tile::BlockDropoutBwd<false, true,  false>;
+using fmha_dropout_0   = ck_tile::BlockDropoutBwd<false, true, false>;
 
 using fmha_bwd_pipeline_problem_0 = ck_tile::BlockFmhaBwdPipelineProblem<
     typename FmhaBwdTypeConfig<fmha_dtype_0>::QDataType,
@@ -129,7 +120,8 @@ using fmha_bwd_pipeline_problem_0 = ck_tile::BlockFmhaBwdPipelineProblem<
     fmha_dropout_0,
     fmha_bwd_trait_0>;
 
-using fmha_bwd_pipeline_0 = ck_tile::BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP<fmha_bwd_pipeline_problem_0>;
+using fmha_bwd_pipeline_0 =
+    ck_tile::BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP<fmha_bwd_pipeline_problem_0>;
 
 using fmha_bwd_dk_epilogue_0 = ck_tile::Default2DEpilogue<
     ck_tile::Default2DEpilogueProblem<typename FmhaBwdTypeConfig<FmhaBwdFp16>::AccDataType,
@@ -143,28 +135,25 @@ using fmha_bwd_dv_epilogue_0 = ck_tile::Default2DEpilogue<
                                       false,
                                       false>>;
 
-using fmha_bwd_dq_dk_dv_kernel_0 =
-    ck_tile::FmhaBwdDQDKDVKernel<fmha_bwd_pipeline_0,
-                                 fmha_bwd_dk_epilogue_0,
-                                 fmha_bwd_dv_epilogue_0>;
+using fmha_bwd_dq_dk_dv_kernel_0 = ck_tile::
+    FmhaBwdDQDKDVKernel<fmha_bwd_pipeline_0, fmha_bwd_dk_epilogue_0, fmha_bwd_dv_epilogue_0>;
 
 using dq_dk_dv_trait_0 = fmha_bwd_dq_dk_dv_traits_<128,
-                                                         FmhaBwdFp16,
-                                                         false,
-                                                         ck_tile::BlockFmhaBwdPipelineEnum::KRKTRVR_IGLP,
-                                                         fmha_mask_0,
-                                                         fmha_dropout_0,
-                                                         ck_tile::BlockAttentionBiasEnum::NO_BIAS,
-                                                         false,
-                                                         false,
-                                                         false,
-                                                         false,
-                                                         false,
-                                                         false>;
+                                                   FmhaBwdFp16,
+                                                   false,
+                                                   ck_tile::BlockFmhaBwdPipelineEnum::KRKTRVR_IGLP,
+                                                   fmha_mask_0,
+                                                   fmha_dropout_0,
+                                                   ck_tile::BlockAttentionBiasEnum::NO_BIAS,
+                                                   false,
+                                                   false,
+                                                   false,
+                                                   false,
+                                                   false,
+                                                   false>;
 
 template <>
-void fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_0>(const ck_tile::stream_config& s,
-                                                        fmha_bwd_args a)
+void fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_0>(const ck_tile::stream_config& s, fmha_bwd_args a)
 {
     using k_                               = fmha_bwd_dq_dk_dv_kernel_0;
     auto [kargs, grids]                    = fmha_bwd_dq_dk_dv_create_kargs_and_grids<k_>(a);
@@ -182,8 +171,7 @@ std::string fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_0>()
 }
 
 // dot_do_o
-using fmha_bwd_dot_do_o_trait_0 =
-    ck_tile::TileFmhaBwdOGradDotOTraits<false, false, 2>;
+using fmha_bwd_dot_do_o_trait_0 = ck_tile::TileFmhaBwdOGradDotOTraits<false, false, 2>;
 
 using fmha_bwd_dot_do_o_pipeline_problem_0 = ck_tile::BlockFmhaBwdOGradDotOPipelineProblem<
     typename FmhaBwdTypeConfig<fmha_dtype_0>::ODataType,
@@ -197,11 +185,9 @@ using fmha_bwd_dot_do_o_pipeline_problem_0 = ck_tile::BlockFmhaBwdOGradDotOPipel
 using fmha_bwd_dot_do_o_0 =
     typename ck_tile::BlockFmhaBwdOGradDotO<fmha_bwd_dot_do_o_pipeline_problem_0>;
 
-using fmha_bwd_dot_do_o_kernel_0 =
-    ck_tile::FmhaBwdOGradDotOKernel<fmha_bwd_dot_do_o_0>;
+using fmha_bwd_dot_do_o_kernel_0 = ck_tile::FmhaBwdOGradDotOKernel<fmha_bwd_dot_do_o_0>;
 
-using dot_do_o_trait_0 =
-    fmha_bwd_dot_do_o_traits_<128, FmhaBwdFp16, false, false, false>;
+using dot_do_o_trait_0 = fmha_bwd_dot_do_o_traits_<128, FmhaBwdFp16, false, false, false>;
 
 template <>
 void fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_0>(const ck_tile::stream_config& s, fmha_bwd_args a)
@@ -220,7 +206,6 @@ std::string fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_0>()
     using k_ = fmha_bwd_dot_do_o_kernel_0;
     return k_::GetName();
 }
-
 
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
@@ -244,25 +229,53 @@ template <typename dot_do_o_trait_, typename dq_dk_dv_trait_, typename convert_d
 float fmha_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a)
 {
     if(s.log_level_ > 0)
-        std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << ", " << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_>() << ", " << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << std::flush;
-    return ck_tile::launch_kernel(s,
-        [=](const ck_tile::stream_config& s_){ fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_>(s_, a); },
-        [=](const ck_tile::stream_config& s_){ fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_>(s_, a); },
-        [=](const ck_tile::stream_config& s_){ fmha_bwd_convert_dq_oneshot_<convert_dq_trait_>(s_, a); }
-    );
+        std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << ", "
+                  << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_>() << ", "
+                  << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << std::flush;
+    return ck_tile::launch_kernel(
+        s,
+        [=](const ck_tile::stream_config& s_) {
+            fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_>(s_, a);
+        },
+        [=](const ck_tile::stream_config& s_) {
+            fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_>(s_, a);
+        },
+        [=](const ck_tile::stream_config& s_) {
+            fmha_bwd_convert_dq_oneshot_<convert_dq_trait_>(s_, a);
+        });
 }
 
-float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config& s){
+float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config& s)
+{
     float r = -1;
-    if(t.data_type.compare("fp16") == 0 && (t.is_group_mode == false) && (t.mask_type == mask_enum::no_mask) && (t.bias_type == bias_enum::no_bias) && (t.has_dbias == false) && (t.has_dropout == false) &&
-        (a.seqlen_q % 16 == 0 and a.seqlen_q % 64 == 0) && (a.seqlen_k % 128 == 0) && (a.hdim_q % 128 == 0) && (a.hdim_v % 128 == 0) && (t.is_deterministic == false)) {
+    if(t.data_type.compare("fp16") == 0 && (t.is_group_mode == false) &&
+       (t.mask_type == mask_enum::no_mask) && (t.bias_type == bias_enum::no_bias) &&
+       (t.has_dbias == false) && (t.has_dropout == false) &&
+       (a.seqlen_q % 16 == 0 and a.seqlen_q % 64 == 0) && (a.seqlen_k % 128 == 0) &&
+       (a.hdim_q % 128 == 0) && (a.hdim_v % 128 == 0) && (t.is_deterministic == false))
+    {
         using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, FmhaBwdFp16, false, false, false>;
-        using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<128, FmhaBwdFp16, false, ck_tile::BlockFmhaBwdPipelineEnum::KRKTRVR_IGLP, ck_tile::SimplifiedGenericAttentionMask<false>, ck_tile::BlockDropoutBwd<false, true,  false>, ck_tile::BlockAttentionBiasEnum::NO_BIAS, false, false, false, false, false, false>;
-        using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, FmhaBwdFp16, false, false, false, false>;
+        using dq_dk_dv_trait_ =
+            fmha_bwd_dq_dk_dv_traits_<128,
+                                      FmhaBwdFp16,
+                                      false,
+                                      ck_tile::BlockFmhaBwdPipelineEnum::KRKTRVR_IGLP,
+                                      ck_tile::SimplifiedGenericAttentionMask<false>,
+                                      ck_tile::BlockDropoutBwd<false, true, false>,
+                                      ck_tile::BlockAttentionBiasEnum::NO_BIAS,
+                                      false,
+                                      false,
+                                      false,
+                                      false,
+                                      false,
+                                      false>;
+        using convert_dq_trait_ =
+            fmha_bwd_convert_dq_traits_<128, FmhaBwdFp16, false, false, false, false>;
         r = fmha_bwd_<dot_do_o_trait_, dq_dk_dv_trait_, convert_dq_trait_>(s, a);
         return r;
     }
-    else{
+    else
+    {
         assert("unsupported case\n");
         return r;
     }
@@ -806,11 +819,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     float ave_time = fmha_bwd(fmha_traits, fmha_args, stream_config);
     // using instance:
-        // using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, FmhaBwdFp16, false, false, false>;
-        // using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<128, FmhaBwdFp16, false, ck_tile::BlockFmhaBwdPipelineEnum::KRKTRVR_IGLP, ck_tile::SimplifiedGenericAttentionMask<false>, ck_tile::BlockDropoutBwd<false, true,  false>, ck_tile::BlockAttentionBiasEnum::NO_BIAS, false, false, false, false, false, false>;
-        // using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, FmhaBwdFp16, false, false, false, false>;
-        // r = fmha_bwd_<dot_do_o_trait_, dq_dk_dv_trait_, convert_dq_trait_>(s, a);
-        // return r;
+    // using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, FmhaBwdFp16, false, false, false>;
+    // using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<128, FmhaBwdFp16, false,
+    // ck_tile::BlockFmhaBwdPipelineEnum::KRKTRVR_IGLP,
+    // ck_tile::SimplifiedGenericAttentionMask<false>, ck_tile::BlockDropoutBwd<false, true, false>,
+    // ck_tile::BlockAttentionBiasEnum::NO_BIAS, false, false, false, false, false, false>; using
+    // convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, FmhaBwdFp16, false, false, false,
+    // false>; r = fmha_bwd_<dot_do_o_trait_, dq_dk_dv_trait_, convert_dq_trait_>(s, a); return r;
     if(ave_time < 0)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;

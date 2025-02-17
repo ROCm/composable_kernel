@@ -202,9 +202,8 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
         constexpr index_t total_pixels = kMNPerBlock * kKPerBlock / kBlockSize;
 
-        constexpr index_t kVecLoad = ((total_pixels / kMaxVecLoad) >= kMinVecLoad)
-                                         ? kMaxVecLoad
-                                         : kMinVecLoad;
+        constexpr index_t kVecLoad =
+            ((total_pixels / kMaxVecLoad) >= kMinVecLoad) ? kMaxVecLoad : kMinVecLoad;
 
         return kVecLoad;
     }
@@ -260,9 +259,8 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
         constexpr index_t total_pixels = kMNPerBlock * kKPerBlock / kBlockSize;
 
-        constexpr index_t kVecLoad = ((total_pixels / kMaxVecLoad) >= kMinVecLoad)
-                                         ? kMaxVecLoad
-                                         : kMinVecLoad;
+        constexpr index_t kVecLoad =
+            ((total_pixels / kMaxVecLoad) >= kMinVecLoad) ? kMaxVecLoad : kMinVecLoad;
 
         return kVecLoad;
     }
@@ -607,7 +605,8 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackQ()
     {
-        return GetAlignmentQ<Problem>();
+        using QDataType = remove_cvref_t<typename Problem::QDataType>;
+        return 16 / sizeof(QDataType);
     }
 
     template <typename Problem>
@@ -649,7 +648,8 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackOGrad()
     {
-        return GetAlignmentOGrad<Problem>();
+        using OGradDataType = remove_cvref_t<typename Problem::OGradDataType>;
+        return 16 / sizeof(OGradDataType);
     }
 
     template <typename Problem>
@@ -666,48 +666,73 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         return 16 / sizeof(GemmDataType);
     }
 
-    template <index_t MNPerBlock, index_t KPerBlock, index_t KPack>
+    template <index_t MNPerBlock, index_t KPerBlock, index_t KPack, bool XorLdsLayout = true>
     CK_TILE_HOST_DEVICE static constexpr auto MakeXLdsBlockDescriptor()
     {
-        constexpr auto DataTypeSize = 2; // sizeof(F16/BF16)
-        constexpr auto MNLdsLayer =
-            (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
+        if constexpr(XorLdsLayout)
+        {
+            constexpr auto DataTypeSize = 2; // sizeof(F16/BF16)
+            constexpr auto MNLdsLayer =
+                (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
 
-        constexpr auto x_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<KPerBlock / KPack * MNLdsLayer>{},
-                       number<MNPerBlock / MNLdsLayer>{},
-                       number<KPack>{}),
-            make_tuple(number<KPack>{}, number<KPerBlock * MNLdsLayer>{}, number<1>{}),
-            number<KPack>{},
-            number<1>{});
+            constexpr auto x_lds_block_desc_0 = make_naive_tensor_descriptor(
+                make_tuple(number<KPerBlock / KPack * MNLdsLayer>{},
+                           number<MNPerBlock / MNLdsLayer>{},
+                           number<KPack>{}),
+                make_tuple(number<KPack>{}, number<KPerBlock * MNLdsLayer>{}, number<1>{}),
+                number<KPack>{},
+                number<1>{});
 
-        constexpr auto x_lds_block_desc_permuted = transform_tensor_descriptor(
-            x_lds_block_desc_0,
-            make_tuple(make_xor_transform(make_tuple(number<MNPerBlock / MNLdsLayer>{},
-                                                     number<KPerBlock / KPack * MNLdsLayer>{})),
-                       make_pass_through_transform(number<KPack>{})),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}));
+            constexpr auto x_lds_block_desc_permuted = transform_tensor_descriptor(
+                x_lds_block_desc_0,
+                make_tuple(make_xor_transform(make_tuple(number<MNPerBlock / MNLdsLayer>{},
+                                                         number<KPerBlock / KPack * MNLdsLayer>{})),
+                           make_pass_through_transform(number<KPack>{})),
+                make_tuple(sequence<1, 0>{}, sequence<2>{}),
+                make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
-        constexpr auto x_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
-            x_lds_block_desc_permuted,
-            make_tuple(make_unmerge_transform(
-                           make_tuple(number<KPerBlock / KPack>{}, number<MNLdsLayer>{})),
-                       make_pass_through_transform(number<MNPerBlock / MNLdsLayer>{}),
-                       make_pass_through_transform(number<KPack>{})),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
+            constexpr auto x_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
+                x_lds_block_desc_permuted,
+                make_tuple(make_unmerge_transform(
+                               make_tuple(number<KPerBlock / KPack>{}, number<MNLdsLayer>{})),
+                           make_pass_through_transform(number<MNPerBlock / MNLdsLayer>{}),
+                           make_pass_through_transform(number<KPack>{})),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
 
-        constexpr auto x_lds_block_desc = transform_tensor_descriptor(
-            x_lds_block_desc_xk0_mnldslayer_mn_xk1,
-            make_tuple(make_merge_transform_v3_division_mod(
-                           make_tuple(number<MNPerBlock / MNLdsLayer>{}, number<MNLdsLayer>{})),
-                       make_merge_transform_v3_division_mod(
-                           make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
-            make_tuple(sequence<1, 2>{}, sequence<0, 3>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
+            constexpr auto x_lds_block_desc = transform_tensor_descriptor(
+                x_lds_block_desc_xk0_mnldslayer_mn_xk1,
+                make_tuple(make_merge_transform_v3_division_mod(
+                               make_tuple(number<MNPerBlock / MNLdsLayer>{}, number<MNLdsLayer>{})),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
+                make_tuple(sequence<1, 2>{}, sequence<0, 3>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
 
-        return x_lds_block_desc;
+            return x_lds_block_desc;
+        }
+        else
+        {
+            constexpr auto x_lds_block_desc_0 = make_naive_tensor_descriptor(
+                make_tuple(number<MNPerBlock>{},
+                           number<KPerBlock / 64>{},
+                           number<64 / KPack>{},
+                           number<KPack>{}),
+                make_tuple(number<KPerBlock / 64 * (64 / KPack + 1) * KPack>{},
+                           number<(64 / KPack + 1) * KPack>{},
+                           number<KPack>{},
+                           number<1>{}),
+                number<KPack>{},
+                number<1>{});
+
+            return transform_tensor_descriptor(
+                x_lds_block_desc_0,
+                make_tuple(make_pass_through_transform(number<MNPerBlock>{}),
+                           make_merge_transform_v3_division_mod(make_tuple(
+                               number<KPerBlock / 64>{}, number<64 / KPack>{}, number<KPack>{}))),
+                make_tuple(sequence<0>{}, sequence<1, 2, 3>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+        }
     }
 
     template <typename Problem,
@@ -986,9 +1011,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
 
-        constexpr index_t kKPack = GetSmemKPackQ<Problem>();
+        constexpr index_t KPack = GetSmemKPackQ<Problem>();
 
-        return MakeXLdsBlockDescriptor<kMPerBlock, kKPerBlock, kKPack>();
+        return MakeXLdsBlockDescriptor<kMPerBlock, kKPerBlock, KPack, false>();
     }
 
     template <typename Problem>
@@ -1193,9 +1218,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kVHeaddim;
 
-        constexpr index_t kKPack = GetSmemKPackOGrad<Problem>();
+        constexpr index_t KPack = GetSmemKPackOGrad<Problem>();
 
-        return MakeXLdsBlockDescriptor<kMPerBlock, kKPerBlock, kKPack>();
+        return MakeXLdsBlockDescriptor<kMPerBlock, kKPerBlock, KPack, false>();
     }
 
     template <typename Problem>
@@ -1681,14 +1706,17 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             constexpr index_t MFMA_PER_VMEM_READ = MFMA_INST / VMEM_READ_INST;
             constexpr index_t MFMA_Remainder     = MFMA_INST - MFMA_PER_VMEM_READ * VMEM_READ_INST;
             // To hide instruction issue latency
-            constexpr index_t LDS_READ_PER_MFMA = ck_tile::integer_divide_ceil(LDS_READ_INST, MFMA_INST);
+            constexpr index_t LDS_READ_PER_MFMA =
+                ck_tile::integer_divide_ceil(LDS_READ_INST, MFMA_INST);
 
             static_for<0, VMEM_READ_INST, 1>{}([&](auto i) {
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
                 static_for<0, MFMA_PER_VMEM_READ, 1>{}([&](auto j) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                     // MFMA
-                    if constexpr (i * MFMA_PER_VMEM_READ + j<LDS_READ_INST){
-                        __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                    if constexpr(i * MFMA_PER_VMEM_READ + j < LDS_READ_INST)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(
+                            0x100, LDS_READ_PER_MFMA, 0); // DS read
                     }
                 });
             });
@@ -1709,11 +1737,13 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             constexpr index_t MFMA_INST     = Gemm1MFMA;
 
             // To hide instruction issue latency
-            constexpr index_t LDS_READ_PER_MFMA = ck_tile::integer_divide_ceil(LDS_READ_INST, MFMA_INST);
+            constexpr index_t LDS_READ_PER_MFMA =
+                ck_tile::integer_divide_ceil(LDS_READ_INST, MFMA_INST);
 
             static_for<0, MFMA_INST, 1>{}([&](auto i) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                    // MFMA
-                if constexpr (i <LDS_READ_INST){
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                if constexpr(i < LDS_READ_INST)
+                {
                     __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS read
                 }
             });
@@ -1729,11 +1759,13 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             constexpr index_t MFMA_INST = Gemm2MFMA;
 
             // To hide instruction issue latency
-            constexpr index_t LDS_WRITE_PER_MFMA = ck_tile::integer_divide_ceil(LDS_WRITE_INST, MFMA_INST);
+            constexpr index_t LDS_WRITE_PER_MFMA =
+                ck_tile::integer_divide_ceil(LDS_WRITE_INST, MFMA_INST);
 
             static_for<0, MFMA_INST, 1>{}([&](auto i) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                      // MFMA
-                if constexpr (i < LDS_WRITE_INST){
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                if constexpr(i < LDS_WRITE_INST)
+                {
                     __builtin_amdgcn_sched_group_barrier(0x200, LDS_WRITE_PER_MFMA, 0); // DS write
                 }
             });
@@ -1749,31 +1781,43 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             constexpr index_t MFMA_INST      = Gemm3MFMA;
 
             // To hide instruction issue latency
-            constexpr index_t LDS_WRITE_PER_MFMA = ck_tile::integer_divide_ceil(LDS_WRITE_INST, MFMA_INST);
+            constexpr index_t LDS_WRITE_PER_MFMA =
+                ck_tile::integer_divide_ceil(LDS_WRITE_INST, MFMA_INST);
             constexpr index_t MFMA_INST_LDS_WRITE = LDS_WRITE_INST / LDS_WRITE_PER_MFMA;
 
-            constexpr index_t LDS_READ_PER_MFMA = ck_tile::integer_divide_ceil(LDS_READ_INST, (MFMA_INST - MFMA_INST_LDS_WRITE));
+            constexpr index_t LDS_READ_PER_MFMA =
+                ck_tile::integer_divide_ceil(LDS_READ_INST, (MFMA_INST - MFMA_INST_LDS_WRITE));
 
             static_for<0, MFMA_INST_LDS_WRITE, 1>{}([&](auto i) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                  // MFMA
-                if constexpr (i * LDS_WRITE_PER_MFMA < LDS_WRITE_INST){
-                    if constexpr ( (i +1 ) * LDS_WRITE_PER_MFMA > LDS_WRITE_INST){
-                        __builtin_amdgcn_sched_group_barrier(0x200, LDS_WRITE_INST - i * LDS_WRITE_PER_MFMA, 0); // DS Write
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                if constexpr(i * LDS_WRITE_PER_MFMA < LDS_WRITE_INST)
+                {
+                    if constexpr((i + 1) * LDS_WRITE_PER_MFMA > LDS_WRITE_INST)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(
+                            0x200, LDS_WRITE_INST - i * LDS_WRITE_PER_MFMA, 0); // DS Write
                     }
-                    else{
-                        __builtin_amdgcn_sched_group_barrier(0x200, LDS_WRITE_PER_MFMA, 0); // DS Write
+                    else
+                    {
+                        __builtin_amdgcn_sched_group_barrier(
+                            0x200, LDS_WRITE_PER_MFMA, 0); // DS Write
                     }
                 }
             });
 
             static_for<0, MFMA_INST - MFMA_INST_LDS_WRITE, 1>{}([&](auto i) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                 // MFMA
-                if constexpr (i * LDS_READ_PER_MFMA < LDS_READ_INST){
-                    if constexpr ( (i +1 ) * LDS_READ_PER_MFMA > LDS_READ_INST){
-                        __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_INST - i * LDS_READ_PER_MFMA, 0); // DS Read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                if constexpr(i * LDS_READ_PER_MFMA < LDS_READ_INST)
+                {
+                    if constexpr((i + 1) * LDS_READ_PER_MFMA > LDS_READ_INST)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(
+                            0x100, LDS_READ_INST - i * LDS_READ_PER_MFMA, 0); // DS Read
                     }
-                    else{
-                        __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS Read
+                    else
+                    {
+                        __builtin_amdgcn_sched_group_barrier(
+                            0x100, LDS_READ_PER_MFMA, 0); // DS Read
                     }
                 }
             });
@@ -1788,19 +1832,40 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             constexpr index_t MFMA_INST     = Gemm4MFMA;
 
             // To hide instruction issue latency
-            constexpr index_t LDS_READ_PER_MFMA = ck_tile::integer_divide_ceil(LDS_READ_INST, MFMA_INST);
+            constexpr index_t LDS_READ_PER_MFMA =
+                ck_tile::integer_divide_ceil(LDS_READ_INST, MFMA_INST);
 
             static_for<0, MFMA_INST, 1>{}([&](auto i) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                 // MFMA
-                if constexpr (i * LDS_READ_PER_MFMA < LDS_READ_INST){
-                    if constexpr ( (i +1 ) * LDS_READ_PER_MFMA > LDS_READ_INST){
-                        __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_INST - i * LDS_READ_PER_MFMA, 0); // DS Read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                if constexpr(i * LDS_READ_PER_MFMA < LDS_READ_INST)
+                {
+                    if constexpr((i + 1) * LDS_READ_PER_MFMA > LDS_READ_INST)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(
+                            0x100, LDS_READ_INST - i * LDS_READ_PER_MFMA, 0); // DS Read
                     }
-                    else{
-                        __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS Read
+                    else
+                    {
+                        __builtin_amdgcn_sched_group_barrier(
+                            0x100, LDS_READ_PER_MFMA, 0); // DS Read
                     }
                 }
             });
+        }
+
+        CK_TILE_HOST_DEVICE static void print()
+        {
+            printf("LDS instruction{");
+            //
+            printf("OGradT_LDS_READ: %d, ", OGradT_LDS_READ);
+            printf("OGrad_LDS_READ: %d, ", OGrad_LDS_READ);
+            printf("QT_LDS_READ: %d, ", QT_LDS_READ);
+            printf("Q_LDS_READ: %d, ", Q_LDS_READ);
+            printf("SGradT_LDS_READ_P1: %d, ", SGradT_LDS_READ_P1);
+            printf("SGradT_LDS_READ_P2: %d, ", SGradT_LDS_READ_P2);
+            printf("LSE_LDS_READ: %d, ", LSE_LDS_READ);
+            printf("D_LDS_READ: %d, ", D_LDS_READ);
+            printf("}");
         }
 
         private:
@@ -1818,6 +1883,10 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         static constexpr index_t WarpGemmN =
             Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{});
         static constexpr index_t WarpGemmK = WarpGemmM == 16 ? 16 : 8;
+        static constexpr index_t Gemm0MWarp =
+            Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
+        static constexpr index_t Gemm2MWarp =
+            Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<0>{});
         static constexpr index_t Gemm4MWarp =
             Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<0>{});
         static constexpr index_t Gemm4NWarp =
@@ -1847,20 +1916,29 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         static constexpr index_t D_VMEM_READ   = 1;
 
         // LDS Read
+        // 16 * 128 / 64 / 4 = 8
         static constexpr index_t OGradT_LDS_READ =
             kM0 * kVHeaddim / get_warp_size() / GetTransposedAlignmentOGrad<Problem>();
+        // 16 * 128 / 64 / 4 = 8
         static constexpr index_t QT_LDS_READ =
             kM0 * kQKHeaddim / get_warp_size() / GetTransposedAlignmentQ<Problem>();
+        // 16 * 32 / 64 / 8 = 1
         static constexpr index_t SGradT_LDS_READ_P1 =
             // kM0 * kK4 / (get_warp_size() * Gemm4MWarp) / GetSmemKPackSGrad<Problem>();
             kM0 * kK4 / (get_warp_size() * Gemm4MWarp) / 2;
-        static constexpr index_t Q_LDS_READ   = kM0 * kK0 / kBlockSize / GetAlignmentQ<Problem>();
+        // 16 * 128 / 64 / 8 = 4
+        static constexpr index_t Q_LDS_READ =
+            kM0 * kK0 / (get_warp_size() * Gemm0MWarp) / GetAlignmentQ<Problem>();
+        // 1
         static constexpr index_t LSE_LDS_READ = WarpGemmM == 16 ? kM0 / (4 * 4) : kM0 / (2 * 4);
+        // 16 * 96 / 64 / 8 = 3
         static constexpr index_t SGradT_LDS_READ_P2 =
             // kM0 * (kN0 - kK4) / (get_warp_size() * Gemm4MWarp) / GetSmemKPackSGrad<Problem>();
             kM0 * (kN0 - kK4) / (get_warp_size() * Gemm4MWarp) / 2;
+        // 16 * 128 / 64 / 8 = 4
         static constexpr index_t OGrad_LDS_READ =
-            kM0 * kK2 / kBlockSize / GetAlignmentOGrad<Problem>();
+            kM0 * kK2 / (get_warp_size() * Gemm2MWarp) / GetAlignmentOGrad<Problem>();
+        // 1
         static constexpr index_t D_LDS_READ = WarpGemmM == 16 ? kM0 / (4 * 4) : kM0 / (2 * 4);
 
         // LDS Write
