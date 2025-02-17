@@ -8,14 +8,15 @@
 
 struct fused_moe_args
 {
-    const void* a_ptr;              // [m, k], input token
-    const void* a_scale_ptr;        // [m, 1], token scale
-    const void* g_ptr;              // [e, n, k]/[e, 2*n, k], pre-shuffle([e, nr, kr, w])
-    const void* d_ptr;              // [e, n, k], pre-shuffle([e, nr, kr, w])
-    const void* g_scale_ptr;        // [e, 1, n], gate(up) scale
-    const void* d_scale_ptr;        // [e, 1, k], down scale
-    const void* y_smooth_scale_ptr; // [e, 1, n], smooth-quant-scale for 2nd gemm input
-    void* o_ptr;                    // [m, k], output token (no need to do zeroing)
+    const void* a_ptr;                 // [m, k], input token
+    const void* a_scale_ptr;           // [m, 1], token scale
+    const void* g_ptr;                 // [e, n, k]/[e, 2*n, k], pre-shuffle([e, nr, kr, w])
+    const void* d_ptr;                 // [e, n, k], pre-shuffle([e, nr, kr, w])
+    const void* g_scale_ptr;           // [e, 1, n], gate(up) scale
+    const void* d_scale_ptr;           // [e, 1, k], down scale
+    const void* y_smooth_scale_ptr;    // [e, 1, n], smooth-quant-scale for 2nd gemm input
+    const void* local_expert_mask_ptr; // [e], local_expert_mask_ptr for EP
+    void* o_ptr;                       // [m, k], output token (no need to do zeroing)
 
     const void* topk_ids_ptr;    // [tokens, topk]
     const void* topk_weight_ptr; // [tokens, topk]
@@ -48,6 +49,8 @@ struct fused_moe_traits
     int activation;  // 0:gelu, 1:silu
     int gate_only;   // 0:g1u0, 1:g1u1
     int fused_quant; // 0:no-sweep, 1:smooth-dynamic-quant, 2:dynamic-quant
+
+    bool local_expert_masking; // if mask experts as local expert
 };
 
 float fused_moe(fused_moe_traits, fused_moe_args, const ck_tile::stream_config&);

@@ -140,28 +140,29 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t activation        = arg_parser.get_int("act");
     if(stride < 0)
         stride = hidden_size;
-    std::string prec_i  = arg_parser.get_str("prec_i");
-    std::string prec_w  = arg_parser.get_str("prec_w");
-    std::string prec_o  = arg_parser.get_str("prec_o");
-    std::string prec_st = arg_parser.get_str("prec_st");
-    std::string prec_sw = arg_parser.get_str("prec_sw");
-    std::string prec_sq = arg_parser.get_str("prec_sq");
-    std::string prec_kw = arg_parser.get_str("prec_kw");
-    prec_st             = (prec_st == "auto") ? "fp32" : prec_st;
-    prec_sw             = (prec_sw == "auto") ? "fp32" : prec_sw;
-    prec_sq             = (prec_sq == "auto") ? "fp32" : prec_sq;
-    prec_kw             = (prec_kw == "auto") ? "fp32" : prec_kw;
-    int kname           = arg_parser.get_int("kname");
-    int do_validation   = arg_parser.get_int("v");
-    int warmup          = arg_parser.get_int("warmup");
-    int repeat          = arg_parser.get_int("repeat");
-    int fused_quant     = arg_parser.get_int("fquant");
-    int gate_only       = arg_parser.get_int("gate_only");
-    int api             = arg_parser.get_int("api");
-    int balance         = arg_parser.get_int("balance");
-    int tp              = arg_parser.get_int("tp");
-    int init            = arg_parser.get_int("init");
-    uint32_t seed       = arg_parser.get_uint32("seed");
+    std::string prec_i        = arg_parser.get_str("prec_i");
+    std::string prec_w        = arg_parser.get_str("prec_w");
+    std::string prec_o        = arg_parser.get_str("prec_o");
+    std::string prec_st       = arg_parser.get_str("prec_st");
+    std::string prec_sw       = arg_parser.get_str("prec_sw");
+    std::string prec_sq       = arg_parser.get_str("prec_sq");
+    std::string prec_kw       = arg_parser.get_str("prec_kw");
+    prec_st                   = (prec_st == "auto") ? "fp32" : prec_st;
+    prec_sw                   = (prec_sw == "auto") ? "fp32" : prec_sw;
+    prec_sq                   = (prec_sq == "auto") ? "fp32" : prec_sq;
+    prec_kw                   = (prec_kw == "auto") ? "fp32" : prec_kw;
+    int kname                 = arg_parser.get_int("kname");
+    int do_validation         = arg_parser.get_int("v");
+    int warmup                = arg_parser.get_int("warmup");
+    int repeat                = arg_parser.get_int("repeat");
+    int fused_quant           = arg_parser.get_int("fquant");
+    int gate_only             = arg_parser.get_int("gate_only");
+    int api                   = arg_parser.get_int("api");
+    int balance               = arg_parser.get_int("balance");
+    int tp                    = arg_parser.get_int("tp");
+    int init                  = arg_parser.get_int("init");
+    uint32_t seed             = arg_parser.get_uint32("seed");
+    bool local_expert_masking = false; // TODO...
 
     // w0 (Gate+Up or Gate only, N size)
     ck_tile::index_t shared_intermediate_size_0 = intermediate_size * (gate_only ? 1 : 2) / tp;
@@ -230,6 +231,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<YSmoothScaleDataType> sy_host({shared_intermediate_size_1}); // smooth-quant
     ck_tile::HostTensor<IndexDataType> topk_ids_host({tokens, topk});                // to be sort
     ck_tile::HostTensor<TopkWeightDataType> topk_weight_host({tokens, topk});        // to be sort
+    ck_tile::HostTensor<IndexDataType> local_expert_mask_host({experts});
 
     int max_num_tokens_padded = topk * tokens + experts * block_m - topk;
     ck_tile::HostTensor<IndexDataType> sorted_token_ids_host({max_num_tokens_padded});
@@ -355,6 +357,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::DeviceMem sg_buf(sg_host);
         ck_tile::DeviceMem sd_buf(sd_host);
         ck_tile::DeviceMem sy_buf(sy_host);
+        ck_tile::DeviceMem local_expert_mask_buf(local_expert_mask_host);
         ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
 
         ck_tile::DeviceMem topk_ids_buf(topk_ids_host);
@@ -378,7 +381,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                 block_m,
                                 activation,
                                 gate_only,
-                                fused_quant};
+                                fused_quant,
+                                local_expert_masking};
 
         fused_moe_args args{a_buf.GetDeviceBuffer(),
                             fused_quant != 0 ? sa_buf.GetDeviceBuffer() : nullptr,
@@ -387,6 +391,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                             fused_quant != 0 ? sg_buf.GetDeviceBuffer() : nullptr,
                             fused_quant != 0 ? sd_buf.GetDeviceBuffer() : nullptr,
                             fused_quant == 1 ? sy_buf.GetDeviceBuffer() : nullptr,
+                            local_expert_masking ? local_expert_mask_buf.GetDeviceBuffer()
+                                                 : nullptr,
                             o_buf.GetDeviceBuffer(),
                             topk_ids_buf.GetDeviceBuffer(),
                             topk_weight_buf.GetDeviceBuffer(),
@@ -442,12 +448,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::reference_moe_sorting<TopkWeightDataType, IndexDataType>(
                 topk_ids_host,
                 topk_weight_host,
+                local_expert_mask_host,
                 sorted_token_ids_host,
                 sorted_weight_host,
                 sorted_expert_ids_host,
                 num_sorted_tiles_host.mData[0],
                 experts,
-                block_m);
+                block_m,
+                local_expert_masking);
             if(activation == 0)
             {
                 CPU_FUSED_MOE(ck_tile::element_wise::Gelu);
@@ -472,12 +480,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::reference_moe_sorting<TopkWeightDataType, IndexDataType>(
             topk_ids_host,
             topk_weight_host,
+            local_expert_mask_host,
             sorted_token_ids_host,
             sorted_weight_host,
             sorted_expert_ids_host,
             num_sorted_tiles_host.mData[0],
             experts,
-            block_m);
+            block_m,
+            local_expert_masking);
 
         // done, preparing GPU buffer
         ck_tile::DeviceMem a_buf(a_host);
