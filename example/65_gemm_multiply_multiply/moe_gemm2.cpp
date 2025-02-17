@@ -236,7 +236,7 @@ int main(int argc, char* argv[])
 
 
     // const ck::index_t experts = 8;
-    Tensor<ck::index_t> expert_ids(HostTensorDescriptor({experts}, {1}));
+    Tensor<ck::index_t> expert_ids(HostTensorDescriptor({sorted_tile_num}, {1}));
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
     max_token_id.mData[0] = valid_size;
