@@ -161,9 +161,17 @@ TYPED_TEST(TestGroupedConvndBwdWeightV3Filter1x1, SpecializationCheck)
     EXPECT_FALSE(is_supported);
 
     // Supported version
-    this->conv_param = {2, 2, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
+    this->conv_param = {1, 2, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
     is_supported     = this->template Run<2>();
-    EXPECT_TRUE(is_supported);
+    // bfloat16 is not supported on gfx90a;
+    if(!ck::is_bf16_atomic_supported())
+    {
+        EXPECT_FALSE(is_supported);
+    }
+    else
+    {
+        EXPECT_TRUE(is_supported);
+    }
 }
 
 TYPED_TEST(TestGroupedConvndBwdWeightV3Default, VectorLoadCheck)

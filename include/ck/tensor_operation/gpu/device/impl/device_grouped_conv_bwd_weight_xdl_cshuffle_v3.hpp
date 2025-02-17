@@ -1161,6 +1161,12 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             return false;
         }
 
+        if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> &&
+           arg.k_batch_ > 1)
+        {
+            return false;
+        }
+
         if constexpr(NDimSpatial == 1)
         {
             if constexpr(!is_GNWC_GKXC_GNWK<InLayout, WeiLayout, OutLayout>())
@@ -1202,7 +1208,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                 }
             }
         }
-        if(!(ABlockTransferSrcVectorDim == 2 && BBlockTransferSrcVectorDim == 2 &&
+        if(!(ABlockTransferSrcVectorDim == 1 && BBlockTransferSrcVectorDim == 1 &&
              arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0 &&
              arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0))
         {
