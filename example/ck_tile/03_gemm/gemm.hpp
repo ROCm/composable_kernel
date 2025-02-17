@@ -89,7 +89,7 @@ struct DataTypeTraits<ck_tile::bf8_t>
     static constexpr const char* name = "bf8";
 };
 
-/** \brief Struct used for specifying desired gemm details*/
+/** @brief Struct used for specifying desired gemm details*/
 struct gemm_traits
 {
     std::string data_type; /** Tensors datatype, can be set to either fp16 or bf16*/
@@ -146,12 +146,12 @@ template <typename Traits_>
 float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
 
 /**
- * \brief Invoke gemm function
+ * @brief Invoke gemm function
  *
- * \param traits Gemm traits which are used for choosing best instance.
- * \param args Runtime gemm host arguments.
- * \param s Stream configuration.
- * \return Time of execution.
+ * @param traits Gemm traits which are used for choosing best instance.
+ * @param args Runtime gemm host arguments.
+ * @param s Stream configuration.
+ * @return Time of execution.
  */
 float gemm(const gemm_traits& traits,
            const ck_tile::GemmHostArgs& args,
