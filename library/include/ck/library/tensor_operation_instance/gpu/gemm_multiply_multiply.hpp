@@ -412,7 +412,6 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_f16_mk_nk_mn_mem_v2_kpadding_in
                                                           PassThrough,
                                                           MultiplyMultiply>>>& instances);
 #endif
-#endif
 
 #if(defined(CK_ENABLE_FP16) || defined(CK_ENABLE_INT8))
 void add_device_gemm_multiply_multiply_xdl_i8_i8_f16_mk_nk_mn_comp_default_instances(
