@@ -175,7 +175,6 @@ struct GridwiseMoeGemmGather
     static constexpr index_t KRepeat = KPerBlock / KLane / KPack;
     static constexpr index_t NLane   = NPerXdl;
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
-    static_assert(NWave * warpSize == BlockSize);
     // static constexpr index_t NumTokens = 1;
     static constexpr index_t SortedTileSize   = MPerBlock;
 
@@ -1247,13 +1246,13 @@ struct GridwiseMoeGemmGather
             decltype(b_grid_desc_bpreshuffled),
             decltype(b_block_desc_bk0_n_bk1),
             Sequence<Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}>,
-            Sequence<0, 1, 2, 3>,
+            Sequence<1, 2, 0, 3>,
             3,
             BBlockTransferSrcScalarPerVector,
             BThreadTransferSrcResetCoordinateAfterRun,
             true>(b_grid_desc_bpreshuffled,
                   make_multi_index(n_block_data_idx_on_grid,
-                                   get_warp_local_1d_id(),
+                    get_warp_local_1d_id() % NWave,
                                    0,
                                    KPack * (get_thread_local_1d_id() % warpSize)));
 
