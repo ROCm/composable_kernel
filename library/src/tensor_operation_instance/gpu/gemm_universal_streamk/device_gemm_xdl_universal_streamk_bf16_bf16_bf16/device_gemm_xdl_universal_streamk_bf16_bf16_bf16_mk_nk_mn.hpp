@@ -54,6 +54,7 @@ using device_gemm_xdl_universal_streamk_bf16_bf16_bf16_mk_nk_mn_comp_instances =
 
 #if !defined(CK_USE_AMD_MFMA_GFX950)
         DeviceGemm_Xdl_CShuffle_Streamk_V3<  Row,     Col,     Row,     BF16,   BF16,  BF16,   F32,     BF16,      PassThrough, PassThrough, PassThrough,       GemmSpec,   256,   224,   256,    64,   8,   8,  16,   16,    7,    8,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          1,           2,                   S<1, 16, 1, 16>,               4,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3>,
+
 #endif // !defined(CK_USE_AMD_MFMA_GFX950)
         DeviceGemm_Xdl_CShuffle_Streamk_V3<  Row,     Col,     Row,     BF16,   BF16,  BF16,   F32,     BF16,      PassThrough, PassThrough, PassThrough,       GemmSpec,   256,   256,   224,    64,   8,   8,  16,   16,    8,    7,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          2,           1,                   S<1, 32, 1, 8>,               4,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3>,
 
