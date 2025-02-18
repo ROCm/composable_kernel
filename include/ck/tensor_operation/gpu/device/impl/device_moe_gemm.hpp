@@ -12,8 +12,8 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_moe_gemm_gather.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_moe_gemm_scatter.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_moe_gemm.hpp"
+// #include "ck/tensor_operation/gpu/grid/gridwise_moe_gemm_scatter.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
@@ -66,7 +66,7 @@ template <typename ALayout,
           typename CDEShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
-          bool IsGatherGemm = true,
+          bool IsInputGemm = true,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ComputeTypeA,
@@ -85,8 +85,8 @@ struct DeviceMoeGemm
                                                   CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
-    using GridwiseGemm = std::conditional_t<IsGatherGemm,
-        GridwiseMoeGemmGather<
+    using GridwiseGemm = 
+        GridwiseMoeGemm<
             ALayout,
             BLayout,
             DsLayout,
@@ -136,58 +136,7 @@ struct DeviceMoeGemm
             ComputeTypeA,
             ComputeTypeB,
             LDSTypeA,
-            LDSTypeB>,
-        GridwiseMoeGemmScatter<
-            ALayout,
-            BLayout,
-            DsLayout,
-            CLayout,
-            ADataType,
-            BDataType,
-            GemmAccDataType,
-            CShuffleDataType,
-            DsDataType,
-            CDataType,
-            AElementwiseOperation,
-            BElementwiseOperation,
-            CElementwiseOperation,
-            GemmSpec,
-            BlockSize,
-            MPerBlock,
-            NPerBlock,
-            KPerBlock,
-            AK1,
-            BK1,
-            MPerXDL,
-            NPerXDL,
-            MXdlPerWave,
-            NXdlPerWave,
-            ABlockTransferThreadClusterLengths_AK0_M_AK1,
-            ABlockTransferThreadClusterArrangeOrder,
-            ABlockTransferSrcAccessOrder,
-            ABlockTransferSrcVectorDim,
-            ABlockTransferSrcScalarPerVector,
-            ABlockTransferDstScalarPerVector_AK1,
-            false,
-            ABlockLdsExtraM,
-            BBlockTransferThreadClusterLengths_BK0_N_BK1,
-            BBlockTransferThreadClusterArrangeOrder,
-            BBlockTransferSrcAccessOrder,
-            BBlockTransferSrcVectorDim,
-            BBlockTransferSrcScalarPerVector,
-            BBlockTransferDstScalarPerVector_BK1,
-            false,
-            BBlockLdsExtraN,
-            CShuffleMXdlPerWavePerShuffle,
-            CShuffleNXdlPerWavePerShuffle,
-            CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-            CDEShuffleBlockTransferScalarPerVectors,
-            BlkGemmPipeSched,
-            BlkGemmPipelineVer,
-            ComputeTypeA,
-            ComputeTypeB,
-            LDSTypeA,
-            LDSTypeB>>;
+            LDSTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
@@ -305,86 +254,51 @@ struct DeviceMoeGemm
                     // {
                     //     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     //     {
-                    //         if constexpr (IsGatherGemm) {
-                    //             const auto kernel = kernel_moe_gemm_gather<
+                    //             const auto kernel = kernel_moe_gemm<
                     //                 GridwiseGemm,
                     //                 true,
                     //                 InMemoryDataOperationEnum::AtomicAdd,
                     //                 minimum_occupancy,
+                    //                  IsInputGemm,
                     //                 TailNumber::Odd>;
                     //             RunKernel(kernel);
-                    //         else {
-                    //             const auto kernel = kernel_moe_gemm_scatter<
-                    //                 GridwiseGemm,
-                    //                 true,
-                    //                 InMemoryDataOperationEnum::AtomicAdd,
-                    //                 minimum_occupancy,
-                    //                 TailNumber::Odd>;
-                    //             RunKernel(kernel);
-                    //         }
                     //     }
                     //     else
                     //     {
-                    //         if constexpr (IsGatherGemm) {
-                    //             const auto kernel = kernel_moe_gemm_gather<
+                    //             const auto kernel = kernel_moe_gemm<
                     //                 GridwiseGemm,
                     //                 true,
                     //                 InMemoryDataOperationEnum::AtomicAdd,
                     //                 minimum_occupancy,
+                    //                  IsInputGemm,
                     //                 TailNumber::Even>;
                     //             RunKernel(kernel);
-                    //         else {
-                    //             const auto kernel = kernel_moe_gemm_scatter<
-                    //                 GridwiseGemm,
-                    //                 true,
-                    //                 InMemoryDataOperationEnum::AtomicAdd,
-                    //                 minimum_occupancy,
-                    //                 TailNumber::Even>;
-                    //             RunKernel(kernel);
-                    //         }
                     //     }
                     // }
                     // else
                     {
+                        constexpr auto MemoryDataOp = IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
                         // if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         // {
-                        //     if constexpr (IsGatherGemm) {
-                        //         const auto kernel = kernel_moe_gemm_gather<
+                        //         const auto kernel = kernel_moe_gemm<
                         //             GridwiseGemm,
                         //             true,
-                        //             InMemoryDataOperationEnum::Set,
+                        //             MemoryDataOp,
                         //             minimum_occupancy,
+                        //             IsInputGemm,
                         //             TailNumber::Odd>;
                         //         RunKernel(kernel);
-                        //     } else {
-                        //         const auto kernel = kernel_moe_gemm_scatter<
-                        //             GridwiseGemm,
-                        //             true,
-                        //             InMemoryDataOperationEnum::AtomicAdd,
-                        //             minimum_occupancy,
-                        //             TailNumber::Odd>;
-                        //         RunKernel(kernel);
-                        //     }
                         // }
                         // else
                         {
-                            if constexpr (IsGatherGemm) {
-                                const auto kernel = kernel_moe_gemm_gather<
-                                    GridwiseGemm,
-                                    true,
-                                    InMemoryDataOperationEnum::Set,
-                                    minimum_occupancy,
-                                    TailNumber::Even>;
-                                RunKernel(kernel);
-                            } else {
-                                const auto kernel = kernel_moe_gemm_scatter<
-                                    GridwiseGemm,
-                                    true,
-                                    InMemoryDataOperationEnum::AtomicAdd,
-                                    minimum_occupancy,
-                                    TailNumber::Even>;
-                                RunKernel(kernel);
-                            }
+                            const auto kernel = kernel_moe_gemm<
+                                GridwiseGemm,
+                                true,
+                                MemoryDataOp,
+                                minimum_occupancy,
+                                IsInputGemm,
+                                TailNumber::Even>;
+                            RunKernel(kernel);
                         }
                     }
                 }
@@ -423,7 +337,7 @@ struct DeviceMoeGemm
                 //                 kernel_moe_gemm_gather_2lds<
                 //                     GridwiseGemm,
                 //                     true,
-                //                IsGatherGemm? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd,
+                //                IsInputGemm? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd,
                 //                     minimum_occupancy,
                 //                     TailNumber::Odd>;
                 //             RunKernel(kernel);
@@ -434,7 +348,7 @@ struct DeviceMoeGemm
                 //                 kernel_moe_gemm_gather_2lds<
                 //                     GridwiseGemm,
                 //                     true,
-                //                IsGatherGemm? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd,
+                //                IsInputGemm? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd,
                 //                     minimum_occupancy,
                 //                     TailNumber::Even>;
                 //             RunKernel(kernel);
