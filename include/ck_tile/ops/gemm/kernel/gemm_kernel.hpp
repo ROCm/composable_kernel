@@ -167,6 +167,7 @@ struct GemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
     {
+        std::cout << "[INFO] kargs.k_batch: " << kargs.k_batch << std::endl;
         if constexpr(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
                      is_any_of<CDataType, fp16_t, bf16_t>::value)
         {
@@ -182,11 +183,12 @@ struct GemmKernel
 
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
-            if(kargs.K % TilePartitioner::KPerBlock != 0 && GemmPipeline::kPadK == false)
+            if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
+               GemmPipeline::kPadK == false)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "Can't support K that is not a multiple of KPerBlock"
+                    std::cerr << "Can't support K that is not a multiple of k_batch * KPerBlock"
                                  " without padding!"
                               << std::endl;
                 }
