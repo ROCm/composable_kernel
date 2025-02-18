@@ -113,17 +113,6 @@ struct BlockwiseGemmXdlops_pipeline_base
 
         return make_tuple(0, waveId_m, xdlops_a_idx[I1], KPerThread * xdlops_a_idx[I0]);
     }
-    
-    __device__ static auto CalculateAThreadOriginDataIndex6D()
-    {
-        const auto wave_idx = GetWaveIdx();
-
-        const auto waveId_m = wave_idx[I0];
-
-        const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
-
-        return make_tuple(0, waveId_m, xdlops_a_idx[I1], 0, xdlops_a_idx[I0], 0);
-    }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
     {
