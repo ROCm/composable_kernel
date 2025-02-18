@@ -1158,13 +1158,22 @@ struct GridwiseMoeGemm
         const index_t expert_block_id = blockIdx.x / problem.NBlock;
         // const index_t b_block_id = blockIdx.x % problem.NBlock;
         const index_t expert_id = __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[expert_block_id]);
-        const index_t es = __builtin_amdgcn_readfirstlane(p_max_token_id[expert_block_id + 1]);
-        const index_t expert_swizzle = es > 0 ? es : 1; //p_max_token_id[expert_id + 1];
-        const index_t expert_block_swizzle = expert_block_id / expert_swizzle;
-        const index_t b_block_id_swizzle = blockIdx.x % (problem.NBlock * expert_swizzle);
-        const index_t block_n_id = __builtin_amdgcn_readfirstlane(b_block_id_swizzle % 8 +  b_block_id_swizzle / (8 * expert_swizzle) * 8);
-        const index_t block_m_id = __builtin_amdgcn_readfirstlane(expert_block_swizzle * expert_swizzle + b_block_id_swizzle / 8 % expert_swizzle);
-        
+        const auto block_mn = [&]() -> std::pair<int, int> {
+            if constexpr (NSwizzle) 
+            {
+                const index_t es = __builtin_amdgcn_readfirstlane(p_max_token_id[expert_block_id + 1]);
+                const index_t expert_swizzle = es > 0 ? es : 1; //p_max_token_id[expert_id + 1];
+                const index_t expert_block_swizzle = expert_block_id / expert_swizzle;
+                const index_t b_block_id_swizzle = blockIdx.x % (problem.NBlock * expert_swizzle);
+                const index_t nid = __builtin_amdgcn_readfirstlane(b_block_id_swizzle % 8 +  b_block_id_swizzle / (8 * expert_swizzle) * 8);
+                const index_t mid = __builtin_amdgcn_readfirstlane(expert_block_swizzle * expert_swizzle + b_block_id_swizzle / 8 % expert_swizzle);
+                return {nid, mid};
+            } else {
+                return {blockIdx.x, blockIdx.y};
+            }
+        }();
+        const index_t block_n_id = block_mn.first;
+        const index_t block_m_id = block_mn.second;
         // if (threadIdx.x==0) {
         //     printf("bid %d, eid %d,  es %d, esi %d, bsi %d, m %d, n %d\n", blockIdx.x, expert_id, expert_swizzle, expert_block_swizzle, b_block_id_swizzle, block_m_id, block_n_id);
         // }
