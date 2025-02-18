@@ -145,7 +145,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
 
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
-    static constexpr index_t GlobalBufferNum = 1;
+    static constexpr index_t GlobalBufferNum = 2;
 
     template <typename TileDesc_M0_M1_M2_K>
     __host__ __device__ static constexpr auto MakeAGemmMmaTileDescriptor(const TileDesc_M0_M1_M2_K&)
@@ -257,7 +257,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
         constexpr auto b_block_origin_idx = make_tuple(I0, I0, I0, I0);
 
         // Global prefetch A1 B1
-        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
         b_blockwise_copy.Run(b_grid_desc,
                              b_grid_buf,
                              b_block_desc_n0_n1_k0_k1,
@@ -266,12 +266,13 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
 
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+        __builtin_amdgcn_sched_barrier(0);
 
         // // Local prefill A1
-        a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
+        a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, I0);
 
         // // Global prefetch A2
-        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
         // Local prefetch A1
@@ -304,13 +305,12 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
                                          b_block_desc_n0_n1_k0_k1,
                                          b_block_origin_idx,
                                          b_thread_bufs(local_read_buf));
-
                     b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                     block_sync_lds();
-                    a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
-                    a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+                    a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, mfma_reg_buf);
 
+                    a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, local_read_buf);
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
                     // printf("bid %d tid %d %f %f\n", blockIdx.x, threadIdx.x,
