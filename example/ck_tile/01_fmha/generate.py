@@ -103,7 +103,8 @@ if __name__ == "__main__":
         required=False,
         help="codegen receipt. 0: generate only 8xhdim coverage\n"  + \
              "  1: generate more instance to cover all hdim\n"  + \
-             "  2: Only generate instance for Flash attention integration"
+             "  2: Only generate instance for Flash attention integration\n"  + \
+             "  4: Only generate instance for PyTorch integration"
     )
 
     args = parser.parse_args()

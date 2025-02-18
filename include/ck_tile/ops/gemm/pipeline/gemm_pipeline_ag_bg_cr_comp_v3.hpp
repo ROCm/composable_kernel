@@ -3,10 +3,14 @@
 
 #pragma once
 
+#include <string>
+#include <sstream>
+
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -72,15 +76,76 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
+    static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
+
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
 
     using Base::PrefetchStages;
 
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "pipeline_AgBgCrCompV3", BlockSize,
+                      concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
+                      concat('x', kPadM, kPadN, kPadK));
+        // clang-format on
+    }
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
+    }
+
+    CK_TILE_HOST static std::string Print()
+    {
+        constexpr index_t MPerXDL = BlockGemm::WarpGemm::kM;
+        constexpr index_t NPerXDL = BlockGemm::WarpGemm::kN;
+        constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
+
+        constexpr index_t WaveSize = 64;
+        constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
+        constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
+
+        // Below should be equal to AK1|BK1
+        constexpr index_t A_LDS_Read_Width = Policy::template GetSmemPackA<Problem>();
+        constexpr index_t B_LDS_Read_Width = Policy::template GetSmemPackB<Problem>();
+
+        constexpr index_t A_LDS_Write_Width = Policy::template GetSmemPackA<Problem>();
+        constexpr index_t B_LDS_Write_Width = Policy::template GetSmemPackB<Problem>();
+
+        constexpr index_t A_Buffer_Load_Inst_Num =
+            MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
+        constexpr index_t B_Buffer_Load_Inst_Num =
+            NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
+
+        constexpr index_t A_LDS_Write_Inst_Num =
+            MPerBlock * KPerBlock / (BlockSize * A_LDS_Write_Width);
+        constexpr index_t B_LDS_Write_Inst_Num =
+            NPerBlock * KPerBlock / (BlockSize * B_LDS_Write_Width);
+
+        constexpr index_t A_LDS_Read_Inst_Num =
+            WaveNumN * MPerBlock * KPerBlock / (BlockSize * A_LDS_Read_Width);
+        constexpr index_t B_LDS_Read_Inst_Num =
+            WaveNumM * MPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
+
+        constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
+                                            (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
+
+        auto str = std::stringstream{};
+
+        str << "A/B vector size: " << GetVectorSizeA() << ", " << GetVectorSizeB() << "\n"
+            << "A/B LDS read/write width: " << A_LDS_Read_Width << ", " << B_LDS_Read_Width << "\n"
+            << "A/B buffer load inst: " << A_Buffer_Load_Inst_Num << ", " << B_Buffer_Load_Inst_Num
+            << "\n"
+            << "A/B LDS write inst: " << A_LDS_Write_Inst_Num << ", " << B_LDS_Write_Inst_Num
+            << "\n"
+            << "A/B LDS read inst: " << A_LDS_Read_Inst_Num << ", " << B_LDS_Read_Inst_Num << "\n"
+            << "C MFMA inst: " << C_MFMA_Inst_Num << "\n"
+            << "KPack: " << BlockGemm::Traits::KPack << "\n"
+            << "PrefetchStages: " << PrefetchStages << "\n";
+        return str.str();
     }
 
     template <GemmPipelineScheduler Scheduler>
@@ -95,29 +160,35 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
         CK_TILE_DEVICE static constexpr auto HotLoopScheduler()
         {
-            constexpr index_t MPerXDL = BlockGemmShape::WarpTile::at(I0{});
-            constexpr index_t NPerXDL = BlockGemmShape::WarpTile::at(I1{});
-            constexpr index_t KPerXDL = BlockGemmShape::WarpTile::at(I2{});
+            constexpr index_t MPerXDL = BlockGemm::WarpGemm::kM;
+            constexpr index_t NPerXDL = BlockGemm::WarpGemm::kN;
+            constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
 
             constexpr index_t WaveSize = 64;
             constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
             constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
 
-            constexpr index_t A_LDS_Read_Width = KPerXDL;
-            constexpr index_t B_LDS_Read_Width = KPerXDL;
+            // Below should be equal to AK1|BK1
+            constexpr index_t A_LDS_Read_Width = Policy::template GetSmemPackA<Problem>();
+            constexpr index_t B_LDS_Read_Width = Policy::template GetSmemPackB<Problem>();
+
+            constexpr index_t A_LDS_Write_Width = Policy::template GetSmemPackA<Problem>();
+            constexpr index_t B_LDS_Write_Width = Policy::template GetSmemPackB<Problem>();
 
             constexpr index_t A_Buffer_Load_Inst_Num =
                 MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
             constexpr index_t B_Buffer_Load_Inst_Num =
                 NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
 
-            constexpr index_t A_LDS_Write_Inst_Num = MPerBlock * KPerBlock / (BlockSize * KPerXDL);
-            constexpr index_t B_LDS_Write_Inst_Num = NPerBlock * KPerBlock / (BlockSize * KPerXDL);
+            constexpr index_t A_LDS_Write_Inst_Num =
+                MPerBlock * KPerBlock / (BlockSize * A_LDS_Write_Width);
+            constexpr index_t B_LDS_Write_Inst_Num =
+                NPerBlock * KPerBlock / (BlockSize * B_LDS_Write_Width);
 
             constexpr index_t A_LDS_Read_Inst_Num =
-                WaveNumN * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
+                WaveNumN * MPerBlock * KPerBlock / (BlockSize * A_LDS_Read_Width);
             constexpr index_t B_LDS_Read_Inst_Num =
-                WaveNumM * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
+                WaveNumM * MPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
 
             constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
                                                 (BlockSize / WaveSize) /
