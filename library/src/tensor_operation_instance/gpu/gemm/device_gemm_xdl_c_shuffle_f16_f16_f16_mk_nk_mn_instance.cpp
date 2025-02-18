@@ -45,7 +45,6 @@ using device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_generic_instances = std::tu
         DeviceGemm_Xdl_CShuffle<     Row,     Col,     Row,   F16,   F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough,     MNKPadding,        1,   128,   128,   128,    64,  16,  16,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1,           1,           1,               S<1, 16, 1, 8>,              1,  LoopScheduler::Default,        PipelineVersion::v1>,
 #endif // defined(CK_USE_AMD_MFMA_GFX950)
         DeviceGemm_Xdl_CShuffle<     Row,     Col,     Row,   F16,   F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough,     MNKPadding,        1,   128,   128,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1,           1,           1,               S<1, 16, 1, 8>,              1,  LoopScheduler::Default,        PipelineVersion::v1>
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
     // clang-format on
     >;
 
@@ -108,7 +107,6 @@ using device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances = std::tuple<
         DeviceGemm_Xdl_CShuffle<     Row,     Col,     Row,   F16,   F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough,       GemmSpec,        1,    64,    64,    32,    32,   8,   8,   32,   32,    2,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 16, 1, 4>,              8,  LoopScheduler::Default,        PipelineVersion::v2>,
         DeviceGemm_Xdl_CShuffle<     Row,     Col,     Row,   F16,   F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough,       GemmSpec,        1,    64,    32,    64,    32,   8,   8,   32,   32,    1,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 16, 1, 4>,              8,  LoopScheduler::Default,        PipelineVersion::v2>
 #endif
-#endif // !defined(CK_USE_AMD_MFMA_GFX950)
     // clang-format on
     >;
 

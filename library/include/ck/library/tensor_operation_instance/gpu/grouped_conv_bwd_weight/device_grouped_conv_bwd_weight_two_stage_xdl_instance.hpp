@@ -49,8 +49,7 @@ using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_f16_generic_i
 #if defined(CK_USE_AMD_MFMA_GFX950)
 #endif // defined(CK_USE_AMD_MFMA_GFX950)
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    16,    16,     32,   8,   16,   16,    1,    1,  S<4, 8,  1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              1,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              1,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 1>
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
-       // clang-format on
+        // clang-format on
         >;
 
 template <ck::index_t NDimSpatial,
@@ -77,7 +76,6 @@ using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_f16_instances
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    32,    32,     32,   8,   32,   32,    1,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              2,              2,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              2,              2,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 2>,
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    64,    32,     32,   8,   32,   32,    2,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              4,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              4,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 4>,
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,   128,    32,     32,   8,   32,   32,    4,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              8,              8,      false,  S<4, 4,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              8,              8,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 8>
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
     // clang-format on
     >;
 
@@ -120,8 +118,7 @@ using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_bf16_generic_
 #if defined(CK_USE_AMD_MFMA_GFX950)
 #endif // defined(CK_USE_AMD_MFMA_GFX950)
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    16,    16,     32,   8,   16,   16,    1,    1,  S<4, 8,  1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              1,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              1,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 1>
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
-       // clang-format on
+        // clang-format on
         >;
 
 template <ck::index_t NDimSpatial,
@@ -148,7 +145,6 @@ using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_bf16_instance
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    32,    32,     32,   8,   32,   32,    1,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              2,              2,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              2,              2,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 2>,
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    64,    32,     32,   8,   32,   32,    2,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              4,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              4,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 4>,
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,   128,    32,     32,   8,   32,   32,    4,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              8,              8,      false,  S<4, 4,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              8,              8,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 8>
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
     // clang-format on
     >;
 
@@ -191,8 +187,7 @@ using device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_f16_generic_i
 #if defined(CK_USE_AMD_MFMA_GFX950)
 #endif // defined(CK_USE_AMD_MFMA_GFX950)
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    16,    16,     32,   8,   16,   16,    1,    1,  S<4, 8,  1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              1,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              1,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 1, F16, F16, 1, 1>
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
-       // clang-format on
+        // clang-format on
         >;
 
 // NGCHW requires transpose, we use vector loads and stores params for them
@@ -234,7 +229,6 @@ using device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_f16_instances
 
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    64,    32,     32,   8,   32,   32,    2,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              4,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              4,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 4, F16, F16, 4, 1>,
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,   128,    32,     32,   8,   32,   32,    4,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              8,              8,      false,  S<4, 4,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              8,              8,      false,           1,           1,   S<1, 8, 1, 4>,                  1, Scheduler, PipelineVersion, 8, F16, F16, 8, 1>
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
     // clang-format on
     >;
 
@@ -255,8 +249,7 @@ using device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_bf16_generic_
 #if defined(CK_USE_AMD_MFMA_GFX950)
 #endif // defined(CK_USE_AMD_MFMA_GFX950)
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,    F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    16,    16,     32,   8,   16,   16,    1,    1,  S<4, 8,  1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              1,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              1,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 1, BF16, BF16, 1, 1>
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
-       // clang-format on
+        // clang-format on
         >;
 
 template <ck::index_t NDimSpatial,
@@ -297,7 +290,6 @@ using device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_bf16_instance
 
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,    F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    64,    32,     32,   8,   32,   32,    2,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              4,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              4,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  1, Scheduler, PipelineVersion, 4, BF16, BF16, 4, 1>,
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,    F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,   128,    32,     32,   8,   32,   32,    4,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              8,              8,      false,  S<4, 4,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              8,              8,      false,           1,           1,   S<1, 8, 1, 4>,                  1, Scheduler, PipelineVersion, 8, BF16, BF16, 8, 1>
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
     // clang-format on
     >;
 

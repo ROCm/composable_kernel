@@ -28,10 +28,9 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddReluAdd  = ck::tensor_operation::element_wise::AddReluAdd;
 
-#if !defined(CK_USE_AMD_MFMA_GFX950)
 static constexpr auto GemmDefault    = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
-#endif
+
 // e = elementwise((a * b), d0, d1)
 // h = layernorm(e, gamma, beta)
 // outout: h[m, n]
@@ -61,7 +60,6 @@ using device_gemm_add_relu_add_xdl_c_shuffle_layernorm_f16_km_nk_mn_mn_mn_instan
         DeviceGemmMultipleDLayernorm_Xdl_CShuffle<    Col,    Col, Row_Row_Tuple,    Row,   F16,   F16,     F32,      F32, F16_F16_Tuple,          F16,       F16,       F16,   F16, PassThrough, PassThrough,  AddReluAdd, PassThrough,    GemmDefault,        1,   256,   128,    64,    32,   8,   8,   32,   32,    2,    1,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,             S<32, 8>,               8,             S<32, 8>,               1, GemmLoopScheduler, GemmPipeline>,
         DeviceGemmMultipleDLayernorm_Xdl_CShuffle<    Col,    Col, Row_Row_Tuple,    Row,   F16,   F16,     F32,      F32, F16_F16_Tuple,          F16,       F16,       F16,   F16, PassThrough, PassThrough,  AddReluAdd, PassThrough,    GemmDefault,        1,   256,    64,   128,    32,   2,   8,   32,   32,    1,    2,     S<16,16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              2,         0,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,             S<32, 8>,               8,             S<32, 8>,               1, GemmLoopScheduler, GemmPipeline>,
         DeviceGemmMultipleDLayernorm_Xdl_CShuffle<    Col,    Col, Row_Row_Tuple,    Row,   F16,   F16,     F32,      F32, F16_F16_Tuple,          F16,       F16,       F16,   F16, PassThrough, PassThrough,  AddReluAdd, PassThrough,    GemmDefault,        1,   256,    64,   128,    32,   8,   8,   32,   32,    1,    2,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,             S<32, 8>,               8,             S<32, 8>,               1, GemmLoopScheduler, GemmPipeline>
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
     // clang-format on
     >;
 
@@ -87,8 +85,7 @@ using device_gemm_add_relu_add_xdl_c_shuffle_layernorm_f16_km_nk_mn_mn_mn_irregu
         ,
         DeviceGemmMultipleDLayernorm_Xdl_CShuffle<    Col,    Col, Row_Row_Tuple,    Row,   F16,   F16,     F32,      F32, F16_F16_Tuple,          F16,       F16,       F16,   F16, PassThrough, PassThrough,  AddReluAdd, PassThrough, GemmMNKPadding,        1,    64,    16,    16,    32,   8,   8,   16,   16,    1,    1,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1,           1,           1,              S<16, 4>,              1,             S<16, 4>,               1, LoopScheduler::Default,   PipelineVersion::v2>
 #endif
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
-       // clang-format on
+        // clang-format on
         >;
 
 void add_device_gemm_add_relu_add_xdl_c_shuffle_layernorm_f16_km_nk_mn_mn_mn_instances(

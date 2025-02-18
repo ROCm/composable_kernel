@@ -35,7 +35,6 @@ using device_batched_gemm_xdl_f16_f16_f16_gmk_gnk_gmn_generic_instances = std::t
         DeviceBatchedGemmXdl<  F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,    64,    32,    64,     4, 16,   32,   32,    1,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,      true,               7,               1,        1, LoopScheduler::Default,        PipelineVersion::v1>,
 #endif // defined(CK_USE_AMD_MFMA_GFX950)
         DeviceBatchedGemmXdl<  F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,    64,    32,    64,     4,  8,   32,   32,    1,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,      true,               7,               1,        1, LoopScheduler::Default,        PipelineVersion::v1>
-#endif
     // clang-format on
     >;
 
@@ -97,7 +96,6 @@ using device_batched_gemm_xdl_f16_f16_f16_gmk_gnk_gmn_instances = std::tuple<
         DeviceBatchedGemmXdl<  F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,    64,    64,    32,     4,  8,   32,   32,    2,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1,        1, LoopScheduler::Default,        PipelineVersion::v2>,
         DeviceBatchedGemmXdl<  F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,    64,    32,    64,     4,  8,   32,   32,    1,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1,        1, LoopScheduler::Default,        PipelineVersion::v2>
 #endif
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
     // clang-format on
     >;
 

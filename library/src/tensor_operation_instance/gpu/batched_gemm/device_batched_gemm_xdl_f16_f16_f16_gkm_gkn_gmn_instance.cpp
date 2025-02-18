@@ -68,7 +68,6 @@ using device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instances = std::tuple<
         DeviceBatchedGemmXdl<  F16,   F16,   F16,     F32,     Col,      Row,    Row, PassThrough, PassThrough, PassThrough,   256,   128,    64,     4,  8,   32,   32,    2,    1,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,      true,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,      true,               7,               1,        1, LoopScheduler::Default,        PipelineVersion::v2>,
         DeviceBatchedGemmXdl<  F16,   F16,   F16,     F32,     Col,      Row,    Row, PassThrough, PassThrough, PassThrough,   256,    64,   128,     4,  8,   32,   32,    1,    2,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,      true,               7,               1,        1, LoopScheduler::Default,        PipelineVersion::v2>
 #endif
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
     // clang-format on
     >;
 

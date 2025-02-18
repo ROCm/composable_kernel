@@ -27,8 +27,7 @@ using S = ck::Sequence<Is...>;
 
 using Empty_Tuple = ck::Tuple<>;
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-#if !defined(CK_USE_AMD_MFMA_GFX950)
+using PassThrough                    = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 using device_grouped_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_tile_instances = std::tuple<
 // clang-format off
@@ -100,7 +99,6 @@ using device_grouped_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_tile_instance
         DeviceGroupedGemmXdlSplitKCShuffle<    Row,    Row, Empty_Tuple,    Row,   F16,    F8,     F32,      F16, Empty_Tuple,   F16, PassThrough, PassThrough, PassThrough, GemmMNKPadding,        1,    64,    64,    64,    32,   8,   8,   32,   32,    2,    2,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              2,              8,         1,           1,           1,               S<1, 16, 1, 4>,              8, PipelineVersion::v2>,
         DeviceGroupedGemmXdlSplitKCShuffle<    Row,    Row, Empty_Tuple,    Row,   F16,    F8,     F32,      F16, Empty_Tuple,   F16, PassThrough, PassThrough, PassThrough, GemmMNKPadding,        1,    64,    64,    32,    32,   8,   8,   32,   32,    2,    1,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              2,              8,         1,           1,           1,               S<1, 16, 1, 4>,              8, PipelineVersion::v2>,
         DeviceGroupedGemmXdlSplitKCShuffle<    Row,    Row, Empty_Tuple,    Row,   F16,    F8,     F32,      F16, Empty_Tuple,   F16, PassThrough, PassThrough, PassThrough, GemmMNKPadding,        1,    64,    32,    64,    32,   8,   8,   32,   32,    1,    2,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              2,              8,         1,           1,           1,               S<1, 16, 1, 4>,              8, PipelineVersion::v2>
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
     // clang-format on
     >;
 
