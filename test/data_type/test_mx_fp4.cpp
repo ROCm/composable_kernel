@@ -438,9 +438,9 @@ __global__ void test_mx_fp4x32_device_scaled_convert_sr(float* p_test, uint64_t*
 
     ck::static_for<0, N / 2, 1>{}([&](auto ii) {
         p_test[i++] = type_convert<float>(
-            f4x32.AsType<f4x2_pk_t>()(ck::Number<ii>{}).template unpack<>(ck::Number<0>{}));
+            f4_t(f4x32.AsType<f4x2_pk_t>()(ck::Number<ii>{}).template unpack<>(ck::Number<0>{})));
         p_test[i++] = type_convert<float>(
-            f4x32.AsType<f4x2_pk_t>()(ck::Number<ii>{}).template unpack<>(ck::Number<1>{}));
+            f4_t(f4x32.AsType<f4x2_pk_t>()(ck::Number<ii>{}).template unpack<>(ck::Number<1>{})));
     });
 }
 

@@ -1022,6 +1022,7 @@ inline __host__ __device__ f4x32_t f4_convert_sr(float32_t x, float scale = 1.0f
         float2_t floatx2_array[16];
         float32_t floatx32_array;
     } float_values{{0}};
+    float_values.floatx32_array = x;
     // TODO: pack in a loop
     tmp_values.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
         tmp_values.bitwise, float_values.floatx2_array[0], rng, scale, 0);
