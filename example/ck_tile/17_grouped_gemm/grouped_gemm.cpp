@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -15,18 +15,14 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
 #include "grouped_gemm.hpp"
-#include "utils.hpp"
 
 namespace {
 
 struct GroupedGemmKernelParam
 {
-    static const bool kPadM        = false;
-    static const bool kPadN        = false;
-    static const bool kPadK        = false;
-    static const bool kTilePermute = false;
-
-    static const ck_tile::index_t kOutputRank = 2;
+    static const bool kPadM = false;
+    static const bool kPadN = false;
+    static const bool kPadK = false;
 
     static const int kBlockPerCu         = 1;
     static const ck_tile::index_t M_Tile = 128;
@@ -55,24 +51,6 @@ using CodegenGemmShape =
 
 using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
-template <typename CLayout>
-using GemmEpilogue = std::conditional_t<
-    std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>,
-    ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
-                                                               CDataType,
-                                                               GroupedGemmKernelParam::kPadM,
-                                                               GroupedGemmKernelParam::kPadN,
-                                                               GroupedGemmKernelParam::kTilePermute,
-                                                               GroupedGemmKernelParam::kOutputRank,
-                                                               1,
-                                                               0,
-                                                               TilePartitioner::MPerBlock,
-                                                               TilePartitioner::NPerBlock>>,
-    ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<AccDataType,
-                                                                 CDataType,
-                                                                 GroupedGemmKernelParam::kPadM,
-                                                                 GroupedGemmKernelParam::kPadN>>>;
-
 template <typename ALayout, typename BLayout, typename CLayout>
 using CodegenGemmTraits = ck_tile::TileGemmTraits<GroupedGemmKernelParam::kPadM,
                                                   GroupedGemmKernelParam::kPadN,
@@ -89,20 +67,32 @@ using CodegenPipelineProblem =
                                  CodegenGemmShape,
                                  CodegenGemmTraits<ALayout, BLayout, CLayout>>;
 
-using CodegenGemmPolicy = ck_tile::UniversalGemmPipelineAgBgCrPolicy;
-
 template <typename ALayout, typename BLayout, typename CLayout>
 using CodegenGemmPipeline =
-    ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem<ALayout, BLayout, CLayout>,
-                                          CodegenGemmPolicy>;
+    ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem<ALayout, BLayout, CLayout>>;
+
+template <typename ALayout, typename BLayout, typename CLayout>
+using GemmEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+    AccDataType,
+    CDataType,
+    CLayout,
+    CodegenPipelineProblem<ALayout, BLayout, CLayout>::kBlockSize,
+    TilePartitioner::MPerBlock,
+    TilePartitioner::NPerBlock,
+    GroupedGemmKernelParam::M_Warp,
+    GroupedGemmKernelParam::N_Warp,
+    GroupedGemmKernelParam::M_Warp_Tile,
+    GroupedGemmKernelParam::N_Warp_Tile,
+    GroupedGemmKernelParam::K_Warp_Tile,
+    CodegenPipelineProblem<ALayout, BLayout, CLayout>::TransposeC>>;
 
 template <typename ALayout, typename BLayout, typename CLayout>
 using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner,
                                           CodegenGemmPipeline<ALayout, BLayout, CLayout>,
-                                          GemmEpilogue<CLayout>>;
+                                          GemmEpilogue<ALayout, BLayout, CLayout>>;
 }; // namespace
 
-std::size_t GetWorkspaceSize(const std::vector<grouped_gemm_kargs>& gemm_descs)
+std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
 {
     return ::Kernel<std::nullptr_t, std::nullptr_t, std::nullptr_t>::GetWorkSpaceSize(gemm_descs);
 }
@@ -128,7 +118,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
     if(s.log_level_ > 0)
     {
-        std::cout << "Launching kernel with args:"
+        std::cout << "Launching kernel: " << GroupedGemmKernel::GetName() << " with args:"
                   << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                   << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                   << std::endl;

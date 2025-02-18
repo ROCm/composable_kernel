@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v2_default_policy.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -24,6 +25,15 @@ struct GemmPipelineAGmemBGmemCRegV2
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "pipeline_AGmemBGmemCRegV2",
+                      concat('x', kMPerBlock, kNPerBlock, kKPerBlock, kBlockSize));
+        // clang-format on
+    }
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     {

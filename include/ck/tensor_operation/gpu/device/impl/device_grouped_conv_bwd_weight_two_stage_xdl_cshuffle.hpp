@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -55,8 +55,7 @@ __global__ void
             [[maybe_unused]] const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             [[maybe_unused]] const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
     const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
 
@@ -85,7 +84,7 @@ __global__ void
                                         k_idx);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename GridwiseGemm,
@@ -145,7 +144,7 @@ __global__ void
                                              k_idx);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <ck::index_t NDimSpatial,
@@ -1496,10 +1495,13 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         // if workspace is not allocated
         if(!arg.p_workspace_)
         {
-            std::cerr << "Warning: Workspace for "
-                         "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
-                         "allocated, use SetWorkSpacePointer."
-                      << std::endl;
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Warning: Workspace for "
+                             "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
+                             "allocated, use SetWorkSpacePointer."
+                          << std::endl;
+            }
             return false;
         }
         if(!ck::is_xdl_supported())
@@ -1558,14 +1560,23 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             }
         }
 
-        if(!(arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0 &&
+        const bool is_w_pad_zero = arg.input_left_pads_[NDimSpatial - 1] == 0 &&
+                                   arg.input_right_pads_[NDimSpatial - 1] == 0;
+        const auto X                 = arg.filter_spatial_lengths_[NDimSpatial - 1];
+        const bool XC_access_allowed = arg.Conv_G_ == 1 &&
+                                       (arg.Conv_C_ * X) % BBlockTransferSrcScalarPerVector == 0 &&
+                                       is_w_pad_zero;
+
+        if(!((arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0 || XC_access_allowed) &&
              arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0))
         {
-            if(!(arg.Conv_K_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideA_ == 1))
+            if(!(arg.Conv_K_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideA_ == 1 &&
+                 NumGroupsToMerge > 1))
             {
                 return false;
             }
-            if(!(arg.Conv_C_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideB_ == 1))
+            if(!(arg.Conv_C_ == 1 && arg.compute_ptr_offset_of_batch_.BatchStrideB_ == 1 &&
+                 NumGroupsToMerge > 1))
             {
                 return false;
             }

@@ -90,14 +90,22 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
                KPerXDL);
 
         printf(" A/B buffer load inst: %d, %d\n A/B LDS write inst: %d, %d\n A/B LDS read inst: "
-               "%d, %d\n C MFMA inst: %d\n",
+               "%d, %d\n C MFMA inst: %d\n"
+               "A/B LDS read width: %d, %d, A/B LDS write width: %d, %d, A/B buffer load width: "
+               "%d/ %d\n",
                A_Buffer_Load_Inst_Num,
                B_Buffer_Load_Inst_Num,
                A_LDS_Write_Inst_Num,
                B_LDS_Write_Inst_Num,
                A_LDS_Read_Inst_Num,
                B_LDS_Read_Inst_Num,
-               C_MFMA_Inst_Num);
+               C_MFMA_Inst_Num,
+               A_LDS_Read_Width,
+               B_LDS_Read_Width,
+               ALDSWriteWidth,
+               BLDSWriteWidth,
+               ABufferLoadWidth,
+               BBufferLoadWidth);
     }
 };
 

@@ -64,7 +64,9 @@ template <typename ALayout,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
           typename ComputeTypeA                       = CDataType,
-          typename ComputeTypeB                       = ComputeTypeA>
+          typename ComputeTypeB                       = ComputeTypeA,
+          bool PermuteA                               = false,
+          bool PermuteB                               = false>
 struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                        BLayout,
                                                        CLayout,
@@ -122,7 +124,9 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
-        ComputeTypeB>;
+        ComputeTypeB,
+        PermuteA,
+        PermuteB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
@@ -134,6 +138,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             if(stream_config.log_level_ > 0)
             {
                 arg.Print();
+                GridwiseGemm::BlockwiseGemmPipe::HotLoopInstList::Print();
             }
 
             if(!GridwiseGemm::CheckValidity(arg))
@@ -633,6 +638,11 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
+    index_t GetKPerBlock() override { return KPerBlock; }
+
+    bool GetPermuteA() override { return PermuteA; }
+    bool GetPermuteB() override { return PermuteB; }
+
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
                              CDataType* p_c,
@@ -724,7 +734,9 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
+            << "Kpack: "
+            << GridwiseGemm::BlockwiseGemmPipe::AMmaKStride;
         // clang-format on
 
         return str.str();

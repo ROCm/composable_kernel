@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// clang-format off
+
+// define the CK_TILE_** macro before include this file to change kernel variation
+// we will undef everything defined in this file
+
 #ifndef CK_TILE_FLATMM_UK_MFMA
 #define CK_TILE_FLATMM_UK_MFMA CK_TILE_FLATMM_UK_MFMA_BF16
 #endif
@@ -816,3 +823,5 @@
 #undef _UK_MFMA_
 #undef _UK_PK_CVT_
 #undef _UK_ATOMIC_ADD_
+#undef CK_TILE_FLATMM_UK_MFMA
+    // clang-format on

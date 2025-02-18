@@ -5,14 +5,14 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qs_ks_vs_default_policy.hpp"
 
 namespace ck_tile {
 
-/// NOTICE: we no-longer use this pipeline.
 // This pipeline is qkv all located in LDS
 template <typename Problem_, typename Policy_ = BlockFmhaPipelineQSKSVSDefaultPolicy>
-struct [[deprecated]] BlockFmhaPipelineQSKSVS
+struct BlockFmhaPipelineQSKSVS
 {
     using Problem               = remove_cvref_t<Problem_>;
     using Policy                = remove_cvref_t<Policy_>;
@@ -51,6 +51,24 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
     static constexpr auto BiasEnum     = Problem::BiasEnum;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
+    static constexpr bool kHasDropout  = Problem::kHasDropout;
+    // last dimension vector length used to create tensor view(and decide buffer_load vector length)
+    // ... together with tensor distribution. tensor dist should able to overwrite this
+    static constexpr index_t kAlignmentQ =
+        kPadHeadDimQ ? 1 : Policy::template GetAlignmentQ<Problem>();
+    static constexpr index_t kAlignmentK =
+        kPadHeadDimQ ? 1 : Policy::template GetAlignmentK<Problem>();
+    static constexpr index_t kAlignmentV = []() {
+        if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+            return kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+        else
+            return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
+    }();
+
+    static constexpr index_t kAlignmentO =
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
+    static constexpr index_t kAlignmentBias =
+        kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::kBlockPerCu != -1)
@@ -81,20 +99,18 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
 
     static constexpr const char* name = "qs";
 
+    using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
-    }
-
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeQ()
-    {
-        return Policy::template GetSmemSizeQ<Problem>();
     }
 
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
+              typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
               typename QElementFunction,
               typename KElementFunction,
@@ -114,6 +130,7 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
+               RandValDramBlockWindowTmp& /* unused_randval_dram_block_window_tmp */,
                LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
                const LSEElementFunction& lse_element_func,
                const SAccElementFunction& s_acc_element_func,
@@ -122,7 +139,8 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               void* smem_ptr) const
+               void* smem_ptr,
+               DropoutType& /* unused_dropout */) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -222,11 +240,11 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
                              {seqlen_k_start, 0});
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
-        auto bias_dram_window  = make_tile_window(
-            bias_dram_block_window_tmp.get_bottom_tensor_view(),
-            bias_dram_block_window_tmp.get_window_lengths(),
-            {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
-            Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
+        auto bias_dram_window =
+            make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
+                             bias_dram_block_window_tmp.get_window_lengths(),
+                             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
+                             Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -305,8 +323,7 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
                 });
             }
 
-            const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
-            {                                                 // tail
+            { // tail
                 block_sync_lds();
                 gemm_0(s_acc, q_lds_window, k_lds_window);
                 block_sync_lds();
@@ -317,6 +334,10 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
 
                 gemm_0(s_acc, q_lds_window, k_lds_window);
             }
+
+            __builtin_amdgcn_sched_barrier(0);
+            const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
+            __builtin_amdgcn_sched_barrier(0);
 
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -439,6 +460,12 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
                 p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
+
+            const auto p =
+                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+
+            __builtin_amdgcn_sched_barrier(0);
+
             // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
@@ -485,9 +512,6 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
                            tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
             }
             move_tile_window(v_dram_window, {0, kK1});
-
-            const auto p =
-                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
@@ -583,6 +607,7 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
+              typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
               typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
@@ -590,11 +615,13 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
+               RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
                LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               void* smem_ptr) const
+               void* smem_ptr,
+               DropoutType& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -604,6 +631,7 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
                           identity{},
                           bias_dram_block_window_tmp,
                           identity{},
+                          randval_dram_block_window_tmp,
                           lse_dram_block_window_tmp,
                           identity{},
                           identity{},
@@ -612,7 +640,8 @@ struct [[deprecated]] BlockFmhaPipelineQSKSVS
                           mask,
                           position_encoding,
                           scale_s,
-                          smem_ptr);
+                          smem_ptr,
+                          dropout);
     }
 };
 
