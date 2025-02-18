@@ -51,8 +51,8 @@ using device_gemm_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances =
         ,
         DeviceGemm_Xdl_CShuffle<     Row,     Col,     Row, int8_t, int8_t, int8_t, int32_t,  int32_t, PassThrough, PassThrough, PassThrough,    GemmDefault,        1,   256,   128,   128,   128,  32,  32,   32,   32,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 64, 1, 4>,              16,  LoopScheduler::Default,        PipelineVersion::v1>,
         DeviceGemm_Xdl_CShuffle<     Row,     Col,     Row, int8_t, int8_t, int8_t, int32_t,  int32_t, PassThrough, PassThrough, PassThrough,    GemmDefault,        1,   256,    64,    64,   256,  64,  64,   16,   16,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 32, 1, 8>,               4,  LoopScheduler::Default,        PipelineVersion::v1>
-#endif
-        // clang-format on
+#endif // defined(CK_USE_AMD_MFMA_GFX950)
+       // clang-format on
         >;
 
 void add_device_gemm_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances(
