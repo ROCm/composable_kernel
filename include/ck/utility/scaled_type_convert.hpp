@@ -401,7 +401,8 @@ inline __host__ __device__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m
     {
         f4x32_t f4x32_array;
         f4x2_t fp4x2[16];
-    } value{x};
+    } value{};
+    value.f4x32_array = x;
     union
     {
         uint32_t bitwise;
