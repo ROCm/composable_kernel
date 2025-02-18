@@ -286,118 +286,49 @@ struct ThreadwiseTensorSliceTransfer_v2
 
         // loop over tensor and copy
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
+        
+        static_for<0, num_access, 1>{}([&](auto idx_1d) {
+            typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type src_vector;
 
-#if 0
-        if constexpr(is_same<remove_cvref_t<SrcData>, pk_i4_t>::value)
-        {
-            static_for<0, num_access, 1>{}([&](auto idx_1d) {
-                typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type src_tmp_vector;
+            using src_vector_t =
+                typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type::type;
+            constexpr auto src_data_idx = SpaceFillingCurve::GetIndex(idx_1d);
 
-                using src_vector_t = typename decltype(src_tmp_vector)::type;
+            const bool is_src_valid =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
 
-                constexpr auto src_data_idx = SpaceFillingCurve::GetIndex(idx_1d);
+            // copy data from src_buf into src_vector
+            src_vector.template AsType<src_vector_t>()(Number<0>{}) =
+                src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize, is_src_valid);
 
-                const bool is_src_valid =
-                    coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+            // copy data from src_vector into dst_buf
+            static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
+                constexpr index_t dst_offset =
+                    dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) + src_data_idx +
+                                            i * src_scalar_step_in_vector);
 
-                // copy data from src_buf into src_tmp_vector
-                src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
-                    src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize,
-                                                       is_src_valid);
-
-                // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
-                // DstData)
-                vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
-
-                constexpr index_t pack_size = 8;
-
-                static_assert(SrcScalarPerVector % pack_size == 0, "");
-
-                using src_v_t = typename vector_type_maker_t<SrcData, pack_size / PackedSize>::type;
-                using dst_v_t = typename vector_type_maker_t<DstData, pack_size>::type;
-
-                static_for<0, SrcScalarPerVector / pack_size, 1>{}([&](auto i) {
-                    ck::tensor_operation::element_wise::PassThroughPack8{}(
-                        dst_tmp_vector.template AsType<dst_v_t>()(i),
-                        src_tmp_vector.template AsType<src_v_t>()[i]);
-                });
-
-                // copy data from dst_tmp_vector into dst_buf
-                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                    constexpr index_t dst_offset =
-                        dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) + src_data_idx +
-                                                i * src_scalar_step_in_vector);
-
-                    if constexpr(InvalidElementAsNaN)
-                    {
-                        dst_buf(Number<dst_offset>{}) =
-                            is_src_valid
-                                ? dst_tmp_vector.template AsType<DstData>()[i]
-                                : NumericLimits<DstData>::QuietNaN();
-                    }
-                    else
-                    {
-                        dst_buf(Number<dst_offset>{}) =
-                            dst_tmp_vector.template AsType<DstData>()[i];
-                            // type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
-                    }
-                });
-
-                if constexpr(idx_1d.value != num_access - 1)
+                if constexpr(InvalidElementAsNaN)
                 {
-                    constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
-
-                    move_tensor_coordinate(
-                        src_desc, src_coord_, make_tensor_coordinate_step(src_desc, forward_step));
+                    dst_buf(Number<dst_offset>{}) =
+                        is_src_valid
+                            ? type_convert<DstData>(src_vector.template AsType<SrcData>()[i])
+                            : NumericLimits<DstData>::QuietNaN();
+                }
+                else
+                {
+                    dst_buf(Number<dst_offset>{}) =
+                        type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
                 }
             });
-        }
-        else
-#endif
-        {
-            static_for<0, num_access, 1>{}([&](auto idx_1d) {
-                typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type src_vector;
 
-                using src_vector_t =
-                    typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type::type;
-                constexpr auto src_data_idx = SpaceFillingCurve::GetIndex(idx_1d);
+            if constexpr(idx_1d.value != num_access - 1)
+            {
+                constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
 
-                const bool is_src_valid =
-                    coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
-
-                // copy data from src_buf into src_vector
-                src_vector.template AsType<src_vector_t>()(Number<0>{}) =
-                    src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize, is_src_valid);
-
-                // copy data from src_vector into dst_buf
-                static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
-                    constexpr index_t dst_offset =
-                        dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) + src_data_idx +
-                                                i * src_scalar_step_in_vector);
-
-                    if constexpr(InvalidElementAsNaN)
-                    {
-                        dst_buf(Number<dst_offset>{}) =
-                            is_src_valid
-                                ? type_convert<DstData>(src_vector.template AsType<SrcData>()[i])
-                                : NumericLimits<DstData>::QuietNaN();
-                    }
-                    else
-                    {
-                        dst_buf(Number<dst_offset>{}) =
-                            type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
-                    }
-                });
-
-                if constexpr(idx_1d.value != num_access - 1)
-                {
-                    constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
-
-                    move_tensor_coordinate(
-                        src_desc, src_coord_, make_tensor_coordinate_step(src_desc, forward_step));
-                }
-            });
-        } 
+                move_tensor_coordinate(
+                    src_desc, src_coord_, make_tensor_coordinate_step(src_desc, forward_step));
+            }
+        });
 
         // move src coordinate back to slice origin (or not)
         if constexpr(SrcResetCoordinateAfterRun)
