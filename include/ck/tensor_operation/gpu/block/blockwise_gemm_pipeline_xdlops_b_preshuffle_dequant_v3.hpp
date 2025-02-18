@@ -33,7 +33,7 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPacks>
-struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3
+struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3
 {
 };
 
@@ -58,26 +58,26 @@ template <index_t BlockSize,
           index_t KPack
           // ,bool TransposeC //disable transposec right now...
           >
-struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::Intrawave,
-                                                   BlockSize,
-                                                   ADataType,
-                                                   BDataType,
-                                                   ComputeDataType,
-                                                   AccDataType,
-                                                   ATileDesc,
-                                                   BTileDesc,
-                                                   AMmaTileDesc,
-                                                   BMmaTileDesc,
-                                                   ABlockTransferSrcScalarPerVector,
-                                                   BBlockTransferSrcScalarPerVector,
-                                                   MPerBlock,
-                                                   NPerBlock,
-                                                   KPerBlock,
-                                                   MPerXDL,
-                                                   NPerXDL,
-                                                   MRepeat,
-                                                   NRepeat,
-                                                   KPack>
+struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineScheduler::Intrawave,
+                                                            BlockSize,
+                                                            ADataType,
+                                                            BDataType,
+                                                            ComputeDataType,
+                                                            AccDataType,
+                                                            ATileDesc,
+                                                            BTileDesc,
+                                                            AMmaTileDesc,
+                                                            BMmaTileDesc,
+                                                            ABlockTransferSrcScalarPerVector,
+                                                            BBlockTransferSrcScalarPerVector,
+                                                            MPerBlock,
+                                                            NPerBlock,
+                                                            KPerBlock,
+                                                            MPerXDL,
+                                                            NPerXDL,
+                                                            MRepeat,
+                                                            NRepeat,
+                                                            KPack>
     : BlockwiseGemmXdlops_pipeline_base<BlockSize,
                                         ADataType,
                                         BDataType,
