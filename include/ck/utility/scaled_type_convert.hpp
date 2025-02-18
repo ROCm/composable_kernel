@@ -411,15 +411,21 @@ inline __host__ __device__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m
     float2_t op;
     float32_t ret;
     // TODO: pack in a loop
-    bitwise_value.f4x2_array[0] = value.fp4x2[0];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
+    // bitwise_value.f4x2_array[0] = value.fp4x2[0];
+    // op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+    //     bitwise_value.bitwise, type_convert<float>(scale), 0);
+    // ret[0] = op[0];
+    // ret[1] = op[1];
+    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[0], type_convert<float>(scale), 0);
     ret[0] = op[0];
     ret[1] = op[1];
 
-    bitwise_value.f4x2_array[0] = value.fp4x2[1];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
+    // bitwise_value.f4x2_array[0] = value.fp4x2[1];
+    // op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
+    //     bitwise_value.bitwise, type_convert<float>(scale), 0);
+    // ret[2] = op[0];
+    // ret[3] = op[1];
+    op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[1], type_convert<float>(scale), 0);
     ret[2] = op[0];
     ret[3] = op[1];
 
