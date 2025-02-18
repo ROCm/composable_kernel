@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -869,9 +869,8 @@ struct OffsettedBlockToCTileMap
 
     __host__ __device__ OffsettedBlockToCTileMap(UnderlyingBlockToCTileMap block_to_ctile_map,
                                                  index_t block_start)
+        : block_to_ctile_map_(block_to_ctile_map), block_start_(block_start)
     {
-        block_to_ctile_map_ = block_to_ctile_map;
-        block_start_        = block_start;
     }
 
     template <typename TopIdx>

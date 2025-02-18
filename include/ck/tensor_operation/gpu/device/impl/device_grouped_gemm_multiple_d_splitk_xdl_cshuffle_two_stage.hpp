@@ -727,14 +727,20 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                              void* dev_gemm_workspace,
                              const StreamConfig& stream_config) const
         {
+            constexpr index_t minimum_occupancy = 1;
             const auto gemm_kernel =
+                // kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
+                //                                GemmTransKernelArg,
+                //                                HasMainKBlockLoop,
+                //                                InMemoryDataOperationEnum::AtomicAdd,
+                //                                AElementwiseOperation,
+                //                                BElementwiseOperation,
+                //                                PassThrough>;
                 kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                GemmTransKernelArg,
                                                HasMainKBlockLoop,
                                                InMemoryDataOperationEnum::AtomicAdd,
-                                               AElementwiseOperation,
-                                               BElementwiseOperation,
-                                               PassThrough>;
+                                               minimum_occupancy>;
 
             const auto elementwise_kernel = kernel_elementwise<GridwiseElementwise,
                                                                CDGridDesc_M_N,

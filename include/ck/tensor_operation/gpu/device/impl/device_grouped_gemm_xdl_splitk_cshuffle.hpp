@@ -65,19 +65,14 @@ __global__ void
     }
 
     const auto karg          = gemm_desc_ptr[group_id].karg_;
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
+    auto splitk_batch_offset = GridwiseGemm::SplitKBatchOffset(karg);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
         karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_ds_grid,
         karg.p_c_grid,
         p_shared,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op,
-        gemm_desc_ptr[group_id].block_2_ctile_map_);
+        karg);
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
@@ -426,7 +421,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             const auto Run = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
-                    const auto& arg_ = arg.gemm_kernel_args_[0].karg_;
+                    KernelArgument arg_ = arg.gemm_kernel_args_[0].karg_;
 
                     const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
                         arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
