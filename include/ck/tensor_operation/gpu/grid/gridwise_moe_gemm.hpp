@@ -214,6 +214,20 @@ struct GridwiseMoeGemm
             return 1;
     }();
 
+    static constexpr index_t APackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     __host__ static auto CalculateGridSize(index_t M, index_t N)
     {
         const index_t nblock = math::integer_divide_ceil(N, NPerBlock);
