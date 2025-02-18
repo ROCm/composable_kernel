@@ -142,6 +142,7 @@ template <typename ALayout,
           typename CDEShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
+          bool NSwizzle = false,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ADataType,
@@ -197,9 +198,11 @@ struct GridwiseMoeGemm
 
     __host__ static auto CalculateGridSize(index_t M, index_t N)
     {
-        return std::make_tuple(math::integer_divide_ceil(N, NPerBlock) * math::integer_divide_ceil(M, MPerBlock),
-                               1,
-                               1);
+        const index_t nblock = math::integer_divide_ceil(N, NPerBlock);
+        const index_t mblock = math::integer_divide_ceil(M, MPerBlock);
+        const index_t gridx = NSwizzle ? nblock * mblock : nblock;
+        const index_t gridy = NSwizzle ? 1 : mblock;
+        return std::make_tuple(gridx, gridy, 1);
     }
 
     __host__ __device__ static auto CalculateMPadded(index_t M)
