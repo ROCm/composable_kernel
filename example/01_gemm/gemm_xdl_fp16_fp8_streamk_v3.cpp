@@ -40,8 +40,6 @@ using DeviceGemmV2_Streamk_Instance =
         ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1>;
 // clang-format on
 
-
-
 using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALayout,
                                                                              BLayout,
                                                                              CLayout,
