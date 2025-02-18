@@ -6,6 +6,7 @@
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v1.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_dequant_v1.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v2.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v3.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_dequant_v3.hpp"
 
 namespace ck {
@@ -35,7 +36,7 @@ constexpr auto BlockGemmBPreshufflePipeline_Selector()
 {
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
     {
-        if(std::is_same<ADataType, BDataType>::value)
+        if constexpr(std::is_same<ADataType, BDataType>::value)
         {
             return BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlkGemmPipeSche,
                                                                BlockSize,
@@ -109,9 +110,28 @@ constexpr auto BlockGemmBPreshufflePipeline_Selector()
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
     {
         static_assert(MRepeat >= 4, "MRepeat should at least be 4 in BlockGemmPipelineVersion::v3");
-        if(std::is_same<ADataType, BDataType>::value)
+        if constexpr(std::is_same<ADataType, BDataType>::value)
         {
-            std::cerr << "BlockGemmPipeline v3 configuration is not available" << std::endl;
+            return BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlkGemmPipeSche,
+                                                               BlockSize,
+                                                               ADataType,
+                                                               BDataType,
+                                                               ComputeDataType,
+                                                               AccDataType,
+                                                               ATileDesc,
+                                                               BTileDesc,
+                                                               AMmaTileDesc,
+                                                               BMmaTileDesc,
+                                                               ABlockTransferSrcScalarPerVector,
+                                                               BBlockTransferSrcScalarPerVector,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               KPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MRepeat,
+                                                               NRepeat,
+                                                               KPack>{};
         }
         else
         {

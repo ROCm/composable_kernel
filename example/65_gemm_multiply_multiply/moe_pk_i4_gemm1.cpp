@@ -36,7 +36,7 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using A0DataType       = F8;
 using B0DataType       = I4;
-using EDataType        = F32;
+using EDataType        = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using D0DataType       = F32;

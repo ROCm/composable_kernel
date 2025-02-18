@@ -380,11 +380,12 @@ struct DeviceMoeGemm
                     // }
                     // else
                     {
-                        const auto kernel = kernel_moe_gemm_gather<GridwiseGemm,
-                                                                   true,
-                                                                   InMemoryDataOperationEnum::Set,
-                                                                   minimum_occupancy,
-                                                                   TailNumber::Odd>;
+                        const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            IsInputGemm,
+                                                            TailNumber::Odd>;
                         RunKernel(kernel);
                     }
                 }
