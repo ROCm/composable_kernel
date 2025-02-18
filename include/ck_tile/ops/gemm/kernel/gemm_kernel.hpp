@@ -167,17 +167,15 @@ struct GemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
     {
-        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-        {
-            std::cout << "Testing CK_TILE_ENV logging... " << __FILE__ << ":" << __LINE__
-                      << ", in function: " << __func__ << std::endl;
-        }
         if constexpr(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
                      is_any_of<CDataType, fp16_t, bf16_t>::value)
         {
             if(kargs.k_batch != 1)
             {
-                std::cerr << "Conditions not met for Kbatch >1 !" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "Conditions not met for Kbatch >1 !" << std::endl;
+                }
                 return false;
             }
         }
@@ -186,14 +184,21 @@ struct GemmKernel
         {
             if(kargs.K % TilePartitioner::KPerBlock != 0 && GemmPipeline::kPadK == false)
             {
-                std::cerr << "Can't support K that is not a multiple of KPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "Can't support K that is not a multiple of KPerBlock"
+                                 " without padding!"
+                              << std::endl;
+                }
                 return false;
             }
             if(kargs.K % GemmPipeline::GetVectorSizeA() != 0)
             {
-                std::cerr << "K is not a multiple of vector load size for A tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "K is not a multiple of vector load size for A tensor!"
+                              << std::endl;
+                }
                 return false;
             }
         }
@@ -201,14 +206,21 @@ struct GemmKernel
         {
             if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
             {
-                std::cerr << "Can't support M that is not a multiple of MPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "Can't support M that is not a multiple of MPerBlock"
+                                 " without padding!"
+                              << std::endl;
+                }
                 return false;
             }
             if(kargs.M % GemmPipeline::GetVectorSizeA() != 0)
             {
-                std::cerr << "M is not a multiple of vector load size for A tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "M is not a multiple of vector load size for A tensor!"
+                              << std::endl;
+                }
                 return false;
             }
         }
@@ -217,14 +229,21 @@ struct GemmKernel
         {
             if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
             {
-                std::cerr << "Can't support N that is not a multiple of NPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "Can't support N that is not a multiple of NPerBlock"
+                                 " without padding!"
+                              << std::endl;
+                }
                 return false;
             }
             if(kargs.N % GemmPipeline::GetVectorSizeB() != 0)
             {
-                std::cerr << "N is not a multiple of vector load size for B tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "N is not a multiple of vector load size for B tensor!"
+                              << std::endl;
+                }
                 return false;
             }
         }
@@ -232,14 +251,21 @@ struct GemmKernel
         {
             if(kargs.K % TilePartitioner::KPerBlock != 0 && GemmPipeline::kPadK == false)
             {
-                std::cerr << "Can't support K that is not a multiple of KPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "Can't support K that is not a multiple of KPerBlock"
+                                 " without padding!"
+                              << std::endl;
+                }
                 return false;
             }
             if(kargs.K % GemmPipeline::GetVectorSizeB() != 0)
             {
-                std::cerr << "K is not a multiple of vector load size for B tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "K is not a multiple of vector load size for B tensor!"
+                              << std::endl;
+                }
                 return false;
             }
         }
@@ -248,14 +274,21 @@ struct GemmKernel
         {
             if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
             {
-                std::cerr << "Can't support N that is not a multiple of NPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "Can't support N that is not a multiple of NPerBlock"
+                                 " without padding!"
+                              << std::endl;
+                }
                 return false;
             }
             if(kargs.N % EpiloguePipeline::template GetVectorSizeC<CDataType>() != 0)
             {
-                std::cerr << "N is not a multiple of vector load size for C tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "N is not a multiple of vector load size for C tensor!"
+                              << std::endl;
+                }
                 return false;
             }
         }
@@ -263,14 +296,21 @@ struct GemmKernel
         {
             if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
             {
-                std::cerr << "Can't support M that is not a multiple of MPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "Can't support M that is not a multiple of MPerBlock"
+                                 " without padding!"
+                              << std::endl;
+                }
                 return false;
             }
             if(kargs.M % EpiloguePipeline::template GetVectorSizeC<CDataType>() != 0)
             {
-                std::cerr << "M is not a multiple of vector load size for C tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    std::cerr << "M is not a multiple of vector load size for C tensor!"
+                              << std::endl;
+                }
                 return false;
             }
         }
