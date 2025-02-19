@@ -110,6 +110,34 @@ bool run_mxmfma_test(ck::index_t init)
     return pass;
 }
 
+TEST(MXMFMA, MXFP8MFMA16x16x128i0)
+{
+    auto AB_init = 0;
+    auto pass = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MXMFMA, MXFP8MFMA32x32x64i0)
+{
+    auto AB_init = 0;
+    auto pass    = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MXMFMA, MXFP8MFMA16x16x128i1)
+{
+    auto AB_init = 1;
+    auto pass = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MXMFMA, MXFP8MFMA32x32x64i1)
+{
+    auto AB_init = 1;
+    auto pass    = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
 TEST(MXMFMA, MXFP8MFMA16x16x128i2)
 {
     auto AB_init = 2;
@@ -138,23 +166,16 @@ TEST(MXMFMA, MXFP8MFMA32x32x64i3)
     EXPECT_TRUE(pass);
 }
 
-TEST(MXMFMA, MXFP8MFMA16x16x128i4)
+TEST(MXMFMA, MXFP8MFMA16x16x128i7)
 {
-    auto AB_init = 4;
+    auto AB_init = 7;
     auto pass = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
     EXPECT_TRUE(pass);
 }
 
-TEST(MXMFMA, MXFP8MFMA32x32x64i4)
+TEST(MXMFMA, MXFP8MFMA32x32x64i7)
 {
-    auto AB_init = 4;
-    auto pass    = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
-    EXPECT_TRUE(pass);
-}
-
-TEST(MXMFMA, MXFP8MFMA32x32x64i5)
-{
-    auto AB_init = 5;
-    auto pass    = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
+    auto AB_init = 7;
+    auto pass = run_mxmfma_test<f8_t, f8_t, half_t, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
     EXPECT_TRUE(pass);
 }

@@ -833,7 +833,7 @@ matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb,
     // Accumulation intermediate = BLOCK_M x BLOCK_N
     __syncthreads();
     // printf("thread: %u -- fragXa: %d\n", threadIdx.x, fragXa);
-
+#if 0
     printf("thread: %u -- fragA: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x "
            "%x %x %x %x %x %x %x %x %x %x\n",
            threadIdx.x,
@@ -905,16 +905,15 @@ matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb,
            fragB.data_.dN[29],
            fragB.data_.dN[30],
            fragB.data_.dN[31]);
-
-    //__builtin_amdgcn_mfma_ld_scale_b32(fragXa, 0, 0);
+#endif
 
     mfma_type_selector<AFragT, BFragT, AccumFragT, BLOCK_M, BLOCK_N>{}(
         fragA, fragXa, fragB, fragXb, fragAcc);
 
     if(threadIdx.x == 0 || threadIdx.x == 32)
     {
-        printf("thread: %u -- xA: %x\n", threadIdx.x, bit_cast<uint32_t>(fragXa));
-        printf("thread: %u -- xB: %x\n", threadIdx.x, bit_cast<uint32_t>(fragXb));
+        // printf("thread: %u -- xA: %x\n", threadIdx.x, bit_cast<uint32_t>(fragXa));
+        // printf("thread: %u -- xB: %x\n", threadIdx.x, bit_cast<uint32_t>(fragXb));
     }
     __syncthreads();
 
@@ -1096,91 +1095,29 @@ struct TestMXMFMA
             // expect small round off errors
             a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
             a_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{127, 129}); // 1, 2     // scales: {0.5, 1, 2}
+                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
 
-            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            b_n_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
+            b_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{126, 129});
             break;
 
         case 3:
             // expect small round off errors
-            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
-            a_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{128, 129}); //  2
-
-            // a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
-
-            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
-            break;
-        case 4:
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.3});
-            a_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{126, 128}); // 1, 2
-
-            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
-            break;
-
-        case 5:
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{0.0});
-            for(size_t i = 0; i < 32; i++)
-            {
-                a_m_k(0, i) = type_convert<ADataType>(1.0f);
-            }
-            for(size_t i = 32; i < 64; i++)
-            {
-                a_m_k(0, i) = type_convert<ADataType>(2.0f);
-            }
-
-            // printf("f8 1: %x \n", type_convert<ADataType>(1.0f).data);
-            // printf("f8 -2: %x \n", type_convert<ADataType>(-2.0f).data);
-
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
-            a_scales(0, 0) = ScaleType{1.0f};
-            a_scales(0, 1) = ScaleType{0.5f};
-
-            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{0.0f});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
-            for(size_t i = 0; i < 64; i++)
-            {
-                b_n_k(i, 0) = type_convert<BDataType>(1.0f);
-            }
-            break;
-            // case 3:
-            //     // expect small round off errors
-            //     a_m_k.GenerateTensorValue(GeneratorTensor_4<ADataType>(-1, 3));
-            //     a_scales.GenerateTensorValue(
-            //         GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
-            //     b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(1, 3));
-            //     b_scales.GenerateTensorValue(
-            //         GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
-            //     break;
-            // case 4:
-            //     a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
-            //     a_scales.GenerateTensorValue(GeneratorTensor_Sequential<ScaleType, 0>{-9});
-            //     b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
-            //     b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
-            //     break;
-            // case 5:
-            //     a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
-            //     a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
-            //     b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
-            //     b_scales.GenerateTensorValue(GeneratorTensor_Sequential<ScaleType, 1>{-9});
-            //     break;
-
-        case 6:
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{0.00195312f});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f / 16}});
-            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
-            b_scales.GenerateTensorValue(GeneratorTensor_Sequential<ScaleType, 1>{-9});
+            a_m_k.GenerateTensorValue(GeneratorTensor_4<ADataType>(0, 1));
+            a_scales.GenerateTensorValue(
+                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
+            b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(0, 1));
+            b_scales.GenerateTensorValue(
+                GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
             break;
         default:
             // all initial values are representable in FP8, BF8
-            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6});
-            // a_scales.GenerateTensorValue(GeneratorTensor_3<ScaleType>{1.0f / 32.0f, 1.0f});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
-            b_n_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6});
-            // b_scales.GenerateTensorValue(GeneratorTensor_3<ScaleType>{1.0f / 32.0f, 1.0f});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); //[-5,5]
+            a_scales.GenerateTensorValue(
+                GeneratorTensor_2<ScaleType>{122, 129});                    // scales: [1/32, 2]
+            b_n_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); //[-5,5]
+            b_scales.GenerateTensorValue(
+                GeneratorTensor_2<ScaleType>{122, 129}); //  scales: [1/32], 2]
 
             break;
         }
@@ -1237,7 +1174,7 @@ struct TestMXMFMA
 
         RunDeviceGEMM(mfma_kernel, a, a_scales, b, b_scales, c_device);
 
-#if 0
+#if 1
 #if 1
         std::cout << "a:" << std::endl;
         for(size_t i = 0; i < BLOCK_M; i++)
@@ -1247,20 +1184,18 @@ struct TestMXMFMA
                 std::cout << type_convert<float>(a(i, j)) << " ";
             }
             std::cout << std::endl;
-            break;
         }
-        // std::cout << "b:" << std::endl;
-        // for(size_t i = 0; i < BLOCK_K; i++)
-        // {
-        //     for(size_t j = 0; j < BLOCK_N; j++)
-        //     {
-        //         if(j == 0)
-        //             std::cout << type_convert<float>(b(i, j)) << " ";
-        //     }
-        //     std::cout << std::endl;
-        // }
+        std::cout << "b:" << std::endl;
+        for(size_t i = 0; i < BLOCK_K; i++)
+        {
+            for(size_t j = 0; j < BLOCK_N; j++)
+            {
+                std::cout << type_convert<float>(b(i, j)) << " ";
+            }
+            std::cout << std::endl;
+        }
 #endif
-#if 0
+#if 1
         std::cout << "a_scale:" << std::endl;
         for(size_t i = 0; i < BLOCK_M; i++)
         {
@@ -1270,15 +1205,15 @@ struct TestMXMFMA
             }
             std::cout << std::endl;
         }
-        // std::cout << "b_scale:" << std::endl;
-        // for(size_t i = 0; i < BLOCK_K / BLOCK_X; i++)
-        // {
-        //     for(size_t j = 0; j < BLOCK_N; j++)
-        //     {
-        //         std::cout << type_convert<float>(b_scales(i, j)) << " ";
-        //     }
-        //     std::cout << std::endl;
-        // }
+        std::cout << "b_scale:" << std::endl;
+        for(size_t i = 0; i < BLOCK_K / BLOCK_X; i++)
+        {
+            for(size_t j = 0; j < BLOCK_N; j++)
+            {
+                std::cout << type_convert<float>(b_scales(i, j)) << " ";
+            }
+            std::cout << std::endl;
+        }
 #endif
         std::cout << "c_device:" << std::endl;
         for(size_t i = 0; i < BLOCK_M; i++)
@@ -1288,7 +1223,6 @@ struct TestMXMFMA
                 std::cout << type_convert<float>(c_device(i, j)) << " ";
             }
             std::cout << std::endl;
-            break;
         }
 
 #endif
@@ -1299,7 +1233,7 @@ struct TestMXMFMA
         {
             res = ck::utils::check_err(c_device.mData, c_host.mData);
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
-
+#if 1
             if(!res)
             {
 
@@ -1311,9 +1245,9 @@ struct TestMXMFMA
                         std::cout << type_convert<float>(c_host(i, j)) << " ";
                     }
                     std::cout << std::endl;
-                    break;
                 }
             }
+#endif
         }
         else
         {
