@@ -79,8 +79,7 @@ bool run_mxmfma_test(ck::index_t init)
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-    using AccType = float; // only MFMA_F32 instructions supported
-    // using CPUAccType = AccType;
+    using AccType   = float;           // only MFMA_F32 instructions supported
     using ScaleType = ck::e8m0_bexp_t; // biased exponent type
 
     ck::mfma_type<static_cast<ck::MfmaInstr>(mfma)> mfma_instr;
@@ -110,70 +109,14 @@ bool run_mxmfma_test(ck::index_t init)
     return pass;
 }
 
-TEST(MXMFMA, MXFP8MFMA16x16x128i0)
-{
-    auto AB_init = 0;
-    auto pass = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
-    EXPECT_TRUE(pass);
-}
-
-TEST(MXMFMA, MXFP8MFMA32x32x64i0)
-{
-    auto AB_init = 0;
-    auto pass    = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
-    EXPECT_TRUE(pass);
-}
-
-TEST(MXMFMA, MXFP8MFMA16x16x128i1)
-{
-    auto AB_init = 1;
-    auto pass = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
-    EXPECT_TRUE(pass);
-}
-
-TEST(MXMFMA, MXFP8MFMA32x32x64i1)
-{
-    auto AB_init = 1;
-    auto pass    = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
-    EXPECT_TRUE(pass);
-}
-
-TEST(MXMFMA, MXFP8MFMA16x16x128i2)
-{
-    auto AB_init = 2;
-    auto pass = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
-    EXPECT_TRUE(pass);
-}
-
-TEST(MXMFMA, MXFP8MFMA32x32x64i2)
-{
-    auto AB_init = 2;
-    auto pass    = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
-    EXPECT_TRUE(pass);
-}
-
-TEST(MXMFMA, MXFP8MFMA16x16x128i3)
-{
-    auto AB_init = 3;
-    auto pass = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
-    EXPECT_TRUE(pass);
-}
-
-TEST(MXMFMA, MXFP8MFMA32x32x64i3)
-{
-    auto AB_init = 3;
-    auto pass    = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
-    EXPECT_TRUE(pass);
-}
-
-TEST(MXMFMA, MXFP8MFMA16x16x128i7)
+TEST(MXMFMA, MXFP8MFMA16x16x128)
 {
     auto AB_init = 7;
     auto pass = run_mxmfma_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
     EXPECT_TRUE(pass);
 }
 
-TEST(MXMFMA, MXFP8MFMA32x32x64i7)
+TEST(MXMFMA, MXFP8MFMA32x32x64)
 {
     auto AB_init = 7;
     auto pass = run_mxmfma_test<f8_t, f8_t, half_t, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);

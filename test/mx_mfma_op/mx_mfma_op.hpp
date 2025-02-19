@@ -40,9 +40,9 @@ struct mfma_type_selector<AFragT, BFragT, AccumFragT, 16, 16>
     }
 
     __device__ void operator()(AFragT const& fragA,
-                               const int32_t& scale_a,
+                               const int32_t scale_a,
                                BFragT const& fragB,
-                               const int32_t& scale_b,
+                               const int32_t scale_b,
                                AccumFragT& fragAcc)
     {
         auto op = mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>{};
@@ -61,9 +61,9 @@ struct mfma_type_selector<AFragT, BFragT, AccumFragT, 32, 32>
     }
 
     __device__ void operator()(AFragT const& fragA,
-                               const int32_t& scale_a,
+                               const int32_t scale_a,
                                BFragT const& fragB,
-                               const int32_t& scale_b,
+                               const int32_t scale_b,
                                AccumFragT& fragAcc)
     {
         auto op = mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>{};
@@ -776,9 +776,7 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
 
     // Matrix multiply-accumulate using MFMA units
     // Accumulation intermediate = BLOCK_M x BLOCK_N
-    __syncthreads();
     mfma_type_selector<AFragT, BFragT, AccumFragT, BLOCK_M, BLOCK_N>{}(fragA, fragB, fragAcc);
-    __syncthreads();
 
     for(int i = 0; i < vectorSize(fragC); ++i)
     {
@@ -831,97 +829,14 @@ matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb,
 
     // Scaled Matrix multiply-accumulate using MFMA units
     // Accumulation intermediate = BLOCK_M x BLOCK_N
-    __syncthreads();
-    // printf("thread: %u -- fragXa: %d\n", threadIdx.x, fragXa);
-#if 0
-    printf("thread: %u -- fragA: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x "
-           "%x %x %x %x %x %x %x %x %x %x\n",
-           threadIdx.x,
-           fragA.data_.dN[0],
-           fragA.data_.dN[1],
-           fragA.data_.dN[2],
-           fragA.data_.dN[3],
-           fragA.data_.dN[4],
-           fragA.data_.dN[5],
-           fragA.data_.dN[6],
-           fragA.data_.dN[7],
-           fragA.data_.dN[8],
-           fragA.data_.dN[9],
-           fragA.data_.dN[10],
-           fragA.data_.dN[11],
-           fragA.data_.dN[12],
-           fragA.data_.dN[13],
-           fragA.data_.dN[14],
-           fragA.data_.dN[15],
-           fragA.data_.dN[16],
-           fragA.data_.dN[17],
-           fragA.data_.dN[18],
-           fragA.data_.dN[19],
-           fragA.data_.dN[20],
-           fragA.data_.dN[21],
-           fragA.data_.dN[22],
-           fragA.data_.dN[23],
-           fragA.data_.dN[24],
-           fragA.data_.dN[25],
-           fragA.data_.dN[26],
-           fragA.data_.dN[27],
-           fragA.data_.dN[28],
-           fragA.data_.dN[29],
-           fragA.data_.dN[30],
-           fragA.data_.dN[31]);
-
-    printf("thread: %u -- fragB: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x "
-           "%x %x %x %x %x %x %x %x %x %x\n",
-           threadIdx.x,
-           fragB.data_.dN[0],
-           fragB.data_.dN[1],
-           fragB.data_.dN[2],
-           fragB.data_.dN[3],
-           fragB.data_.dN[4],
-           fragB.data_.dN[5],
-           fragB.data_.dN[6],
-           fragB.data_.dN[7],
-           fragB.data_.dN[8],
-           fragB.data_.dN[9],
-           fragB.data_.dN[10],
-           fragB.data_.dN[11],
-           fragB.data_.dN[12],
-           fragB.data_.dN[13],
-           fragB.data_.dN[14],
-           fragB.data_.dN[15],
-           fragB.data_.dN[16],
-           fragB.data_.dN[17],
-           fragB.data_.dN[18],
-           fragB.data_.dN[19],
-           fragB.data_.dN[20],
-           fragB.data_.dN[21],
-           fragB.data_.dN[22],
-           fragB.data_.dN[23],
-           fragB.data_.dN[24],
-           fragB.data_.dN[25],
-           fragB.data_.dN[26],
-           fragB.data_.dN[27],
-           fragB.data_.dN[28],
-           fragB.data_.dN[29],
-           fragB.data_.dN[30],
-           fragB.data_.dN[31]);
-#endif
-
     mfma_type_selector<AFragT, BFragT, AccumFragT, BLOCK_M, BLOCK_N>{}(
         fragA, fragXa, fragB, fragXb, fragAcc);
-
-    if(threadIdx.x == 0 || threadIdx.x == 32)
-    {
-        // printf("thread: %u -- xA: %x\n", threadIdx.x, bit_cast<uint32_t>(fragXa));
-        // printf("thread: %u -- xB: %x\n", threadIdx.x, bit_cast<uint32_t>(fragXb));
-    }
-    __syncthreads();
 
     for(int i = 0; i < vectorSize(fragC); ++i)
     {
         fragC[i] = type_convert<CType>(fragAcc.template AsType<RawAccumFragT>()[Number<0>{}][i]);
     }
-    __syncthreads();
+
     auto storeC = store_C_row_major<CType, CFragT, BLOCK_M, BLOCK_N>{};
     storeC(c, fragC);
 }
@@ -1090,12 +1005,12 @@ struct TestMXMFMA
             break;
         default:
             // all initial values are representable in FP8, BF8
-            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); //[-5,5]
+            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
             a_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{122, 129});                    // scales: [1/32, 2]
-            b_n_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); //[-5,5]
+                GeneratorTensor_2<ScaleType>{122, 129});                    // scales: [1/32,..., 2]
+            b_n_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
             b_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{122, 129}); //  scales: [1/32], 2]
+                GeneratorTensor_2<ScaleType>{122, 129}); //  scales: [1/32,..., 2]
 
             break;
         }
@@ -1106,9 +1021,6 @@ struct TestMXMFMA
 
     auto operator()(const DeviceMFMA& mfma_kernel, index_t init)
     {
-        std::cout << "ALayout = " << ALayout{}.name << ", BLayout = " << BLayout{}.name
-                  << ", CLayout = " << CLayout{}.name << std::endl;
-
         // Arrange
         GemmParams params;
         params.M = BLOCK_M;
@@ -1152,80 +1064,11 @@ struct TestMXMFMA
 
         RunDeviceGEMM(mfma_kernel, a, a_scales, b, b_scales, c_device);
 
-#if 1
-#if 1
-        std::cout << "a:" << std::endl;
-        for(size_t i = 0; i < BLOCK_M; i++)
-        {
-            for(size_t j = 0; j < BLOCK_K; j++)
-            {
-                std::cout << type_convert<float>(a(i, j)) << " ";
-            }
-            std::cout << std::endl;
-        }
-        std::cout << "b:" << std::endl;
-        for(size_t i = 0; i < BLOCK_K; i++)
-        {
-            for(size_t j = 0; j < BLOCK_N; j++)
-            {
-                std::cout << type_convert<float>(b(i, j)) << " ";
-            }
-            std::cout << std::endl;
-        }
-#endif
-#if 1
-        std::cout << "a_scale:" << std::endl;
-        for(size_t i = 0; i < BLOCK_M; i++)
-        {
-            for(size_t j = 0; j < BLOCK_K / BLOCK_X; j++)
-            {
-                std::cout << type_convert<float>(a_scales(i, j)) << " ";
-            }
-            std::cout << std::endl;
-        }
-        std::cout << "b_scale:" << std::endl;
-        for(size_t i = 0; i < BLOCK_K / BLOCK_X; i++)
-        {
-            for(size_t j = 0; j < BLOCK_N; j++)
-            {
-                std::cout << type_convert<float>(b_scales(i, j)) << " ";
-            }
-            std::cout << std::endl;
-        }
-#endif
-        std::cout << "c_device:" << std::endl;
-        for(size_t i = 0; i < BLOCK_M; i++)
-        {
-            for(size_t j = 0; j < BLOCK_N; j++)
-            {
-                std::cout << type_convert<float>(c_device(i, j)) << " ";
-            }
-            std::cout << std::endl;
-        }
-
-#endif
-
         bool res = false;
         if constexpr(std::is_same<CDataType, float>::value ||
                      std::is_same<CDataType, half_t>::value)
         {
             res = ck::utils::check_err(c_device.mData, c_host.mData);
-            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
-#if 1
-            if(!res)
-            {
-
-                std::cout << "c_host:" << std::endl;
-                for(size_t i = 0; i < BLOCK_M; i++)
-                {
-                    for(size_t j = 0; j < BLOCK_N; j++)
-                    {
-                        std::cout << type_convert<float>(c_host(i, j)) << " ";
-                    }
-                    std::cout << std::endl;
-                }
-            }
-#endif
         }
         else
         {
@@ -1354,9 +1197,6 @@ struct TestMFMA
 
     auto operator()(const DeviceMFMA& mfma_kernel, index_t init)
     {
-        std::cout << "ALayout = " << ALayout{}.name << ", BLayout = " << BLayout{}.name
-                  << ", CLayout = " << CLayout{}.name << std::endl;
-
         // Arrange
         GemmParams params;
         params.M = BLOCK_M;
@@ -1418,7 +1258,6 @@ struct TestMFMA
                      std::is_same<CDataType, half_t>::value)
         {
             res = ck::utils::check_err(c_device.mData, c_host.mData);
-            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
         }
         else
         {

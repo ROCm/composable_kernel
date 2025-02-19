@@ -359,6 +359,23 @@ struct GeneratorTensor_Sequential
     }
 };
 
+/**
+ * @brief Is used to generate sequential powers of 2 based on the specified dimension.
+ *
+ * @tparam Dim The specific dimension used for generation.
+ *
+ * For a 3x3 tensor, GeneratorTensor_Sequential<ck::e8m0_bexp_t, 1>{} will generate a tensor of
+ * exponents that correspond to the following values :
+ *
+ * 1 2 4
+ * 1 2 4
+ * 1 2 4
+ *
+ * Essentially, the values generated are powers of 2 for the logical coordinates of the generated
+ * element that correspond to dimension Dim. E.g. for 2-dimensional tensor and Dim=1, the power
+ * values are the column indices.
+ *
+ */
 template <ck::index_t Dim>
 struct GeneratorTensor_Sequential<ck::e8m0_bexp_t, Dim>
 {

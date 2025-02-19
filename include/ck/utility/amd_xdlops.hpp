@@ -519,36 +519,12 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
 {
     template <class FloatC>
     __device__ static void Run(const f8x32_t& reg_a,
-                               const int32_t& scale_a,
+                               const int32_t scale_a,
                                const f8x32_t& reg_b,
-                               const int32_t& scale_b,
+                               const int32_t scale_b,
                                FloatC& reg_c)
     {
 #if defined(__gfx950__)
-        if(threadIdx.x == 0 || threadIdx.x == 32)
-        {
-            printf("thread: %u -- xA: %x\n", threadIdx.x, static_cast<uint32_t>(scale_a));
-            printf("thread: %u -- xB: %x\n", threadIdx.x, static_cast<uint32_t>(scale_b));
-
-            // printf("intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32> thread: %u -- scale_a: %f\n",
-            //        threadIdx.x,
-            //        static_cast<float>(ck::e8m0_bexp_t(scale_a)));
-            // printf("intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32> thread: %u -- scale_b: %f\n",
-            //        threadIdx.x,
-            //        static_cast<float>(ck::e8m0_bexp_t(scale_b)));
-
-            // for(size_t i = 0; i < 32; i++)
-            // {
-            //     printf("thread: %u -- reg_a[%zu]: %f\n",
-            //            threadIdx.x,
-            //            i,
-            //            type_convert<float>(f8_t{static_cast<f8x32_t::data_v>(reg_a)[i]}));
-            //     // printf("thread: %u -- reg_a[%zu]: %f\n",
-            //     //        threadIdx.x,
-            //     //        i,
-            //     //        type_convert<float>(f8_t{static_cast<f8x32_t::data_v>(reg_b)[i]}));
-            // }
-        }
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
@@ -557,9 +533,9 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 0, // cbsz
                 0, // blgp
-                0, // { OPSEL_HI[0], OPSEL[0] }?
+                0, // OPSEL
                 scale_a,
-                0, // { OPSEL_HI[1], OPSEL[1] }?
+                0, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
@@ -593,9 +569,9 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                 reg_c.template AsType<float4_t>()[Number<0>{}],
                 0, // cbsz
                 0, // blgp
-                0, // { OPSEL_HI[0], OPSEL[0] }?
+                0, // OPSEL
                 scale_a,
-                0, // { OPSEL_HI[1], OPSEL[1] }?
+                0, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
