@@ -64,15 +64,16 @@ __global__ void
         group_id = index_t((left + right) / 2);
     }
 
-    const auto karg          = gemm_desc_ptr[group_id].karg_;
-    auto splitk_batch_offset = GridwiseGemm::SplitKBatchOffset(karg);
+    // const auto& karg          = gemm_desc_ptr[group_id].karg_;
+    auto splitk_batch_offset =
+        typename GridwiseGemm::SplitKBatchOffset(gemm_desc_ptr[group_id].karg_);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid,
+        gemm_desc_ptr[group_id].karg_.p_a_grid + splitk_batch_offset.a_k_split_offset,
+        gemm_desc_ptr[group_id].karg_.p_b_grid + splitk_batch_offset.b_k_split_offset,
+        gemm_desc_ptr[group_id].karg_.p_c_grid,
         p_shared,
-        karg);
+        gemm_desc_ptr[group_id].karg_);
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
