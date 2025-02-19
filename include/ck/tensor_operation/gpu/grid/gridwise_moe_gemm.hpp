@@ -1156,16 +1156,30 @@ struct GridwiseMoeGemm
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);     
         // constexpr int expert_tile_cnt[8] = {2, 1, 1, 2, 2, 2, 1, 2};
         // const index_t b_block_id = blockIdx.x % problem.NBlock;
+        const index_t expert_block_id = blockIdx.x / problem.NBlock;
+        const index_t expert_id = __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[blockIdx.x / problem.NBlock]);
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr (NSwizzle) 
             {
-                const index_t expert_block_id = blockIdx.x / problem.NBlock;
-                const index_t es = __builtin_amdgcn_readfirstlane(p_max_token_id[expert_block_id + 1]);
-                const index_t expert_swizzle = es > 0 ? es : 1; //p_max_token_id[expert_id + 1];
-                const index_t expert_block_swizzle = expert_block_id / expert_swizzle;
-                const index_t b_block_id_swizzle = blockIdx.x % (problem.NBlock * expert_swizzle);
-                const index_t nid = __builtin_amdgcn_readfirstlane(b_block_id_swizzle % 8 +  b_block_id_swizzle / (8 * expert_swizzle) * 8);
-                const index_t mid = __builtin_amdgcn_readfirstlane(expert_block_swizzle * expert_swizzle + b_block_id_swizzle / 8 % expert_swizzle);
+                // const index_t expert_block_id = blockIdx.x / problem.NBlock;  //
+                // const index_t es = __builtin_amdgcn_readfirstlane(p_max_token_id[expert_block_id + 1]);
+                // const index_t expert_swizzle = es > 0 ? es : 1; //p_max_token_id[expert_id + 1];
+                // const index_t expert_block_swizzle = expert_block_id / expert_swizzle;
+                // const index_t b_block_id_swizzle = blockIdx.x % (problem.NBlock * expert_swizzle);
+                // const index_t nid = __builtin_amdgcn_readfirstlane(b_block_id_swizzle % 8 +  b_block_id_swizzle / (8 * expert_swizzle) * 8);
+                // const index_t mid = __builtin_amdgcn_readfirstlane(expert_block_swizzle * expert_swizzle + b_block_id_swizzle / 8 % expert_swizzle);
+                // if(threadIdx.x==0)
+                // printf("block, %d, mid, %d, nid, %d, ecnt, %d, expert %d \n", blockIdx.x, mid, nid, es, p_sorted_expert_ids[expert_block_id]);
+                
+                const index_t ecnt_prefix = p_max_token_id[1+expert_id];
+                const index_t prefix_block = ecnt_prefix * problem.NBlock;
+                const index_t ecnt = p_max_token_id[2+expert_id] - ecnt_prefix;
+                const index_t expert_swizzle = ecnt > 0 ? ecnt : 1; //p_max_token_id[expert_id + 1]; // 2
+                const index_t bid_new = blockIdx.x - prefix_block;
+                const index_t nid = __builtin_amdgcn_readfirstlane(bid_new % 8 +  bid_new / (8 * expert_swizzle) * 8);
+                const index_t mid = __builtin_amdgcn_readfirstlane(ecnt_prefix + bid_new / 8 % expert_swizzle);
+                // if(threadIdx.x==0)
+                // printf("block, %d, mid, %d, nid, %d, ecnt, %d, expert %d \n", blockIdx.x, mid, nid, ecnt, expert_id);
                 return {nid, mid};
             } else {
                 return {blockIdx.x, blockIdx.y};
@@ -1173,7 +1187,6 @@ struct GridwiseMoeGemm
         }();
         const index_t block_n_id = block_mn.first;
         const index_t block_m_id = block_mn.second;
-        const index_t expert_id = __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[block_m_id]);
         // if (threadIdx.x==0) {
         //     printf("bid %d, eid %d,  es %d, esi %d, bsi %d, m %d, n %d\n", blockIdx.x, expert_id, expert_swizzle, expert_block_swizzle, b_block_id_swizzle, block_m_id, block_n_id);
         // }
@@ -1187,7 +1200,7 @@ struct GridwiseMoeGemm
         constexpr auto AMRepeats = MPerBlock / AMThreads;
         const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
         
-        if(token_pos >= max_token_id || token0 >= problem.NumTokens)
+        if(token_pos >= max_token_id || expert_block_id * MPerBlock >= max_token_id || token0 >= problem.NumTokens)
             return;
         StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
