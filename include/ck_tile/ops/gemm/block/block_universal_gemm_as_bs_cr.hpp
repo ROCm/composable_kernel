@@ -117,6 +117,25 @@ struct BlockUniversalGemmAsBsCr
     using I1 = number<1>;
 
     private:
+    template <typename WarpWindow, typename WarpTile>
+    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpWindow& warp_window,
+                                                        WarpTile& warp_tile)
+    {
+        constexpr index_t UnaryOpSize = 8;
+        const element_wise::PassThroughPack8 elementwise_op{};
+        constexpr index_t thread_buffer_size =
+            Traits::AWarpTile::get_thread_buffer_size() / UnaryOpSize;
+        const auto in_dstr_tensors = load_tile(warp_window);
+
+        static_assert(Traits::AWarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
+
+        using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
+        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
+            elementwise_op(warp_tile.get_thread_buffer().template get_as<ComputeVectorType>()(i),
+                           in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
+        });
+    }
+
     template <GemmPipelineScheduler Scheduler, typename GemmTraits>
     struct BlockGemmImpl
     {
@@ -230,23 +249,7 @@ struct BlockUniversalGemmAsBsCr
                     AWarpTensor a_warp_tile;
                     if constexpr(std::is_same_v<ADataType, pk_int4_t>)
                     {
-                        constexpr index_t UnaryOpSize = 8;
-                        const element_wise::PassThroughPack8 elementwise_op{};
-                        constexpr index_t thread_buffer_size =
-                            AWarpTensor::get_thread_buffer_size() / UnaryOpSize;
-                        const auto in_dstr_tensors = load_tile(a_warp_windows(mIter)(kIter));
-
-                        static_assert(
-                            GemmTraits::AWarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
-
-                        using ComputeVectorType =
-                            ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
-                        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-                            elementwise_op(a_warp_tile.get_thread_buffer()
-                                               .template get_as<ComputeVectorType>()(i),
-                                           in_dstr_tensors.get_thread_buffer()
-                                               .template get_as<pk_int4x4_t>()[i]);
-                        });
+                        load_interleaved_pk_type(a_warp_windows(mIter)(kIter), a_warp_tile);
                     }
                     else
                     {
@@ -257,23 +260,7 @@ struct BlockUniversalGemmAsBsCr
                         BWarpTensor b_warp_tile;
                         if constexpr(std::is_same_v<BDataType, pk_int4_t>)
                         {
-                            constexpr index_t UnaryOpSize = 8;
-                            const element_wise::PassThroughPack8 elementwise_op{};
-                            const auto in_dstr_tensors = load_tile(b_warp_windows(nIter)(kIter));
-                            constexpr index_t thread_buffer_size =
-                                BWarpTensor::get_thread_buffer_size() / UnaryOpSize;
-
-                            static_assert(
-                                GemmTraits::BWarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
-
-                            using ComputeVectorType =
-                                ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
-                            static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-                                elementwise_op(b_warp_tile.get_thread_buffer()
-                                                   .template get_as<ComputeVectorType>()(i),
-                                               in_dstr_tensors.get_thread_buffer()
-                                                   .template get_as<pk_int4x4_t>()[i]);
-                            });
+                            load_interleaved_pk_type(b_warp_windows(nIter)(kIter), b_warp_tile);
                         }
                         else
                         {
@@ -402,24 +389,8 @@ struct BlockUniversalGemmAsBsCr
                     // read A warp tensor from A block window
                     if constexpr(std::is_same_v<ADataType, pk_int4_t>)
                     {
-                        constexpr index_t UnaryOpSize = 8;
-                        const element_wise::PassThroughPack8 elementwise_op{};
-                        constexpr index_t thread_buffer_size =
-                            GemmTraits::AWarpTile::get_thread_buffer_size() / UnaryOpSize;
-                        const auto in_dstr_tensors = load_tile(a_warp_windows(mIter)(kIter));
-
-                        static_assert(
-                            GemmTraits::AWarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
-
-                        using ComputeVectorType =
-                            ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
-                        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-                            elementwise_op(a_warp_tiles_(mIter)(kIter)
-                                               .get_thread_buffer()
-                                               .template get_as<ComputeVectorType>()(i),
-                                           in_dstr_tensors.get_thread_buffer()
-                                               .template get_as<pk_int4x4_t>()[i]);
-                        });
+                        load_interleaved_pk_type(a_warp_windows(mIter)(kIter),
+                                                 a_warp_tiles_(mIter)(kIter));
                     }
                     else
                     {
@@ -430,24 +401,8 @@ struct BlockUniversalGemmAsBsCr
                     // read B warp tensor from B Block window
                     if constexpr(std::is_same_v<BDataType, pk_int4_t>)
                     {
-                        constexpr index_t UnaryOpSize = 8;
-                        const element_wise::PassThroughPack8 elementwise_op{};
-                        constexpr index_t thread_buffer_size =
-                            GemmTraits::BWarpTile::get_thread_buffer_size() / UnaryOpSize;
-                        const auto in_dstr_tensors = load_tile(b_warp_windows(nIter)(kIter));
-
-                        static_assert(
-                            GemmTraits::BWarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
-
-                        using ComputeVectorType =
-                            ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
-                        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-                            elementwise_op(b_warp_tiles_(nIter)(kIter)
-                                               .get_thread_buffer()
-                                               .template get_as<ComputeVectorType>()(i),
-                                           in_dstr_tensors.get_thread_buffer()
-                                               .template get_as<pk_int4x4_t>()[i]);
-                        });
+                        load_interleaved_pk_type(b_warp_windows(nIter)(kIter),
+                                                 b_warp_tiles_(nIter)(kIter));
                     }
                     else
                     {
@@ -612,24 +567,8 @@ struct BlockUniversalGemmAsBsCr
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     if constexpr(std::is_same_v<ADataType, pk_int4_t>)
                     {
-                        constexpr index_t UnaryOpSize = 8;
-                        const element_wise::PassThroughPack8 elementwise_op{};
-                        constexpr index_t thread_buffer_size =
-                            GemmTraits::AWarpTile::get_thread_buffer_size() / UnaryOpSize;
-                        const auto in_dstr_tensors = load_tile(a_warp_windows(mIter)(kIter));
-
-                        static_assert(
-                            GemmTraits::AWarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
-
-                        using ComputeVectorType =
-                            ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
-                        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-                            elementwise_op(a_warp_tiles_(mIter)(kIter)
-                                               .get_thread_buffer()
-                                               .template get_as<ComputeVectorType>()(i),
-                                           in_dstr_tensors.get_thread_buffer()
-                                               .template get_as<pk_int4x4_t>()[i]);
-                        });
+                        load_interleaved_pk_type(a_warp_windows(mIter)(kIter),
+                                                 a_warp_tiles_(mIter)(kIter));
                     }
                     else
                     {
@@ -640,24 +579,8 @@ struct BlockUniversalGemmAsBsCr
                     // read B warp tensor from B Block window
                     if constexpr(std::is_same_v<BDataType, pk_int4_t>)
                     {
-                        constexpr index_t UnaryOpSize = 8;
-                        const element_wise::PassThroughPack8 elementwise_op{};
-                        constexpr index_t thread_buffer_size =
-                            GemmTraits::BWarpTile::get_thread_buffer_size() / UnaryOpSize;
-                        const auto in_dstr_tensors = load_tile(b_warp_windows(nIter)(kIter));
-
-                        static_assert(
-                            GemmTraits::BWarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
-
-                        using ComputeVectorType =
-                            ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
-                        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-                            elementwise_op(b_warp_tiles_(nIter)(kIter)
-                                               .get_thread_buffer()
-                                               .template get_as<ComputeVectorType>()(i),
-                                           in_dstr_tensors.get_thread_buffer()
-                                               .template get_as<pk_int4x4_t>()[i]);
-                        });
+                        load_interleaved_pk_type(b_warp_windows(nIter)(kIter),
+                                                 b_warp_tiles_(nIter)(kIter));
                     }
                     else
                     {

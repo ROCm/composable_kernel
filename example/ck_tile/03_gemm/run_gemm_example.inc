@@ -154,8 +154,6 @@ int run_gemm_example_with_layouts(int argc,
         return -1;
 
     using AccDataType = typename GemmBasicTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
-    constexpr ck_tile::index_t PackedSizeA = ck_tile::numeric_traits<ADataType>::PackedSize;
-    constexpr ck_tile::index_t PackedSizeB = ck_tile::numeric_traits<BDataType>::PackedSize;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -278,17 +276,18 @@ int run_gemm_example_with_layouts(int argc,
         BDataType* d_B;
         CDataType* d_C;
 
-        ck_tile::hip_check_error(hipMalloc(&d_A, M * K * sizeof(ADataType) / PackedSizeA));
-        ck_tile::hip_check_error(hipMalloc(&d_B, N * K * sizeof(BDataType) / PackedSizeB));
-        ck_tile::hip_check_error(hipMalloc(&d_C, M * N * sizeof(CDataType)));
+        ck_tile::hip_check_error(hipMalloc(&d_A, a_m_k.get_element_space_size_in_bytes()));
+        ck_tile::hip_check_error(hipMalloc(&d_B, b_k_n.get_element_space_size_in_bytes()));
+        ck_tile::hip_check_error(
+            hipMalloc(&d_C, c_m_n_dev_result.get_element_space_size_in_bytes()));
 
         ck_tile::hip_check_error(hipMemcpy(d_A,
                                            a_m_k_dev_buf.GetDeviceBuffer(),
-                                           M * K * sizeof(ADataType) / PackedSizeA,
+                                           a_m_k.get_element_space_size_in_bytes(),
                                            hipMemcpyHostToDevice));
         ck_tile::hip_check_error(hipMemcpy(d_B,
                                            b_k_n_dev_buf.GetDeviceBuffer(),
-                                           N * K * sizeof(BDataType) / PackedSizeB,
+                                           b_k_n.get_element_space_size_in_bytes(),
                                            hipMemcpyHostToDevice));
 
         ck_tile::reference_gemm_gpu<ADataType,
@@ -301,7 +300,7 @@ int run_gemm_example_with_layouts(int argc,
 
         ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
                                            d_C,
-                                           M * N * sizeof(CDataType),
+                                           c_m_n_dev_result.get_element_space_size_in_bytes(),
                                            hipMemcpyDeviceToHost));
 
         ck_tile::hip_check_error(hipFree(d_A));

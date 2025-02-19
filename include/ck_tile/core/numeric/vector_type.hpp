@@ -213,5 +213,4 @@ using pk_int4x4_t  = int8_t __attribute((ext_vector_type(4)));
 using pk_int4x8_t  = int8_t __attribute((ext_vector_type(8)));
 using pk_int4x16_t = int8_t __attribute((ext_vector_type(16)));
 using pk_int4x32_t = int8_t __attribute((ext_vector_type(32)));
-using pk_int4x64_t = int8_t __attribute((ext_vector_type(64)));
 } // namespace ck_tile
