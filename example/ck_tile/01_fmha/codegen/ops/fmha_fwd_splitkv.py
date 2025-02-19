@@ -705,6 +705,7 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                 if kernel_filter != None:
                     if not fnmatch.fnmatch(k.name, kernel_filter):
                         continue
+                # Flash attention integration
                 if receipt == 2:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= pipeline.F_vlayout == 'row'
@@ -712,6 +713,7 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+                # Aiter(mha_varlen_fwd) integration
                 elif receipt == 11:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
@@ -720,6 +722,7 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+                # Aiter(mha_fwd_kvcache) integration
                 elif receipt == 12:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "batch"
