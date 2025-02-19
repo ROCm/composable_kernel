@@ -140,7 +140,7 @@ __global__ void
                                              k_idx);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__)
+#endif // end of if (defined(__gfx9__)
 }
 
 // out[N, Ho, Wo, K] = in[N, Hi, Wi, C] * wei[K, Y, X, C]
