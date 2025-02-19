@@ -12,6 +12,7 @@ namespace ck_tile {
 struct BlockFmhaPipelineQSKSVSDefaultPolicy
     : BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ false,
                                           /* AsyncCopy = */ false,
+                                          /* NumPrefetchK = */ 1,
                                           /* NumPrefetchV = */ 1>
 {
     template <typename Problem>

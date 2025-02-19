@@ -14,10 +14,12 @@ namespace ck_tile {
 struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
     : BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
                                           /* AsyncCopy = */ false,
+                                          /* NumPrefetchK = */ 1,
                                           /* NumPrefetchV = */ 1>
 {
     using BasePolicy = BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
                                                            /* AsyncCopy = */ false,
+                                                           /* NumPrefetchK = */ 1,
                                                            /* NumPrefetchV = */ 1>;
 
     template <typename Problem>

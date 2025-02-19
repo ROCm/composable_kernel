@@ -277,15 +277,14 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
     }
 };
 
-template <bool QLoadOnce_, bool AsyncCopy_, index_t NumPrefetchV_>
+template <bool QLoadOnce_, bool AsyncCopy_, index_t NumPrefetchK_, index_t NumPrefetchV_>
 struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLoadOnce_>
 {
+    static constexpr index_t NumPrefetchK = NumPrefetchK_;
     static constexpr index_t NumPrefetchV = NumPrefetchV_;
 
-    // 1) When Async == true, we preload whole K-tile for next iteration using single LDS buffer,
-    //    and preload V-slice for next unroll using multiple LDS buffers
-    // 2) When Async == false, we preload K-slice for next unroll using single LDS buffer, and
-    //    preload V-slice for next unroll using single LDS buffer
+    static constexpr bool WholeKPrefetch = (NumPrefetchK_ == -1);
+
     static constexpr bool AsyncCopy = AsyncCopy_;
 
     using QXPolicy = BlockFmhaPipelineQXCustomPolicy<QLoadOnce_>;
@@ -293,7 +292,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumKLdsBuffers()
     {
-        if constexpr(AsyncCopy)
+        if constexpr(WholeKPrefetch)
         {
             return 2;
         }

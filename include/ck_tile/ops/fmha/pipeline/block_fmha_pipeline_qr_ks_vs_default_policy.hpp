@@ -11,6 +11,7 @@ namespace ck_tile {
 using BlockFmhaPipelineQRKSVSDefaultPolicy =
     BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
                                         /* AsyncCopy = */ false,
+                                        /* NumPrefetchK = */ 1,
                                         /* NumPrefetchV = */ 1>;
 
 } // namespace ck_tile
