@@ -982,7 +982,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         else
             throw std::runtime_error(
                 "The argument pointer is not an object of "
-                "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument structure!");
+                "DeviceGroupedConvBwdWeight_Xdl_CShuffle::Argument structure!");
     }
 
     void SetWorkSpacePointer(BaseArgument* p_arg,
@@ -997,7 +997,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         else
             throw std::runtime_error(
                 "The argument pointer is not an object of "
-                "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument structure!");
+                "DeviceGroupedConvBwdWeight_Xdl_CShuffle::Argument structure!");
     }
 };
 
