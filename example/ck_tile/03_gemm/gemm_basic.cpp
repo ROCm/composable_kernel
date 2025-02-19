@@ -11,7 +11,13 @@
 
 #include "gemm.hpp"
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
@@ -95,25 +101,35 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_til
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    // if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
-    // {
-    //     return gemm_<Row, Row, Row>(args, s);
-    // }
-    if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+    using FP32 = float;
+    using FP16 = ck_tile::half_t;
+    using BF16 = ck_tile::bf16_t;
+
+    if(t.data_type.compare("fp16") == 0)
     {
-        return gemm_<Row, Col, Row>(args, s);
+        if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        {
+            return gemm_<FP16, FP16, FP32, FP16, Row, Col, Row>(args, s);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data type!");
+        }
     }
-    // else if(!t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
-    // {
-    //     return gemm_<Col, Row, Row>(args, s);
-    // }
-    // else if(!t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
-    // {
-    //     return gemm_<Col, Col, Row>(args, s);
-    // }
+    else if(t.data_type.compare("bf16") == 0)
+    {
+        if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        {
+            return gemm_<BF16, BF16, FP32, BF16, Row, Col, Row>(args, s);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data type!");
+        }
+    }
     else
     {
-        throw std::runtime_error("Wrong! Layouts not supported!\n");
+        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
     }
 }
 

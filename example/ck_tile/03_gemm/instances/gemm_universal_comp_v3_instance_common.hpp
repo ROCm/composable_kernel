@@ -109,84 +109,27 @@ float gemm_(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 
     if(has_hot_loop)
     {
-        // Tail pipeline One to Seven
-        if(tail_num == ck_tile::TailNumber::One)
-        {
-            Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Full)
-        {
-            Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-        }
-
-        if constexpr(BaseGemmPipeline::PrefetchStages > 2)
-        {
-            if(tail_num == ck_tile::TailNumber::Two)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 3)
-        {
-            static_assert(BaseGemmPipeline::PrefetchStages > 3);
-            if(tail_num == ck_tile::TailNumber::Three)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 4)
-        {
-            if(tail_num == ck_tile::TailNumber::Four)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 5)
-        {
-            if(tail_num == ck_tile::TailNumber::Five)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 6)
-        {
-            if(tail_num == ck_tile::TailNumber::Six)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 7)
-        {
-            if(tail_num == ck_tile::TailNumber::Seven)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
-            }
-        }
-    }
-    else
-    {
-        // Tail number always Full - #PrefetchStages
         if(tail_num == ck_tile::TailNumber::Full)
         {
-            Run(ck_tile::bool_constant<false>{},
+            Run(ck_tile::bool_constant<true>{},
                 ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
         }
         else
         {
             std::ostringstream err;
-            err << "When there's no hot loop, this tail number \"" << tail_num
-                << "\" is not supported! PrefetchStages: " << BaseGemmPipeline::PrefetchStages
+            err << "For compute pipeline tail number should always be Full, but have \"" << tail_num
+                << "\" which is not supported! PrefetchStages: " << BaseGemmPipeline::PrefetchStages
                 << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
             throw std::runtime_error(err.str());
         }
+    }
+    else
+    {
+        std::ostringstream err;
+        err << "Num K loop must be larger than number of prefetech stages."
+            << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages << "\n File: " << __FILE__
+            << ":" << __LINE__ << ", in function: " << __func__;
+        throw std::runtime_error(err.str());
     }
 
     return ave_time;
