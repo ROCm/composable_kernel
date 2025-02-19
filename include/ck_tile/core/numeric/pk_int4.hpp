@@ -91,9 +91,6 @@ struct numeric<pk_int4_t>
     CK_TILE_HOST_DEVICE static constexpr pk_int4_t zero() { return 0; }
 };
 
-template <typename T>
-struct numeric_traits;
-
 template <>
 struct numeric_traits<pk_int4_t>
 {

@@ -77,7 +77,10 @@ struct numeric
 };
 
 template <typename T>
-struct numeric_traits;
+struct numeric_traits
+{
+    static constexpr int PackedSize = 1;
+};
 
 template <>
 struct numeric_traits<float>

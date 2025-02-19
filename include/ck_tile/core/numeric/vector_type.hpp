@@ -31,24 +31,48 @@ struct native_t
 // of compiler errors e.g. struct A; using Ax2_t = A __attribute__((ext_vector_type(2)));  -> will
 // have compiler error
 namespace impl {
+
+template <typename T_, index_t N_, typename = void>
+struct ext_vector;
+
 template <typename T_, index_t N_>
-struct ext_vector
+struct ext_vector<T_, N_, std::enable_if_t<!std::is_class_v<typename native_t<T_>::type>>>
 {
     static constexpr index_t N = N_;
     // struct type is not supported for ext_vector
-    using value_type =
-        std::conditional_t<std::is_same_v<typename native_t<remove_cvref_t<T_>>::type, pk_int4_t>,
-                           int8_t,
-                           typename native_t<remove_cvref_t<T_>>::type>;
+    using value_type = typename native_t<T_>::type;
+    static_assert(!std::is_class_v<value_type>);
+    using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
+};
+
+template <typename T_, index_t N_>
+struct ext_vector<T_, N_, std::enable_if_t<std::is_class_v<typename native_t<T_>::type>>>
+{
+    static constexpr index_t N = N_;
+    // struct type is not supported for ext_vector
+    using value_type = typename native_t<T_>::type::type;
     static_assert(!std::is_class_v<value_type>);
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
 
 template <typename V_, index_t Vs_, index_t N_>
-struct ext_vector<V_ __attribute__((ext_vector_type(Vs_))), N_>
+struct ext_vector<V_ __attribute__((ext_vector_type(Vs_))),
+                  N_,
+                  std::enable_if_t<!std::is_class_v<typename native_t<V_>::type>>>
 {
     static constexpr index_t N = Vs_ * N_;
     using value_type           = typename native_t<remove_cvref_t<V_>>::type;
+    static_assert(!std::is_class_v<value_type>);
+    using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
+};
+
+template <typename V_, index_t Vs_, index_t N_>
+struct ext_vector<V_ __attribute__((ext_vector_type(Vs_))),
+                  N_,
+                  std::enable_if_t<std::is_class_v<typename native_t<V_>::type>>>
+{
+    static constexpr index_t N = Vs_ * N_;
+    using value_type           = typename native_t<remove_cvref_t<V_>>::type::type;
     static_assert(!std::is_class_v<value_type>);
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
@@ -60,7 +84,7 @@ using ext_vector_t = typename impl::ext_vector<T, N>::type;
 
 // by default, any type will result in a vector_size=1 with scalar_type=T traits.
 // ... unless we have other vector_traits specialization
-template <typename T>
+template <typename T, typename>
 struct vector_traits
 {
     using scalar_type =

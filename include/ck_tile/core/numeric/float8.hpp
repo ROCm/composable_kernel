@@ -207,9 +207,6 @@ using bf8_t     = unsigned _BitInt(8);
 using bf8_raw_t = uint8_t;
 #endif
 
-template <typename T>
-struct numeric_traits;
-
 template <>
 struct numeric_traits<fp8_t>
 {

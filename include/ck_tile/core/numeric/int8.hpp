@@ -74,8 +74,6 @@ struct numeric<int8_t>
 };
 
 #if 0
-template <typename T>
-struct numeric_traits;
 
 template <>
 struct numeric_traits<int8_t>

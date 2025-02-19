@@ -376,9 +376,6 @@ struct numeric<bfloat16_t>
     }
 };
 
-template <typename T>
-struct numeric_traits;
-
 template <>
 struct numeric_traits<bfloat16_t>
 {

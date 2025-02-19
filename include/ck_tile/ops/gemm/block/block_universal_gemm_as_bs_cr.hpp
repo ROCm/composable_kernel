@@ -118,7 +118,7 @@ struct BlockUniversalGemmAsBsCr
 
     private:
     template <typename WarpWindow, typename WarpTile>
-    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpWindow& warp_window,
+    CK_TILE_DEVICE static void load_interleaved_pk_type(const WarpWindow& warp_window,
                                                         WarpTile& warp_tile)
     {
         constexpr index_t UnaryOpSize = 8;

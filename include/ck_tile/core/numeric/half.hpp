@@ -223,9 +223,6 @@ struct numeric<half_t>
     }
 };
 
-template <typename T>
-struct numeric_traits;
-
 template <>
 struct numeric_traits<half_t>
 {
