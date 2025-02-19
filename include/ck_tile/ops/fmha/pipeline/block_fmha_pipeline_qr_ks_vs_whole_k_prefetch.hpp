@@ -5,14 +5,14 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async_default_policy.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_whole_k_prefetch_default_policy.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
 
-template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSAsyncDefaultPolicy>
-struct BlockFmhaPipelineQRKSVSAsync
+template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy>
+struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 {
     using Problem               = remove_cvref_t<Problem_>;
     using Policy                = remove_cvref_t<Policy_>;
@@ -48,7 +48,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
+    static constexpr bool kPadHeadDimV = (kQKHeaddim < kSubQKHeaddim) ? 1 : Problem::kPadHeadDimV;
     static constexpr auto BiasEnum     = Problem::BiasEnum;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
     static constexpr bool kHasDropout  = Problem::kHasDropout;
@@ -61,7 +61,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentK<Problem>();
     static constexpr index_t kAlignmentV = []() {
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            return kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+            return Problem::kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
         else
             return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
     }();
