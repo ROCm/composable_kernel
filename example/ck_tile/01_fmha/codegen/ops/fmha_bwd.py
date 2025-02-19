@@ -520,7 +520,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= bias in ['no', 'alibi']
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
-                    cond &= deterministic == "f"
+                    cond &= deterministic == "t"
                     if not cond:
                         continue
             elif receipt == 11:
@@ -529,7 +529,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= bias in ['no', 'alibi']
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
-                    cond &= deterministic == "f"
+                    cond &= deterministic == "t"
                     if not cond:
                         continue
             api_pool.register_dq_dk_dv_traits(k.api_trait())
