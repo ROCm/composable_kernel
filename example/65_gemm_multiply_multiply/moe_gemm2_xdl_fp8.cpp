@@ -119,19 +119,12 @@ using CDEElementOp = MulABScaleExpertWeight;
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t BLOCKSIZE = 256;
-<<<<<<< HEAD:example/65_gemm_multiply_multiply/moe_gemm2_xdl_fp8.cpp
 static constexpr ck::index_t MXDLPerWave = 2;
 static constexpr ck::index_t NXDLPerWave = 2;
 static constexpr ck::index_t NPerBlock   = 128;
 static constexpr ck::index_t MNPerXDL    = 32;
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
-=======
-static constexpr ck::index_t MXDLPerWave = 2; 
-static constexpr ck::index_t NXDLPerWave = 2; 
-static constexpr ck::index_t NPerBlock = 128;
-static constexpr ck::index_t MNPerXDL = 32;
-static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
->>>>>>> a61084f43 (opt gemm2 to 2x2 wave):example/65_gemm_multiply_multiply/moe_gemm2.cpp
+
 // static constexpr ck::index_t MXDLPerWave = MPerBlock / 32; //todo fix this constraint
 // static constexpr ck::index_t CShuffleMXDLPerWave = MPerBlock / 32;
 static constexpr ck::index_t CShuffleNLane = 32;
@@ -259,7 +252,7 @@ int main(int argc, char* argv[])
     for(int i = 0; i < sorted_size; i++)
     {
         int tile_off = i % MPerBlock;
-        if(tile_off < token_per_tile)
+        if(tile_off < token_per_tile && tokenid < tokens * topk)
         {
             sorted_token_ids.mData[i] = (tokenid % tokens) | ((tokenid / tokens) << 24);
             tokenid++;
