@@ -13,7 +13,9 @@
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/sequence.hpp"
+
 #include "ck/library/reference_tensor_operation/cpu/reference_mx_gemm.hpp"
+
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/fill.hpp"

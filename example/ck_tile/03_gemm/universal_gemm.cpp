@@ -255,20 +255,11 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     }
     else
     {
-        // Tail number always Full - #PrefetchStages
-        if(tail_num == ck_tile::TailNumber::Full)
-        {
-            Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-        }
-        else
-        {
-            std::ostringstream err;
-            err << "When there's no hot loop, this tail number \"" << tail_num
-                << "\" is not supported! PrefetchStages: " << BaseGemmPipeline::PrefetchStages
-                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
-            throw std::runtime_error(err.str());
-        }
+        std::ostringstream err;
+        err << "Num K loop must be larger than number of prefetech stages."
+            << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages << "\n File: " << __FILE__
+            << ":" << __LINE__ << ", in function: " << __func__;
+        throw std::runtime_error(err.str());
     }
 
     return ave_time;
