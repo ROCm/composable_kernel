@@ -2,3 +2,9 @@ add_example_executable(example_gemm_multiply_multiply_xdl_fp8 gemm_multiply_mult
 add_example_executable(example_gemm_multiply_multiply_xdl_fp8_ab_scale gemm_multiply_multiply_xdl_fp8_ab_scale.cpp)
 add_example_executable(example_gemm_add_add_xdl_fp16 gemm_add_add_xdl_fp16.cpp)
 add_example_executable(example_gemm_multiply_multiply_xdl_int8 gemm_multiply_multiply_xdl_int8.cpp)
+
+list(APPEND TILE_EXAPMLE_BLOCKSCALE_COMPILE_OPTIONS -mllvm -greedy-reverse-local-assignment=1)
+list(APPEND TILE_EXAPMLE_BLOCKSCALE_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
+
+target_compile_options(example_gemm_multiply_multiply_xdl_fp8_ab_scale PRIVATE ${TILE_EXAPMLE_BLOCKSCALE_COMPILE_OPTIONS})
+target_compile_options(example_gemm_multiply_multiply_xdl_fp8 PRIVATE ${TILE_EXAPMLE_BLOCKSCALE_COMPILE_OPTIONS})

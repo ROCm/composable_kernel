@@ -35,7 +35,6 @@ enum struct ScaleBlockTile
     Tile_1_128_128,   // 1
 };
 
-
 #define OP_NAME "gemm_ab_scale"
 #define OP_DESC "GEMM_AB_Scale"
 

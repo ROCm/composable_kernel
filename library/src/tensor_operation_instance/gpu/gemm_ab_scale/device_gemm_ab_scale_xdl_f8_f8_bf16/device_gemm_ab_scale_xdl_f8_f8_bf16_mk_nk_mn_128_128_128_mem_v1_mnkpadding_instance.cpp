@@ -29,7 +29,7 @@ void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_v1_mnkpaddin
     add_device_operation_instances(
         instances,
         device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_instances<Intrawave,
-                                                                               GemmMNKPadding>{});
+                                                                             GemmMNKPadding>{});
 }
 
 } // namespace instance

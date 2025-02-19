@@ -388,19 +388,19 @@ struct BlockwiseGemmXdlops_pipeline_v2_ab_scale<BlockGemmPipelineScheduler::Intr
                                                 a_scale_thread_desc,
                                                 make_tuple(m0, I0),
                                                 a_scale_thread_buf);
-                        a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                            a_scale_thread_copy_step.At(Number<0>{}));
+                        a_scale_thread_copy.MoveSrcSliceWindow(
+                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<0>{}));
                     });
 
                     if(num_loop_per_scale == 1)
                     {
-                        a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                            a_scale_thread_copy_step.At(Number<2>{}));
+                        a_scale_thread_copy.MoveSrcSliceWindow(
+                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<2>{}));
                     }
                     else
                     {
-                        a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                            a_scale_thread_copy_step.At(Number<1>{}));
+                        a_scale_thread_copy.MoveSrcSliceWindow(
+                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<1>{}));
                     }
 
                     b_scale_thread_copy.Run(b_scale_grid_desc,
@@ -494,19 +494,19 @@ struct BlockwiseGemmXdlops_pipeline_v2_ab_scale<BlockGemmPipelineScheduler::Intr
                                             a_scale_thread_desc,
                                             make_tuple(m0, I0),
                                             a_scale_thread_buf);
-                    a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                        a_scale_thread_copy_step.At(Number<0>{}));
+                    a_scale_thread_copy.MoveSrcSliceWindow(
+                        a_scale_grid_desc, a_scale_thread_copy_step.At(Number<0>{}));
                 });
 
                 if(num_loop_per_scale == 1)
                 {
-                    a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                        a_scale_thread_copy_step.At(Number<2>{}));
+                    a_scale_thread_copy.MoveSrcSliceWindow(
+                        a_scale_grid_desc, a_scale_thread_copy_step.At(Number<2>{}));
                 }
                 else
                 {
-                    a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                        a_scale_thread_copy_step.At(Number<1>{}));
+                    a_scale_thread_copy.MoveSrcSliceWindow(
+                        a_scale_grid_desc, a_scale_thread_copy_step.At(Number<1>{}));
                 }
 
                 b_scale_thread_copy.Run(b_scale_grid_desc,
