@@ -1494,7 +1494,8 @@ struct TestMFMA
                                                                                 CPUAccDataType,
                                                                                 PassThrough,
                                                                                 PassThrough,
-                                                                                PassThrough>;
+                                                                                PassThrough,
+                                                                                CPUAccDataType>;
 
         RunHostGEMM<ReferenceGemmInstance>(a, b, c_host, a_element_op, b_element_op, c_element_op);
 
