@@ -124,30 +124,6 @@ void preShuffleBuffer(const I4* src, I4* dst, int N, int K, int NXdl)
 }
 #endif
 
-#if 0
-float i4_to_f32_gfx9(uint8_t i4)
-{
-    static std::unordered_map<uint8_t, float> u = {{0b1000, -0.5000f},
-                                                   {0b1001, -0.4375f},
-                                                   {0b1010, -0.3750f},
-                                                   {0b1011, -0.3125f},
-                                                   {0b1100, -0.2500f},
-                                                   {0b1101, -0.1875f},
-                                                   {0b1110, -0.1250f},
-                                                   {0b1111, -0.0625f},
-                                                   {0b0, +0.0000f},
-                                                   {0b1, +0.0625f},
-                                                   {0b10, +0.1250f},
-                                                   {0b11, +0.1875f},
-                                                   {0b100, +0.2500f},
-                                                   {0b101, +0.3125f},
-                                                   {0b110, +0.3750f},
-                                                   {0b111, +0.4375f}};
-
-    return u[i4];
-}
-#endif
-
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using AElementOp   = PassThrough;
@@ -161,7 +137,7 @@ static constexpr ck::index_t NXDLPerWave = 2;
 static constexpr ck::index_t BLOCKSIZE = 256;
 static constexpr ck::index_t NPerBlock = 128;
 static constexpr ck::index_t MNPerXDL = 32;
-static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
+static constexpr ck::index_t KPerBlock = 256 / sizeof(A0DataType);
 static constexpr ck::index_t Nswizzle = false;
 static constexpr ck::index_t AK1 = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1 = 32 / sizeof(B0DataType);
@@ -184,20 +160,20 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, A0DataType>;
 // clang-format on
 #else
-static constexpr ck::index_t MPerBlock = 16;
+static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t Nswizzle  = false;
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             Row, Col, DsLayout, ELayout, 
             A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
             AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
-            64,   16,   16,    128,
+            256,   128,   128,    64,
             16,   32,
-            16,   16,
-            1,    1,
-            S<8, 8, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-            S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
-            1,    1,   S<1, 16, 1, 4>, S<4, 1, 1>,
+            32,   32,
+            4,    1,
+            S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+            S<2, 128, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
+            4,    1,   S<1, 32, 1, 8>, S<4, 1, 1>,
             ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, A0DataType>;
 // clang-format on
 #endif
@@ -265,8 +241,8 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> expert_ids(HostTensorDescriptor({sorted_tile_num}, {1}));
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1 + sorted_tile_num}));
-    max_token_id.mData =  {valid_size, 2, 2, 1, 1, 2, 2, 2,2, 2, 2, 1, 2,2,0,0,0};
-    int eids[] = {0, 0,1, 2,3, 3, 4,4, 5, 5, 6, 7, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+    max_token_id.mData = {valid_size, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 0, 0, 0};
+    int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
     for (int i = 0; i < sorted_tile_num; i++) {
         expert_ids.mData[i] = eids[i];
     }
