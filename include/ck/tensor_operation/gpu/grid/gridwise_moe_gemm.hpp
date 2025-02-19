@@ -933,7 +933,7 @@ struct GridwiseMoeGemm
             GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
         constexpr auto c_block_size =
-            c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
+            c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize() / 2;
 
         return math::max(a_block_space_size_aligned * sizeof(LDSTypeA) / APackedSize,
                          c_block_size * sizeof(CShuffleDataType));

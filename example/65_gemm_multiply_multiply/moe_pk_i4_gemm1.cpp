@@ -167,14 +167,14 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             Row, Col, DsLayout, ELayout, 
             A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
             AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
-            256,   128,   128,    64,
+            256,   MPerBlock,   128,    64,
             16,   32,
             32,   32,
             4,    1,
             S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
             S<2, 128, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
             4,    1,   S<1, 32, 1, 8>, S<4, 1, 1>,
-            ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, A0DataType>;
+            ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, Nswizzle, true, A0DataType>;
 // clang-format on
 #endif
 
