@@ -7,7 +7,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/warp/xdlops_gemm.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_mx_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 
 namespace ck {
@@ -955,47 +955,23 @@ void RunHostGEMM(const Tensor<ADataType>& A,
                  const Tensor<ScaleType>& b_scales,
                  Tensor<CDataType>& C)
 {
-    using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
-    using GemmInstance = ck::tensor_operation::host::ReferenceGemm<float,
-                                                                   float,
-                                                                   CDataType,
-                                                                   float,
-                                                                   PassThrough,
-                                                                   PassThrough,
-                                                                   PassThrough,
-                                                                   float,
-                                                                   float>;
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-    Tensor<float> a_m_k(A.mDesc);
-    Tensor<float> b_k_n(B.mDesc);
+    using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMXGemm<ADataType,
+                                                                              BDataType,
+                                                                              CDataType,
+                                                                              float,
+                                                                              ScaleType,
+                                                                              PassThrough,
+                                                                              PassThrough,
+                                                                              PassThrough,
+                                                                              float,
+                                                                              float>;
+    auto ref_gemm               = ReferenceGemmInstance{};
+    auto ref_invoker            = ref_gemm.MakeInvoker();
 
-    const auto M       = A.mDesc.GetLengths()[0];
-    const auto N       = B.mDesc.GetLengths()[1];
-    const auto K       = A.mDesc.GetLengths()[1];
-    const auto BLOCK_X = K / a_scales.mDesc.GetLengths()[1];
-
-    for(size_t m = 0; m < M; m++)
-    {
-        for(size_t k = 0; k < K; k++)
-        {
-            a_m_k(m, k) =
-                type_convert<float>(A(m, k)) * type_convert<float>(a_scales(m, k / BLOCK_X));
-        }
-    }
-
-    for(size_t n = 0; n < N; n++)
-    {
-        for(size_t k = 0; k < K; k++)
-        {
-            b_k_n(k, n) =
-                type_convert<float>(B(k, n)) * type_convert<float>(b_scales(k / BLOCK_X, n));
-        }
-    }
-
-    auto ref_gemm    = GemmInstance{};
-    auto ref_invoker = ref_gemm.MakeInvoker();
-    auto ref_argument =
-        ref_gemm.MakeArgument(a_m_k, b_k_n, C, PassThrough{}, PassThrough{}, PassThrough{});
+    auto ref_argument = ref_gemm.MakeArgument(
+        A, a_scales, B, b_scales, C, PassThrough{}, PassThrough{}, PassThrough{});
 
     ref_invoker.Run(ref_argument);
 }
@@ -1079,8 +1055,10 @@ struct TestMXMFMA
         {
         case 0:
             a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{0.015625f}});
+            a_scales.GenerateTensorValue(
+                GeneratorTensor_1<ScaleType>{ScaleType{0.015625f}}); // 1/64
             // NOTE: not all numbers are representable in FP8, BF8, etc.
+            // 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 16 18 20 20 20 22 24 24 24 26 28 28 28 30 32
             b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
             b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
             break;
