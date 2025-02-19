@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,6 +7,7 @@
 #include "ck_tile/core/algorithm/coordinate_transform.hpp"
 #include "ck_tile/core/algorithm/indexing_adaptor.hpp"
 #include "ck_tile/core/algorithm/space_filling_curve.hpp"
+#include "ck_tile/core/algorithm/static_encoding_pattern.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
@@ -31,6 +32,7 @@
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/numeric/null_type.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
+#include "ck_tile/core/numeric/pk_int4.hpp"
 #include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/core/tensor/buffer_view.hpp"
@@ -53,8 +55,8 @@
 #include "ck_tile/core/tensor/tile_window.hpp"
 #include "ck_tile/core/tensor/tile_window_linear.hpp"
 #include "ck_tile/core/tensor/tile_window_utils.hpp"
+#include "ck_tile/core/tensor/transpose_tile.hpp"
 #include "ck_tile/core/tensor/update_tile.hpp"
-#include "ck_tile/core/utility/amd_address_space.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/functional_with_tuple.hpp"

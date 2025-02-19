@@ -17,7 +17,7 @@ class HandlerId(IntEnum):
     LIST_BLOBS = 0
     WRITE_BLOBS = 1
 
-# inspect all modules under 'codegen.ops' and register API handlers 
+# inspect all modules under 'codegen.ops' and register API handlers
 ops = []
 for importer, module_name, _ in pkgutil.iter_modules(codegen.ops.__path__):
     full_module_name = '%s.%s' % (codegen.ops.__name__, module_name)
@@ -103,7 +103,12 @@ if __name__ == "__main__":
         required=False,
         help="codegen receipt. 0: generate only 8xhdim coverage\n"  + \
              "  1: generate more instance to cover all hdim\n"  + \
-             "  2: Only generate instance for Flash attention integration"
+             "  2: Only generate instance for Flash attention integration\n"  + \
+             "  4: Only generate instance for PyTorch integration\n" + \
+             " 10: Only generate instance for Aiter(mha_fwd, mha_bwd) integration\n" + \
+             " 11: Only generate instance for Aiter(mha_varlen_fwd, mha_varlen_bwd) integration\n" + \
+             " 12: Only generate instance for Aiter(mha_fwd_kvcache) integration"
+      
     )
 
     args = parser.parse_args()

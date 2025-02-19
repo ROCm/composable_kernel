@@ -60,8 +60,7 @@ __global__ void
             const index_t batch_count,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -108,7 +107,7 @@ __global__ void
     ignore = block_2_ctile_map;
     ignore = batch_count;
     ignore = compute_base_ptr_of_batch;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 // Computes C = A * B0 * B1

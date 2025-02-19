@@ -343,10 +343,16 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
         const auto M = d0_grid_desc_m_n.GetLength(I0);
         const auto N = d0_grid_desc_m_n.GetLength(I1);
 
-        constexpr auto mfma = MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma;
-        constexpr auto N3   = mfma.num_groups_per_blk;
-        constexpr auto N4   = mfma.num_input_blks;
-        constexpr auto N5   = mfma.group_size;
+        constexpr bool is_single_rate_mfma =
+            ((is_same<FloatAB, half_t>::value || is_same<FloatAB, bhalf_t>::value) &&
+             math::lcm(AK1, BK1) <= 4)
+                ? true
+                : false;
+        constexpr auto mfma =
+            MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, is_single_rate_mfma>::selected_mfma;
+        constexpr auto N3 = mfma.num_groups_per_blk;
+        constexpr auto N4 = mfma.num_input_blks;
+        constexpr auto N5 = mfma.group_size;
         return transform_tensor_descriptor(
             d0_grid_desc_m_n,
             make_tuple(make_unmerge_transform(
@@ -552,8 +558,16 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
         //   acc1[m][o] += acc[m][n] * B1[n][o]
 
         // sanity check
+        constexpr auto lcm_AK1_BK1 = math::lcm(AK1, BK1);
+        constexpr bool is_single_rate_mfma =
+            ((is_same<FloatAB, half_t>::value || is_same<FloatAB, bhalf_t>::value) &&
+             lcm_AK1_BK1 <= 4)
+                ? true
+                : false;
         constexpr index_t KPack = math::max(
-            math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+            lcm_AK1_BK1,
+            MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, is_single_rate_mfma>::selected_mfma
+                .k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_v2<
             BlockSize,
@@ -773,6 +787,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
         // with 'group_size' amount of contiguous elements. Having Gemm1KPack greater than A1K1 will
         // cause mismatch in summation index for example c[0:7] = a1[[0:3, 8:11]] * b1[0:7].
         // therefore we may just as well assign Gemm1KPack = group_size
+
         constexpr index_t Gemm1KPack =
             MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size;
 

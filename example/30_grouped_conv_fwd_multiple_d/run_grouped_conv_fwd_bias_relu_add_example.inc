@@ -32,6 +32,56 @@ using BiasLayout = typename LayoutSettingSelector<NDimSpatial>::BiasLayout;
 template <ck::index_t NDimSpatial>
 using ResidualLayout = typename LayoutSettingSelector<NDimSpatial>::ResidualLayout;
 
+#if defined(CK_USE_AMD_MFMA_GFX950)
+template <ck::index_t NDimSpatial>
+using DeviceConvFwdInstance =
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
+        NDimSpatial,
+        InputLayout<NDimSpatial>,
+        WeightLayout<NDimSpatial>,
+        ck::Tuple<BiasLayout<NDimSpatial>, ResidualLayout<NDimSpatial>>,
+        OutputLayout<NDimSpatial>,
+        InKernelDataType,
+        WeiKernelDataType,
+        AccDataType,
+        CShuffleDataType,
+        ck::Tuple<BiasKernelDataType, ResidualKernelDataType>,
+        OutKernelDataType,
+        InElementOp,
+        WeiElementOp,
+        OutElementOp,
+        ConvSpec,    // ConvForwardSpecialization
+        GemmSpec,    // GemmSpecialization
+        1,           //
+        256,         // BlockSize
+        128,         // MPerBlock
+        256,         // NPerBlock
+        64,          // KPerBlock
+        16,          // AK1
+        16,          // BK1
+        32,          // MPerXdl
+        32,          // NPerXdl
+        2,           // MXdlPerWave
+        4,           // NXdlPerWave
+        S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
+        S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
+        2,           // ABlockTransferSrcVectorDim
+        4,           // ABlockTransferSrcScalarPerVector
+        4,           // ABlockTransferDstScalarPerVector_AK1
+        1,           // ABlockLdsExtraM
+        S<4, 64, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
+        S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
+        2,           // BBlockTransferSrcVectorDim
+        4,           // BBlockTransferSrcScalarPerVector
+        4,           // BBlockTransferDstScalarPerVector_BK1
+        1,           // BBlockLdsExtraN
+        1,
+        1,
+        S<1, 16, 1, 16>,
+        4>;
+#else  // defined(CK_USE_AMD_MFMA_GFX950)
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance =
     ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
@@ -80,6 +130,7 @@ using DeviceConvFwdInstance =
         1,
         S<1, 16, 1, 16>,
         4>;
+#endif // defined(CK_USE_AMD_MFMA_GFX950)
 
 template <ck::index_t NDimSpatial>
 using HostConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,

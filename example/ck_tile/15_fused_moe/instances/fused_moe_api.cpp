@@ -17,10 +17,11 @@ float fused_moe(fused_moe_traits t, fused_moe_args a, const ck_tile::stream_conf
         return 1;
     }();
 
-    auto t0 = fused_moesorting_trait{"int32", "fp32"};
+    auto t0 = fused_moesorting_trait{"int32", "fp32", t.local_expert_masking};
     auto a0 = fused_moesorting_args{
         a.topk_ids_ptr,                              // const void* p_topk_ids;
         a.topk_weight_ptr,                           // const void* p_weights;
+        a.local_expert_mask_ptr,                     // const void* p_local_expert_mask;
         a.sorted_token_ids_ptr,                      // void* p_sorted_token_ids;
         a.sorted_weight_ptr,                         // void* p_sorted_weights;
         a.sorted_expert_ids_ptr,                     // void* p_sorted_expert_ids;
@@ -41,6 +42,7 @@ float fused_moe(fused_moe_traits t, fused_moe_args a, const ck_tile::stream_conf
                                    t.prec_sq,
                                    t.prec_kw,
                                    t.block_m,
+                                   t.activation,
                                    t.gate_only,
                                    t.fused_quant};
     auto a1 = fused_moegemm_args{

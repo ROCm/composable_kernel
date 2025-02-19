@@ -117,7 +117,7 @@ def getDockerImage(Map conf=[:]){
     {
         echo "Pulling down image: ${image}"
         retimage = docker.image("${image}")
-        withDockerRegistry([ credentialsId: "docker_test_cred", url: "" ]) {
+        withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
             retimage.pull()
         }
     }
@@ -148,7 +148,7 @@ def buildDocker(install_prefix){
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs)
-            withDockerRegistry([ credentialsId: "docker_test_cred", url: "" ]) {
+            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
                 retimage.push()
             }
             sh 'docker images -q -f dangling=true | xargs --no-run-if-empty docker rmi'
@@ -162,7 +162,7 @@ def buildDocker(install_prefix){
     catch(Exception ex){
         echo "Unable to locate image: ${image_name}. Building image now"
         retimage = docker.build("${image_name}", dockerArgs + ' .')
-        withDockerRegistry([ credentialsId: "docker_test_cred", url: "" ]) {
+        withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
             retimage.push()
         }
     }
@@ -326,12 +326,38 @@ def cmake_build(Map conf=[:]){
     if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "amd-master")) {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
+    //check the node gpu architecture
+    def arch_type = 0
+    sh 'rocminfo | tee rocminfo.log'
+    if ( runShell('grep -n "gfx90a" rocminfo.log') ){
+        arch_type = 1
+    }
+    else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
+        arch_type = 2
+    }
     if (params.RUN_CK_TILE_FMHA_TESTS){
         try{
-            archiveArtifacts "perf_fmha_fwd_*.log"
-            archiveArtifacts "perf_fmha_bwd_*.log"
-            stash includes: "perf_fmha_**_gfx942.log", name: "perf_fmha_log_gfx942"
-            stash includes: "perf_fmha_**_gfx90a.log", name: "perf_fmha_log_gfx90a"
+            archiveArtifacts "perf_fmha_*.log"
+            if (arch_type == 1){
+                stash includes: "perf_fmha_**_gfx90a.log", name: "perf_fmha_log_gfx90a"
+            }
+            else if (arch_type == 2){
+                stash includes: "perf_fmha_**_gfx942.log", name: "perf_fmha_log_gfx942"
+            }
+        }
+        catch(Exception err){
+            echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
+        }
+    }
+    if (params.RUN_CK_TILE_GEMM_TESTS){
+        try{
+            archiveArtifacts "perf_tile_gemm_*.log"
+            if (arch_type == 1){
+                stash includes: "perf_tile_gemm_**_fp16_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
+            }
+            else if (arch_type == 2){
+                stash includes: "perf_tile_gemm_**_fp16_gfx942.log", name: "perf_tile_gemm_log_gfx942"
+            }
         }
         catch(Exception err){
             echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
@@ -486,6 +512,13 @@ def Build_CK(Map conf=[:]){
                         arch_type = 5
                     }
                     cmake_build(conf)
+                    if ( !params.BUILD_LEGACY_OS && arch_type == 1 ){
+                            echo "Run inductor codegen tests"
+                            sh """
+                                  pip install --verbose .
+                                  pytest python/test/test_gen_instances.py
+                            """
+                    }
                     dir("build"){
                         if (params.RUN_FULL_QA && arch_type == 1 ){
                             // build deb packages for all gfx9 targets on gfx90a system and prepare to export
@@ -630,6 +663,15 @@ def process_results(Map conf=[:]){
                             echo "could not locate the FMHA performance logs: ${err.getMessage()}."
                         }
                     }
+                    if (params.RUN_CK_TILE_GEMM_TESTS){
+                        try{
+                            unstash "perf_tile_gemm_log_gfx942"
+                            unstash "perf_tile_gemm_log_gfx90a"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the GEMM performance logs: ${err.getMessage()}."
+                        }
+                    }
                     if (params.RUN_FULL_QA){
                         // unstash perf files to master
                         unstash "ckprofiler_0.2.0_amd64.deb"
@@ -753,8 +795,8 @@ pipeline {
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
             name: "RUN_CK_TILE_GEMM_TESTS",
-            defaultValue: false,
-            description: "Run the ck_tile GEMM tests (default: OFF)")
+            defaultValue: true,
+            description: "Run the ck_tile GEMM tests (default: ON)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
@@ -956,7 +998,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 tile_example_gemm_basic && \
+                                           make -j64 tile_example_gemm_basic tile_example_gemm_universal && \
                                            cd ../ &&
                                            example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
                     }
@@ -975,7 +1017,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make -j64 tile_example_gemm_basic && \
+                                           make -j64 tile_example_gemm_basic tile_example_gemm_universal && \
                                            cd ../ &&
                                            example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                     }
