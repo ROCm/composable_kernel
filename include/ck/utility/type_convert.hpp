@@ -759,58 +759,13 @@ inline __host__ __device__ f4x32_t f4_convert_rne(float32_t x, float scale = 1.0
         f4x2_t f4x2_array[16];
         f4x32_t f4x32_array;
     } f4_values{}, tmp_values{};
-    // TODO: pack in a loop
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[1], x[0], scale, 0);
-    f4_values.f4x2_array[0] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[3], x[2], scale, 0);
-    f4_values.f4x2_array[1] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[5], x[4], scale, 0);
-    f4_values.f4x2_array[2] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[7], x[6], scale, 0);
-    f4_values.f4x2_array[3] = tmp_values.f4x2_array[0];
 
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[9], x[8], scale, 0);
-    f4_values.f4x2_array[4] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[11], x[10], scale, 0);
-    f4_values.f4x2_array[5] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[13], x[12], scale, 0);
-    f4_values.f4x2_array[6] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[15], x[14], scale, 0);
-    f4_values.f4x2_array[7] = tmp_values.f4x2_array[0];
-
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[17], x[16], scale, 0);
-    f4_values.f4x2_array[8] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[19], x[18], scale, 0);
-    f4_values.f4x2_array[9] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[21], x[20], scale, 0);
-    f4_values.f4x2_array[10] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[23], x[22], scale, 0);
-    f4_values.f4x2_array[11] = tmp_values.f4x2_array[0];
-
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[25], x[24], scale, 0);
-    f4_values.f4x2_array[12] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[27], x[26], scale, 0);
-    f4_values.f4x2_array[13] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[29], x[28], scale, 0);
-    f4_values.f4x2_array[14] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[31], x[30], scale, 0);
-    f4_values.f4x2_array[15] = tmp_values.f4x2_array[0];
+    ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
+        // permute high bits and low bits to match the order of the original vector
+        tmp_values.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(
+            tmp_values.bitwise, x[2 * idx + 1], x[2 * idx], scale, 0);
+        f4_values.f4x2_array[idx] = tmp_values.f4x2_array[0];
+    });
 
     return f4_values.f4x32_array;
 #else
@@ -820,106 +775,14 @@ inline __host__ __device__ f4x32_t f4_convert_rne(float32_t x, float scale = 1.0
         f4x2_t f4x2_array[16];
         f4x32_t f4x32_array;
     } f4_values{};
-    // TODO: pack in a loop
-    auto tmp = utils::sat_convert_to_type<f4_t>(x[0] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[1] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[2] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[3] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[4] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[5] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[6] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[7] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
 
-    tmp = utils::sat_convert_to_type<f4_t>(x[8] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[9] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[10] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[11] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[12] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[13] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[14] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[15] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
+    f4_t tmp;
 
-    tmp = utils::sat_convert_to_type<f4_t>(x[16] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[17] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[18] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[19] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[20] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[21] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[22] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[23] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-
-    tmp = utils::sat_convert_to_type<f4_t>(x[24] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[25] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[26] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[27] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[28] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[29] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[30] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[31] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
+    ck::static_for<0, 32, 1>{}([&](auto idx) {
+        tmp = utils::sat_convert_to_type<f4_t>(x[static_cast<int>(idx)] / scale);
+        f4_values.bitwise <<= 4;
+        f4_values.bitwise |= tmp;
+    });
 
     return f4_values.f4x32_array;
 #endif
