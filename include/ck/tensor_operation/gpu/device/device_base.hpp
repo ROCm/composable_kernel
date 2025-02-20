@@ -44,11 +44,11 @@ namespace device {
 
 struct BaseArgument
 {
-    BaseArgument()                    = default;
-    BaseArgument(const BaseArgument&) = default;
-    BaseArgument& operator=(const BaseArgument&) = default;
+    __host__ __device__ BaseArgument()                    = default;
+    __host__ __device__ BaseArgument(const BaseArgument&) = default;
+    __host__ __device__ BaseArgument& operator=(const BaseArgument&) = default;
 
-    virtual ~BaseArgument() {}
+    __host__ __device__ virtual ~BaseArgument() {}
 
     void* p_workspace_ = nullptr;
 };
