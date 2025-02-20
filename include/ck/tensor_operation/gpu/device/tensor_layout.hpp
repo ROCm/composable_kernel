@@ -21,6 +21,12 @@ struct ColumnMajor : public BaseTensorLayout
 {
     static constexpr const char* name = "ColumnMajor";
 };
+
+struct MFMA : public BaseTensorLayout
+{
+    static constexpr const char* name = "MFMA";
+};
+
 } // namespace gemm
 
 namespace convolution {
