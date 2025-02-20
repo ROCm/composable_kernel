@@ -16,7 +16,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
 {
     if(t.data_type.compare("fp16") == 0)
     {
-        if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+        if(t.IsRRRLayout())
         {
             if(a.M > 512)
             {
@@ -33,7 +33,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsRCRLayout())
         {
             if(a.M > 512)
             {
@@ -50,7 +50,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(!t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsCRRLayout())
         {
             if(a.M > 512)
             {
@@ -67,7 +67,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(!t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsCCRLayout())
         {
             if(a.M > 512)
             {
@@ -91,7 +91,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
     }
     else if(t.data_type.compare("bf16") == 0)
     {
-        if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+        if(t.IsRRRLayout())
         {
             if(a.M > 512)
             {
@@ -108,7 +108,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsRCRLayout())
         {
             if(a.M > 512)
             {
@@ -125,7 +125,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(!t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsCRRLayout())
         {
             if(a.M > 512)
             {
@@ -142,7 +142,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(!t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsCCRLayout())
         {
             if(a.M > 512)
             {
@@ -166,7 +166,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
     }
     else if(t.data_type.compare("fp8") == 0)
     {
-        if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+        if(t.IsRRRLayout())
         {
             if(a.M > 512)
             {
@@ -183,7 +183,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsRCRLayout())
         {
             if(a.M > 512)
             {
@@ -200,7 +200,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(!t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsCRRLayout())
         {
             if(a.M > 512)
             {
@@ -217,7 +217,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(!t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsCCRLayout())
         {
             if(a.M > 512)
             {
@@ -241,7 +241,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
     }
     else if(t.data_type.compare("bf8") == 0)
     {
-        if(t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+        if(t.IsRRRLayout())
         {
             if(a.M > 512)
             {
@@ -258,7 +258,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsRCRLayout())
         {
             if(a.M > 512)
             {
@@ -275,7 +275,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(!t.is_a_rowmajor && t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsCRRLayout())
         {
             if(a.M > 512)
             {
@@ -292,7 +292,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& a, const ck_tile::
                 // clang-format on
             }
         }
-        else if(!t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        else if(t.IsCCRLayout())
         {
             if(a.M > 512)
             {

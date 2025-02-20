@@ -107,7 +107,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_til
 
     if(t.data_type.compare("fp16") == 0)
     {
-        if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        if(t.IsRCRLayout())
         {
             return gemm_<FP16, FP16, FP32, FP16, Row, Col, Row>(args, s);
         }
@@ -118,7 +118,7 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_til
     }
     else if(t.data_type.compare("bf16") == 0)
     {
-        if(t.is_a_rowmajor && !t.is_b_rowmajor && t.is_c_rowmajor)
+        if(t.IsRCRLayout())
         {
             return gemm_<BF16, BF16, FP32, BF16, Row, Col, Row>(args, s);
         }

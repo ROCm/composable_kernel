@@ -96,6 +96,14 @@ struct gemm_traits
     bool is_a_rowmajor;    /** Whether A matrix is rowmajor */
     bool is_b_rowmajor;    /** Whether B matrix is rowmajor */
     bool is_c_rowmajor;    /** Whether C matrix is rowmajor */
+
+    bool IsRRRLayout() const { return is_a_rowmajor && is_b_rowmajor && is_c_rowmajor; }
+
+    bool IsRCRLayout() const { return is_a_rowmajor && !is_b_rowmajor && is_c_rowmajor; }
+
+    bool IsCRRLayout() const { return !is_a_rowmajor && is_b_rowmajor && is_c_rowmajor; }
+
+    bool IsCCRLayout() const { return !is_a_rowmajor && !is_b_rowmajor && is_c_rowmajor; }
 };
 
 template <typename ADataType_,

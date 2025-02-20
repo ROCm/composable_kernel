@@ -102,12 +102,12 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
-              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
-              << " C_Layout =" << CLayout::name << " A Type = " << DataTypeTraits<ADataType>::name
-              << " B Type = " << DataTypeTraits<BDataType>::name
-              << " C Type = " << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
+    std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
+              << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
+              << " A_Layout=" << ALayout::name << " B_Layout= " << BLayout::name
+              << " C_Layout=" << CLayout::name << " A Type= " << DataTypeTraits<ADataType>::name
+              << " B Type=" << DataTypeTraits<BDataType>::name
+              << " C Type=" << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
               << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
     return ave_time;
