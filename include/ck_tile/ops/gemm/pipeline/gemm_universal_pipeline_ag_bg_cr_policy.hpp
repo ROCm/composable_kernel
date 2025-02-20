@@ -34,31 +34,41 @@ struct UniversalGemmBasePolicy
         constexpr index_t BlockSize           = Problem::kBlockSize;
         constexpr index_t KPerBlock           = Problem::BlockGemmShape::kK;
         constexpr index_t elements_per_thread = MNPerBlock * KPerBlock / BlockSize;
+        constexpr index_t PackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
 
         // Assume DataType is even!
-        if constexpr(XPerTile % (16 / sizeof(DataType)) == 0 &&
-                     elements_per_thread % (16 / sizeof(DataType)) == 0)
+        if constexpr(XPerTile % (PackedSize * 32 / sizeof(DataType)) == 0 &&
+                     elements_per_thread % (PackedSize * 32 / sizeof(DataType)) == 0 &&
+                     PackedSize == 2)
         {
-            return (16 / sizeof(DataType));
+            return (PackedSize * 32 / sizeof(DataType));
         }
-        else if constexpr(XPerTile % (8 / sizeof(DataType)) == 0 &&
-                          elements_per_thread % (8 / sizeof(DataType)) == 0)
+        else if constexpr(XPerTile % (PackedSize * 16 / sizeof(DataType)) == 0 &&
+                          elements_per_thread % (PackedSize * 16 / sizeof(DataType)) == 0)
         {
-            return (8 / sizeof(DataType));
+            return (PackedSize * 16 / sizeof(DataType));
         }
-        else if constexpr(sizeof(DataType) >= 4 && XPerTile % (4 / sizeof(DataType)) == 0 &&
-                          elements_per_thread % (4 / sizeof(DataType)) == 0)
+        else if constexpr(XPerTile % (PackedSize * 8 / sizeof(DataType)) == 0 &&
+                          elements_per_thread % (PackedSize * 8 / sizeof(DataType)) == 0)
         {
-            return (4 / sizeof(DataType));
+            return (PackedSize * 8 / sizeof(DataType));
         }
-        else if constexpr(sizeof(DataType) >= 2 && XPerTile % (2 / sizeof(DataType)) == 0 &&
-                          elements_per_thread % (2 / sizeof(DataType)) == 0)
+        else if constexpr(sizeof(DataType) >= PackedSize * 4 &&
+                          XPerTile % (PackedSize * 4 / sizeof(DataType)) == 0 &&
+                          elements_per_thread % (PackedSize * 4 / sizeof(DataType)) == 0)
         {
-            return (2 / sizeof(DataType));
+            return (PackedSize * 4 / sizeof(DataType));
+        }
+        else if constexpr(sizeof(DataType) >= PackedSize * 2 &&
+                          XPerTile % (PackedSize * 2 / sizeof(DataType)) == 0 &&
+                          elements_per_thread % (PackedSize * 2 / sizeof(DataType)) == 0)
+        {
+            return (PackedSize * 2 / sizeof(DataType));
         }
         else
         {
-            return 1;
+            return PackedSize;
         }
     }
 
@@ -564,8 +574,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
     {
         using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
-                                                typename Problem::BDataType,
+        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
+                                                typename Problem::ComputeDataType,
                                                 typename Problem::CDataType,
                                                 WarpTile::at(I0),
                                                 WarpTile::at(I1),

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -27,6 +27,8 @@ struct static_distributed_tensor
 
     using ThreadTensorDesc =
         remove_cvref_t<decltype(StaticTileDistribution{}.get_ys_to_d_descriptor())>;
+    static constexpr index_t PackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
 
     static constexpr index_t kThreadElementSpaceSize = ThreadTensorDesc{}.get_element_space_size();
     static_assert(0 < kThreadElementSpaceSize, "Make sure tile distribution is valid");
@@ -59,7 +61,7 @@ struct static_distributed_tensor
 
     CK_TILE_HOST_DEVICE static constexpr index_t get_thread_buffer_size()
     {
-        return kThreadElementSpaceSize;
+        return kThreadElementSpaceSize / PackedSize;
     }
 
     template <index_t... YSliceOrigins, index_t... YSliceLengths>
@@ -79,8 +81,9 @@ struct static_distributed_tensor
         static_ford<sequence<YSliceLengths...>>{}([&](auto idx) {
             constexpr auto idx_ys = idx + sequence<YSliceOrigins...>{};
 
-            sliced_thread_data(number<sliced_thread_tensor_desc.calculate_offset(idx)>{}) =
-                thread_buf_[number<ThreadTensorDesc{}.calculate_offset(idx_ys)>{}];
+            sliced_thread_data(
+                number<sliced_thread_tensor_desc.calculate_offset(idx) / PackedSize>{}) =
+                thread_buf_[number<ThreadTensorDesc{}.calculate_offset(idx_ys) / PackedSize>{}];
         });
 
         return sliced_thread_data;
@@ -101,8 +104,9 @@ struct static_distributed_tensor
         static_ford<sequence<YSliceLengths...>>{}([&](auto idx) {
             constexpr auto idx_ys = idx + sequence<YSliceOrigins...>{};
 
-            thread_buf_(number<ThreadTensorDesc{}.calculate_offset(idx_ys)>{}) =
-                sliced_thread_data[number<sliced_thread_tensor_desc.calculate_offset(idx)>{}];
+            thread_buf_(number<ThreadTensorDesc{}.calculate_offset(idx_ys) / PackedSize>{}) =
+                sliced_thread_data[number<sliced_thread_tensor_desc.calculate_offset(idx) /
+                                          PackedSize>{}];
         });
     }
 
@@ -115,7 +119,7 @@ struct static_distributed_tensor
         constexpr auto y_idx = get_tile_distribution().get_y_indices_from_distributed_indices(
             TileDistributedIndices{});
 
-        return thread_buf_[number<ThreadTensorDesc{}.calculate_offset(y_idx)>{}];
+        return thread_buf_[number<ThreadTensorDesc{}.calculate_offset(y_idx) / PackedSize>{}];
     }
 
     template <typename TileDistributedIndices>
@@ -127,11 +131,11 @@ struct static_distributed_tensor
         constexpr auto y_idx = get_tile_distribution().get_y_indices_from_distributed_indices(
             TileDistributedIndices{});
 
-        return thread_buf_(number<ThreadTensorDesc{}.calculate_offset(y_idx)>{});
+        return thread_buf_(number<ThreadTensorDesc{}.calculate_offset(y_idx) / PackedSize>{});
     }
 
     //
-    thread_buffer<DataType, kThreadElementSpaceSize> thread_buf_;
+    thread_buffer<DataType, get_thread_buffer_size()> thread_buf_;
 };
 
 template <typename DataType, typename StaticTileDistribution>
