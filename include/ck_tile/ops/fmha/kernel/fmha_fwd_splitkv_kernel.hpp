@@ -742,7 +742,7 @@ struct FmhaFwdSplitKVKernel
                 return pad_tensor_view(
                     v_dram_transposed,
                     make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
-                    sequence<kPadHeadDimV, false>{});
+                    sequence<kPadHeadDimV, kPadSeqLenK>{});
             }
             else
             {
