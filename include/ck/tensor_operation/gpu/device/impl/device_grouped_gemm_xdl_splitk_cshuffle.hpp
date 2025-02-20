@@ -64,16 +64,16 @@ __global__ void
         group_id = index_t((left + right) / 2);
     }
 
-    // const auto& karg          = gemm_desc_ptr[group_id].karg_;
-    auto splitk_batch_offset =
-        typename GridwiseGemm::SplitKBatchOffset(gemm_desc_ptr[group_id].karg_);
+    auto karg                = gemm_desc_ptr[group_id].karg_;
+    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        gemm_desc_ptr[group_id].karg_.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        gemm_desc_ptr[group_id].karg_.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        gemm_desc_ptr[group_id].karg_.p_c_grid,
+        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
         p_shared,
-        gemm_desc_ptr[group_id].karg_);
+        karg,
+        gemm_desc_ptr[group_id].block_2_ctile_map_);
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
@@ -83,6 +83,14 @@ __global__ void
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
+// GEMM:
+//   input : A[M, K], B[K, N],
+//   input : D0[M, N], D1[M, N], ...
+//   output : E[M, N]
+//   C = a_op(A) * b_op(B)
+//   E = cde_op(C, D0, D1, ...)
+// Assume:
+//   D0, D1, ... and E have the same layout
 template <typename ALayout,
           typename BLayout,
           typename DsLayout,
@@ -216,7 +224,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         GroupedGemmBlock2ETileMap block_2_ctile_map_;
         index_t block_start_, block_end_;
 
-        // GemmTransKernelArg() = default;
+        GemmTransKernelArg() = default;
         GemmTransKernelArg(KernelArgument&& karg,
                            GroupedGemmBlock2ETileMap&& b2c_map,
                            index_t block_start,
@@ -303,7 +311,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                     stride_a,
                                     stride_b,
                                     stride_c,
-                                    K_BATCH};
+                                    K_BATCH
+                                    /*, is_reduce */};
 
                 gemm_kernel_args_.emplace_back(
                     std::move(karg), std::move(grouped_block_2_ctile_map), block_start, block_end);
@@ -383,7 +392,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
                 bool not_all_have_tail_num_same =
-                    (tail_num == GridwiseGemm::CalculateKBlockLoopTailNum(K_split));
+                    (tail_num != GridwiseGemm::CalculateKBlockLoopTailNum(K_split));
 
                 if(not_all_have_main_k0_block_loop_same)
                 {
@@ -434,7 +443,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     auto size_b_buffer =
                         b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
 
-                    ck::utility::RotatingMemWrapper<Argument> rotating_mem(
+                    ck::utility::RotatingMemWrapper<KernelArgument> rotating_mem(
                         arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer);
                     rotating_mem.Print();
 
@@ -444,16 +453,17 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                         // rotating mem
                         rotating_mem.Next();
                         // clear c mem
-                        // TODO: should be loop here through all groups
-                        for(const auto& trans_arg : arg.gemm_kernel_args_)
+                        if(arg.K_BATCH > 1)
                         {
-                            const auto& karg = trans_arg.karg_;
-                            if(karg.KBatch > 1)
+                            for(const auto& trans_arg : arg.gemm_kernel_args_)
+                            {
+                                const auto& karg = trans_arg.karg_;
                                 hipGetErrorString(
                                     hipMemsetAsync(karg.p_c_grid,
                                                    0,
                                                    karg.M * karg.N * sizeof(EDataType),
                                                    stream_config.stream_id_));
+                            }
                         }
                     };
 
@@ -469,15 +479,16 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 }
                 else
                 {
-                    // TODO: should be loop here through all groups
-                    for(const auto& trans_arg : arg.gemm_kernel_args_)
+                    if(arg.K_BATCH > 1)
                     {
-                        const auto& karg = trans_arg.karg_;
-                        if(karg.KBatch > 1)
+                        for(const auto& trans_arg : arg.gemm_kernel_args_)
+                        {
+                            const auto& karg = trans_arg.karg_;
                             hipGetErrorString(hipMemsetAsync(karg.p_c_grid,
                                                              0,
                                                              karg.M * karg.N * sizeof(EDataType),
                                                              stream_config.stream_id_));
+                        }
                     }
 
                     ave_time = launch_and_time_kernel(
@@ -521,7 +532,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                         Run(kernel);
                     }
                 }
-
                 // Tail number could be One to Seven
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
                 {
@@ -538,12 +548,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                                                TailNumber::One>;
                             Run(kernel);
                         }
-
-                        //// TODO: Fix below as above!
-
                         else if(tail_num == TailNumber::Full)
                         {
-
                             const auto kernel =
                                 kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                                GemmTransKernelArg,
@@ -558,7 +564,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                         {
                             if(tail_num == TailNumber::Two)
                             {
-
                                 const auto kernel = kernel_grouped_gemm_xdl_splitk<
                                     GridwiseGemm,
                                     GemmTransKernelArg,
@@ -569,12 +574,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                 Run(kernel);
                             }
                         }
-
                         if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 3)
                         {
                             if(tail_num == TailNumber::Three)
                             {
-
                                 const auto kernel = kernel_grouped_gemm_xdl_splitk<
                                     GridwiseGemm,
                                     GemmTransKernelArg,
@@ -585,7 +588,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                 Run(kernel);
                             }
                         }
-
                         if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 4)
                         {
                             if(tail_num == TailNumber::Four)
@@ -600,7 +602,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                 Run(kernel);
                             }
                         }
-
                         if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 5)
                         {
                             if(tail_num == TailNumber::Five)
@@ -615,7 +616,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                 Run(kernel);
                             }
                         }
-
                         if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 6)
                         {
                             if(tail_num == TailNumber::Six)
@@ -630,7 +630,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                 Run(kernel);
                             }
                         }
-
                         if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 7)
                         {
                             if(tail_num == TailNumber::Seven)
@@ -646,12 +645,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                             }
                         }
                     }
-
-                    else
+                    else // all_have_kbatch_gt_one
                     {
                         if(tail_num == TailNumber::One)
                         {
-
                             const auto kernel =
                                 kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                                GemmTransKernelArg,
@@ -663,7 +660,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                         }
                         else if(tail_num == TailNumber::Full)
                         {
-
                             const auto kernel =
                                 kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                                GemmTransKernelArg,
@@ -678,7 +674,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                         {
                             if(tail_num == TailNumber::Two)
                             {
-
                                 const auto kernel =
                                     kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                                    GemmTransKernelArg,
@@ -689,12 +684,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                 Run(kernel);
                             }
                         }
-
                         if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 3)
                         {
                             if(tail_num == TailNumber::Three)
                             {
-
                                 const auto kernel =
                                     kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                                    GemmTransKernelArg,
@@ -705,12 +698,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                 Run(kernel);
                             }
                         }
-
                         if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 4)
                         {
                             if(tail_num == TailNumber::Four)
                             {
-
                                 const auto kernel =
                                     kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                                    GemmTransKernelArg,
@@ -721,12 +712,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                 Run(kernel);
                             }
                         }
-
                         if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 5)
                         {
                             if(tail_num == TailNumber::Five)
                             {
-
                                 const auto kernel =
                                     kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                                    GemmTransKernelArg,
@@ -737,12 +726,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                 Run(kernel);
                             }
                         }
-
                         if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 6)
                         {
                             if(tail_num == TailNumber::Six)
                             {
-
                                 const auto kernel =
                                     kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                                    GemmTransKernelArg,
@@ -753,7 +740,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                 Run(kernel);
                             }
                         }
-
                         if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 7)
                         {
                             if(tail_num == TailNumber::Seven)
@@ -769,68 +755,64 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                             }
                         }
                     }
-                }
-                // Tail number could be Odd or Even
+                } // BlockGemmPipelineVersion::v2
+                // TODO: here we would need to have 2LDS variant of kernel_grouped_gemm_xdl_splitk
+                // kernel Tail number could be Odd or Even
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
                 {
-                    if(all_have_kbatch_gt_one)
-                    {
-                        if(tail_num == TailNumber::Odd)
-                        {
+                    // if(all_have_kbatch_gt_one)
+                    // {
+                    //     if(tail_num == TailNumber::Odd)
+                    //     {
+                    //         const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
+                    //             GridwiseGemm,
+                    //             GemmTransKernelArg,
+                    //             true,
+                    //             InMemoryDataOperationEnum::AtomicAdd,
+                    //             minimum_occupancy,
+                    //             TailNumber::Odd>;
+                    //         Run(kernel);
+                    //     }
+                    //     else
+                    //     {
+                    //         const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
+                    //             GridwiseGemm,
+                    //             GemmTransKernelArg,
+                    //             true,
+                    //             InMemoryDataOperationEnum::AtomicAdd,
+                    //             minimum_occupancy,
+                    //             TailNumber::Even>;
+                    //         Run(kernel);
+                    //     }
+                    // }
+                    // else
+                    // {
+                    //     if(tail_num == TailNumber::Odd)
+                    //     {
+                    //         const auto kernel =
+                    //             kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                    //                                              GemmTransKernelArg,
+                    //                                              true,
+                    //                                              InMemoryDataOperationEnum::Set,
+                    //                                              minimum_occupancy,
+                    //                                              TailNumber::Odd>;
+                    //         Run(kernel);
+                    //     }
 
-                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
-                                GridwiseGemm,
-                                GemmTransKernelArg,
-                                true,
-                                InMemoryDataOperationEnum::AtomicAdd,
-                                minimum_occupancy,
-                                TailNumber::Odd>;
-                            Run(kernel);
-                        }
-                        else
-                        {
-
-                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
-                                GridwiseGemm,
-                                GemmTransKernelArg,
-                                true,
-                                InMemoryDataOperationEnum::AtomicAdd,
-                                minimum_occupancy,
-                                TailNumber::Even>;
-                            Run(kernel);
-                        }
-                    }
-                    else
-                    {
-                        if(tail_num == TailNumber::Odd)
-                        {
-
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
-                                                                 GemmTransKernelArg,
-                                                                 true,
-                                                                 InMemoryDataOperationEnum::Set,
-                                                                 minimum_occupancy,
-                                                                 TailNumber::Odd>;
-                            Run(kernel);
-                        }
-
-                        else
-                        {
-
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
-                                                                 GemmTransKernelArg,
-                                                                 true,
-                                                                 InMemoryDataOperationEnum::Set,
-                                                                 minimum_occupancy,
-                                                                 TailNumber::Even>;
-                            Run(kernel);
-                        }
-                    }
+                    //     else
+                    //     {
+                    //         const auto kernel =
+                    //             kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                    //                                              GemmTransKernelArg,
+                    //                                              true,
+                    //                                              InMemoryDataOperationEnum::Set,
+                    //                                              minimum_occupancy,
+                    //                                              TailNumber::Even>;
+                    //         Run(kernel);
+                    //     }
+                    // }
                 }
-
-                else
+                else // BlockGemmPipelineVersion::v4, v5 left
                 {
                     if(all_have_kbatch_gt_one)
                     {
@@ -876,7 +858,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
                         else
                         {
-
                             const auto kernel =
                                 kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                                GemmTransKernelArg,
@@ -889,7 +870,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     }
                 }
             }
-            else
+            else // all_have_main_k_block_loop
             {
                 // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
