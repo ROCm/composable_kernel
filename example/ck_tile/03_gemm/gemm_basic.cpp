@@ -104,8 +104,10 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_til
     using FP32 = float;
     using FP16 = ck_tile::half_t;
     using BF16 = ck_tile::bf16_t;
+    using FP8  = ck_tile::fp8_t;
+    using BF8  = ck_tile::bf8_t;
 
-    if(t.data_type.compare("fp16") == 0)
+    if(t.data_type.compare("fp16_fp16_fp16") == 0)
     {
         if(t.IsRCRLayout())
         {
@@ -116,11 +118,33 @@ float gemm(const gemm_traits& t, const ck_tile::GemmHostArgs& args, const ck_til
             throw std::runtime_error("Unsupported data type!");
         }
     }
-    else if(t.data_type.compare("bf16") == 0)
+    else if(t.data_type.compare("bf16_bf16_bf16") == 0)
     {
         if(t.IsRCRLayout())
         {
             return gemm_<BF16, BF16, FP32, BF16, Row, Col, Row>(args, s);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data type!");
+        }
+    }
+    else if(t.data_type.compare("fp8_fp8_fp16") == 0)
+    {
+        if(t.IsRCRLayout())
+        {
+            return gemm_<FP8, FP8, FP32, FP16, Row, Col, Row>(args, s);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data type!");
+        }
+    }
+    else if(t.data_type.compare("bf8_bf8_fp16") == 0)
+    {
+        if(t.IsRCRLayout())
+        {
+            return gemm_<BF8, BF8, FP32, FP16, Row, Col, Row>(args, s);
         }
         else
         {

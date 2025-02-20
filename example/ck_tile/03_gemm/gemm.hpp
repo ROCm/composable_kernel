@@ -10,7 +10,7 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 
-template <typename DataType>
+template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
 struct GemmBasicTypeConfig;
 
 template <>
@@ -50,6 +50,15 @@ struct GemmBasicTypeConfig<ck_tile::bf8_t>
     using CDataType   = ck_tile::bf8_t;
 };
 
+template <>
+struct GemmBasicTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
+{
+    using ADataType   = ck_tile::half_t;
+    using BDataType   = ck_tile::pk_int4_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
 template <typename T>
 struct DataTypeTraits;
 
@@ -87,6 +96,12 @@ template <>
 struct DataTypeTraits<ck_tile::bf8_t>
 {
     static constexpr const char* name = "bf8";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::pk_int4_t>
+{
+    static constexpr const char* name = "pk_int4_t";
 };
 
 /** @brief Struct used for specifying desired gemm details*/
