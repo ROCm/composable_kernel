@@ -447,8 +447,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                     dst_offset,
                     is_dst_valid,
                     dst_vectors[i].template AsType<dst_vector_t>()[I0]);
-                // if(threadIdx.x==0 && blockIdx.x==0) {
-                //     static_for<0, DstScalarPerVector, 1>{}([&](auto idx) {
+                // if(threadIdx.x%8 ==0 && blockIdx.x==0) {
+                //     static_for<0, 1, 1>{}([&](auto idx) {
                 //         using DstData = remove_cvref_t<tuple_element_t<0, DstDatas>>;
                 //         using print_vec_t = typename vector_type<DstData, 1>::type;
                 //         printf("tid %d off %d valid %d %f\n",threadIdx.x, dst_offset, is_dst_valid, 
@@ -683,8 +683,18 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                 ? dst_slice_origin_step_idx
                 : dst_slice_origin_step_idx + GetDstCoordinateResetStep();
 
+        auto adjusted_step_idx_scatter = [&]() 
+        {
+            Index step_;
+            static_for<0, nDim, 1>{}([&](auto i) {
+                step_(i) = (i.value == ScatterDim && OutputScatter) ? 0 : adjusted_step_idx[Number<i>{}];
+            });
+
+            return step_;
+        }
+        ();
         // is it OK to construct a new step every time?
-        const auto adjusted_step = make_tensor_coordinate_step(dst_descs[iDst], adjusted_step_idx);
+        const auto adjusted_step = make_tensor_coordinate_step(dst_descs[iDst], adjusted_step_idx_scatter);
 
         move_tensor_coordinate(dst_descs[iDst], dst_coords_(iDst), adjusted_step);
     }

@@ -2088,8 +2088,8 @@ struct GridwiseMoeGemm
                         weight = weight * p_sorted_weights_2[c_token_pos + m0];
                     }
                     
-                    // if(threadIdx.x % 16 == 0 && blockIdx.x == 0)
-                    // printf("init off bid %d tid %d m %d off %d wei %f\n", blockIdx.x, threadIdx.x, m0(), token_offset, weight);
+                    if(threadIdx.x % 8 == 0 && blockIdx.x == 0)
+                    printf("init off tid %d access %d tpos %d m %d off %d wei %f\n",  threadIdx.x, dstidx(I1), c_token_pos, m0(), token_offset, weight);
                     scatter_offsets(m0) = token_offset * problem.N;
                     scatter_weights(m0) = weight;
                 });
