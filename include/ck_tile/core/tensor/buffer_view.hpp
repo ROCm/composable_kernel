@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -231,13 +231,18 @@ struct buffer_view<address_space_enum::global,
     int32x4_t cached_buf_res_;
     remove_cvref_t<T> invalid_element_value_ = T{0};
 
+    static constexpr index_t PackedSize = ck_tile::numeric_traits<remove_cvref_t<T>>::PackedSize;
+
     CK_TILE_HOST_DEVICE constexpr buffer_view()
         : p_data_{}, buffer_size_{}, cached_buf_res_{0}, invalid_element_value_{}
     {
     }
 
     CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data, BufferSizeType buffer_size)
-        : p_data_{p_data}, buffer_size_{buffer_size}, cached_buf_res_{0}, invalid_element_value_{0}
+        : p_data_{p_data},
+          buffer_size_{buffer_size / PackedSize},
+          cached_buf_res_{0},
+          invalid_element_value_{0}
     {
     }
 
@@ -245,7 +250,7 @@ struct buffer_view<address_space_enum::global,
                                               BufferSizeType buffer_size,
                                               T invalid_element_value)
         : p_data_{p_data},
-          buffer_size_{buffer_size},
+          buffer_size_{buffer_size / PackedSize},
           cached_buf_res_{0},
           invalid_element_value_{invalid_element_value}
     {
@@ -255,7 +260,7 @@ struct buffer_view<address_space_enum::global,
     // Must call for buffers that need *_raw load/store
     CK_TILE_HOST_DEVICE void init_raw()
     {
-        cached_buf_res_ = make_wave_buffer_resource(p_data_, buffer_size_ * sizeof(type));
+        cached_buf_res_ = make_wave_buffer_resource(p_data_, (buffer_size_) * sizeof(type));
     }
 
     CK_TILE_DEVICE static constexpr address_space_enum get_address_space()
@@ -887,8 +892,8 @@ struct buffer_view<address_space_enum::lds,
 #endif
 
         i += linear_offset; // simplicity
-        if constexpr(std::is_same<typename vector_traits<remove_cvref_t<T>>::scalar_type,
-                                  int8_t>::value &&
+        if constexpr(std::is_same_v<typename vector_traits<remove_cvref_t<T>>::scalar_type,
+                                    int8_t> &&
                      workaround_int8_ds_write_issue)
         {
             if(is_valid_element)
@@ -897,83 +902,117 @@ struct buffer_view<address_space_enum::lds,
                 // ISA, so I try to let compiler emit IR "store<i32, 4>" which would be lower to
                 // ds_write_b128
                 // TODO: remove this after compiler fix
-                static_assert((std::is_same<remove_cvref_t<T>, int8_t>::value &&
-                               std::is_same<remove_cvref_t<X>, int8_t>::value) ||
-                                  (std::is_same<remove_cvref_t<T>, int8_t>::value &&
-                                   std::is_same<remove_cvref_t<X>, int8x2_t>::value) ||
-                                  (std::is_same<remove_cvref_t<T>, int8_t>::value &&
-                                   std::is_same<remove_cvref_t<X>, int8x4_t>::value) ||
-                                  (std::is_same<remove_cvref_t<T>, int8_t>::value &&
-                                   std::is_same<remove_cvref_t<X>, int8x8_t>::value) ||
-                                  (std::is_same<remove_cvref_t<T>, int8_t>::value &&
-                                   std::is_same<remove_cvref_t<X>, int8x16_t>::value) ||
-                                  (std::is_same<remove_cvref_t<T>, int8x4_t>::value &&
-                                   std::is_same<remove_cvref_t<X>, int8x4_t>::value) ||
-                                  (std::is_same<remove_cvref_t<T>, int8x8_t>::value &&
-                                   std::is_same<remove_cvref_t<X>, int8x8_t>::value) ||
-                                  (std::is_same<remove_cvref_t<T>, int8x16_t>::value &&
-                                   std::is_same<remove_cvref_t<X>, int8x16_t>::value),
-                              "wrong! not implemented for this combination, please add "
-                              "implementation");
+                static_assert(
+                    (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                     std::is_same_v<remove_cvref_t<X>, int8_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                         std::is_same_v<remove_cvref_t<X>, int8x2_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                         std::is_same_v<remove_cvref_t<X>, int8x4_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                         std::is_same_v<remove_cvref_t<X>, int8x8_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                         std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8x4_t> &&
+                         std::is_same_v<remove_cvref_t<X>, int8x4_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8x8_t> &&
+                         std::is_same_v<remove_cvref_t<X>, int8x8_t>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8x16_t> &&
+                         std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
+                        // ext_vector_type for pk_int4 must use int8_t as type
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 1>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 2>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 4>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 8>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 16>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4x4_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 4>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4x8_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 8>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, pk_int4x16_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 16>>),
+                    "wrong! not implemented for this combination, please add "
+                    "implementation");
 
-                if constexpr(std::is_same<remove_cvref_t<T>, int8_t>::value &&
-                             std::is_same<remove_cvref_t<X>, int8_t>::value)
+                if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                              std::is_same_v<remove_cvref_t<X>, int8_t>) ||
+                             (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
+                              std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 1>>))
                 {
                     // HACK: cast pointer of x is bad
                     // TODO: remove this after compiler fix
                     *c_style_pointer_cast<int8_t*>(&p_data_[i]) =
                         *c_style_pointer_cast<const int8_t*>(&x);
                 }
-                else if constexpr(std::is_same<remove_cvref_t<T>, int8_t>::value &&
-                                  std::is_same<remove_cvref_t<X>, int8x2_t>::value)
+                else if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, int8x2_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 2>>))
                 {
                     // HACK: cast pointer of x is bad
                     // TODO: remove this after compiler fix
                     *c_style_pointer_cast<int16_t*>(&p_data_[i]) =
                         *c_style_pointer_cast<const int16_t*>(&x);
                 }
-                else if constexpr(std::is_same<remove_cvref_t<T>, int8_t>::value &&
-                                  std::is_same<remove_cvref_t<X>, int8x4_t>::value)
+                else if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, int8x4_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 4>>))
                 {
                     // HACK: cast pointer of x is bad
                     // TODO: remove this after compiler fix
                     *c_style_pointer_cast<int32_t*>(&p_data_[i]) =
                         *c_style_pointer_cast<const int32_t*>(&x);
                 }
-                else if constexpr(std::is_same<remove_cvref_t<T>, int8_t>::value &&
-                                  std::is_same<remove_cvref_t<X>, int8x8_t>::value)
+                else if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, int8x8_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 8>>))
                 {
                     // HACK: cast pointer of x is bad
                     // TODO: remove this after compiler fix
                     *c_style_pointer_cast<int32x2_t*>(&p_data_[i]) =
                         *c_style_pointer_cast<const int32x2_t*>(&x);
                 }
-                else if constexpr(std::is_same<remove_cvref_t<T>, int8_t>::value &&
-                                  std::is_same<remove_cvref_t<X>, int8x16_t>::value)
+                else if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 16>>))
                 {
                     // HACK: cast pointer of x is bad
                     // TODO: remove this after compiler fix
                     *c_style_pointer_cast<int32x4_t*>(&p_data_[i]) =
                         *c_style_pointer_cast<const int32x4_t*>(&x);
                 }
-                else if constexpr(std::is_same<remove_cvref_t<T>, int8x4_t>::value &&
-                                  std::is_same<remove_cvref_t<X>, int8x4_t>::value)
+                else if constexpr((std::is_same_v<remove_cvref_t<T>, int8x4_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, int8x4_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, pk_int4x4_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 4>>))
                 {
                     // HACK: cast pointer of x is bad
                     // TODO: remove this after compiler fix
                     *c_style_pointer_cast<int32_t*>(&p_data_[i]) =
                         *c_style_pointer_cast<const int32_t*>(&x);
                 }
-                else if constexpr(std::is_same<remove_cvref_t<T>, int8x8_t>::value &&
-                                  std::is_same<remove_cvref_t<X>, int8x8_t>::value)
+                else if constexpr((std::is_same_v<remove_cvref_t<T>, int8x8_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, int8x8_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, pk_int4x8_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 8>>))
                 {
                     // HACK: cast pointer of x is bad
                     // TODO: remove this after compiler fix
                     *c_style_pointer_cast<int32x2_t*>(&p_data_[i]) =
                         *c_style_pointer_cast<const int32x2_t*>(&x);
                 }
-                else if constexpr(std::is_same<remove_cvref_t<T>, int8x16_t>::value &&
-                                  std::is_same<remove_cvref_t<X>, int8x16_t>::value)
+                else if constexpr((std::is_same_v<remove_cvref_t<T>, int8x16_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, pk_int4x16_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 16>>))
                 {
                     // HACK: cast pointer of x is bad
                     // TODO: remove this after compiler fix
