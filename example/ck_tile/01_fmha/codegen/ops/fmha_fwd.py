@@ -487,6 +487,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                 if kernel_filter != None:
                     if not fnmatch.fnmatch(k.name, kernel_filter):
                         continue
+                # 2 - Flash attention integration
                 if receipt in (2, 3):
                     cond = dtype in ['fp16', 'bf16']
                     cond &= pipeline.F_vlayout == 'row'
@@ -494,6 +495,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+                # PyTorch integration
                 elif receipt == 4:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= pipeline.F_vlayout == 'row'
@@ -501,6 +503,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+                # Aiter(mha_fwd) integration
                 elif receipt == 10:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "batch"
@@ -509,6 +512,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+                # Aiter(mha_varlen_fwd) integration
                 elif receipt == 11:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
