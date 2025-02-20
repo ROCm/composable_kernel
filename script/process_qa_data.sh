@@ -52,19 +52,16 @@ file=./perf_fmha_bwd_gfx90a.log
 if [ -e "$file" ]; then
     python3 process_perf_data.py perf_fmha_bwd_gfx90a.log
 fi
-file=./perf_gemm_basic_gfx942.log
-if [ -e "$file" ]; then
-    python3 process_perf_data.py perf_gemm_basic_gfx942.log
-fi
-file=./perf_gemm_basic_gfx90a.log
-if [ -e "$file" ]; then
-    python3 process_perf_data.py perf_gemm_basic_gfx90a.log
-fi
-file=./perf_gemm_mem_pipeline_gfx942.log
-if [ -e "$file" ]; then
-    python3 process_perf_data.py perf_gemm_mem_pipeline_gfx942.log
-fi
-file=./perf_gemm_mem_pipeline_gfx90a.log
-if [ -e "$file" ]; then
-    python3 process_perf_data.py perf_gemm_mem_pipeline_gfx90a.log
-fi
+
+for gpu in gfx90a gfx942; do
+    for type in fp16 bf16 fp8 bf8; do
+        file=./perf_tile_gemm_basic_$type_$gpu.log
+        if [ -e "$file" ]; then
+            python3 process_perf_data.py perf_tile_gemm_basic_$type_$gpu.log
+        fi
+        file=./perf_tile_gemm_mem_pipeline_$type_$gpu.log
+        if [ -e "$file" ]; then
+            python3 process_perf_data.py perf_tile_gemm_mem_pipeline_$type_$gpu.log
+        fi
+    done
+done

@@ -36,10 +36,12 @@ example/ck_tile/03_gemm/script/smoke_test_basic.sh
 example/ck_tile/03_gemm/script/smoke_test_mem_pipeline.sh
 
 # run performance benchmarks
-export gemm_basic_log="perf_tile_gemm_basic_fp16_$GPU_arch.log"
-print_log_header $gemm_basic_log $env_type $branch $host_name
-example/ck_tile/03_gemm/script/benchmark_basic.sh 2>&1 | tee -a $gemm_basic_log
+for type in fp16 bf16 fp8 bf8; do
+    export gemm_basic_log_$type="perf_tile_gemm_basic_$type_$GPU_arch.log"
+    print_log_header $gemm_basic_log_$type $env_type $branch $host_name
+    example/ck_tile/03_gemm/script/benchmark_basic_$type.sh 2>&1 | tee -a $gemm_basic_log_$type
 
-export gemm_mem_pipeline_log="perf_tile_gemm_mem_pipeline_fp16_$GPU_arch.log"
-print_log_header $gemm_mem_pipeline_log $env_type $branch $host_name
-example/ck_tile/03_gemm/script/benchmark_mem_pipeline.sh 2>&1 | tee -a $gemm_mem_pipeline_log
+    export gemm_mem_pipeline_log_$type="perf_tile_gemm_mem_pipeline_$type_$GPU_arch.log"
+    print_log_header $gemm_mem_pipeline_log_$type $env_type $branch $host_name
+    example/ck_tile/03_gemm/script/benchmark_mem_pipeline_$type.sh 2>&1 | tee -a $gemm_mem_pipeline_log_$type
+done
