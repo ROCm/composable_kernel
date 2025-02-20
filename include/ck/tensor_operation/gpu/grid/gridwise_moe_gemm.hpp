@@ -1174,11 +1174,10 @@ struct GridwiseMoeGemm
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);     
         // constexpr int expert_tile_cnt[8] = {2, 1, 1, 2, 2, 2, 1, 2};
         // const index_t b_block_id = blockIdx.x % problem.NBlock;
-        const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.x;
+        const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.y;
         if (expert_block_id * MPerBlock >= max_token_id)
             return;
-        const index_t expert_id = NSwizzle ? __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[blockIdx.x / problem.NBlock]) :
-                                            __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[blockIdx.y]);
+        const index_t expert_id =  __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[expert_block_id]);
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr (NSwizzle) 
             {
