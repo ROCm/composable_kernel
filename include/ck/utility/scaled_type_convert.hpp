@@ -427,106 +427,18 @@ inline __host__ __device__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m
         f4x2_t f4x2_array[16];
         f4x32_t f4x32_array;
     } f4_values{bit_cast<__uint128_t>(x)};
-    // TODO: pack in a loop
-    float_values.float_array[0] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[1] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[2] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[3] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[4] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[5] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[6] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[7] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
 
-    float_values.float_array[0] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[1] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[2] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[3] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[4] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[5] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[6] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[7] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
+    ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
+        float_values.float_array[2 * idx] = utils::to_float<f4_t>(
+            scale,
+            f4_values.f4x2_array[idx].template AsType<f4x2_pk_t>()[Number<0>{}].template unpack<>(
+                Number<0>{}));
 
-    float_values.float_array[0] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[1] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[2] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[3] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[4] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[5] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[6] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[7] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-
-    float_values.float_array[0] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[1] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[2] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[3] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[4] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[5] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[6] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[7] = utils::to_float<f4_t>(
-        scale,
-        f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
+        float_values.float_array[2 * idx + 1] = utils::to_float<f4_t>(
+            scale,
+            f4_values.f4x2_array[idx].template AsType<f4x2_pk_t>()[Number<0>{}].template unpack<>(
+                Number<1>{}));
+    });
 
     return float_values.float32_array;
 #endif
