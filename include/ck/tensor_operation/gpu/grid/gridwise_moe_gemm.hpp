@@ -1158,7 +1158,8 @@ struct GridwiseMoeGemm
         // constexpr int expert_tile_cnt[8] = {2, 1, 1, 2, 2, 2, 1, 2};
         // const index_t b_block_id = blockIdx.x % problem.NBlock;
         const index_t expert_block_id = blockIdx.x / problem.NBlock;
-        const index_t expert_id = __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[blockIdx.x / problem.NBlock]);
+        const index_t expert_id = NSwizzle ? __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[blockIdx.x / problem.NBlock]) :
+                                            __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[blockIdx.y]);
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr (NSwizzle) 
             {
