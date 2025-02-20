@@ -351,7 +351,7 @@ def cmake_build(Map conf=[:]){
     }
     if (params.RUN_CK_TILE_GEMM_TESTS){
         try{
-            archiveArtifacts "perf_tile_gemm_*.log"
+            archiveArtifacts "perf_tile_gemm_**.log"
             if (arch_type == 1){
                 stash includes: "perf_tile_gemm_**_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
             }
