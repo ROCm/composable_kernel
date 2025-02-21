@@ -340,8 +340,8 @@ __device__ AFragT load_mx_A_row_major(AType const* input_ptr,
     // BLOCK_K / BLOCK_X is a stride in xA matrix
     auto startOffset = row_major(startCoord2D, BLOCK_K / BLOCK_X);
 
-    //       preserve upper bits                    obtain 8-bit exponent
-    fragX = (fragX & 0xFFFFFF00) | (utils::get_exponent_value(scale_ptr[startOffset]) & 0xFF);
+    // obtain 8-bit exponent
+    fragX = utils::get_exponent_value(scale_ptr[startOffset]) & 0xFF;
 
     return load_A_row_major<AType, AFragT, BLOCK_M, BLOCK_K>{}(input_ptr);
 }
@@ -507,8 +507,8 @@ __device__ BFragT load_mx_B_col_major(BType const* input_ptr,
 
     auto startOffset = col_major(startCoord2D, BLOCK_K / BLOCK_X);
 
-    //       preserve upper bits                    obtain 8-bit exponent
-    fragX = (fragX & 0xFFFFFF00) | (utils::get_exponent_value(scale_ptr[startOffset]) & 0xFF);
+    // obtain 8-bit exponent
+    fragX = utils::get_exponent_value(scale_ptr[startOffset]) & 0xFF;
 
     return load_B_col_major<BType, BFragT, BLOCK_K, BLOCK_N>(input_ptr);
 }
