@@ -207,8 +207,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         throw std::runtime_error("wrong! K must be multiple of Scale_Block_K (16 or 32)");
     };
 
-    auto Scale_Stride_AM = f_get_default_stride(M, K / Scale_Block_K, StrideA, ALayout{});
-    auto Scale_Stride_BN = f_get_default_stride(K / Scale_Block_K, N, StrideB, BLayout{});
+    auto Scale_Stride_AM = f_get_default_stride(M, K / Scale_Block_K, -1, ALayout{});
+    auto Scale_Stride_BN = f_get_default_stride(K / Scale_Block_K, N, -1, BLayout{});
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
