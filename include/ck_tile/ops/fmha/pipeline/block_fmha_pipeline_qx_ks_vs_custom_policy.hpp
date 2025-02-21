@@ -360,7 +360,14 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         }
         else
         {
-            return 16 / sizeof(KDataType);
+            constexpr index_t kBlockSize = Problem::kBlockSize;
+            constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+
+            constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
+            constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+
+            return min(MaxVectorSize, ElemPerThread);
         }
     }
 
@@ -709,7 +716,10 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
             constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
 
-            constexpr index_t K1 = 16 / sizeof(KDataType);
+            constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
+            constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+
+            constexpr index_t K1 = min(MaxVectorSize, ElemPerThread);
             constexpr index_t K0 = kKPerBlock / K1;
             constexpr index_t N2 = get_warp_size() / K0;
             constexpr index_t N1 = kBlockSize / get_warp_size();
