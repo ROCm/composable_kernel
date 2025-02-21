@@ -279,7 +279,6 @@ inline __host__ __device__ f8_fnuz_t f8_convert_sr<f8_fnuz_t, half_t>(half_t x)
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 1254739;
-
 #ifndef CK_CODE_GEN_RTC
     uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
@@ -344,7 +343,6 @@ inline __host__ __device__ bf8_fnuz_t f8_convert_sr<bf8_fnuz_t, half_t>(half_t x
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 1254739;
-
 #ifndef CK_CODE_GEN_RTC
     uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
@@ -1981,7 +1979,7 @@ inline __host__ __device__ float32_t type_convert<float32_t, bf6x32_t>(bf6x32_t 
 #endif
 }
 
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <typename Y, typename X, size_t NumElems>
 inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,
                                               const std::array<X, NumElems>& x)
