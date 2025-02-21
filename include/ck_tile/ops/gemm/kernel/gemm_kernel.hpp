@@ -250,11 +250,12 @@ struct GemmKernel
         }
         else
         {
-            if(kargs.K % TilePartitioner::KPerBlock != 0 && GemmPipeline::kPadK == false)
+            if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
+               GemmPipeline::kPadK == false)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "Can't support K that is not a multiple of KPerBlock"
+                    std::cerr << "Can't support K that is not a multiple of k_batch * KPerBlock"
                                  " without padding!"
                               << std::endl;
                 }
