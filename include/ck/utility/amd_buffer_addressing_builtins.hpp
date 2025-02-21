@@ -87,12 +87,12 @@ __device__ float llvm_amdgcn_raw_buffer_atomic_add_fp32(
     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.f32.v4i32");
 
 // buffer atomic-add fp32
-__device__ double
-llvm_amdgcn_raw_buffer_atomic_max_fp64(double vdata,
-                                       int32x4_t rsrc, // dst_wave_buffer_resource
-                                       int voffset,    // dst_thread_addr_offset
-                                       int soffset,    // dst_wave_addr_offset
-                                       int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64.v4i32");
+__device__ double llvm_amdgcn_raw_buffer_atomic_max_fp64(
+    double vdata,
+    int32x4_t rsrc, // dst_wave_buffer_resource
+    int voffset,    // dst_thread_addr_offset
+    int soffset,    // dst_wave_addr_offset
+    int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64.v4i32");
 
 // memory coherency bit for buffer store/load instruction
 // check ISA manual for each GFX target
