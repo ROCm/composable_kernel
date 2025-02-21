@@ -240,6 +240,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "NOTE: No input data initialization." << std::endl;
         }
         break;
+
     case 10: // Initializations for development and debugging
         ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.0f)}(a_m_k);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
@@ -252,6 +253,71 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "Init B = {0.5}" << std::endl;
             std::cout << "Init B scale = {2.0}" << std::endl;
             std::cout << "Expect C = {K}" << std::endl;
+        }
+        break;
+
+    case 11: // Initializations for development and debugging
+        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.0f)}(a_m_k);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.0f)}(b_k_n);
+        // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+
+        for(ck::index_t i = 0; i < K / Scale_Block_K; i++)
+        {
+            for(ck::index_t j = 0; j < N / 4; j++)
+            {
+                auto j_offset = j * 4;
+                if(i % 2 == 0)
+                {
+                    b_k_n_scale(i, j_offset + (0 + i) % 4) = ck::type_convert<XDataType>(1.0f / 4);
+                    b_k_n_scale(i, j_offset + (1 + i) % 4) = ck::type_convert<XDataType>(1.0f / 2);
+                    b_k_n_scale(i, j_offset + (2 + i) % 4) = ck::type_convert<XDataType>(1.0f);
+                    b_k_n_scale(i, j_offset + (3 + i) % 4) = ck::type_convert<XDataType>(2.0f);
+                }
+                else
+                {
+                    b_k_n_scale(i, j_offset + (0 + i) % 4) = ck::type_convert<XDataType>(16.0f);
+                    b_k_n_scale(i, j_offset + (1 + i) % 4) = ck::type_convert<XDataType>(8.0f);
+                    b_k_n_scale(i, j_offset + (2 + i) % 4) = ck::type_convert<XDataType>(1.0f / 16);
+                    b_k_n_scale(i, j_offset + (3 + i) % 4) = ck::type_convert<XDataType>(1.0f / 32);
+                }
+            }
+        }
+
+        {
+            const ck::index_t n_freq   = 13;         // frequency of nonzero values in col(B)
+            const ck::index_t pert_idx = 7 * n_freq; // location of perturbation
+
+            for(ck::index_t i = 0; i < K; i++)
+            {
+                if(i % n_freq == 0)
+                {
+                    for(ck::index_t j = 0; j < N; j++)
+                    {
+                        float scale = ck::type_convert<float>(b_k_n_scale(i / Scale_Block_K, j));
+                        if(i == pert_idx)
+                        {
+                            b_k_n(i, j) = ck::type_convert<BDataType>(2.0f / scale);
+                        }
+                        else
+                        {
+                            b_k_n(i, j) = ck::type_convert<BDataType>(1.0f / scale);
+                        }
+                    }
+                }
+            }
+
+            if(config.verbosity > 0)
+            {
+                std::cout << "Init A = {1}" << std::endl;
+                std::cout << "Init A scale = {1.0}" << std::endl;
+                std::cout << "Init B is real" << std::endl;
+                std::cout << "Init B scale is real" << std::endl;
+                std::cout << "Expect C = {"
+                          << ((pert_idx < K) ? (K + n_freq - 1) / n_freq + 1
+                                             : (K + n_freq - 1) / n_freq)
+                          << "}" << std::endl;
+            }
         }
         break;
 
@@ -364,6 +430,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "\nExpected vs Computed: " << expected << " vs " << computed
                       << ((res_verified) ? " (PASSED!)" : " (FAILED!)") << std::endl
                       << std::endl;
+        }
+        else if(config.init_method == 11)
+        {
+            auto computed = type_convert<float>(c_m_n_device_result(1, 12));
+
+            std::cout << "\nComputed: " << computed << std::endl << std::endl;
         }
 
         res_verified = res_verified && ck::utils::check_err(c_m_n_device_result,
