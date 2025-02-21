@@ -123,7 +123,7 @@
             "inherits": [
                 "Debug"
             ],
-            "jobs": 128
+            "jobs": 64
         },
         {
             "name": "MI355-release",
@@ -133,7 +133,7 @@
             "inherits": [
                 "Release"
             ],
-            "jobs": 128
+            "jobs": 64
         },
         {
             "name": "MI300X-release",

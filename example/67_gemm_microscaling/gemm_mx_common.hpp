@@ -9,7 +9,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle_v3_ab_scale.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_b_scale.hpp"
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/sequence.hpp"
@@ -37,7 +37,7 @@ struct ExecutionConfig final
     int verbosity       = 1;     // (0=no info, 1=verbose info)
 };
 
-struct ProblemSize final
+struct ProblemSizeSplitK final
 {
     ck::index_t M = 256;
     ck::index_t N = 256;
@@ -46,9 +46,14 @@ struct ProblemSize final
     ck::index_t StrideA = -1;
     ck::index_t StrideB = -1;
     ck::index_t StrideC = -1;
+
+    ck::index_t KBatch = 1;
 };
 
-bool parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig& config)
+bool parse_cmd_args(int argc,
+                    char* argv[],
+                    ProblemSizeSplitK& problem_size,
+                    ExecutionConfig& config)
 {
     if(argc == 1)
     {
@@ -61,7 +66,7 @@ bool parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, Execution
         config.time_kernel     = std::stoi(argv[3]);
         config.verbosity       = std::stoi(argv[4]);
     }
-    else if(argc == 11)
+    else if(argc >= 11)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
@@ -75,6 +80,11 @@ bool parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, Execution
         problem_size.StrideA = std::stoi(argv[8]);
         problem_size.StrideB = std::stoi(argv[9]);
         problem_size.StrideC = std::stoi(argv[10]);
+
+        if(argc >= 12)
+        {
+            problem_size.KBatch = std::stoi(argv[11]);
+        }
     }
     else
     {
@@ -83,7 +93,8 @@ bool parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, Execution
                   << std::endl
                   << "arg3: time kernel (0=no, 1=yes)" << std::endl
                   << "arg4: verbosity (0=no info, 1=verbose info)" << std::endl
-                  << "arg5 to 10: M (16x), N(16x), K(16x), StrideA, StrideB, StrideC" << std::endl;
+                  << "arg5 to 10: M(256x), N(128x), K(32x), StrideA, StrideB, StrideC" << std::endl
+                  << "arg11: KBatch" << std::endl;
         return false;
     }
 
@@ -97,29 +108,29 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout,
-          typename CElementWiseOp,
+          typename AElementOp,
+          typename BElementOp,
+          typename CElementOp,
           typename AccDataType,
           typename CShuffleDataType,
           ck::index_t MXVectorSize>
-bool run_mx_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
+bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& config)
 {
-    using ELayout      = CLayout;
-    using DsLayout     = ck::Tuple<>;
-    using DsDataType   = ck::Tuple<>;
-    using AElementOp   = PassThrough;
-    using BElementOp   = PassThrough;
-    using CDEElementOp = CElementWiseOp;
+    using BScaleDataType = XDataType;
 
     static constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization::Default;
     static constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;
     static constexpr auto BlkGemmPVer   = ck::BlockGemmPipelineVersion::v3;
 
+    static constexpr bool PermuteA = false;
+    static constexpr bool PermuteB = false;
+
 #if 1
     // XXX: These parameters should not exist in MX-native GEMM kernel
-    static constexpr ck::index_t Scale_Block_M = 128;
-    static constexpr ck::index_t Scale_Block_N = 128;
+    static constexpr ck::index_t Scale_Block_N = 1;
 #endif
     static constexpr ck::index_t Scale_Block_K = MXVectorSize;
+    static constexpr ck::index_t KPerBlock     = 64;
 
     // XXX: DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3 is not designed to utilize MX-specific MFMA
     //      instructions.
@@ -140,12 +151,12 @@ bool run_mx_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     // XXX: GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3 assumes scale type is float
 
     // clang-format off
-    using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
-    // ######| ALayout| BLayout| DsLayout| CLayout| ADataType|    AScale| BDataType|    BScale| DsDataType| CDataType|     GemmAcc| CShuffleDataType|AElementwise|BElementwise| CElementwise| GemmSpec|Block|   ScaleBlockM|   ScaleBlockN|   ScaleBlockK|    M|    N|             K| AK1| BK1|   M|   N|MXdl|NXdl|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|   ABlock|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|   BBlock|  CShuffle|  CShuffle|CShuffleBlockTransfer|CDEShuffleBlockTransfer|       BlkGemm|     BlkGemm|ComputeTypeA|ComputeTypeB|  LDSTypeA|   LDSTypeB|
-    // ######|        |        |         |        |          |  DataType|          |  DataType|           |          |    DataType|                 |   Operation|   Operation|    Operation|         | Size|              |              |              |  Per|  Per|           Per|    |    | Per| Per| Per| Per| ThreadCluster| ThreadCluster|SrcAccessOrder|  SrcVectorDim|     SrcScalar|     DstScalar|LdsExtraM| ThreadCluster| ThreadCluster|SrcAccessOrder|     SrcVector|     SrcScalar|     DstScalar|LdsExtraN|      MXdl|      NXdl|       ClusterLengths|                 Scalar|     PipeSched| PipelineVer|            |            |          |           |
-    // ######|        |        |         |        |          |          |          |          |           |          |            |                 |            |            |             |         |     |              |              |              |Block|Block|         Block|    |    | XDL| XDL|Wave|Wave|       Lengths|  ArrangeOrder|              |              |     PerVector| PerVector_AK1|         |       Lengths|  ArrangeOrder|              |           Dim|     PerVector| PerVector_BK1|         |   PerWave|   PerWave|     MBlock_MPerBlock|             PerVectors|              |            |            |            |          |           |
-    // ######|        |        |         |        |          |          |          |          |           |          |            |                 |            |            |             |         |     |              |              |              |     |     |              |    |    |    |    |    |    |     AK0_M_AK1|              |              |              |              |              |         |     BK0_N_BK1|              |              |                             |              |         |PerShuffle|PerShuffle|     NBlock_NPerBlock|                       |              |            |            |            |          |           |
-             < ALayout, BLayout, DsLayout, ELayout, ADataType, XDataType, BDataType, XDataType, DsDataType, CDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp, GemmSpec,  256, Scale_Block_M, Scale_Block_N, Scale_Block_K,  128,  128,           128,  16,  16,  16,  16,   4,   4,   S<8, 32, 1>,    S<1, 0, 2>,    S<1, 0, 2>,             2,            16,            16,        0,   S<8, 32, 1>,    S<1, 0, 2>,    S<1, 0, 2>,             2,            16,            16,        0,         1,         2,       S<1, 32, 1, 8>,             S<8, 8, 1>, BlkGemmPSched, BlkGemmPVer,       float,       float, ADataType,  BDataType>;
+    using DeviceOpInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3
+    // ######| ALayout| BLayout| CLayout| ADataType| BDataType|         BScale| CDataType|     GemmAcc| CShuffleDataType|AElementwise|BElementwise| CElementwise| GemmSpec|Block|   ScaleBlockN|   ScaleBlockK|    M|    N|         K| AK1| BK1|   M|   N|MXdl|NXdl|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|   ABlock|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|   BBlock|  CShuffle|  CShuffle|CShuffleBlockTransfer|CShuffleBlockTransfer|       BlkGemm|     BlkGemm|ComputeTypeA|ComputeTypeB| PermuteA|   PermuteB|
+    // ######|        |        |        |          |          |       DataType|          |    DataType|                 |   Operation|   Operation|    Operation|         | Size|              |              |  Per|  Per|       Per|    |    | Per| Per| Per| Per| ThreadCluster| ThreadCluster|SrcAccessOrder|  SrcVectorDim|     SrcScalar|     DstScalar|LdsExtraM| ThreadCluster| ThreadCluster|SrcAccessOrder|     SrcVector|     SrcScalar|     DstScalar|LdsExtraN|      MXdl|      NXdl|       ClusterLengths|      ScalarPerVector|     PipeSched| PipelineVer|            |            |         |           |
+    // ######|        |        |        |          |          |               |          |            |                 |            |            |             |         |     |              |              |Block|Block|     Block|    |    | XDL| XDL|Wave|Wave|       Lengths|  ArrangeOrder|              |              |     PerVector| PerVector_AK1|         |       Lengths|  ArrangeOrder|              |           Dim|     PerVector| PerVector_BK1|         |   PerWave|   PerWave|     MBlock_MPerBlock|            NPerBlock|              |            |            |            |         |           |
+    // ######|        |        |        |          |          |               |          |            |                 |            |            |             |         |     |              |              |     |     |          |    |    |    |    |    |    |     AK0_M_AK1|              |              |              |              |              |         |     BK0_N_BK1|              |              |                             |              |         |PerShuffle|PerShuffle|     NBlock_NPerBlock|                     |              |            |            |            |         |           |
+             < ALayout, BLayout, CLayout, ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp,   CElementOp, GemmSpec,  256, Scale_Block_N, Scale_Block_K,  128,  128, KPerBlock,  16,  16,  32,  32,   2,   2,   S<4, 64, 1>,    S<1, 0, 2>,    S<1, 0, 2>,             2,            16,            16,        1,   S<4, 64, 1>,    S<0, 2, 1>,    S<0, 2, 1>,             1,             2,            16,        1,         1,         1,       S<1, 32, 1, 8>,                    8, BlkGemmPSched, BlkGemmPVer,   CDataType,   CDataType, PermuteA,   PermuteB>;
     // clang-format on
 
     auto M       = problem_size.M;
@@ -154,6 +165,7 @@ bool run_mx_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     auto StrideA = problem_size.StrideA;
     auto StrideB = problem_size.StrideB;
     auto StrideC = problem_size.StrideC;
+    auto KBatch  = problem_size.KBatch;
 
     auto f_host_tensor_descriptor =
         [](ck::index_t row, ck::index_t col, ck::index_t stride, auto layout) {
@@ -229,16 +241,16 @@ bool run_mx_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
         break;
     case 10: // Initializations for development and debugging
         ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.0f)}(a_m_k);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.25f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.25f)}(b_k_n);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.5f)}(b_k_n);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(b_k_n_scale);
         if(config.verbosity > 0)
         {
             std::cout << "Init A = {1}" << std::endl;
-            std::cout << "Init A scale = {0.25}" << std::endl;
-            std::cout << "Init B = {0.25}" << std::endl;
+            std::cout << "Init A scale = {1.0}" << std::endl;
+            std::cout << "Init B = {0.5}" << std::endl;
             std::cout << "Init B scale = {2.0}" << std::endl;
-            std::cout << "Expect C = {K*(0.25*0.5)}" << std::endl;
+            std::cout << "Expect C = {K}" << std::endl;
         }
         break;
 
@@ -266,31 +278,29 @@ bool run_mx_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     if(config.verbosity > 0)
         std::cout << "Done." << std::endl;
 
-    auto a_element_op   = AElementOp{};
-    auto b_element_op   = BElementOp{};
-    auto cde_element_op = CDEElementOp{};
+    auto a_element_op = AElementOp{};
+    auto b_element_op = BElementOp{};
+    auto c_element_op = CElementOp{};
 
-    constexpr ck::index_t NumDTensor = DsDataType::Size();
-
-    // do GEMM
+    // run GEMM
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
-    auto argument  = device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
-                                           b_device_buf.GetDeviceBuffer(),
-                                           std::array<const void*, NumDTensor>{},
-                                           c_device_buf.GetDeviceBuffer(),
-                                           M,
-                                           N,
-                                           K,
-                                           StrideA,
-                                           StrideB,
-                                           std::array<ck::index_t, NumDTensor>{},
-                                           StrideC,
-                                           a_scale_device_buf.GetDeviceBuffer(),
-                                           b_scale_device_buf.GetDeviceBuffer(),
-                                           a_element_op,
-                                           b_element_op,
-                                           cde_element_op);
+    auto argument =
+        device_op.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                               static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                               static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                               M,
+                               N,
+                               K,
+                               StrideA,
+                               StrideB,
+                               StrideC,
+                               Scale_Stride_BN,
+                               static_cast<XDataType*>(b_scale_device_buf.GetDeviceBuffer()),
+                               KBatch,
+                               a_element_op,
+                               b_element_op,
+                               c_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {
@@ -346,7 +356,7 @@ bool run_mx_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
         if(config.init_method == 10)
         {
-            auto expected = static_cast<float>(K) * (0.25f * 0.5f);
+            auto expected = static_cast<float>(K);
             auto computed = type_convert<float>(c_m_n_device_result(1, 12));
 
             res_verified = res_verified && std::abs(expected - computed) <= 0.0f;
@@ -393,13 +403,15 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout,
-          typename CElementWiseOp,
+          typename AElementOp,
+          typename BElementOp,
+          typename CElementOp,
           typename AccDataType,
           typename CShuffleDataType,
           ck::index_t MXVectorSize>
 bool run_mx_gemm_example(int argc, char* argv[])
 {
-    ProblemSize problem_size;
+    ProblemSizeSplitK problem_size;
     ExecutionConfig config;
 
     return parse_cmd_args(argc, argv, problem_size, config) &&
@@ -410,7 +422,9 @@ bool run_mx_gemm_example(int argc, char* argv[])
                        ALayout,
                        BLayout,
                        CLayout,
-                       CElementWiseOp,
+                       AElementOp,
+                       BElementOp,
+                       CElementOp,
                        AccDataType,
                        CShuffleDataType,
                        MXVectorSize>(problem_size, config);

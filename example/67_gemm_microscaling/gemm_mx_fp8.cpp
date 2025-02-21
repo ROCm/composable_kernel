@@ -7,13 +7,13 @@ using ADataType = ck::f8_t;
 using BDataType = ck::f8_t;
 #if 1
 // XXX: MX-native GEMM kernel will work with e8m0_bexp_t scale type
-using XDataType = float;
+using XDataType = ck::half_t;
 #else
 using XDataType = ck::e8m0_bexp_t;
 #endif
 using AccDataType      = float;
-using CShuffleDataType = float;
-#if 0
+using CShuffleDataType = ck::half_t;
+#if 1
 using CDataType = ck::half_t;
 #else
 using CDataType = float;
@@ -23,6 +23,8 @@ using ALayout = Row;
 using BLayout = Col;
 using CLayout = Row;
 
+using AElementOp = PassThrough; // elementwise transformation for A matrix
+using BElementOp = PassThrough; // elementwise transformation for B matrix
 using CElementOp = PassThrough; // elementwise transformation for C matrix
 
 constexpr ck::index_t mx_vector_size = 128; // scaling block size
@@ -36,6 +38,8 @@ int main(int argc, char* argv[])
                                ALayout,
                                BLayout,
                                CLayout,
+                               AElementOp,
+                               BElementOp,
                                CElementOp,
                                AccDataType,
                                CShuffleDataType,
