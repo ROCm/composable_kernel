@@ -33,11 +33,9 @@
 #include "ck/utility/thread_group.hpp"
 #include "ck/utility/debug.hpp"
 
-#if __clang_major__ >= 21
-#pragma message "Using Clang built-ins for buffer load/store"
-#include "amd_buffer_addressing_clang21.hpp"
+#if __clang_major__ >= 20
+#include "amd_buffer_addressing_builtins.hpp"
 #else
-#pragma message "Using intrinsics for buffer load/store"
 #include "amd_buffer_addressing.hpp"
 #endif
 #include "ck/utility/amd_wave_read_first_lane.hpp"

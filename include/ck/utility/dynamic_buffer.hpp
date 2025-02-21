@@ -7,11 +7,9 @@
 #include "ck/utility/data_type.hpp"
 #include "enable_if.hpp"
 #include "c_style_pointer_cast.hpp"
-#if __clang_major__ >= 21
-#pragma message "Using Clang built-ins for buffer load/store"
-#include "amd_buffer_addressing_clang21.hpp"
+#if __clang_major__ >= 20
+#include "amd_buffer_addressing_builtins.hpp"
 #else
-#pragma message "Using intrinsics for buffer load/store"
 #include "amd_buffer_addressing.hpp"
 #endif
 #include "generic_memory_space_atomic.hpp"
