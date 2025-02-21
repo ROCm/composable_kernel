@@ -87,11 +87,9 @@ static constexpr int32_t vectorSize(const VecT&)
 // - Rows are loaded in contiguous chunks that map to corresponding microscales
 // - Each row is loaded in chunks of size 16 and each thread loads 32 elements
 template <typename AType, typename AFragT, int32_t BLOCK_M, int32_t BLOCK_K>
-struct load_A_col_major
+__device__ AFragT load_A_col_major(AType const* input_ptr)
 {
-    __device__ AFragT operator()(AType const* input_ptr)
-    {
-        // clang-format off
+    // clang-format off
     // Register Mapping for 16x128:                                                        ||    Register Mapping for 32x64:
     // Size              |   BLOCK_M  |   BLOCK_M   |   BLOCK_M  |   BLOCK_M   |           ||    Size              |   BLOCK_M  |   BLOCK_M   |        |
     // M                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    M                 | 0  ...  31 |  0  ...  31 | Vector |
@@ -129,53 +127,52 @@ struct load_A_col_major
     // Reg 7 [8:15]      |     K77    |     K93     |     K109   |     K125    |  v[29]    ||    Reg 7 [8:15]      |     K45    |     K61     |  v[29] |
     // Reg 7 [16:23]     |     K78    |     K94     |     K110   |     K126    |  v[30]    ||    Reg 7 [16:23]     |     K46    |     K62     |  v[30] |
     // Reg 7 [24:31]     |     K79    |     K95     |     K111   |     K127    |  v[31]    ||    Reg 7 [24:31]     |     K47    |     K63     |  v[31] |
-        // clang-format on
+    // clang-format on
 
-        static constexpr int32_t WAVE_SIZE = 64;
+    static constexpr int32_t WAVE_SIZE = 64;
 
-        // Here we want to load from rows of A in chunks of 16 elements each.
-        static constexpr uint32_t chunk_size = 16;
+    // Here we want to load from rows of A in chunks of 16 elements each.
+    static constexpr uint32_t chunk_size = 16;
 
-        // each chunk is separated by offset
-        static constexpr uint32_t chunk_offset = chunk_size * WAVE_SIZE / BLOCK_M;
+    // each chunk is separated by offset
+    static constexpr uint32_t chunk_offset = chunk_size * WAVE_SIZE / BLOCK_M;
 
-        // To start the loading process, let's visualize in 2D coords.
-        // Each thread will load 32 elements.
-        // We need to know where they start, and where the next elements are.
-        auto startCoord2D =
-            std::make_pair(threadIdx.x % BLOCK_M,                 // Row {0-31}  |  {0-15}
-                           (threadIdx.x / BLOCK_M) * chunk_size); // Col {0, 16} |  {0, 16, 32, 48}
+    // To start the loading process, let's visualize in 2D coords.
+    // Each thread will load 32 elements.
+    // We need to know where they start, and where the next elements are.
+    auto startCoord2D =
+        std::make_pair(threadIdx.x % BLOCK_M,                 // Row {0-31}  |  {0-15}
+                       (threadIdx.x / BLOCK_M) * chunk_size); // Col {0, 16} |  {0, 16, 32, 48}
 
-        auto minorStepCoord2D = std::make_pair(0u, 1u);          // read rows
-        auto majorStepCoord2D = std::make_pair(0, chunk_offset); // read a chunk from a row
+    auto minorStepCoord2D = std::make_pair(0u, 1u);          // read rows
+    auto majorStepCoord2D = std::make_pair(0, chunk_offset); // read a chunk from a row
 
-        // Flatten to 1D col_major offsets.
-        auto col_major = [](auto const& coord, auto ld) { return coord.first + coord.second * ld; };
+    // Flatten to 1D col_major offsets.
+    auto col_major = [](auto const& coord, auto ld) { return coord.first + coord.second * ld; };
 
-        // BLOCK_M is a stride in A matrix
-        auto startOffset  = col_major(startCoord2D, BLOCK_M);
-        auto kMinorOffset = col_major(minorStepCoord2D, BLOCK_M);
-        auto kMajorOffset = col_major(majorStepCoord2D, BLOCK_M);
+    // BLOCK_M is a stride in A matrix
+    auto startOffset  = col_major(startCoord2D, BLOCK_M);
+    auto kMinorOffset = col_major(minorStepCoord2D, BLOCK_M);
+    auto kMajorOffset = col_major(majorStepCoord2D, BLOCK_M);
 
-        using ARawT        = typename scalar_type<AFragT>::type;
-        using AScalarFragT = vector_type<ARawT, vectorSize(AFragT{})>::type;
+    using ARawT        = typename scalar_type<AFragT>::type;
+    using AScalarFragT = vector_type<ARawT, vectorSize(AFragT{})>::type;
 
-        AScalarFragT fragA{};
+    AScalarFragT fragA{};
 
 #pragma unroll
-        for(int chunk = 0; chunk < 2; chunk++)
+    for(int chunk = 0; chunk < 2; chunk++)
+    {
+#pragma unroll
+        for(uint32_t i = 0; i < chunk_size; i++)
         {
-#pragma unroll
-            for(uint32_t i = 0; i < chunk_size; i++)
-            {
-                fragA[chunk * chunk_size + i] = bit_cast<ARawT>(
-                    input_ptr[startOffset + chunk * kMajorOffset + i * kMinorOffset]);
-            }
+            fragA[chunk * chunk_size + i] =
+                bit_cast<ARawT>(input_ptr[startOffset + chunk * kMajorOffset + i * kMinorOffset]);
         }
-
-        return fragA;
     }
-};
+
+    return fragA;
+}
 
 // Define a load function for input A blocks:
 // Size: (BLOCK_M x BLOCK_K)
@@ -183,11 +180,9 @@ struct load_A_col_major
 // - Rows are loaded in contiguous chunks that map to corresponding microscales
 // - Each row is loaded in chunks of size 16 and each thread loads 32 elements
 template <typename AType, typename AFragT, int32_t BLOCK_M, int32_t BLOCK_K>
-struct load_A_row_major
+__device__ AFragT load_A_row_major(AType const* input_ptr)
 {
-    __device__ AFragT operator()(AType const* input_ptr)
-    {
-        // clang-format off
+    // clang-format off
     // Register Mapping for 16x128:                                                        ||    Register Mapping for 32x64:
     // Size              |   BLOCK_M  |   BLOCK_M   |   BLOCK_M  |   BLOCK_M   |           ||    Size              |   BLOCK_M  |   BLOCK_M   |        |
     // M                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    M                 | 0  ...  31 |  0  ...  31 | Vector |
@@ -225,51 +220,50 @@ struct load_A_row_major
     // Reg 7 [8:15]      |     K77    |     K93     |     K109   |     K125    |  v[29]    ||    Reg 7 [8:15]      |     K45    |     K61     |  v[29] |
     // Reg 7 [16:23]     |     K78    |     K94     |     K110   |     K126    |  v[30]    ||    Reg 7 [16:23]     |     K46    |     K62     |  v[30] |
     // Reg 7 [24:31]     |     K79    |     K95     |     K111   |     K127    |  v[31]    ||    Reg 7 [24:31]     |     K47    |     K63     |  v[31] |
-        // clang-format on
+    // clang-format on
 
-        static constexpr int32_t WAVE_SIZE = 64;
+    static constexpr int32_t WAVE_SIZE = 64;
 
-        // Here we want to load from rows of A in chunks of 16 elements each.
-        static constexpr uint32_t chunk_size = 16;
+    // Here we want to load from rows of A in chunks of 16 elements each.
+    static constexpr uint32_t chunk_size = 16;
 
-        // each chunk is separated by offset
-        static constexpr uint32_t chunk_offset = chunk_size * WAVE_SIZE / BLOCK_M;
+    // each chunk is separated by offset
+    static constexpr uint32_t chunk_offset = chunk_size * WAVE_SIZE / BLOCK_M;
 
-        // To start the loading process, let's visualize in 2D coords.
-        // Each thread will load 32 elements.
-        // We need to know where they start, and where the next elements are.
-        auto startCoord2D =
-            std::make_pair(threadIdx.x % BLOCK_M,                 // Row {0-31}  |  {0-15}
-                           (threadIdx.x / BLOCK_M) * chunk_size); // Col {0, 16} |  {0, 16, 32, 48}
+    // To start the loading process, let's visualize in 2D coords.
+    // Each thread will load 32 elements.
+    // We need to know where they start, and where the next elements are.
+    auto startCoord2D =
+        std::make_pair(threadIdx.x % BLOCK_M,                 // Row {0-31}  |  {0-15}
+                       (threadIdx.x / BLOCK_M) * chunk_size); // Col {0, 16} |  {0, 16, 32, 48}
 
-        // auto minorStepCoord2D = std::make_pair(0u, 1u);          // read rows
-        auto majorStepCoord2D = std::make_pair(0, chunk_offset); // read a chunk from a row
+    // auto minorStepCoord2D = std::make_pair(0u, 1u);          // read rows
+    auto majorStepCoord2D = std::make_pair(0, chunk_offset); // read a chunk from a row
 
-        // Flatten to 1D row_major offsets.
-        auto row_major = [](auto const& coord, auto ld) { return coord.first * ld + coord.second; };
+    // Flatten to 1D row_major offsets.
+    auto row_major = [](auto const& coord, auto ld) { return coord.first * ld + coord.second; };
 
-        // BLOCK_K is a stride in A matrix
-        auto startOffset = row_major(startCoord2D, BLOCK_K);
-        // auto kMinorOffset = row_major(minorStepCoord2D, BLOCK_K);
-        auto kMajorOffset = row_major(majorStepCoord2D, BLOCK_K);
+    // BLOCK_K is a stride in A matrix
+    auto startOffset = row_major(startCoord2D, BLOCK_K);
+    // auto kMinorOffset = row_major(minorStepCoord2D, BLOCK_K);
+    auto kMajorOffset = row_major(majorStepCoord2D, BLOCK_K);
 
-        using ARawT        = typename scalar_type<AFragT>::type;
-        using AScalarFragT = vector_type<ARawT, chunk_size>::type;
+    using ARawT        = typename scalar_type<AFragT>::type;
+    using AScalarFragT = vector_type<ARawT, chunk_size>::type;
 
-        union
-        {
-            AFragT frag;
-            AScalarFragT chunks[2];
-        } fragA{};
+    union
+    {
+        AFragT frag;
+        AScalarFragT chunks[2];
+    } fragA{};
 
-        auto* fragPtr   = reinterpret_cast<AScalarFragT const*>(input_ptr + startOffset);
-        fragA.chunks[0] = *fragPtr;
-        fragPtr = reinterpret_cast<AScalarFragT const*>(input_ptr + startOffset + kMajorOffset);
-        fragA.chunks[1] = *fragPtr;
+    auto* fragPtr   = reinterpret_cast<AScalarFragT const*>(input_ptr + startOffset);
+    fragA.chunks[0] = *fragPtr;
+    fragPtr         = reinterpret_cast<AScalarFragT const*>(input_ptr + startOffset + kMajorOffset);
+    fragA.chunks[1] = *fragPtr;
 
-        return fragA.frag;
-    }
-};
+    return fragA.frag;
+}
 
 // Define a load function for scaled A blocks:
 // Size: (BLOCK_M x BLOCK_K)
@@ -343,7 +337,7 @@ __device__ AFragT load_mx_A_row_major(AType const* input_ptr,
     // obtain 8-bit exponent
     fragX = utils::get_exponent_value(scale_ptr[startOffset]) & 0xFF;
 
-    return load_A_row_major<AType, AFragT, BLOCK_M, BLOCK_K>{}(input_ptr);
+    return load_A_row_major<AType, AFragT, BLOCK_M, BLOCK_K>(input_ptr);
 }
 
 // Define a load function for input B blocks:
@@ -773,7 +767,7 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
 
     // Load the inputs.
     // A = col major, BLOCK_M x BLOCK_K
-    fragA = load_A_col_major<AType, AFragT, BLOCK_M, BLOCK_K>{}(a);
+    fragA = load_A_col_major<AType, AFragT, BLOCK_M, BLOCK_K>(a);
     // B = col major, BLOCK_K x BLOCK_N
     fragB = load_B_col_major<BType, BFragT, BLOCK_K, BLOCK_N>(b);
 
