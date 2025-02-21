@@ -46,7 +46,6 @@ rocm_install_targets(
     TARGETS ck_host ck_headers
     EXPORT ck_host_targets
     INCLUDE include
-    PRIVATE
 )
 rocm_export_targets(
     EXPORT ck_host_targets
