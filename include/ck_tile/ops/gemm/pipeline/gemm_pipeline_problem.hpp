@@ -13,14 +13,16 @@ template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
-          typename Traits_>
+          typename Traits_,
+          typename ComputeDataType_ = ADataType_>
 struct GemmPipelineProblemBase
 {
     using Traits = remove_cvref_t<Traits_>;
 
-    using ADataType = remove_cvref_t<ADataType_>;
-    using BDataType = remove_cvref_t<BDataType_>;
-    using CDataType = remove_cvref_t<CDataType_>;
+    using ADataType       = remove_cvref_t<ADataType_>;
+    using BDataType       = remove_cvref_t<BDataType_>;
+    using CDataType       = remove_cvref_t<CDataType_>;
+    using ComputeDataType = remove_cvref_t<ComputeDataType_>;
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
@@ -53,13 +55,15 @@ struct GemmPipelineProblemBase
 
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
     {
+        constexpr index_t PackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t pixels_per_thread =
                 BlockGemmShape::kM * BlockGemmShape::kK / kBlockSize;
-            return pixels_per_thread < VectorLoadSize / sizeof(ADataType)
+            return pixels_per_thread < PackedSize * VectorLoadSize / sizeof(ADataType)
                        ? pixels_per_thread
-                       : VectorLoadSize / sizeof(ADataType);
+                       : PackedSize * VectorLoadSize / sizeof(ADataType);
         }
         else
         {
@@ -69,17 +73,19 @@ struct GemmPipelineProblemBase
 
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentB()
     {
+        constexpr index_t PackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             constexpr index_t pixels_per_thread =
                 BlockGemmShape::kN * BlockGemmShape::kK / kBlockSize;
-            return pixels_per_thread < VectorLoadSize / sizeof(BDataType)
+            return pixels_per_thread < PackedSize * VectorLoadSize / sizeof(BDataType)
                        ? pixels_per_thread
-                       : VectorLoadSize / sizeof(BDataType);
+                       : PackedSize * VectorLoadSize / sizeof(BDataType);
         }
         else
         {
-            return VectorLoadSize / sizeof(BDataType);
+            return PackedSize * VectorLoadSize / sizeof(BDataType);
         }
     }
 
@@ -143,9 +149,14 @@ template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
-          typename Traits_>
-using GemmPipelineProblem =
-    GemmPipelineProblemBase<ADataType_, BDataType_, CDataType_, BlockGemmShape_, Traits_>;
+          typename Traits_,
+          typename ComputeDataType_ = ADataType_>
+using GemmPipelineProblem = GemmPipelineProblemBase<ADataType_,
+                                                    BDataType_,
+                                                    CDataType_,
+                                                    BlockGemmShape_,
+                                                    Traits_,
+                                                    ComputeDataType_>;
 
 template <typename ADataType_,
           typename BDataType_,
@@ -154,14 +165,16 @@ template <typename ADataType_,
           typename Traits_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
-          TailNumber TailNum_              = TailNumber::Full>
+          TailNumber TailNum_              = TailNumber::Full,
+          typename ComputeDataType_        = ADataType_>
 struct UniversalGemmPipelineProblem
 {
     using Traits = remove_cvref_t<Traits_>;
 
-    using ADataType = remove_cvref_t<ADataType_>;
-    using BDataType = remove_cvref_t<BDataType_>;
-    using CDataType = remove_cvref_t<CDataType_>;
+    using ADataType       = remove_cvref_t<ADataType_>;
+    using BDataType       = remove_cvref_t<BDataType_>;
+    using CDataType       = remove_cvref_t<CDataType_>;
+    using ComputeDataType = remove_cvref_t<ComputeDataType_>;
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
