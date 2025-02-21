@@ -714,20 +714,16 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                     if not cond:
                         continue
                 # Aiter(mha_varlen_fwd) integration
-                elif receipt == 11:
+                elif receipt in (200, 201, 202):
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
                     cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_bias in ['no', 'alibi']
-                    cond &= pipeline.F_squant == 'f'
-                    if not cond:
-                        continue
-                # Aiter(mha_fwd_kvcache) integration
-                elif receipt == 12:
-                    cond = dtype in ['fp16', 'bf16']
-                    cond &= mode == "batch"
-                    cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_bias in ['no', 'alibi']
+                    if receipt == 200:
+                        cond &= pipeline.F_bias == 'no'
+                    elif receipt == 201:
+                        cond &= pipeline.F_bias == 'bias'
+                    elif receipt == 202:
+                        cond &= pipeline.F_bias == 'alibi'
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
@@ -782,6 +778,12 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt) -> Lis
                            F_pipeline=pipeline)
                 if kernel_filter != None:
                     if not fnmatch.fnmatch(k.name, kernel_filter):
+                        continue
+                # Aiter(mha_varlen_fwd) integration
+                if receipt in (200, 201, 202):
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode == "group"
+                    if not cond:
                         continue
                 gen.append(k)
 

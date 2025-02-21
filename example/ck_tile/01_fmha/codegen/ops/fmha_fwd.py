@@ -504,20 +504,30 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                     if not cond:
                         continue
                 # Aiter(mha_fwd) integration
-                elif receipt == 10:
+                elif receipt in (100, 101, 102):
                     cond = dtype in ['fp16', 'bf16']
-                    cond &= mode == "batch"
+                    cond &= mode == 'batch'
                     cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_bias in ['no', 'alibi']
+                    if receipt == 100:
+                        cond &= pipeline.F_bias == 'no'
+                    elif receipt == 101:
+                        cond &= pipeline.F_bias == 'bias'
+                    elif receipt == 102:
+                        cond &= pipeline.F_bias == 'alibi'
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
                 # Aiter(mha_varlen_fwd) integration
-                elif receipt == 11:
+                elif receipt in (200, 201, 202):
                     cond = dtype in ['fp16', 'bf16']
-                    cond &= mode == "group"
+                    cond &= mode == 'group'
                     cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_bias in ['no', 'alibi']
+                    if receipt == 200:
+                        cond &= pipeline.F_bias == 'no'
+                    elif receipt == 201:
+                        cond &= pipeline.F_bias == 'bias'
+                    elif receipt == 202:
+                        cond &= pipeline.F_bias == 'alibi'
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
