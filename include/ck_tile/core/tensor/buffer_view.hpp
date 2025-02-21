@@ -5,7 +5,13 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
+#if __clang_major__ >= 21
+#pragma message "Using Clang built-ins for buffer load/store"
+#include "ck_tile/core/arch/amd_buffer_addressing_clang21.hpp"
+#else
+#pragma message "Using intrinsics for buffer load/store"
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
+#endif
 #include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
 #include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
