@@ -23,11 +23,72 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include <ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp>
+
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r4r2.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
+
+template <typename GridwiseGemm,
+          typename GemmDesc,
+          bool HasMainKBlockLoop,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+          typename AElementwiseOperation = ck::tensor_operation::element_wise::PassThrough,
+          typename BElementwiseOperation = ck::tensor_operation::element_wise::PassThrough,
+          typename CElementwiseOperation = ck::tensor_operation::element_wise::PassThrough>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_grouped_gemm_multiple_d_xdl_splitk(
+            const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+            const index_t group_count,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op)
+{
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+    constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
+    __shared__ uint8_t p_shared[shared_size];
+
+    const index_t block_id = get_block_1d_id();
+    const auto gemm_desc_ptr =
+        reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
+
+    index_t left     = 0;
+    index_t right    = group_count;
+    index_t group_id = index_t((left + right) / 2);
+    while((!(block_id >= gemm_desc_ptr[group_id].block_start_ &&
+             block_id < gemm_desc_ptr[group_id].block_end_)) &&
+          left <= right)
+    {
+        if(block_id < gemm_desc_ptr[group_id].block_start_)
+        {
+            right = group_id;
+        }
+        else
+        {
+            left = group_id;
+        }
+        group_id = index_t((left + right) / 2);
+    }
+
+    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
+        gemm_desc_ptr[group_id].karg_,
+        static_cast<void*>(p_shared),
+        gemm_desc_ptr[group_id].block_2_ctile_map_,
+        a_element_op,
+        b_element_op,
+        c_element_op);
+#else
+    ignore = gemm_descs_const;
+    ignore = group_count;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+#endif // end of if (defined(__gfx9__))
+}
 
 template <typename ALayout,
           typename BLayout,
@@ -727,20 +788,14 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                              void* dev_gemm_workspace,
                              const StreamConfig& stream_config) const
         {
-            constexpr index_t minimum_occupancy = 1;
             const auto gemm_kernel =
-                // kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
-                //                                GemmTransKernelArg,
-                //                                HasMainKBlockLoop,
-                //                                InMemoryDataOperationEnum::AtomicAdd,
-                //                                AElementwiseOperation,
-                //                                BElementwiseOperation,
-                //                                PassThrough>;
-                kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
-                                               GemmTransKernelArg,
-                                               HasMainKBlockLoop,
-                                               InMemoryDataOperationEnum::AtomicAdd,
-                                               minimum_occupancy>;
+                kernel_grouped_gemm_multiple_d_xdl_splitk<GridwiseGemm,
+                                                          GemmTransKernelArg,
+                                                          HasMainKBlockLoop,
+                                                          InMemoryDataOperationEnum::AtomicAdd,
+                                                          AElementwiseOperation,
+                                                          BElementwiseOperation,
+                                                          PassThrough>;
 
             const auto elementwise_kernel = kernel_elementwise<GridwiseElementwise,
                                                                CDGridDesc_M_N,
