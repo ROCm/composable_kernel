@@ -120,7 +120,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     static constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization::Default;
     static constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;
-    static constexpr auto BlkGemmPVer   = ck::BlockGemmPipelineVersion::v3;
+    static constexpr auto BlkGemmPVer =
+        ck::BlockGemmPipelineVersion::v1; // can be v3 when the compiler bug is fixed.
 
     static constexpr bool PermuteA = false;
     static constexpr bool PermuteB = false;
@@ -328,7 +329,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                                                                                   BDataType,
                                                                                   CDataType,
                                                                                   AccDataType,
-                                                                                  float,
+                                                                                  XDataType,
                                                                                   PassThrough,
                                                                                   PassThrough,
                                                                                   PassThrough,
