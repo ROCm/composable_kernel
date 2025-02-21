@@ -191,17 +191,6 @@ struct BlockFmhaPipelineQRKSVSAsync
             },
             number<Policy::NumPrefetchK>{});
 
-#if K_LDS_LOAD_USE_OFFSET_TRANSFORM
-        auto k_lds_load = generate_tuple(
-            [&](auto i_buf) {
-                return make_tile_window(
-                    make_tensor_view<address_space_enum::lds>(
-                        k_lds_ptr, Policy::template MakeKLdsLoadBlockDescriptor<Problem>(i_buf)),
-                    Policy::template MakeKLdsLoadBlockDescriptor<Problem>(i_buf).get_lengths(),
-                    {0, 0});
-            },
-            number<Policy::NumPrefetchK>{});
-#else
         auto k_lds_Load_view = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsLoadBlockDescriptor<Problem>());
 
@@ -209,7 +198,6 @@ struct BlockFmhaPipelineQRKSVSAsync
             make_tile_window(k_lds_Load_view,
                              Policy::template MakeKLdsLoadBlockDescriptor<Problem>().get_lengths(),
                              {0, 0});
-#endif
 
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
@@ -368,14 +356,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                     gemm_0(s_acc,
                            get_slice_tile(
                                q, sequence<0, i_k0 * kK0>{}, sequence<kM0, (i_k0 + 1) * kK0>{}),
-#if K_LDS_LOAD_USE_OFFSET_TRANSFORM
-                           k_lds_load[number<LdsSeq.at(number<i_k0>{})>{}]);
-
-#else
                            get_slice_tile(k_lds_load,
                                           sequence<(LdsSeq.at(number<i_k0>{})) * kN0, 0>{},
                                           sequence<(LdsSeq.at(number<i_k0>{}) + 1) * kN0, kK0>{}));
-#endif
                 });
             }
 
@@ -391,18 +374,13 @@ struct BlockFmhaPipelineQRKSVSAsync
             auto v_buf           = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
             __builtin_amdgcn_sched_barrier(0);
             { // tail
-                gemm_0(s_acc,
-                       get_slice_tile(
-                           q, sequence<0, (k0_loops - 1) * kK0>{}, sequence<kM0, k0_loops * kK0>{}),
-#if K_LDS_LOAD_USE_OFFSET_TRANSFORM
-                       k_lds_load[number<LdsSeq.at(number<k0_loops - 1>{})>{}]);
-
-#else
-                       get_slice_tile(
-                           k_lds_load,
-                           sequence<(LdsSeq.at(number<k0_loops - 1>{})) * kN0, 0>{},
-                           sequence<(LdsSeq.at(number<k0_loops - 1>{}) + 1) * kN0, kK0>{}));
-#endif
+                gemm_0(
+                    s_acc,
+                    get_slice_tile(
+                        q, sequence<0, (k0_loops - 1) * kK0>{}, sequence<kM0, k0_loops * kK0>{}),
+                    get_slice_tile(k_lds_load,
+                                   sequence<(LdsSeq.at(number<k0_loops - 1>{})) * kN0, 0>{},
+                                   sequence<(LdsSeq.at(number<k0_loops - 1>{}) + 1) * kN0, kK0>{}));
             }
             __builtin_amdgcn_sched_barrier(1);
 
