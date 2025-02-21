@@ -734,6 +734,7 @@ inline __host__ __device__ f4x2_t f4_convert_rne(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
+    // permute high bits and low bits to match the order of the original vector
     value.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(value.bitwise, x[1], x[0], scale, 0);
     return value.f4x2_array[0];
 #else
@@ -824,34 +825,7 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    printf("%f, %f\n", x[0], x[1]);
-    value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        value.bitwise, float2_t{x[1], x[0]}, rng, scale, 0);
-    return value.f4x2_array[0];
-#else
-    union
-    {
-        uint32_t bitwise;
-        f4x2_t f4x2_array[4];
-    } value{0};
-    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
-    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
-    value.bitwise = (h << 4) | l;
-    return value.f4x2_array[0];
-#endif
-}
-
-// convert vector of 2 fp32 to vector of 2 fp4 with sr
-inline __host__ __device__ f4x2_t f4_convert_sr_repro(float2_t x, float scale = 1.0f)
-{
-    constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
-#if defined(__gfx950__)
-    union
-    {
-        uint32_t bitwise;
-        f4x2_t f4x2_array[4];
-    } value{0};
+    // permute high bits and low bits to match the order of the original vector
     value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
         value.bitwise, float2_t{x[1], x[0]}, rng, scale, 0);
     return value.f4x2_array[0];
@@ -981,13 +955,15 @@ inline __host__ __device__ float2_t type_convert<float2_t, f4x2_t>(f4x2_t x)
     } value{};
     value.f4x2_array[0] = x;
     float scale         = 1.0f;
-    return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, scale, 0);
+    float2_t tmp        = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, scale, 0);
+    // permute high bits and low bits to match the order of the original vector
+    return float2_t{tmp[1], tmp[0]};
 #else
     float2_t ret{
         utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                              x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{})),
+                              x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{})),
         utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                              x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}))};
+                              x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}))};
     return ret;
 #endif
 }
