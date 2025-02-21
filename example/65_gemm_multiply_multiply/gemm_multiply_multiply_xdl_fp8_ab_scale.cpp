@@ -182,12 +182,18 @@ int main(int argc, char* argv[])
         b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
     case 4:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        // a1_m_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         // b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        break;
+    case 5:
+        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        // b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
@@ -241,11 +247,13 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 20, 50});
-
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =
         sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(EDataType) * M * N;
+
+    int rotating_buf = (512*1024*1024 + num_btype-1)/num_btype;
+
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 0, 50, 100, true, rotating_buf});
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 

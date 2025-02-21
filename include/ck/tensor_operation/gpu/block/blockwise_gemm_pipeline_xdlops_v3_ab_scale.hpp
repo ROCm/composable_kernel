@@ -193,7 +193,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
             (num_ds_read_inst_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
         constexpr auto num_dsread_b_mfma =
             (num_ds_read_inst_b + ds_read_b_mfma_rate - 1) / ds_read_b_mfma_rate;
-
+        
         // stage 1
         // Separate this part?
         // constexpr auto num_mfma_per_ds_read = sizeof(ComputeDataType) / sizeof(ADataType) >
@@ -370,7 +370,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                                 make_tuple(I0, I0),
                                 b_scale_thread_buf);
 
-        // a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc, a_scale_thread_copy_step);
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -414,6 +413,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                                 b_scale_thread_desc,
                                 make_tuple(I0, I0),
                                 b_scale_thread_buf);
+            
+        b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
 
         // Initialize C
         c_thread_buf.Clear();

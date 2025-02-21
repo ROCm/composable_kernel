@@ -225,7 +225,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
     }
 
-    __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
+    __host__ __device__  static auto MakeAGridDescriptor_AK0_M_AK1(
         index_t M, index_t MPad, index_t K, index_t KPad, index_t StrideA, index_t AK0)
     {
         const auto a_grid_desc_mraw_kraw = [&]() {
@@ -307,7 +307,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         }
     }
 
-    __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
+    __host__ __device__  static auto MakeBGridDescriptor_BK0_N_BK1(
         index_t K, index_t KPad, index_t N, index_t NPad, index_t StrideB, index_t BK0)
     {
         const auto b_grid_desc_nraw_kraw = [&]() {
@@ -422,6 +422,13 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             }
         }();
 
+        // pad M and N
+        return transform_tensor_descriptor(c_grid_desc_mraw_nraw,
+                                           make_tuple(make_right_pad_transform(M, MPad - M),
+                                                      make_right_pad_transform(N, NPad - N)),
+                                           make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                           make_tuple(Sequence<0>{}, Sequence<1>{}));
+#if 0
         using GemmSpecialization = tensor_operation::device::GemmSpecialization;
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding ||
@@ -459,6 +466,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             // not pad M or N
             return c_grid_desc_mraw_nraw;
         }
+#endif
     }
 
     __host__ __device__ static auto MakeDsGridDescriptor_M_N(
@@ -1324,8 +1332,6 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
         auto a_thread_offset =
             get_thread_local_1d_id() % MPerXdl + (get_thread_local_1d_id() / 64) / NWaves * MPerXdl;
-        // auto a_thread_offset = get_thread_local_1d_id() % MPerXdl + (get_thread_local_1d_id() /
-        // 128) * MPerXdl;
 
         constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
