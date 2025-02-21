@@ -7,6 +7,7 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -20,6 +21,13 @@ struct BaseGemmPipelineAgBgCrMem
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
+    static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
+
+    static constexpr index_t APackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+    static constexpr index_t BPackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
@@ -32,9 +40,11 @@ struct BaseGemmPipelineAgBgCrMem
 
     static constexpr index_t WgpPerCU =
         (4 * get_warp_size() / BlockSize) >= 1 ? 4 * get_warp_size() / BlockSize : 1;
-    static constexpr index_t FullMemBandPrefetchStages = integer_divide_ceil(
-        MinMemInFlyBytes / WgpPerCU,
-        (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);
+    static constexpr index_t FullMemBandPrefetchStages =
+        integer_divide_ceil(MinMemInFlyBytes / WgpPerCU,
+                            (MPerBlock * sizeof(ADataType) / APackedSize +
+                             NPerBlock * sizeof(BDataType) / BPackedSize) *
+                                KPerBlock);
     static constexpr index_t PrefetchStages =
         FullMemBandPrefetchStages >= 2
             ? FullMemBandPrefetchStages <= 8 ? FullMemBandPrefetchStages : 8
@@ -123,10 +133,22 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
+    static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
+
     // Where is the right place for HasHotLoop and TailNum ???
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "pipeline_AgBgCrMe",
+                      concat('x', MPerBlock, NPerBlock, KPerBlock),
+                      concat('x', GetVectorSizeA(), GetVectorSizeB(), GetVectorSizeC()),
+                      concat('x', kPadM, kPadN, kPadK));
+        // clang-format on
+    }
 
     using Base::PrefetchStages;
 
