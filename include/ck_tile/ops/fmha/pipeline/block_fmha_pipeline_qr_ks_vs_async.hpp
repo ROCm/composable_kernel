@@ -189,7 +189,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     Policy::template MakeKLdsStoreBlockDescriptor<Problem>(i_buf).get_lengths(),
                     {0, 0, 0});
             },
-            number<Policy::NumPrefetchK>{});
+            number<Policy::NumKVLdsBuffers>{});
 
         auto k_lds_Load_view = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsLoadBlockDescriptor<Problem>());
