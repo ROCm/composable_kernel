@@ -401,8 +401,7 @@ inline __host__ __device__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m
     {
         f4x32_t f4x32_array;
         f4x2_t fp4x2[16];
-    } value{};
-    value.f4x32_array = x;
+    } value{x};
     float2_t op;
     float32_t ret;
     float f_scale = type_convert<float>(scale);
