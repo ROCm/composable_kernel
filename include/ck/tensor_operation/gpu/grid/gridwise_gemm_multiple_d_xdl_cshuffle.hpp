@@ -473,7 +473,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
     }
 
-#ifdef CK_CODE_GEN_RTC
+#if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
     template <typename DsLayout, GemmSpecialization GemmSpec>
     __host__ __device__ static auto
     MakeDsGridDescriptor_M_N(const ck::Array<index_t, NumDTensor>& MRaws,
@@ -486,6 +486,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                              const std::array<index_t, NumDTensor>& NRaws,
                              const std::array<index_t, NumDTensor>& DsStride)
 #endif
+
     {
         return generate_tuple(
             [&](auto i) {
@@ -949,7 +950,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const index_t K,
                                const index_t StrideA,
                                const index_t StrideB,
-#ifdef CK_CODE_GEN_RTC
+#if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
                                const ck::Array<index_t, NumDTensor> StrideDs,
 #else
                                const std::array<index_t, NumDTensor> StrideDs,
