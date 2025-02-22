@@ -23,6 +23,13 @@ def get_if_str(idx, total, lase_else = True):
         else:
             return 'else if'
 
+
+DATA_TYPE_MAP = {'fp32' : 'float',
+                 'fp16' : 'ck_tile::fp16_t',
+                 'bf16' : 'ck_tile::bf16_t',
+                 'int8' : 'ck_tile::int8_t',
+                 'fp8'  : 'ck_tile::fp8_t'}
+
 def BOOL_MAP(b_) -> str:
     if b_:
         return 'true'
@@ -30,6 +37,13 @@ def BOOL_MAP(b_) -> str:
         return 'false'
 
 class gemm_instance_codegen:
+
+    GEMM_KERNEL_RUN_BASE = """
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+"""
+
     @dataclass
     class datatype_configuration:
         F_ADataType: str
@@ -41,6 +55,10 @@ class gemm_instance_codegen:
     class gemm_traits:
         F_kPadM: bool
         F_kPadN: bool
+        F_kPadK: bool
+        F_A_Layout: str
+        F_B_Layout: str
+        F_C_Layout: str
 
 
     @dataclass
@@ -59,5 +77,28 @@ class gemm_instance_codegen:
         self.kernel_filter = kernel_filter
     def content_api(self, args) -> str:
 
-    def get_blobs(self, args):
+    def gen_blobs(self, args) -> None:
+        w_p = Path(self.working_path)
+        w_str = self.content_api(args)
+        (w_p / (self.name_api + ".cpp")).write_text(w_str)
         
+def gen_blobs(args):
+    api_list = args.api.split(',')
+    for api in api_list:
+        if api == 'single':
+            gemm_instance_codegen(args.working_path, args.filter).gen_blobs(args)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        prog="generate",
+        description="gen API for CK gemm kernel",
+    )
+    parser.add_argument(
+        "-a",
+        "--api",
+        default='single_instance',
+        required=False,
+        help="supply API(s) to generate (default: single_instance). separated by comma."
+    )
+
+    args = parser.parse_args()
