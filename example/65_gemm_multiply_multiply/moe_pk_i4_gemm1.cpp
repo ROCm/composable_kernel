@@ -64,7 +64,7 @@ struct MulABScale
                                                                             const float& d0,
                                                                             const float& d1) const
     {
-        e = ck::type_convert<EDataType>(c * d1 * d0);
+        e = ck::type_convert<EDataType>(c * d1 * d0 * 16);
     }
 };
 
@@ -85,7 +85,7 @@ struct MulABScaleSilu
         // act
         float x0 = 0;
         ck::tensor_operation::element_wise::Silu{}(x0, c * d1 * d0);
-        e = ck::type_convert<EDataType>(x0);
+        e = ck::type_convert<EDataType>(x0 * 16);
     }
 };
 
@@ -174,7 +174,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
             S<2, 128, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
             4,    1,   S<1, 32, 1, 8>, S<4, 1, 1>,
-            ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, Nswizzle, true, A0DataType>;
+            ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, A0DataType>;
 // clang-format on
 #endif
 
@@ -307,8 +307,8 @@ int main(int argc, char* argv[])
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
     a0_t_k.savetxt("a.txt");
-    d0_t_n.savetxt("d0_t_n.txt", "int");
-    d1_e_n.savetxt("d1_e_n.txt", "int");
+    d0_t_n.savetxt("d0_t_n.txt", "float");
+    d1_e_n.savetxt("d1_e_n.txt", "float");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     max_token_id_dev.ToDevice(max_token_id.mData.data());
@@ -503,6 +503,21 @@ int main(int argc, char* argv[])
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
         e_t_n_device_result.savetxt("out.txt");
         e_t_n_host_result.savetxt("ref.txt");
+
+#if 1
+        printf("b0_e_n_k\n");
+        for(int e = 0; e < experts; e++)
+        {
+            for(int i = 0; i < N; i++)
+            {
+                for(int j = 0; j < K; j++)
+                {
+                    printf("b0_e_n_k(%d, %d, %d) = 0x%x\n", e, i, j, b0_e_n_k(e, j, i).data);
+                }
+            }
+        }
+#endif
+
         return ck::utils::check_err(
                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
                    ? 0

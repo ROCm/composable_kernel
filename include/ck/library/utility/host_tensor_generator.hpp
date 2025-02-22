@@ -22,7 +22,7 @@ struct GeneratorTensor_0
 template <typename T>
 struct GeneratorTensor_1
 {
-    T value = 1;
+    T value = 0.01;
 
     template <typename... Is>
     T operator()(Is...)
@@ -96,13 +96,13 @@ struct GeneratorTensor_1<int8_t>
 template <>
 struct GeneratorTensor_1<ck::pk_i4_t>
 {
-    int8_t value = 1;
+    int8_t value = -1;
 
     template <typename... Is>
     ck::pk_i4_t operator()(Is...)
     {
-        int t         = value + 8;
-        ck::pk_i4_t r = ((t << 4) + t) & 0xff;
+        int t         = value;
+        ck::pk_i4_t r = ((t << 4) | t) & 0xff;
         return r;
     }
 };
