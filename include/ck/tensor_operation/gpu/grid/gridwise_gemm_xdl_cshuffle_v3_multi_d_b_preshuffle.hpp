@@ -351,10 +351,32 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack>{};
-        return make_naive_tensor_descriptor(
-            make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
-            make_tuple(NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
+        // using GemmSpecialization = tensor_operation::device::GemmSpecialization;
+        //if K padding
+        // if constexpr(GemmSpec == GemmSpecialization::KPadding ||
+        //              GemmSpec == GemmSpecialization::NKPadding)
+        {
+            // origin: [N0,K0,KLane,NLane,KPack]
+            // const auto b_grid_desc_raw = make_naive_tensor_descriptor(
+            //     make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
+            //     make_tuple(
+            //         NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
+            // const auto b_grid_desc_n_k =
+            //                              transform_tensor_descriptor(b_grid_desc_nraw_kraw,
+            //                                                          make_tuple(make_pass_through_transform(N),
+            //                                                                     make_right_pad_transform(K, KPad - K)),
+            //                                                          make_tuple(Sequence<0>{}, Sequence<1>{}),
+            //                                                          make_tuple(Sequence<0>{}, Sequence<1>{}));
+            // ignore = b_grid_desc_n_k;
+        }
+        // else
+        {
+            constexpr index_t NkSwizzleNumber = Number<warpSize * KPack>{};
+            return make_naive_tensor_descriptor(
+                make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
+                make_tuple(
+                    NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
+        }
     }
 
     __host__ __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
