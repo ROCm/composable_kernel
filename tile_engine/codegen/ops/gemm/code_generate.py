@@ -96,9 +96,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-a",
         "--api",
-        default='single_instance',
+        default='singlee',
         required=False,
-        help="supply API(s) to generate (default: single_instance). separated by comma."
+        help="supply API(s) to generate (default: single). separated by comma."
     )
 
     args = parser.parse_args()
