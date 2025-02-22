@@ -86,6 +86,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
         // loop over space-filling curve
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
 
+        
         static_for<0, num_access, 1>{}([&](auto idx_1d) {
             using src_vector_type = vector_type_maker_t<SrcData, ScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
@@ -102,6 +103,41 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
 
             auto dst_vector_container = dst_vector_type{};
 
+#if 1
+                        // Emin @debug
+                        if (threadIdx.x == 0 && threadIdx.y == 0 && is_src_valid)
+                        {
+                            if constexpr (std::is_same<SrcData, ck::bhalf_t>::value)
+                            {
+                                // Debug print for bf16: convert bf16 to fp32 before printing
+                                uint16_t src_vector_container_bf16_value =
+                                    src_vector_container.template AsType<SrcData>().At(Number<0>{});
+                                uint32_t fp32_bits = static_cast<uint32_t>(src_vector_container_bf16_value) << 16;
+                                float src_vector_container_fp32_value;
+                                memcpy(&src_vector_container_fp32_value, &fp32_bits, sizeof(float));
+
+                                printf("BlockId %d - Threadwise_tensor slice v6r1r2 (bf16) line %d: Src Vector Data at idx %d: %f \n",
+                                       static_cast<int>(blockIdx.x),
+                                       __LINE__,
+                                       static_cast<int>(idx_1d.value),
+                                       src_vector_container_fp32_value);
+                            }
+                            else
+                            {
+                                // Debug print for non-bf16: print after type conversion to float
+                                float src_val = static_cast<float>(
+                                    src_vector_container.template AsType<SrcData>().At(Number<0>{}));
+
+                                printf("BlockId %d - Threadwise_tensor slice v6r1r2 line %d: Src Vector Data at idx %d: %f \n",
+                                       static_cast<int>(blockIdx.x),
+                                       __LINE__,
+                                       static_cast<int>(idx_1d.value),
+                                       src_val);
+                            }
+                        }
+                        // Emin @debug
+#endif
+
             // apply pointwise operation
             static_for<0, ScalarPerVector, 1>{}([&](auto i) {
                 SrcData v;
@@ -116,7 +152,46 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
-            //@Emin Look At This Part
+#if 1
+            // Debug print for destination values
+            if (blockIdx.x == 0 && threadIdx.x == 0 && threadIdx.y == 0 && is_dst_valid)
+            {
+                float dst_val = static_cast<float>(
+                    dst_vector_container.template AsType<DstData>().At(Number<0>{}));
+
+                const char* op_str;
+                if constexpr(DstInMemOp == InMemoryDataOperationEnum::Set)
+
+                printf("BlockId %d - Line %d: DstInMemOp=%d, Dst Vector Data at idx %d: %f\n",
+                        static_cast<int>(blockIdx.x),
+                        __LINE__,
+                        static_cast<int>(DstInMemOp),
+                        static_cast<int>(idx_1d.value),
+                        dst_val);
+            }
+#endif
+
+            // Debug print for destination values
+            if (blockIdx.x == 0 && threadIdx.x == 0 && threadIdx.y == 0 && is_dst_valid)
+            {
+                
+                switch(DstInMemOp) {
+                    case InMemoryDataOperationEnum::Set: op_str = "Set"; break;
+                    case InMemoryDataOperationEnum::Add: op_str = "Add"; break;
+                    default: op_str = "Unknown";
+                }
+
+                float dst_val = static_cast<float>(
+                    dst_vector_container.template AsType<DstData>().At(Number<0>{}));
+
+                printf("BlockId %d - Line %d: DstInMemOp=%s, Dst Vector Data at idx %d: %f\n",
+                        static_cast<int>(blockIdx.x),
+                        __LINE__,
+                        op_str,
+                        static_cast<int>(idx_1d.value),
+                        dst_val);
+            }
+
             // copy data from dst_vector into dst_buf
             dst_buf.template Update<DstInMemOp, dst_vector_t>(
                 dst_coord_.GetOffset(),
