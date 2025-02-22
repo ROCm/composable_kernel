@@ -9,13 +9,6 @@
 
 namespace ck {
 
-enum struct BlockGemmPipelineVersion
-{
-    v1, // Naive
-    v2, // Mem
-    v3, // Comp
-};
-
 template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           BlockGemmPipelineScheduler BlkGemmPipeSche,
           index_t BlockSize,
