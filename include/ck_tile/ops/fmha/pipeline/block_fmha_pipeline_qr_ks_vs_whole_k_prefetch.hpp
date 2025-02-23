@@ -214,7 +214,8 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
         static_for<0, k0_loops, 1>{}([&](auto i_k0) {
             q_tiles[number<i_k0>{}] = load_tile(q_dram_window);
-            move_tile_window(q_dram_window, {0, kK0});
+            if constexpr(i_k0 < k0_loops - 1)
+                move_tile_window(q_dram_window, {0, kK0});
         });
 
         __builtin_amdgcn_sched_barrier(0);
