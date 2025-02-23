@@ -148,7 +148,6 @@ CK_TILE_HOST constexpr auto moe_sorting_get_smem_row_col(int tokens_, int num_ex
             
             mask_ = mask_ > 0b111 ? 0b111 : mask_;  //clamp to 8x at most
             mask_ = ~mask_;
-            //printf("r_unroll_:%d, clz:%d, mask:%x\n", r_unroll_, clz_, mask_); fflush(stdout);
 
             r_for_sub_token = (r_unroll_ & mask_) * sub_unroll;
         }
@@ -160,8 +159,6 @@ CK_TILE_HOST constexpr auto moe_sorting_get_smem_row_col(int tokens_, int num_ex
 
         return r_for_sub_token + cumsum_bufs;
     }();
-
-    // printf("r:%d, c:%d\n", smem_rows, smem_cols);
 
     return ck_tile::make_tuple(smem_rows, smem_cols);
 }
@@ -1838,14 +1835,6 @@ struct MoeSortingMultiPhaseKernel_P3
 
             int position = cumsum - i_show;
             prev_cumsum  = s[0]; // update the last cumsum
-            // printf("[%d]bid:%d, tid:%d, e_start:%d, e_end:%d, x:%d(%d,%d), cumsum:%d,
-            // prev_cumsum:%d, position:%d\n", i, static_cast<int>(blockIdx.x),
-            // static_cast<int>(threadIdx.x),
-            //     e_start, e_end, x, i_topk, i_show,
-            //     cumsum,prev_cumsum,position
-            // );
-            // (void) p_sorted_token_ids; (void) p_sorted_weights;
-            // (void) p_weights;
 
             if(i_show)
             {
