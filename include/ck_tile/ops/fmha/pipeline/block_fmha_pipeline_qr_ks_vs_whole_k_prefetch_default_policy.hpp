@@ -99,15 +99,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
     };
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetNumPrefetchV()
-    {
-        if constexpr(IsPreloadWholeNextIterationK<Problem>())
-            return GetNumVLdsBuffers<Problem>();
-        else
-            return min(2, GetNumVLdsBuffers<Problem>());
-    };
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetExclusiveKLdsBytes()
     {
         if constexpr(IsPreloadWholeNextIterationK<Problem>())

@@ -283,35 +283,60 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     static constexpr index_t NumPrefetchK = NumPrefetchK_;
     static constexpr index_t NumPrefetchV = NumPrefetchV_;
 
-    static constexpr bool WholeKPrefetch = (NumPrefetchK_ == -1);
-
     static constexpr bool AsyncCopy = AsyncCopy_;
 
     using QXPolicy = BlockFmhaPipelineQXCustomPolicy<QLoadOnce_>;
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t IsPreloadWholeNextIterationK()
+    {
+        if constexpr(NumPrefetchK == -1 && Problem::BlockFmhaShape::kM0 <= 64)
+            return true;
+        else
+            return false;
+    };
+
+    template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumKLdsBuffers()
     {
-        if constexpr(WholeKPrefetch)
+        if constexpr(IsPreloadWholeNextIterationK<Problem>()) // definitely preload whole K
         {
             return 2;
+        }
+        else if constexpr(NumPrefetchK == -1) // not preload whole K but use the same pipeline
+            return 2;
+        else
+            return 1; // use other pipeline
+    }
+
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto GetNumPrefetchV()
+    {
+        if constexpr(IsPreloadWholeNextIterationK<Problem>())
+        {
+            using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
+
+            constexpr index_t kN0 = BlockFmhaShape::kN0;
+            constexpr index_t kK1 = BlockFmhaShape::kK1;
+
+            constexpr index_t k1_loops = kN0 / kK1;
+
+            return min(NumPrefetchV, k1_loops);
         }
         else
             return 1;
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto GetNumVLdsBuffers()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetNumVLdsBuffers()
     {
-        using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
-
-        constexpr index_t kN0 = BlockFmhaShape::kN0;
-        constexpr index_t kK1 = BlockFmhaShape::kK1;
-
-        constexpr index_t k1_loops = kN0 / kK1;
-
-        return min(NumPrefetchV, k1_loops);
-    }
+        if constexpr(GetNumPrefetchV<Problem>() >= 2)
+            return 3;
+        else if constexpr(NumPrefetchK == -1) // not preload whole K but use the same pipeline
+            return 2;
+        else
+            return 1;
+    };
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackK()
