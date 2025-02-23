@@ -237,12 +237,13 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     }
 #endif
 
-    printf("[%s|%s]tokens:%d, num_experts:%d, topk:%d, ",
+    printf("[%s|%s]tokens:%d, num_experts:%d, topk:%d, mp:%d, ",
            index_prec.c_str(),
            weight_prec.c_str(),
            tokens,
            num_experts,
-           topk);
+           topk,
+           workspace_size != 0 ? 1 : 0);
 
     if(local_expert_masking)
     {
