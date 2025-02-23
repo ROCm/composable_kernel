@@ -34,8 +34,10 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
+
+    constexpr bool DoubleSmemBuffer = false;
 #endif
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
     // Compute friendly for Intrawave scheduler
     constexpr ck_tile::index_t M_Tile = 256;
     constexpr ck_tile::index_t N_Tile = 256;
@@ -48,6 +50,24 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    constexpr bool DoubleSmemBuffer = false;
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
+    // Compute friendly for Intrawave scheduler
+    // Using the ping pong reader in the lds level
+    constexpr ck_tile::index_t M_Tile = 256;
+    constexpr ck_tile::index_t N_Tile = 256;
+    constexpr ck_tile::index_t K_Tile = 32;
+
+    constexpr ck_tile::index_t M_Warp = 2;
+    constexpr ck_tile::index_t N_Warp = 2;
+    constexpr ck_tile::index_t K_Warp = 1;
+
+    constexpr ck_tile::index_t M_Warp_Tile = 32;
+    constexpr ck_tile::index_t N_Warp_Tile = 32;
+    constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    constexpr bool DoubleSmemBuffer = true;
 #endif
 
     constexpr bool kPadM = false;
@@ -70,8 +90,14 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
     using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-    using GemmUniversalTraits = ck_tile::
-        TileGemmUniversalTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, TransposeC>;
+    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
+                                                                 kPadN,
+                                                                 kPadK,
+                                                                 DoubleSmemBuffer,
+                                                                 ALayout,
+                                                                 BLayout,
+                                                                 CLayout,
+                                                                 TransposeC>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -99,8 +125,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                            has_hot_loop_v,
                                                                            tail_number_v>;
 
-        using GemmPipeline =
-            GEMM_PIPELINE<UniversalGemmProblem, ck_tile::UniversalGemmPipelineAgBgCrPolicy>;
+        using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<AccDataType,
                                              CDataType,
@@ -140,7 +165,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     if(has_hot_loop)
     {
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
         if(tail_num == ck_tile::TailNumber::Full)
         {
             Run(ck_tile::bool_constant<true>{},
@@ -215,24 +240,26 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
             }
         }
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
+        if(tail_num == ck_tile::TailNumber::Three)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
+        }
+        else
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
+        }
 #endif
     }
     else
     {
-        // Tail number always Full - #PrefetchStages
-        if(tail_num == ck_tile::TailNumber::Full)
-        {
-            Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-        }
-        else
-        {
-            std::ostringstream err;
-            err << "When there's no hot loop, this tail number \"" << tail_num
-                << "\" is not supported! PrefetchStages: " << BaseGemmPipeline::PrefetchStages
-                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
-            throw std::runtime_error(err.str());
-        }
+        std::ostringstream err;
+        err << "Num K loop must be larger than number of prefetech stages."
+            << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages << "\n File: " << __FILE__
+            << ":" << __LINE__ << ", in function: " << __func__;
+        throw std::runtime_error(err.str());
     }
 
     return ave_time;
@@ -294,6 +321,15 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Col{}, Row{});
         }
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
+        else if(data_type == "pk_int4_t")
+        {
+            // TODO: Add support for bhalf_t ADataType
+            return run_gemm_example_with_layouts<ck_tile::half_t,
+                                                 ck_tile::pk_int4_t,
+                                                 ck_tile::half_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+#endif
         else
         {
             throw std::runtime_error("Unsupported data_type!");
@@ -317,6 +353,15 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Col{}, Col{}, Row{});
         }
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
+        else if(data_type == "pk_int4_t")
+        {
+            // TODO: Add support for bhalf_t ADataType
+            return run_gemm_example_with_layouts<ck_tile::half_t,
+                                                 ck_tile::pk_int4_t,
+                                                 ck_tile::half_t>(argc, argv, Col{}, Col{}, Row{});
+        }
+#endif
         else
         {
             throw std::runtime_error("Unsupported data_type!");

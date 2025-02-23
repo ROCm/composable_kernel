@@ -1,6 +1,6 @@
 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,26 +11,31 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 
-#define CK_TILE_PIPELINE_COMPUTE 1
+#define CK_TILE_PIPELINE_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_MEMORY 2
+#define CK_TILE_PIPELINE_COMPUTE_V4 3
 
 #ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE
+#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V3
 #endif
 
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrMem
 #define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrMem
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Interwave
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV3
 #define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV3
+#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
+#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV4
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV4
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
 #else
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
 #endif
 
-template <typename DataType>
+template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
 struct GemmBasicTypeConfig;
 
 template <>
@@ -66,6 +71,15 @@ struct GemmBasicTypeConfig<ck_tile::bf8_t>
 {
     using ADataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <>
+struct GemmBasicTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
+{
+    using ADataType   = ck_tile::half_t;
+    using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
 };
@@ -109,6 +123,12 @@ struct DataTypeTraits<ck_tile::bf8_t>
     static constexpr const char* name = "bf8";
 };
 
+template <>
+struct DataTypeTraits<ck_tile::pk_int4_t>
+{
+    static constexpr const char* name = "pk_int4_t";
+};
+
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -126,7 +146,8 @@ auto create_args(int argc, char* argv[])
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("split_k", "1", "splitK value");
+        .insert("split_k", "1", "splitK value")
+        .insert("init", "0", "0:random, 1:linear, 2:constant(1)");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

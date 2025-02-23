@@ -14,7 +14,32 @@
 enum struct GemmPipelineType
 {
     Mem,
-    Comp
+    CompV3,
+    CompV4
+};
+
+template <GemmPipelineType PT, typename Problem>
+struct GemmPipelineTypeSelector;
+
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::Mem, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrMem<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrMem<Problem>;
+};
+
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompV3, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompV3<Problem>;
+};
+
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompV4<Problem>;
 };
 
 template <typename Tuple>
@@ -36,8 +61,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
-        constexpr ck_tile::index_t M_Tile = 128;
-        constexpr ck_tile::index_t N_Tile = 128;
+        constexpr ck_tile::index_t M_Tile = 256;
+        constexpr ck_tile::index_t N_Tile = 256;
         constexpr ck_tile::index_t K_Tile = 32;
 
         constexpr ck_tile::index_t M_Warp = 2;
@@ -51,6 +76,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr bool kPadM = PadM;
         constexpr bool kPadN = PadN;
         constexpr bool kPadK = PadK;
+
+        constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
 
         // TODO: For now - but this should also be a test parameter
         constexpr bool TransposeC = false;
@@ -69,16 +96,20 @@ class TestCkTileGemmPipeline : public ::testing::Test
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-        using GemmUniversalTraits = ck_tile::
-            TileGemmUniversalTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, TransposeC>;
+        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
+                                                                     kPadN,
+                                                                     kPadK,
+                                                                     DoubleSmemBuffer,
+                                                                     ALayout,
+                                                                     BLayout,
+                                                                     CLayout,
+                                                                     TransposeC>;
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
         using BaseGemmPipeline =
-            std::conditional_t<PipelineType == GemmPipelineType::Mem,
-                               ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
-                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+            typename GemmPipelineTypeSelector<PipelineType, GemmPipelineProblem>::base_pipeline;
 
         const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
         const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
@@ -99,12 +130,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                                has_hot_loop_v,
                                                                                tail_number_v>;
 
-            using GemmPipeline = std::conditional_t<
-                PipelineType == GemmPipelineType::Mem,
-                ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem,
-                                               ck_tile::UniversalGemmPipelineAgBgCrPolicy>,
-                ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem,
-                                                  ck_tile::UniversalGemmPipelineAgBgCrPolicy>>;
+            using GemmPipeline =
+                typename GemmPipelineTypeSelector<PipelineType, UniversalGemmProblem>::pipeline;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<AccDataType,
@@ -145,7 +172,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         if(has_hot_loop)
         {
-            if constexpr(PipelineType == GemmPipelineType::Comp)
+            if constexpr(PipelineType == GemmPipelineType::CompV3)
             {
                 if(tail_num == ck_tile::TailNumber::Full)
                 {
@@ -235,6 +262,22 @@ class TestCkTileGemmPipeline : public ::testing::Test
                     }
                 }
             }
+
+            if constexpr(PipelineType == GemmPipelineType::CompV4)
+            {
+                if(tail_num == ck_tile::TailNumber::Three)
+                {
+                    Run(ck_tile::bool_constant<true>{},
+                        ck_tile::integral_constant<ck_tile::TailNumber,
+                                                   ck_tile::TailNumber::Three>{});
+                }
+                else
+                {
+                    Run(ck_tile::bool_constant<true>{},
+                        ck_tile::integral_constant<ck_tile::TailNumber,
+                                                   ck_tile::TailNumber::Two>{});
+                }
+            }
         }
         else
         {
@@ -258,7 +301,19 @@ class TestCkTileGemmPipeline : public ::testing::Test
     public:
     std::vector<int> k_batches_;
 
-    void SetUp() override { k_batches_ = {1, 2}; }
+    void SetUp() override
+    {
+        if constexpr(PipelineType == GemmPipelineType::CompV4)
+        {
+            // Only do k_batch = 1 when pipeline is CompV4
+            k_batches_ = {1};
+        }
+        else
+        {
+            // Otherwise, use k_batch = 1 and 2
+            k_batches_ = {1, 2};
+        }
+    }
 
     template <bool PadM = true, bool PadN = true, bool PadK = true>
     void Run(const int M,
