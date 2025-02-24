@@ -8,6 +8,11 @@
 
 namespace ck_tile {
 
+#define CK_TILE_ERROR(...)                                \
+    {                                                     \
+        std::cerr << "[ERROR] " __VA_ARGS__ << std::endl; \
+    }
+
 namespace internal {
 template <typename T>
 struct ParseEnvVal
@@ -29,23 +34,30 @@ struct ParseEnvVal<bool>
             }
         }
 
-        if(value_env_str == "disable" || value_env_str == "disabled" || value_env_str == "0" ||
-           value_env_str == "no" || value_env_str == "off" || value_env_str == "false")
-        {
-            return false;
-        }
-        else if(value_env_str == "enable" || value_env_str == "enabled" || value_env_str == "1" ||
-                value_env_str == "yes" || value_env_str == "on" || value_env_str == "true")
+        if(std::any_of(std::begin(enabled_names), std::end(enabled_names), [&](const char* str) {
+               return value_env_str == str;
+           }))
         {
             return true;
+        }
+        else if(std::any_of(std::begin(disabled_names),
+                            std::end(disabled_names),
+                            [&](const char* str) { return value_env_str == str; }))
+        {
+            return false;
         }
         else
         {
             throw std::runtime_error("Invalid value for env variable");
         }
 
-        return false; // shouldn't reach here
+        return false;
     }
+
+    private:
+    static constexpr const char* enabled_names[]  = {"enable", "enabled", "1", "yes", "on", "true"};
+    static constexpr const char* disabled_names[] = {
+        "disable", "disabled", "0", "no", "off", "false"};
 };
 
 // Supports hexadecimals (with leading "0x"), octals (if prefix is "0") and decimals (default).
@@ -99,7 +111,7 @@ struct EnvVar
 };
 } // end namespace internal
 
-// static inside function hides the variable and provides
+// Static inside function hides the variable and provides
 // thread-safety/locking
 // Used in global namespace
 #define CK_TILE_DECLARE_ENV_VAR(name, type, default_val)                            \
@@ -166,7 +178,7 @@ void EnvUnset(EnvVar)
     EnvVar::Ref().Unset();
 }
 
-/// updates the cached value of an environment variable
+/// Updates the cached value of an environment variable
 template <typename EnvVar, typename ValueType>
 void UpdateEnvVar(EnvVar, const ValueType& val)
 {

@@ -174,7 +174,7 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "Conditions not met for Kbatch >1 !" << std::endl;
+                    CK_TILE_ERROR("Conditions not met for Kbatch >1 !");
                 }
                 return false;
             }
@@ -187,9 +187,8 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "Can't support K that is not a multiple of k_batch * KPerBlock"
-                                 " without padding!"
-                              << std::endl;
+                    CK_TILE_ERROR("Can't support K that is not a multiple of k_batch * KPerBlock"
+                                  " without padding!");
                 }
                 return false;
             }
@@ -197,8 +196,7 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "K is not a multiple of vector load size for A tensor!"
-                              << std::endl;
+                    CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
                 }
                 return false;
             }
@@ -209,9 +207,8 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "Can't support M that is not a multiple of MPerBlock"
-                                 " without padding!"
-                              << std::endl;
+                    CK_TILE_ERROR(
+                        "Can't support M that is not a multiple of MPerBlock without padding!");
                 }
                 return false;
             }
@@ -219,8 +216,7 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "M is not a multiple of vector load size for A tensor!"
-                              << std::endl;
+                    CK_TILE_ERROR("M is not a multiple of vector load size for A tensor!");
                 }
                 return false;
             }
@@ -232,9 +228,8 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "Can't support N that is not a multiple of NPerBlock"
-                                 " without padding!"
-                              << std::endl;
+                    CK_TILE_ERROR(
+                        "Can't support N that is not a multiple of NPerBlock without padding!");
                 }
                 return false;
             }
@@ -242,8 +237,7 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "N is not a multiple of vector load size for B tensor!"
-                              << std::endl;
+                    CK_TILE_ERROR("N is not a multiple of vector load size for B tensor!");
                 }
                 return false;
             }
@@ -255,9 +249,8 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "Can't support K that is not a multiple of k_batch * KPerBlock"
-                                 " without padding!"
-                              << std::endl;
+                    CK_TILE_ERROR("Can't support K that is not a multiple of k_batch * KPerBlock "
+                                  "without padding!");
                 }
                 return false;
             }
@@ -265,8 +258,7 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "K is not a multiple of vector load size for B tensor!"
-                              << std::endl;
+                    CK_TILE_ERROR("K is not a multiple of vector load size for B tensor!");
                 }
                 return false;
             }
@@ -278,9 +270,8 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "Can't support N that is not a multiple of NPerBlock"
-                                 " without padding!"
-                              << std::endl;
+                    CK_TILE_ERROR(
+                        "Can't support N that is not a multiple of NPerBlock without padding!");
                 }
                 return false;
             }
@@ -288,8 +279,7 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "N is not a multiple of vector load size for C tensor!"
-                              << std::endl;
+                    CK_TILE_ERROR("N is not a multiple of vector load size for C tensor!");
                 }
                 return false;
             }
@@ -300,9 +290,8 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "Can't support M that is not a multiple of MPerBlock"
-                                 " without padding!"
-                              << std::endl;
+                    CK_TILE_ERROR(
+                        "Can't support M that is not a multiple of MPerBlock without padding!");
                 }
                 return false;
             }
@@ -310,8 +299,7 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    std::cerr << "M is not a multiple of vector load size for C tensor!"
-                              << std::endl;
+                    CK_TILE_ERROR("M is not a multiple of vector load size for C tensor!");
                 }
                 return false;
             }
