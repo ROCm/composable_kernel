@@ -28,8 +28,7 @@ enum struct GemmSpecialization
     NKOPadding,
     MNKOPadding,
 };
-
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 inline std::string getGemmSpecializationString(const GemmSpecialization& s)
 {
     switch(s)

@@ -227,8 +227,20 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                 }
             };
 
-            constexpr index_t minimum_occupancy =
-                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
+            constexpr index_t minimum_occupancy = []() {
+                if constexpr(BlkGemmPipeSched == BlockGemmPipelineScheduler::Interwave)
+                {
+                    return 2;
+                }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    return (MPerBlock * NPerBlock / BlockSize <= 128) ? 2 : 1;
+                }
+                else
+                {
+                    return 1;
+                }
+            }();
 
             if(has_main_k_block_loop)
             {
