@@ -32,7 +32,7 @@ using ck::type_convert;
 struct ExecutionConfig final
 {
     int do_verification = 1;     // (0=no, 1=CPU)
-    int init_method     = 10;    // (0=no init, 1=integer value, 2=decimal value)
+    int init_method     = 12;    // (0=no init, 1=integer value, 2=decimal value)
     bool time_kernel    = false; // (0=no, 1=yes)
     int verbosity       = 1;     // (0=no info, 1=verbose info)
 };
@@ -321,6 +321,63 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         }
         break;
 
+    case 12: // Initializations for development and debugging
+        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.0f)}(a_m_k);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.0f)}(b_k_n);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+
+        for(ck::index_t i = 0; i < K / Scale_Block_K; i++)
+        {
+            if(i % 2 == 0)
+            {
+                if(i % 4 == 0)
+                    b_k_n_scale(i, 0) = ck::type_convert<XDataType>(1.0f / 4);
+                else
+                    b_k_n_scale(i, 0) = ck::type_convert<XDataType>(2.0f);
+            }
+            else
+            {
+                if(i % 4 == 1)
+                    b_k_n_scale(i, 0) = ck::type_convert<XDataType>(16.0f);
+                else
+                    b_k_n_scale(i, 0) = ck::type_convert<XDataType>(1.0f / 32);
+            }
+        }
+
+        {
+            const ck::index_t n_freq   = 13;         // frequency of nonzero values in col(B)
+            const ck::index_t pert_idx = 7 * n_freq; // location of perturbation
+
+            for(ck::index_t i = 0; i < K; i++)
+            {
+                if(i % n_freq == 0)
+                {
+                    float scale = ck::type_convert<float>(b_k_n_scale(i / Scale_Block_K, 0));
+                    if(i == pert_idx)
+                    {
+                        b_k_n(i, 0) = ck::type_convert<BDataType>(2.0f / scale);
+                    }
+                    else
+                    {
+                        b_k_n(i, 0) = ck::type_convert<BDataType>(1.0f / scale);
+                    }
+                }
+            }
+
+            if(config.verbosity > 0)
+            {
+                std::cout << "Init A = {1}" << std::endl;
+                std::cout << "Init A scale = {1.0}" << std::endl;
+                std::cout << "Init B is real" << std::endl;
+                std::cout << "Init B scale is real" << std::endl;
+                std::cout << "Expect C = {"
+                          << ((pert_idx < K) ? (K + n_freq - 1) / n_freq + 1
+                                             : (K + n_freq - 1) / n_freq)
+                          << "}" << std::endl;
+            }
+        }
+        break;
     default:
         if(config.verbosity > 0)
         {
@@ -434,6 +491,72 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         else if(config.init_method == 11)
         {
             auto computed = type_convert<float>(c_m_n_device_result(1, 12));
+
+            std::cout << "\nComputed: " << computed << std::endl << std::endl;
+        }
+        else if(config.init_method == 12)
+        {
+#if 0
+            std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
+            for(int i = 0; i < 16; ++i)
+            {
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << type_convert<float>(a_m_k(i, j)) << " ";
+                }
+                std::cout << std::endl;
+            }
+            std::cout << "Submatrix of a_m_k_scale (16x3):" << std::endl;
+            for(int i = 0; i < 16; ++i)
+            {
+                for(int j = 0; j < 3; ++j)
+                {
+                    std::cout << type_convert<float>(a_m_k_scale(i, j)) << " ";
+                }
+                std::cout << std::endl;
+            }
+#endif
+            std::cout << "Submatrix of b_k_n (16x16):" << std::endl;
+            for(int i = 0; i < 16; ++i)
+            {
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << type_convert<float>(b_k_n(i, j)) << " ";
+                }
+                std::cout << "     ";
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << type_convert<float>(b_k_n(i + Scale_Block_K, j)) << " ";
+                }
+
+                std::cout << "     ";
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << type_convert<float>(b_k_n(i + 2 * Scale_Block_K, j)) << " ";
+                }
+
+                std::cout << std::endl;
+            }
+            std::cout << "Submatrix of b_k_n_scale (3x16):" << std::endl;
+            for(int i = 0; i < 3; ++i)
+            {
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << type_convert<float>(b_k_n_scale(i, j)) << " ";
+                }
+                std::cout << std::endl;
+            }
+            std::cout << "Submatrix of c_m_n_device_result (16x16):" << std::endl;
+            for(int i = 0; i < 16; ++i)
+            {
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << type_convert<float>(c_m_n_device_result(i, j)) << " ";
+                }
+                std::cout << std::endl;
+            }
+
+            auto computed = type_convert<float>(c_m_n_device_result(12, 0));
 
             std::cout << "\nComputed: " << computed << std::endl << std::endl;
         }
