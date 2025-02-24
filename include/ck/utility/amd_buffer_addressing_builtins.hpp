@@ -62,6 +62,18 @@ __device__ __amdgpu_buffer_rsrc_t make_wave_buffer_resource_new(T* p_wave,
     return __builtin_amdgcn_make_buffer_rsrc(p, stride, num, flags);
 }
 
+template <typename T>
+__device__ __amdgpu_buffer_rsrc_t make_wave_buffer_resource_with_default_range_new(T* p_wave)
+{
+    // wavewise base address (64 bit)
+    auto p         = const_cast<remove_cv_t<T>*>(p_wave);
+    int32_t stride = 0;
+    int32_t num    = 0xffffffff;
+    auto flags     = CK_BUFFER_RESOURCE_3RD_DWORD;
+
+    return __builtin_amdgcn_make_buffer_rsrc(p, stride, num, flags);
+}
+
 // buffer atomic-add fp16
 __device__ half2_t llvm_amdgcn_raw_buffer_atomic_add_fp16x2(
     half2_t vdata,

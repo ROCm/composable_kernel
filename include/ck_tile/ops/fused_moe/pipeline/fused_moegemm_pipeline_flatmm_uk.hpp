@@ -207,9 +207,16 @@ struct FusedMoeGemmPipeline_FlatmmUk
                        threadIdx.x % (BlockShape::Block_K0 / kAlignmentA) * kAlignmentA;
             },
             number<row_ids_a.size()>{});
+
+#if __clang_major__ >= 20
+        auto a_res = make_wave_buffer_resource_new(reinterpret_cast<const ADataType*>(kargs.a_ptr),
+                                                   kargs.num_tokens * kargs.stride_token *
+                                                       sizeof(ADataType));
+#else
         auto a_res =
             make_wave_buffer_resource(reinterpret_cast<const ADataType*>(kargs.a_ptr),
                                       kargs.num_tokens * kargs.stride_token * sizeof(ADataType));
+#endif
 
         auto make_gu_win = [&](const auto* ptr_) {
             auto view_ = make_naive_tensor_view<address_space_enum::global>(
@@ -318,10 +325,15 @@ struct FusedMoeGemmPipeline_FlatmmUk
                                            {0, 0},
                                            dist_);
         }();
+#if __clang_major__ >= 20
+        auto o_res = make_wave_buffer_resource_new(reinterpret_cast<const ODataType*>(kargs.o_ptr),
+                                                   kargs.num_tokens * kargs.stride_token *
+                                                       sizeof(ODataType));
+#else
         auto o_res =
             make_wave_buffer_resource(reinterpret_cast<const ODataType*>(kargs.o_ptr),
                                       kargs.num_tokens * kargs.stride_token * sizeof(ODataType));
-
+#endif
         auto row_coords_o = GetRowCoords_O(sorted_tile_id * BlockShape::Block_M0);
         auto w_scale      = GetWeightScale(
             row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr));
