@@ -356,10 +356,6 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                     throw std::runtime_error("todo: only v1 v2 and v3 support now");
                 }
             }
-            else
-            {
-                throw std::runtime_error("not call kernel function");
-            }
 #if 0
             else
             {
