@@ -343,7 +343,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         // TODO: this is for 3d layout
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
-        return 16 / sizeof(KDataType);
+        return 8 / sizeof(KDataType);
     }
 
     template <typename Problem>
@@ -440,8 +440,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
-        using KDataType                 = remove_cvref_t<typename Problem::KDataType>;
-        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::KDataType);
+        using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
         constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
         constexpr index_t kNPerBlock     = Problem::BlockFmhaShape::kN0;
@@ -457,7 +456,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                                     number<(kNPerBlock + 1) * kKPack>{},
                                                     number<kKPack>{},
                                                     number<1>{}),
-                                         number<MaxVectorSize>{},
+                                         number<kKPack>{},
                                          number<1>{});
 
         constexpr auto k_lds_block_desc = transform_tensor_descriptor(
@@ -475,8 +474,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
     {
-        using VDataType                 = remove_cvref_t<typename Problem::VDataType>;
-        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::VDataType);
+        using VDataType = remove_cvref_t<typename Problem::VDataType>;
 
         constexpr index_t Banks        = 32; // TODO: need change based on arch
         constexpr index_t PixelsPerRow = Banks * 4 / sizeof(VDataType);
@@ -501,7 +499,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                        number<PixelsPerRow + kKPack>{},
                        number<kKPack>{},
                        number<1>{}),
-            number<MaxVectorSize>{},
+            number<kKPack>{},
             number<1>{});
 
         constexpr auto v_lds_block_desc = transform_tensor_descriptor(
