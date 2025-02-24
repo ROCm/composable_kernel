@@ -312,7 +312,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumPrefetchV()
     {
-        if constexpr(IsPreloadWholeNextIterationK<Problem>())
+        if constexpr(IsPreloadWholeNextIterationK<Problem>() || NumPrefetchK != -1)
         {
             using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
 
@@ -323,8 +323,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
 
             return min(NumPrefetchV, k1_loops);
         }
-        else
-            return 1;
+        else          // NumPrefetchK == -1
+            return 1; // when kM0 > 64, not enough vgprs to support more v_tiles
     }
 
     template <typename Problem>
