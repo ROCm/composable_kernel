@@ -105,10 +105,11 @@ if __name__ == "__main__":
              "  1: generate more instance to cover all hdim\n"  + \
              "  2: Only generate instance for Flash attention integration\n"  + \
              "  4: Only generate instance for PyTorch integration\n" + \
-             " 10: Only generate instance for Aiter(mha_fwd, mha_bwd) integration\n" + \
-             " 11: Only generate instance for Aiter(mha_varlen_fwd, mha_varlen_bwd) integration\n" + \
-             " 12: Only generate instance for Aiter(mha_fwd_kvcache) integration"
-      
+             "  100-199: Only generate instance for Aiter(mha_fwd) integration\n" + \
+             "  200-299: Only generate instance for Aiter(mha_varlen_fwd) integration\n" + \
+             "  300-399: Only generate instance for Aiter(mha_bwd) integration\n" + \
+             "  400-499: Only generate instance for Aiter(mha_varlen_bwd) integration"
+
     )
 
     args = parser.parse_args()

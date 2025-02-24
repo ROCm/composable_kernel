@@ -517,23 +517,31 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     if not cond:
                         continue
             # Aiter (mha_bwd) integration
-            elif receipt == 10:
+            elif receipt in (300, 301, 302):
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "batch"
-                    cond &= bias in ['no', 'alibi']
+                    if receipt == 300:
+                        cond &= bias == 'no'
+                    elif receipt == 301:
+                        cond &= bias == 'bias'
+                    elif receipt == 302:
+                        cond &= bias == 'alibi'
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
-                    cond &= deterministic == "t"
                     if not cond:
                         continue
             # Aiter (mha_varlen_bwd) integration
-            elif receipt == 11:
+            elif receipt in (400, 401, 402):
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
-                    cond &= bias in ['no', 'alibi']
+                    if receipt == 400:
+                        cond &= bias == 'no'
+                    elif receipt == 401:
+                        cond &= bias == 'bias'
+                    elif receipt == 402:
+                        cond &= bias == 'alibi'
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
-                    cond &= deterministic == "t"
                     if not cond:
                         continue
             api_pool.register_dq_dk_dv_traits(k.api_trait())
@@ -638,7 +646,7 @@ class FmhaBwdOGradDotOKernel:
     def filename(self) -> str:
         return self.name + ".cpp"
 
-def get_bwd_dot_do_o_blobs() -> List[FmhaBwdOGradDotOKernel]:
+def get_bwd_dot_do_o_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaBwdOGradDotOKernel]:
     # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
     #       support this in future
     def get_occupancy(dtype, hdim):
@@ -657,6 +665,21 @@ def get_bwd_dot_do_o_blobs() -> List[FmhaBwdOGradDotOKernel]:
             k = FmhaBwdOGradDotOKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype,
                                 F_spad=spad, F_dvpad=dvpad, F_mode=mode,
                                 F_occupancy=get_occupancy(dtype, hdim))
+            if kernel_filter != None:
+                if not fnmatch.fnmatch(k.name, kernel_filter):
+                    continue
+            # Aiter (mha_bwd) integration
+            if receipt in (300, 301, 302):
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode == "batch"
+                    if not cond:
+                        continue
+            # Aiter (mha_varlen_bwd) integration
+            elif receipt in (400, 401, 402):
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode == "group"
+                    if not cond:
+                        continue
             gen.append(k)
 
     return gen
@@ -773,7 +796,7 @@ class FmhaBwdConvertQGradKernel:
     def filename(self) -> str:
         return self.name + ".cpp"
 
-def get_bwd_convert_dq_blobs() -> List[FmhaBwdConvertQGradKernel]:
+def get_bwd_convert_dq_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaBwdConvertQGradKernel]:
     # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
     #       support this in future
     def get_occupancy(dtype, hdim):
@@ -792,6 +815,21 @@ def get_bwd_convert_dq_blobs() -> List[FmhaBwdConvertQGradKernel]:
                 continue
             k = FmhaBwdConvertQGradKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype, F_bm0=64, F_bn0=tile.F_bn0,
                                 F_spad=spad, F_dpad=dpad, F_mode=mode, F_occupancy=get_occupancy(dtype, hdim), F_deterministic=deterministic)
+            if kernel_filter != None:
+                if not fnmatch.fnmatch(k.name, kernel_filter):
+                    continue
+            # Aiter (mha_bwd) integration
+            if receipt in (300, 301, 302):
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode == "batch"
+                    if not cond:
+                        continue
+            # Aiter (mha_varlen_bwd) integration
+            elif receipt in (400, 401, 402):
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode == "group"
+                    if not cond:
+                        continue
             gen.append(k)
 
     return gen
@@ -809,10 +847,10 @@ def write_bwd_api(api_pool : FmhaBwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_BWD_API_FILENAME).write_text(api_pool.api)
 
 def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
-    kernels = get_bwd_dot_do_o_blobs()
+    kernels = get_bwd_dot_do_o_blobs(kernel_filter, receipt)
     for kernel in kernels:
         write_single_bwd_dot_do_o_kernel(kernel, output_dir)
-    kernels = get_bwd_convert_dq_blobs()
+    kernels = get_bwd_convert_dq_blobs(kernel_filter, receipt)
     for kernel in kernels:
         write_single_bwd_convert_dq_kernel(kernel, output_dir)
     api_pool, kernels = get_bwd_dq_dk_dv_blobs(kernel_filter, receipt, mask_impl)
@@ -822,10 +860,10 @@ def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, mask_
 
 def list_blobs(file_path : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
     with file_path.open('a') as f:
-        kernels = get_bwd_dot_do_o_blobs()
+        kernels = get_bwd_dot_do_o_blobs(kernel_filter, receipt)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        kernels = get_bwd_convert_dq_blobs()
+        kernels = get_bwd_convert_dq_blobs(kernel_filter, receipt)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         _, kernels = get_bwd_dq_dk_dv_blobs(kernel_filter, receipt, mask_impl)
