@@ -187,8 +187,8 @@ struct GemmKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    CK_TILE_ERROR("Can't support K that is not a multiple of k_batch * KPerBlock"
-                                  " without padding!");
+                    CK_TILE_ERROR("Can't support K that is not a multiple of k_batch * KPerBlock "
+                                  "without padding!");
                 }
                 return false;
             }
