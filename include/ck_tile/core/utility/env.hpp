@@ -17,11 +17,19 @@ void CK_TILE_ERROR(Args&&... args) noexcept
 }
 
 namespace internal {
+
+template <size_t N>
+bool is_any_of(const char* const (&names)[N], const std::string& str)
+{
+    return std::any_of(std::begin(names), std::end(names), [&](const char* inner_str) {
+        return str == inner_str;
+    });
+};
+
 template <typename T>
 struct ParseEnvVal
 {
 };
-
 template <>
 struct ParseEnvVal<bool>
 {
@@ -37,15 +45,11 @@ struct ParseEnvVal<bool>
             }
         }
 
-        if(std::any_of(std::begin(enabled_names), std::end(enabled_names), [&](const char* str) {
-               return value_env_str == str;
-           }))
+        if(is_any_of(enabled_names, value_env_str))
         {
             return true;
         }
-        else if(std::any_of(std::begin(disabled_names),
-                            std::end(disabled_names),
-                            [&](const char* str) { return value_env_str == str; }))
+        else if(is_any_of(disabled_names, value_env_str))
         {
             return false;
         }
