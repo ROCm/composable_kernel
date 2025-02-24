@@ -136,12 +136,14 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                                                         CElementOp>;
 
     // do GEMM
-    static_assert(std::is_base_of<BaseStreamK, DeviceGemmInstance>::value && std::is_base_of<BaseStreamK, DeviceGemmInstance2>::value);
-    auto gemm  = DeviceGemmInstance{};
-    auto gemm2 = DeviceGemmInstance2{}; // instance for double rate mfma instruction
-    BaseStreamK *op_ptr =(ck::get_device_name() == "gfx950") ? static_cast<BaseStreamK *>(&gemm2) : static_cast<BaseStreamK *>(&gemm);
+    static_assert(std::is_base_of<BaseStreamK, DeviceGemmInstance>::value &&
+                  std::is_base_of<BaseStreamK, DeviceGemmInstance2>::value);
+    auto gemm           = DeviceGemmInstance{};
+    auto gemm2          = DeviceGemmInstance2{}; // instance for double rate mfma instruction
+    BaseStreamK* op_ptr = (ck::get_device_name() == "gfx950") ? static_cast<BaseStreamK*>(&gemm2)
+                                                              : static_cast<BaseStreamK*>(&gemm);
 
-    float ave_time = 0;
+    float ave_time   = 0;
     auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
     auto argument_ptr = op_ptr->MakeArgumentPointer(
@@ -172,7 +174,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         return true;
     }
 
-    auto argument = argument_ptr.get();
+    auto argument              = argument_ptr.get();
     std::size_t workspace_size = op_ptr->GetWorkSpaceSize(argument);
     if(workspace_size != 0)
     {
@@ -191,7 +193,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-            << op_ptr->GetTypeString() << std::endl;
+              << op_ptr->GetTypeString() << std::endl;
 
     bool pass = true;
 

@@ -489,8 +489,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
             // branch early for math wave
             constexpr auto lcm_AK1_BK1 = math::lcm(AK1, BK1);
             constexpr bool is_single_rate_mfma =
-                ((is_same<ABDataType, half_t>::value || is_same<ABDataType, bhalf_t>::value) &&
-                 lcm_AK1_BK1 <= 4)
+                (((is_same<ABDataType, half_t>::value || is_same<ABDataType, bhalf_t>::value) &&
+                  lcm_AK1_BK1 <= 4) ||
+                 (is_same<ABDataType, int8_t>::value && lcm_AK1_BK1 <= 8))
                     ? true
                     : false;
             constexpr index_t KPack = math::max(

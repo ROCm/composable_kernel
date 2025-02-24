@@ -361,9 +361,11 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         const auto M = d0_grid_desc_m_n.GetLength(I0);
         const auto N = d0_grid_desc_m_n.GetLength(I1);
 
+        constexpr auto lcm_A0K1_B0K1 = math::lcm(A0K1, B0K1);
         constexpr bool is_single_rate_mfma =
-            ((is_same<A0B0B1DataType, half_t>::value || is_same<A0B0B1DataType, bhalf_t>::value) &&
-             math::lcm(A0K1, B0K1) <= 4)
+            (((is_same<A0B0B1DataType, half_t>::value || is_same<A0B0B1DataType, bhalf_t>::value) &&
+              lcm_A0K1_B0K1 <= 4) ||
+             (is_same<A0B0B1DataType, int8_t>::value && lcm_A0K1_B0K1 <= 8))
                 ? true
                 : false;
         constexpr auto mfma = MfmaSelector<A0B0B1DataType,
@@ -653,8 +655,9 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         // sanity check
         constexpr auto lcm_A0K1_B0K1 = math::lcm(A0K1, B0K1);
         constexpr bool is_single_rate_mfma =
-            ((is_same<A0B0B1DataType, half_t>::value || is_same<A0B0B1DataType, bhalf_t>::value) &&
-             lcm_A0K1_B0K1 <= 4)
+            (((is_same<A0B0B1DataType, half_t>::value || is_same<A0B0B1DataType, bhalf_t>::value) &&
+              lcm_A0K1_B0K1 <= 4) ||
+             (is_same<A0B0B1DataType, int8_t>::value && lcm_A0K1_B0K1 <= 8))
                 ? true
                 : false;
         constexpr index_t KPack =

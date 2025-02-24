@@ -32,9 +32,9 @@ using BiasLayout = typename LayoutSettingSelector<NDimSpatial>::BiasLayout;
 template <ck::index_t NDimSpatial>
 using ResidualLayout = typename LayoutSettingSelector<NDimSpatial>::ResidualLayout;
 
-#if defined(CK_USE_AMD_MFMA_GFX950)
+// instance for double rate mfma on gfx950 (vs gfx942)
 template <ck::index_t NDimSpatial>
-using DeviceConvFwdInstance =
+using DeviceConvFwdInstance2 =
     ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         NDimSpatial,
         InputLayout<NDimSpatial>,
@@ -55,14 +55,14 @@ using DeviceConvFwdInstance =
         1,           //
         256,         // BlockSize
         128,         // MPerBlock
-        256,         // NPerBlock
+        64,          // NPerBlock
         64,          // KPerBlock
         16,          // AK1
         16,          // BK1
         32,          // MPerXdl
         32,          // NPerXdl
         2,           // MXdlPerWave
-        4,           // NXdlPerWave
+        1,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -81,7 +81,7 @@ using DeviceConvFwdInstance =
         1,
         S<1, 16, 1, 16>,
         4>;
-#else  // defined(CK_USE_AMD_MFMA_GFX950)
+// instance for gfx942-
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance =
     ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
@@ -104,14 +104,14 @@ using DeviceConvFwdInstance =
         1,           //
         256,         // BlockSize
         128,         // MPerBlock
-        256,         // NPerBlock
-        16,          // KPerBlock
+        128,         // NPerBlock
+        32,          // KPerBlock
         4,           // AK1
         4,           // BK1
         32,          // MPerXdl
         32,          // NPerXdl
         2,           // MXdlPerWave
-        4,           // NXdlPerWave
+        2,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -130,7 +130,6 @@ using DeviceConvFwdInstance =
         1,
         S<1, 16, 1, 16>,
         4>;
-#endif // defined(CK_USE_AMD_MFMA_GFX950)
 
 template <ck::index_t NDimSpatial>
 using HostConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
@@ -235,40 +234,67 @@ bool run_grouped_conv_fwd_bias_relu_add(const ExecutionConfig& config,
     copy(conv_param.input_right_pads_, input_right_pads);
 
     // do Conv
-    auto conv    = DeviceConvFwdInstance<NDimSpatial>{};
-    auto invoker = conv.MakeInvoker();
-    auto argument =
-        conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
-                          wei_device_buf.GetDeviceBuffer(),
-                          std::array<const void*, 2>{bias_device_buf.GetDeviceBuffer(),
-                                                     residual_device_buf.GetDeviceBuffer()},
-                          out_device_buf.GetDeviceBuffer(),
-                          a_g_n_c_wis_lengths,
-                          a_g_n_c_wis_strides,
-                          b_g_k_c_xs_lengths,
-                          b_g_k_c_xs_strides,
-                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
-                              {d0_g_n_k_wos_lengths, d1_g_n_k_wos_lengths}},
-                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
-                              {d0_g_n_k_wos_strides, d1_g_n_k_wos_strides}},
-                          e_g_n_k_wos_lengths,
-                          e_g_n_k_wos_strides,
-                          conv_filter_strides,
-                          conv_filter_dilations,
-                          input_left_pads,
-                          input_right_pads,
-                          InElementOp{},
-                          WeiElementOp{},
-                          OutElementOp{});
+    using BaseGroupedConvFwdMultipleABD =
+        ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
+            NDimSpatial,
+            InputLayout<NDimSpatial>,
+            WeightLayout<NDimSpatial>,
+            ck::Tuple<BiasLayout<NDimSpatial>, ResidualLayout<NDimSpatial>>,
+            OutputLayout<NDimSpatial>,
+            InKernelDataType,
+            WeiKernelDataType,
+            ck::Tuple<BiasKernelDataType, ResidualKernelDataType>,
+            OutKernelDataType,
+            InElementOp,
+            WeiElementOp,
+            OutElementOp,
+            InKernelDataType,  // AComputeDataType
+            InKernelDataType>; // BComputeDataType
 
-    if(!conv.IsSupportedArgument(argument))
+    static_assert(
+        std::is_base_of<BaseGroupedConvFwdMultipleABD, DeviceConvFwdInstance<NDimSpatial>>::value &&
+        std::is_base_of<BaseGroupedConvFwdMultipleABD, DeviceConvFwdInstance2<NDimSpatial>>::value);
+
+    auto conv  = DeviceConvFwdInstance<NDimSpatial>{};  // instance for gfx942-
+    auto conv2 = DeviceConvFwdInstance2<NDimSpatial>{}; // instance for double rate mfma instruction
+                                                        // on gfx950
+    BaseGroupedConvFwdMultipleABD* op_ptr =
+        (ck::get_device_name() == "gfx950") ? static_cast<BaseGroupedConvFwdMultipleABD*>(&conv2)
+                                            : static_cast<BaseGroupedConvFwdMultipleABD*>(&conv);
+    auto invoker_ptr  = op_ptr->MakeInvokerPointer();
+    auto argument_ptr = op_ptr->MakeArgumentPointer(
+        in_device_buf.GetDeviceBuffer(),
+        wei_device_buf.GetDeviceBuffer(),
+        std::array<const void*, 2>{bias_device_buf.GetDeviceBuffer(),
+                                   residual_device_buf.GetDeviceBuffer()},
+        out_device_buf.GetDeviceBuffer(),
+        a_g_n_c_wis_lengths,
+        a_g_n_c_wis_strides,
+        b_g_k_c_xs_lengths,
+        b_g_k_c_xs_strides,
+        std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
+            {d0_g_n_k_wos_lengths, d1_g_n_k_wos_lengths}},
+        std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
+            {d0_g_n_k_wos_strides, d1_g_n_k_wos_strides}},
+        e_g_n_k_wos_lengths,
+        e_g_n_k_wos_strides,
+        conv_filter_strides,
+        conv_filter_dilations,
+        input_left_pads,
+        input_right_pads,
+        InElementOp{},
+        WeiElementOp{},
+        OutElementOp{});
+
+    if(!op_ptr->IsSupportedArgument(argument_ptr.get()))
     {
         throw std::runtime_error(
             "wrong! device_conv with the specified compilation parameters does "
             "not support this Conv problem");
     }
 
-    float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+    float avg_time =
+        invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, config.time_kernel});
 
     std::size_t flop      = conv_param.GetFlops();
     std::size_t num_btype = conv_param.GetByte<InUserDataType, WeiUserDataType, OutUserDataType>();
@@ -276,7 +302,7 @@ bool run_grouped_conv_fwd_bias_relu_add(const ExecutionConfig& config,
     float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
     float gb_per_sec = num_btype / 1.E6 / avg_time;
     std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << conv.GetTypeString() << std::endl;
+              << op_ptr->GetTypeString() << std::endl;
 
     if(config.do_verification)
     {

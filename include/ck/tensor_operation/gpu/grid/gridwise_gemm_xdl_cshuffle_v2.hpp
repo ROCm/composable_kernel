@@ -871,8 +871,9 @@ struct GridwiseGemm_xdl_cshuffle_v2
         // sanity check
         constexpr auto lcm_AK1_BK1 = math::lcm(AK1Number, BK1Number);
         constexpr bool is_single_rate_mfma =
-            ((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
-             lcm_AK1_BK1 <= 4)
+            (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
+              lcm_AK1_BK1 <= 4) ||
+             (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8))
                 ? true
                 : false;
         constexpr index_t KPack = math::max(
