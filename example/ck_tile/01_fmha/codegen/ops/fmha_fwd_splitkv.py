@@ -397,14 +397,23 @@ class FmhaFwdSplitKVPipeline:
         pn = pad_name()
         n = f'{self.tag}_v{self.F_vlayout[0]}'
         if pn != '' : n += f'_{pn}'
-        if self.F_bias != 'no' : n += f'_{self.F_bias}'
+        if self.F_bias != 'no' :
+            n += f'_{self.F_bias}'
+        else:
+            n += '_nbias'
         if self.F_mask[0:2] == 's_':
             if self.F_mask == 's_mask': n += f'_mask'
         else:
             if self.F_mask != 'no' : n += f'_m{self.F_mask[0]}'
-        if self.F_lse == 't' : n += '_lse'
+        if self.F_lse == 't' :
+            n += '_lse'
+        else:
+            n += '_nlse'
         if self.F_squant == 't' : n += '_squant'
-        if self.F_pagedkv == 't' : n += '_pagedkv'
+        if self.F_pagedkv == 't' :
+            n += '_pagedkv'
+        else:
+            n += '_npagedkv'
         return n
 
 @dataclass
@@ -714,16 +723,10 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                     if not cond:
                         continue
                 # Aiter(mha_varlen_fwd) integration
-                elif receipt in (200, 201, 202):
+                elif receipt == 200:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
                     cond &= pipeline.F_vlayout == 'row'
-                    if receipt == 200:
-                        cond &= pipeline.F_bias == 'no'
-                    elif receipt == 201:
-                        cond &= pipeline.F_bias == 'bias'
-                    elif receipt == 202:
-                        cond &= pipeline.F_bias == 'alibi'
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
@@ -776,11 +779,13 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt) -> Lis
                            F_mode=mode,
                            F_tile=tile,
                            F_pipeline=pipeline)
-                if kernel_filter != None:
-                    if not fnmatch.fnmatch(k.name, kernel_filter):
-                        continue
+                # TODO - support more kernel_filter
+                # kernel name is different, if we check kernel_filter here, some kernels will be filtered
+                # if kernel_filter != None:
+                #         if not fnmatch.fnmatch(k.name, kernel_filter):
+                #             continue
                 # Aiter(mha_varlen_fwd) integration
-                if receipt in (200, 201, 202):
+                if receipt == 200:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
                     if not cond:

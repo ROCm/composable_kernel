@@ -412,13 +412,19 @@ class FmhaBwdDQDKDVKernel:
         pn = pad_name()
         n = f"fmha_bwd_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name + f'_{self.F_pipeline}'
         if pn != '' : n += f'_{pn}'
-        if self.F_bias != 'no' : n += f'_{self.F_bias}'
+        if self.F_bias != 'no' :
+            n += f'_{self.F_bias}'
+        else:
+            n += '_nbias'
         if self.F_dbias == 't' : n += '_dbias'
         if self.F_mask[0:2] == 's_':
             if self.F_mask == 's_mask': n += f'_mask'
         else:
             if self.F_mask != 'no' : n += f'_m{self.F_mask[0]}'
-        if self.F_dropout != 'no' : n += f'_{self.F_dropout}'
+        if self.F_dropout != 'no' :
+            n += f'_{self.F_dropout}'
+        else:
+            n += '_ndropout'
         if self.F_deterministic == 't' : n += '_deterministic'
         return n
 
@@ -517,29 +523,17 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     if not cond:
                         continue
             # Aiter (mha_bwd) integration
-            elif receipt in (300, 301, 302):
+            elif receipt == 300:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "batch"
-                    if receipt == 300:
-                        cond &= bias == 'no'
-                    elif receipt == 301:
-                        cond &= bias == 'bias'
-                    elif receipt == 302:
-                        cond &= bias == 'alibi'
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
                     if not cond:
                         continue
             # Aiter (mha_varlen_bwd) integration
-            elif receipt in (400, 401, 402):
+            elif receipt == 400:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
-                    if receipt == 400:
-                        cond &= bias == 'no'
-                    elif receipt == 401:
-                        cond &= bias == 'bias'
-                    elif receipt == 402:
-                        cond &= bias == 'alibi'
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
                     if not cond:
@@ -665,17 +659,19 @@ def get_bwd_dot_do_o_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaB
             k = FmhaBwdOGradDotOKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype,
                                 F_spad=spad, F_dvpad=dvpad, F_mode=mode,
                                 F_occupancy=get_occupancy(dtype, hdim))
-            if kernel_filter != None:
-                if not fnmatch.fnmatch(k.name, kernel_filter):
-                    continue
+            # TODO - support more kernel_filter
+            # kernel name is different, if we check kernel_filter here, some kernels will be filtered
+            # if kernel_filter != None:
+            #         if not fnmatch.fnmatch(k.name, kernel_filter):
+            #             continue
             # Aiter (mha_bwd) integration
-            if receipt in (300, 301, 302):
+            if receipt == 300:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "batch"
                     if not cond:
                         continue
             # Aiter (mha_varlen_bwd) integration
-            elif receipt in (400, 401, 402):
+            elif receipt == 400:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
                     if not cond:
@@ -815,17 +811,19 @@ def get_bwd_convert_dq_blobs(kernel_filter : Optional[str], receipt) -> List[Fmh
                 continue
             k = FmhaBwdConvertQGradKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype, F_bm0=64, F_bn0=tile.F_bn0,
                                 F_spad=spad, F_dpad=dpad, F_mode=mode, F_occupancy=get_occupancy(dtype, hdim), F_deterministic=deterministic)
-            if kernel_filter != None:
-                if not fnmatch.fnmatch(k.name, kernel_filter):
-                    continue
+            # TODO - support more kernel_filter
+            # kernel name is different, if we check kernel_filter here, some kernels will be filtered
+            # if kernel_filter != None:
+            #         if not fnmatch.fnmatch(k.name, kernel_filter):
+            #             continue
             # Aiter (mha_bwd) integration
-            if receipt in (300, 301, 302):
+            if receipt == 300:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "batch"
                     if not cond:
                         continue
             # Aiter (mha_varlen_bwd) integration
-            elif receipt in (400, 401, 402):
+            elif receipt == 400:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
                     if not cond:

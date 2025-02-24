@@ -233,13 +233,22 @@ class FmhaFwdPipeline:
         pn = pad_name()
         n = f'{self.tag}_v{self.F_vlayout[0]}'
         if pn != '' : n += f'_{pn}'
-        if self.F_bias != 'no' : n += f'_{self.F_bias}'
+        if self.F_bias != 'no' :
+            n += f'_{self.F_bias}'
+        else:
+            n += '_nbias'
         if self.F_mask[0:2] == 's_':
             if self.F_mask == 's_mask': n += f'_mask'
         else:
             if self.F_mask != 'no' : n += f'_m{self.F_mask[0]}'
-        if self.F_lse == 't' : n += '_lse'
-        if self.F_dropout == 't' : n += '_dropout'
+        if self.F_lse == 't' :
+            n += '_lse'
+        else:
+            n += '_nlse'
+        if self.F_dropout == 't' :
+            n += '_dropout'
+        else:
+            n += '_ndropout'
         if self.F_squant == 't' : n += '_squant'
         return n
 
@@ -504,30 +513,18 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                     if not cond:
                         continue
                 # Aiter(mha_fwd) integration
-                elif receipt in (100, 101, 102):
+                elif receipt == 100:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == 'batch'
                     cond &= pipeline.F_vlayout == 'row'
-                    if receipt == 100:
-                        cond &= pipeline.F_bias == 'no'
-                    elif receipt == 101:
-                        cond &= pipeline.F_bias == 'bias'
-                    elif receipt == 102:
-                        cond &= pipeline.F_bias == 'alibi'
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
                 # Aiter(mha_varlen_fwd) integration
-                elif receipt in (200, 201, 202):
+                elif receipt == 200:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == 'group'
                     cond &= pipeline.F_vlayout == 'row'
-                    if receipt == 200:
-                        cond &= pipeline.F_bias == 'no'
-                    elif receipt == 201:
-                        cond &= pipeline.F_bias == 'bias'
-                    elif receipt == 202:
-                        cond &= pipeline.F_bias == 'alibi'
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
