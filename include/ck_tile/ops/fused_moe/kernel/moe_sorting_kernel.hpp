@@ -573,13 +573,14 @@ struct MoeSortingKernel
         {
             int e_start = cumsum[tid];
             int e_end   = cumsum[tid + 1];
-            index_t *p_sorted_expert_cnts = p_total_tokens_post_pad + 1;
-            int e_size = unit_size_mdiv.div(e_end - e_start + unit_size_mdiv.divisor - 1);
+            index_t *p_sorted_expert_cnts = p_total_tokens_post_pad + 1 + tid;
+            if (tid == 0) {
+                p_sorted_expert_cnts[0] = 0;
+            }
+            p_sorted_expert_cnts[1] = unit_size_mdiv.div(e_end);
             for(int i = e_start; i < e_end; i += unit_size_mdiv.divisor)
             {
                 p_sorted_expert_ids[unit_size_mdiv.div(i)] = tid;
-                p_sorted_expert_cnts[unit_size_mdiv.div(i)] = e_size;
-                printf("tid %d size %d \n", tid, e_size);
             }
         }
 
@@ -868,10 +869,18 @@ struct MoeSortingKernel
             }
             __syncthreads();
         }
+        if (tid == 0) {
+            //temp hack ptr for expert tile cnt
+            p_total_tokens_post_pad[1] = 0;
+        }
         for(int i_e = tid; i_e < num_experts; i_e += block_size)
         {
             int e_start = smem_cumsum(i_e);
             int e_end   = smem_cumsum(i_e + 1);
+
+            //temp hack ptr for expert tile cnt
+            index_t *p_sorted_expert_cnts = p_total_tokens_post_pad + 1 + i_e;
+            p_sorted_expert_cnts[1] = unit_size_mdiv.div(e_end);
 
             int expert_id = [&]() {
                 if constexpr(Problem::LocalExpertMasking)
@@ -882,7 +891,6 @@ struct MoeSortingKernel
                 else
                     return i_e;
             }();
-
             smem_cumdup(i_e) = e_start; // duplicate cumsum for later use
             if constexpr(Problem::SkipExpertsWithZeroTokens)
             {
@@ -895,12 +903,9 @@ struct MoeSortingKernel
                 if(local_expert_mask[i_e] == 0)
                     continue;
             }
-            index_t *p_sorted_expert_cnts = p_total_tokens_post_pad + 1;
-            int e_size = unit_size_mdiv.div(e_end - e_start + unit_size_mdiv.divisor - 1);
             for(int i = e_start; i < e_end; i += unit_size_mdiv.divisor)
             {
                 p_sorted_expert_ids[unit_size_mdiv.div(i)] = expert_id;
-                p_sorted_expert_cnts[unit_size_mdiv.div(i)] = e_size;
             }
         }
         smem_cumdup(num_experts) = smem_cumsum(num_experts);

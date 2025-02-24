@@ -1157,9 +1157,10 @@ struct GridwiseMoeGemm
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);     
         // constexpr int expert_tile_cnt[8] = {2, 1, 1, 2, 2, 2, 1, 2};
         // const index_t b_block_id = blockIdx.x % problem.NBlock;
-        const index_t expert_block_id = blockIdx.x / problem.NBlock;
-        const index_t expert_id = NSwizzle ? __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[blockIdx.x / problem.NBlock]) :
-                                            __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[blockIdx.y]);
+        const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.y;
+        if (expert_block_id * MPerBlock >= max_token_id)
+            return;
+        const index_t expert_id =  __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[expert_block_id]);
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr (NSwizzle) 
             {
@@ -1202,7 +1203,7 @@ struct GridwiseMoeGemm
         constexpr auto AMRepeats = MPerBlock / AMThreads;
         const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
         
-        if(token_pos >= max_token_id || expert_block_id * MPerBlock >= max_token_id || token0 >= problem.NumTokens)
+        if(token_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
         StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
@@ -2089,8 +2090,8 @@ struct GridwiseMoeGemm
                         weight = weight * p_sorted_weights_2[c_token_pos + m0];
                     }
                     
-                    if(threadIdx.x % 8 == 0 && blockIdx.x == 0)
-                    printf("init off tid %d access %d tpos %d m %d off %d wei %f\n",  threadIdx.x, dstidx(I1), c_token_pos, m0(), token_offset, weight);
+                    // if(threadIdx.x % 8 == 0 && blockIdx.x == 0)
+                    // printf("init off tid %d access %d tpos %d m %d off %d wei %f\n",  threadIdx.x, dstidx(I1), c_token_pos, m0(), token_offset, weight);
                     scatter_offsets(m0) = token_offset * problem.N;
                     scatter_weights(m0) = weight;
                 });
