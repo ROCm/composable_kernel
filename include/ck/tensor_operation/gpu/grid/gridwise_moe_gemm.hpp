@@ -1568,8 +1568,8 @@ struct GridwiseMoeGemm
 
                 auto dstidx = sfc_cde_block.GetIndex(access_id);
                 const index_t c_token_pos = block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats + dstidx(I1);
-                if(threadIdx.x==0 && blockIdx.x==0)
-                    printf("cidx %d %d tpos %d\n", dstidx(I0), dstidx(I1), c_token_pos);
+                // if(threadIdx.x==0 && blockIdx.x==0)
+                //     printf("cidx %d %d tpos %d\n", dstidx(I0), dstidx(I1), c_token_pos);
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     index_t token_offset = fused_token & 0xffffff;
@@ -1658,12 +1658,12 @@ struct GridwiseMoeGemm
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);     
-
-        
         // constexpr int expert_tile_cnt[8] = {2, 1, 1, 2, 2, 2, 1, 2};
         // const index_t b_block_id = blockIdx.x % problem.NBlock;
-        const index_t expert_block_id = blockIdx.x / problem.NBlock;
-        const index_t expert_id = __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[blockIdx.x / problem.NBlock]);
+        const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.y;
+        if (expert_block_id * MPerBlock >= max_token_id)
+            return;
+        const index_t expert_id =  __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[expert_block_id]);
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr (NSwizzle) 
             {
