@@ -140,6 +140,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
     using Argument = typename GridwiseGemm::Argument;
 
     int GetPreShuffleParameters() override { return NPerXDL; }
+    int GetPreShufflePadded(int K) override { return (K + 64 - 1) / 64 * 64; }
 
     // Invoker
     struct Invoker : public BaseInvoker
