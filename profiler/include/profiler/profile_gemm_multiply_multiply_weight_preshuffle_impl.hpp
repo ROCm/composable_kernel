@@ -25,13 +25,14 @@ namespace ck {
 namespace profiler {
 
 template <typename InOutDataType>
-void preShuffleBuffer(const InOutDataType* src, InOutDataType* dst, int N, int K, int NXdl)
+void preShuffleBuffer(
+    const InOutDataType* src, InOutDataType* dst, int N, int K, int NXdl, int Knew)
 {
     int KPack = 16;
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
-    int K0 = K / (KLane * KPack);
+    int K0 = Knew / (KLane * KPack);
     // K -> K0 KLane KPack
     // N -> N0 NLane
     // N, K -> N0 K0 KLane NLane KPack
@@ -55,6 +56,7 @@ void preShuffleBuffer(const InOutDataType* src, InOutDataType* dst, int N, int K
         }
     }
 }
+int GetPreShufflePadded(int K) { return (K + 64 - 1) / 64 * 64; }
 
 template <typename ADataType,
           typename BDataType,
@@ -100,13 +102,14 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                 return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
-
+    auto Knew       = GetPreShufflePadded(K);
+    auto StrideBnew = Knew;
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<BDataType> b_preshuffled_mfma16(
-        f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
+        f_host_tensor_descriptor(Knew, N, StrideBnew, BLayout{})); // use layout only for size
     Tensor<BDataType> b_preshuffled_mfma32(
-        f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
+        f_host_tensor_descriptor(Knew, N, StrideBnew, BLayout{})); // use layout only for size
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
@@ -143,8 +146,10 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
         d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
 
-    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma16.mData.data(), N, K, 16);
-    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma32.mData.data(), N, K, 32);
+    b_preshuffled_mfma16.SetZero();
+    b_preshuffled_mfma32.SetZero();
+    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma16.mData.data(), N, K, 16, Knew);
+    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma32.mData.data(), N, K, 32, Knew);
 
     using PassThrough      = ck::tensor_operation::element_wise::PassThrough;
     using MultiplyMultiply = ck::tensor_operation::element_wise::MultiplyMultiply;
@@ -158,8 +163,10 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     const auto c_element_op = CElementOp{};
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf_mfma16(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf_mfma32(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf_mfma16(sizeof(BDataType) *
+                                  b_preshuffled_mfma16.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf_mfma32(sizeof(BDataType) *
+                                  b_preshuffled_mfma32.mDesc.GetElementSpaceSize());
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
