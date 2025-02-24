@@ -129,6 +129,7 @@ void preShuffleBuffer(const DataType* src, DataType* dst, int N, int K, int NXdl
         }
     }
 }
+int GetPreShufflePadded(int K) { return (K + 64 - 1) / 64 * 64; }
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using AElementOp   = PassThrough;
@@ -243,8 +244,8 @@ int main(int argc, char* argv[])
                 return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
-    auto device_op  = DeviceOpInstance{};
-    auto Knew       = device_op.GetPreShufflePadded(K);
+
+    auto Knew       = GetPreShufflePadded(K);
     auto StrideBnew = Knew;
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, A0Layout{}));
     Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
@@ -302,8 +303,8 @@ int main(int argc, char* argv[])
     constexpr auto I0 = ck::Number<0>{};
 
     // do GEMM
-
-    int NPerXdl = device_op.GetPreShuffleParameters();
+    auto device_op = DeviceOpInstance{};
+    int NPerXdl    = device_op.GetPreShuffleParameters();
 
 #if 0
 {   //test shuffle result
