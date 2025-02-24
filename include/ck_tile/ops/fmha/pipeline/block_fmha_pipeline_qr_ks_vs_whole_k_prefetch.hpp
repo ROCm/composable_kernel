@@ -708,7 +708,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
             {
-                if constexpr(NumVLdsBuffers == 1)
+                if constexpr(NumVLdsBuffers < 3)
                 {
                     static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
                         v_tiles[I0] = load_tile(v_dram_window);
