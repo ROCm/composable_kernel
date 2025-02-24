@@ -69,7 +69,7 @@ struct MulABScaleExpertWeight
         //for real kernel use
         //warning: hack hack hack here!!!! ignore d0 right now as kernel mul d0 * d2 outside. tofix:felix 
         (void) d0;
-        e = ck::type_convert<EDataType>(c *  d1 * d2);
+        e = ck::type_convert<EDataType>(c *  d1 * d2 * 16);
     }
     // for reference cpu
     template <>
@@ -81,7 +81,7 @@ struct MulABScaleExpertWeight
                                                                             const float& d2) const
     {
         // for reference cpu
-        e = ck::type_convert<EDataType>(c *  d0 * d1 * d2);
+        e = ck::type_convert<EDataType>(c *  d0 * d1 * d2 * 16);
     }
 };
 
@@ -137,7 +137,7 @@ static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
 static constexpr ck::index_t CShuffleNLane = 32;
 static constexpr ck::index_t CShuffleMLane = BLOCKSIZE / CShuffleNLane;
 static constexpr ck::index_t AK1 = 16 / sizeof(A0DataType);
-static constexpr ck::index_t BK1 = 16 / sizeof(B0DataType);
+static constexpr ck::index_t BK1 = 32 / sizeof(B0DataType);
 static constexpr ck::index_t EVec = 2;
 static constexpr ck::index_t D0Vec = 1;
 static constexpr ck::index_t D1Vec = 1;
@@ -151,7 +151,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
                MNPerXDL,   MNPerXDL,
                MXDLPerWave,    NXDLPerWave,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
-               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
+               S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
                MXDLPerWave,    1,   S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, A0DataType>;
 // clang-format on
