@@ -161,29 +161,25 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
 
                 const char* op_str;
                 if constexpr(DstInMemOp == InMemoryDataOperationEnum::Set)
+                {
+                    op_str="Set";
 
-                printf("BlockId %d - Line %d: DstInMemOp=%d, Dst Vector Data at idx %d: %f\n",
-                        static_cast<int>(blockIdx.x),
-                        __LINE__,
-                        static_cast<int>(DstInMemOp),
-                        static_cast<int>(idx_1d.value),
-                        dst_val);
-            }
-#endif
+                }else if constexpr(DstInMemOp == InMemoryDataOperationEnum::AtomicAdd)
+                {
+                    op_str="AtomicAdd";
 
-            // Debug print for destination values
-            if (blockIdx.x == 0 && threadIdx.x == 0 && threadIdx.y == 0 && is_dst_valid)
-            {
-                
-                switch(DstInMemOp) {
-                    case InMemoryDataOperationEnum::Set: op_str = "Set"; break;
-                    case InMemoryDataOperationEnum::Add: op_str = "Add"; break;
-                    default: op_str = "Unknown";
+                }else if constexpr(DstInMemOp == InMemoryDataOperationEnum::AtomicMax)
+                {
+                    op_str="AtomicMax";
                 }
-
-                float dst_val = static_cast<float>(
-                    dst_vector_container.template AsType<DstData>().At(Number<0>{}));
-
+                else if constexpr(DstInMemOp == InMemoryDataOperationEnum::Add)
+                {
+                    op_str="Add";
+                }
+                else
+                {
+                    op_str="Unknown";
+                }
                 printf("BlockId %d - Line %d: DstInMemOp=%s, Dst Vector Data at idx %d: %f\n",
                         static_cast<int>(blockIdx.x),
                         __LINE__,
@@ -191,6 +187,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                         static_cast<int>(idx_1d.value),
                         dst_val);
             }
+#endif
 
             // copy data from dst_vector into dst_buf
             dst_buf.template Update<DstInMemOp, dst_vector_t>(
@@ -198,9 +195,42 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
+            // @Emin: I think the above line should be fixed since the print abouve Update give correct value
+            // dst_buf.template Update, After this Update function is called, the dst_buf is updated with the incorrect value
+
             // copy data from dst_vector into dst_buf
             // DstDataType converted_v = ck::type_convert<DstDataType>(v);
             // dst_buf.template Update<DstInMemOp>(dst_coord_.GetOffset(), is_dst_valid, converted_v);
+
+         
+
+#if 1
+            // Emin @debug
+            //  // Debug: Print data before copying from dst_vector into dst_buf
+            if (threadIdx.x == 0 && threadIdx.y == 0 && is_dst_valid) {
+                // printf("Dst Vector Data being copied to dst_buf at idx %d: %v4hu", static_cast<int>(idx_1d.value), dst_buf.template AsType<DstData>().At(I0));
+                // printf("BlockId %d -  Dst Vector Data being copied to dst_buf at idx %d: %hu\n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid));
+
+                //printf("BlockId %d -  Dst Vector Data being copied to dst_buf at idx %d: %v8hlf\n", static_cast<int>(blockIdx.x) , static_cast<int>(idx_1d.value), dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid));
+           
+           
+                // Get the dst value
+                auto dst_value = dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid);
+
+                // Convert fp16 to fp32
+                auto dst_fp16_value = dst_value[0];
+                float dst_fp32_value = static_cast<float>(dst_fp16_value);
+
+                printf("BlockId %d - Dst Vector Data being copied to dst_buf at idx %d: %f\n",
+                    static_cast<int>(blockIdx.x),
+                    static_cast<int>(idx_1d.value),
+                    dst_fp32_value);
+           
+           
+            }
+
+#endif
+
 
             // move coordinate
             if constexpr(idx_1d.value != num_access - 1)

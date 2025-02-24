@@ -1871,14 +1871,23 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                     c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
                                     make_tuple(MXdlPerWave, 0, NXdlPerWave, 0));
 
+                                // c_block_copy_lds_to_partial_acc
+                                //     .template Run<decltype(c_shuffle_block_buf),
+                                //                   decltype(c_partial_acc_buf),
+                                //                   InMemoryDataOperationEnum::Set>(
+                                //         c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
+                                //         c_shuffle_block_buf,
+                                //         c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
+                                //         c_partial_acc_buf);
+
                                 c_block_copy_lds_to_partial_acc
-                                    .template Run<decltype(c_shuffle_block_buf),
-                                                  decltype(c_partial_acc_buf),
-                                                  InMemoryDataOperationEnum::Set>(
-                                        c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
-                                        c_shuffle_block_buf,
-                                        c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
-                                        c_partial_acc_buf);
+                                        .template Run<decltype(c_shuffle_block_buf),
+                                                        decltype(c_partial_acc_buf),
+                                                        InMemoryDataOperationEnum::Add>(
+                                            c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
+                                            c_shuffle_block_buf,
+                                            c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
+                                            c_partial_acc_buf);
                             }
                         }
 
