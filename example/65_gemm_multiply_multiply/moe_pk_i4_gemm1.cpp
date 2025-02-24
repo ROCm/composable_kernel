@@ -64,7 +64,11 @@ struct MulABScale
                                                                             const float& d0,
                                                                             const float& d1) const
     {
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+        e = ck::type_convert<EDataType>(c * d1 * d0 * 16);
+#else
         e = ck::type_convert<EDataType>(c * d1 * d0);
+#endif
     }
 };
 
@@ -84,7 +88,11 @@ struct MulABScaleSilu
     {
         // act
         float x0 = 0;
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+        ck::tensor_operation::element_wise::Silu{}(x0, c * d1 * d0 * 16);
+#else
         ck::tensor_operation::element_wise::Silu{}(x0, c * d1 * d0);
+#endif
         e = ck::type_convert<EDataType>(x0);
     }
 };
@@ -131,13 +139,13 @@ using BElementOp   = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 #if 0
-static constexpr ck::index_t MPerBlock = 128;
-static constexpr ck::index_t MXDLPerWave = 2; 
+static constexpr ck::index_t MPerBlock = 64;
+static constexpr ck::index_t MXDLPerWave = 1; 
 static constexpr ck::index_t NXDLPerWave = 2; 
 static constexpr ck::index_t BLOCKSIZE = 256;
 static constexpr ck::index_t NPerBlock = 128;
 static constexpr ck::index_t MNPerXDL = 32;
-static constexpr ck::index_t KPerBlock = 256 / sizeof(A0DataType);
+static constexpr ck::index_t KPerBlock = 64 / sizeof(A0DataType);
 static constexpr ck::index_t Nswizzle = false;
 static constexpr ck::index_t AK1 = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1 = 32 / sizeof(B0DataType);
@@ -154,8 +162,8 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             AK1,   BK1,
             MNPerXDL,   MNPerXDL,
             MXDLPerWave,    NXDLPerWave,
-            S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
-            S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
+            S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
+            S<2, 128, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
             MXDLPerWave,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
             ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, A0DataType>;
 // clang-format on
@@ -174,7 +182,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
             S<2, 128, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
             4,    1,   S<1, 32, 1, 8>, S<4, 1, 1>,
-            ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, Nswizzle, true, A0DataType>;
+            ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, A0DataType>;
 // clang-format on
 #endif
 
@@ -359,6 +367,7 @@ int main(int argc, char* argv[])
     }
 #endif
 
+#if CK_USE_PK4_LAYOUT_SHUFFLE
     // vector pk_i4x4 permute
     for(int e = 0; e < experts; e++)
     {
@@ -410,6 +419,7 @@ int main(int argc, char* argv[])
             }
         }
     }
+#endif
 
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
 
