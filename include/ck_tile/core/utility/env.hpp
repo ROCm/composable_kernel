@@ -8,10 +8,13 @@
 
 namespace ck_tile {
 
-#define CK_TILE_ERROR(...)                                \
-    {                                                     \
-        std::cerr << "[ERROR] " __VA_ARGS__ << std::endl; \
-    }
+template <typename... Args>
+void CK_TILE_ERROR(Args&&... args) noexcept
+{
+    std::ostringstream oss;
+    (oss << ... << args);
+    std::cerr << "[ERROR] " << oss.str() << std::endl;
+}
 
 namespace internal {
 template <typename T>
