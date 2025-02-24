@@ -203,10 +203,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
         });
 
         // A local
-        static_for<0, num_ds_read_inst_a / 2, 1>{}([&](auto i) {
+        static_for<0, num_ds_read_inst_a, 1>{}([&](auto i) {
             ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
         });
     }
 

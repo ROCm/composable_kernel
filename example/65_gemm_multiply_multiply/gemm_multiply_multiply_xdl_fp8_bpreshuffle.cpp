@@ -136,18 +136,19 @@ using CDEElementOp = MultiplyMultiply;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
+
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
     // clang-format off
     <   Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
         AElementOp,  BElementOp, CDEElementOp, GemmSpec, 256,
-        256,   256,    128,
+        64,   128,    256,
         16,   16,
-        16,   16,
-        8,    8,
-        S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-        S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-        1,    2,   S<1, 32, 1, 8>, S<8, 8, 1>,
-        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
+        32,   32,
+        2,    1,
+        S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+        S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+        1,    1,   S<1, 32, 1, 8>, S<8, 8, 1>,
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, FP8>;
 // clang-format on
 
 int main(int argc, char* argv[])
@@ -157,9 +158,9 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
 
     // GEMM shape
-    ck::index_t M = 3840;
-    ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t M = 1656;
+    ck::index_t N = 1024;
+    ck::index_t K = 5120;
 
     ck::index_t StrideA = K;
     ck::index_t StrideB = K;
@@ -168,7 +169,7 @@ int main(int argc, char* argv[])
 
     ck::index_t KBatch = 1;
 
-    ck::index_t Warmup = 50;
+    ck::index_t Warmup = 20;
     ck::index_t Repeat = 50;
 
     if(argc == 1)
