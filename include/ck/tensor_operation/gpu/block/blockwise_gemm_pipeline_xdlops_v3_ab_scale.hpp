@@ -193,7 +193,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
             (num_ds_read_inst_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
         constexpr auto num_dsread_b_mfma =
             (num_ds_read_inst_b + ds_read_b_mfma_rate - 1) / ds_read_b_mfma_rate;
-        
+
         // stage 1
         // Separate this part?
         // constexpr auto num_mfma_per_ds_read = sizeof(ComputeDataType) / sizeof(ADataType) >
@@ -324,6 +324,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
         index_t num_loop) const
     {
         __builtin_amdgcn_sched_barrier(0);
+        static_assert(CScaleThreadDesc{}.GetLength(Number<0>{}) == 1,
+                      "Pipeline v3 only support scaleblocksliceK=1");
+        static_assert(CScaleThreadDesc{}.GetLength(Number<2>{}) == 1,
+                      "Pipeline v3 only support scaleblocksliceN=1");
         // assume kperblock = scaleblockk
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
             a_thread_desc_.GetElementSpaceSize());
@@ -413,7 +417,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                                 b_scale_thread_desc,
                                 make_tuple(I0, I0),
                                 b_scale_thread_buf);
-            
+
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
 
         // Initialize C

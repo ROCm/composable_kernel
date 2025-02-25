@@ -50,7 +50,8 @@ int profile_gemm_ab_scale(int argc, char* argv[])
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
         printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
         printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
-        printf("arg4: scale block tile (0: ScaleBlockM/N/K = [128, 128, 128];\n");
+        printf("arg4: scale block tile (0: ScaleBlockM/N/K = [128, 128, 128]; 1: ScaleBlockM/N/K = "
+               "[1, 128, 128];\n");
         printf("arg5: verification (0: no; 1: yes)\n");
         printf("arg6: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg7: print tensor value (0: no; 1: yes)\n");

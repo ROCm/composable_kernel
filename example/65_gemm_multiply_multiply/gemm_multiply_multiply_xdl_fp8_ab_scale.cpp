@@ -65,14 +65,14 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_
           A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType, 
           AElementOp,  BElementOp, CDEElementOp, GemmSpec,
           256, Scale_Block_M, Scale_Block_N, Scale_Block_K,
-          128, 128,
-          128, 16, 16,
-          32,   32,
-          2,    2,
-          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-          1,    1,  S<1, 32, 1, 8>,  S<8>,
-          ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
+          16, 128,
+          256, 16, 16,
+          16,   16,
+          1,    2,
+          S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+          S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+          1,    2,  S<1, 16, 1, 16>,  S<8>,
+          ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, FP8>;
 // clang-format on
 
 int main(int argc, char* argv[])
@@ -80,6 +80,7 @@ int main(int argc, char* argv[])
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;
+    bool flush_cache     = true;
 
     // GEMM shape
     ck::index_t M = 128;
@@ -100,7 +101,7 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 7)
+    else if(argc == 8)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -109,6 +110,8 @@ int main(int argc, char* argv[])
         M = std::stoi(argv[4]);
         N = std::stoi(argv[5]);
         K = std::stoi(argv[6]);
+
+        flush_cache = std::stoi(argv[7]);
 
         StrideA = K;
         StrideB = K;
@@ -119,7 +122,8 @@ int main(int argc, char* argv[])
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideE\n");
+        printf("arg4 to 6: M, N, K\n");
+        printf("arg7: flush both I$ and L2$ (0=no, 1=yes)\n");
         exit(0);
     }
 
@@ -185,7 +189,6 @@ int main(int argc, char* argv[])
         a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
-        // b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
     case 5:
@@ -193,13 +196,22 @@ int main(int argc, char* argv[])
         b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
-        // b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
         b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
         a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+    }
+#endif
+#if 0
+    for(int im =0; im< (M + Scale_Block_M - 1) / Scale_Block_M; im++){
+        float row_sum = .0;
+        for(int ik =0; ik< (K + Scale_Block_K - 1) / Scale_Block_K; ik++){
+            printf("%lf ",a1_m_k(im, ik));
+            row_sum += a1_m_k(im, ik);
+        }
+        printf("sum: %lf\n", row_sum * 128);
     }
 #endif
 
@@ -251,9 +263,19 @@ int main(int argc, char* argv[])
     std::size_t num_btype =
         sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(EDataType) * M * N;
 
-    int rotating_buf = (512*1024*1024 + num_btype-1)/num_btype;
+    float ave_time = .0;
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 0, 50, 100, true, rotating_buf});
+    if(flush_cache)
+    {
+        int rotating_buf = (512 * 1024 * 1024 + num_btype - 1) / num_btype;
+
+        ave_time = invoker.Run(argument,
+                               StreamConfig{nullptr, time_kernel, 0, 50, 100, true, rotating_buf});
+    }
+    else
+    {
+        ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 0, 50, 100});
+    }
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 

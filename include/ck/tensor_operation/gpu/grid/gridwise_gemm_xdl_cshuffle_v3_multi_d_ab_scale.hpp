@@ -225,7 +225,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
     }
 
-    __host__ __device__  static auto MakeAGridDescriptor_AK0_M_AK1(
+    __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
         index_t M, index_t MPad, index_t K, index_t KPad, index_t StrideA, index_t AK0)
     {
         const auto a_grid_desc_mraw_kraw = [&]() {
@@ -307,7 +307,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         }
     }
 
-    __host__ __device__  static auto MakeBGridDescriptor_BK0_N_BK1(
+    __host__ __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
         index_t K, index_t KPad, index_t N, index_t NPad, index_t StrideB, index_t BK0)
     {
         const auto b_grid_desc_nraw_kraw = [&]() {
@@ -956,7 +956,8 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
+                     !(is_same<tensor_layout::gemm::RowMajor, ALayout>::value))
         {
             if(!(karg.M % MPerBlock == 0))
             {
@@ -973,7 +974,8 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
+                     (is_same<tensor_layout::gemm::RowMajor, BLayout>::value))
         {
             if(!(karg.N % NPerBlock == 0))
             {
@@ -1321,10 +1323,12 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
 
-        const index_t ScaleSliceSizeM = MXdlPerWave;
-        const index_t ScaleSliceSizeN = 1;
-        const index_t ScaleSliceSizeK = 1;
+        constexpr index_t ScaleSliceSizeM = MXdlPerWave;
+        constexpr index_t ScaleSliceSizeN = math::integer_divide_ceil(NPerBlock, ScaleBlockN);
+        constexpr index_t ScaleSliceSizeK = math::integer_divide_ceil(KPerBlock, ScaleBlockK);
 
+        // ScaleSliceSizeK is last dimension in A/B scale for vector memory access
+        // ScaleSliceSizeK is first dimension in C scale for packed math
         constexpr auto a_scale_thread_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<ScaleSliceSizeM>{}, Number<ScaleSliceSizeK>{}));
 
@@ -1337,7 +1341,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
 
         constexpr auto c_scale_thread_desc = make_naive_tensor_descriptor_packed(make_tuple(
-            Number<ScaleSliceSizeM>{}, Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
+            Number<ScaleSliceSizeK>{}, Number<ScaleSliceSizeM>{}, Number<ScaleSliceSizeN>{}));
 
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<AScaleType,
@@ -1347,7 +1351,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                                              Sequence<1, ScaleSliceSizeK>,
                                              Sequence<0, 1>,
                                              1,
-                                             1,
+                                             ScaleSliceSizeK,
                                              1,
                                              false>(
                 a_scale_grid_desc_am_ak,
@@ -1361,7 +1365,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                                              Sequence<ScaleSliceSizeN, ScaleSliceSizeK>,
                                              Sequence<0, 1>,
                                              1,
-                                             1,
+                                             ScaleSliceSizeK,
                                              1,
                                              false>(
                 b_scale_grid_desc_bn_ak, make_multi_index(block_n_id * NPerBlock / ScaleBlockN, 0));
@@ -1370,10 +1374,10 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         constexpr auto a_scale_thread_slice_copy_step =
             make_tuple(make_multi_index(MWaves * MPerXdl, 0),
                        make_multi_index(-MPerBlock, 0),
-                       make_multi_index(-MPerBlock, 1));
-        constexpr auto b_scale_thread_slice_copy_step = make_multi_index(0, 1);
+                       make_multi_index(-MPerBlock, ScaleSliceSizeK));
+        constexpr auto b_scale_thread_slice_copy_step = make_multi_index(0, ScaleSliceSizeK);
 
-        constexpr auto NumKBlockPerScale = ScaleBlockK / KPerBlock;
+        constexpr auto NumKBlockPerScale = math::integer_divide_ceil(ScaleBlockK, KPerBlock);
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, NumKBlockPerScale, TailNum>(
             a_grid_desc_ak0_m_ak1,

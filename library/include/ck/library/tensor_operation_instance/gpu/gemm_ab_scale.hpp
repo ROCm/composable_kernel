@@ -53,42 +53,6 @@ void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_kpadding_in
                                                             PassThrough,
                                                             PassThrough>>>& instances);
 
-void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_mnpadding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD_ABScale<Row,
-                                                            Col,
-                                                            Tuple<>,
-                                                            Row,
-                                                            F8,
-                                                            F32,
-                                                            F8,
-                                                            F32,
-                                                            Tuple<>,
-                                                            BF16,
-                                                            1,
-                                                            128,
-                                                            128,
-                                                            PassThrough,
-                                                            PassThrough,
-                                                            PassThrough>>>& instances);
-
-void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_mnkpadding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD_ABScale<Row,
-                                                            Col,
-                                                            Tuple<>,
-                                                            Row,
-                                                            F8,
-                                                            F32,
-                                                            F8,
-                                                            F32,
-                                                            Tuple<>,
-                                                            BF16,
-                                                            1,
-                                                            128,
-                                                            128,
-                                                            PassThrough,
-                                                            PassThrough,
-                                                            PassThrough>>>& instances);
-
 void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_v1_default_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD_ABScale<Row,
                                                             Col,
@@ -108,24 +72,6 @@ void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_v1_default_i
                                                             PassThrough>>>& instances);
 
 void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_v1_kpadding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD_ABScale<Row,
-                                                            Col,
-                                                            Tuple<>,
-                                                            Row,
-                                                            F8,
-                                                            F32,
-                                                            F8,
-                                                            F32,
-                                                            Tuple<>,
-                                                            BF16,
-                                                            1,
-                                                            128,
-                                                            128,
-                                                            PassThrough,
-                                                            PassThrough,
-                                                            PassThrough>>>& instances);
-
-void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_v1_mnkpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD_ABScale<Row,
                                                             Col,
                                                             Tuple<>,
@@ -202,16 +148,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
                     op_ptrs);
                 add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_kpadding_instances(
                     op_ptrs);
-                add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_mnkpadding_instances(
-                    op_ptrs);
 
                 add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_v1_default_instances(
                     op_ptrs);
                 add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_v1_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_v1_mnkpadding_instances(
                     op_ptrs);
             }
         }
