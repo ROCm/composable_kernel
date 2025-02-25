@@ -68,16 +68,6 @@ struct BlockUniversalGemmAsBsCr
         static constexpr index_t NPerBlockPerIter = NWarp * WarpGemm::kN;
         static constexpr index_t KPerBlockPerIter = WarpGemm::kK;
 
-        using AWarpTileDistr = remove_cvref_t<decltype(make_static_tile_distribution(
-            typename WarpGemm::AWarpDstrEncoding{}))>;
-        using BWarpTileDistr = remove_cvref_t<decltype(make_static_tile_distribution(
-            typename WarpGemm::BWarpDstrEncoding{}))>;
-
-        using AWarpTile = remove_cvref_t<decltype(make_static_distributed_tensor<ComputeDataType>(
-            AWarpTileDistr{}))>;
-        using BWarpTile = remove_cvref_t<decltype(make_static_distributed_tensor<ComputeDataType>(
-            BWarpTileDistr{}))>;
-
         // TODO: Should we have two policies? Interwave & Intrawave ??
         static constexpr index_t InterWaveSchedulingMacClusters = 1;
 
@@ -137,16 +127,15 @@ struct BlockUniversalGemmAsBsCr
 
     private:
     template <typename WarpWindow, typename WarpTile>
-    CK_TILE_DEVICE static void load_interleaved_pk_type(const WarpWindow& warp_window,
-                                                        WarpTile& warp_tile)
+    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
+                                                        const WarpWindow& warp_window)
     {
         constexpr index_t UnaryOpSize = 8;
         const element_wise::PassThroughPack8 elementwise_op{};
-        constexpr index_t thread_buffer_size =
-            Traits::AWarpTile::get_thread_buffer_size() / UnaryOpSize;
-        const auto in_dstr_tensors = load_tile(warp_window);
+        constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
+        const auto in_dstr_tensors           = load_tile(warp_window);
 
-        static_assert(Traits::AWarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
+        static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
 
         using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
         static_for<0, thread_buffer_size, 1>{}([&](auto i) {
@@ -199,8 +188,8 @@ struct BlockUniversalGemmAsBsCr
         static constexpr auto BLdsTileDistr =
             decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
 
-        using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr));
-        using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
+        using ALdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(ALdsTileDistr));
+        using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
 
         ALdsTile a_warp_tile_;
         ALdsTile b_warp_tile_;
@@ -219,9 +208,22 @@ struct BlockUniversalGemmAsBsCr
                           "The ADataType and BDataType as defined in "
                           "traits should be the same as correspoinding block window data type!");
 
-            load_tile(a_warp_tile_, a_block_window);
-            load_tile(b_warp_tile_, b_block_window);
-
+            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
+            {
+                load_interleaved_pk_type(a_warp_tile_, a_block_window);
+            }
+            else
+            {
+                load_tile(a_warp_tile_, a_block_window);
+            }
+            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            {
+                load_interleaved_pk_type(b_warp_tile_, b_block_window);
+            }
+            else
+            {
+                load_tile(b_warp_tile_, b_block_window);
+            }
             // hot loop:
             static_for<0, GemmTraits::KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
@@ -300,8 +302,8 @@ struct BlockUniversalGemmAsBsCr
         static constexpr auto BLdsTileDistr =
             decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
 
-        using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr));
-        using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
+        using ALdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(ALdsTileDistr));
+        using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
 
         ALdsTile a_warp_tile_;
         ALdsTile b_warp_tile_;
@@ -310,8 +312,22 @@ struct BlockUniversalGemmAsBsCr
         CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
                                           const BSmemBlockWindow& b_block_window)
         {
-            load_tile(a_warp_tile_, a_block_window);
-            load_tile(b_warp_tile_, b_block_window);
+            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
+            {
+                load_interleaved_pk_type(a_warp_tile_, a_block_window);
+            }
+            else
+            {
+                load_tile(a_warp_tile_, a_block_window);
+            }
+            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            {
+                load_interleaved_pk_type(b_warp_tile_, b_block_window);
+            }
+            else
+            {
+                load_tile(b_warp_tile_, b_block_window);
+            }
         }
 
         // C += A * B
@@ -410,8 +426,8 @@ struct BlockUniversalGemmAsBsCr
         static constexpr auto BLdsTileDistr =
             decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
 
-        using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr));
-        using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
+        using ALdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(ALdsTileDistr));
+        using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
 
         ALdsTile a_warp_tile_;
         ALdsTile b_warp_tile_;
@@ -438,8 +454,22 @@ struct BlockUniversalGemmAsBsCr
                                  {0, KIdx * KPerInnerLoop},
                                  b_lds_load_tile_distr);
 
-            load_tile(a_warp_tile_, a_lds_gemm_window);
-            load_tile(b_warp_tile_, b_lds_gemm_window);
+            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
+            {
+                load_interleaved_pk_type(a_warp_tile_, a_block_window);
+            }
+            else
+            {
+                load_tile(a_warp_tile_, a_lds_gemm_window);
+            }
+            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            {
+                load_interleaved_pk_type(b_warp_tile_, b_block_window);
+            }
+            else
+            {
+                load_tile(b_warp_tile_, b_lds_gemm_window);
+            }
         }
 
         // C += A * B
