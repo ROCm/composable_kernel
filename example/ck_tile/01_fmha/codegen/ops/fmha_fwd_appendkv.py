@@ -323,7 +323,7 @@ def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                                   F_tile=tile,
                                   F_pipeline=pipeline,
                                   mask_impl=mask_impl)
-                if kernel_filter != None:
+                if kernel_filter != '':
                     if not fnmatch.fnmatch(k.name, kernel_filter):
                         continue
                 # 2 - Flash attention integration

@@ -711,7 +711,7 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                            F_tile=tile,
                            F_pipeline=pipeline,
                            mask_impl=mask_impl)
-                if kernel_filter != None:
+                if kernel_filter != '':
                     if not fnmatch.fnmatch(k.name, kernel_filter):
                         continue
                 # Flash attention integration
@@ -779,11 +779,9 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt) -> Lis
                            F_mode=mode,
                            F_tile=tile,
                            F_pipeline=pipeline)
-                # TODO - support more kernel_filter
-                # kernel name is different, if we check kernel_filter here, some kernels will be filtered
-                # if kernel_filter != None:
-                #         if not fnmatch.fnmatch(k.name, kernel_filter):
-                #             continue
+                if kernel_filter != '':
+                    if not fnmatch.fnmatch(k.name, kernel_filter):
+                        continue
                 # Aiter(mha_varlen_fwd) integration
                 if receipt == 200:
                     cond = dtype in ['fp16', 'bf16']
@@ -801,21 +799,27 @@ def write_fwd_splitkv_api(api_pool : FmhaFwdSplitKVApiPool, autogen_dir: Path) -
     file_path = autogen_dir / FMHA_FWD_SPLITKV_API_FILENAME
     file_path.write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
-    kernels = get_fwd_splitkv_combine_blobs(kernel_filter, receipt)
+def write_blobs(output_dir : Path, filter_list : str, receipt, mask_impl) -> None:
+    filter_list = filter_list.split('@')
+    filter_list.extend([''] * (2 - len(filter_list)))
+
+    kernels = get_fwd_splitkv_combine_blobs(filter_list[0], receipt)
     for kernel in kernels:
         write_single_kernel(kernel, output_dir)
-    api_pool, kernels = get_fwd_splitkv_blobs(kernel_filter, receipt, mask_impl)
+    api_pool, kernels = get_fwd_splitkv_blobs(filter_list[1], receipt, mask_impl)
     for kernel in kernels:
         write_single_kernel(kernel, output_dir)
     write_fwd_splitkv_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
+def list_blobs(file_path : Path, filter_list : str, receipt, mask_impl) -> None:
+    filter_list = filter_list.split('@')
+    filter_list.extend([''] * (2 - len(filter_list)))
+
     with file_path.open('a') as f:
-        kernels = get_fwd_splitkv_combine_blobs(kernel_filter, receipt)
+        kernels = get_fwd_splitkv_combine_blobs(filter_list[0], receipt)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        _, kernels = get_fwd_splitkv_blobs(kernel_filter, receipt, mask_impl)
+        _, kernels = get_fwd_splitkv_blobs(filter_list[1], receipt, mask_impl)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_SPLITKV_API_FILENAME) + "\n")
