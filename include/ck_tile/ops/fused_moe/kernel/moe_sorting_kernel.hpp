@@ -877,18 +877,10 @@ struct MoeSortingKernel
             }
             __syncthreads();
         }
-        if (tid == 0) {
-            //temp hack ptr for expert tile cnt
-            p_total_tokens_post_pad[1] = 0;
-        }
         for(int i_e = tid; i_e < num_experts; i_e += block_size)
         {
             int e_start = smem_cumsum(i_e);
             int e_end   = smem_cumsum(i_e + 1);
-
-            //temp hack ptr for expert tile cnt
-            index_t *p_sorted_expert_cnts = p_total_tokens_post_pad + 1 + i_e;
-            p_sorted_expert_cnts[1] = unit_size_mdiv.div(e_end);
 
             int expert_id = [&]() {
                 if constexpr(Problem::LocalExpertMasking)
@@ -994,11 +986,18 @@ struct MoeSortingKernel
             __syncthreads();
         }
 
+        if (tid == 0) {
+            //temp hack ptr for expert tile cnt
+            p_total_tokens_post_pad[1] = 0;
+        }
         // add the skip number
         for(int eid = tid; eid < num_experts; eid += block_size)
         {
+            //temp hack ptr for expert tile cnt
+            index_t *p_sorted_expert_cnts = p_total_tokens_post_pad + 1 + eid;
             int e_start = smem_cumsum(eid);
             int e_end   = smem_cumdup(eid + 1);
+            p_sorted_expert_cnts[1] = unit_size_mdiv.div(e_end);
             if constexpr(Problem::SkipExpertsWithZeroTokens)
             {
                 if(e_start == e_end) // skip zero token expert
