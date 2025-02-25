@@ -54,6 +54,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
+    static constexpr index_t APackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+    static constexpr index_t BPackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+
     using ALayout = remove_cvref_t<typename Problem::ALayout>;
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
@@ -196,12 +201,12 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             // A/B split schedule
             // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
-            constexpr auto num_ds_read_inst_a = A_LDS_Read_Width * sizeof(ADataType) == 16
-                                                    ? A_LDS_Read_Inst_Num
-                                                    : A_LDS_Read_Inst_Num / 2;
-            constexpr auto num_ds_read_inst_b = B_LDS_Read_Width * sizeof(BDataType) == 16
-                                                    ? B_LDS_Read_Inst_Num
-                                                    : B_LDS_Read_Inst_Num / 2;
+            constexpr auto num_ds_read_inst_a =
+                A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? A_LDS_Read_Inst_Num
+                                                                         : A_LDS_Read_Inst_Num / 2;
+            constexpr auto num_ds_read_inst_b =
+                B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? B_LDS_Read_Inst_Num
+                                                                         : B_LDS_Read_Inst_Num / 2;
 
             constexpr auto num_ds_write_inst_a = A_LDS_Write_Inst_Num;
             constexpr auto num_ds_write_inst_b = B_LDS_Write_Inst_Num;
@@ -213,9 +218,9 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
             constexpr auto ds_read_a_issue_cycle =
-                A_LDS_Read_Width * sizeof(ADataType) == 16 ? 8 : 4;
+                A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? 8 : 4;
             constexpr auto ds_read_b_issue_cycle =
-                B_LDS_Read_Width * sizeof(BDataType) == 16 ? 8 : 4;
+                B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? 8 : 4;
             constexpr auto ds_read_a_mfma_rate =
                 (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
             constexpr auto ds_read_b_mfma_rate =

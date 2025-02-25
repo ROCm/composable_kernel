@@ -492,6 +492,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
             if kernel_filter != None:
                 if not fnmatch.fnmatch(k.name, kernel_filter):
                     continue
+            # Flash attention integration
             if receipt == 2:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= bias in ['no', 'alibi']
@@ -506,6 +507,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= deterministic == "f"
                     if not cond:
                         continue
+            # PyTorch integration
             elif receipt == 4:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= bias in ['no', 'bias']
@@ -514,22 +516,24 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= deterministic == "f"
                     if not cond:
                         continue
+            # Aiter (mha_bwd) integration
             elif receipt == 10:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "batch"
                     cond &= bias in ['no', 'alibi']
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
-                    cond &= deterministic == "f"
+                    cond &= deterministic == "t"
                     if not cond:
                         continue
+            # Aiter (mha_varlen_bwd) integration
             elif receipt == 11:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
                     cond &= bias in ['no', 'alibi']
                     cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
-                    cond &= deterministic == "f"
+                    cond &= deterministic == "t"
                     if not cond:
                         continue
             api_pool.register_dq_dk_dv_traits(k.api_trait())
