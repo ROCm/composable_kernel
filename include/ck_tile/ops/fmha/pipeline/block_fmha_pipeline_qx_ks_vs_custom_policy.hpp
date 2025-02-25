@@ -343,7 +343,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         // TODO: this is for 3d layout
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
-        return 8 / sizeof(KDataType);
+        return 16 / sizeof(KDataType);
     }
 
     template <typename Problem>

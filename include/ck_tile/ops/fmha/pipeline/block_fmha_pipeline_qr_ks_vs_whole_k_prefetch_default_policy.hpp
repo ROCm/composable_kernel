@@ -24,6 +24,46 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackK()
+    {
+        using KDataType = remove_cvref_t<typename Problem::KDataType>;
+        return 8 / sizeof(KDataType);
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
+    {
+        using KDataType = remove_cvref_t<typename Problem::KDataType>;
+
+        constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
+        constexpr index_t kNPerBlock     = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock     = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPack         = GetSmemKPackK<Problem>();
+
+        constexpr auto k_lds_block_desc_0 =
+            make_naive_tensor_descriptor(make_tuple(number<NumKLdsBuffers>{},
+                                                    number<kKPerBlock / kKPack>{},
+                                                    number<kNPerBlock>{},
+                                                    number<kKPack>{}),
+                                         make_tuple(number<kKPerBlock*(kNPerBlock + 1)>{},
+                                                    number<(kNPerBlock + 1) * kKPack>{},
+                                                    number<kKPack>{},
+                                                    number<1>{}),
+                                         number<kKPack>{},
+                                         number<1>{});
+
+        constexpr auto k_lds_block_desc = transform_tensor_descriptor(
+            k_lds_block_desc_0,
+            make_tuple(
+                make_merge_transform(make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{})),
+                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+            make_tuple(sequence<0, 2>{}, sequence<1, 3>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return k_lds_block_desc;
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
     {
         using GemmProblem =
@@ -115,6 +155,13 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
             return unreusable_k_lds_bytes_aligned;
         };
     };
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeK()
+    {
+        return MakeKLdsBlockDescriptor<Problem>().get_element_space_size() *
+               sizeof(typename Problem::KDataType);
+    }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
