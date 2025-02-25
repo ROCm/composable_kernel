@@ -181,7 +181,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
 
     __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
-        return num_loop == 1? TailNumber::Odd : TailNumber::Full;
+        return num_loop == 1 ? TailNumber::Odd : TailNumber::Full;
     }
 
     __device__ static constexpr auto HotLoopScheduler()

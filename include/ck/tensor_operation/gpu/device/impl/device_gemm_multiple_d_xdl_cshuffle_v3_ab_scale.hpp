@@ -240,7 +240,8 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             if(has_main_k_block_loop)
             {
                 // Tail number always full
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 || BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
+                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     {
                         const auto kernel =
