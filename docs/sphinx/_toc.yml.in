@@ -17,7 +17,7 @@ subtrees:
   - file: conceptual/Composable-Kernel-structure.rst
     title: Composable Kernel structure
   - file: conceptual/Composable-Kernel-math.rst
-    title: The math behind Composable Kernel
+    title: Composable Kernel mathematical basis
 
 - caption: Tutorial
   entries:

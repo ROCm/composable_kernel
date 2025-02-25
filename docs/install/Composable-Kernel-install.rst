@@ -26,7 +26,13 @@ Change directory to the ``build`` directory and generate the makefile using the 
   cmake ../. -D CMAKE_PREFIX_PATH="/opt/rocm" -D CMAKE_CXX_COMPILER="/opt/rocm/bin/hipcc" [-D<OPTION1=VALUE1> [-D<OPTION2=VALUE2>] ...]
 
 
-Other available build options are:
+Building Composable Kernel can take a significant amount of time. To reduce the build time, the following build options can be used:
+
+* ``DL_KERNELS``: Set to ``ON`` to build deep learning (DL) instances. These instances are useful on architectures that don't support XDL or WMMA.
+* ``DPP_KERNELS``: Set to ``ON`` to build data parallel primitive (DPP) instances. These instances are useful on architectures that don't support XDL or WMMA.
+* ``CK_USE_FP8_ON_UNSUPPORTED_ARCH``: Set to ``ON`` to build fp8 data type instances for GPU targets without native fp8 support.
+
+Other build options are:
 
 * ``GPU_TARGETS``: Target architectures. Target architectures in this list must all be different versions of the same architectures. Enclose the list of targets in quotation marks. Separate multiple targets with semicolons (``;``). For example, ``cmake -D GPU_TARGETS="gfx908;gfx90a"``. This option is required to build tests and examples.
 * ``GPU_ARCHS``: Target architectures. Target architectures in this list are not limited to different versions of the same architectures. Enclose the list of targets in quotation marks. Separate multiple targets with semicolons (``;``). For example, ``cmake -D GPU_TARGETS="gfx908;gfx1100"``.
@@ -36,19 +42,13 @@ Other available build options are:
 
   If neither ``GPU_TARGETS`` nor ``GPU_ARCHS`` is specified, Composable Kernel will be built for all targets supported by the compiler.
 
-Building Composable Kernel can take a significant amount of time. To reduce the build time, the following build options can be used:
-
-* ``DL_KERNELS``: Set to ``ON`` to build deep learning (DL) instances. These instances are useful on architectures that don't support XDL or WMMA.
-* ``DPP_KERNELS``: Set to ``ON`` to build data parallel primitive (DPP) instances. These instances are useful on architectures that don't support XDL or WMMA.
-* ``CK_USE_FP8_ON_UNSUPPORTED_ARCH``: Set to ``ON`` to build fp8 data type instances for GPU targets without native fp8 support.
-
 Build Composable Kernel using the generated makefile. This will build the library, the examples, and the tests, and save them to ``bin``.
 
 .. code:: shell
 
     make -j20
 
-The ``-j`` option speeds up the build by using multiple threads in parallel. For example, ``-j20`` uses twenty threads in parallel. On average, each thread will use 2Gb of memory. Use a number of threads that ensures that the system won't run out of memory.
+The ``-j`` option speeds up the build by using multiple threads in parallel. For example, ``-j20`` uses twenty threads in parallel. On average, each thread will use 2GB of memory. Make sure that the number of threads you use doesn't exceed the available memory in your system.
 
 Using ``-j`` alone will launch an unlimited number of threads.
 

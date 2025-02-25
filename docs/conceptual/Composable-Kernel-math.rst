@@ -5,7 +5,7 @@
 .. _supported-primitives:
 
 ********************************************************************
-The math behind Composable Kernel
+Composable Kernel mathematical basis
 ********************************************************************
 
 This is an introduction to the math which underpins the algorithms implemented in Composable Kernel.

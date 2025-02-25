@@ -12,5 +12,5 @@ Docker images that include all the required prerequisites for building Composabl
 
 The images also contain `ROCm <https://rocm.docs.amd.com/en/latest/index.html>`_, `CMake <https://cmake.org/getting-started/>`_, and the `ROCm LLVM compiler infrastructure <https://rocm.docs.amd.com/projects/llvm-project/en/latest/index.html>`_.
 
-Composable Kernel Docker images are named according to their operating system and ROCm version. For example, a Docker image named ``ck_ub22.04_rocm6.3`` would be an Ubuntu 22.04 image with ROCm 6.3. 
+Composable Kernel Docker images are named according to their operating system and ROCm version. For example, a Docker image named ``ck_ub22.04_rocm6.3`` would correspond to an Ubuntu 22.04 image with ROCm 6.3. 
 
