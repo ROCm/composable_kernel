@@ -360,17 +360,17 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             // origin: [N0,K0,KLane,NLane,KPack]
             constexpr index_t NkSwizzleNumber = Number<warpSize * KPack>{};
             const auto b_grid_desc_raw        = make_naive_tensor_descriptor(
-                make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
+                make_tuple(N0 / NWave, NWave, K0 / KBatch, NkSwizzleNumber),
                 make_tuple(
                     NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
 
-            auto K0new = CalculateBK0Shuffled(KPad * KBatch);
+            auto K0new = CalculateBK0Shuffled(KPad);
 
             return transform_tensor_descriptor(
                 b_grid_desc_raw,
                 make_tuple(make_pass_through_transform(N0 / NWave),
                            make_pass_through_transform(NWave),
-                           make_right_pad_transform(K0, K0new - K0),
+                           make_right_pad_transform(K0 / KBatch, K0new - K0 / KBatch),
                            make_pass_through_transform(NkSwizzleNumber)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
@@ -915,6 +915,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
+        // should remove kpading
+        if((GemmSpec == tensor_operation::device::GemmSpecialization::KPadding) &&
+           ((karg.BK0Shuffled % karg.KBatch) != 0))
+        {
+            return false;
+        }
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
