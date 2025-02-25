@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -149,14 +149,21 @@ struct thread_buffer {
 };
 // clang-format on
 
-template <typename>
+template <typename, typename>
 struct vector_traits;
 
 // specialization for array
 template <typename T, index_t N>
-struct vector_traits<thread_buffer<T, N>>
+struct vector_traits<thread_buffer<T, N>, std::enable_if_t<!std::is_class_v<T>>>
 {
     using scalar_type                    = T;
+    static constexpr index_t vector_size = N;
+};
+
+template <typename T, index_t N>
+struct vector_traits<thread_buffer<T, N>, std::enable_if_t<std::is_class_v<T>>>
+{
+    using scalar_type                    = typename T::type;
     static constexpr index_t vector_size = N;
 };
 
