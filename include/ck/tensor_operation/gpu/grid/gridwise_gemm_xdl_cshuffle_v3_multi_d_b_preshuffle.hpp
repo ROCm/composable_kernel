@@ -350,7 +350,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     }
 
     __host__ __device__ static auto
-    MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0, index_t KPad)
+    MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0, index_t KPad, index_t KBatch)
     {
         using GemmSpecialization = tensor_operation::device::GemmSpecialization;
         // if K padding
@@ -364,7 +364,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                 make_tuple(
                     NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
 
-            auto K0new = CalculateBK0Shuffled(KPad);
+            auto K0new = CalculateBK0Shuffled(KPad * KBatch);
 
             return transform_tensor_descriptor(
                 b_grid_desc_raw,
@@ -1162,7 +1162,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
 
         const auto b_grid_desc_bpreshuffled = MakeBGridDescriptor_Preshuffled(
-            problem.BN0Shuffled, problem.BK0Shuffled, problem.KPadded);
+            problem.BN0Shuffled, problem.BK0Shuffled, problem.KPadded, problem.KBatch);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
 
@@ -1599,7 +1599,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
 
         const auto b_grid_desc_bpreshuffled = MakeBGridDescriptor_Preshuffled(
-            problem.BN0Shuffled, problem.BK0Shuffled, problem.KPadded);
+            problem.BN0Shuffled, problem.BK0Shuffled, problem.KPadded, problem.KBatch);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
 

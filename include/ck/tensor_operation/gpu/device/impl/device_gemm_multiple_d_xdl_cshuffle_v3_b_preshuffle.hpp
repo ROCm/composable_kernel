@@ -526,6 +526,10 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
             return false;
         }
 
+        if(GemmSpec == GemmSpecialization::KPadding && arg.KBatch > 2){
+            return false;
+        } 
+
         if(arg.N % NPerBlock != 0 ||
            (arg.K % KPerBlock != 0 && GemmSpec != GemmSpecialization::KPadding))
         {
