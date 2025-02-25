@@ -24,10 +24,9 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16  = ck::half_t;
-using FP8  = ck::f8_t;
-using F32  = float;
-using BF16 = ck::bhalf_t;
+using F16 = ck::half_t;
+using FP8 = ck::f8_t;
+using F32 = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -39,7 +38,7 @@ using CShuffleDataType = F32;
 using D0DataType       = F32;
 using D1DataType       = F32;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
-using EDataType        = BF16;
+using EDataType        = F16;
 
 using A0Layout = Row;
 using B0Layout = Col;
@@ -48,23 +47,21 @@ using D1Layout = Col;
 using DsLayout = ck::Tuple<D0Layout, D1Layout>;
 using ELayout  = Row;
 
-// struct MultiplyMultiply
-// {
-//     template <typename E, typename C, typename D0, typename D1>
-//     __host__ __device__ constexpr void
-//     operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+struct MultiplyMultiply
+{
+    template <typename E, typename C, typename D0, typename D1>
+    __host__ __device__ constexpr void
+    operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
 
-//     template <>
-//     __host__ __device__ constexpr void operator()<ck::bhalf_t, float, float, float>(
-//         ck::half_t& e, const float& c, const float& d0, const float& d1) const
-//     {
-//         const float x0_f = c * d0 * d1;
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, float, float, float>(
+        ck::half_t& e, const float& c, const float& d0, const float& d1) const
+    {
+        const float x0_f = c * d0 * d1;
 
-//         e = ck::type_convert<ck::bhalf_t>(x0_f);
-//     }
-// };
-
-using MultiplyMultiply = ck::tensor_operation::element_wise::MultiplyMultiply;
+        e = ck::type_convert<ck::half_t>(x0_f);
+    }
+};
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
