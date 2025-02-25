@@ -156,23 +156,6 @@ int profile_gemm_ab_scale(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-    // if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN &&
-    //    scale_block_tile == ScaleBlockTile::Tile_128_128_128)
-    // {
-    //     return profile(F8{},
-    //                    F32{},
-    //                    F8{},
-    //                    F32{},
-    //                    F8{},
-    //                    F32{},
-    //                    BF16{},
-    //                    ck::Number<128>{},
-    //                    ck::Number<128>{},
-    //                    ck::Number<128>{},
-    //                    Row{},
-    //                    Col{},
-    //                    Row{});
-    // }
     if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN &&
        scale_block_tile == ScaleBlockTile::Tile_1_128_128)
     {
