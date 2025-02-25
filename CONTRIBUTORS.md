@@ -21,9 +21,12 @@ Xiaoyan Zhou, 2020
 
 [Jianfeng Yan](https://github.com/j4yan), 2021-2022
 
+[Jun Liu](https://github.com/junliume), 2021-2024
+
 
 ## Product Manager
-[Jun Liu](https://github.com/junliume)
+[John Afaganis](https://github.com/afagaj)
+
 
 
 ## Contributors

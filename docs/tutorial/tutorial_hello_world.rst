@@ -45,6 +45,7 @@ GPU Target     AMD GPU
 ==========     =========
 gfx908 	       Radeon Instinct MI100
 gfx90a 	       Radeon Instinct MI210, MI250, MI250X
+gfx942         Radeon Instinct MI300X, MI308, MI325X, MI300A
 gfx1030        Radeon PRO V620, W6800, W6800X, W6800X Duo, W6900X, RX 6800, RX 6800 XT, RX 6900 XT, RX 6900 XTX, RX 6950 XT
 ==========     =========
 
@@ -60,13 +61,13 @@ This tutorial is based on the use of docker images as explained in :ref:`docker-
 
    You can also `install ROCm <https://rocm.docs.amd.com/projects/install-on-linux/en/latest/>`_ on your system, clone the `Composable Kernel repository <https://github.com/ROCm/composable_kernel.git>`_ on GitHub, and use that to build and run the examples using the commands described below.
 
-Both the docker container and GitHub repository include the Composable Kernel library. Navigate to the library::
+The docker container comes with all the dependencies that are required to build CK. Clone the library::
 
-    cd composable_kernel/
+    git clone https://github.com/ROCm/composable_kernel.git
 
-Create and change to a ``build`` directory::
+Navigate tp CL, create & change to a ``build`` directory::
 
-    mkdir build && cd build
+    cd composable_kernel && mkdir build && cd build
 
 The previous section discussed supported GPU architecture. Once you decide which hardware targets are needed, run CMake using the ``GPU_TARGETS`` flag::
 
