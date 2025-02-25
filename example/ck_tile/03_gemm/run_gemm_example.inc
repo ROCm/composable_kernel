@@ -29,6 +29,60 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     // Use higher threshold
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
+template <typename Tensor>
+void permute_tensor_b(Tensor& tensor)
+{
+    const ck_tile::index_t K = tensor.get_length(0);
+    const ck_tile::index_t N = tensor.get_length(1);
+    // vector pk_i4x4 permute
+    for(int i = 0; i < N; i++)
+    {
+        for(int j = 0; j < K; j += 8)
+        {
+            int8_t input[8];
+
+            for(int k = 0; k < 4; k++)
+            {
+                int8_t i4x2      = tensor(j + k * 2, i).data;
+                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
+                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
+            }
+
+            // permute 01234567->20643175
+            {
+                int8_t hi   = input[2];
+                int8_t lo   = input[0];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 0, i) = i4x2;
+            }
+
+            {
+                int8_t hi   = input[6];
+                int8_t lo   = input[4];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 2, i) = i4x2;
+            }
+
+            {
+                int8_t hi   = input[3];
+                int8_t lo   = input[1];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 4, i) = i4x2;
+            }
+
+            {
+                int8_t hi   = input[7];
+                int8_t lo   = input[5];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 6, i) = i4x2;
+            }
+        }
+    }
+}
 
 template <typename ADataType,
           typename BDataType,
@@ -83,7 +137,12 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-template <typename PrecType, typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType = ADataType,
+          typename CDataType = ADataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 int run_gemm_example_with_layouts(int argc,
                                   char* argv[],
                                   const ALayout a_layout                  = ALayout{},
@@ -94,10 +153,7 @@ int run_gemm_example_with_layouts(int argc,
     if(!result)
         return -1;
 
-    using ADataType   = typename GemmBasicTypeConfig<PrecType>::ADataType;
-    using BDataType   = typename GemmBasicTypeConfig<PrecType>::BDataType;
-    using CDataType   = typename GemmBasicTypeConfig<PrecType>::CDataType;
-    using AccDataType = typename GemmBasicTypeConfig<PrecType>::AccDataType;
+    using AccDataType = typename GemmBasicTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -149,7 +205,17 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
     a_m_k_dev_buf.ToDevice(a_m_k.data());
-    b_k_n_dev_buf.ToDevice(b_k_n.data());
+    if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+    {
+        // Permute data for device implementation
+        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+        permute_tensor_b(b_k_n_dev);
+        b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+    }
+    else
+    {
+        b_k_n_dev_buf.ToDevice(b_k_n.data());
+    }
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
@@ -195,6 +261,11 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(arg_parser.get_int("v") == 2)
     {
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        {
+            // Restore input for B for gpu reference
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
         ck_tile::HostTensor<CDataType> c_m_n_gpu_ref(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_gpu_ref.get_element_space_size_in_bytes());
@@ -205,17 +276,18 @@ int run_gemm_example_with_layouts(int argc,
         BDataType* d_B;
         CDataType* d_C;
 
-        ck_tile::hip_check_error(hipMalloc(&d_A, M * K * sizeof(ADataType)));
-        ck_tile::hip_check_error(hipMalloc(&d_B, N * K * sizeof(BDataType)));
-        ck_tile::hip_check_error(hipMalloc(&d_C, M * N * sizeof(CDataType)));
+        ck_tile::hip_check_error(hipMalloc(&d_A, a_m_k.get_element_space_size_in_bytes()));
+        ck_tile::hip_check_error(hipMalloc(&d_B, b_k_n.get_element_space_size_in_bytes()));
+        ck_tile::hip_check_error(
+            hipMalloc(&d_C, c_m_n_dev_result.get_element_space_size_in_bytes()));
 
         ck_tile::hip_check_error(hipMemcpy(d_A,
                                            a_m_k_dev_buf.GetDeviceBuffer(),
-                                           M * K * sizeof(ADataType),
+                                           a_m_k.get_element_space_size_in_bytes(),
                                            hipMemcpyHostToDevice));
         ck_tile::hip_check_error(hipMemcpy(d_B,
                                            b_k_n_dev_buf.GetDeviceBuffer(),
-                                           N * K * sizeof(BDataType),
+                                           b_k_n.get_element_space_size_in_bytes(),
                                            hipMemcpyHostToDevice));
 
         ck_tile::reference_gemm_gpu<ADataType,
@@ -228,7 +300,7 @@ int run_gemm_example_with_layouts(int argc,
 
         ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
                                            d_C,
-                                           M * N * sizeof(CDataType),
+                                           c_m_n_dev_result.get_element_space_size_in_bytes(),
                                            hipMemcpyDeviceToHost));
 
         ck_tile::hip_check_error(hipFree(d_A));
