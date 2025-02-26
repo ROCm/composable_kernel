@@ -185,7 +185,6 @@ int run_batched_gemm_example_with_layouts(int argc,
                                                    kbatch,
                                                    n_warmup,
                                                    n_repeat);
-
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
 

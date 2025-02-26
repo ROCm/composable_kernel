@@ -31,6 +31,19 @@ struct GroupedGemmHostArgs : public ck_tile::GemmHostArgs
     static constexpr index_t KBatch = 1;
 };
 
+struct GemmTransKernelArg
+{
+    GemmKernelArgs group_karg;
+    ck_tile::index_t block_start;
+    ck_tile::index_t block_end;
+
+    GemmTransKernelArg() = default;
+    GemmTransKernelArg(GemmKernelArgs&& karg, index_t bl_start, index_t bl_end)
+        : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
+    {
+    }
+};
+
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>
 {
@@ -47,22 +60,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
     using Base                    = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
-    using GemmKernelArgs          = typename Base::GemmKernelArgs;
 
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
-
-    struct GemmTransKernelArg
-    {
-        GemmKernelArgs group_karg;
-        ck_tile::index_t block_start;
-        ck_tile::index_t block_end;
-
-        GemmTransKernelArg() = default;
-        GemmTransKernelArg(GemmKernelArgs&& karg, index_t bl_start, index_t bl_end)
-            : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
-        {
-        }
-    };
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -70,7 +69,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         using P_ = GemmPipeline;
 
         return concat('_', "gemm_grouped", gemm_prec_str<ADataType, BDataType>,
-                      concat('x', P_::kMPerBlock, P_::kNPerBlock, P_::kKPerBlock),
+                      concat('x', P_::MPerBlock, P_::NPerBlock, P_::KPerBlock),
                       concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK));
         // clang-format on

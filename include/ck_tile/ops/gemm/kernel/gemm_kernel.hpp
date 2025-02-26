@@ -56,6 +56,20 @@ struct GemmHostArgs : public GemmProblem
     index_t k_batch;
 };
 
+struct GemmKernelArgs
+{
+    const void* a_ptr;
+    const void* b_ptr;
+    void* c_ptr;
+    index_t M;
+    index_t N;
+    index_t K;
+    index_t stride_A;
+    index_t stride_B;
+    index_t stride_C;
+    index_t k_batch;
+};
+
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GemmKernel
 {
@@ -89,20 +103,6 @@ struct GemmKernel
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
-
-    struct GemmKernelArgs
-    {
-        const void* a_ptr;
-        const void* b_ptr;
-        void* c_ptr;
-        index_t M;
-        index_t N;
-        index_t K;
-        index_t stride_A;
-        index_t stride_B;
-        index_t stride_C;
-        index_t k_batch;
-    };
 
     CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(const GemmHostArgs& hostArgs)
     {

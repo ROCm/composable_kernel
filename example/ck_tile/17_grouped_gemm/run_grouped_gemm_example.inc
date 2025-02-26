@@ -101,8 +101,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
         for(int i = 0; i < group_count; i++)
         {
             Ms.push_back(256 + 256 * i);
-            Ns.push_back(128 + 128 * i);
-            Ks.push_back(128 + 64 * i);
+            Ns.push_back(256 + 512 * i);
+            Ks.push_back(256 + 64 * i);
 
             stride_As.push_back(Ks[i]);
             stride_Bs.push_back(Ks[i]);

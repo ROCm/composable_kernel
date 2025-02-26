@@ -46,7 +46,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 {
     using Base = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
 
-    using GemmKernelArgs = typename Base::GemmKernelArgs;
+    using GemmKernelArgs = typename ck_tile::GemmKernelArgs;
 
     using ADataType = typename Base::ADataType;
     using BDataType = typename Base::BDataType;
@@ -65,7 +65,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         using P_ = GemmPipeline;
 
         return concat('_', "gemm_batched", gemm_prec_str<ADataType, BDataType>,
-                      concat('x', P_::kMPerBlock, P_::kNPerBlock, P_::kKPerBlock), 
+                      concat('x', P_::MPerBlock, P_::NPerBlock, P_::KPerBlock), 
                       concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK));
         // clang-format on
