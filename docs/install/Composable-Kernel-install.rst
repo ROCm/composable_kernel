@@ -50,7 +50,7 @@ Build Composable Kernel using the generated makefile. This will build the librar
 
 The ``-j`` option speeds up the build by using multiple threads in parallel. For example, ``-j20`` uses twenty threads in parallel. On average, each thread will use 2GB of memory. Make sure that the number of threads you use doesn't exceed the available memory in your system.
 
-Using ``-j`` alone will launch an unlimited number of threads.
+Using ``-j`` alone will launch an unlimited number of threads and is not recommended.
 
 Install the Composable Kernel library:
 
