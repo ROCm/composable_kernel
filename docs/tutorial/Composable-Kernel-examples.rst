@@ -28,6 +28,7 @@ To run smoke tests, use ``make smoke``.
 
 To run regression tests, use ``make regression``.
 
+In general, tests that run for under thirty seconds are included in the smoke tests and tests that run for over thirty seconds are included in the regression tests. 
 
 .. |example| replace:: ``example``
 .. _example: https://github.com/ROCm/composable_kernel/tree/develop/example
