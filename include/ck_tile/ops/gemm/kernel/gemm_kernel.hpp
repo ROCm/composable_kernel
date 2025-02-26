@@ -306,13 +306,13 @@ struct GemmKernel
             {
                 if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
                 {
-                    const index_t K1 = TilePartitioner::BlockGemmShape::kK;
-                    const index_t K0 =
-                        splitk_batch_offset.splitted_k / TilePartitioner::BlockGemmShape::kK;
+                    constexpr index_t K1          = GemmPipeline::GetSmemPackB();
+                    const index_t K0              = splitk_batch_offset.splitted_k / K1;
+                    constexpr index_t VectorSizeB = std::min(K1, GemmPipeline::GetVectorSizeB());
                     const auto b_k0_n_k1_desc =
                         make_naive_tensor_descriptor(make_tuple(K0, kargs.N, K1),
                                                      make_tuple(kargs.N * K1, K1, I1),
-                                                     number<GemmPipeline::GetVectorSizeB()>{},
+                                                     number<VectorSizeB>{},
                                                      number<1>{});
                     const auto b_n_k_desc = transform_tensor_descriptor(
                         b_k0_n_k1_desc,
@@ -336,13 +336,13 @@ struct GemmKernel
             {
                 if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
                 {
-                    const index_t K1 = TilePartitioner::BlockGemmShape::kK;
-                    const index_t K0 =
-                        splitk_batch_offset.splitted_k / TilePartitioner::BlockGemmShape::kK;
+                    constexpr index_t K1          = GemmPipeline::GetSmemPackB();
+                    const index_t K0              = splitk_batch_offset.splitted_k / K1;
+                    constexpr index_t VectorSizeB = std::min(K1, GemmPipeline::GetVectorSizeB());
                     const auto b_k0_n_k1_desc =
                         make_naive_tensor_descriptor(make_tuple(K0, kargs.N, K1),
                                                      make_tuple(kargs.N * K1, K1, I1),
-                                                     number<GemmPipeline::GetVectorSizeB()>{},
+                                                     number<VectorSizeB>{},
                                                      number<1>{});
                     const auto b_n_k_desc = transform_tensor_descriptor(
                         b_k0_n_k1_desc,

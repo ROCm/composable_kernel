@@ -10,7 +10,7 @@
 #include <tuple>
 
 #include "ck_tile/host.hpp"
-#include "gemm_basic.hpp"
+#include "gemm_utils.hpp"
 
 template <typename ADataType,
           typename BDataType,

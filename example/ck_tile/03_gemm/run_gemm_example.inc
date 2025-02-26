@@ -30,13 +30,48 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename Tensor>
+template <typename Tensor,
+          typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 void permute_tensor_b(Tensor& tensor)
 {
+    using GemmShape = ck_tile::TileGemmShape<
+        ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
+        ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
+        ck_tile::
+            sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>,
+        GemmConfig::PermuteA,
+        GemmConfig::PermuteB>;
+
+    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
+                                                                 GemmConfig::kPadN,
+                                                                 GemmConfig::kPadK,
+                                                                 GemmConfig::DoubleSmemBuffer,
+                                                                 ALayout,
+                                                                 BLayout,
+                                                                 CLayout,
+                                                                 GemmConfig::TransposeC>;
+
+    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                       BDataType,
+                                                                       AccDataType,
+                                                                       GemmShape,
+                                                                       GemmUniversalTraits,
+                                                                       GEMM_PIPELINE_SCHEDULER,
+                                                                       true,
+                                                                       ck_tile::TailNumber::Full>;
+
+    using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+
     const ck_tile::index_t K  = tensor.get_length(0);
     const ck_tile::index_t N  = tensor.get_length(1);
-    const ck_tile::index_t K1 = GemmBasicConfig::K_Tile;
-    const ck_tile::index_t K0 = K / GemmBasicConfig::K_Tile;
+    const ck_tile::index_t K1 = GemmPipeline::GetSmemPackB();
+    const ck_tile::index_t K0 = K / K1;
 
     Tensor tensor_copy = tensor;
 
@@ -177,7 +212,7 @@ int run_gemm_example_with_layouts(int argc,
     if(!result)
         return -1;
 
-    using AccDataType = typename GemmBasicTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
+    using AccDataType = typename GemmTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -228,21 +263,28 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-    static_assert(!GemmBasicConfig::PermuteA, "Not implemented");
+    static_assert(!GemmConfig::PermuteA, "Not implemented");
     if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
     {
         // Permute vector pk_i4x4 data for device implementation
         ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-        if constexpr(GemmBasicConfig::PermuteB)
+        if constexpr(GemmConfig::PermuteB)
         {
-            permute_tensor_b(b_k_n_dev);
+            permute_tensor_b<decltype(b_k_n_dev),
+                             ADataType,
+                             BDataType,
+                             AccDataType,
+                             CDataType,
+                             ALayout,
+                             BLayout,
+                             CLayout>(b_k_n_dev);
         }
         permute_vectors_i4x4_b(b_k_n_dev);
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
     }
     else
     {
-        if constexpr(GemmBasicConfig::PermuteB)
+        if constexpr(GemmConfig::PermuteB)
         {
             std::cout << "Permute for this DataType is not implemented." << std::endl;
             return false;

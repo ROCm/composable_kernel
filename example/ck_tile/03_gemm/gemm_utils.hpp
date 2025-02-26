@@ -35,7 +35,7 @@
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
 #endif
 
-struct GemmBasicConfig
+struct GemmConfig
 {
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
     // Memory friendly for Interwave scheduler
@@ -101,10 +101,10 @@ struct GemmBasicConfig
 };
 
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
-struct GemmBasicTypeConfig;
+struct GemmTypeConfig;
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::half_t>
+struct GemmTypeConfig<ck_tile::half_t>
 {
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::half_t;
@@ -114,7 +114,7 @@ struct GemmBasicTypeConfig<ck_tile::half_t>
 };
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::bf16_t>
+struct GemmTypeConfig<ck_tile::bf16_t>
 {
     using ADataType   = ck_tile::bf16_t;
     using BDataType   = ck_tile::bf16_t;
@@ -123,7 +123,7 @@ struct GemmBasicTypeConfig<ck_tile::bf16_t>
 };
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::fp8_t>
+struct GemmTypeConfig<ck_tile::fp8_t>
 {
     using ADataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
@@ -132,7 +132,7 @@ struct GemmBasicTypeConfig<ck_tile::fp8_t>
 };
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::bf8_t>
+struct GemmTypeConfig<ck_tile::bf8_t>
 {
     using ADataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;
@@ -141,7 +141,7 @@ struct GemmBasicTypeConfig<ck_tile::bf8_t>
 };
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
+struct GemmTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
 {
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::pk_int4_t;

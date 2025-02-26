@@ -10,7 +10,7 @@
 #include <tuple>
 
 #include "ck_tile/host.hpp"
-#include "gemm_basic.hpp"
+#include "gemm_utils.hpp"
 
 template <typename ADataType,
           typename BDataType,
@@ -22,41 +22,38 @@ template <typename ADataType,
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     using GemmShape = ck_tile::TileGemmShape<
+        ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
+        ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
         ck_tile::
-            sequence<GemmBasicConfig::M_Tile, GemmBasicConfig::N_Tile, GemmBasicConfig::K_Tile>,
-        ck_tile::
-            sequence<GemmBasicConfig::M_Warp, GemmBasicConfig::N_Warp, GemmBasicConfig::K_Warp>,
-        ck_tile::sequence<GemmBasicConfig::M_Warp_Tile,
-                          GemmBasicConfig::N_Warp_Tile,
-                          GemmBasicConfig::K_Warp_Tile>,
-        GemmBasicConfig::PermuteA,
-        GemmBasicConfig::PermuteB>;
+            sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>,
+        GemmConfig::PermuteA,
+        GemmConfig::PermuteB>;
     using TilePartitioner =
         ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                   GemmBasicConfig::TileParitionerGroupNum,
-                                                   GemmBasicConfig::TileParitionerM01>;
+                                                   GemmConfig::TileParitionerGroupNum,
+                                                   GemmConfig::TileParitionerM01>;
 
-    using Traits              = ck_tile::TileGemmTraits<GemmBasicConfig::kPadM,
-                                           GemmBasicConfig::kPadN,
-                                           GemmBasicConfig::kPadK,
+    using Traits              = ck_tile::TileGemmTraits<GemmConfig::kPadM,
+                                           GemmConfig::kPadN,
+                                           GemmConfig::kPadK,
                                            ALayout,
                                            BLayout,
                                            CLayout>;
-    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmBasicConfig::kPadM,
-                                                                 GemmBasicConfig::kPadN,
-                                                                 GemmBasicConfig::kPadK,
-                                                                 GemmBasicConfig::DoubleSmemBuffer,
+    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
+                                                                 GemmConfig::kPadN,
+                                                                 GemmConfig::kPadK,
+                                                                 GemmConfig::DoubleSmemBuffer,
                                                                  ALayout,
                                                                  BLayout,
                                                                  CLayout,
-                                                                 GemmBasicConfig::TransposeC>;
+                                                                 GemmConfig::TransposeC>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
     using BaseGemmPipeline = UNIVERSAL_GEMM_PIPELINE<GemmPipelineProblem>;
 
-    const ck_tile::index_t k_grain     = args.k_batch * GemmBasicConfig::K_Tile;
-    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmBasicConfig::K_Tile;
+    const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
+    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
@@ -85,11 +82,11 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                              GemmPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
-                                             GemmBasicConfig::M_Warp,
-                                             GemmBasicConfig::N_Warp,
-                                             GemmBasicConfig::M_Warp_Tile,
-                                             GemmBasicConfig::N_Warp_Tile,
-                                             GemmBasicConfig::K_Warp_Tile,
+                                             GemmConfig::M_Warp,
+                                             GemmConfig::N_Warp,
+                                             GemmConfig::M_Warp_Tile,
+                                             GemmConfig::N_Warp_Tile,
+                                             GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC>>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
@@ -110,10 +107,9 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                       << std::endl;
         }
 
-        ave_time =
-            ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<blocks.x, GemmBasicConfig::kBlockPerCu>(
-                                       Kernel{}, grids, blocks, 0, kargs));
+        ave_time = ck_tile::launch_kernel(s,
+                                          ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
+                                              Kernel{}, grids, blocks, 0, kargs));
         return ave_time;
     };
 
