@@ -193,7 +193,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
             ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x008, 3, 0); // MFMA
         });
 
         // A global
