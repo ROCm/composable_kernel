@@ -69,7 +69,12 @@ struct MulABScaleExpertWeight
         //for real kernel use
         //warning: hack hack hack here!!!! ignore d0 right now as kernel mul d0 * d2 outside. tofix:felix 
         (void) d0;
+        
+#if CK_USE_PK4_LAYOUT_SHUFFLE
         e = ck::type_convert<EDataType>(c *  d1 * d2 * 16);
+#else
+        e = ck::type_convert<EDataType>(c *  d1 * d2);
+#endif
     }
     // for reference cpu
     template <>
@@ -81,7 +86,11 @@ struct MulABScaleExpertWeight
                                                                             const float& d2) const
     {
         // for reference cpu
+#if CK_USE_PK4_LAYOUT_SHUFFLE
         e = ck::type_convert<EDataType>(c *  d0 * d1 * d2 * 16);
+#else
+        e = ck::type_convert<EDataType>(c *  d0 * d1 * d2);
+#endif
     }
 };
 
@@ -320,6 +329,7 @@ int main(int argc, char* argv[])
 
     preShuffleBuffer(b0_e_n_k.mData.data(), b0_preshuffled.mData.data(), N * experts, K, device_op.GetPreShuffleParameters());
 
+#if CK_USE_PK4_LAYOUT_SHUFFLE
     // vector pk_i4x4 permute
     for(int e = 0; e < experts; e++)
     {
@@ -371,6 +381,7 @@ int main(int argc, char* argv[])
             }
         }
     }
+#endif
 
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
 
@@ -443,8 +454,19 @@ int main(int argc, char* argv[])
 
         auto ref_moe_gemm           = ReferenceGemmInstance{};
         auto ref_invoker            = ref_moe_gemm.MakeInvoker();
-        auto ref_argument = ref_moe_gemm.MakeArgument(
-           sorted_token_ids, expert_ids, max_token_id, MPerBlock, a0_t_k_k, b0_e_n_k, d0_t_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
+        auto ref_argument           = ref_moe_gemm.MakeArgument(sorted_token_ids,
+                                                      expert_ids,
+                                                      max_token_id,
+                                                      MPerBlock,
+                                                      a0_t_k_k,
+                                                      b0_e_n_k,
+                                                      d0_t_n,
+                                                      d1_e_n,
+                                                      d2_e_n,
+                                                      c_t_n,
+                                                      PassThrough{},
+                                                      PassThrough{},
+                                                      cde_element_op);
 
         ref_invoker.Run(ref_argument);
         for(int t = 0; t < tokens; ++t)
