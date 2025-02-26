@@ -125,6 +125,54 @@ struct BlockUniversalGemmAsBsCr
     using I0 = number<0>;
     using I1 = number<1>;
 
+    CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
+    {
+        constexpr index_t KPerThread     = Traits::KPerThread;
+        constexpr index_t NumMacClusters = Traits::InterWaveSchedulingMacClusters;
+        constexpr index_t KPerInnerLoop  = ck_tile::max(KPerThread / NumMacClusters, Traits::KPack);
+        constexpr index_t KIterInterWave = KPerInnerLoop / WarpGemm::kK;
+
+        using KIterSeq = std::conditional_t<Scheduler == GemmPipelineScheduler::Interwave,
+                                            sequence<KIterInterWave>,
+                                            sequence<KIterPerWarp>>;
+
+        constexpr auto a_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, KIterSeq>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+        constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
+
+        return a_block_dstr_encode;
+    }
+
+    CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
+    {
+        constexpr index_t KPerThread     = Traits::KPerThread;
+        constexpr index_t NumMacClusters = Traits::InterWaveSchedulingMacClusters;
+        constexpr index_t KPerInnerLoop  = ck_tile::max(KPerThread / NumMacClusters, Traits::KPack);
+        constexpr index_t KIterInterWave = KPerInnerLoop / WarpGemm::kK;
+
+        using KIterSeq = std::conditional_t<Scheduler == GemmPipelineScheduler::Interwave,
+                                            sequence<KIterInterWave>,
+                                            sequence<KIterPerWarp>>;
+
+        constexpr auto b_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<MWarp>,
+                                       tuple<sequence<NIterPerWarp, NWarp>, KIterSeq>,
+                                       tuple<sequence<0, 1>>,
+                                       tuple<sequence<0, 1>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+        constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
+
+        return b_block_dstr_encode;
+    }
+
     private:
     template <typename WarpWindow, typename WarpTile>
     CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
@@ -152,37 +200,6 @@ struct BlockUniversalGemmAsBsCr
     template <typename GemmTraits>
     struct BlockGemmImpl<GemmPipelineScheduler::Default, GemmTraits>
     {
-
-        CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
-        {
-            constexpr auto a_block_outer_dstr_encoding = tile_distribution_encoding<
-                sequence<NWarp>,
-                tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-                tuple<sequence<1, 0>>,
-                tuple<sequence<1, 0>>,
-                sequence<1, 2>,
-                sequence<0, 0>>{};
-            constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-                a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
-
-            return a_block_dstr_encode;
-        }
-
-        CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
-        {
-            constexpr auto b_block_outer_dstr_encoding = tile_distribution_encoding<
-                sequence<MWarp>,
-                tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
-                tuple<sequence<0, 1>>,
-                tuple<sequence<0, 1>>,
-                sequence<1, 2>,
-                sequence<0, 0>>{};
-            constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-                b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
-
-            return b_block_dstr_encode;
-        }
-
         static constexpr auto ALdsTileDistr =
             decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
         static constexpr auto BLdsTileDistr =
@@ -266,37 +283,6 @@ struct BlockUniversalGemmAsBsCr
     template <typename GemmTraits>
     struct BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits>
     {
-
-        CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
-        {
-            constexpr auto a_block_outer_dstr_encoding = tile_distribution_encoding<
-                sequence<NWarp>,
-                tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-                tuple<sequence<1, 0>>,
-                tuple<sequence<1, 0>>,
-                sequence<1, 2>,
-                sequence<0, 0>>{};
-            constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-                a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
-
-            return a_block_dstr_encode;
-        }
-
-        CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
-        {
-            constexpr auto b_block_outer_dstr_encoding = tile_distribution_encoding<
-                sequence<MWarp>,
-                tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
-                tuple<sequence<0, 1>>,
-                tuple<sequence<0, 1>>,
-                sequence<1, 2>,
-                sequence<0, 0>>{};
-            constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-                b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
-
-            return b_block_dstr_encode;
-        }
-
         static constexpr auto ALdsTileDistr =
             decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
         static constexpr auto BLdsTileDistr =
@@ -391,36 +377,6 @@ struct BlockUniversalGemmAsBsCr
         static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
         static constexpr index_t KInnerLoopIter = KPerInnerLoop / GemmTraits::KPack;
 
-        CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
-        {
-            constexpr auto a_block_outer_dstr_encoding = tile_distribution_encoding<
-                sequence<NWarp>,
-                tuple<sequence<MIterPerWarp, MWarp>, sequence<KInnerLoopIter>>,
-                tuple<sequence<1, 0>>,
-                tuple<sequence<1, 0>>,
-                sequence<1, 2>,
-                sequence<0, 0>>{};
-            constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-                a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
-
-            return a_block_dstr_encode;
-        }
-
-        CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
-        {
-            constexpr auto b_block_outer_dstr_encoding = tile_distribution_encoding<
-                sequence<MWarp>,
-                tuple<sequence<NIterPerWarp, NWarp>, sequence<KInnerLoopIter>>,
-                tuple<sequence<0, 1>>,
-                tuple<sequence<0, 1>>,
-                sequence<1, 2>,
-                sequence<0, 0>>{};
-            constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-                b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
-
-            return b_block_dstr_encode;
-        }
-
         static constexpr auto ALdsTileDistr =
             decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
         static constexpr auto BLdsTileDistr =
@@ -441,18 +397,16 @@ struct BlockUniversalGemmAsBsCr
             constexpr auto b_lds_load_tile_distr =
                 make_static_tile_distribution(MakeBBlockDistributionEncode());
 
-            auto a_lds_gemm_window =
-                make_tile_window(a_block_window.get_bottom_tensor_view(),
-                                 make_tuple(number<GemmTraits::MPerBlock>{},
-                                            number<WarpGemm::kK * KInnerLoopIter>{}),
-                                 {0, KIdx * KPerInnerLoop},
-                                 a_lds_load_tile_distr);
-            auto b_lds_gemm_window =
-                make_tile_window(b_block_window.get_bottom_tensor_view(),
-                                 make_tuple(number<GemmTraits::NPerBlock>{},
-                                            number<WarpGemm::kK * KInnerLoopIter>{}),
-                                 {0, KIdx * KPerInnerLoop},
-                                 b_lds_load_tile_distr);
+            auto a_lds_gemm_window = make_tile_window(
+                a_block_window.get_bottom_tensor_view(),
+                make_tuple(number<GemmTraits::MPerBlock>{}, number<KPerInnerLoop>{}),
+                {0, KIdx * KPerInnerLoop},
+                a_lds_load_tile_distr);
+            auto b_lds_gemm_window = make_tile_window(
+                b_block_window.get_bottom_tensor_view(),
+                make_tuple(number<GemmTraits::NPerBlock>{}, number<KPerInnerLoop>{}),
+                {0, KIdx * KPerInnerLoop},
+                b_lds_load_tile_distr);
 
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
@@ -590,16 +544,6 @@ struct BlockUniversalGemmAsBsCr
                                       const BSmemBlockWindow& b_block_window)
     {
         block_gemm_impl_.LocalPrefetch(a_block_window, b_block_window);
-    }
-
-    CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
-    {
-        return BlockGemmImpl<Scheduler, Traits>::MakeABlockDistributionEncode();
-    }
-
-    CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
-    {
-        return BlockGemmImpl<Scheduler, Traits>::MakeBBlockDistributionEncode();
     }
 
     // C += A * B
