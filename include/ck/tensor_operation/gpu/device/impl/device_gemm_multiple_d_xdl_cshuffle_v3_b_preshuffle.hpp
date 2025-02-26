@@ -518,16 +518,25 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
             return false;
         }
 
-        if((arg.K % AK1 != 0 || arg.K % BK1 != 0) && !(GemmSpec == GemmSpecialization::MKPadding ||
-                                                       GemmSpec == GemmSpecialization::NKPadding ||
-                                                       GemmSpec == GemmSpecialization::MNKPadding ||
-                                                       GemmSpec == GemmSpecialization::KPadding))
+        constexpr bool KPadding = GemmSpec == GemmSpecialization::MKPadding ||
+                                  GemmSpec == GemmSpecialization::NKPadding ||
+                                  GemmSpec == GemmSpecialization::MNKPadding ||
+                                  GemmSpec == GemmSpecialization::KPadding;
+        constexpr bool NPadding = GemmSpec == GemmSpecialization::NPadding ||
+                                  GemmSpec == GemmSpecialization::NKPadding ||
+                                  GemmSpec == GemmSpecialization::MNKPadding;
+
+        if((arg.K % AK1 != 0 || arg.K % BK1 != 0) && !KPadding)
         {
             return false;
         }
 
-        if(arg.N % NPerBlock != 0 ||
-           (arg.K % KPerBlock != 0 && GemmSpec != GemmSpecialization::KPadding))
+        if((arg.N % NPerBlock != 0 && !NPadding) || (arg.K % KPerBlock != 0 && !KPadding))
+        {
+            return false;
+        }
+
+        if(arg.N % NPerXDL != 0)
         {
             return false;
         }

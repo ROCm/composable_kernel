@@ -136,7 +136,7 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = MultiplyMultiply;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::KPadding;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::NKPadding;
 
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
     // clang-format off
