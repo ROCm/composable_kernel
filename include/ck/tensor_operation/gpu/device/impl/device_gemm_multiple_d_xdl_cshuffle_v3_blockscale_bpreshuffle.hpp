@@ -76,21 +76,21 @@ template <typename ALayout,
           typename LDSTypeB                           = ComputeTypeB>
 struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
     : public DeviceGemmMultipleD_BlockScale_BPreshuffle<ALayout,
-                                         BLayout,
-                                         DsLayout,
-                                         CLayout,
-                                         ADataType,
-                                         AScaleDataType,
-                                         BDataType,
-                                         BScaleDataType,
-                                         DsDataType,
-                                         CDataType,
-                                         ScaleBlockM,
-                                         ScaleBlockN,
-                                         ScaleBlockK,
-                                         AElementwiseOperation,
-                                         BElementwiseOperation,
-                                         CElementwiseOperation>
+                                                        BLayout,
+                                                        DsLayout,
+                                                        CLayout,
+                                                        ADataType,
+                                                        AScaleDataType,
+                                                        BDataType,
+                                                        BScaleDataType,
+                                                        DsDataType,
+                                                        CDataType,
+                                                        ScaleBlockM,
+                                                        ScaleBlockN,
+                                                        ScaleBlockK,
+                                                        AElementwiseOperation,
+                                                        BElementwiseOperation,
+                                                        CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
