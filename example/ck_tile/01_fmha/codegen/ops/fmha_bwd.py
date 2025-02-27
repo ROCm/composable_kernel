@@ -176,7 +176,8 @@ float fmha_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a)
     );
 }}
 
-float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config& s){{
+template <>
+float fmha_bwd<2>(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config& s){{
     float r = -1;
 {F_dispatch}
     return r;
