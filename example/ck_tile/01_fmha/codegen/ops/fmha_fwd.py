@@ -233,13 +233,22 @@ class FmhaFwdPipeline:
         pn = pad_name()
         n = f'{self.tag}_v{self.F_vlayout[0]}'
         if pn != '' : n += f'_{pn}'
-        if self.F_bias != 'no' : n += f'_{self.F_bias}'
+        if self.F_bias != 'no' :
+            n += f'_{self.F_bias}'
+        else:
+            n += '_nbias'
         if self.F_mask[0:2] == 's_':
             if self.F_mask == 's_mask': n += f'_mask'
         else:
             if self.F_mask != 'no' : n += f'_m{self.F_mask[0]}'
-        if self.F_lse == 't' : n += '_lse'
-        if self.F_dropout == 't' : n += '_dropout'
+        if self.F_lse == 't' :
+            n += '_lse'
+        else:
+            n += '_nlse'
+        if self.F_dropout == 't' :
+            n += '_dropout'
+        else:
+            n += '_ndropout'
         if self.F_squant == 't' : n += '_squant'
         return n
 
@@ -484,7 +493,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                                   F_tile=tile,
                                   F_pipeline=pipeline,
                                   mask_impl=mask_impl)
-                if kernel_filter != None:
+                if kernel_filter != '':
                     if not fnmatch.fnmatch(k.name, kernel_filter):
                         continue
                 # 2 - Flash attention integration
@@ -504,20 +513,18 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                     if not cond:
                         continue
                 # Aiter(mha_fwd) integration
-                elif receipt == 10:
+                elif receipt == 100:
                     cond = dtype in ['fp16', 'bf16']
-                    cond &= mode == "batch"
+                    cond &= mode == 'batch'
                     cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_bias in ['no', 'alibi']
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
                 # Aiter(mha_varlen_fwd) integration
-                elif receipt == 11:
+                elif receipt == 200:
                     cond = dtype in ['fp16', 'bf16']
-                    cond &= mode == "group"
+                    cond &= mode == 'group'
                     cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_bias in ['no', 'alibi']
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
@@ -532,13 +539,13 @@ def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
 def write_fwd_api(api_pool : FmhaFwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_FWD_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
+def write_blobs(output_dir : Path, kernel_filter : str, receipt, mask_impl) -> None:
     api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl)
     for kernel in kernels:
         write_single_fwd_kernel(kernel, output_dir)
     write_fwd_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
+def list_blobs(file_path : Path, kernel_filter : str, receipt, mask_impl) -> None:
     with file_path.open('a') as f:
         _, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl)
         for kernel in kernels:
