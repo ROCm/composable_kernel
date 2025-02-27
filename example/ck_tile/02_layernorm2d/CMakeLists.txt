@@ -26,7 +26,7 @@ add_custom_command(
 set(EXAMPLE_LAYERNORM2D_FWD "tile_example_layernorm2d_fwd")
 
 message("adding example ${EXAMPLE_LAYERNORM2D_FWD}")
-add_executable(${EXAMPLE_LAYERNORM2D_FWD} EXCLUDE_FROM_ALL layernorm2d_fwd.cpp)
+add_executable(${EXAMPLE_LAYERNORM2D_FWD} layernorm2d_fwd.cpp)
 target_include_directories(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${LAYERNORM2D_FWD_GEN_BLOBS})
 
@@ -36,9 +36,6 @@ set(EXAMPLE_LAYERNORM2D_FWD_COMPILE_OPTIONS)
 list(APPEND EXAMPLE_LAYERNORM2D_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal --offload-compress)
 
 target_compile_options(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${EXAMPLE_LAYERNORM2D_FWD_COMPILE_OPTIONS})
-
-add_dependencies(examples_ck_tile ${EXAMPLE_LAYERNORM2D_FWD})
-rocm_install(TARGETS ${EXAMPLE_LAYERNORM2D_FWD} COMPONENT examples_ck_tile)
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long

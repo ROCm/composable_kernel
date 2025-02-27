@@ -608,10 +608,6 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
         LIBRARY_NAME composablekernel
         PACKAGE_NAME examples
    )
-   rocm_package_setup_component(examples_ck_tile
-        LIBRARY_NAME composablekernel
-        PACKAGE_NAME examples_ck_tile
-   )
    add_subdirectory(example)
    if(BUILD_TESTING)
        add_subdirectory(test)

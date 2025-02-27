@@ -189,12 +189,12 @@ def cmake_build(Map conf=[:]){
     def package_build = (conf.get("package_build","") == "true")
 
     if (package_build == true) {
-        config_targets = "examples_ck_tile package"
+        config_targets = "package"
     }
 
     if(conf.get("build_install","") == "true")
     {
-        config_targets = 'examples_ck_tile install ' + config_targets
+        config_targets = 'install ' + config_targets
         setup_args = ' -DBUILD_DEV=On -DCMAKE_INSTALL_PREFIX=../install' + setup_args
     } else{
         setup_args = ' -DBUILD_DEV=On' + setup_args
@@ -523,7 +523,7 @@ def Build_CK(Map conf=[:]){
                         if (params.RUN_FULL_QA && arch_type == 1 ){
                             // build deb packages for all gfx9 targets on gfx90a system and prepare to export
                             echo "Build ckProfiler package"
-                            sh 'make -j examples_ck_tile package'
+                            sh 'make -j package'
                             archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
                             sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
                             stash includes: "ckprofiler_0.2.0_amd64.deb", name: "ckprofiler_0.2.0_amd64.deb"
@@ -1089,7 +1089,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "examples_ck_tile install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1109,7 +1109,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "examples_ck_tile install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1129,7 +1129,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "examples_ck_tile install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1168,7 +1168,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "examples_ck_tile install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1188,7 +1188,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "examples_ck_tile install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1208,7 +1208,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "examples_ck_tile install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }

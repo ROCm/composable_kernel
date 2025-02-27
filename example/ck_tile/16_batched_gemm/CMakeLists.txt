@@ -1,4 +1,1 @@
-add_executable(tile_example_batched_gemm EXCLUDE_FROM_ALL batched_gemm.cpp)
-
-add_dependencies(examples_ck_tile tile_example_batched_gemm)
-rocm_install(TARGETS tile_example_batched_gemm COMPONENT examples_ck_tile)
+add_executable(tile_example_batched_gemm batched_gemm.cpp)
