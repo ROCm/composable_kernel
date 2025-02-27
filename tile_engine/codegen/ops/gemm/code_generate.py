@@ -88,17 +88,78 @@ def gen_blobs(args):
         if api == 'single':
             gemm_instance_codegen(args.working_path, args.filter).gen_blobs(args)
 
+
+def validate_json_data(json_data):
+    '''
+        Validate the json data for the kernel configurations
+        For missing parameter: Assigned default values, 
+        For invalid values: Raise an error
+        TODO:: check case sensitivity for parameters names, default values confirmed.
+    '''
+    int_ranges = {
+        #       (min, max, default)
+        "M_tile": (1, 256, 128),
+        "N_tile": (1, 256, 128),
+        "K_tile": (1, 512, 128),
+        "M_warp": (1, 16, 4),
+        "N_warp": (1, 16, 1),
+        "K_warp": (1, 16, 1),
+        "M_warp_tile": (1, 32, 32),
+        "N_warp_tile": (1, 32, 32),
+        "K_warp_tile": (1, 32, 32),
+        "kPadM": (0, 1, 0),
+        "kPadN": (0, 1, 0),
+        "kPadK": (0, 1, 0)
+    }
+    
+    string_values = {
+        #           [possible values, last entry is default]
+        "A_layout": ["R", "C", "R"],
+        "B_layout": ["R", "C", "C"],
+        "C_layout": ["R", "C", "R"], 
+        "Prec_datatype": ["fp16", "bf16", "fp8", "bf8", "fp16"],
+        "Pipeline_type": ["Memory", "ComputeV3", "ComputeV4", "ComputeV3"],
+        "Scheduler_type": ["Interwave", "Intrawave", "Interwave"],
+        "Epilogue_type": ["CShuffleEpilogue", "DefaultGemm2DEpilogue", "CShuffleEpilogue"]
+    }
+
+    for key, value in int_ranges.items():
+        if key in json_data:
+            if not isinstance(json_data[key], int) or not (value[0] <= json_data[key] <= value[1]):
+                raise ValueError(f'Invalid value for {key}: {json_data[key]}. Must be an integer between {value[0]} and {value[1]}. ')
+        else:
+            json_data[key] = value[-1]
+    
+    for key, value in string_values.items():
+        if key in json_data:
+            if not isinstance(json_data[key], str) or json_data[key] not in value:
+                raise ValueError(f'Invalid value for {key}: {json_data[key]}. Must be one of {value[:-1]}. ')
+        else:
+            json_data[key] = value[-1]
+
+    print("Valid json data")
+    print(json_data)
+     
+
+
+def main(args):
+    # Read and validate json file
+    with open(args.json, 'r') as json_file:
+        data = json.load(json_file)
+    validate_json_data(data)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="generate",
         description="gen API for CK gemm kernel",
     )
     parser.add_argument(
-        "-a",
-        "--api",
-        default='singlee',
-        required=False,
-        help="supply API(s) to generate (default: single). separated by comma."
+        "-a", "--api", default='single', required=False, help="supply API(s) to generate (default: single). separated by comma."
+    )
+    parser.add_argument(
+        "-j", "--json", required=True, help="Path to the json which contains the kernel configurations"
     )
 
     args = parser.parse_args()
+    main(args)
