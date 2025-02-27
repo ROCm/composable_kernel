@@ -32,7 +32,6 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t KPack>
 constexpr auto BlockGemmBlockScaleBPreshufflePipeline_Selector()
 {
-#if 0
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
     {
         return BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<
@@ -57,6 +56,7 @@ constexpr auto BlockGemmBlockScaleBPreshufflePipeline_Selector()
             NRepeat,
             KPack>{};
     }
+#if 0
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
     {
         return BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v2<
@@ -82,8 +82,7 @@ constexpr auto BlockGemmBlockScaleBPreshufflePipeline_Selector()
             KPack>{};
     }
 #endif
-    // else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
     {
         static_assert(MRepeat >= 4, "MRepeat should at least be 4 in BlockGemmPipelineVersion::v3");
         return BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<

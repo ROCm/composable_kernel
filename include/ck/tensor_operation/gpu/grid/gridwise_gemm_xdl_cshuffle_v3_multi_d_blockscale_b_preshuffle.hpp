@@ -30,7 +30,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Full>
+          TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
@@ -163,7 +163,6 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
 
     static constexpr auto CShuffleBlockTransferScalarPerVector_NPerBlock =
         CDEShuffleBlockTransferScalarPerVectors{}[I0];
-
     // K1 should be Number<...>
     static constexpr auto AK0Number       = Number<KPerBlock / AK1Value>{};
     static constexpr auto BK0Number       = Number<KPerBlock / BK1Value>{};
@@ -172,6 +171,7 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
     static constexpr auto BlockSizeNumber = Number<BlockSize>{};
 
     static constexpr index_t NumDTensor = DsDataType::Size();
+
     using mfma_selector = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>;
     static constexpr index_t KPack =
         math::max(math::lcm(AK1Number, BK1Number), mfma_selector::selected_mfma.k_per_blk);
@@ -460,9 +460,7 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
     __host__ __device__ static constexpr auto
     MakeBMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
     {
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-
-        return MakeGemmMmaTileDescriptor<NXdlPerWave, NWaves, NPerXdl>(BBlockDesc_BK0_N_BK1{});
+        return MakeGemmMmaTileDescriptor<NXdlPerWave, NWave, NPerXdl>(BBlockDesc_BK0_N_BK1{});
     }
 
     template <typename ELayout>
@@ -1124,6 +1122,7 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
+            
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(problem.BN0Shuffled, problem.BK0Shuffled);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
@@ -1178,9 +1177,6 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
 
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
-
-        // lds max alignment
-        constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
