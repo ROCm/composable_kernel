@@ -31,6 +31,9 @@ struct GemmPipelineAGmemBGmemCRegV2
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
+    static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
+    static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off

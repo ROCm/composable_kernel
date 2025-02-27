@@ -77,6 +77,9 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
     static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
 
+    static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
+    static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
+
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
@@ -114,11 +117,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
         constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
 
         // Below should be equal to AK1|BK1
-        constexpr index_t A_LDS_Read_Width = Policy::template GetSmemPackA<Problem>();
-        constexpr index_t B_LDS_Read_Width = Policy::template GetSmemPackB<Problem>();
+        constexpr index_t A_LDS_Read_Width = GetSmemPackA();
+        constexpr index_t B_LDS_Read_Width = GetSmemPackB();
 
-        constexpr index_t A_LDS_Write_Width = Policy::template GetSmemPackA<Problem>();
-        constexpr index_t B_LDS_Write_Width = Policy::template GetSmemPackB<Problem>();
+        constexpr index_t A_LDS_Write_Width = GetSmemPackA();
+        constexpr index_t B_LDS_Write_Width = GetSmemPackB();
 
         constexpr index_t A_Buffer_Load_Inst_Num =
             MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
@@ -174,11 +177,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
 
             // Below should be equal to AK1|BK1
-            constexpr index_t A_LDS_Read_Width = Policy::template GetSmemPackA<Problem>();
-            constexpr index_t B_LDS_Read_Width = Policy::template GetSmemPackB<Problem>();
+            constexpr index_t A_LDS_Read_Width = GetSmemPackA();
+            constexpr index_t B_LDS_Read_Width = GetSmemPackB();
 
-            constexpr index_t A_LDS_Write_Width = Policy::template GetSmemPackA<Problem>();
-            constexpr index_t B_LDS_Write_Width = Policy::template GetSmemPackB<Problem>();
+            constexpr index_t A_LDS_Write_Width = GetSmemPackA();
+            constexpr index_t B_LDS_Write_Width = GetSmemPackB();
 
             constexpr index_t A_Buffer_Load_Inst_Num =
                 MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
