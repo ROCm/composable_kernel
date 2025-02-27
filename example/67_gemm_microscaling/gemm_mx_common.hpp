@@ -32,7 +32,7 @@ using ck::type_convert;
 struct ExecutionConfig final
 {
     int do_verification = 1;     // (0=no, 1=CPU)
-    int init_method     = 12;    // (0=no init, 1=integer value, 2=decimal value)
+    int init_method     = 13;    // (0=no init, 1=integer value, 2=decimal value)
     bool time_kernel    = false; // (0=no, 1=yes)
     int verbosity       = 1;     // (0=no info, 1=verbose info)
 };
@@ -152,12 +152,21 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     // XXX: GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3 assumes scale type is float
 
     // clang-format off
+#if 1
     using DeviceOpInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3
     // ######| ALayout| BLayout| CLayout| ADataType| BDataType|         BScale| CDataType|     GemmAcc| CShuffleDataType|AElementwise|BElementwise| CElementwise| GemmSpec|Block|   ScaleBlockN|   ScaleBlockK|    M|    N|         K| AK1| BK1|   M|   N|MXdl|NXdl|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|   ABlock|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|   BBlock|  CShuffle|  CShuffle|CShuffleBlockTransfer|CShuffleBlockTransfer|       BlkGemm|     BlkGemm|ComputeTypeA|ComputeTypeB| PermuteA|   PermuteB|
     // ######|        |        |        |          |          |       DataType|          |    DataType|                 |   Operation|   Operation|    Operation|         | Size|              |              |  Per|  Per|       Per|    |    | Per| Per| Per| Per| ThreadCluster| ThreadCluster|SrcAccessOrder|  SrcVectorDim|     SrcScalar|     DstScalar|LdsExtraM| ThreadCluster| ThreadCluster|SrcAccessOrder|     SrcVector|     SrcScalar|     DstScalar|LdsExtraN|      MXdl|      NXdl|       ClusterLengths|      ScalarPerVector|     PipeSched| PipelineVer|            |            |         |           |
     // ######|        |        |        |          |          |               |          |            |                 |            |            |             |         |     |              |              |Block|Block|     Block|    |    | XDL| XDL|Wave|Wave|       Lengths|  ArrangeOrder|              |              |     PerVector| PerVector_AK1|         |       Lengths|  ArrangeOrder|              |           Dim|     PerVector| PerVector_BK1|         |   PerWave|   PerWave|     MBlock_MPerBlock|            NPerBlock|              |            |            |            |         |           |
-    // ######|        |        |        |          |          |               |          |            |                 |            |            |             |         |     |              |              |     |     |          |    |    |    |    |    |    |     AK0_M_AK1|              |              |              |              |              |         |     BK0_N_BK1|              |              |                             |              |         |PerShuffle|PerShuffle|     NBlock_NPerBlock|                     |              |            |            |            |         |           |
-             < ALayout, BLayout, CLayout, ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp,   CElementOp, GemmSpec,  256, Scale_Block_N, Scale_Block_K,  128,  128, KPerBlock,  16,  16,  32,  32,   2,   2,   S<4, 64, 1>,    S<1, 0, 2>,    S<1, 0, 2>,             2,            16,            16,        1,   S<4, 64, 1>,    S<0, 2, 1>,    S<0, 2, 1>,             1,             2,            16,        1,         1,         1,       S<1, 32, 1, 8>,                    8, BlkGemmPSched, BlkGemmPVer,   CDataType,   CDataType, PermuteA,   PermuteB>;
+    // ######|        |        |        |          |          |               |          |            |                 |            |            |             |         |     |              |              |     |     |          |    |    |    |    |    |    |     AK0_M_AK1|              |              |              |              |              |         |     BK0_N_BK1|              |              |              |              |              |         |PerShuffle|PerShuffle|     NBlock_NPerBlock|                     |              |            |            |            |         |           |
+             < ALayout, BLayout, CLayout, ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp,   CElementOp, GemmSpec,  256, Scale_Block_N, Scale_Block_K,  128,  128, KPerBlock,  16,  16,  32,  32,   2,   2,   S<4, 64, 1>,    S<1, 0, 2>,    S<1, 0, 2>,             2,            16,            16,        0,   S<4, 64, 1>,    S<1, 0, 2>,    S<1, 0, 2>,             2,            16,            16,        0,         1,         1,       S<1, 32, 1, 8>,                    8, BlkGemmPSched, BlkGemmPVer,   ADataType,   BDataType, PermuteA,   PermuteB>;
+#else
+    using DeviceOpInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3
+    // ######| ALayout| BLayout| CLayout| ADataType| BDataType|         BScale| CDataType|     GemmAcc| CShuffleDataType|AElementwise|BElementwise| CElementwise| GemmSpec|Block|   ScaleBlockN|   ScaleBlockK|    M|    N|         K| AK1| BK1|   M|   N|MXdl|NXdl|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|   ABlock|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|   BBlock|  CShuffle|  CShuffle|CShuffleBlockTransfer|CShuffleBlockTransfer|       BlkGemm|     BlkGemm|ComputeTypeA|ComputeTypeB| PermuteA|   PermuteB|
+    // ######|        |        |        |          |          |       DataType|          |    DataType|                 |   Operation|   Operation|    Operation|         | Size|              |              |  Per|  Per|       Per|    |    | Per| Per| Per| Per| ThreadCluster| ThreadCluster|SrcAccessOrder|  SrcVectorDim|     SrcScalar|     DstScalar|LdsExtraM| ThreadCluster| ThreadCluster|SrcAccessOrder|     SrcVector|     SrcScalar|     DstScalar|LdsExtraN|      MXdl|      NXdl|       ClusterLengths|      ScalarPerVector|     PipeSched| PipelineVer|            |            |         |           |
+    // ######|        |        |        |          |          |               |          |            |                 |            |            |             |         |     |              |              |Block|Block|     Block|    |    | XDL| XDL|Wave|Wave|       Lengths|  ArrangeOrder|              |              |     PerVector| PerVector_AK1|         |       Lengths|  ArrangeOrder|              |           Dim|     PerVector| PerVector_BK1|         |   PerWave|   PerWave|     MBlock_MPerBlock|            NPerBlock|              |            |            |            |         |           |
+    // ######|        |        |        |          |          |               |          |            |                 |            |            |             |         |     |              |              |     |     |          |    |    |    |    |    |    |     AK0_M_AK1|              |              |              |              |              |         |     BK0_N_BK1|              |              |              |              |              |         |PerShuffle|PerShuffle|     NBlock_NPerBlock|                     |              |            |            |            |         |           |
+            < ALayout, BLayout, CLayout, ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp,   CElementOp, GemmSpec,   256, Scale_Block_N, Scale_Block_K,  256,  256, KPerBlock,  16,  16,  16,  16,   8,   8,   S<8, 32, 1>,    S<1, 0, 2>,    S<1, 0, 2>,             2,            16,            16,        0,   S<8, 32, 1>,    S<1, 0, 2>,    S<1, 0, 2>,             2,            16,            16,        0,         1,         2,       S<1, 32, 1, 8>,                    8, BlkGemmPSched, BlkGemmPVer,   ADataType,   BDataType, PermuteA,   PermuteB>;
+#endif
     // clang-format on
 
     auto M       = problem_size.M;
@@ -371,12 +380,37 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 std::cout << "Init A scale = {1.0}" << std::endl;
                 std::cout << "Init B is real" << std::endl;
                 std::cout << "Init B scale is real" << std::endl;
-                std::cout << "Expect C = {"
-                          << ((pert_idx < K) ? (K + n_freq - 1) / n_freq + 1
-                                             : (K + n_freq - 1) / n_freq)
-                          << "}" << std::endl;
+                if(config.init_method == 12)
+                {
+                    std::cout << "Expect C = {"
+                              << ((pert_idx < K) ? (K + n_freq - 1) / n_freq + 1
+                                                 : (K + n_freq - 1) / n_freq)
+                              << "}" << std::endl;
+                }
+                else
+                {
+                    std::cout << "Expect C = {" << 2 << "}" << std::endl;
+                }
             }
         }
+        break;
+
+    case 13: // Initializations for development and debugging
+        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(0.0f)}(a_m_k);
+        for(ck::index_t j = 0; j < K; j++)
+        {
+            a_m_k(0, j) = ck::type_convert<ADataType>(1.0f);
+        }
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.0f)}(b_k_n);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+
+        b_k_n_scale(0, 0) = ck::type_convert<XDataType>(1.0f / 4);
+        {
+            const ck::index_t n_freq = 73; // frequency of nonzero values in col(B)
+            b_k_n(0, 0) = b_k_n(n_freq, 0) = ck::type_convert<BDataType>(1.0f);
+        }
+
         break;
     default:
         if(config.verbosity > 0)
@@ -494,7 +528,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
             std::cout << "\nComputed: " << computed << std::endl << std::endl;
         }
-        else if(config.init_method == 12)
+        else if(config.init_method == 12 || config.init_method == 13)
         {
 #if 0
             std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
@@ -516,6 +550,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 std::cout << std::endl;
             }
 #endif
+#if 0
             std::cout << "Submatrix of b_k_n (16x16):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {
@@ -537,6 +572,15 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
                 std::cout << std::endl;
             }
+#endif
+#if 1
+            std::cout << "b_k_n(:,0):" << std::endl;
+            for(int i = 0; i < K; ++i)
+            {
+                std::cout << type_convert<float>(b_k_n(i, 0)) << " ";
+            }
+            std::cout << std::endl;
+#endif
             std::cout << "Submatrix of b_k_n_scale (3x16):" << std::endl;
             for(int i = 0; i < 3; ++i)
             {
@@ -546,6 +590,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 }
                 std::cout << std::endl;
             }
+#if 0
             std::cout << "Submatrix of c_m_n_device_result (16x16):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {
@@ -555,9 +600,23 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 }
                 std::cout << std::endl;
             }
+#endif
+#if 1
+            std::cout << "c_m_n_device_result(:,0):" << std::endl;
+            for(int i = 0; i < M; ++i)
+            {
+                std::cout << type_convert<float>(c_m_n_device_result(i, 0)) << " ";
+            }
+            std::cout << std::endl;
+            std::cout << "c_m_n_device_result(:,1):" << std::endl;
+            for(int i = 0; i < M; ++i)
+            {
+                std::cout << type_convert<float>(c_m_n_device_result(i, 1)) << " ";
+            }
+            std::cout << std::endl;
+#endif
 
-            auto computed = type_convert<float>(c_m_n_device_result(12, 0));
-
+            auto computed = type_convert<float>(c_m_n_device_result(0, 0));
             std::cout << "\nComputed: " << computed << std::endl << std::endl;
         }
 

@@ -11,13 +11,13 @@ using XDataType = ck::half_t;
 #else
 using XDataType = ck::e8m0_bexp_t;
 #endif
-using AccDataType      = float;
-using CShuffleDataType = ck::half_t;
 #if 1
 using CDataType = ck::half_t;
 #else
 using CDataType = float;
 #endif
+using AccDataType      = float;
+using CShuffleDataType = CDataType;
 
 using ALayout = Row;
 using BLayout = Col;

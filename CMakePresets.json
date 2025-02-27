@@ -67,7 +67,7 @@
                 "GPU_TARGETS": "gfx90a",
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_CXX_FLAGS": "-O3",
-                "CK_USE_FP8_ON_UNSUPPORTED_ARCH":"ON"
+                "CK_USE_FP8_ON_UNSUPPORTED_ARCH":"OFF"
             }
         },
         {
@@ -78,7 +78,7 @@
                 "GPU_TARGETS": "gfx90a",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_CXX_FLAGS": "-O0 -ggdb",
-                "CK_USE_FP8_ON_UNSUPPORTED_ARCH":"ON"
+                "CK_USE_FP8_ON_UNSUPPORTED_ARCH":"OFF"
             }
         },
         {
