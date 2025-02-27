@@ -1,14 +1,68 @@
 # Architecture Components
-Kernel: Define tensor view, tile window and the range of each block
-pipeline policy:  Define LDS usage and thread mapping
-pipeline: Contains concrete implementations of attention. Each pipeline combines kernel components with a specific policy to create executable solutions.
 
-## Pipeline
-The pipeline/ directory contains specialized implementations of attention algorithms, differentiated by their optimization strategies. Filename components indicate key implementation choices:
-include/ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_pipeline_nwarp_sshuffle_qr_ks_vs.hpp
+## Core Components
 
+### 1. Kernel
+- **Responsibilities**:
+  - Define tensor view (data layout interpretation)
+  - Configure tile window (data partition for parallel processing)
+  - Specify block range (compute boundaries for thread blocks)
 
+### 2. Pipeline Policy
+- **Key Configurations**:
+  - Local Data Share (LDS) allocation strategy
+  - Thread mapping topology
+  - Memory access patterns
 
+### 3. Pipeline
+- **Function**: Concrete implementation of attention mechanism
+- **Construction**: Combines kernel components with specific policies
+- **Output**: Executable GPU kernel with specified optimization strategy
 
+---
 
-nwarp_sshuffle means 
+# Pipeline Implementations
+
+## Directory Structure
+All pipeline implementations reside in:  
+`include/ck_tile/ops/fmha/pipeline/`
+
+## Filename Convention
+Filenames encode implementation choices using abbreviations:  
+`block_fmha_pipeline_[FEATURES]_[OPTIMIZATIONS].hpp`
+
+## Feature Abbreviations
+
+| Abbreviation | Meaning                          | Data Flow                          |
+|--------------|----------------------------------|------------------------------------|
+| `qr`         | Q in Register                    | Q loaded directly to registers     |
+| `ks`         | K Staged in LDS                  | K loaded to registers              |
+| `vs`         | V Staged in LDS                  | V loaded to registers              |
+| `async`      | Asynchronous LDS Operations      | Bypass registers for K loading     |
+| `splitkv`    | Split-K/V Reduction              | Multi-kernel reduction strategy    |
+| `nwarp`      | N-dimensional Warp Partitioning  | 4 warps along N Dimension          |
+| `sshuffle`   | Shared Shuffle Operations        | Warp communication via shared mem  |
+
+## Key Pipeline Types
+
+### 1. Basic Pipeline (`qr_ks_vs`)
+- **Strategy**:
+  - Q → Registers
+  - K → Loaded to registers, and stored in LDS
+  - V → Loaded to registers, and stored in LDS
+- **Use Case**: Baseline implementation with full data staging
+
+### 2. Async Optimized Pipeline (`qr_ks_vs_async`)
+- **Optimization**:
+  - Direct K→LDS loading (skip register staging)
+  - Maintains Q-in-register strategy
+- **Benefit**: Reduced register pressure for K
+
+### 3. Split-KV Pipeline (`splitkv_pipeline_nwarp_sshuffle`)
+- **Two-Phase Execution**:
+  1. `splitkv_kernel`: Parallel computation across K/V segments
+  2. `splitkv_combine_kernel`: Results reduction
+- **Parallelism**:
+  - `nwarp`: 4 warps along sequence dimension (N)
+  - `sshuffle`: Warp communication via shared memory
+- **Advantage**: Enables massive sequence parallelism
