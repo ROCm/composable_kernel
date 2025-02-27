@@ -32,6 +32,7 @@ enum struct GemmDataType
 enum struct ScaleBlockTile
 {
     Tile_128_128_128, // 0
+    Tile_1_128_128,   // 1
 };
 
 #define OP_NAME "gemm_ab_scale"
@@ -49,7 +50,8 @@ int profile_gemm_ab_scale(int argc, char* argv[])
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
         printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
         printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
-        printf("arg4: scale block tile (0: ScaleBlockM/N/K = [128, 128, 128];\n");
+        printf("arg4: scale block tile (0: ScaleBlockM/N/K = [128, 128, 128]; 1: ScaleBlockM/N/K = "
+               "[1, 128, 128];\n");
         printf("arg5: verification (0: no; 1: yes)\n");
         printf("arg6: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg7: print tensor value (0: no; 1: yes)\n");
@@ -155,7 +157,7 @@ int profile_gemm_ab_scale(int argc, char* argv[])
     };
 
     if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN &&
-       scale_block_tile == ScaleBlockTile::Tile_128_128_128)
+       scale_block_tile == ScaleBlockTile::Tile_1_128_128)
     {
         return profile(F8{},
                        F32{},
@@ -164,7 +166,7 @@ int profile_gemm_ab_scale(int argc, char* argv[])
                        F8{},
                        F32{},
                        BF16{},
-                       ck::Number<128>{},
+                       ck::Number<1>{},
                        ck::Number<128>{},
                        ck::Number<128>{},
                        Row{},
