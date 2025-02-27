@@ -39,28 +39,64 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
         constexpr index_t kNPerBlock     = Problem::BlockFmhaShape::kN0;
         constexpr index_t kKPerBlock     = Problem::BlockFmhaShape::kK0;
         constexpr index_t kKPack         = GetSmemKPackK<Problem>();
+        constexpr index_t kKVector       = GetAlignmentK<Problem>();
 
-        constexpr auto k_lds_block_desc_0 =
-            make_naive_tensor_descriptor(make_tuple(number<NumKLdsBuffers>{},
-                                                    number<kKPerBlock / kKPack>{},
-                                                    number<kNPerBlock>{},
-                                                    number<kKPack>{}),
-                                         make_tuple(number<kKPerBlock*(kNPerBlock + 1)>{},
-                                                    number<(kNPerBlock + 1) * kKPack>{},
-                                                    number<kKPack>{},
-                                                    number<1>{}),
-                                         number<kKPack>{},
-                                         number<1>{});
+        constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<NumKLdsBuffers>{},
+                       number<kKPerBlock / kKVector>{},
+                       number<kKVector / kKPack>{},
+                       number<kNPerBlock>{},
+                       number<kKPack>{}),
+            make_tuple(number<kKPerBlock * kNPerBlock + kKPerBlock * kKPack / kKVector>{},
+                       number<kNPerBlock * kKVector + kKPack>{},
+                       number<kNPerBlock * kKPack>{},
+                       number<kKPack>{},
+                       number<1>{}),
+            number<kKPack>{},
+            number<1>{});
 
         constexpr auto k_lds_block_desc = transform_tensor_descriptor(
             k_lds_block_desc_0,
             make_tuple(
                 make_merge_transform(make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{})),
-                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
-            make_tuple(sequence<0, 2>{}, sequence<1, 3>{}),
+                make_merge_transform(make_tuple(number<kKPerBlock / kKVector>{},
+                                                number<kKVector / kKPack>{},
+                                                number<kKPack>{}))),
+            make_tuple(sequence<0, 3>{}, sequence<1, 2, 4>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return k_lds_block_desc;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKDramTileDistribution()
+    {
+        using KDataType = remove_cvref_t<typename Problem::KDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+
+        constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
+
+        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+        static_assert(0 < ElemPerThread);
+        constexpr index_t kMaxVecLoad = min(ElemPerThread, MaxVectorSize);
+
+        constexpr index_t KPerThread     = kMaxVecLoad;
+        constexpr index_t KThreads       = kKPerBlock / KPerThread;
+        constexpr index_t NThreadPerWarp = get_warp_size() / KThreads;
+        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+        constexpr index_t NPerThread     = kNPerBlock / (NThreadPerWarp * NumWarps);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<NPerThread, NThreadPerWarp, NumWarps>,
+                                             sequence<KThreads, KPerThread>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<2>, sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
     }
 
     template <typename Problem>
