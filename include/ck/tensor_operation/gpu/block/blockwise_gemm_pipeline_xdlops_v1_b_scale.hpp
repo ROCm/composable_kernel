@@ -210,7 +210,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_b_scale<BlockGemmPipelineScheduler::Intra
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
             b_thread_desc_.GetElementSpaceSize());
 
-        auto b_scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
+        auto b_scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, _Float16>(
             b_scale_thread_desc.GetElementSpaceSize());
 
         // Global prefetch 1
