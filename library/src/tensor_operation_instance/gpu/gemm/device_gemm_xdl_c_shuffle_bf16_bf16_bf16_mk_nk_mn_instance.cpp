@@ -59,7 +59,7 @@ using device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_nk_mn_instances = std::tuple<
         ,
         DeviceGemm_Xdl_CShuffle<     Row,     Col,     Row,  BF16,  BF16,  BF16,     F32,     BF16, PassThrough, PassThrough, PassThrough,       GemmSpec,        1,   256,   128,   128,    64,  16,  16,   32,   32,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,              8,  LoopScheduler::Default,        PipelineVersion::v1>,
         DeviceGemm_Xdl_CShuffle<     Row,     Col,     Row,  BF16,  BF16,  BF16,     F32,     BF16, PassThrough, PassThrough, PassThrough,       GemmSpec,        1,   256,    64,    64,   128,  32,  32,   16,   16,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,              4,  LoopScheduler::Default,        PipelineVersion::v1>
-#endif
+#endif // defined(CK_USE_AMD_MFMA_GFX950)
 #if CK_EXPERIMENTAL_INTER_WAVE_INSTANCES        
         // pipeline v1, 2 waves
         ,
