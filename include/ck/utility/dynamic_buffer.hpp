@@ -134,7 +134,8 @@ struct DynamicBuffer
     template <InMemoryDataOperationEnum Op,
               typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                         typename scalar_type<remove_cvref_t<T>>::type>::value ||
+                                     !is_native_type<X>(),
                                  bool>::type = false>
     __host__ __device__ void Update(index_t i, bool is_valid_element, const X& x)
     {
@@ -154,14 +155,43 @@ struct DynamicBuffer
         {
             auto tmp       = this->template Get<X>(i, is_valid_element);
             using scalar_t = typename scalar_type<remove_cvref_t<T>>::type;
-            // handle bfloat addition
-            if constexpr(is_same_v<scalar_t, bhalf_t>)
+
+            // // handle bfloat addition
+            // if constexpr(is_same_v<scalar_t, bhalf_t>)
+            // {
+            //     if constexpr(is_scalar_type<X>::value)
+            //     {
+            //         // Scalar type
+            //         auto result =
+            //             type_convert<X>(type_convert<float>(x) + type_convert<float>(tmp));
+            //         this->template Set<X>(i, is_valid_element, result);
+            //     }
+            //     else
+            //     {
+            //         // Vector type
+            //         constexpr auto vector_size = scalar_type<remove_cvref_t<X>>::vector_size;
+            //         const vector_type<scalar_t, vector_size> a_vector{tmp};
+            //         const vector_type<scalar_t, vector_size> b_vector{x};
+            //         static_for<0, vector_size, 1>{}([&](auto idx) {
+            //             auto result = type_convert<scalar_t>(
+            //                 type_convert<float>(a_vector.template AsType<scalar_t>()[idx]) +
+            //                 type_convert<float>(b_vector.template AsType<scalar_t>()[idx]));
+            //             this->template Set<scalar_t>(i + idx, is_valid_element, result);
+            //         });
+            //     }
+            // }
+            // else
+            // {
+            //     this->template Set<X>(i, is_valid_element, x + tmp);
+            // }
+
+            // Properly handle addition for all low-precision types
+            if constexpr(is_same_v<scalar_t, bhalf_t> || is_same_v<scalar_t, half_t>)
             {
                 if constexpr(is_scalar_type<X>::value)
                 {
-                    // Scalar type
-                    auto result =
-                        type_convert<X>(type_convert<float>(x) + type_convert<float>(tmp));
+                    // Scalar type: Convert to float, add, convert back
+                    auto result = type_convert<X>(type_convert<float>(x) + type_convert<float>(tmp));
                     this->template Set<X>(i, is_valid_element, result);
                 }
                 else
@@ -170,6 +200,8 @@ struct DynamicBuffer
                     constexpr auto vector_size = scalar_type<remove_cvref_t<X>>::vector_size;
                     const vector_type<scalar_t, vector_size> a_vector{tmp};
                     const vector_type<scalar_t, vector_size> b_vector{x};
+                    
+                    // Process each element of the vector in higher precision
                     static_for<0, vector_size, 1>{}([&](auto idx) {
                         auto result = type_convert<scalar_t>(
                             type_convert<float>(a_vector.template AsType<scalar_t>()[idx]) +
@@ -178,10 +210,11 @@ struct DynamicBuffer
                     });
                 }
             }
-            else
-            {
-                this->template Set<X>(i, is_valid_element, x + tmp);
-            }
+            // else
+            // {
+            //     // // For other types, direct addition is fine
+            //     // this->template Set<X>(i, is_valid_element, x + tmp);
+            // }
         }
     }
 
