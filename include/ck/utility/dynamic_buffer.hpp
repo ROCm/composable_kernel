@@ -212,8 +212,8 @@ struct DynamicBuffer
             }
             // else
             // {
-            //     // // For other types, direct addition is fine
-            //     // this->template Set<X>(i, is_valid_element, x + tmp);
+            //     // For other types, direct addition is fine
+            //     this->template Set<X>(i, is_valid_element, x + tmp);
             // }
         }
     }
