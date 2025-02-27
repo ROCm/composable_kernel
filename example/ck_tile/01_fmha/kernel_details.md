@@ -65,4 +65,9 @@ Filenames encode implementation choices using abbreviations:
 - **Parallelism**:
   - `nwarp`: 4 warps along sequence dimension (N)
   - `sshuffle`: Warp communication via shared memory
+  - `nwarp_sshuffle`: specific optimization for decode stage
 - **Advantage**: Enables massive sequence parallelism
+
+
+
+![image](https://github.com/user-attachments/assets/17f4a19d-2b02-4907-86b3-127f9a4d0f5a)
