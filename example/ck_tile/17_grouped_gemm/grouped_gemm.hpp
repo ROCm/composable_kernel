@@ -34,10 +34,10 @@
 #endif
 
 template <typename DataType>
-struct GemmBasicTypeConfig;
+struct GemmTypeConfig;
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::half_t>
+struct GemmTypeConfig<ck_tile::half_t>
 {
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::half_t;
@@ -45,7 +45,7 @@ struct GemmBasicTypeConfig<ck_tile::half_t>
     using AccDataType = float;
 };
 
-using Types = GemmBasicTypeConfig<ck_tile::half_t>;
+using Types = GemmTypeConfig<ck_tile::half_t>;
 
 // Specific type aliases for easy access
 using ADataType   = Types::ADataType;
