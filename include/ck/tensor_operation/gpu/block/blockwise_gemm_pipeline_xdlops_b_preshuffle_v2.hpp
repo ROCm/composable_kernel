@@ -141,6 +141,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
+    using Base::MWaves;
 
     static constexpr index_t PrefetchStages  = 3;
     static constexpr index_t PrefillStages   = 2;
@@ -185,7 +186,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
     {
         // constexpr auto num_ds_read_inst_a     = HotLoopInstList::A_LDS_Read_Inst_Num;
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
+        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves;
 
         // B global + A local
         static_for<0, num_buffer_load_inst_b / 2, 1>{}([&](auto i) {
