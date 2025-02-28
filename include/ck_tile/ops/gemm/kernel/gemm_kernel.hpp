@@ -653,12 +653,12 @@ struct GemmKernel
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
+        __shared__ char smem_ptr_1[GetSmemSize()];
 
         if(kargs.k_batch == 1)
         {
             if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
-                __shared__ char smem_ptr_1[GetSmemSize()];
                 RunGemm2LDS(a_ptr,
                             b_ptr,
                             c_ptr,
@@ -683,7 +683,6 @@ struct GemmKernel
             {
                 if constexpr(GemmPipeline::DoubleSmemBuffer == true)
                 {
-                    __shared__ char smem_ptr_1[GetSmemSize()];
                     RunGemm2LDS<memory_operation_enum::atomic_add>(a_ptr,
                                                                    b_ptr,
                                                                    c_ptr,
