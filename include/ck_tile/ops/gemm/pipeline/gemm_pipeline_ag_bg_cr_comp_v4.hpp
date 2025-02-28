@@ -60,6 +60,13 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
+    static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
+
+    static constexpr index_t APackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+    static constexpr index_t BPackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+
     using ALayout = remove_cvref_t<typename Problem::ALayout>;
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
@@ -133,18 +140,18 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             constexpr index_t A_LDS_Read_Inst_Num =
                 WaveNumN * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
             constexpr index_t B_LDS_Read_Inst_Num =
-                WaveNumM * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
+                WaveNumM * NPerBlock * KPerBlock / (BlockSize * KPerXDL);
 
             constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
                                                 (BlockSize / WaveSize) /
                                                 (MPerXDL * NPerXDL * KPerXDL);
 
-            constexpr auto num_ds_read_inst_a = A_LDS_Read_Width * sizeof(ADataType) == 16
-                                                    ? A_LDS_Read_Inst_Num
-                                                    : A_LDS_Read_Inst_Num / 2;
-            constexpr auto num_ds_read_inst_b = B_LDS_Read_Width * sizeof(BDataType) == 16
-                                                    ? B_LDS_Read_Inst_Num
-                                                    : B_LDS_Read_Inst_Num / 2;
+            constexpr auto num_ds_read_inst_a =
+                A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? A_LDS_Read_Inst_Num
+                                                                         : A_LDS_Read_Inst_Num / 2;
+            constexpr auto num_ds_read_inst_b =
+                B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? B_LDS_Read_Inst_Num
+                                                                         : B_LDS_Read_Inst_Num / 2;
 
             constexpr auto num_ds_read_inst     = num_ds_read_inst_a + num_ds_read_inst_b;
             constexpr auto num_ds_write_inst    = A_LDS_Write_Inst_Num + B_LDS_Write_Inst_Num;
@@ -393,10 +400,13 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                                 b_copy_lds_window0, b_global_load_tile, b_element_func);
                         }
 
+                        block_sync_lds();
+
                         Base::GlobalPrefetch(
                             a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
                         Base::GlobalPrefetch(
                             b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
+                        block_sync_lds();
                         // gemm
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                         HotLoopScheduler();
@@ -432,6 +442,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                             Base::LocalPrefill(
                                 b_copy_lds_window1, b_global_load_tile, b_element_func);
                         }
+                        block_sync_lds();
 
                         Base::GlobalPrefetch(
                             a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
@@ -439,6 +450,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                             b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
                         // gemm
                         block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
+                        block_sync_lds();
                         HotLoopScheduler();
                         __builtin_amdgcn_sched_barrier(0);
                     }

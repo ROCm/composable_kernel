@@ -19,16 +19,15 @@ inline void hip_check_error(hipError_t x)
     }
 }
 
-#define HIP_CHECK_ERROR(retval_or_funcall)                                 \
-    do                                                                     \
-    {                                                                      \
-        hipError_t _tmpVal = retval_or_funcall;                            \
-        if(_tmpVal != hipSuccess)                                          \
-        {                                                                  \
-            std::ostringstream ostr;                                       \
-            ostr << "HIP Function Failed ("                                \
-                 << "hip_check_error.hpp"                                  \
-                 << "," << __LINE__ << ") " << hipGetErrorString(_tmpVal); \
-            throw std::runtime_error(ostr.str());                          \
-        }                                                                  \
+#define HIP_CHECK_ERROR(retval_or_funcall)                                         \
+    do                                                                             \
+    {                                                                              \
+        hipError_t _tmpVal = retval_or_funcall;                                    \
+        if(_tmpVal != hipSuccess)                                                  \
+        {                                                                          \
+            std::ostringstream ostr;                                               \
+            ostr << "HIP Function Failed (" << __FILE__ << "," << __LINE__ << ") " \
+                 << hipGetErrorString(_tmpVal);                                    \
+            throw std::runtime_error(ostr.str());                                  \
+        }                                                                          \
     } while(0)

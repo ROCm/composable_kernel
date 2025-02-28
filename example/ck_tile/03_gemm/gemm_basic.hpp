@@ -35,11 +35,11 @@
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
 #endif
 
-template <typename DataType>
-struct GemmTypeConfig;
+template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
+struct GemmBasicTypeConfig;
 
 template <>
-struct GemmTypeConfig<ck_tile::half_t>
+struct GemmBasicTypeConfig<ck_tile::half_t>
 {
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::half_t;
@@ -49,7 +49,7 @@ struct GemmTypeConfig<ck_tile::half_t>
 };
 
 template <>
-struct GemmTypeConfig<ck_tile::bf16_t>
+struct GemmBasicTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t>
 {
     using ADataType   = ck_tile::bf16_t;
     using BDataType   = ck_tile::bf16_t;
@@ -58,7 +58,7 @@ struct GemmTypeConfig<ck_tile::bf16_t>
 };
 
 template <>
-struct GemmTypeConfig<ck_tile::fp8_t>
+struct GemmBasicTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>
 {
     using ADataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
@@ -67,10 +67,19 @@ struct GemmTypeConfig<ck_tile::fp8_t>
 };
 
 template <>
-struct GemmTypeConfig<ck_tile::bf8_t>
+struct GemmBasicTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>
 {
     using ADataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <>
+struct GemmBasicTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
+{
+    using ADataType   = ck_tile::half_t;
+    using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
 };
@@ -112,6 +121,12 @@ template <>
 struct DataTypeTraits<ck_tile::bf8_t>
 {
     static constexpr const char* name = "bf8";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::pk_int4_t>
+{
+    static constexpr const char* name = "pk_int4_t";
 };
 
 auto create_args(int argc, char* argv[])
