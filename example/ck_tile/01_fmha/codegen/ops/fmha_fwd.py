@@ -233,23 +233,26 @@ class FmhaFwdPipeline:
         pn = pad_name()
         n = f'{self.tag}_v{self.F_vlayout[0]}'
         if pn != '' : n += f'_{pn}'
-        if self.F_bias != 'no' :
-            n += f'_{self.F_bias}'
-        else:
-            n += '_nbias'
+        else: n += '_npad'
+
+        if self.F_bias != 'no' : n += f'_{self.F_bias}'
+        else: n += '_nbias'
+
         if self.F_mask[0:2] == 's_':
             if self.F_mask == 's_mask': n += f'_mask'
+            else: n += '_nmask'
         else:
             if self.F_mask != 'no' : n += f'_m{self.F_mask[0]}'
-        if self.F_lse == 't' :
-            n += '_lse'
-        else:
-            n += '_nlse'
-        if self.F_dropout == 't' :
-            n += '_dropout'
-        else:
-            n += '_ndropout'
+            else: n += '_nmask'
+
+        if self.F_lse == 't' : n += '_lse'
+        else: n += '_nlse'
+
+        if self.F_dropout == 't' : n += '_dropout'
+        else: n += '_ndropout'
+
         if self.F_squant == 't' : n += '_squant'
+        else: n += '_nsquant'
         return n
 
 class FmhaFwdApiPool:
