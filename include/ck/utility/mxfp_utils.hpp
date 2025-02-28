@@ -3,6 +3,11 @@
 
 #pragma once
 
+#include "ck/utility/data_type.hpp"
+
+#ifdef CK_CODE_GEN_RTC
+#define UINT_MAX 4294967295
+#endif
 namespace ck::utils {
 
 union cvt
@@ -380,5 +385,4 @@ inline T convert_to_type_sr(float value, uint32_t seed)
     auto val = sign | biased_exp << NumericUtils<T>::mant | mant;
     return val;
 }
-
 } // namespace ck::utils
