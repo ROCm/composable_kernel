@@ -1209,62 +1209,81 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                Problem& problem,
                                void* p_workspace)
     {
+        // Element-wise operations to be applied to matrices
         const AElementwiseOperation a_element_op{};
         const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
-        const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
-            problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
-        const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
-            problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
+         // Create descriptors for matrices A and B with specific layouts for GPU computation
+        const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1( problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
+        const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
 
-        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+        // Create buffer references for matrices A and B in global memory
+        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
 
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+
+        // Create mapping from block IDs to C matrix tiles using StreamK scheduling
         Block2CTileMap_streamk block_2_ctile_map_streamk(problem.M,
                                                          problem.N,
                                                          AK0Number * problem.KPadded,
                                                          problem.Grid_size,
                                                          problem.Streamk_sel);
+
+        // Variables for iterating over K dimension
         uint32_t iter_start, iter_end;
+
+
+         // Flags to identify block types in StreamK
         bool is_sk_block, is_dp_block, is_reduction_block;
         index_t num_k_block_main_loop;
-        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(
-            problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
-        const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
-            MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                c_grid_desc_m_n, problem.MBlock, problem.NBlock);
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
+         // Create descriptor for matrix C in the desired output layout
+        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
+        const auto c_grid_desc_mblock_mperblock_nblock_nperblock =MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n, problem.MBlock, problem.NBlock);
+        
+        // Create buffer references for matrices C in global memory
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+
+        // Semaphores for synchronization between blocks
         uint32_t* p_semaphore = reinterpret_cast<uint32_t*>(
             reinterpret_cast<char*>(p_workspace) +
             block_2_ctile_map_streamk.get_workspace_size_for_acc(sizeof(AccDataType)));
+
+
         for(auto block_idx = get_block_1d_id();
             block_idx < block_2_ctile_map_streamk.get_grid_dims();
             block_idx += gridDim.x)
         {
 
-            is_sk_block =
-                static_cast<uint32_t>(block_idx) < block_2_ctile_map_streamk.sk_num_blocks;
+            // Determine block type:
+            // StreamK (SK) blocks perform partial computations that will be reduced later
+            is_sk_block = static_cast<uint32_t>(block_idx) < block_2_ctile_map_streamk.sk_num_blocks;
+
+            // Direct Parallel (DP) blocks compute complete tiles
             is_dp_block =
                 static_cast<uint32_t>(block_idx) >= block_2_ctile_map_streamk.dp_start_block_idx &&
                 static_cast<uint32_t>(block_idx) <
                     block_2_ctile_map_streamk.reduction_start_block_idx;
 
+            // Get iteration range for this block
             block_2_ctile_map_streamk.get_block_itr(block_idx, iter_start, iter_end);
+
             num_k_block_main_loop = iter_end - iter_start;
 
+            // Handle reduction blocks if using Reduction strategy
             if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
                          StreamKReductionStrategy::Reduction)
             {
-                is_reduction_block = static_cast<uint32_t>(block_idx) >=
-                                     block_2_ctile_map_streamk.reduction_start_block_idx;
+                // Reduction blocks aggregate results from multiple SK blocks
+                is_reduction_block = static_cast<uint32_t>(block_idx) >= block_2_ctile_map_streamk.reduction_start_block_idx;
+
                 if(is_reduction_block)
                 {
+                    // Complex reduction logic to combine partial results from StreamK blocks
+
                     // descriptors
+                    // Configuration for reduction operations
                     constexpr auto cluster_length_reduce = GetClusterLengthReduction();
                     constexpr auto reduce_desc = make_cluster_descriptor(cluster_length_reduce);
                     const auto reduce_thread_cluster_idx =
@@ -1272,6 +1291,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     const auto thread_m_cluster_id = reduce_thread_cluster_idx[I0];
                     const auto thread_n_cluster_id = reduce_thread_cluster_idx[I1];
 
+                    // Calculate iterations needed for reduction
                     constexpr auto MReduceIters = math::integer_divide_ceil(
                         Number<MPerBlock>{}, cluster_length_reduce.At(I0));
                     constexpr auto NReduceIters = math::integer_divide_ceil(
@@ -1279,6 +1299,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         cluster_length_reduce.At(I1) *
                             Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{});
 
+                    // Descriptors for thread buffer transfers
                     constexpr auto acc_thread_buf_load_desc = make_naive_tensor_descriptor_packed(
                         make_tuple(I1, Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{}));
                     constexpr auto acc_thread_buf_store_desc =
@@ -1287,6 +1308,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 
                     constexpr auto c_partial_acc_block_m_n = GetPartialAccBlockDescriptor();
 
+                    // Step sizes for moving through the matrix during reduction
                     constexpr auto partial_acc_load_step_n =
                         make_multi_index(0,
                                          cluster_length_reduce.At(I1) *
@@ -1313,6 +1335,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     constexpr auto partial_acc_store_step_m =
                         make_multi_index(0, cluster_length_reduce.At(I0), 0, 0);
 
+                     // Buffers for accumulation
                     StaticBuffer<AddressSpaceEnum::Vgpr,
                                  AccDataType,
                                  CShuffleBlockTransferScalarPerVector_NPerBlock,
@@ -1330,8 +1353,10 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     auto spatial_idx = block_2_ctile_map_streamk.tile_to_spatial(
                         reduction_idx, problem.M, problem.N);
 
+                    // Set up barrier for synchronization
                     workgroup_barrier wg_barrier(p_semaphore);
 
+                    // Get offsets for partial accumulation buffers
                     uint32_t tile_acc_offset_start =
                         block_2_ctile_map_streamk.get_acc_buffer_offset_from_tile(reduction_idx);
                     uint32_t tile_acc_offset_end =
@@ -1339,6 +1364,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                                                                   1);
                     __syncthreads();
 
+                    // Set up tensor transfers for accumulation buffers
                     auto acc_load = ThreadwiseTensorSliceTransfer_v2<
                         AccDataType,                        // SrcData,
                         AccDataType,                        // DstData,
@@ -1380,19 +1406,27 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                                CShuffleBlockTransferScalarPerVector_NPerBlock),
                           CElementwiseOperation{}};
 
+                    // Wait for all threads to reach this point 
+                    // Wait for all partial results to be ready
                     wg_barrier.wait_eq(reduction_idx, tile_acc_offset_end - tile_acc_offset_start);
 
                     if(threadIdx.x == 0)
                     {
                         p_semaphore[reduction_idx] = 0;
                     }
+
+                    // Define accumulation operation with NaN handling
                     using Accumulation = ck::detail::
                         AccumulateWithNanCheck<false /*PropagateNan*/, reduce::Add, AccDataType>;
 
+                     // Loop through the matrix blocks to perform reduction
                     for(int i_m = 0; i_m < MReduceIters; i_m++)
                     {
-                        static_for<0, NReduceIters, 1>{}([&](auto i_n_reduce) {
+                        static_for<0, NReduceIters, 1>{}([&](auto i_n_reduce)
+                        {
                             acc_buf.Clear();
+
+                            // Accumulate all partial results with proper type handling
                             for(auto i = tile_acc_offset_start; i < tile_acc_offset_end; i++)
                             {
                                 auto c_partial_acc_buf =
@@ -1407,7 +1441,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                              acc_thread_buf_load_desc,
                                              make_tuple(I0, I0),
                                              parcial_acc_buf);
-
+                                
+                                // Properly handle accumulation for each vector element
                                 static_for<0, CShuffleBlockTransferScalarPerVector_NPerBlock, 1>{}(
                                     [&](auto i_vec) {
                                         constexpr auto offset =
@@ -1418,16 +1453,45 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                     });
                             }
 
-                            if(thread_n_cluster_id *
-                                   CShuffleBlockTransferScalarPerVector_NPerBlock <
-                               NPerBlock)
+                            // Store accumulated results to global memory
+                            if(thread_n_cluster_id *CShuffleBlockTransferScalarPerVector_NPerBlock < NPerBlock)
                             {
+
+                                // @Emin-debug
+#if 1
+                                if (threadIdx.x == 0 && threadIdx.y == 0)
+                                {
+                                    printf(" gridwise_gemm_xdl_cshuffle line %d , Block %d , reduction_idx %d, i_m %d, i_n_reduce %d, 
+                                        thread_m_cluster_id %d, thread_n_cluster_id %d\n",
+                                        __LINE__,
+                                        blockIdx.x,
+                                        reduction_idx,
+                                        i_m,
+                                        i_n_reduce,
+                                        thread_m_cluster_id,
+                                        thread_n_cluster_id);
+
+                                    // Print values from acc_buf (up to 8 values to avoid excessive output)
+                                    for(int i = 0; i < min(8, CShuffleBlockTransferScalarPerVector_NPerBlock); i++)
+                                    {
+                                        printf("%.4f ", static_cast<float>(acc_buf[i]));
+                                    }
+                                    
+                                    // Print matrix coordinates
+                                    auto global_m = spatial_idx[I0] * MPerBlock + thread_m_cluster_id;
+                                    auto global_n = spatial_idx[I1] * NPerBlock + thread_n_cluster_id * CShuffleBlockTransferScalarPerVector_NPerBlock;
+                                    printf(" at C[%d,%d]\n", global_m, global_n);
+                                }
+
+#endif
                                 acc_store.Run(acc_thread_buf_store_desc,
                                               make_tuple(I0, I0, I0, I0),
                                               acc_buf,
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
                                               c_grid_buf);
                             }
+
+                            // Update positions for next iteration
                             if constexpr(NReduceIters != 1)
                             {
                                 if constexpr(i_n_reduce != (NReduceIters - 1))
@@ -1448,6 +1512,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                 }
                             }
                         });
+                        // Move to next row
                         {
                             acc_load.MoveSrcSliceWindow(c_partial_acc_block_m_n,
                                                         partial_acc_load_step_m);
@@ -1457,7 +1522,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         }
                     }
 
-                    continue;
+                    continue; // Move to next block
                 }
             }
 
@@ -1465,18 +1530,20 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             uint32_t block_acc_offset =
                 (block_2_ctile_map_streamk.get_acc_buffer_offset_from_block(block_idx + 1) - 1) *
                 MPerBlock * NPerBlock;
+
+
             while(true)
             {
                 uint32_t current_iter_length = __builtin_amdgcn_readfirstlane(
                     block_2_ctile_map_streamk.get_current_iter_length(
                         iter_start, iter_end, num_k_block_main_loop));
+
                 uint32_t tile_idx, iter_offset;
-                block_2_ctile_map_streamk.get_tile_idx_with_offset(
-                    iter_end - 1, tile_idx, iter_offset);
+
+                block_2_ctile_map_streamk.get_tile_idx_with_offset(iter_end - 1, tile_idx, iter_offset);
                 iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
 
-                auto block_work_idx =
-                    block_2_ctile_map_streamk.tile_to_spatial(tile_idx, problem.M, problem.N);
+                auto block_work_idx =block_2_ctile_map_streamk.tile_to_spatial(tile_idx, problem.M, problem.N);
 
                 const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
                 const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
