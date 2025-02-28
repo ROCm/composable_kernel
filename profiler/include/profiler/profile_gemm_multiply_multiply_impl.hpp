@@ -188,7 +188,8 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38};
+        // Seems like when performance measurement has bug when spiltK is large
+        std::vector<int> kbatch_list = {1, 2, 4, 8, 16};
 
         if(KBatch > 0)
         {
@@ -232,7 +233,26 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
                 {
                     c_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-                    pass = pass & ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
+#if defined CK_ENABLE_FP8 || defined CK_ENABLE_INT8
+                    // set softer tolerances for fp8
+                    if constexpr((is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
+                                  is_same_v<EDataType, f8_t>) ||
+                                 (is_same_v<ADataType, int8_t> || is_same_v<BDataType, int8_t> ||
+                                  is_same_v<EDataType, int8_t>))
+                    {
+                        std::string msg = "Error: Incorrect results!";
+                        double rtol     = 1e-1;
+                        double atol     = 1e-1;
+                        pass            = pass & ck::utils::check_err(
+                                          e_m_n_device_result, e_m_n_host_result, msg, rtol, atol);
+                    }
+                    else
+                    {
+#endif
+                        pass = pass & ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
+#if defined CK_ENABLE_FP8 || defined CK_ENABLE_INT8
+                    }
+#endif
 
                     if(do_log)
                     {
@@ -248,6 +268,10 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
                 }
 
                 std::string op_name = op_ptr->GetTypeString();
+
+                // timer of develop branch should only apply to empty hipstream
+                // hipStream_t stream;
+                // hip_check_error(hipStreamCreate(&stream));
 
                 float ave_time = invoker_ptr->Run(argument_ptr.get(),
                                                   StreamConfig{nullptr,
@@ -270,27 +294,6 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
                 std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
                           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
                           << kbatch_curr << std::endl;
-
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_INT8
-                // set softer tolerances for fp8
-                if constexpr((is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
-                              is_same_v<EDataType, f8_t>) ||
-                             (is_same_v<ADataType, int8_t> || is_same_v<BDataType, int8_t> ||
-                              is_same_v<EDataType, int8_t>))
-                {
-                    std::string msg = "Error: Incorrect results!";
-                    double rtol     = 1e-1;
-                    double atol     = 1e-1;
-                    pass            = pass & ck::utils::check_err(
-                                      e_m_n_device_result, e_m_n_host_result, msg, rtol, atol);
-                }
-                else
-                {
-#endif
-                    pass = pass & ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_INT8
-                }
-#endif
 
                 if(tflops > best_tflops && ave_time > 1e-10)
                 {

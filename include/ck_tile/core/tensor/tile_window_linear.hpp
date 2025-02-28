@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include "ck_tile/core/arch/arch.hpp"
@@ -151,11 +151,13 @@ struct tile_window_linear
         }
 
         public:
+        static constexpr index_t PackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
         static constexpr index_t VectorDimY = get_vector_dim_y_scalar_per_vector().template at<0>();
         static constexpr index_t ScalarPerVector =
             get_vector_dim_y_scalar_per_vector().template at<1>();
 
-        using vector_t = thread_buffer<DataType, ScalarPerVector>;
+        using vector_t = thread_buffer<DataType, ScalarPerVector / PackedSize>;
 
         private:
         static constexpr auto scalars_per_access_ = [] {
@@ -498,17 +500,18 @@ struct tile_window_linear
             // data index [y0, y1, ...]
             constexpr auto idx_diff_ys = SFC_Ys::get_index(IAccess);
             // write into distributed tensor
-            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_diff_ys[jj] + j) : idx_diff_ys[jj];
                     },
                     number<NDimY>{});
 
-                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
+                                      traits::PackedSize;
 
                 dst_tensor.get_thread_buffer().template at<d>() =
-                    vec_value.template get_as<DataType>()[j];
+                    vec_value.template get_as<DataType>()[j / traits::PackedSize];
             });
 #else
             constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
@@ -556,17 +559,18 @@ struct tile_window_linear
             // data index [y0, y1, ...]
             constexpr auto idx_diff_ys = SFC_Ys::get_index(IAccess);
             // write into distributed tensor
-            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_diff_ys[jj] + j) : idx_diff_ys[jj];
                     },
                     number<NDimY>{});
 
-                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
+                                      traits::PackedSize;
 
                 dst_tensor.get_thread_buffer().template at<d>() =
-                    vec_value.template get_as<DataType>()[j];
+                    vec_value.template get_as<DataType>()[j / traits::PackedSize];
             });
 #else
             constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
@@ -595,8 +599,9 @@ struct tile_window_linear
         using SFC_Ys   = typename traits::SFC_Ys;
         static constexpr index_t YElementSize =
             TileDstr{}.get_ys_to_d_descriptor().get_element_space_size();
-        static_assert(YElementSize % traits::ScalarPerVector == 0);
-        using vectorized_tbuf = array<vector_t, YElementSize / traits::ScalarPerVector>;
+        static_assert(YElementSize % (traits::PackedSize * traits::ScalarPerVector) == 0);
+        using vectorized_tbuf =
+            array<vector_t, YElementSize / (traits::PackedSize * traits::ScalarPerVector)>;
 
         constexpr auto tile_dstr = TileDstr{};
 
@@ -620,7 +625,9 @@ struct tile_window_linear
 
             // data index [y0, y1, ...]
             constexpr auto idx_ys_start = SFC_Ys::get_index(IAccess);
-            constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
+            constexpr index_t d =
+                tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start) /
+                traits::PackedSize;
             static_assert(d % traits::ScalarPerVector == 0);
 
             get_bottom_tensor_view().template get_vectorized_elements_raw<vector_t>(
@@ -804,16 +811,17 @@ struct tile_window_linear
             // read from distributed tensor
             vector_t vec_value;
 
-            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
                     },
                     number<NDimY>{});
 
-                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
+                                      traits::PackedSize;
 
-                vec_value.template get_as<DataType>()(j) =
+                vec_value.template get_as<DataType>()(j / traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 
@@ -852,14 +860,15 @@ struct tile_window_linear
 
             // read from distributed tensor
             vector_t vec_value;
-            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
                     },
                     number<NDimY>{});
-                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
-                vec_value.template get_as<DataType>()(j) =
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
+                                      traits::PackedSize;
+                vec_value.template get_as<DataType>()(j / traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 
@@ -897,16 +906,17 @@ struct tile_window_linear
             // read from distributed tensor
             vector_t vec_value;
 
-            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
                     },
                     number<NDimY>{});
 
-                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
+                                      traits::PackedSize;
 
-                vec_value.template get_as<DataType>()(j) =
+                vec_value.template get_as<DataType>()(j / traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 
@@ -948,16 +958,17 @@ struct tile_window_linear
             // read from distributed tensor
             vector_t vec_value;
 
-            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
                     },
                     number<NDimY>{});
 
-                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
+                                      traits::PackedSize;
 
-                vec_value.template get_as<DataType>()(j) =
+                vec_value.template get_as<DataType>()(j / traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 

@@ -20,11 +20,19 @@ struct GemmPipelineAGmemBGmemCRegV2
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
+    static constexpr index_t APackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+    static constexpr index_t BPackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
+
+    static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
+    static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -37,13 +45,15 @@ struct GemmPipelineAGmemBGmemCRegV2
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetStaticLdsSize()
     {
-        return integer_divide_ceil(
-                   sizeof(ADataType) *
-                       Policy::template MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
-                   16) *
+        return integer_divide_ceil(sizeof(ADataType) *
+                                       Policy::template MakeALdsBlockDescriptor<Problem>()
+                                           .get_element_space_size() /
+                                       APackedSize,
+                                   16) *
                    16 +
                sizeof(BDataType) *
-                   Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
+                   Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size() /
+                   BPackedSize;
     }
 
     template <typename ADramBlockWindowTmp,
@@ -75,7 +85,8 @@ struct GemmPipelineAGmemBGmemCRegV2
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
         constexpr index_t a_lds_block_space_size_aligned =
-            integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16) *
+            integer_divide_ceil(
+                sizeof(ADataType) * a_lds_block_desc.get_element_space_size() / APackedSize, 16) *
             16;
 
         // B tile in LDS
@@ -114,16 +125,28 @@ struct GemmPipelineAGmemBGmemCRegV2
                              {0, 0},
                              b_copy_dram_window.get_tile_distribution());
 
-        // A LDS tile for block GEMM
-        auto a_lds_gemm_window = make_tile_window(
-            a_lds_block, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
-
-        // B LDS tile for block GEMM
-        auto b_lds_gemm_window = make_tile_window(
-            b_lds_block, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0});
-
         // Block GEMM
         constexpr auto block_gemm = Policy::template GetBlockGemm<Problem>();
+
+        // Tile distribution for load from lds
+        constexpr auto a_lds_load_tile_distr =
+            make_static_tile_distribution(decltype(block_gemm)::MakeABlockDistributionEncode());
+        constexpr auto b_lds_load_tile_distr =
+            make_static_tile_distribution(decltype(block_gemm)::MakeBBlockDistributionEncode());
+
+        // A LDS tile for block GEMM
+        auto a_lds_gemm_window =
+            make_tile_window(a_lds_block,
+                             make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
+                             {0, 0},
+                             a_lds_load_tile_distr);
+
+        // B LDS tile for block GEMM
+        auto b_lds_gemm_window =
+            make_tile_window(b_lds_block,
+                             make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
+                             {0, 0},
+                             b_lds_load_tile_distr);
 
         // Acc register tile
         auto c_block_tile = decltype(block_gemm(a_lds_gemm_window, b_lds_gemm_window)){};
