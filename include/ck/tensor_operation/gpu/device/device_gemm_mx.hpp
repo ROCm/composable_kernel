@@ -37,6 +37,7 @@ struct DeviceGemmMX : public BaseOperator
                         ck::index_t StrideB,
                         ck::index_t StrideBScale,
                         ck::index_t StrideC,
+                        ck::index_t KBatch,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CElementwiseOperation c_element_op) = 0;

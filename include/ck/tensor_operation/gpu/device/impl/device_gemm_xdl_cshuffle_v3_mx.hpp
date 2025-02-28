@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_mx.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_b_scale.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_mx.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -29,11 +29,12 @@ namespace device {
  * microscale-compliant data types.
  *
  * Assumptions:
+ * - A and B data types are compliant with the OCP Microscaling Formats (MX) Specification
  * - Each scale applies to ScaleBlockSize elements in K direction
  * - A scale matrix has ALayout
  * - B scale matrix has BLayout
  * - Scale data types must have get_exponent_value() specialization, whereas lowest 8 bits of the
- * exponent will be interpreted as conventional biased Float32 exponent
+ * exponent will be interpreted as conventional biased Float32 exponent (E8M0)
  */
 template <typename ALayout,
           typename BLayout,
@@ -96,12 +97,14 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                                                          CElementwiseOperation>
 {
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<
+    using GridwiseGemm = GridwiseGemmMX_xdl_cshuffle_v3<
         ALayout,
         BLayout,
         CLayout,
         ADataType,
+        AScaleDataType,
         BDataType,
+        BScaleDataType,
         GemmAccDataType,
         CShuffleDataType,
         CDataType,
@@ -109,9 +112,8 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
         BElementwiseOperation,
         CElementwiseOperation,
         GemmSpec,
-        BlockSize,
-        1,
         ScaleBlockSize,
+        BlockSize,
         MPerBlock,
         NPerBlock,
         KPerBlock,
@@ -144,10 +146,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
-        ComputeTypeB,
-        false, // PermuteA,
-        false  // PermuteB
-        >;
+        ComputeTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
@@ -159,6 +158,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             if(stream_config.log_level_ > 0)
             {
                 arg.Print();
+                GridwiseGemm::BlockwiseGemmPipe::HotLoopInstList::Print();
             }
 
             if(!GridwiseGemm::CheckValidity(arg))
@@ -631,6 +631,14 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
     static constexpr bool IsValidCompilationParameter()
     {
         // TODO: properly implement this check
+        static_assert((is_same_v<ADataType, f8_t> || is_same_v<ADataType, bf8_t> ||
+                       is_same_v<ADataType, f6_t> || is_same_v<ADataType, bf6_t> ||
+                       is_same_v<ADataType, f4_t>)&&(is_same_v<BDataType, f8_t> ||
+                                                     is_same_v<BDataType, bf8_t> ||
+                                                     is_same_v<BDataType, f6_t> ||
+                                                     is_same_v<BDataType, bf6_t> ||
+                                                     is_same_v<BDataType, f4_t>),
+                      "Only microscaling formats are supported for ADataType and BDataType");
         return true;
     }
 
@@ -716,6 +724,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                                                       ck::index_t StrideB,
                                                       ck::index_t StrideScaleB,
                                                       ck::index_t StrideC,
+                                                      ck::index_t KBatch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op) override
@@ -731,7 +740,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                                           StrideC,
                                           StrideScaleB,
                                           static_cast<const BScaleDataType*>(p_b_scale),
-                                          1, // KBatch
+                                          KBatch,
                                           a_element_op,
                                           b_element_op,
                                           c_element_op);
@@ -760,7 +769,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             {BlockGemmPipelineVersion::v5, "v5"}};
 
         // clang-format off
-        str << "DeviceGemmXdlUniversal"
+        str << "DeviceGemmMX_Xdl_CShuffleV3"
             << "<"
             << getGemmSpecializationString(GemmSpec) << ", "
             << std::string(ALayout::name)[0]
@@ -782,11 +791,14 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
+            << "Kpack: "
+            << GridwiseGemm::BlockwiseGemmPipe::AMmaKStride;
         // clang-format on
 
         return str.str();
     }
+    REGISTER_EXTRA_PRINTING_METHODS
 };
 
 } // namespace device
