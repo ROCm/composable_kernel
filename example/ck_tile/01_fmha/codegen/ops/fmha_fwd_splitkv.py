@@ -397,23 +397,26 @@ class FmhaFwdSplitKVPipeline:
         pn = pad_name()
         n = f'{self.tag}_v{self.F_vlayout[0]}'
         if pn != '' : n += f'_{pn}'
-        if self.F_bias != 'no' :
-            n += f'_{self.F_bias}'
-        else:
-            n += '_nbias'
+        else: n += '_npad'
+
+        if self.F_bias != 'no' : n += f'_{self.F_bias}'
+        else: n += '_nbias'
+
         if self.F_mask[0:2] == 's_':
             if self.F_mask == 's_mask': n += f'_mask'
+            else: n += '_nmask'
         else:
             if self.F_mask != 'no' : n += f'_m{self.F_mask[0]}'
-        if self.F_lse == 't' :
-            n += '_lse'
-        else:
-            n += '_nlse'
+            else: n += '_nmask'
+
+        if self.F_lse == 't' : n += '_lse'
+        else: n += '_nlse'
+
         if self.F_squant == 't' : n += '_squant'
-        if self.F_pagedkv == 't' :
-            n += '_pagedkv'
-        else:
-            n += '_npagedkv'
+        else: n += '_nsquant'
+
+        if self.F_pagedkv == 't' : n += '_pagedkv'
+        else: n += '_npagedkv'
         return n
 
 @dataclass
