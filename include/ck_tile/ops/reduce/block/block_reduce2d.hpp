@@ -211,7 +211,7 @@ struct BlockReduce2dCrossWarpSync
         //
         //   -> also store data from every wave into LDS
         constexpr index_t num_warps = BlockShape::BlockSize / warpSize;
-        return num_warps * thread_buf_size * sizeof(DataType);
+        return num_warps * thread_buf_size * sizeof(DataType) * warpSize;
     }
 
     template <typename YDistributedTensor_, typename ReduceFunc>
@@ -234,12 +234,12 @@ struct BlockReduce2dCrossWarpSync
             return;
 
         // store into smem only for lane-0 within one warp
-        if(lane_id == 0)
-        {
+        // if(lane_id == 0)
+        // {
             static_for<0, thread_buf_size, 1>{}([&](auto i) {
-                smem_ptr[smem_offset + i * num_warps] = y_tensor.get_thread_buffer()[i];
+                smem_ptr[(smem_offset + i * num_warps) * warpSize + lane_id] = y_tensor.get_thread_buffer()[i];
             });
-        }
+        // }
         block_sync_lds();
 
         // load from smem. here we let everythread to do compute :)
@@ -249,7 +249,7 @@ struct BlockReduce2dCrossWarpSync
         static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
             static_for<0, num_reduce_warps, 1>{}([&](auto i_1) {
                 all_scratch[i_0 * num_reduce_warps + i_1] =
-                    smem_ptr[i_0 * num_warps + local_smem_os + i_1];
+                    smem_ptr[(i_0 * num_warps + local_smem_os + i_1) * warpSize + lane_id];
             });
         });
         block_sync_lds(); // TODO: we don't need sync here

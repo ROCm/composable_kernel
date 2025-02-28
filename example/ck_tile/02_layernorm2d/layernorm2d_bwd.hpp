@@ -55,37 +55,70 @@ struct layernorm2d_bwd_traits_
 {
     using DataType = ck_tile::remove_cvref_t<DataType_>;
 
-    static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= warpSize;
+    static constexpr bool single_warp_first_dim = 1 ? ThreadPerBlock_N_ <= warpSize : ThreadPerBlock_M_ <= warpSize;
     static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % warpSize == 0);
     static constexpr ck_tile::index_t total_warps =
         (ThreadPerBlock_M_ * ThreadPerBlock_N_) / warpSize;
 
     // num of warps along m
     static constexpr ck_tile::index_t BlockWarps_M = []() {
-        if constexpr(is_warp_per_row)
+        if constexpr(1)
         {
-            static_assert(warpSize % ThreadPerBlock_N_ == 0);
-            // return total_warps * (warpSize / ThreadPerBlock_N_);
-            return total_warps;
+            if constexpr(single_warp_first_dim)
+            {
+                static_assert(warpSize % ThreadPerBlock_N_ == 0);
+                // return total_warps * (warpSize / ThreadPerBlock_N_);
+                return total_warps;
+            }
+            else
+            {
+                // static_assert(warpSize % ThreadPerBlock_M_ == 0);
+                return total_warps / (ThreadPerBlock_N_ / warpSize);
+            }
         }
         else
         {
-            // static_assert(warpSize % ThreadPerBlock_M_ == 0);
-            return total_warps / (ThreadPerBlock_N_ / warpSize);
+            if constexpr(single_warp_first_dim)
+            {
+                static_assert(warpSize % ThreadPerBlock_M_ == 0);
+                return 1;
+            }
+            else
+            {
+                static_assert(ThreadPerBlock_M_ % warpSize == 0);
+                return ThreadPerBlock_M_ / warpSize;
+            }
         }
     }();
 
     // num of warps along n
     static constexpr ck_tile::index_t BlockWarps_N = []() {
-        if constexpr(is_warp_per_row)
+        if constexpr(1)
         {
-            static_assert(warpSize % ThreadPerBlock_N_ == 0);
-            return 1;
+            if constexpr(single_warp_first_dim)
+            {
+                static_assert(warpSize % ThreadPerBlock_N_ == 0);
+                return 1;
+            }
+            else
+            {
+                static_assert(ThreadPerBlock_N_ % warpSize == 0);
+                return ThreadPerBlock_N_ / warpSize;
+            }
         }
         else
         {
-            static_assert(ThreadPerBlock_N_ % warpSize == 0);
-            return ThreadPerBlock_N_ / warpSize;
+            if constexpr(single_warp_first_dim)
+            {
+                static_assert(warpSize % ThreadPerBlock_M_ == 0);
+                // return total_warps * (warpSize / ThreadPerBlock_M_);
+                return total_warps;
+            }
+            else
+            {
+                // static_assert(warpSize % ThreadPerBlock_N_ == 0);
+                return total_warps / (ThreadPerBlock_M_ / warpSize);
+            }
         }
     }();
 
@@ -153,21 +186,21 @@ struct layernorm2d_bwd_b16_
     float operator() (layernorm2d_bwd_traits t,
                       layernorm2d_bwd_args a,
                       const ck_tile::stream_config& s) {
-        if (t.CalData)
-        {
-            if (a.n <= 256)
-                return layernorm2d_bwd_<trait_<DataType,  1,  2,  4,  16, 1,  8,  true,  false,  true>>(s, a);
-            else
-                return layernorm2d_bwd_<trait_<DataType,  1,  4,  2,  32, 1,  8,  true,  true,  true>>(s, a);
-        }
-        else
-        {
+        // if (t.CalData)
+        // {
+        //     if (a.n <= 256)
+        //         return layernorm2d_bwd_<trait_<DataType,  1,  2,  4,  16, 1,  8,  true,  false,  true>>(s, a);
+        //     else
+        //         return layernorm2d_bwd_<trait_<DataType,  1,  4,  2,  32, 1,  8,  true,  true,  true>>(s, a);
+        // }
+        // else
+        // {
             // if (a.n <= 64)
             //     return layernorm2d_bwd_<trait_<DataType,  1,  1,  64,  1,  1,  1,  true,  false,  false>>(s, a);
             // else
-                // return layernorm2d_bwd_<trait_<DataType,  1,  1,  32,  32,  8,  2,  true,  false,  false>>(s, a);
-                return layernorm2d_bwd_<trait_<DataType,  1,  1,  4,  32,  1,  1,  true,  false,  false>>(s, a);
-        }
+                return layernorm2d_bwd_<trait_<DataType,  2,  1,  32,  16,  8,  2,  true,  false,  false>>(s, a);
+                // return layernorm2d_bwd_<trait_<DataType,  1,  1,  8,  32,  1,  2,  true,  false,  false>>(s, a);
+        // }
     }
 };
 

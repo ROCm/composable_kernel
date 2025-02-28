@@ -34,8 +34,11 @@ struct Layernorm2dBwdDGammaBetaPipeline
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         // return ReducePolicy::template GetSmemSize<Problem>();
-        using y_block_tile = decltype(make_static_distributed_tensor<GammaDataType>(Policy::template MakeGammaBetaBlockTileDistribution<Problem>()));
+        using y_block_tile = decltype(make_static_distributed_tensor<ComputeDataType>(Policy::template MakeGammaBetaBlockTileDistribution<Problem>()));
         return ReducePolicy::template GetBlockReduce2dCrossWarpSync<Problem>().template GetSmemSize<y_block_tile>();
+        // constexpr index_t smem_size = ReducePolicy::template GetBlockReduce2dCrossWarpSync<Problem>().template GetSmemSize<y_block_tile>();
+        // static_assert(smem_size==0, "smem_size not correct");
+        // return smem_size;
     }
 
     template <typename XWindow,
@@ -112,17 +115,17 @@ struct Layernorm2dBwdDGammaBetaPipeline
         auto block_reduce2d_cross_warp_sync = ReducePolicy::template GetBlockReduce2dCrossWarpSync<Problem>();
         block_reduce2d_sync(dbeta, ck_tile::ReduceOp::Add{});
         block_reduce2d_sync(dgamma, ck_tile::ReduceOp::Add{});
-        sweep_tile(dbeta, [&](auto idx) {
-            printf("dbeta pre: threadidx=%d, blockidx=%d, dbeta=%f\n",threadIdx.x, blockIdx.x,
-            dbeta[idx]);
-        });
+        // sweep_tile(dbeta, [&](auto idx) {
+        //     printf("dbeta pre: warpid=%d, threadidx=%d, blockidx=%d, dbeta=%f\n", get_warp_id(), threadIdx.x, blockIdx.x,
+        //     dbeta[idx]);
+        // });
         block_reduce2d_cross_warp_sync(dbeta, smem, ck_tile::ReduceOp::Add{});
         block_reduce2d_cross_warp_sync(dgamma, smem, ck_tile::ReduceOp::Add{});
 
-        sweep_tile(dbeta, [&](auto idx) {
-            printf("dbeta post: threadidx=%d, blockidx=%d, dbeta=%f\n",threadIdx.x, blockIdx.x,
-            dbeta[idx]);
-        });
+        // sweep_tile(dbeta, [&](auto idx) {
+        //     printf("dbeta post: warpid=%d, threadidx=%d, blockidx=%d, dbeta=%f\n", get_warp_id(), threadIdx.x, blockIdx.x,
+        //     dbeta[idx]);
+        // });
 
         store_tile(dbeta_window, cast_tile<BetaDataType>(dbeta));
         store_tile(dgamma_window, cast_tile<GammaDataType>(dgamma));

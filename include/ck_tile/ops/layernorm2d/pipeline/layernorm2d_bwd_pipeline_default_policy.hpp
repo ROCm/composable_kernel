@@ -78,9 +78,8 @@ struct Layernorm2dBwdGammaBetaPipelineDefaultPolicy
     //     return make_static_tile_distribution(
     //         tile_distribution_encoding<
     //             sequence<>,
-    //             // We want to walk along M direction first. In dweight distruction, *_M represent *_N, *_N represent *_M
-    //             tuple<sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>,
-    //                   sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::Vector_M>>,
+    //             tuple<sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::Vector_M>,
+    //                   sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
     //             tuple<sequence<2, 1>, sequence<2, 1>>,
     //             tuple<sequence<1, 1>, sequence<2, 2>>,
     //             sequence<2, 2, 1, 1>,
@@ -93,9 +92,8 @@ struct Layernorm2dBwdGammaBetaPipelineDefaultPolicy
 
     //     return make_static_tile_distribution(
     //         tile_distribution_encoding<
-    //             // We want to walk along M direction first. In dweight distruction, *_M represent *_N, *_N represent *_M
-    //             sequence<S::WarpPerBlock_M, S::ThreadPerWarp_M>,
-    //             tuple<sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
+    //             sequence<S::WarpPerBlock_N, S::ThreadPerWarp_N>,
+    //             tuple<sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::Vector_M>>,
     //             tuple<sequence<0, 1>, sequence<0, 1>>,
     //             tuple<sequence<0, 1>, sequence<1, 2>>,
     //             sequence<1, 1>,
@@ -108,10 +106,9 @@ struct Layernorm2dBwdGammaBetaPipelineDefaultPolicy
 
     //     return make_static_tile_distribution(
     //         tile_distribution_encoding<
-    //             // We want to walk along M direction first. In dweight distruction, *_M represent *_N, *_N represent *_M
-    //             sequence<S::WarpPerBlock_N, S::ThreadPerWarp_N>,
-    //             tuple<sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::Vector_M>>,
-    //             tuple<sequence<0, 0>, sequence<0, 0>>,
+    //             sequence<S::WarpPerBlock_M, S::ThreadPerWarp_M>,
+    //             tuple<sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
+    //             tuple<sequence<1, 0>, sequence<1, 0>>,
     //             tuple<sequence<1, 0>, sequence<2, 1>>,
     //             sequence<1, 1>,
     //             sequence<0, 3>>{});
