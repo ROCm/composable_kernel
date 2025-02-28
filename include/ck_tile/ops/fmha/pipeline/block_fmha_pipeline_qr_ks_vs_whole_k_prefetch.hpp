@@ -423,18 +423,27 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                         v_tiles[I0] = load_tile(v_dram_window);
                         move_tile_window(v_dram_window, {0, kK1});
 
+                        clear_tile(s_acc);
+                        block_sync_lds();
+                        gemm_0(s_acc, q_tiles[I0], k_lds_windows[I0]);
+
+                        store_tile(k_lds_windows[I1], k_tiles[I1]);
+
                         move_tile_window(k_dram_window, {kN0, 0});
 
                         // prefetch first k_tile for next iteration
                         k_tiles[I0] = load_tile(k_dram_window);
                         move_tile_window(k_dram_window, {0, kK0});
 
-                        clear_tile(s_acc);
+                        k_tiles[I1] = load_tile(k_dram_window);
+                        if constexpr(1 < k0_loops - 1)
+                            move_tile_window(k_dram_window, {0, kK0});
+
                         block_sync_lds();
-                        gemm_0(s_acc, q_tiles[I0], k_lds_windows[I0]);
+                        gemm_0(s_acc, q_tiles[I1], k_lds_windows[I1]);
 
                         // during the gemm-loop, also prefetch other k_tiles for next iteration
-                        static_for<1, k0_loops, 1>{}([&](auto i_k0) {
+                        static_for<2, k0_loops, 1>{}([&](auto i_k0) {
                             store_tile(k_lds_windows[number<i_k0 % NumKLdsBuffers>{}],
                                        k_tiles[number<i_k0>{}]);
 
