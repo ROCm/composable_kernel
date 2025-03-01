@@ -331,7 +331,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetNumVLdsBuffers()
     {
         if constexpr(GetNumPrefetchV<Problem>() >= 2)
-            return 3;
+            return 2;
         else if constexpr(NumPrefetchK == -1) // not preload whole K but use the same pipeline
             return 2;
         else
