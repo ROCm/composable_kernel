@@ -19,7 +19,7 @@ extern "C" __device__ float __ocml_native_recip_f32(float);
 #endif
 
 // math functions for the host,  some are implemented by calling C++ std functions
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 static inline __host__ float abs(float x) { return std::abs(x); };
 
 static inline __host__ double abs(double x) { return std::abs(x); };
@@ -922,6 +922,24 @@ template <>
 inline __device__ double expm1<double>(double x)
 {
     return expm1(x);
+};
+
+template <typename T>
+inline __device__ T cos(T x)
+{
+    return ck::type_convert<T>(cosf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float cos<float>(float x)
+{
+    return cosf(x);
+};
+
+template <>
+inline __device__ double cos<double>(double x)
+{
+    return cos(x);
 };
 
 } // namespace math

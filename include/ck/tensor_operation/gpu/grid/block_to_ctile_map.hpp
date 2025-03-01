@@ -8,7 +8,7 @@
 #include "ck/utility/tuple.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include <limits>
 #include <stdlib.h>
 #endif

@@ -139,7 +139,7 @@ static constexpr ck::index_t BLOCKSIZE = 256;
 static constexpr ck::index_t NPerBlock = 128;
 static constexpr ck::index_t MNPerXDL = 32;
 static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
-static constexpr ck::index_t Nswizzle = false;
+static constexpr ck::index_t Nswizzle = true;
 static constexpr ck::index_t AK1 = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1 = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec = 16 / sizeof(EDataType);
@@ -199,7 +199,7 @@ int main(int argc, char* argv[])
     ck::index_t valid_tile_num = 13;
     ck::index_t sorted_size = sorted_tile_num * MPerBlock;
     ck::index_t valid_size = valid_tile_num * MPerBlock;
-    ck::index_t tokens = 64;
+    ck::index_t tokens = 544;
     ck::index_t topk = 2;
 
     // ck::index_t tokens = batch * topk;
@@ -245,17 +245,18 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> expert_ids(HostTensorDescriptor({sorted_tile_num}, {1}));
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1 + sorted_tile_num}));
-    max_token_id.mData =  {valid_size, 2, 2, 1, 1, 2, 2, 2,2, 2, 2, 1, 2,2,0,0,0};
-    int eids[] = {0, 0,1, 2,3, 3, 4,4, 5, 5, 6, 7, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+    // max_token_id.mData =  {valid_size, 2, 2, 1, 1, 2, 2, 2,2, 2, 2, 2, 2,1,0,0,0};
+    max_token_id.mData =  {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
+    int eids[] = {0, 0,1, 2,3, 3, 4,4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     for (int i = 0; i < sorted_tile_num; i++) {
         expert_ids.mData[i] = eids[i];
     }
-    int token_per_tile = tokens * topk / valid_tile_num;
+    int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid = 0;
     // sorted_token_ids.mData[0] = 0;
     for (int i = 0; i < sorted_size; i++) {
         int tile_off = i % MPerBlock;
-        if(tile_off < token_per_tile)
+        if(tile_off < token_per_tile && tokenid < tokens * topk)
         {
             sorted_token_ids.mData[i] = (tokenid % tokens) | ((tokenid / tokens) << 24);
             tokenid++;
@@ -274,7 +275,6 @@ int main(int argc, char* argv[])
     Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
-
     std::cout << "a0_t_k: " << a0_t_k.mDesc << std::endl;
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
     std::cout << "d1_e_n: " << d1_e_n.mDesc << std::endl;
@@ -287,8 +287,8 @@ int main(int argc, char* argv[])
     case 1:
         a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
-        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{1, 2});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{1, 2});
         break;
     case 2:
         a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});

@@ -67,16 +67,22 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
-        constexpr index_t smem_size_a = sizeof(typename Problem::ADataType) *
-                                        MakeALdsBlockDescriptor<Problem>().get_element_space_size();
+        constexpr index_t PackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<typename Problem::ADataType>>::PackedSize;
+        constexpr index_t smem_size_a =
+            sizeof(typename Problem::ADataType) *
+            MakeALdsBlockDescriptor<Problem>().get_element_space_size() / PackedSize;
         return smem_size_a;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
-        constexpr index_t smem_size_b = sizeof(typename Problem::BDataType) *
-                                        MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
+        constexpr index_t PackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<typename Problem::BDataType>>::PackedSize;
+        constexpr index_t smem_size_b =
+            sizeof(typename Problem::BDataType) *
+            MakeBLdsBlockDescriptor<Problem>().get_element_space_size() / PackedSize;
         return smem_size_b;
     }
 
@@ -387,8 +393,8 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         using AccDataType     = float;
         using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
-                                                typename Problem::BDataType,
+        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
+                                                typename Problem::ComputeDataType,
                                                 AccDataType,
                                                 WarpTile::at(I0),
                                                 WarpTile::at(I1),

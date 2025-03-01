@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -65,11 +65,13 @@ bool profile_gemm_universal_impl(int do_verification,
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<BDataType> b_k_n_permute(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
-    int total_gemm_needed = a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes();
-    int rotating_count    = std::max(
+    std::size_t total_gemm_needed =
+        a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes();
+    int rotating_count = std::max(
         1,
         std::min(n_iter,
                  static_cast<int>(std::ceil(static_cast<double>(rotating) / total_gemm_needed))));
@@ -86,9 +88,13 @@ bool profile_gemm_universal_impl(int do_verification,
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
         break;
-    default:
+    case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        break;
+    default:
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
     }
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -100,11 +106,10 @@ bool profile_gemm_universal_impl(int do_verification,
     const auto c_element_op = CElementOp{};
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemmV2<ALayout,
                                                                 BLayout,
@@ -153,6 +158,84 @@ bool profile_gemm_universal_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
+        const int KPerBlock = op_ptr->GetKPerBlock();
+
+        if(op_ptr->GetPermuteB())
+        {
+            int K1 = KPerBlock;
+            int K0 = K / KPerBlock;
+
+            // int K0, N, K1
+            for(int j = 0; j < K0; j++)
+            {
+                for(int i = 0; i < N; i++)
+                {
+                    for(int jj = 0; jj < K1; jj++)
+                    {
+                        b_k_n_permute(j * N * K1 + i * K1 + jj) = b_k_n(i * K + (j * K1 + jj));
+                    }
+                }
+            }
+
+            if constexpr(is_same_v<BDataType, pk_i4_t> && is_same_v<ADataType, half_t>)
+            {
+                // vector pk_i4x4 permute
+                for(int i = 0; i < N; i++)
+                {
+                    for(int j = 0; j < K; j += 8)
+                    {
+                        int input[8];
+
+                        for(int k = 0; k < 4; k++)
+                        {
+                            int i4x2         = b_k_n_permute(j + k * 2, i).data;
+                            input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
+                            input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
+                        }
+
+                        // permute 01234567->20643175
+                        {
+                            int hi   = input[2];
+                            int lo   = input[0];
+                            int i4x2 = (hi << 4) | lo;
+
+                            b_k_n_permute(j + 0, i) = i4x2;
+                        }
+
+                        {
+                            int hi   = input[6];
+                            int lo   = input[4];
+                            int i4x2 = (hi << 4) | lo;
+
+                            b_k_n_permute(j + 2, i) = i4x2;
+                        }
+
+                        {
+                            int hi   = input[3];
+                            int lo   = input[1];
+                            int i4x2 = (hi << 4) | lo;
+
+                            b_k_n_permute(j + 4, i) = i4x2;
+                        }
+
+                        {
+                            int hi   = input[7];
+                            int lo   = input[5];
+                            int i4x2 = (hi << 4) | lo;
+
+                            b_k_n_permute(j + 6, i) = i4x2;
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            b_k_n_permute = b_k_n;
+        }
+
+        b_device_buf.ToDevice(b_k_n_permute.mData.data());
+
         std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38};
 
         if(KBatch > 0)
@@ -240,7 +323,15 @@ bool profile_gemm_universal_impl(int do_verification,
 
                 std::size_t flop = std::size_t(2) * M * N * K;
 
-                std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+                static constexpr index_t BPackedSize = []() {
+                    if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+                        return 2;
+                    else
+                        return 1;
+                }();
+
+                std::size_t num_btype = sizeof(ADataType) * M * K +
+                                        sizeof(BDataType) * K * N / BPackedSize +
                                         sizeof(CDataType) * M * N;
 
                 float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
