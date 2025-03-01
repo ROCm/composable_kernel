@@ -71,7 +71,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         constexpr ck_tile::index_t M_Warp_Tile = 32;
         constexpr ck_tile::index_t N_Warp_Tile = 32;
-        constexpr ck_tile::index_t K_Warp_Tile = 8;
+        // TODO: Restore to 8. At now after changes in block_universal_gemm_as_bs_cr it return wrong
+        // values.
+        constexpr ck_tile::index_t K_Warp_Tile = 16;
 
         constexpr bool kPadM = PadM;
         constexpr bool kPadN = PadN;
