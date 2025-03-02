@@ -1461,20 +1461,37 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 #if 1
                                 if (threadIdx.x == 0 && threadIdx.y == 0)
                                 {
-                                    printf(" gridwise_gemm_xdl_cshuffle line %d , Block %d , reduction_idx %d, i_m %d, i_n_reduce %d, 
-                                        thread_m_cluster_id %d, thread_n_cluster_id %d\n",
-                                        __LINE__,
-                                        blockIdx.x,
-                                        reduction_idx,
-                                        i_m,
-                                        i_n_reduce,
-                                        thread_m_cluster_id,
-                                        thread_n_cluster_id);
+                                    // printf(" gridwise_gemm_xdl_cshuffle line %d , Block %d , reduction_idx %d, i_m %d, i_n_reduce %d, 
+                                    //     thread_m_cluster_id %d, thread_n_cluster_id %d\n",
+                                    //     __LINE__,
+                                    //     blockIdx.x,
+                                    //     reduction_idx,
+                                    //     i_m,
+                                    //     i_n_reduce,
+                                    //     thread_m_cluster_id,
+                                    //     thread_n_cluster_id);
+
+                                    // printf(" gridwise_gemm_xdl_cshuffle line %d , Block %d , reduction_idx %d, i_m %d, i_n_reduce %d, thread_m_cluster_id %d, thread_n_cluster_id %d\n",
+                                    // __LINE__, blockIdx.x, reduction_idx, i_m, i_n_reduce, thread_m_cluster_id, thread_n_cluster_id);
+
+                                    printf(" gridwise_gemm_xdl_cshuffle line %d , Block %d , reduction_idx %d, i_m %d, i_n_reduce %d, thread_m_cluster_id %d, thread_n_cluster_id %d\n",
+                                        __LINE__, blockIdx.x, reduction_idx, i_m, static_cast<int>(i_n_reduce), thread_m_cluster_id, thread_n_cluster_id);
 
                                     // Print values from acc_buf (up to 8 values to avoid excessive output)
                                     for(int i = 0; i < min(8, CShuffleBlockTransferScalarPerVector_NPerBlock); i++)
                                     {
-                                        printf("%.4f ", static_cast<float>(acc_buf[i]));
+                                       
+                                        switch(i) {
+                                            case 0: printf("%.4f ", static_cast<float>(acc_buf[Number<0>{}])); break;
+                                            case 1: printf("%.4f ", static_cast<float>(acc_buf[Number<1>{}])); break;
+                                            case 2: printf("%.4f ", static_cast<float>(acc_buf[Number<2>{}])); break;
+                                            case 3: printf("%.4f ", static_cast<float>(acc_buf[Number<3>{}])); break;
+                                            case 4: printf("%.4f ", static_cast<float>(acc_buf[Number<4>{}])); break;
+                                            case 5: printf("%.4f ", static_cast<float>(acc_buf[Number<5>{}])); break;
+                                            case 6: printf("%.4f ", static_cast<float>(acc_buf[Number<6>{}])); break;
+                                            case 7: printf("%.4f ", static_cast<float>(acc_buf[Number<7>{}])); break;
+                                            // Add more cases if CShuffleBlockTransferScalarPerVector_NPerBlock is larger than 8
+                                        }
                                     }
                                     
                                     // Print matrix coordinates
