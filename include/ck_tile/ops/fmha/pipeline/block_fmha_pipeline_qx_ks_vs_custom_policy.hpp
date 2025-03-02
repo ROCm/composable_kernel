@@ -275,15 +275,10 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
 };
 
 // This pipeline is qkv all located in LDS
-template <bool QLoadOnce_,
-          bool AsyncCopyK_,
-          bool AsyncCopyV_,
-          index_t NumPrefetchK_,
-          index_t NumPrefetchV_>
+template <bool QLoadOnce_, bool AsyncCopy_, index_t NumPrefetchK_, index_t NumPrefetchV_>
 struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLoadOnce_>
 {
-    static constexpr bool AsyncCopyK = AsyncCopyK_;
-    static constexpr bool AsyncCopyV = AsyncCopyV_; // TODO: this not supported yet
+    static constexpr bool AsyncCopy = AsyncCopy_;
 
     static constexpr index_t NumPrefetchK = NumPrefetchK_;
     static constexpr index_t NumPrefetchV = NumPrefetchK_;
@@ -365,7 +360,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentK()
     {
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
-        if constexpr(AsyncCopyK)
+        if constexpr(AsyncCopy)
         {
             return 4 / sizeof(KDataType);
         }
@@ -442,7 +437,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         // this function assume K/V can share smem
         constexpr index_t SingleKSize = [&]() {
-            if constexpr(!AsyncCopyK)
+            if constexpr(!AsyncCopy)
             {
                 return MakeKLdsBlockDescriptor<Problem>().get_element_space_size();
             }
@@ -674,7 +669,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        if constexpr(AsyncCopyK)
+        if constexpr(AsyncCopy)
         {
             return GetSmemSizeKV<Problem>() + GetSmemSizeDropout<Problem>(0);
         }
@@ -718,7 +713,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKDramTileDistribution()
     {
-        if constexpr(!AsyncCopyK)
+        if constexpr(!AsyncCopy)
         {
             using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
