@@ -415,12 +415,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 }
                 else // executed by intermediate and last iteration
                 {
-                    if constexpr(Policy::template IsFirstKLdsBufferOverlapLastVLdsBuffer<Problem>())
-                    {
-                        __builtin_amdgcn_s_barrier();
-                        __builtin_amdgcn_sched_barrier(0);
-                    };
-
                     if(i_total_loops < num_total_loop - 1) // intermediate iteration
                     {
                         store_tile(k_lds_windows[I0], k_tiles[I0]);
@@ -491,12 +485,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
             }
             else // only preload one unroll of K for next iteration
             {
-                if constexpr(Policy::template IsFirstKLdsBufferOverlapLastVLdsBuffer<Problem>())
-                {
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-                };
-
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
                     store_tile(k_lds_windows[number<i_k0 % NumKLdsBuffers>{}], k_tiles[I0]);
                     if constexpr(i_k0 == 0)
@@ -803,6 +791,13 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
             gemm_1(o_acc,
                    get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
                    v_lds_windows[number<(k1_loops - 1) % NumVLdsBuffers>{}]);
+
+            if constexpr(Policy::template IsFirstKLdsBufferOverlapLastVLdsBuffer<Problem>())
+            {
+                __builtin_amdgcn_sched_barrier(0);
+                __builtin_amdgcn_s_barrier();
+            };
+
         } while(++i_total_loops < num_total_loop);
 
         // store lse
