@@ -69,7 +69,12 @@ struct MulABScaleExpertWeight
         //for real kernel use
         //warning: hack hack hack here!!!! ignore d0 right now as kernel mul d0 * d2 outside. tofix:felix 
         (void) d0;
+        
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+        e = ck::type_convert<EDataType>(c *  d1 * d2 * 16);
+#else
         e = ck::type_convert<EDataType>(c *  d1 * d2);
+#endif
     }
     // for reference cpu
     template <>
@@ -81,7 +86,11 @@ struct MulABScaleExpertWeight
                                                                             const float& d2) const
     {
         // for reference cpu
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+        e = ck::type_convert<EDataType>(c *  d0 * d1 * d2 * 16);
+#else
         e = ck::type_convert<EDataType>(c *  d0 * d1 * d2);
+#endif
     }
 };
 
@@ -137,7 +146,7 @@ static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
 static constexpr ck::index_t CShuffleNLane = 32;
 static constexpr ck::index_t CShuffleMLane = BLOCKSIZE / CShuffleNLane;
 static constexpr ck::index_t AK1 = 16 / sizeof(A0DataType);
-static constexpr ck::index_t BK1 = 16 / sizeof(B0DataType);
+static constexpr ck::index_t BK1 = 32 / sizeof(B0DataType);
 static constexpr ck::index_t EVec = 2;
 static constexpr ck::index_t D0Vec = 1;
 static constexpr ck::index_t D1Vec = 1;
@@ -151,7 +160,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
                MNPerXDL,   MNPerXDL,
                MXDLPerWave,    NXDLPerWave,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
-               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
+               S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
                MXDLPerWave,    1,   S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, A0DataType>;
 // clang-format on
@@ -320,6 +329,7 @@ int main(int argc, char* argv[])
 
     preShuffleBuffer(b0_e_n_k.mData.data(), b0_preshuffled.mData.data(), N * experts, K, device_op.GetPreShuffleParameters());
 
+#if CK_USE_PK4_LAYOUT_SHUFFLE
     // vector pk_i4x4 permute
     for(int e = 0; e < experts; e++)
     {
@@ -371,6 +381,7 @@ int main(int argc, char* argv[])
             }
         }
     }
+#endif
 
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
 
@@ -443,8 +454,19 @@ int main(int argc, char* argv[])
 
         auto ref_moe_gemm           = ReferenceGemmInstance{};
         auto ref_invoker            = ref_moe_gemm.MakeInvoker();
-        auto ref_argument = ref_moe_gemm.MakeArgument(
-           sorted_token_ids, expert_ids, max_token_id, MPerBlock, a0_t_k_k, b0_e_n_k, d0_t_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
+        auto ref_argument           = ref_moe_gemm.MakeArgument(sorted_token_ids,
+                                                      expert_ids,
+                                                      max_token_id,
+                                                      MPerBlock,
+                                                      a0_t_k_k,
+                                                      b0_e_n_k,
+                                                      d0_t_n,
+                                                      d1_e_n,
+                                                      d2_e_n,
+                                                      c_t_n,
+                                                      PassThrough{},
+                                                      PassThrough{},
+                                                      cde_element_op);
 
         ref_invoker.Run(ref_argument);
         for(int t = 0; t < tokens; ++t)

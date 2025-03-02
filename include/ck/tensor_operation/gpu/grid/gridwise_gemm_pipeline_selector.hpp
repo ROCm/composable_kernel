@@ -2,7 +2,8 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-#ifndef CK_CODE_GEN_RTC
+
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include <iostream>
 #include <ostream>
 #endif
@@ -54,7 +55,7 @@ constexpr auto GridwiseGemmPipeline_Selector()
     }
     else
     {
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
         std::cerr << "GridwiseGemmPipeline configuration is not available" << std::endl;
 #endif
     }
@@ -62,7 +63,7 @@ constexpr auto GridwiseGemmPipeline_Selector()
 
 } // namespace ck
 
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 inline std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion& p)
 {
     switch(p)

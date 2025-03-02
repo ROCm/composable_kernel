@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/half.hpp"
@@ -74,8 +74,6 @@ struct numeric<int8_t>
 };
 
 #if 0
-template <typename T>
-struct numeric_traits;
 
 template <>
 struct numeric_traits<int8_t>
@@ -91,6 +89,7 @@ struct numeric_traits<int8_t>
     static constexpr uint32_t NegInf    = 0xFC00;
     static constexpr uint32_t NaN       = 0x7C01;
     static constexpr uint32_t Neg0      = 0x8000;
+    static constexpr int PackedSize           = 1;
     using bitwise_type                  = uint16_t;
 };
 #endif

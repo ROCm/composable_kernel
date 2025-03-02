@@ -106,7 +106,11 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                                 i4 = (i4x2 >> 0) & 0xf;
                             else
                                 i4 = (i4x2 >> 4) & 0xf;
+#if CK_USE_PK4_LAYOUT_SHUFFLE
                             v_a = i4_to_f32_gfx9(i4);
+#else
+                            v_a = i4 - 8;
+#endif
                         }
                         else
                         {
@@ -120,7 +124,11 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                                 i4 = (i4x2 >> 0) & 0xf;
                             else
                                 i4 = (i4x2 >> 4) & 0xf;
+#if CK_USE_PK4_LAYOUT_SHUFFLE
                             v_b = i4_to_f32_gfx9(i4);
+#else
+                            v_b = i4 - 8;
+#endif
                         }
                         else
                         {
@@ -198,6 +206,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
         return str.str();
     }
 
+#if CK_USE_PK4_LAYOUT_SHUFFLE
     static float i4_to_f32_gfx9(uint8_t i4)
     {
         static std::unordered_map<uint8_t, float> u = {{0b1000, -0.5000f},
@@ -219,6 +228,8 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
 
         return u[i4];
     }
+#endif
+
 };
 
 } // namespace host

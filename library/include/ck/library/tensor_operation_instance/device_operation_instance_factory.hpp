@@ -22,6 +22,7 @@ using I8   = int8_t;
 using I32  = int32_t;
 using F8   = ck::f8_t;
 using BF8  = ck::bf8_t;
+using I4   = ck::pk_i4_t;
 
 using Empty_Tuple = ck::Tuple<>;
 

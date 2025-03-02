@@ -321,6 +321,15 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Col{}, Row{});
         }
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
+        else if(data_type == "pk_int4_t")
+        {
+            // TODO: Add support for bhalf_t ADataType
+            return run_gemm_example_with_layouts<ck_tile::half_t,
+                                                 ck_tile::pk_int4_t,
+                                                 ck_tile::half_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+#endif
         else
         {
             throw std::runtime_error("Unsupported data_type!");
@@ -344,6 +353,15 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Col{}, Col{}, Row{});
         }
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
+        else if(data_type == "pk_int4_t")
+        {
+            // TODO: Add support for bhalf_t ADataType
+            return run_gemm_example_with_layouts<ck_tile::half_t,
+                                                 ck_tile::pk_int4_t,
+                                                 ck_tile::half_t>(argc, argv, Col{}, Col{}, Row{});
+        }
+#endif
         else
         {
             throw std::runtime_error("Unsupported data_type!");

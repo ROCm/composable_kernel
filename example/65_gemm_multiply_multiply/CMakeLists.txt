@@ -13,4 +13,7 @@ add_example_executable(example_gemm_multiply_multiply_xdl_fp8_bpreshuffle gemm_m
 add_example_executable(example_gemm_add_add_xdl_fp16 gemm_add_add_xdl_fp16.cpp)
 add_example_executable(example_gemm_multiply_multiply_xdl_int8 gemm_multiply_multiply_xdl_int8.cpp)
 add_example_executable(example_moe_pk_i4_gemm1 moe_pk_i4_gemm1.cpp)
+set(EXAMPLE_COMPILE_OPTIONS)
+list(APPEND EXAMPLE_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker -g -fverbose-asm)
+target_compile_options(example_moe_pk_i4_gemm1 PRIVATE ${EXAMPLE_COMPILE_OPTIONS})
 add_example_executable(example_moe_pk_i4_gemm2 moe_pk_i4_gemm2.cpp)
