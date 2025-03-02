@@ -174,22 +174,41 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
             return false;
     };
 
+    // leave some exclusive space so that the second v_lds buffer will nenver overlap with the first
+    // k_lds bufffer
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetExclusiveKLdsBytes()
     {
-        if constexpr(IsPreloadWholeNextIterationK<Problem>())
-        {
-            return 0;
-        }
-        else
-        {
-            constexpr index_t unreusable_k_lds_bytes =
-                GetSmemSizeK<Problem>() / GetNumKLdsBuffers<Problem>();
-            constexpr index_t unreusable_k_lds_bytes_aligned =
-                ((unreusable_k_lds_bytes + 127) / 128) * 128;
+        constexpr index_t single_k_lds_buffer_size =
+            GetSmemSizeK<Problem>() / GetNumKLdsBuffers<Problem>();
+        constexpr index_t single_v_lds_buffer_size =
+            GetSmemSizeV<Problem>() / GetNumVLdsBuffers<Problem>();
 
-            return unreusable_k_lds_bytes_aligned;
-        };
+        if constexpr(single_k_lds_buffer_size <= single_v_lds_buffer_size)
+            return 0;
+        else
+            return integer_least_multiple(single_k_lds_buffer_size - single_v_lds_buffer_size, 64);
+    };
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t IsFirstKLdsBufferOverlapLastVLdsBuffer()
+    {
+        using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
+
+        constexpr index_t k1_loops          = BlockFmhaShape::kN0 / BlockFmhaShape::kK1;
+        constexpr index_t num_k_lds_buffers = GetNumKLdsBuffers<Problem>();
+        constexpr index_t num_v_lds_buffers = GetNumVLdsBuffers<Problem>();
+
+        constexpr index_t last_v_lds_buffer_offset =
+            MakeVLdsBlockDescriptor<Problem>().get_element_space_size() / num_v_lds_buffers *
+            ((k1_loops - 1) % num_v_lds_buffers) * sizeof(typename Problem::VDataType);
+
+        constexpr index_t first_k_lds_buffer_size =
+            MakeKLdsBlockDescriptor<Problem>().get_element_space_size() / num_k_lds_buffers *
+            sizeof(typename Problem::KDataType);
+
+        return GetExclusiveKLdsBytes<Problem>() + last_v_lds_buffer_offset <
+               first_k_lds_buffer_size;
     };
 
     template <typename Problem>
