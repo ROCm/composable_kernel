@@ -51,7 +51,7 @@ CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_LOGGING)
 
 // implementing the "memory address space" attribute
 // https://llvm.org/docs/AMDGPUUsage.html#amdgpu-address-spaces-table
-#ifdef __HIPCC_
+#ifdef __HIPCC__
 #define CK_TILE_GENERIC_ADDR __attribute__((address_space(0)))
 #define CK_TILE_GLOBAL_ADDR __attribute__((address_space(1)))
 #define CK_TILE_LDS_ADDR __attribute__((address_space(3)))
