@@ -114,14 +114,14 @@ struct BatchedTransposeKernel
         auto x_block_window =
             make_tile_window(x_m_n,
                              make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                             {static_cast<ck_tile::index_t>(iM * kMPerBlock),
-                              static_cast<ck_tile::index_t>(iN * kNPerBlock)});
+                             {static_cast<ck_tile::index_t>(iM),
+                              static_cast<ck_tile::index_t>(iN)});
 
         auto y_block_window =
             make_tile_window(y_n_m,
                              make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
-                             {static_cast<ck_tile::index_t>(iN * kNPerBlock),
-                              static_cast<ck_tile::index_t>(iM * kMPerBlock)});
+                             {static_cast<ck_tile::index_t>(iN),
+                              static_cast<ck_tile::index_t>(iM)});
 
         Pipeline{}(x_block_window, y_block_window);
     }

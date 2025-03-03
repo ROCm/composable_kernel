@@ -7,3 +7,7 @@ list(APPEND EXAMPLE_BATCHED_TRANSPOSE_COMPILE_OPTIONS -Wno-undefined-func-templa
 # list(APPEND EXAMPLE_BATCHED_TRANSPOSE_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
 target_compile_options(tile_example_batched_transpose PRIVATE ${EXAMPLE_BATCHED_TRANSPOSE_COMPILE_OPTIONS})
 
+set(TARGET_2 tile_example_batched_transpose_2d)
+add_executable(${TARGET_2} EXCLUDE_FROM_ALL batched_transpose_2d_example.cpp)
+target_include_directories(${TARGET_2} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/)
+target_compile_options(${TARGET_2} PRIVATE ${EXAMPLE_BATCHED_TRANSPOSE_COMPILE_OPTIONS})
