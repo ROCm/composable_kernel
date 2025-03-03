@@ -189,7 +189,6 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
     for(auto& op_ptr : op_ptrs)
     {
         // Seems like when performance measurement has bug when spiltK is large
-        // std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38};
         std::vector<int> kbatch_list = {1, 2, 4, 8, 16};
 
         if(KBatch > 0)

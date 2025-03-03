@@ -304,7 +304,23 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
             }
 #endif
-
+#ifdef CK_ENABLE_BF16
+            if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                         is_same_v<WeiDataType, ck::bhalf_t> &&
+                         is_same_v<OutDataType, ck::bhalf_t> &&
+                         is_same_v<AComputeType, ck::bhalf_t> &&
+                         is_same_v<BComputeType, ck::bhalf_t>)
+            {
+                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_bf16_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_bf16_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_bf16_comp_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_bf16_mem_intra_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_bf16_mem_inter_instances(
+                    op_ptrs);
+            }
+#endif
 #ifdef CK_ENABLE_INT8
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&

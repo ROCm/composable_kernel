@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -153,12 +153,12 @@ struct array<T, 0>
     CK_TILE_HOST_DEVICE void print() const { printf("array{size: 0, data: []}"); }
 };
 
-template <typename>
+template <typename, typename>
 struct vector_traits;
 
 // specialization for array
 template <typename T, index_t N>
-struct vector_traits<array<T, N>>
+struct vector_traits<array<T, N>, void>
 {
     using scalar_type                    = T;
     static constexpr index_t vector_size = N;
