@@ -458,7 +458,7 @@ int main(int argc, char* argv[])
 
         std::size_t flop = std::size_t(2) * tokens * topk * N * K;
         std::size_t num_btype =
-            sizeof(A0DataType) * valid_tile_num * K + sizeof(B0DataType) * K * N * experts + sizeof(EDataType) * valid_tile_num * N;
+            sizeof(A0DataType) * valid_tile_num * K + sizeof(B0DataType) / 2 * K * N * experts + sizeof(EDataType) * valid_tile_num * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
