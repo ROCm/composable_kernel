@@ -603,6 +603,15 @@ def Build_CK(Map conf=[:]){
                             """
                         }
                     }
+                    // delete all root files and folders after all steps completed
+                    dir("build"){
+                        sh """#!/bin/bash
+                            rm -rf ../tmp.txt
+                            rm -rf ../rocminfo.log
+                            rm -rf ../install
+                            rm -rf ../build
+                        """
+                    }
                 }
             }
         }
