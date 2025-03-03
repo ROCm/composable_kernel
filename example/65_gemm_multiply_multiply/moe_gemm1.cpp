@@ -133,8 +133,8 @@ using BElementOp   = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 128;
-static constexpr ck::index_t MXDLPerWave = 2; 
-static constexpr ck::index_t NXDLPerWave = 2; 
+static constexpr ck::index_t MXDLPerWave = 4; 
+static constexpr ck::index_t NXDLPerWave = 1; 
 static constexpr ck::index_t BLOCKSIZE = 256;
 static constexpr ck::index_t NPerBlock = 128;
 static constexpr ck::index_t MNPerXDL = 32;
@@ -174,10 +174,11 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
                //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-                MXDLPerWave,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
+                4,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, A0DataType>;
         // kernel 2: 128->32x128x128
         //  <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   128,   32,   128,    128,  16,  16,  32,   32,    1,    2,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 16, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, EDataType>;
+// DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle<  Row,     Col,     Tuple<Row, Col>,  Row,    F8,    F8,    Tuple<F32, F32>, F16,  F32,     F32,     PassThrough, PassThrough, MultiplyMultiply,    GemmSpec,   256,   128,    128,   128,  16,  16,  32,   32,    4,    1,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           1,                   S<1, 32, 1, 8>,     S<8, 8, 1>,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1, F8>,
 
 // clang-format on
 
@@ -197,8 +198,6 @@ int main(int argc, char* argv[])
     ck::index_t experts = 8;
     ck::index_t sorted_tile_num = 16;
     ck::index_t valid_tile_num = 13;
-    ck::index_t sorted_size = sorted_tile_num * MPerBlock;
-    ck::index_t valid_size = valid_tile_num * MPerBlock;
     ck::index_t tokens = 544;
     ck::index_t topk = 2;
 
@@ -217,6 +216,17 @@ int main(int argc, char* argv[])
         K = std::stoi(argv[5]);
         tokens = std::stoi(argv[6]);
     }
+    else if(argc == 9) {
+        
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
+        N = std::stoi(argv[4]);
+        K = std::stoi(argv[5]);
+        tokens = std::stoi(argv[6]);
+        sorted_tile_num = std::stoi(argv[7]);
+        valid_tile_num = std::stoi(argv[8]);
+    }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
@@ -227,6 +237,8 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
+    ck::index_t sorted_size = sorted_tile_num * MPerBlock;
+    ck::index_t valid_size = valid_tile_num * MPerBlock;
     if (tokens * topk > valid_size)
     {
         printf("err config, tokens * topk > valid_size\n");
@@ -246,8 +258,10 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1 + sorted_tile_num}));
     // max_token_id.mData =  {valid_size, 2, 2, 1, 1, 2, 2, 2,2, 2, 2, 2, 2,1,0,0,0};
+    // max_token_id.mData =  {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
+    // int eids[] = {0, 0,1, 2,3, 3, 4,4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     max_token_id.mData =  {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
-    int eids[] = {0, 0,1, 2,3, 3, 4,4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+    int eids[] = {0, 0,1,2, 3,3, 4,4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     for (int i = 0; i < sorted_tile_num; i++) {
         expert_ids.mData[i] = eids[i];
     }
@@ -287,12 +301,18 @@ int main(int argc, char* argv[])
     case 1:
         a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{1, 2});
-        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{1, 2});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
         break;
     case 2:
         a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
+        break;
+    case 3:
+        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
         d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
         break;
@@ -302,6 +322,9 @@ int main(int argc, char* argv[])
         d0_t_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
         d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
+    // d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
+    // d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
+    // b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem max_token_id_dev(sizeof(ck::index_t) * max_token_id.mDesc.GetElementSpaceSize());

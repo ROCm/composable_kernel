@@ -247,6 +247,7 @@ struct DeviceMoeGemm
             // static_assert(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3 &&
             // has_main_k_block_loop, "only impl BlockGemmPipelineVersion::v3 and has mainloop right
             // now");
+            constexpr auto MemoryDataOp = IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
             if(has_main_k_block_loop)
             {
                 // Tail number always full
@@ -279,7 +280,6 @@ struct DeviceMoeGemm
                     // }
                     // else
                     {
-                        constexpr auto MemoryDataOp = IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
                         // if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         // {
                         //         const auto kernel = kernel_moe_gemm<
@@ -304,8 +304,9 @@ struct DeviceMoeGemm
                         }
                     }
                 }
-                // else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
-                // {
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
+                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
                 //     if(arg.KBatch > 1)
                 //     {
                 //         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -332,31 +333,29 @@ struct DeviceMoeGemm
                 //         }
                 //     }
                 //     else
-                //     {
-                //         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                //         {
-                //             const auto kernel =
-                //                 kernel_moe_gemm_gather_2lds<
-                //                     GridwiseGemm,
-                //                     true,
-                //                IsInputGemm? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd,
-                //                     minimum_occupancy,
-                //                     TailNumber::Odd>;
-                //             RunKernel(kernel);
-                //         }
-                //         else
-                //         {
-                //             const auto kernel =
-                //                 kernel_moe_gemm_gather_2lds<
-                //                     GridwiseGemm,
-                //                     true,
-                //                IsInputGemm? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd,
-                //                     minimum_occupancy,
-                //                     TailNumber::Even>;
-                //             RunKernel(kernel);
-                //         }
-                //     }
-                // }
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                     true,
+                                                                     MemoryDataOp,
+                                                                     minimum_occupancy,
+                                                                     IsInputGemm,
+                                                                     TailNumber::Odd>;
+                            RunKernel(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                     true,
+                                                                     MemoryDataOp,
+                                                                     minimum_occupancy,
+                                                                     IsInputGemm,
+                                                                     TailNumber::Even>;
+                            RunKernel(kernel);
+                        }
+                    }
+                }
                 else
                 {
                     throw std::runtime_error("todo: only v1 & v2 support now");
