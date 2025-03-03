@@ -62,7 +62,7 @@ class gemm_instance_codegen:
 
 
     @dataclass
-    class tile_shape:
+    class tile_shapes:
         F_BlockTile      : List[int]
         F_WarpPerBlock   : List[int]
         F_WarpTile       : List[int]
@@ -70,11 +70,44 @@ class gemm_instance_codegen:
     @dataclass
     class gemm_kernel_method:
         F_pipeline        : Any
-        F_pipeline_policy : Any
+        F_pipeline_policy : Any  
         F_epilogue        : Any
-    def __init__(self, working_path, kernel_filter):
+        F_scheduler       : Any
+
+
+    def __init__(self, working_path, kernel_filter, json_data):
         self.working_path = working_path
         self.kernel_filter = kernel_filter
+        self.data = json_data
+        init()
+
+    def init(self):
+        #TODO:: pass one datatype or multiple datatypes
+       datatype_configuration = datatype_configuration(
+            DATA_TYPE_MAP[self.data['Prec_datatype']],
+            DATA_TYPE_MAP[self.data['Prec_datatype']],
+            DATA_TYPE_MAP['fp32'],
+            DATA_TYPE_MAP[self.data['Prec_datatype']]
+        )
+
+        gemm_trait = gemm_traits(
+            self.data['kPadM'], self.data['kPadN'], self.data['kPadK'], 
+            self.data['A_layout'], self.data['B_layout'], self.data['C_layout']
+        )
+        
+        tile_shape = tile_shapes(
+            [self.data['M_tile'], self.data['N_tile'], self.data['K_tile']], 
+            [self.data['M_warp'], self.data['N_warp'], self.data['K_warp']], 
+            [self.data['M_warp_tile'], self.data['N_warp_tile'], self.data['K_warp_tile']]
+        )
+
+        gemm_kernel_method = gemm_kernel_method(
+            self.data['Pipeline_type'], 
+            self.data['Scheduler_type'], #TODO:: what to do with pipeline-policy
+            self.data['Epilogue_type']
+        )
+
+
     def content_api(self, args) -> str:
 
     def gen_blobs(self, args) -> None:
@@ -95,6 +128,7 @@ def validate_json_data(json_data):
         For missing parameter: Assigned default values, 
         For invalid values: Raise an error
         TODO:: check case sensitivity for parameters names, default values confirmed.
+        TODO:: check for valid values of tile sizes, warp and warp tiles
     '''
     int_ranges = {
         #       (min, max, default)
@@ -139,6 +173,7 @@ def validate_json_data(json_data):
 
     print("Valid json data")
     print(json_data)
+    return json_data
      
 
 
@@ -146,7 +181,7 @@ def main(args):
     # Read and validate json file
     with open(args.json, 'r') as json_file:
         data = json.load(json_file)
-    validate_json_data(data)
+    data = validate_json_data(data)
 
 
 if __name__ == "__main__":
