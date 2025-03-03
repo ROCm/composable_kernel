@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -41,9 +41,10 @@ __global__ void
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+        karg.p_a_scale_grid + splitk_batch_offset.a_scale_k_split_offset,
         karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+        karg.p_b_scale_grid + splitk_batch_offset.b_scale_k_split_offset,
         karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
-        karg.p_b_scale_grid + splitk_batch_offset.scale_k_split_offset,
         p_shared,
         karg);
 
@@ -532,17 +533,19 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                          index_t N_,
                          index_t K_,
                          index_t StrideA_,
+                         index_t StrideScaleA_,
                          index_t StrideB_,
-                         index_t StrideC_,
                          index_t StrideScaleB_,
+                         index_t StrideC_,
                          index_t KBatch_)
             : M{M_},
               N{N_},
               K{K_},
               StrideA{StrideA_},
+              StrideScaleA{StrideScaleA_},
               StrideB{StrideB_},
-              StrideC{StrideC_},
               StrideScaleB{StrideScaleB_},
+              StrideC{StrideC_},
               KBatch{KBatch_},
               MPadded{CalculateMPadded(M_)},
               NPadded{CalculateNPadded(N_)},
@@ -562,9 +565,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                       << "N:" << N << ", "
                       << "K:" << K << ", "
                       << "SA:" << StrideA << ", "
+                      << "SScaleA:" << StrideScaleA << ", "
                       << "SB:" << StrideB << ", "
-                      << "SC:" << StrideC << ", "
                       << "SScaleB:" << StrideScaleB << ", "
+                      << "SC:" << StrideC << ", "
                       << "MP:" << MPadded << ", "
                       << "NP:" << NPadded << ", "
                       << "KRead:" << KRead << ", "
@@ -579,9 +583,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         index_t N;
         index_t K;
         index_t StrideA;
+        index_t StrideScaleA;
         index_t StrideB;
-        index_t StrideC;
         index_t StrideScaleB;
+        index_t StrideC;
         index_t KBatch;
         index_t MPadded;
         index_t NPadded;
@@ -622,7 +627,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                       StrideB_,
                       StrideScaleB_,
                       StrideC_,
-                      StrideScaleB_,
                       k_batch_},
               p_a_grid{p_a_grid_},
               p_a_scale_grid{p_a_scale_grid_},
@@ -647,11 +651,11 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         }
 
         const ADataType* p_a_grid;
+        const AScaleDataType* p_a_scale_grid;
         const BDataType* p_b_grid;
+        const BScaleDataType* p_b_scale_grid;
         CDataType* p_c_grid;
 
-        const AScaleDataType* p_a_scale_grid;
-        const BScaleDataType* p_b_scale_grid;
         const AElementwiseOperation a_element_op;
         const BElementwiseOperation b_element_op;
         const CElementwiseOperation c_element_op;
@@ -689,14 +693,24 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 }
             }
 
+            // Calculate A scale offset
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
+            {
+                a_scale_k_split_offset = k_id * karg.KRead / ScaleBlockSize;
+            }
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
+            {
+                a_scale_k_split_offset = k_id * karg.KRead / ScaleBlockSize * karg.StrideScaleA;
+            }
+
             // Calculate B scale offset
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                scale_k_split_offset = k_id * (karg.KRead / ScaleBlockSize) * karg.StrideB;
+                b_scale_k_split_offset = k_id * (karg.KRead / ScaleBlockSize) * karg.StrideScaleB;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                scale_k_split_offset = k_id * (karg.KRead / ScaleBlockSize);
+                b_scale_k_split_offset = k_id * karg.KRead / ScaleBlockSize;
             }
 
             if(k_id < (karg.KBatch - 1))
@@ -720,7 +734,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
-        index_t scale_k_split_offset; // New member for scale matrix offset
+        index_t a_scale_k_split_offset; // New member for scale matrix offset
+        index_t b_scale_k_split_offset; // New member for scale matrix offset
         index_t c_reduce_offset;
     };
 
@@ -1739,25 +1754,33 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
+        // A Scale grid
+        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
+            make_tuple(problem.M, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
+            make_tuple(1, problem.StrideScaleA)); // TODO: Verify layout
+
         // B Scale grid
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
             make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
                        math::integer_divide_ceil(problem.K, ScaleBlockSize)),
-            make_tuple(problem.StrideScaleB, 1));
+            make_tuple(problem.StrideScaleB, 1)); // XXX: Why is it transposed?
 
         Run<decltype(a_grid_desc_ak0_m_ak1),
+            decltype(a_scale_grid_desc_am_ak),
             decltype(b_grid_desc_bk0_n_bk1),
             decltype(b_scale_grid_desc_bn_ak),
             decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
             HasMainKBlockLoop,
             CGlobalMemoryDataOperation,
             TailNum>(p_a_grid,
+                     p_a_scale_grid,
                      p_b_grid,
-                     p_c_grid,
                      p_b_scale_grid,
+                     p_c_grid,
                      p_shared,
                      problem,
                      a_grid_desc_ak0_m_ak1,
+                     a_scale_grid_desc_am_ak,
                      b_grid_desc_bk0_n_bk1,
                      b_scale_grid_desc_bn_ak,
                      c_grid_desc_mblock_mperblock_nblock_nperblock);
