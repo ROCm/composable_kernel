@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -64,7 +64,7 @@ struct Layernorm2dFwdPipelineOnePass
               typename YResidualWindow,
               typename MeanWindow,
               typename InvStdWindow,
-              typename XScaleWindow,
+              typename SmoothScaleWindow,
               typename YScaleWindow,
               typename Epilogue>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
@@ -76,7 +76,7 @@ struct Layernorm2dFwdPipelineOnePass
                                    const YResidualWindow& y_residual_window_,
                                    MeanWindow& mean_window,
                                    InvStdWindow& inv_std_window,
-                                   const XScaleWindow& x_scale_window_,
+                                   const SmoothScaleWindow& sm_scale_window_,
                                    YScaleWindow& y_scale_window,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
@@ -190,7 +190,7 @@ struct Layernorm2dFwdPipelineOnePass
         if constexpr(kFusedQuant == Layernorm2dFusedQuantEnum::DYNAMIC_QUANT ||
                      kFusedQuant == Layernorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
         {
-            Epilogue{}(y_window_, x_scale_window_, y_scale_window, ln, smem);
+            Epilogue{}(y_window_, sm_scale_window_, y_scale_window, ln, smem);
         }
         else
             Epilogue{}(y_window_, ln);

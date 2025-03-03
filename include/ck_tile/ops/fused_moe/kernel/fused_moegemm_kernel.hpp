@@ -22,7 +22,7 @@
 //  (only for reference)    exp-0  exp-1     exp-2   exp-3          exp-4  exp-5
 // weight_id_per_expert is: [[a], [g, j, m], [d, k], [b, e, h, l, n], [], [c, f, i, o]]
 //
-// max_num_tokens_padded : topk * input_tokens + num_experts * (M_a - 1)
+// max_num_tokens_padded : topk * input_tokens + num_experts * M_a - topk (updated)
 // * this could be larger than actual, since actual tokens are on GPU
 //
 // sorted_token_ids_ptr   : [0, 6, 6, 6, 2, 3, 4, 6, 1, 3, 6, 6, 0, 1, 2, 3, 4, 6, 6, 6, 6, 6, 6, 6, 0, 1, 2, 5]
@@ -111,7 +111,7 @@ struct FusedMoeGemmHostArgs
     const void* num_sorted_tiles_ptr;  // [1]
 
     index_t hidden_size;       // k
-    index_t intermediate_size; // n / TP, for Gate. if Gate+Up, Down need divide by 2
+    index_t intermediate_size; // n / TP, for Gate/UP/Down
     index_t num_tokens;        // input number of tokens for current iteration
     index_t num_experts;       // number of groups
     index_t topk;              // need this?
@@ -178,7 +178,7 @@ struct FusedMoeGemmKernel
             return base_str;
         }();
 
-        return _SS_("fused_moe_") + _SS_(prec_str) + "_" +
+        return _SS_("fused_moe_") + _SS_(prec_str) + "_" + (IsGateOnly ? "g1u0_":"g1u1_") +
              _TS_(S_::Block_M0) + "x" + _TS_(S_::Block_N0) + "x" + _TS_(S_::Block_K0) + "x" + _TS_(S_::Block_N1) + "_" +
              _TS_(S_::WarpPerBlock_M0) + "x" + _TS_(S_::WarpPerBlock_N0) + "x" + _TS_(S_::WarpPerBlock_K0) + "_" +
              _TS_(S_::Warp_M0) + "x" + _TS_(S_::Warp_N0) + "x" + _TS_(S_::Warp_K0) + "_" + _SS_(Pipeline::name);
@@ -204,7 +204,7 @@ struct FusedMoeGemmKernel
         const void* num_sorted_tiles_ptr;
 
         index_t hidden_size;       // k
-        index_t intermediate_size; // n / TP, for Gate. if Gate+Up, Down need divide by 2
+        index_t intermediate_size; // n / TP, for Gate/Up/Down
         index_t num_tokens;        // input number of tokens for current iteration
         index_t num_experts;       // number of groups
         index_t topk;              // need this?
@@ -239,7 +239,7 @@ struct FusedMoeGemmKernel
     {
         if constexpr(UseUK)
         {
-            __shared__ CK_TILE_LDS_ADDR ADataType smem[GetSmemSize()];
+            __shared__ CK_TILE_LDS_ADDR char smem[GetSmemSize()];
             IndexDataType num_sorted_tiles = __builtin_amdgcn_readfirstlane(
                 *reinterpret_cast<const IndexDataType*>(kargs.num_sorted_tiles_ptr));
 
@@ -298,6 +298,9 @@ struct FusedMoeGemmKernel
 
             index_t token_id =
                 reinterpret_cast<const index_t*>(kargs.sorted_token_ids_ptr)[sorted_token_id];
+#if CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
+            token_id &= 0xffffff;
+#endif
             auto topk_weight = reinterpret_cast<const TopkWeightDataType*>(
                 kargs.sorted_weight_ptr)[sorted_token_id];
 

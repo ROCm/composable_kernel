@@ -546,7 +546,7 @@ CK_TILE_HOST_DEVICE constexpr auto tuple_reverse(const tuple<Ts...>& t)
             using Idx = number<tuple<Ts...>::size() - i - 1>;
             return t.at(Idx{});
         },
-        number<tuple<Ts...>::size()()>{});
+        number<tuple<Ts...>::size()>{});
 }
 
 // Reduce tuple values in specific range using Function

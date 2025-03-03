@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
-    defined(__gfx942__)
+    defined(__gfx942__) || defined(__gfx950__)
 #define __gfx9__
 #endif
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
 #if defined(__gfx1030__) || defined(__gfx1031__) || defined(__gfx1032__) || \
@@ -144,6 +144,10 @@
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER 1
 #endif
 
+#ifndef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
+#define CK_TILE_USE_PK4_LAYOUT_SHUFFLE 1
+#endif
+
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
@@ -229,4 +233,16 @@
 
 #ifndef CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
 #define CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID 1
+#endif
+
+#ifndef __HIP_DEVICE_COMPILE__ // for host code
+#ifdef CK_TILE_USE_OCP_FP8
+#define CK_TILE_USE_OCP_FP8 1
+#else
+#define CK_TILE_USE_OCP_FP8 0
+#endif
+#elif defined(__gfx950__) || defined(__gfx12__) // for GPU code
+#define CK_TILE_USE_OCP_FP8 1
+#else // for GPU code
+#define CK_TILE_USE_OCP_FP8 0
 #endif

@@ -66,15 +66,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using TypeConfig = SmoothquantTypeConfig<DataType>;
 
-    using XDataType       = typename TypeConfig::XDataType;
-    using XScaleDataType  = typename TypeConfig::XScaleDataType;
-    using YScaleDataType  = typename TypeConfig::YScaleDataType;
-    using QYDataType      = typename TypeConfig::QYDataType;
-    using ComputeDataType = typename TypeConfig::ComputeDataType;
+    using XDataType           = typename TypeConfig::XDataType;
+    using SmoothScaleDataType = typename TypeConfig::SmoothScaleDataType;
+    using YScaleDataType      = typename TypeConfig::YScaleDataType;
+    using QYDataType          = typename TypeConfig::QYDataType;
+    using ComputeDataType     = typename TypeConfig::ComputeDataType;
 
     // host verify
     ck_tile::HostTensor<XDataType> x_host({m, n}, {x_stride, 1});
-    ck_tile::HostTensor<XScaleDataType> xscale_host({n});
+    ck_tile::HostTensor<SmoothScaleDataType> smscale_host({n});
 
     ck_tile::HostTensor<YScaleDataType> yscale_host_ref({m}, {1});
     ck_tile::HostTensor<YScaleDataType> yscale_host_dev({m}, {1});
@@ -83,15 +83,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<QYDataType> qy_host_dev({m, n}, {y_stride, 1});
 
     ck_tile::FillUniformDistribution<XDataType>{-.5f, .5f}(x_host);
-    ck_tile::FillUniformDistribution<XScaleDataType>{1e-3, .5f}(xscale_host);
+    ck_tile::FillUniformDistribution<SmoothScaleDataType>{1e-3, .5f}(smscale_host);
 
     ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem xscale_buf(xscale_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem smscale_buf(smscale_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem yscale_buf(yscale_host_dev.get_element_space_size_in_bytes());
     ck_tile::DeviceMem qy_buf(qy_host_dev.get_element_space_size_in_bytes());
 
     x_buf.ToDevice(x_host.data());
-    xscale_buf.ToDevice(xscale_host.data());
+    smscale_buf.ToDevice(smscale_host.data());
 
     std::cout << "[" << data_type << "]"
               << " m:" << m << ", n:" << n << ", x_stride:" << x_stride << ", y_stride:" << y_stride
@@ -100,7 +100,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     smoothquant_traits traits{data_type};
 
     smoothquant_args args{x_buf.GetDeviceBuffer(),
-                          xscale_buf.GetDeviceBuffer(),
+                          smscale_buf.GetDeviceBuffer(),
                           yscale_buf.GetDeviceBuffer(),
                           qy_buf.GetDeviceBuffer(),
                           m,
@@ -111,7 +111,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float ave_time = smoothquant(
         traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
 
-    std::size_t num_byte = sizeof(XDataType) * m * n + sizeof(XScaleDataType) * n +
+    std::size_t num_byte = sizeof(XDataType) * m * n + sizeof(SmoothScaleDataType) * n +
                            sizeof(YScaleDataType) * m + sizeof(QYDataType) * m * n;
 
     float gb_per_sec = num_byte / 1.E6 / ave_time;
@@ -126,16 +126,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // smooth outlier
         {
             auto f = [&](auto n_) {
-                auto v_xscale = ck_tile::type_convert<ComputeDataType>(xscale_host(n_));
+                auto v_smscale = ck_tile::type_convert<ComputeDataType>(smscale_host(n_));
 
                 for(int m_ = 0; m_ < m; ++m_)
                 {
                     auto v_x       = ck_tile::type_convert<ComputeDataType>(x_host(m_, n_));
-                    y_host(m_, n_) = v_x * v_xscale;
+                    y_host(m_, n_) = v_x * v_smscale;
                 }
             };
 
-            ck_tile::make_ParallelTensorFunctor(f, xscale_host.get_element_space_size())(
+            ck_tile::make_ParallelTensorFunctor(f, smscale_host.get_element_space_size())(
                 std::thread::hardware_concurrency());
         }
 

@@ -869,9 +869,16 @@ struct GridwiseGemm_xdl_cshuffle_v2
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
-        constexpr index_t KPack =
-            math::max(math::lcm(AK1Number, BK1Number),
-                      MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        constexpr auto lcm_AK1_BK1 = math::lcm(AK1Number, BK1Number);
+        constexpr bool is_single_rate_mfma =
+            ((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
+             lcm_AK1_BK1 <= 4)
+                ? true
+                : false;
+        constexpr index_t KPack = math::max(
+            lcm_AK1_BK1,
+            MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeA, is_single_rate_mfma>::
+                selected_mfma.k_per_blk);
 
         // auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
         //     BlockSize,

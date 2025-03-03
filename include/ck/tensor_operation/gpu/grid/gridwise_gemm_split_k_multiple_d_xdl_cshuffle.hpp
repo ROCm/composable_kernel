@@ -581,9 +581,16 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
+        constexpr auto lcm_AK1_BK1 = math::lcm(AK1, BK1);
+        constexpr bool is_single_rate_mfma =
+            ((is_same<ABDataType, half_t>::value || is_same<ABDataType, bhalf_t>::value) &&
+             lcm_AK1_BK1 <= 4)
+                ? true
+                : false;
         constexpr index_t KPack =
-            math::max(math::lcm(AK1, BK1),
-                      MfmaSelector<ABDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+            math::max(lcm_AK1_BK1,
+                      MfmaSelector<ABDataType, MPerXdl, NPerXdl, ABDataType, is_single_rate_mfma>::
+                          selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
@@ -1006,9 +1013,16 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
+        constexpr auto lcm_AK1_BK1 = math::lcm(AK1, BK1);
+        constexpr bool is_single_rate_mfma =
+            ((is_same<ABDataType, half_t>::value || is_same<ABDataType, bhalf_t>::value) &&
+             lcm_AK1_BK1 <= 4)
+                ? true
+                : false;
         constexpr index_t KPack =
-            math::max(math::lcm(AK1, BK1),
-                      MfmaSelector<ABDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+            math::max(lcm_AK1_BK1,
+                      MfmaSelector<ABDataType, MPerXdl, NPerXdl, ABDataType, is_single_rate_mfma>::
+                          selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,

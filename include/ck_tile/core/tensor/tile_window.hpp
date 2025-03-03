@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -18,8 +18,17 @@
 
 namespace ck_tile {
 
-// Note: this tile window do not support single issue
-// you need to use tile_window_linear structure for this purpose
+/**
+ * @brief This class provides tile (windowed) view and access to the device memory.
+ *
+ * @note This tile window does not support single issue you need to use tile_window_linear
+ *       structure for this purpose
+ *
+ * @tparam BottomTensorView_        Class describing & holding device tensor memory.
+ * @tparam WindowLengths_           Spatial sizes of windowed view on tensor.
+ * @tparam StaticTileDistribution_  Thread distribution (mapping) into Tile dimensions
+ * @tparam NumCoord                 TBD
+ */
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
@@ -1009,6 +1018,14 @@ CK_TILE_DEVICE void move_tile_window(
     window.move(step);
 }
 
+/**
+ * @brief This class provides description of tile windowed view on the device memory.
+ *
+ * @note This class does not provide any functions to read or modify device memory.
+ *
+ * @tparam BottomTensorView_    Class describing & holding device tensor memory.
+ * @tparam WindowLengths_       Spatial sizes of windowed view on tensor.
+ */
 template <typename BottomTensorView_, typename WindowLengths_>
 struct tile_window_with_static_lengths
 {

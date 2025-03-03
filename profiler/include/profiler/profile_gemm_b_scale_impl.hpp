@@ -342,7 +342,7 @@ bool profile_gemm_b_scale_impl(int do_verification,
                     if(do_log)
                     {
                         LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-                        LogRangeAsType<int8_t>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
+                        LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
                         LogRangeAsType<float>(
                             std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
                             << std::endl;

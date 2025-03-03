@@ -5,7 +5,7 @@
 
 namespace ck {
 // Define the common macro for MI300 models
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
 
@@ -135,6 +135,46 @@ struct intrin_mfma_f32_32x32x4f16<32, 64>
 };
 
 template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_32x32x16f16;
+
+template <>
+struct intrin_mfma_f32_32x32x16f16<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const half8_t& reg_a, const half8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x16_f16(
+            reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif // defined(__gfx950__)
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_16x16x32f16;
+
+template <>
+struct intrin_mfma_f32_16x16x32f16<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const half8_t& reg_a, const half8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x32_f16(
+            reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif // defined(__gfx950__)
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f32_32x32x8f16;
 
 template <>
@@ -204,6 +244,46 @@ struct intrin_mfma_f32_4x4x4f16<8, 64>
 };
 
 // bfp16
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_32x32x16bf16;
+
+template <>
+struct intrin_mfma_f32_32x32x16bf16<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const bhalf8_t& reg_a, const bhalf8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x16_bf16(
+            reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif // defined(__gfx950__)
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_16x16x32bf16;
+
+template <>
+struct intrin_mfma_f32_16x16x32bf16<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const bhalf8_t& reg_a, const bhalf8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf16(
+            reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif // defined(__gfx950__)
+    }
+};
+
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f32_32x32x8bf16_1k;
 
@@ -299,6 +379,46 @@ struct intrin_mfma_i32_16x16x16i8<16, 16>
 };
 
 template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_i32_32x32x32i8;
+
+template <>
+struct intrin_mfma_i32_32x32x32i8<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const int8x16_t& reg_a, const int8x16_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        reg_c.template AsType<int32x16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_i32_32x32x32_i8(
+            reg_a, reg_b, reg_c.template AsType<int32x16_t>()[Number<0>{}], 0, 0, 0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif // defined(__gfx950__)
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_i32_16x16x64i8;
+
+template <>
+struct intrin_mfma_i32_16x16x64i8<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const int8x16_t& reg_a, const int8x16_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        reg_c.template AsType<int32x4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_i32_16x16x64_i8(
+            reg_a, reg_b, reg_c.template AsType<int32x4_t>()[Number<0>{}], 0, 0, 0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif // defined(__gfx950__)
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_i32_32x32x16i8;
 
 template <>
@@ -348,6 +468,149 @@ struct intrin_mfma_f64_16x16x4f64<16, 16>
 #if defined(__gfx90a__) || defined(__gfx94__)
         reg_c.template AsType<double4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f64_16x16x4f64(
             reg_a, reg_b, reg_c.template AsType<double4_t>()[Number<0>{}], 0, 0, 0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_32x32x64f8f6f4;
+
+/// @brief Performs a matrix fused multiply-accumulate operation on 32x32x64 submatrices for f8, f6,
+/// and f4 data types.
+///
+/// @note Calls scaled version of the instruction as the original instruction is not supported in
+/// the backend. That is the intended use. There is a backend optimization to select the unscaled
+/// operation if the scale is 0.
+template <>
+struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const f8x32_t& reg_a, const f8x32_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        reg_c.template AsType<float16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
+                reg_a,
+                reg_b,
+                reg_c.template AsType<float16_t>()[Number<0>{}],
+                0, // cbsz
+                0, // blgp
+                0,
+                0,
+                0,
+                0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_scale_f32_32x32x64f8f6f4;
+
+template <>
+struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const f8x32_t& reg_a,
+                               const int32_t scale_a,
+                               const f8x32_t& reg_b,
+                               const int32_t scale_b,
+                               FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
+        reg_c.template AsType<float16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
+                reg_a,
+                reg_b,
+                reg_c.template AsType<float16_t>()[Number<0>{}],
+                0, // cbsz
+                0, // blgp
+                0, // { OPSEL_HI[0], OPSEL[0] }?
+                scale_a,
+                0, // { OPSEL_HI[1], OPSEL[1] }?
+                scale_b);
+#else
+        ignore = reg_a;
+        ignore = scale_a;
+        ignore = reg_b;
+        ignore = scale_b;
+        ignore = reg_c;
+#endif
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_scale_f32_16x16x128f8f6f4;
+
+template <>
+struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const f8x32_t& reg_a,
+                               const int32_t scale_a,
+                               const f8x32_t& reg_b,
+                               const int32_t scale_b,
+                               FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
+        reg_c.template AsType<float4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
+                reg_a,
+                reg_b,
+                reg_c.template AsType<float4_t>()[Number<0>{}],
+                0, // cbsz
+                0, // blgp
+                0, // { OPSEL_HI[0], OPSEL[0] }?
+                scale_a,
+                0, // { OPSEL_HI[1], OPSEL[1] }?
+                scale_b);
+#else
+        ignore = reg_a;
+        ignore = scale_a;
+        ignore = reg_b;
+        ignore = scale_b;
+        ignore = reg_c;
+#endif
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_16x16x128f8f6f4;
+
+/// @brief Performs a matrix fused multiply-accumulate operation on 16x16x128 submatrices for f8f6f4
+/// data types.
+///
+/// @note Calls scaled version of the instruction as the original instruction is not supported in
+/// the backend. That is the intended use. There is a backend optimization to select the unscaled
+/// operation if the scale is 0.
+template <>
+struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const f8x32_t& reg_a, const f8x32_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
+        reg_c.template AsType<float4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
+                reg_a,
+                reg_b,
+                reg_c.template AsType<float4_t>()[Number<0>{}],
+                0, // cbsz
+                0, // blgp
+                0,
+                0,
+                0,
+                0);
 #else
         ignore = reg_a;
         ignore = reg_b;

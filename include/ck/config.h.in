@@ -131,6 +131,10 @@
 #cmakedefine CK_USE_FP8_ON_UNSUPPORTED_ARCH @CK_USE_FP8_ON_UNSUPPORTED_ARCH@
 #endif
 
+#ifndef CK_USE_NATIVE_MX_SUPPORT
+#cmakedefine CK_USE_NATIVE_MX_SUPPORT @CK_USE_NATIVE_MX_SUPPORT@
+#endif
+
 // clang-format on
 
 #endif // CK_CONFIG_H_IN

@@ -361,10 +361,18 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         const auto M = d0_grid_desc_m_n.GetLength(I0);
         const auto N = d0_grid_desc_m_n.GetLength(I1);
 
-        constexpr auto mfma =
-            MfmaSelector<A0B0B1DataType, Gemm0MPerXdl, Gemm0NPerXdl>::selected_mfma;
-        constexpr auto N3 = mfma.num_groups_per_blk;
-        constexpr auto N5 = mfma.group_size;
+        constexpr bool is_single_rate_mfma =
+            ((is_same<A0B0B1DataType, half_t>::value || is_same<A0B0B1DataType, bhalf_t>::value) &&
+             math::lcm(A0K1, B0K1) <= 4)
+                ? true
+                : false;
+        constexpr auto mfma = MfmaSelector<A0B0B1DataType,
+                                           Gemm0MPerXdl,
+                                           Gemm0NPerXdl,
+                                           A0B0B1DataType,
+                                           is_single_rate_mfma>::selected_mfma;
+        constexpr auto N3   = mfma.num_groups_per_blk;
+        constexpr auto N5   = mfma.group_size;
         return transform_tensor_descriptor(
             d0_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(
@@ -643,9 +651,19 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         //   acc1[m][o] += acc[m][n] * B1[n][o]
 
         // sanity check
-        constexpr index_t KPack = math::max(
-            math::lcm(A0K1, B0K1),
-            MfmaSelector<A0B0B1DataType, Gemm0MPerXdl, Gemm0NPerXdl>::selected_mfma.k_per_blk);
+        constexpr auto lcm_A0K1_B0K1 = math::lcm(A0K1, B0K1);
+        constexpr bool is_single_rate_mfma =
+            ((is_same<A0B0B1DataType, half_t>::value || is_same<A0B0B1DataType, bhalf_t>::value) &&
+             lcm_A0K1_B0K1 <= 4)
+                ? true
+                : false;
+        constexpr index_t KPack =
+            math::max(lcm_A0K1_B0K1,
+                      MfmaSelector<A0B0B1DataType,
+                                   Gemm0MPerXdl,
+                                   Gemm0NPerXdl,
+                                   A0B0B1DataType,
+                                   is_single_rate_mfma>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm0 = BlockwiseGemmXdlops_v2<
             BlockSize,
@@ -856,11 +874,18 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             static_cast<A0B0B1DataType*>(p_shared) + SharedMemTrait::b1_block_space_offset,
             b1_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-        constexpr index_t Gemm1KPack = math::max(
-            math::lcm(
-                MfmaSelector<A0B0B1DataType, Gemm0MPerXdl, Gemm0NPerXdl>::selected_mfma.group_size,
-                B1K1),
-            MfmaSelector<A0B0B1DataType, Gemm0MPerXdl, Gemm0NPerXdl>::selected_mfma.k_per_blk);
+        // selected_mfma.group_size or B1K1 <= Gemm1KPack <= selected_mfma.group_size
+        // selected_mfma.k_per_blk <= Gemm1KPack
+        //
+        // Following similar rationale behind Gemm0KPack, let Gemm1KPack be the lowest common
+        // multiples of A1K1 (predetermined by selected_mfma.group_size) and B1K1. But in this case
+        // Gemm1KPack can't be higher than A1K1 itself because A1 matrix is distributed in VGPRs
+        // with 'group_size' amount of contiguous elements. Having Gemm1KPack greater than A1K1 will
+        // cause mismatch in summation index for example c[0:7] = a1[[0:3, 8:11]] * b1[0:7].
+        // therefore we may just as well assign Gemm1KPack = group_size
+
+        constexpr index_t Gemm1KPack =
+            MfmaSelector<A0B0B1DataType, Gemm0MPerXdl, Gemm0NPerXdl>::selected_mfma.group_size;
 
         auto blockwise_gemm1 = BlockwiseGemmXdlops_v2<
             BlockSize,

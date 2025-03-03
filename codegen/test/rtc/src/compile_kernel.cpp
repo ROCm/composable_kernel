@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <rtc/hip.hpp>
 #include <rtc/compile_kernel.hpp>
 #include <rtc/tmp_dir.hpp>

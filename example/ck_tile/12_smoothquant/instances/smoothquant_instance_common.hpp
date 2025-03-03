@@ -1,6 +1,6 @@
 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <ck_tile/core.hpp>
 #include "smoothquant.hpp"
@@ -35,7 +35,7 @@ float smoothquant_(const S& s, A a)
 
     using PipelineProblem = ck_tile::SmoothquantPipelineProblem<
         typename SmoothquantTypeConfig<DataType>::XDataType,
-        typename SmoothquantTypeConfig<DataType>::XScaleDataType,
+        typename SmoothquantTypeConfig<DataType>::SmoothScaleDataType,
         typename SmoothquantTypeConfig<DataType>::ComputeDataType,
         typename SmoothquantTypeConfig<DataType>::YScaleDataType,
         typename SmoothquantTypeConfig<DataType>::QYDataType,

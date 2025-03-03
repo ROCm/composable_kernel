@@ -1,16 +1,39 @@
+set(RMSNORM2D_FWD_KNOWN_APIS "fwd;bwd")
+set(RMSNORM2D_FWD_ENABLE_APIS  "fwd" CACHE STRING
+    "semicolon-separated list of APIs to generate (${RMSNORM2D_FWD_KNOWN_APIS}) & link, or \"all\".")
+if(RMSNORM2D_FWD_ENABLE_APIS  STREQUAL "all")
+  set(RMSNORM2D_FWD_ENABLE_APIS  ${RMSNORM2D_FWD_KNOWN_APIS})
+endif()
+
+# generate a list of kernels, but not actually emit files at config sta
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  --api ${RMSNORM2D_FWD_ENABLE_APIS} --working_path ${CMAKE_CURRENT_BINARY_DIR} --list_blobs
+  RESULT_VARIABLE ret
+)
+if(ret AND NOT ret EQUAL 0)
+  message( FATAL_ERROR "Fail to generate kernels via Python. ${ret}")
+endif()
+
+file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/rmsnorm2d_fwd_blobs.txt RMSNORM2D_FWD_GEN_BLOBS)
+
+add_custom_command(
+  OUTPUT ${RMSNORM2D_FWD_GEN_BLOBS}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  --api ${RMSNORM2D_FWD_ENABLE_APIS} --working_path ${CMAKE_CURRENT_BINARY_DIR} --gen_blobs
+)
+
 set(TILE_RMSNORM2D_FWD "tile_rmsnorm2d_fwd")
-# not using add_example_executable() to add this target, since we don't want this to have
-# to be included in "make all/install/check"
+
 message("adding ${TILE_RMSNORM2D_FWD}")
-file(GLOB INSTANCE_SRCS instances/*.cpp)
 add_executable(${TILE_RMSNORM2D_FWD} EXCLUDE_FROM_ALL rmsnorm2d_fwd.cpp)
 target_include_directories(${TILE_RMSNORM2D_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${TILE_RMSNORM2D_FWD} PRIVATE ${INSTANCE_SRCS})
+target_sources(${TILE_RMSNORM2D_FWD} PRIVATE ${RMSNORM2D_FWD_GEN_BLOBS})
 
 set(TILE_RMSNORM2D_FWD_COMPILE_OPTIONS)
 
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
-list(APPEND TILE_RMSNORM2D_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
+list(APPEND TILE_RMSNORM2D_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal --offload-compress)
 
 target_compile_options(${TILE_RMSNORM2D_FWD} PRIVATE ${TILE_RMSNORM2D_FWD_COMPILE_OPTIONS})
 

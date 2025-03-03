@@ -60,8 +60,8 @@ TEST(FP8OCP, ConvertFP32Nearest)
     float neg_float = -0.015625f; //-2^-6
     ASSERT_NEAR(neg_float, type_convert<float>(f8_convert_rne<f8_ocp_t>(neg_float)), 0.0f);
 
-    // positive subnorm float value to fp8 and back, check if holds
-    pos_float = 0.00390625f;
+    // positive subnorm fp8 value to fp8 and back, check if holds
+    pos_float = 0.00390625f; // 2^-8
     ASSERT_NEAR(pos_float, type_convert<float>(f8_convert_rne<f8_ocp_t>(pos_float)), abs_tol);
 
     // min subnorm fp8 value to fp8 and back, check if holds

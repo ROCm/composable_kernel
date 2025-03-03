@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,21 +14,21 @@ struct SmoothquantTypeConfig;
 template <>
 struct SmoothquantTypeConfig<ck_tile::half_t>
 {
-    using XDataType       = ck_tile::half_t;
-    using XScaleDataType  = float;
-    using YScaleDataType  = float;
-    using QYDataType      = ck_tile::int8_t;
-    using ComputeDataType = float;
+    using XDataType           = ck_tile::half_t;
+    using SmoothScaleDataType = float;
+    using YScaleDataType      = float;
+    using QYDataType          = ck_tile::int8_t;
+    using ComputeDataType     = float;
 };
 
 template <>
 struct SmoothquantTypeConfig<ck_tile::bf16_t>
 {
-    using XDataType       = ck_tile::bf16_t;
-    using XScaleDataType  = float;
-    using YScaleDataType  = float;
-    using QYDataType      = ck_tile::int8_t;
-    using ComputeDataType = float;
+    using XDataType           = ck_tile::bf16_t;
+    using SmoothScaleDataType = float;
+    using YScaleDataType      = float;
+    using QYDataType          = ck_tile::int8_t;
+    using ComputeDataType     = float;
 };
 
 // runtime args

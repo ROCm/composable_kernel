@@ -121,6 +121,15 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
     You can find instructions for running each individual example in [example](/example).
 
+* Build and run smoke/regression examples and tests:
+
+    ```bash
+    make -j smoke # tests and examples that run for < 30 seconds each
+    ```
+     ```bash
+    make -j regression # tests and examples that run for >= 30 seconds each
+    ```
+
 * Build ckProfiler:
 
     ```bash
