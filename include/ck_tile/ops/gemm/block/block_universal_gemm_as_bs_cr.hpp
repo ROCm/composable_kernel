@@ -130,7 +130,7 @@ struct BlockUniversalGemmAsBsCr
         constexpr index_t KPerThread     = Traits::KPerThread;
         constexpr index_t NumMacClusters = Traits::InterWaveSchedulingMacClusters;
         constexpr index_t KPerInnerLoop  = ck_tile::max(KPerThread / NumMacClusters, Traits::KPack);
-        constexpr index_t KIterInterWave = KPerInnerLoop / WarpGemm::kK;
+        constexpr index_t KIterInterWave = KPerInnerLoop / Traits::KPack;
 
         using KIterSeq = std::conditional_t<Scheduler == GemmPipelineScheduler::Interwave,
                                             sequence<KIterInterWave>,
@@ -154,7 +154,7 @@ struct BlockUniversalGemmAsBsCr
         constexpr index_t KPerThread     = Traits::KPerThread;
         constexpr index_t NumMacClusters = Traits::InterWaveSchedulingMacClusters;
         constexpr index_t KPerInnerLoop  = ck_tile::max(KPerThread / NumMacClusters, Traits::KPack);
-        constexpr index_t KIterInterWave = KPerInnerLoop / WarpGemm::kK;
+        constexpr index_t KIterInterWave = KPerInnerLoop / Traits::KPack;
 
         using KIterSeq = std::conditional_t<Scheduler == GemmPipelineScheduler::Interwave,
                                             sequence<KIterInterWave>,
