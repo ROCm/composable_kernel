@@ -30,6 +30,7 @@ static constexpr auto GemmDefault    = GemmSpecialization::Default;
 static constexpr auto GemmKPadding   = GemmSpecialization::KPadding;
 static constexpr auto GemmMNPadding  = GemmSpecialization::MNPadding;
 static constexpr auto GemmMNKPadding = GemmSpecialization::MNKPadding;
+static constexpr auto GemmNKPadding  = GemmSpecialization::NKPadding;
 
 static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
 static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;

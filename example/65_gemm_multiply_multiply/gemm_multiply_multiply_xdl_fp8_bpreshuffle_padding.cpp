@@ -140,16 +140,39 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
     // clang-format off
-    <   Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
+    // <   Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
+    //     AElementOp,  BElementOp, CDEElementOp, GemmSpec, 256,
+    //     256,   256,    128,
+    //     16,   16,
+    //     16,   16,
+    //     8,    8,
+    //     S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+    //     S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+    //     1,    2,   S<1, 32, 1, 8>, S<8, 8, 1>,
+    //     ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, B0DataType>;
+
+     <  Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
         AElementOp,  BElementOp, CDEElementOp, GemmSpec, 256,
-        256,   256,    128,
-        16,   16,
-        16,   16,
-        8,    8,
-        S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-        S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-        1,    2,   S<1, 32, 1, 8>, S<8, 8, 1>,
-        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, B0DataType>;
+        128,    128,   128,
+        16,  16,
+        32,  32,
+        2,    2,
+        S<8, 32, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,
+        S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,
+        1,           1,                   S<1, 32, 1, 8>,    S<8, 8, 1>,
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v2, B0DataType>;
+
+// <  Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
+//    AElementOp,  BElementOp, CDEElementOp, GemmSpec, 256,
+//    256,    128,   128,
+//    16,  16,
+//    32,   32,
+//    4,    2,
+//    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,
+//    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,
+//    1,           1,                   S<1, 32, 1, 8>,     S<8, 8, 1>,
+//    ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v2, B0DataType>;
+
 // clang-format on
 
 int main(int argc, char* argv[])
@@ -326,12 +349,12 @@ int main(int argc, char* argv[])
     Tensor<int> b0_k_n2(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
     Tensor<int> b0_preshuffled2(
         f_host_tensor_descriptor(Knew, N, StrideBnew, B0Layout{})); // use laout only for size
-    // int nCount = 0;
+    int nCount = 0;
     for(int n = 0; n < N; n++)
     {
         for(int k = 0; k < K; k++)
         {
-            b0_k_n2(k,n) =  k;//nCount++;
+            b0_k_n2(k,n) =  nCount++;
         }
     }
     ouput_matirx(b0_k_n2, N, K);
