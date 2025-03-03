@@ -3,8 +3,12 @@
 
 #pragma once
 
+#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <sstream>
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -15,8 +19,6 @@
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_xdl_cshuffle_v1.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -429,6 +431,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         matrix_padder.PadN,
         MaskOutUpperTriangle>;
 
+#ifndef __HIPCC_RTC__
     // Argument
     struct Argument : public BaseArgument
     {
@@ -603,6 +606,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
+#endif
 
     static constexpr bool IsValidCompilationParameter()
     {
@@ -610,6 +614,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         return true;
     }
 
+#ifndef __HIPCC_RTC__
     static constexpr bool
     IsSupported(index_t MRaw_, index_t NRaw_, index_t KRaw_, index_t Gemm1NRaw_)
     {
@@ -837,6 +842,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         return str.str();
     }
+#endif
 
     template <class ADesc, class BDesc, class B1Desc, class CDesc>
     struct Descriptor

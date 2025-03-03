@@ -4,8 +4,9 @@
 #pragma once
 
 #include "ck/config.h"
+
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include "ck/utility/env.hpp"
-#ifndef CK_CODE_GEN_RTC
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"

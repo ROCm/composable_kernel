@@ -29,6 +29,12 @@
 #include "hip/hip_fp16.h"
 #endif
 
+#include "ck_tile/core/utility/env.hpp"
+
+// environment variable to enable logging:
+// export CK_TILE_LOGGING=ON or CK_TILE_LOGGING=1 or CK_TILE_LOGGING=ENABLED
+CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_LOGGING)
+
 #ifdef __HIPCC__
 #define CK_TILE_HOST inline __host__
 #define CK_TILE_DEVICE inline __device__

@@ -3,7 +3,7 @@
 
 #pragma once
 
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include <ostream>
 #endif
 
@@ -902,7 +902,7 @@ using uniform_sequence_gen_t = typename uniform_sequence_gen<NSize, I>::type;
 
 } // namespace ck
 
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <ck::index_t... Is>
 std::ostream& operator<<(std::ostream& os, const ck::Sequence<Is...>)
 {

@@ -8,6 +8,19 @@
 
 namespace ck {
 
+enum struct BlockGemmPipelineVersion
+{
+    // For GEMM
+    v1, // Naive
+    v2, // Mem
+    v3, // Comp
+    v4, // Comp, double lds buffer
+    v5, // Comp, double global prefetch register buffer
+
+    // For GEMM with preshuffled weight
+    // v1, single lds buffer
+    // v2, double lds buffer
+};
 enum struct BlockGemmPipelineScheduler
 {
     Intrawave,

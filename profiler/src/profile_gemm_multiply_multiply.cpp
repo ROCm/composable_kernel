@@ -28,7 +28,8 @@ enum struct GemmDataType
     F16_F16_F16_F8, // 6
     F8_F8_BF16,     // 7
     INT8_INT8_BF16, // 8
-    F8_F8_F16,      // 9
+    INT8_INT8_F16,  // 9
+    F8_F8_F16,      // 10
 };
 
 #define OP_NAME "gemm_multiply_multiply"
@@ -176,6 +177,11 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
     {
         return profile(
             I8{}, I8{}, I8{}, I32{}, F32{}, F32{}, BF16{}, Row{}, Col{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::INT8_INT8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(
+            I8{}, I8{}, I8{}, I32{}, F16{}, F16{}, F16{}, Row{}, Col{}, Row{}, Col{}, Row{});
     }
     else
     {

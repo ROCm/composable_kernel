@@ -3,11 +3,12 @@
 
 #pragma once
 
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include <string>
 #include <sstream>
 #include <regex>
 #include <optional>
+
 #include "ck/stream_config.hpp"
 #endif
 
@@ -15,7 +16,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #define GET_OBJECT_NAME_IMLP                                                  \
     std::optional<std::string> GetObjectName() const override                 \
     {                                                                         \
@@ -77,7 +78,7 @@ struct BaseOperator
     BaseOperator()                    = default;
     BaseOperator(const BaseOperator&) = default;
     BaseOperator& operator=(const BaseOperator&) = default;
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
     virtual std::string GetTypeString() const { return ""; }
 
