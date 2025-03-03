@@ -224,8 +224,9 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                 auto dst_fp16_value = dst_value[0];
                 float dst_fp32_value = static_cast<float>(dst_fp16_value);
 
-                printf("BlockId %d - Dst Vector Data being copied to dst_buf at idx %d: %f\n",
+                printf("BlockId %d - Line %d: (After dst_buf Update)- Dst Vector Data being copied to dst_buf at idx %d: %f\n",
                     static_cast<int>(blockIdx.x),
+                    __LINE__,
                     static_cast<int>(idx_1d.value),
                     dst_fp32_value);
            

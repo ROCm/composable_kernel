@@ -1224,11 +1224,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
 
         // Create mapping from block IDs to C matrix tiles using StreamK scheduling
-        Block2CTileMap_streamk block_2_ctile_map_streamk(problem.M,
-                                                         problem.N,
-                                                         AK0Number * problem.KPadded,
-                                                         problem.Grid_size,
-                                                         problem.Streamk_sel);
+        Block2CTileMap_streamk block_2_ctile_map_streamk(problem.M, problem.N, AK0Number * problem.KPadded, problem.Grid_size, problem.Streamk_sel);
 
         // Variables for iterating over K dimension
         uint32_t iter_start, iter_end;
@@ -1246,9 +1242,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         // Semaphores for synchronization between blocks
-        uint32_t* p_semaphore = reinterpret_cast<uint32_t*>(
-            reinterpret_cast<char*>(p_workspace) +
-            block_2_ctile_map_streamk.get_workspace_size_for_acc(sizeof(AccDataType)));
+        uint32_t* p_semaphore = reinterpret_cast<uint32_t*>( reinterpret_cast<char*>(p_workspace) + block_2_ctile_map_streamk.get_workspace_size_for_acc(sizeof(AccDataType)));
 
 
         for(auto block_idx = get_block_1d_id();
@@ -1292,19 +1286,13 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     const auto thread_n_cluster_id = reduce_thread_cluster_idx[I1];
 
                     // Calculate iterations needed for reduction
-                    constexpr auto MReduceIters = math::integer_divide_ceil(
-                        Number<MPerBlock>{}, cluster_length_reduce.At(I0));
-                    constexpr auto NReduceIters = math::integer_divide_ceil(
-                        Number<NPerBlock>{},
-                        cluster_length_reduce.At(I1) *
-                            Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{});
+                    constexpr auto MReduceIters = math::integer_divide_ceil(Number<MPerBlock>{}, cluster_length_reduce.At(I0));
+                    constexpr auto NReduceIters = math::integer_divide_ceil(Number<NPerBlock>{}, cluster_length_reduce.At(I1) *Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{});
 
                     // Descriptors for thread buffer transfers
-                    constexpr auto acc_thread_buf_load_desc = make_naive_tensor_descriptor_packed(
-                        make_tuple(I1, Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{}));
-                    constexpr auto acc_thread_buf_store_desc =
-                        make_naive_tensor_descriptor_packed(make_tuple(
-                            I1, I1, I1, Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{}));
+                    constexpr auto acc_thread_buf_load_desc = make_naive_tensor_descriptor_packed(make_tuple(I1, Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{}));
+
+                    constexpr auto acc_thread_buf_store_desc = make_naive_tensor_descriptor_packed(make_tuple( I1, I1, I1, Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{}));
 
                     constexpr auto c_partial_acc_block_m_n = GetPartialAccBlockDescriptor();
 
@@ -1341,6 +1329,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                  CShuffleBlockTransferScalarPerVector_NPerBlock,
                                  true>
                         parcial_acc_buf;
+
                     StaticBuffer<AddressSpaceEnum::Vgpr,
                                  AccDataType,
                                  CShuffleBlockTransferScalarPerVector_NPerBlock,
@@ -1348,10 +1337,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         acc_buf;
 
                     // start to compute
-                    auto reduction_idx =
-                        block_idx - block_2_ctile_map_streamk.reduction_start_block_idx;
-                    auto spatial_idx = block_2_ctile_map_streamk.tile_to_spatial(
-                        reduction_idx, problem.M, problem.N);
+                    auto reduction_idx =block_idx - block_2_ctile_map_streamk.reduction_start_block_idx;
+                    auto spatial_idx = block_2_ctile_map_streamk.tile_to_spatial(reduction_idx, problem.M, problem.N);
 
                     // Set up barrier for synchronization
                     workgroup_barrier wg_barrier(p_semaphore);
@@ -1412,8 +1399,12 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 
                     if(threadIdx.x == 0)
                     {
+                        __threadfence(); // Emin @Added
                         p_semaphore[reduction_idx] = 0;
                     }
+
+                     // Emin @Added
+                    __syncthreads();
 
                     // Define accumulation operation with NaN handling
                     using Accumulation = ck::detail::
@@ -1474,7 +1465,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                     // printf(" gridwise_gemm_xdl_cshuffle line %d , Block %d , reduction_idx %d, i_m %d, i_n_reduce %d, thread_m_cluster_id %d, thread_n_cluster_id %d\n",
                                     // __LINE__, blockIdx.x, reduction_idx, i_m, i_n_reduce, thread_m_cluster_id, thread_n_cluster_id);
 
-                                    printf(" gridwise_gemm_xdl_cshuffle line %d , Block %d , reduction_idx %d, i_m %d, i_n_reduce %d, thread_m_cluster_id %d, thread_n_cluster_id %d\n",
+                                    printf("Gridwise_gemm_xdl_cshuffle line %d , Block %d , reduction_idx %d, i_m %d, i_n_reduce %d, thread_m_cluster_id %d, thread_n_cluster_id %d\n",
                                         __LINE__, blockIdx.x, reduction_idx, i_m, static_cast<int>(i_n_reduce), thread_m_cluster_id, thread_n_cluster_id);
 
                                     // Print values from acc_buf (up to 8 values to avoid excessive output)
@@ -1482,14 +1473,14 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                     {
                                        
                                         switch(i) {
-                                            case 0: printf("%.4f ", static_cast<float>(acc_buf[Number<0>{}])); break;
-                                            case 1: printf("%.4f ", static_cast<float>(acc_buf[Number<1>{}])); break;
-                                            case 2: printf("%.4f ", static_cast<float>(acc_buf[Number<2>{}])); break;
-                                            case 3: printf("%.4f ", static_cast<float>(acc_buf[Number<3>{}])); break;
-                                            case 4: printf("%.4f ", static_cast<float>(acc_buf[Number<4>{}])); break;
-                                            case 5: printf("%.4f ", static_cast<float>(acc_buf[Number<5>{}])); break;
-                                            case 6: printf("%.4f ", static_cast<float>(acc_buf[Number<6>{}])); break;
-                                            case 7: printf("%.4f ", static_cast<float>(acc_buf[Number<7>{}])); break;
+                                            case 0: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<0>{}])); break;
+                                            case 1: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<1>{}])); break;
+                                            case 2: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<2>{}])); break;
+                                            case 3: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<3>{}])); break;
+                                            case 4: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<4>{}])); break;
+                                            case 5: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<5>{}])); break;
+                                            case 6: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<6>{}])); break;
+                                            case 7: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<7>{}])); break;
                                             // Add more cases if CShuffleBlockTransferScalarPerVector_NPerBlock is larger than 8
                                         }
                                     }
@@ -1497,7 +1488,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                     // Print matrix coordinates
                                     auto global_m = spatial_idx[I0] * MPerBlock + thread_m_cluster_id;
                                     auto global_n = spatial_idx[I1] * NPerBlock + thread_n_cluster_id * CShuffleBlockTransferScalarPerVector_NPerBlock;
-                                    printf(" at C[%d,%d]\n", global_m, global_n);
+                                    printf(" at C[%d,%d] \n", global_m, global_n);
                                 }
 
 #endif
