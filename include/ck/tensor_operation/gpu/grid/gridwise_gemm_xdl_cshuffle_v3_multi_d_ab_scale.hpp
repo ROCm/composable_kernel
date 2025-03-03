@@ -225,7 +225,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
     }
 
-    __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
+    __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
         index_t M, index_t MPad, index_t K, index_t KPad, index_t StrideA, index_t AK0)
     {
         const auto a_grid_desc_mraw_kraw = [&]() {
@@ -307,7 +307,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         }
     }
 
-    __host__ __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
+    __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
         index_t K, index_t KPad, index_t N, index_t NPad, index_t StrideB, index_t BK0)
     {
         const auto b_grid_desc_nraw_kraw = [&]() {
@@ -422,13 +422,6 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             }
         }();
 
-        // pad M and N
-        return transform_tensor_descriptor(c_grid_desc_mraw_nraw,
-                                           make_tuple(make_right_pad_transform(M, MPad - M),
-                                                      make_right_pad_transform(N, NPad - N)),
-                                           make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                           make_tuple(Sequence<0>{}, Sequence<1>{}));
-#if 0
         using GemmSpecialization = tensor_operation::device::GemmSpecialization;
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding ||
@@ -466,7 +459,6 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             // not pad M or N
             return c_grid_desc_mraw_nraw;
         }
-#endif
     }
 
     __host__ __device__ static auto MakeDsGridDescriptor_M_N(
@@ -664,19 +656,40 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         // in some cases.
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            constexpr auto a_lds_block_desc =
-                make_naive_tensor_descriptor(make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number),
-                                             make_tuple(AK1Number, Number<KPerBlock>{}, I1));
+            constexpr auto MLdsLayer        = 32 * 4 / KPerBlock / sizeof(LDSTypeA) < 1
+                                                  ? 1
+                                                  : 32 * 4 / KPerBlock / sizeof(LDSTypeA);
+            constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
+                make_tuple(
+                    AK0Number * Number<MLdsLayer>{}, Number<MPerBlock / MLdsLayer>{}, AK1Number),
+                make_tuple(AK1Number, Number<KPerBlock * MLdsLayer>{}, I1));
 
             constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
                 a_lds_block_desc,
-                make_tuple(make_xor_with_modulo_transform(
-                               make_tuple(Number<MPerBlock>{}, Number<AK0Number>{})),
+                make_tuple(make_xor_with_modulo_transform(make_tuple(
+                               Number<MPerBlock / MLdsLayer>{}, Number<AK0Number * MLdsLayer>{})),
                            make_pass_through_transform(AK1Number)),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
 
-            return a_lds_block_desc_permuted;
+            constexpr auto a_lds_block_desc_ak0_mldslayer_m_ak1 = transform_tensor_descriptor(
+                a_lds_block_desc_permuted,
+                make_tuple(make_unmerge_transform(make_tuple(AK0Number, Number<MLdsLayer>{})),
+                           make_pass_through_transform(Number<MPerBlock / MLdsLayer>{}),
+                           make_pass_through_transform(AK1Number)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}, Sequence<3>{}));
+
+            constexpr auto a_lds_block_desc_ak0_m_ak1 = transform_tensor_descriptor(
+                a_lds_block_desc_ak0_mldslayer_m_ak1,
+                make_tuple(make_pass_through_transform(AK0Number),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(Number<MPerBlock / MLdsLayer>{}, Number<MLdsLayer>{})),
+                           make_pass_through_transform(AK1Number)),
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+            return a_lds_block_desc_ak0_m_ak1;
         }
         else // ColumnMajor A
         {
@@ -778,19 +791,42 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         }
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
-            constexpr auto b_lds_block_desc =
-                make_naive_tensor_descriptor(make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
-                                             make_tuple(BK1Number, Number<KPerBlock>{}, I1));
+            // NLdsLayer * K0 as logical Bank
+            constexpr auto NLdsLayer = 32 * 4 / KPerBlock / sizeof(LDSTypeB) < 1
+                                           ? 1
+                                           : 32 * 4 / KPerBlock / sizeof(LDSTypeB);
+            ;
+            constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
+                make_tuple(
+                    BK0Number * Number<NLdsLayer>{}, Number<NPerBlock / NLdsLayer>{}, BK1Number),
+                make_tuple(BK1Number, Number<KPerBlock * NLdsLayer>{}, I1));
 
             constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
                 b_lds_block_desc,
-                make_tuple(make_xor_with_modulo_transform(
-                               make_tuple(Number<NPerBlock>{}, Number<BK0Number>{})),
+                make_tuple(make_xor_with_modulo_transform(make_tuple(
+                               Number<NPerBlock / NLdsLayer>{}, Number<BK0Number * NLdsLayer>{})),
                            make_pass_through_transform(BK1Number)),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
 
-            return b_lds_block_desc_permuted;
+            constexpr auto b_lds_block_desc_bk0_nldslayer_n_bk1 = transform_tensor_descriptor(
+                b_lds_block_desc_permuted,
+                make_tuple(make_unmerge_transform(make_tuple(BK0Number, Number<NLdsLayer>{})),
+                           make_pass_through_transform(Number<NPerBlock / NLdsLayer>{}),
+                           make_pass_through_transform(BK1Number)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}, Sequence<3>{}));
+
+            constexpr auto b_lds_block_desc_bk0_n_bk1 = transform_tensor_descriptor(
+                b_lds_block_desc_bk0_nldslayer_n_bk1,
+                make_tuple(make_pass_through_transform(BK0Number),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(Number<NPerBlock / NLdsLayer>{}, Number<NLdsLayer>{})),
+                           make_pass_through_transform(BK1Number)),
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+            return b_lds_block_desc_bk0_n_bk1;
         }
         else // RowMajor B
         {
@@ -956,8 +992,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
-                     !(is_same<tensor_layout::gemm::RowMajor, ALayout>::value))
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
             if(!(karg.M % MPerBlock == 0))
             {
@@ -974,8 +1009,7 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
-                     (is_same<tensor_layout::gemm::RowMajor, BLayout>::value))
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
             if(!(karg.N % NPerBlock == 0))
             {
@@ -1323,39 +1357,28 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
 
-        constexpr index_t ScaleSliceSizeM = MXdlPerWave;
-        constexpr index_t ScaleSliceSizeN = math::integer_divide_ceil(NPerBlock, ScaleBlockN);
-        constexpr index_t ScaleSliceSizeK = math::integer_divide_ceil(KPerBlock, ScaleBlockK);
+        const index_t ScaleSliceSizeM = 1;
+        const index_t ScaleSliceSizeN = 1;
+        const index_t ScaleSliceSizeK = 1;
 
-        // ScaleSliceSizeK is last dimension in A/B scale for vector memory access
-        // ScaleSliceSizeK is first dimension in C scale for packed math
         constexpr auto a_scale_thread_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<ScaleSliceSizeM>{}, Number<ScaleSliceSizeK>{}));
 
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-        auto a_thread_offset =
-            get_thread_local_1d_id() % MPerXdl + (get_thread_local_1d_id() / 64) / NWaves * MPerXdl;
-
         constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
-
-        constexpr auto c_scale_thread_desc = make_naive_tensor_descriptor_packed(make_tuple(
-            Number<ScaleSliceSizeK>{}, Number<ScaleSliceSizeM>{}, Number<ScaleSliceSizeN>{}));
+            make_tuple(Number<ScaleSliceSizeM>{}, Number<ScaleSliceSizeK>{}));
 
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<AScaleType,
                                              AScaleType,
                                              decltype(a_scale_grid_desc_am_ak),
                                              decltype(a_scale_thread_desc),
-                                             Sequence<1, ScaleSliceSizeK>,
+                                             Sequence<ScaleSliceSizeM, ScaleSliceSizeK>,
                                              Sequence<0, 1>,
                                              1,
-                                             ScaleSliceSizeK,
+                                             1,
                                              1,
                                              false>(
-                a_scale_grid_desc_am_ak,
-                make_multi_index(block_m_id * MPerBlock / ScaleBlockM + a_thread_offset, 0));
+                a_scale_grid_desc_am_ak, make_multi_index(block_m_id * MPerBlock / ScaleBlockM, 0));
 
         auto b_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<BScaleType,
@@ -1365,21 +1388,17 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                                              Sequence<ScaleSliceSizeN, ScaleSliceSizeK>,
                                              Sequence<0, 1>,
                                              1,
-                                             ScaleSliceSizeK,
+                                             1,
                                              1,
                                              false>(
                 b_scale_grid_desc_bn_ak, make_multi_index(block_n_id * NPerBlock / ScaleBlockN, 0));
 
-        // constexpr auto a_scale_thread_slice_copy_step = make_multi_index(0, 1);
-        constexpr auto a_scale_thread_slice_copy_step =
-            make_tuple(make_multi_index(MWaves * MPerXdl, 0),
-                       make_multi_index(-MPerBlock, 0),
-                       make_multi_index(-MPerBlock, ScaleSliceSizeK));
-        constexpr auto b_scale_thread_slice_copy_step = make_multi_index(0, ScaleSliceSizeK);
+        constexpr auto a_scale_thread_slice_copy_step = make_multi_index(0, 1);
+        constexpr auto b_scale_thread_slice_copy_step = make_multi_index(0, 1);
 
-        constexpr auto NumKBlockPerScale = math::integer_divide_ceil(ScaleBlockK, KPerBlock);
+        const index_t num_k_block_per_scale = ScaleBlockK / KPerBlock;
 
-        blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, NumKBlockPerScale, TailNum>(
+        blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
             a_grid_desc_ak0_m_ak1,
             a_block_desc_ak0_m_ak1,
             a_blockwise_copy,
@@ -1392,8 +1411,6 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             b_grid_buf,
             b_block_buf,
             b_block_slice_copy_step,
-
-            c_scale_thread_desc,
             c_thread_buf,
 
             a_scale_grid_desc_am_ak,
@@ -1408,7 +1425,8 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             b_scale_grid_buf,
             b_scale_thread_slice_copy_step,
 
-            num_k_block_main_loop);
+            num_k_block_main_loop,
+            num_k_block_per_scale);
 
         // shuffle C and write out
         {
@@ -1419,24 +1437,23 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
             constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
 
-            // transposed XDL
-            // // TODO: hacky, fix it!
-            constexpr auto c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
-                blockwise_gemm_pipeline.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
+            // TODO: hacky, fix it!
+            constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
+                blockwise_gemm_pipeline.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
 
-            // // TODO: hacky, fix it!
-            // only used to get lengths
-            constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp =
-                blockwise_gemm_pipeline.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
+            // TODO: hacky, fix it!
+            // c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp is only used to get lengths
+            constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp =
+                blockwise_gemm_pipeline.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
 
-            constexpr auto M0 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I0);
-            constexpr auto N0 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I1);
-            constexpr auto M1 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I2);
-            constexpr auto N1 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I3);
-            constexpr auto M2 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I4);
-            constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I5);
-            constexpr auto N3 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I6);
-            constexpr auto N4 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I7);
+            constexpr auto M0 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I0);
+            constexpr auto N0 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I1);
+            constexpr auto M1 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I2);
+            constexpr auto N1 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I3);
+            constexpr auto M2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I4);
+            constexpr auto M3 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I5);
+            constexpr auto M4 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I6);
+            constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I7);
 
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
@@ -1445,24 +1462,24 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                 static_cast<CShuffleDataType*>(p_shared),
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
-            constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4 = transform_tensor_descriptor(
+            constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 = transform_tensor_descriptor(
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
                 make_tuple(
                     make_freeze_transform(I0),
                     make_unmerge_transform(make_tuple(
                         Number<CShuffleMXdlPerWavePerShuffle>{}, // M0 (MXdlPerWave) per shuffle
                         M1,                                      // M1 = MWave
-                        M2)),                                    // M2 = MPerXdl
+                        M2,                                      // M2 * M3 * M4 = MPerXdl
+                        M3,
+                        M4)),
                     make_freeze_transform(I0),
                     make_unmerge_transform(make_tuple(
                         Number<CShuffleNXdlPerWavePerShuffle>{}, // N0 (NXdlPerWave) per shuffle
                         N1,                                      // N1 = NWave
-                        N2,                                      // N2 * N3 * N4 = NPerXdl
-                        N3,
-                        N4))),
+                        N2))),                                   // N2 = NPerXdl
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(
-                    Sequence<>{}, Sequence<0, 2, 4>{}, Sequence<>{}, Sequence<1, 3, 5, 6, 7>{}));
+                    Sequence<>{}, Sequence<0, 2, 4, 5, 6>{}, Sequence<>{}, Sequence<1, 3, 7>{}));
 
             // calculate origin of thread output tensor on global memory
             //     blockwise GEMM c matrix starting index
@@ -1472,57 +1489,57 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
             const index_t m_thread_data_on_block = c_thread_mtx_on_block[I0];
             const index_t n_thread_data_on_block = c_thread_mtx_on_block[I1];
 
-            const auto m_thread_data_on_block_to_m0_m1_m2_adaptor =
+            const auto m_thread_data_on_block_to_m0_m1_m2_m3_m4_adaptor =
                 make_single_stage_tensor_adaptor(
-                    make_tuple(make_merge_transform(make_tuple(M0, M1, M2))),
-                    make_tuple(Sequence<0, 1, 2>{}),
-                    make_tuple(Sequence<0>{}));
-
-            const auto m_thread_data_on_block_idx =
-                m_thread_data_on_block_to_m0_m1_m2_adaptor.CalculateBottomIndex(
-                    make_multi_index(m_thread_data_on_block));
-
-            const auto n_thread_data_on_block_to_n0_n1_n2_n3_n4_adaptor =
-                make_single_stage_tensor_adaptor(
-                    make_tuple(make_merge_transform(make_tuple(N0, N1, N2, N3, N4))),
+                    make_tuple(make_merge_transform(make_tuple(M0, M1, M2, M3, M4))),
                     make_tuple(Sequence<0, 1, 2, 3, 4>{}),
                     make_tuple(Sequence<0>{}));
 
+            const auto m_thread_data_on_block_idx =
+                m_thread_data_on_block_to_m0_m1_m2_m3_m4_adaptor.CalculateBottomIndex(
+                    make_multi_index(m_thread_data_on_block));
+
+            const auto n_thread_data_on_block_to_n0_n1_n2_adaptor =
+                make_single_stage_tensor_adaptor(
+                    make_tuple(make_merge_transform(make_tuple(N0, N1, N2))),
+                    make_tuple(Sequence<0, 1, 2>{}),
+                    make_tuple(Sequence<0>{}));
+
             const auto n_thread_data_on_block_idx =
-                n_thread_data_on_block_to_n0_n1_n2_n3_n4_adaptor.CalculateBottomIndex(
+                n_thread_data_on_block_to_n0_n1_n2_adaptor.CalculateBottomIndex(
                     make_multi_index(n_thread_data_on_block));
 
             // shuffle: threadwise copy C from VGPR to LDS
             auto c_thread_copy_vgpr_to_lds =
                 ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                    CShuffleDataType,
-                                                   decltype(c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4),
-                                                   decltype(c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4),
-                                                   tensor_operation::element_wise::PassThrough,
+                                                   decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                                   decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                                   ck::tensor_operation::element_wise::PassThrough,
                                                    Sequence<CShuffleMXdlPerWavePerShuffle,
                                                             CShuffleNXdlPerWavePerShuffle,
                                                             I1,
                                                             I1,
+                                                            M2,
                                                             I1,
-                                                            N2,
-                                                            I1,
-                                                            N4>,
+                                                            M4,
+                                                            I1>,
                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                                    7,
                                                    1,
                                                    InMemoryDataOperationEnum::Set,
                                                    1,
                                                    true>{
-                    c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4,
+                    c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                     make_multi_index(0,
                                      0,
                                      m_thread_data_on_block_idx[I1],
                                      n_thread_data_on_block_idx[I1],
                                      m_thread_data_on_block_idx[I2],
-                                     n_thread_data_on_block_idx[I2],
-                                     n_thread_data_on_block_idx[I3],
-                                     n_thread_data_on_block_idx[I4]),
-                    tensor_operation::element_wise::PassThrough{}};
+                                     m_thread_data_on_block_idx[I3],
+                                     m_thread_data_on_block_idx[I4],
+                                     n_thread_data_on_block_idx[I2]),
+                    ck::tensor_operation::element_wise::PassThrough{}};
 
             using EDataType = CDataType;
 
@@ -1604,17 +1621,18 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                  make_tuple(make_multi_index(block_m_id, 0, block_n_id, 0)),
                  c_element_op};
 
+            // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
-                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, 1, N2, 1, N4>,
+                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                   Sequence<CShuffleMXdlPerWavePerShuffle,
                                            CShuffleNXdlPerWavePerShuffle,
                                            1,
                                            1,
+                                           M2,
                                            1,
-                                           N2,
-                                           1,
-                                           N4>>{};
+                                           M4,
+                                           1>>{};
 
             constexpr index_t num_access = sfc_c_vgpr.GetNumOfAccess();
 
@@ -1634,10 +1652,10 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                 block_sync_lds();
 
                 // each thread write its data from VGPR to LDS
-                c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4,
+                c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                               sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
                                               c_thread_buf,
-                                              c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4,
+                                              c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                               c_shuffle_block_buf);
 
                 // make sure it's safe to read from LDS

@@ -614,7 +614,6 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         return true;
     }
 
-#ifndef __HIPCC_RTC__
     static constexpr bool
     IsSupported(index_t MRaw_, index_t NRaw_, index_t KRaw_, index_t Gemm1NRaw_)
     {
@@ -705,6 +704,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         return true;
     }
 
+#ifndef __HIPCC_RTC__
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
