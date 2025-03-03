@@ -76,4 +76,4 @@ K tile size : (N0, K0)
 V tile size : (N1, K1)
 Loop count of first Gemm: (hdim_q / K0)  
 Loop count of second Gemm: (N0 / K1)  
-
+There are 3 stages: 1. first Gemm 2. scale_s, add bias, mask and do softmax 3. second Gemm
