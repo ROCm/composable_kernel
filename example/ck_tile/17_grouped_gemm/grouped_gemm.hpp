@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,10 +10,10 @@
 #include "ck_tile/ops/gemm/kernel/grouped_gemm_kernel.hpp"
 
 template <typename DataType>
-struct GemmBasicTypeConfig;
+struct GemmTypeConfig;
 
 template <>
-struct GemmBasicTypeConfig<ck_tile::half_t>
+struct GemmTypeConfig<ck_tile::half_t>
 {
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::half_t;
@@ -21,7 +21,7 @@ struct GemmBasicTypeConfig<ck_tile::half_t>
     using AccDataType = float;
 };
 
-using Types = GemmBasicTypeConfig<ck_tile::half_t>;
+using Types = GemmTypeConfig<ck_tile::half_t>;
 
 // Specific type aliases for easy access
 using ADataType   = Types::ADataType;

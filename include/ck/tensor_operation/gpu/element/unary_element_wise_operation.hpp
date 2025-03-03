@@ -285,6 +285,12 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<half_t, int32_t>(half_t& y, const int32_t& x) const
+    {
+        y = type_convert<half_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
     {
         y = x;
@@ -691,7 +697,7 @@ struct FastGelu
 
     template <typename Y, typename X>
     __device__ void operator()(Y& y, const X& x) const;
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
     template <>
     __host__ void operator()<float, float>(float& y, const float& x) const
     {
@@ -703,7 +709,6 @@ struct FastGelu
         y               = x / (1.f + emu);
     }
 #endif
-
     // device code, use lower precision "__ocml_exp_f32" and "rcp"
     template <>
     __device__ void operator()<float, float>(float& y, const float& x) const
