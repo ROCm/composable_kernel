@@ -5,11 +5,17 @@
 
 #ifndef __HIPCC_RTC__
 #include <string>
-#include <map>
+#include <string_view>
 #include <hip/hip_runtime.h>
 
 namespace ck {
 
+constexpr unsigned int fnv1a_hash(std::string_view str, unsigned int h = 2166136261u)
+{
+    return str.empty() ? h
+                       : fnv1a_hash(str.substr(1),
+                                    (h ^ static_cast<unsigned char>(str.front())) * 16777619u);
+}
 inline std::string get_device_name()
 {
     hipDeviceProp_t props{};
@@ -19,37 +25,31 @@ inline std::string get_device_name()
     {
         return std::string();
     }
-
     status = hipGetDeviceProperties(&props, device);
     if(status != hipSuccess)
     {
         return std::string();
     }
     const std::string raw_name(props.gcnArchName);
-
-    // https://github.com/ROCm/MIOpen/blob/8498875aef84878e04c1eabefdf6571514891086/src/target_properties.cpp#L40
-    static std::map<std::string, std::string> device_name_map = {
-        {"Ellesmere", "gfx803"},
-        {"Baffin", "gfx803"},
-        {"RacerX", "gfx803"},
-        {"Polaris10", "gfx803"},
-        {"Polaris11", "gfx803"},
-        {"Tonga", "gfx803"},
-        {"Fiji", "gfx803"},
-        {"gfx800", "gfx803"},
-        {"gfx802", "gfx803"},
-        {"gfx804", "gfx803"},
-        {"Vega10", "gfx900"},
-        {"gfx901", "gfx900"},
-        {"10.3.0 Sienna_Cichlid 18", "gfx1030"},
-    };
-
     const auto name = raw_name.substr(0, raw_name.find(':')); // str.substr(0, npos) returns str.
-
-    auto match = device_name_map.find(name);
-    if(match != device_name_map.end())
-        return match->second;
-    return name;
+    switch(fnv1a_hash(name))
+    {
+    // https://github.com/ROCm/MIOpen/blob/8498875aef84878e04c1eabefdf6571514891086/src/target_properties.cpp#L40
+    case fnv1a_hash("Ellesmere"):
+    case fnv1a_hash("Baffin"):
+    case fnv1a_hash("RacerX"):
+    case fnv1a_hash("Polaris10"):
+    case fnv1a_hash("Polaris11"):
+    case fnv1a_hash("Tonga"):
+    case fnv1a_hash("Fiji"):
+    case fnv1a_hash("gfx800"):
+    case fnv1a_hash("gfx802"):
+    case fnv1a_hash("gfx804"): return "gfx803";
+    case fnv1a_hash("Vega10"):
+    case fnv1a_hash("gfx901"): return "gfx900";
+    case fnv1a_hash("10.3.0 Sienna_Cichlid 18"): return "gfx1030";
+    default: return name;
+    }
 }
 
 inline bool is_xdl_supported()
