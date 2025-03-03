@@ -74,4 +74,6 @@ Dimension of FMHA: kM0, kN0, kK0, kN1, kK1
 Q tile size : (M0, K0) 
 K tile size : (N0, K0) 
 V tile size : (N1, K1)
+Loop count of first Gemm: (hdim_q / K0)  
+Loop count of second Gemm: (N0 / K1)  
 
