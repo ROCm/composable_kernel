@@ -32,7 +32,6 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-
 enum struct GemmPipelineType
 {
     Mem,
@@ -85,7 +84,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         // TODO: This should be parameterized in tests
         constexpr ck_tile::index_t M_Tile = 256;
         constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = 64;
+        constexpr ck_tile::index_t K_Tile = (PipelineType == GemmPipelineType::CompV4) ? 32 : 64;
 
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;

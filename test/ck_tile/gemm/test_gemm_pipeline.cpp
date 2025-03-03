@@ -10,9 +10,7 @@
 
 using F16       = ck_tile::half_t;
 using F32       = float;
-using BF16      = ck_tile::bf16_t;
 using F8        = ck_tile::fp8_t;
-using BF8       = ck_tile::bf8_t;
 using Row       = ck_tile::tensor_layout::gemm::RowMajor;
 using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
 using Intrawave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
@@ -26,25 +24,30 @@ using CompV4    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType:
 // clang-format off
 using KernelTypes = ::testing::Types<
     //         ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType, GemmPipelineScheduler, PipelineType
-    // std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
-    // std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
-    // std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
-    // std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Col,     Col,     Row,       F8,      F8,        F32,       F16,            Intrawave,         Mem>
-    // std::tuple<    Row,     Col,     Row,       F8,      F8,        F32,       F16,            Intrawave,         Mem>
-    // std::tuple<    Row,     Col,     Row,       BF16,       BF16,         F32,       BF16,             Intrawave,         CompV3>
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>
-    // std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
-    // std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
-    // std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
-    // std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
-    // std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
-    // std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
-    // std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
-    // std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>
-    // std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         CompV3>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         CompV3>,
+    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         CompV3>,
+    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>
     >;
 // clang-format on
 
