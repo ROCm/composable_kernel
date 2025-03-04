@@ -125,7 +125,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     ck_tile::HostTensor<IndexType> sorted_ids_host({max_output_ids}, {1});
     ck_tile::HostTensor<WeightType> sorted_weights_host({max_output_ids}, {1});
     ck_tile::HostTensor<IndexType> sorted_expert_ids_host({max_output_ids / unit_size}, {1});
-    ck_tile::HostTensor<IndexType> sorted_id_cnt_host({1 + max_output_ids / unit_size}, {1});
+    ck_tile::HostTensor<IndexType> sorted_id_cnt_host({1}, {1});
     ck_tile::HostTensor<float> moe_buf_host({moe_buf_size});
 
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(weights_host);
@@ -268,8 +268,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     {
         moe_buf_dev.FromDevice(moe_buf_host.data());
     }
-    sorted_expert_ids_host.savetxt("sorted_expert_ids_host.txt","int");
-    sorted_id_cnt_host.savetxt("sorted_id_cnt_host.txt","int");
+
     bool rtn = true;
     if(validate)
     {

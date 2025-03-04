@@ -47,9 +47,6 @@ template <typename SrcDatas,
 struct ThreadwiseTensorSliceTransfer_v7r3
 {
     static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
-    static constexpr auto I3 = Number<3>{};
 
     static constexpr auto SrcScalarPerVector = SrcScalarPerVectors{}[I0];
 
@@ -123,7 +120,6 @@ struct ThreadwiseTensorSliceTransfer_v7r3
     {
         static_for<0, nDst, 1>{}([&](auto i) {
             dst_coords_(i) = make_tensor_coordinate(dst_descs[i], dst_slice_origin_idxs[i]);
-            // printf("tid %d origin %d %d %d %d off %d\n", threadIdx.x, dst_slice_origin_idxs[i][I0], dst_slice_origin_idxs[i][I1], dst_slice_origin_idxs[i][I2], dst_slice_origin_idxs[i][I3], dst_coords_(i).GetOffset());
         });
     }
 
@@ -423,14 +419,6 @@ struct ThreadwiseTensorSliceTransfer_v7r3
                     dst_coords_[i].GetOffset(),
                     is_dst_valid,
                     dst_vectors[i].template AsType<dst_vector_t>()[I0]);
-                // if(1) {
-                //     static_for<0, DstScalarPerVector, 1>{}([&](auto idx) {
-                //         using DstData = remove_cvref_t<tuple_element_t<0, DstDatas>>;
-                //         using print_vec_t = typename vector_type<DstData, 1>::type;
-                //         printf("tid %d off %d valid %d %f\n",threadIdx.x, dst_coords_[i].GetOffset(), is_dst_valid, 
-                //         type_convert<float>(dst_vectors[i].template AsType<print_vec_t>()[idx]));
-                //     });
-                // }
             });
 
             // move coordinate
