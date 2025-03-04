@@ -65,79 +65,77 @@ template <typename ALayout,
           typename CDEShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
-          bool NSwizzle = false,
-          bool IsInputGemm = true,
+          bool NSwizzle                               = false,
+          bool IsInputGemm                            = true,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ComputeTypeA,
           typename LDSTypeB                           = ComputeTypeB>
-struct DeviceMoeGemm
-    : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
-                                                  BLayout,
-                                                  DsLayout,
-                                                  CLayout,
-                                                  ADataType,
-                                                  BDataType,
-                                                  DsDataType,
-                                                  CDataType,
-                                                  AElementwiseOperation,
-                                                  BElementwiseOperation,
-                                                  CElementwiseOperation>
+struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
+                                                                   BLayout,
+                                                                   DsLayout,
+                                                                   CLayout,
+                                                                   ADataType,
+                                                                   BDataType,
+                                                                   DsDataType,
+                                                                   CDataType,
+                                                                   AElementwiseOperation,
+                                                                   BElementwiseOperation,
+                                                                   CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
-    using GridwiseGemm = 
-        GridwiseMoeGemm<
-            ALayout,
-            BLayout,
-            DsLayout,
-            CLayout,
-            ADataType,
-            BDataType,
-            GemmAccDataType,
-            CShuffleDataType,
-            DsDataType,
-            CDataType,
-            AElementwiseOperation,
-            BElementwiseOperation,
-            CElementwiseOperation,
-            GemmSpec,
-            BlockSize,
-            MPerBlock,
-            NPerBlock,
-            KPerBlock,
-            AK1,
-            BK1,
-            MPerXDL,
-            NPerXDL,
-            MXdlPerWave,
-            NXdlPerWave,
-            ABlockTransferThreadClusterLengths_AK0_M_AK1,
-            ABlockTransferThreadClusterArrangeOrder,
-            ABlockTransferSrcAccessOrder,
-            ABlockTransferSrcVectorDim,
-            ABlockTransferSrcScalarPerVector,
-            ABlockTransferDstScalarPerVector_AK1,
-            false,
-            ABlockLdsExtraM,
-            BBlockTransferThreadClusterLengths_BK0_N_BK1,
-            BBlockTransferThreadClusterArrangeOrder,
-            BBlockTransferSrcAccessOrder,
-            BBlockTransferSrcVectorDim,
-            BBlockTransferSrcScalarPerVector,
-            BBlockTransferDstScalarPerVector_BK1,
-            false,
-            BBlockLdsExtraN,
-            CShuffleMXdlPerWavePerShuffle,
-            CShuffleNXdlPerWavePerShuffle,
-            CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-            CDEShuffleBlockTransferScalarPerVectors,
-            BlkGemmPipeSched,
-            BlkGemmPipelineVer,
-            NSwizzle,
-            ComputeTypeA,
-            ComputeTypeB,
-            LDSTypeA,
-            LDSTypeB>;
+    using GridwiseGemm =
+        GridwiseMoeGemm<ALayout,
+                        BLayout,
+                        DsLayout,
+                        CLayout,
+                        ADataType,
+                        BDataType,
+                        GemmAccDataType,
+                        CShuffleDataType,
+                        DsDataType,
+                        CDataType,
+                        AElementwiseOperation,
+                        BElementwiseOperation,
+                        CElementwiseOperation,
+                        GemmSpec,
+                        BlockSize,
+                        MPerBlock,
+                        NPerBlock,
+                        KPerBlock,
+                        AK1,
+                        BK1,
+                        MPerXDL,
+                        NPerXDL,
+                        MXdlPerWave,
+                        NXdlPerWave,
+                        ABlockTransferThreadClusterLengths_AK0_M_AK1,
+                        ABlockTransferThreadClusterArrangeOrder,
+                        ABlockTransferSrcAccessOrder,
+                        ABlockTransferSrcVectorDim,
+                        ABlockTransferSrcScalarPerVector,
+                        ABlockTransferDstScalarPerVector_AK1,
+                        false,
+                        ABlockLdsExtraM,
+                        BBlockTransferThreadClusterLengths_BK0_N_BK1,
+                        BBlockTransferThreadClusterArrangeOrder,
+                        BBlockTransferSrcAccessOrder,
+                        BBlockTransferSrcVectorDim,
+                        BBlockTransferSrcScalarPerVector,
+                        BBlockTransferDstScalarPerVector_BK1,
+                        false,
+                        BBlockLdsExtraN,
+                        CShuffleMXdlPerWavePerShuffle,
+                        CShuffleNXdlPerWavePerShuffle,
+                        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                        CDEShuffleBlockTransferScalarPerVectors,
+                        BlkGemmPipeSched,
+                        BlkGemmPipelineVer,
+                        NSwizzle,
+                        ComputeTypeA,
+                        ComputeTypeB,
+                        LDSTypeA,
+                        LDSTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
@@ -243,7 +241,8 @@ struct DeviceMoeGemm
 
             constexpr index_t minimum_occupancy = (estimated_reg_total >= 256) ? 1 : 2;
 
-            constexpr auto MemoryDataOp = IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
+            constexpr auto MemoryDataOp =
+                IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
             if(has_main_k_block_loop)
             {
                 // Tail number always full
@@ -252,24 +251,22 @@ struct DeviceMoeGemm
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
-                            const auto kernel = kernel_moe_gemm<
-                                GridwiseGemm,
-                                true,
-                                MemoryDataOp,
-                                minimum_occupancy,
-                                IsInputGemm,
-                                TailNumber::Odd>;
+                            const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                                true,
+                                                                MemoryDataOp,
+                                                                minimum_occupancy,
+                                                                IsInputGemm,
+                                                                TailNumber::Odd>;
                             RunKernel(kernel);
                         }
                         else
                         {
-                            const auto kernel = kernel_moe_gemm<
-                                GridwiseGemm,
-                                true,
-                                MemoryDataOp,
-                                minimum_occupancy,
-                                IsInputGemm,
-                                TailNumber::Even>;
+                            const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                                true,
+                                                                MemoryDataOp,
+                                                                minimum_occupancy,
+                                                                IsInputGemm,
+                                                                TailNumber::Even>;
                             RunKernel(kernel);
                         }
                     }
@@ -280,21 +277,21 @@ struct DeviceMoeGemm
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
                         const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
-                                                                    true,
-                                                                    MemoryDataOp,
-                                                                    minimum_occupancy,
-                                                                    IsInputGemm,
-                                                                    TailNumber::Odd>;
+                                                                 true,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 IsInputGemm,
+                                                                 TailNumber::Odd>;
                         RunKernel(kernel);
                     }
                     else
                     {
                         const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
-                                                                    true,
-                                                                    MemoryDataOp,
-                                                                    minimum_occupancy,
-                                                                    IsInputGemm,
-                                                                    TailNumber::Even>;
+                                                                 true,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 IsInputGemm,
+                                                                 TailNumber::Even>;
                         RunKernel(kernel);
                     }
                 }
@@ -340,7 +337,7 @@ struct DeviceMoeGemm
     static bool IsSupportedArgument(const Argument& arg)
     {
         // only impl kbatch 1 now
-        if (arg.KBatch > 1)
+        if(arg.KBatch > 1)
         {
             return false;
         }
@@ -376,9 +373,9 @@ struct DeviceMoeGemm
     }
 
     static auto MakeArgument(const void* p_sorted_token_ids,
-                            const void* p_sorted_expert_ids,
-                            const void* p_max_token_id,
-                            const void* p_a,
+                             const void* p_sorted_expert_ids,
+                             const void* p_max_token_id,
+                             const void* p_a,
                              const void* p_b,
                              std::array<const void*, NumDTensor> p_ds,
                              void* p_c,
@@ -397,8 +394,8 @@ struct DeviceMoeGemm
                              CElementwiseOperation c_element_op)
     {
         return Argument{static_cast<const index_t*>(p_sorted_token_ids),
-                        static_cast<const index_t*>(p_sorted_expert_ids), 
-                        static_cast<const index_t*>(p_max_token_id), 
+                        static_cast<const index_t*>(p_sorted_expert_ids),
+                        static_cast<const index_t*>(p_max_token_id),
                         static_cast<const ADataType*>(p_a),
                         static_cast<const BDataType*>(p_b),
                         p_ds,
@@ -421,8 +418,7 @@ struct DeviceMoeGemm
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(
-                                                      const void* p_a,
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,
                                                       std::array<const void*, NumDTensor> p_ds,
                                                       void* p_c,
@@ -438,12 +434,14 @@ struct DeviceMoeGemm
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op) override
     {
-        return std::make_unique<Argument>(nullptr, nullptr, nullptr,
-                                         static_cast<const ADataType*>(p_a),
+        return std::make_unique<Argument>(nullptr,
+                                          nullptr,
+                                          nullptr,
+                                          static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           p_ds,
                                           static_cast<CDataType*>(p_c),
-                                          M, //randoms set, no use
+                                          M, // randoms set, no use
                                           0,
                                           M,
                                           N,

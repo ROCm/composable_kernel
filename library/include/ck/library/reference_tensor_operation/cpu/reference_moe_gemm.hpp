@@ -76,11 +76,12 @@ struct ReferenceMoeGemm : public device::BaseOperator
                 AccDataType v_acc{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
-                const int t = arg.sorted_token_ids_(m) & 0xffffff;
-                const int topk_id = (arg.sorted_token_ids_(m) & 0xff000000) >> 24;
-                const int e = arg.expert_ids_(m / arg.sorted_tile_size_);
+                const int t         = arg.sorted_token_ids_(m) & 0xffffff;
+                const int topk_id   = (arg.sorted_token_ids_(m) & 0xff000000) >> 24;
+                const int e         = arg.expert_ids_(m / arg.sorted_tile_size_);
                 const int token_cnt = arg.a_t_k_.mDesc.GetLengths()[0];
-                if(t < token_cnt) {
+                if(t < token_cnt)
+                {
                     for(int k = 0; k < K; ++k)
                     {
                         if constexpr(is_same_v<ADataType, pk_i4_t>)
@@ -134,7 +135,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
 
             const ck::index_t max_token_id = arg.max_token_id_(0);
             make_ParallelTensorFunctor(
-                f_mk_kn_mn,  max_token_id, arg.c_t_k_n_.mDesc.GetLengths()[2])(
+                f_mk_kn_mn, max_token_id, arg.c_t_k_n_.mDesc.GetLengths()[2])(
                 std::thread::hardware_concurrency());
 
             return 0;
@@ -166,7 +167,16 @@ struct ReferenceMoeGemm : public device::BaseOperator
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{sorted_token_ids, expert_ids, max_token_id, sorted_tile_size, a_t_k, b_e_n_k, c_t_k_n, a_element_op, b_element_op, c_element_op};
+        return Argument{sorted_token_ids,
+                        expert_ids,
+                        max_token_id,
+                        sorted_tile_size,
+                        a_t_k,
+                        b_e_n_k,
+                        c_t_k_n,
+                        a_element_op,
+                        b_element_op,
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

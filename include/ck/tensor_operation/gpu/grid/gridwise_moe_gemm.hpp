@@ -1669,7 +1669,7 @@ struct GridwiseMoeGemm
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
-        const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);
+        const index_t max_token_id    = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);
         const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.y;
         if(expert_block_id * MPerBlock >= max_token_id)
             return;
@@ -1678,12 +1678,12 @@ struct GridwiseMoeGemm
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr(NSwizzle)
             {
-                const index_t ecnt_prefix  = p_max_token_id[1 + expert_id];
-                const index_t prefix_block = ecnt_prefix * problem.NBlock;
-                const index_t ecnt         = p_max_token_id[2 + expert_id] - ecnt_prefix;
+                const index_t ecnt_prefix    = p_max_token_id[1 + expert_id];
+                const index_t prefix_block   = ecnt_prefix * problem.NBlock;
+                const index_t ecnt           = p_max_token_id[2 + expert_id] - ecnt_prefix;
                 const index_t expert_swizzle = ecnt > 0 ? ecnt : 1;
-                const index_t bid_new = blockIdx.x - prefix_block;
-                const index_t nid     = __builtin_amdgcn_readfirstlane(
+                const index_t bid_new        = blockIdx.x - prefix_block;
+                const index_t nid            = __builtin_amdgcn_readfirstlane(
                     bid_new % 8 + bid_new / (8 * expert_swizzle) * 8);
                 const index_t mid =
                     __builtin_amdgcn_readfirstlane(ecnt_prefix + bid_new / 8 % expert_swizzle);

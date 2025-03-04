@@ -189,9 +189,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             const index_t ld_offset = src_coord_.GetOffset() + gather_offset;
             const bool is_src_valid =
                 ld_offset <
-                src_desc.GetElementSpaceSize(); // hack felix, todo use coord
-                                                // coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc,
-                                                // src_coord_) && (gather_offset < 32*512);
+                src_desc
+                    .GetElementSpaceSize(); // hack felix, todo use coord
+                                            // coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc,
+                                            // src_coord_) && (gather_offset < 32*512);
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, is_src_valid);
 
