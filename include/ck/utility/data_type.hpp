@@ -2696,7 +2696,7 @@ struct NumericLimits<float>
     static constexpr unsigned int binary_max    = 0x7F7FFFFF;
     static constexpr unsigned int binary_lowest = 0xFF7FFFFF;
     static constexpr unsigned int binary_qnan   = 0xFFC00001;
-    static constexpr unsigned int binary_inf    = 0x7F8000000;
+    static constexpr unsigned int binary_inf    = 0x7F800000;
 
     __host__ __device__ static constexpr float Min() { return bit_cast<float>(binary_min); }
 
