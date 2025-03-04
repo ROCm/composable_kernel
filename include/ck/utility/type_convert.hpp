@@ -706,7 +706,7 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_fnuz_t>(bf8_fnuz_t x)
     return utils::cast_from_f8<bf8_fnuz_t, half_t, negative_zero_nan>(x);
 #endif
 }
-
+#ifndef CK_CODE_GEN_RTC
 // convert fp32 to fp4 with rounding to nearest even
 inline __host__ __device__ f4_t f4_convert_rne(float x, float scale = 1.0f)
 {
@@ -927,7 +927,11 @@ inline __host__ __device__ f4x32_t f4_convert_rne(float32_t x, float scale = 1.0
 inline __host__ __device__ f4_t f4_convert_sr(float x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
+#endif
 #if defined(__gfx950__)
     union
     {
@@ -952,7 +956,11 @@ inline __host__ __device__ f4_t f4_convert_sr(float x, float scale = 1.0f)
 inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
+#endif
 #if defined(__gfx950__)
     union
     {
@@ -978,7 +986,11 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
 inline __host__ __device__ f4x32_t f4_convert_sr(float32_t x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
+#endif
 #if defined(__gfx950__)
     union
     {
@@ -1544,7 +1556,11 @@ inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0
 inline __host__ __device__ f6_t f6_convert_sr(float x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
+#endif
 #if defined(__gfx950__)
     union
     {
@@ -1584,8 +1600,13 @@ inline __host__ __device__ f6x32_t f6_convert_sr(float32_t x, float scale = 1.0f
         float32_t float_vector;
         float float_array[32];
     } float_values{x};
+#ifndef CK_CODE_GEN_RTC
     uint32_t rng =
         prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), float_values.float_array[0]);
+#else
+    uint32_t rng =
+        prand_generator<float, seed>(reinterpret_cast<size_t>(&x), float_values.float_array[0]);
+#endif
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(x, rng, scale);
 #else
@@ -1803,7 +1824,11 @@ inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1
 inline __host__ __device__ bf6_t bf6_convert_sr(float x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
+#endif
 #if defined(__gfx950__)
     union
     {
@@ -1845,8 +1870,13 @@ inline __host__ __device__ bf6x32_t bf6_convert_sr(float32_t x, float scale = 1.
         float32_t float_vector;
         float float_array[32];
     } float_values{x};
+#ifndef CK_CODE_GEN_RTC
     uint32_t rng =
         prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), float_values.float_array[0]);
+#else
+    uint32_t rng =
+        prand_generator<float, seed>(reinterpret_cast<size_t>(&x), float_values.float_array[0]);
+#endif
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(x, rng, scale);
 #else
@@ -1978,7 +2008,7 @@ inline __host__ __device__ float32_t type_convert<float32_t, bf6x32_t>(bf6x32_t 
     return out.float_vector;
 #endif
 }
-
+#endif
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <typename Y, typename X, size_t NumElems>
 inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,

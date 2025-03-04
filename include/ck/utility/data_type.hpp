@@ -19,7 +19,7 @@ using float_t  = float;
 #endif // __HIPCC_RTC__
 
 namespace ck {
-#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
+#if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
 using byte = unsigned char;
 #else
 using std::byte;
@@ -1191,15 +1191,11 @@ struct vector_type<T, 32, typename ck::enable_if_t<is_native_type<T>()>>
         StaticallyIndexedArray<d8_t, 4> d8x4_;
         StaticallyIndexedArray<d16_t, 2> d16x2_;
         StaticallyIndexedArray<d32_t, 1> d32x1_;
-    } data_ = { .d32_ = {0} };
+    } data_;
 
-    __attribute__((host)) __attribute__((device)) constexpr vector_type() {  }
- 
-    __attribute__((host)) __attribute__((device)) constexpr vector_type(type v) {  }
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
 
-    // __host__ __device__ constexpr vector_type() : data_{type{0}} {}
-
-    // __host__ __device__ constexpr vector_type(type v) : data_{v} {}
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
@@ -1809,7 +1805,7 @@ struct non_native_vector_base<
 
 // implementation for f6x16 and f6x32
 template <typename T, index_t N>
-struct non_native_vector_base<T, N, std::enable_if_t<sizeof(T) == 12 || sizeof(T) == 24>>
+struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T) == 24>>
 {
     using data_t =
         typename nnvb_data_t_selector<T>::type; // select data_t based on declared base type

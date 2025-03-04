@@ -581,11 +581,6 @@ struct MoeSortingKernel
         {
             int e_start = cumsum[tid];
             int e_end   = cumsum[tid + 1];
-            index_t *p_sorted_expert_cnts = p_total_tokens_post_pad + 1 + tid;
-            if (tid == 0) {
-                p_sorted_expert_cnts[0] = 0;
-            }
-            p_sorted_expert_cnts[1] = unit_size_mdiv.div(e_end);
             for(int i = e_start; i < e_end; i += unit_size_mdiv.divisor)
             {
                 p_sorted_expert_ids[unit_size_mdiv.div(i)] = tid;
@@ -877,6 +872,7 @@ struct MoeSortingKernel
             }
             __syncthreads();
         }
+
         for(int i_e = tid; i_e < num_experts; i_e += block_size)
         {
             int e_start = smem_cumsum(i_e);
@@ -891,6 +887,7 @@ struct MoeSortingKernel
                 else
                     return i_e;
             }();
+
             smem_cumdup(i_e) = e_start; // duplicate cumsum for later use
             if constexpr(Problem::SkipExpertsWithZeroTokens)
             {
@@ -903,6 +900,7 @@ struct MoeSortingKernel
                 if(local_expert_mask[i_e] == 0)
                     continue;
             }
+
             for(int i = e_start; i < e_end; i += unit_size_mdiv.divisor)
             {
                 p_sorted_expert_ids[unit_size_mdiv.div(i)] = expert_id;
@@ -986,18 +984,11 @@ struct MoeSortingKernel
             __syncthreads();
         }
 
-        if (tid == 0) {
-            //temp hack ptr for expert tile cnt
-            p_total_tokens_post_pad[1] = 0;
-        }
         // add the skip number
         for(int eid = tid; eid < num_experts; eid += block_size)
         {
-            //temp hack ptr for expert tile cnt
-            index_t *p_sorted_expert_cnts = p_total_tokens_post_pad + 1 + eid;
             int e_start = smem_cumsum(eid);
             int e_end   = smem_cumdup(eid + 1);
-            p_sorted_expert_cnts[1] = unit_size_mdiv.div(e_end);
             if constexpr(Problem::SkipExpertsWithZeroTokens)
             {
                 if(e_start == e_end) // skip zero token expert
@@ -1681,8 +1672,6 @@ struct MoeSortingMultiPhaseKernel_P2
 
             if(position < kargs.num_experts)
             {
-                index_t *p_sorted_expert_cnts = p_total_tokens_post_pad + 1 + position;//temp mock for p_sorted_expert_cnts, fixme:felix
-                p_sorted_expert_cnts[0] = out_0;
                 p_expert_cumsum[position] = out_0 * kargs.unit_size_mdiv.divisor;
             }
 
@@ -1711,7 +1700,6 @@ struct MoeSortingMultiPhaseKernel_P2
         {
             auto total_tokens_post_pad         = prev_cumsum_a * kargs.unit_size_mdiv.divisor;
             p_total_tokens_post_pad[0]         = total_tokens_post_pad;
-            p_total_tokens_post_pad[kargs.num_experts+1]         = prev_cumsum_a; //temp mock for p_sorted_expert_cnts, fixme:felix
             p_expert_cumsum[kargs.num_experts] = total_tokens_post_pad;
         }
     }
