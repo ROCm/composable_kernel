@@ -21,8 +21,7 @@
 #define CK_USE_OCP_FP8 0
 #endif
 
-#if(defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx1200__) || \
-    defined(__gfx1201__) || defined(__gfx950__)) &&                                              \
+#if(defined(__gfx942__) || defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx950__)) && \
     __HIP_DEVICE_COMPILE__
 #define CK_FP8_CVT_FAST_PATH 1
 #else
