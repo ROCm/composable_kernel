@@ -173,11 +173,18 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
     std::size_t kargs_size     = gemm.GetDeviceKernelArgSize(&argument);
+    std::size_t hargs_size     = gemm.GetHostKernelArgSize(&argument);
 
     DeviceMem gemm_workspace, gemm_kargs;
+    decltype(argument)* gemm_hargs;
 
     // The following is necessary since TwoStage kernel is using additional memory both
     // for Workspace and kernel arguments.
+    if(hargs_size > 0)
+    {
+        hip_check_error(hipHostMalloc(&(gemm_hargs), hargs_size));
+        gemm.SetHostKernelArgs(&argument, gemm_hargs);
+    }
     if(kargs_size > 0)
     {
         gemm_kargs.Realloc(kargs_size);
@@ -243,6 +250,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                   << " GB/s, " << gemm.GetTypeString() << std::endl;
     }
+
+    hip_check_error(hipHostFree(&gemm_hargs));
 
     return pass;
 }
