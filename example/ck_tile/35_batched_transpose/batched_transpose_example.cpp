@@ -12,7 +12,7 @@
 
 #include "batched_transpose_example.hpp"
 
-#if 0
+//#if 0
 template <typename T>
 void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
 {
@@ -52,7 +52,7 @@ void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
     }
     std::cout << "--------------------" << std::endl;
 }
-#endif
+//#endif
 
 // different threshold for different dtype
 template <typename DataType>
@@ -156,6 +156,10 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         {stride_dim_out[0], stride_dim_out[1], stride_dim_out[2], stride_dim_out[3]});
 
     ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
+    // ck_tile::FillUniformDistribution<Type>{0.f, 255.f}(x_host);
+
+    std::cout << "x_host tensor:" << std::endl;
+    dump_host_tensor_4d(x_host);
 
     ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
