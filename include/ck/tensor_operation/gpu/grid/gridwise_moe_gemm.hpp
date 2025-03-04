@@ -1497,32 +1497,6 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr auto EMThreads = CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
-            constexpr auto EMRepeats = MPerBlock / EMThreads;
-            constexpr auto ENThreads = CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
-            const index_t c_token_pos = block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats;
-            StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[c_token_pos];
-            StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
-            // too hack here, 2 specific for topk weights, fixme
-            const float *p_sorted_weights_0 = p_ds_grid[I0];
-            // const index_t topk_id[EMRepeats];// = (p_sorted_token_ids[block_m_id * MPerBlock] & 0xff000000) >> 24;
-
-            static_for<0, EMRepeats, 1>{}([&](auto m0) {
-                const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
-                index_t token_offset = fused_token & 0xffffff;
-                float weight = p_sorted_weights_0[(c_token_pos + m0) * problem.StrideDs[0]];
-                if constexpr (IsInputGemm)
-                {
-                    token_offset = token_offset * problem.TopK + (fused_token >> 24);
-                } else {
-                    const float *p_sorted_weights_2 = p_ds_grid[I2];
-                    weight = weight * p_sorted_weights_2[c_token_pos + m0];
-                }
-                scatter_offsets(m0) = token_offset * problem.N;
-                scatter_weights(m0) = weight;
-                // if(threadIdx.x % 16 == 0)
-                // printf("init off bid %d tid %d m %d off %d\n", blockIdx.y, threadIdx.x, m0(), scatter_offsets(m0));
-            });
             constexpr index_t scatter_weight_idx = IsInputGemm ? 1 : 3; //hack fix felix
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
@@ -1558,9 +1532,7 @@ struct GridwiseMoeGemm
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                  make_tuple(make_multi_index(0, 0, block_n_id, 0)),
-                 c_element_op,
-                 scatter_offsets,
-                 scatter_weights};
+                 c_element_op};
 
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
@@ -1589,8 +1561,37 @@ struct GridwiseMoeGemm
                                            CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
 
             static_assert(num_access == sfc_cde_block.GetNumOfAccess(), "wrong!");
+            constexpr auto EMThreads = CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
+            constexpr auto EMRepeats = CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl / EMThreads;
+            constexpr auto ENThreads = CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
+            const float *p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
+                StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[c_token_pos];
+                StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
+                // too hack here, 2 specific for topk weights, fixme
+                // const index_t topk_id[EMRepeats];// = (p_sorted_token_ids[block_m_id * MPerBlock] & 0xff000000) >> 24;
+
+                auto dstidx = sfc_cde_block.GetIndex(access_id);
+                const index_t c_token_pos = block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats + dstidx(I1);
+                static_for<0, EMRepeats, 1>{}([&](auto m0) {
+                    const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
+                    index_t token_offset = fused_token & 0xffffff;
+                    float weight = p_sorted_weights_0[(c_token_pos + m0) * problem.StrideDs[0]];
+                    if constexpr (IsInputGemm)
+                    {
+                        token_offset = token_offset * problem.TopK + (fused_token >> 24);
+                    } else {
+                        const float *p_sorted_weights_2 = p_ds_grid[I2];
+                        weight = weight * p_sorted_weights_2[c_token_pos + m0];
+                    }
+                    
+                    // if(threadIdx.x % 8 == 0 && blockIdx.x == 0)
+                    // printf("init off tid %d access %d tpos %d m %d off %d wei %f\n",  threadIdx.x, dstidx(I1), c_token_pos, m0(), token_offset, weight);
+                    scatter_offsets(m0) = token_offset * problem.N;
+                    scatter_weights(m0) = weight;
+                });
+                
                 block_sync_lds();
 
                 // each thread write its data from VGPR to LDS
@@ -1608,7 +1609,10 @@ struct GridwiseMoeGemm
                     c_ds_desc_refs,
                     c_ds_buf_refs,
                     tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                    tie(c_grid_buf));
+                    tie(c_grid_buf), 
+                    scatter_offsets,
+                    scatter_weights
+                );
 
                 if constexpr(access_id < num_access - 1)
                 {
@@ -1664,16 +1668,32 @@ struct GridwiseMoeGemm
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);     
         // constexpr int expert_tile_cnt[8] = {2, 1, 1, 2, 2, 2, 1, 2};
         // const index_t b_block_id = blockIdx.x % problem.NBlock;
+        const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.y;
+        if (expert_block_id * MPerBlock >= max_token_id)
+            return;
+        const index_t expert_id =  __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[expert_block_id]);
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr (NSwizzle) 
             {
-                const index_t expert_block_id = blockIdx.x / problem.NBlock;
-                const index_t es = __builtin_amdgcn_readfirstlane(p_max_token_id[expert_block_id + 1]);
-                const index_t expert_swizzle = es > 0 ? es : 1; //p_max_token_id[expert_id + 1];
-                const index_t expert_block_swizzle = expert_block_id / expert_swizzle;
-                const index_t b_block_id_swizzle = blockIdx.x % (problem.NBlock * expert_swizzle);
-                const index_t nid = __builtin_amdgcn_readfirstlane(b_block_id_swizzle % 8 +  b_block_id_swizzle / (8 * expert_swizzle) * 8);
-                const index_t mid = __builtin_amdgcn_readfirstlane(expert_block_swizzle * expert_swizzle + b_block_id_swizzle / 8 % expert_swizzle);
+                // const index_t expert_block_id = blockIdx.x / problem.NBlock;  //
+                // const index_t es = __builtin_amdgcn_readfirstlane(p_max_token_id[expert_block_id + 1]);
+                // const index_t expert_swizzle = es > 0 ? es : 1; //p_max_token_id[expert_id + 1];
+                // const index_t expert_block_swizzle = expert_block_id / expert_swizzle;
+                // const index_t b_block_id_swizzle = blockIdx.x % (problem.NBlock * expert_swizzle);
+                // const index_t nid = __builtin_amdgcn_readfirstlane(b_block_id_swizzle % 8 +  b_block_id_swizzle / (8 * expert_swizzle) * 8);
+                // const index_t mid = __builtin_amdgcn_readfirstlane(expert_block_swizzle * expert_swizzle + b_block_id_swizzle / 8 % expert_swizzle);
+                // if(threadIdx.x==0)
+                // printf("block, %d, mid, %d, nid, %d, ecnt, %d, expert %d \n", blockIdx.x, mid, nid, es, p_sorted_expert_ids[expert_block_id]);
+                
+                const index_t ecnt_prefix = p_max_token_id[1+expert_id];
+                const index_t prefix_block = ecnt_prefix * problem.NBlock;
+                const index_t ecnt = p_max_token_id[2+expert_id] - ecnt_prefix;
+                const index_t expert_swizzle = ecnt > 0 ? ecnt : 1; //p_max_token_id[expert_id + 1]; // 2
+                const index_t bid_new = blockIdx.x - prefix_block;
+                const index_t nid = __builtin_amdgcn_readfirstlane(bid_new % 8 +  bid_new / (8 * expert_swizzle) * 8);
+                const index_t mid = __builtin_amdgcn_readfirstlane(ecnt_prefix + bid_new / 8 % expert_swizzle);
+                // if(threadIdx.x==0)
+                // printf("block, %d, mid, %d, nid, %d, ecnt, %d, expert %d \n", blockIdx.x, mid, nid, ecnt, expert_id);
                 return {nid, mid};
             } else {
                 return {blockIdx.x, blockIdx.y};
@@ -1681,7 +1701,7 @@ struct GridwiseMoeGemm
         }();
         const index_t block_n_id = block_mn.first;
         const index_t block_m_id = block_mn.second;
-        const index_t expert_id = __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[block_m_id]);
+
         // if (threadIdx.x==0) {
         //     printf("bid %d, eid %d,  es %d, esi %d, bsi %d, m %d, n %d\n", blockIdx.x, expert_id, expert_swizzle, expert_block_swizzle, b_block_id_swizzle, block_m_id, block_n_id);
         // }
@@ -1695,7 +1715,7 @@ struct GridwiseMoeGemm
         constexpr auto AMRepeats = MPerBlock / AMThreads;
         const index_t token_pos = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
         
-        if(token_pos >= max_token_id || token0 >= problem.NumTokens)
+        if(token_pos >= max_token_id || expert_block_id * MPerBlock >= max_token_id || token0 >= problem.NumTokens)
             return;
         StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
@@ -1989,32 +2009,6 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr auto EMThreads = CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
-            constexpr auto EMRepeats = MPerBlock / EMThreads;
-            constexpr auto ENThreads = CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
-            const index_t c_token_pos = block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats;
-            StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[c_token_pos];
-            StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
-            // too hack here, 2 specific for topk weights, fixme
-            const float *p_sorted_weights_0 = p_ds_grid[I0];
-            // const index_t topk_id[EMRepeats];// = (p_sorted_token_ids[block_m_id * MPerBlock] & 0xff000000) >> 24;
-
-            static_for<0, EMRepeats, 1>{}([&](auto m0) {
-                const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
-                index_t token_offset = fused_token & 0xffffff;
-                float weight = p_sorted_weights_0[(c_token_pos + m0) * problem.StrideDs[0]];
-                if constexpr (IsInputGemm)
-                {
-                    token_offset = token_offset * problem.TopK + (fused_token >> 24);
-                } else {
-                    const float *p_sorted_weights_2 = p_ds_grid[I2];
-                    weight = weight * p_sorted_weights_2[c_token_pos + m0];
-                }
-                scatter_offsets(m0) = token_offset * problem.N;
-                scatter_weights(m0) = weight;
-                // if(threadIdx.x % 16 == 0)
-                // printf("init off bid %d tid %d m %d off %d\n", blockIdx.y, threadIdx.x, m0(), scatter_offsets(m0));
-            });
             constexpr index_t scatter_weight_idx = IsInputGemm ? 1 : 3; //hack fix felix
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
@@ -2050,9 +2044,7 @@ struct GridwiseMoeGemm
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                  make_tuple(make_multi_index(0, 0, block_n_id, 0)),
-                 c_element_op,
-                 scatter_offsets,
-                 scatter_weights};
+                 c_element_op};
 
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
@@ -2081,8 +2073,37 @@ struct GridwiseMoeGemm
                                            CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
 
             static_assert(num_access == sfc_cde_block.GetNumOfAccess(), "wrong!");
+            constexpr auto EMThreads = CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
+            constexpr auto EMRepeats = CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl / EMThreads;
+            constexpr auto ENThreads = CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
+            const float *p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
+                StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[c_token_pos];
+                StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
+                // too hack here, 2 specific for topk weights, fixme
+                // const index_t topk_id[EMRepeats];// = (p_sorted_token_ids[block_m_id * MPerBlock] & 0xff000000) >> 24;
+
+                auto dstidx = sfc_cde_block.GetIndex(access_id);
+                const index_t c_token_pos = block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats + dstidx(I1);
+                static_for<0, EMRepeats, 1>{}([&](auto m0) {
+                    const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
+                    index_t token_offset = fused_token & 0xffffff;
+                    float weight = p_sorted_weights_0[(c_token_pos + m0) * problem.StrideDs[0]];
+                    if constexpr (IsInputGemm)
+                    {
+                        token_offset = token_offset * problem.TopK + (fused_token >> 24);
+                    } else {
+                        const float *p_sorted_weights_2 = p_ds_grid[I2];
+                        weight = weight * p_sorted_weights_2[c_token_pos + m0];
+                    }
+                    
+                    // if(threadIdx.x % 8 == 0 && blockIdx.x == 0)
+                    // printf("init off tid %d access %d tpos %d m %d off %d wei %f\n",  threadIdx.x, dstidx(I1), c_token_pos, m0(), token_offset, weight);
+                    scatter_offsets(m0) = token_offset * problem.N;
+                    scatter_weights(m0) = weight;
+                });
+                
                 block_sync_lds();
 
                 // each thread write its data from VGPR to LDS
@@ -2100,7 +2121,10 @@ struct GridwiseMoeGemm
                     c_ds_desc_refs,
                     c_ds_buf_refs,
                     tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                    tie(c_grid_buf));
+                    tie(c_grid_buf), 
+                    scatter_offsets,
+                    scatter_weights
+                );
 
                 if constexpr(access_id < num_access - 1)
                 {
