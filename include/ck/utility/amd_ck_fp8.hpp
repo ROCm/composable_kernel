@@ -9,16 +9,12 @@
 #include "ck/utility/functional.hpp"
 #include "ck/utility/type.hpp"
 
-#ifdef CK_USE_FNUZ_FP8
+#if(defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)) && __HIP_DEVICE_COMPILE__
 #define CK_USE_FNUZ_FP8 1
-#else
-#define CK_USE_FNUZ_FP8 0
-#endif
-
-#ifdef CK_USE_OCP_FP8
-#define CK_USE_OCP_FP8 1
-#else
 #define CK_USE_OCP_FP8 0
+#elif __HIP_DEVICE_COMPILE__
+#define CK_USE_FNUZ_FP8 0
+#define CK_USE_OCP_FP8 1
 #endif
 
 #if(defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx1200__) || \

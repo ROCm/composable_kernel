@@ -11,36 +11,32 @@ endif()
 
 add_custom_target(test_fp8)
 
-if (CK_USE_OCP_FP8)
-  # add test for ocp data types
-  add_gtest_executable(test_fp8_ocp test_fp8_ocp.cpp)
-  if(result EQUAL 0)
-    target_link_libraries(test_fp8_ocp PRIVATE utility)
-  endif()
-
-  add_gtest_executable(test_bf8_ocp test_bf8_ocp.cpp)
-  if(result EQUAL 0)
-    target_link_libraries(test_bf8_ocp PRIVATE utility)
-  endif()
-
-  add_dependencies(test_fp8 test_fp8_ocp)
-  add_dependencies(test_fp8 test_bf8_ocp)
+# add test for ocp data types
+add_gtest_executable(test_fp8_ocp test_fp8_ocp.cpp)
+if(result EQUAL 0)
+  target_link_libraries(test_fp8_ocp PRIVATE utility)
 endif()
 
-if (CK_USE_FNUZ_FP8)
-  add_gtest_executable(test_fp8_fnuz test_fp8_fnuz.cpp)
-  if(result EQUAL 0)
-    target_link_libraries(test_fp8_fnuz PRIVATE utility)
-  endif()
-
-  add_gtest_executable(test_bf8_fnuz test_bf8_fnuz.cpp)
-  if(result EQUAL 0)
-    target_link_libraries(test_bf8_fnuz PRIVATE utility)
-  endif()
-
-  add_dependencies(test_fp8 test_fp8_fnuz)
-  add_dependencies(test_fp8 test_bf8_fnuz)
+add_gtest_executable(test_bf8_ocp test_bf8_ocp.cpp)
+if(result EQUAL 0)
+  target_link_libraries(test_bf8_ocp PRIVATE utility)
 endif()
+
+add_dependencies(test_fp8 test_fp8_ocp)
+add_dependencies(test_fp8 test_bf8_ocp)
+
+add_gtest_executable(test_fp8_fnuz test_fp8_fnuz.cpp)
+if(result EQUAL 0)
+  target_link_libraries(test_fp8_fnuz PRIVATE utility)
+endif()
+
+add_gtest_executable(test_bf8_fnuz test_bf8_fnuz.cpp)
+if(result EQUAL 0)
+  target_link_libraries(test_bf8_fnuz PRIVATE utility)
+endif()
+
+add_dependencies(test_fp8 test_fp8_fnuz)
+add_dependencies(test_fp8 test_bf8_fnuz)
 
 if(GPU_TARGETS MATCHES "gfx950")
   add_custom_target(test_mx_data_types)
