@@ -518,7 +518,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     }
 
     if(config.verbosity > 0)
-        std::cout << "Computing GEMM on device..." << std::endl;
+    {
+        std::cout << "Computing GEMM on device..." << std::endl << std::endl;
+        std::cout << device_op.GetTypeString() << std::endl << std::endl;
+        // std::cout << device_op.GetObjectName().value() << std::endl;
+        std::cout << device_op.GetTemplateInfo().value() << std::endl << std::endl;
+    }
     float ave_time =
         invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, config.verbosity, 20, 50});
 

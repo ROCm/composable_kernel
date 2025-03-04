@@ -799,7 +799,9 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             << "BlkGemmPipelinePrefetchStages: "
             << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
             << "Kpack: "
-            << GridwiseGemm::BlockwiseGemmPipe::AMmaKStride;
+            << GridwiseGemm::BlockwiseGemmPipe::AMmaKStride << ", "
+            << "ScaleBlockSize: "
+            << ScaleBlockSize;
         // clang-format on
 
         return str.str();
