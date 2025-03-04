@@ -39,6 +39,55 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
+#if 1
+
+    if(threadIdx.x == 0 && blockIdx.x == 0 && threadIdx.y == 0 && blockIdx.y == 0)
+    {
+        printf("Grid dimensions: (%u, %u, %u)\n", gridDim.x, gridDim.y, gridDim.z);
+        printf("Block dimensions: (%u, %u, %u)\n", blockDim.x, blockDim.y, blockDim.z);
+        printf("KPack = %d\n", GridwiseGemm::KPack);
+        printf("AK0Number = %d\n", static_cast<int>(GridwiseGemm::AK0Number));
+        printf("BK0Number = %d\n", static_cast<int>(GridwiseGemm::BK0Number));
+        printf("AK1Number = %d\n", static_cast<int>(GridwiseGemm::AK1Number));
+        printf("BK1Number = %d\n", static_cast<int>(GridwiseGemm::BK1Number));
+        printf("lcm_AK1_BK1 = %d\n", static_cast<int>(GridwiseGemm::lcm_AK1_BK1));
+    }
+
+    if(threadIdx.x == 0 && blockIdx.x == 0)
+    {
+        printf("Block {%u, %u, %u} : GetSharedMemoryNumberOfByte = %d\n",
+               blockIdx.x,
+               blockIdx.y,
+               blockIdx.z,
+               GridwiseGemm::GetSharedMemoryNumberOfByte());
+        printf("Block {%u, %u, %u} : a_k_split_offset = %d\n",
+               blockIdx.x,
+               blockIdx.y,
+               blockIdx.z,
+               splitk_batch_offset.a_k_split_offset);
+        printf("Block {%u, %u, %u} : a_scale_k_split_offset = %d\n",
+               blockIdx.x,
+               blockIdx.y,
+               blockIdx.z,
+               splitk_batch_offset.a_scale_k_split_offset);
+        printf("Block {%u, %u, %u} : b_k_split_offset = %d\n",
+               blockIdx.x,
+               blockIdx.y,
+               blockIdx.z,
+               splitk_batch_offset.b_k_split_offset);
+        printf("Block {%u, %u, %u} : b_scale_k_split_offset = %d\n",
+               blockIdx.x,
+               blockIdx.y,
+               blockIdx.z,
+               splitk_batch_offset.b_scale_k_split_offset);
+        printf("Block {%u, %u, %u} : c_reduce_offset = %d\n",
+               blockIdx.x,
+               blockIdx.y,
+               blockIdx.z,
+               splitk_batch_offset.c_reduce_offset);
+    }
+#endif
+
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
         karg.p_a_scale_grid + splitk_batch_offset.a_scale_k_split_offset,
@@ -1510,6 +1559,31 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                        make_multi_index(-NPerBlock, KBlockScaleSliceSizeK));
 
         const index_t num_k_block_per_scale = (ScaleBlockSize + KPerBlock - 1) / KPerBlock;
+
+#if 1
+        if(threadIdx.x == 0 && blockIdx.x == 0 && threadIdx.y == 0 && blockIdx.y == 0)
+        {
+            printf(
+                "\n\nBlock {%u, %u, %u} : \n\tKPerXdlops = %d; K1PerXdlops = %d; K0PerXdlops = %d; "
+                "KPerThread = %d; \n\tScaleSliceSizeN = %d; ScaleSliceSizeK = %d; "
+                "KBlockScaleSliceSizeK = %d; \n\tNWaves = %d; \n\tb_thread_offset_n = %d; "
+                "b_thread_offset_k = %d; \n\tnum_k_block_per_scale = %d\n\n",
+                blockIdx.x,
+                blockIdx.y,
+                blockIdx.z,
+                KPerXdlops,
+                K1PerXdlops,
+                K0PerXdlops,
+                KPerThread,
+                ScaleSliceSizeN,
+                ScaleSliceSizeK,
+                KBlockScaleSliceSizeK,
+                NWaves,
+                b_thread_offset_n,
+                b_thread_offset_k,
+                num_k_block_per_scale);
+        }
+#endif
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
             a_grid_desc_ak0_m_ak1,

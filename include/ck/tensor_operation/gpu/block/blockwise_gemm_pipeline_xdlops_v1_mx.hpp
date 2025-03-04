@@ -303,17 +303,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         }
 
 #endif
-        if(threadIdx.x == 0)
-        {
-            printf("blockIdx.x = %u, blockIdx.y = %u, blockIdx.z = %u, threadIdx.x = %u, "
-                   "threadIdx.y = %u, threadIdx.z = %u\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   blockIdx.z,
-                   threadIdx.x,
-                   threadIdx.y,
-                   threadIdx.z);
-        }
 
         // main body
         if constexpr(HasMainLoop)
@@ -363,6 +352,18 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 b_thread_vec.template AsType<ComputeDataType>()(ik) =
                                     b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                         make_tuple(n0, I0, k0, ik))>{}];
+#if 1
+                                if(threadIdx.x == 0 && blockIdx.x == 0)
+                                {
+                                    printf(
+                                        "ik = %d; a_thread_vec = %d; b_thread_vec = %d\n",
+                                        static_cast<int>(ik),
+                                        static_cast<int>(
+                                            a_thread_vec.template AsType<ComputeDataType>()(ik)),
+                                        static_cast<int>(
+                                            b_thread_vec.template AsType<ComputeDataType>()(ik)));
+                                }
+#endif
                             });
 
                             using mfma_input_type =

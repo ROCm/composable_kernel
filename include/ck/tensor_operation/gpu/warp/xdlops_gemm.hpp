@@ -1357,6 +1357,18 @@ struct XdlopsGemm
                     p_b_wave[k], p_a_wave[k], p_c_thread);
             }
         });
+#if 1
+        [[maybe_unused]] auto print_type_name = [](const char* msg, auto param [[maybe_unused]]) {
+            printf("%s = %s\n\n", msg, __PRETTY_FUNCTION__);
+        };
+
+        if(threadIdx.x == 0 && blockIdx.x == 0)
+        {
+            print_type_name("XdlopsGemm::Run::p_a_wave", p_a_wave);
+            print_type_name("XdlopsGemm::Run::p_b_wave", p_b_wave);
+            print_type_name("XdlopsGemm::Run::p_c_thread", p_c_thread);
+        }
+#endif
     }
 
     __device__ static auto GetLaneId() { return get_thread_local_1d_id() % mfma_instr.wave_size; }
