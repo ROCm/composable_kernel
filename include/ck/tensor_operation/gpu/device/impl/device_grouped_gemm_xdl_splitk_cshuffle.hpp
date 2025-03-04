@@ -688,9 +688,11 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         return this->SetWorkSpacePointer(p_arg, p_dev_kernel_args);
     }
 
-    void SetHostKernelArgs(BaseArgument* p_arg, void* p_host_kernel_args) const
+    void SetHostKernelArgs(BaseArgument* p_arg, BaseArgument* p_host_kernel_args) const
     {
-        return this->SetWorkSpacePointer(p_arg, p_host_kernel_args);
+        Argument* pArg_ = dynamic_cast<Argument*>(p_arg);
+
+        pArg_->gemm_kernel_host_args_ = dynamic_cast<GemmTransKernelArg*>(p_host_kernel_args);
     }
 };
 
