@@ -256,8 +256,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 throw std::runtime_error("wrong! group_count_ != p_As/b/c.size");
             }
 
-            // gemm_kernel_args_.reserve(group_count_);
-
             skipped_group_count_ = 0;
 
             for(std::size_t i = 0; i < gemm_descs.size(); ++i)
@@ -311,9 +309,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                            k0_padded,
                                            K_BATCH};
 
-                // gemm_kernel_args_.emplace_back(
-                //    std::move(karg), std::move(grouped_block_2_ctile_map), block_start,
-                //    block_end);
                 gemm_kernel_host_args_[i] = GemmTransKernelArg(
                     std::move(karg), std::move(grouped_block_2_ctile_map), block_start, block_end);
             }
@@ -367,7 +362,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         index_t group_count_;
         index_t skipped_group_count_;
 
-        // std::vector<GemmTransKernelArg> gemm_kernel_args_;
         GemmTransKernelArg* gemm_kernel_host_args_;
         index_t grid_size_;
     };
