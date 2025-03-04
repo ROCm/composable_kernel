@@ -27,7 +27,7 @@ using AElementOp = PassThrough; // elementwise transformation for A matrix
 using BElementOp = PassThrough; // elementwise transformation for B matrix
 using CElementOp = PassThrough; // elementwise transformation for C matrix
 
-constexpr ck::index_t mx_vector_size = 128; // scaling block size
+constexpr ck::index_t mx_vector_size = 32; // scaling block size
 
 int main(int argc, char* argv[])
 {

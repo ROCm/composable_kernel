@@ -639,6 +639,9 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                                                      is_same_v<BDataType, bf6_t> ||
                                                      is_same_v<BDataType, f4_t>),
                       "Only microscaling formats are supported for ADataType and BDataType");
+
+        static_assert(ScaleBlockSize == 32, "Only ScaleBlockSize 32 is supported");
+
         return true;
     }
 
