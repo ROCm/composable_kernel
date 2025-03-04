@@ -279,6 +279,7 @@ static kernel hiprtc_compile_kernel(const std::vector<src_file>& srcs, compile_o
 {
     options.flags += " -I. -O3";
     options.flags += " -std=c++17";
+    options.flags += " -DCK_CODE_GEN_RTC";
     options.flags += " --offload-arch=" + get_device_name();
     auto cos = compile_hip_src_with_hiprtc(srcs, options);
     if(cos.size() != 1)
