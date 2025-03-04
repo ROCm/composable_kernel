@@ -11,9 +11,9 @@
     "A_layout": "R",
     "B_layout": "C",
     "C_layout": "R",
-    "kPadM": 0, 
-    "kPadN": 0,
-    "kPadK": 0,
+    "kPadM": false, 
+    "kPadN": false,
+    "kPadK": false,
     "Pipeline_type": "Memory",
     "Scheduler_type": "Interwave",
     "Epilogue_type": "DefaultGemm2DEpilogue"

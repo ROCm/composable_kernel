@@ -30,6 +30,14 @@ DATA_TYPE_MAP = {'fp32' : 'float',
                  'int8' : 'ck_tile::int8_t',
                  'fp8'  : 'ck_tile::fp8_t'}
 
+def sizeOf(data_type):
+    if data_type == 'fp16' or data_type == 'bf16':
+        return 2
+    elif data_type == 'int8' or data_type == 'fp8':
+        return 1
+    else:
+        return 4
+
 def BOOL_MAP(b_) -> str:
     if b_:
         return 'true'
@@ -70,7 +78,6 @@ class gemm_instance_codegen:
     @dataclass
     class gemm_kernel_method:
         F_pipeline        : Any
-        F_pipeline_policy : Any  
         F_epilogue        : Any
         F_scheduler       : Any
 
@@ -103,7 +110,7 @@ class gemm_instance_codegen:
 
         gemm_kernel_method = gemm_kernel_method(
             self.data['Pipeline_type'], 
-            self.data['Scheduler_type'], #TODO:: what to do with pipeline-policy
+            self.data['Scheduler_type'], 
             self.data['Epilogue_type']
         )
 
@@ -128,24 +135,8 @@ def validate_json_data(json_data):
         For missing parameter: Assigned default values, 
         For invalid values: Raise an error
         TODO:: check case sensitivity for parameters names, default values confirmed.
-        TODO:: check for valid values of tile sizes, warp and warp tiles
     '''
-    int_ranges = {
-        #       (min, max, default)
-        "M_tile": (1, 256, 128),
-        "N_tile": (1, 256, 128),
-        "K_tile": (1, 512, 128),
-        "M_warp": (1, 16, 4),
-        "N_warp": (1, 16, 1),
-        "K_warp": (1, 16, 1),
-        "M_warp_tile": (1, 32, 32),
-        "N_warp_tile": (1, 32, 32),
-        "K_warp_tile": (1, 32, 32),
-        "kPadM": (0, 1, 0),
-        "kPadN": (0, 1, 0),
-        "kPadK": (0, 1, 0)
-    }
-    
+   
     string_values = {
         #           [possible values, last entry is default]
         "A_layout": ["R", "C", "R"],
@@ -157,13 +148,14 @@ def validate_json_data(json_data):
         "Epilogue_type": ["CShuffleEpilogue", "DefaultGemm2DEpilogue", "CShuffleEpilogue"]
     }
 
-    for key, value in int_ranges.items():
-        if key in json_data:
-            if not isinstance(json_data[key], int) or not (value[0] <= json_data[key] <= value[1]):
-                raise ValueError(f'Invalid value for {key}: {json_data[key]}. Must be an integer between {value[0]} and {value[1]}. ')
-        else:
-            json_data[key] = value[-1]
-    
+    datatype_to_warp_tile_map = {
+        'fp16' : [(32,32,8), (16,16,16), (4,64,4), (64,4,4)],
+        'bf16' : [(32,32,8), (16,16,16), (4,64,4), (64,4,4)],
+        'int8' : [(32,32,16)],
+        'fp8' : [(32,32,16)]
+    }
+
+    # Validate String values
     for key, value in string_values.items():
         if key in json_data:
             if not isinstance(json_data[key], str) or json_data[key] not in value:
@@ -171,6 +163,41 @@ def validate_json_data(json_data):
         else:
             json_data[key] = value[-1]
 
+    # LDS size validation
+    if isinstance(json_data['M_tile'], int) and isinstance(json_data['N_tile'], int) and isinstance(json_data['K_tile'], int):
+        total_tiles = json_data['M_tile'] * json_data['K_tile'] +  json_data['N_tile'] * json_data['K_tile']
+        if json_data['Pipeline_type'] != "ComputeV4":
+            if total_tiles * sizeOf(json_data['Prec_datatype']) > pow(2, 16):
+                raise ValueError(f'Total tile size should not exceed 64KB of LDS. Current size: {total_tiles * sizeOf(json_data["Prec_datatype"])} bytes. ')
+        else:
+            if total_tiles * sizeOf(json_data['Prec_datatype']) > pow(2, 15):
+                raise ValueError(f'Total tile size should not exceed 32KB of LDS. Current size: {total_tiles * sizeOf(json_data["Prec_datatype"])} bytes. ')
+    else:
+        raise ValueError(f'Invalid value for tile sizes. Must be integers. ')
+    
+    # Warp tile validation
+    if json_data['Prec_datatype'] in datatype_to_warp_tile_map:
+        if isinstance(json_data['M_warp_tile'], int) and isinstance(json_data['N_warp_tile'], int) and isinstance(json_data['K_warp_tile'], int):
+            if (json_data['M_warp_tile'], json_data['N_warp_tile'], json_data['K_warp_tile']) not in datatype_to_warp_tile_map[json_data['Prec_datatype']]:
+                raise ValueError(f'Invalid warp tile sizes for datatype {json_data["Prec_datatype"]}. Must be one of {datatype_to_warp_tile_map[json_data["Prec_datatype"]][:]}')
+        else:
+            raise ValueError(f'Invalid value for warp tile sizes. Must be integers. ')
+    else:
+        raise ValueError(f'Invalid datatype {json_data["Prec_datatype"]}. ')
+
+    # Warp validation   TODO:: confirm
+    possible_warp_m = json_data['M_tile'] / json_data['M_warp_tile']
+    possible_warp_n = json_data['N_tile'] / json_data['N_warp_tile']
+    possible_warp_k = json_data['K_tile'] / json_data['K_warp_tile']
+
+    if possible_warp_m % json_data['M_warp'] != 0 or possible_warp_n % json_data['N_warp'] != 0 or possible_warp_k % json_data['K_warp'] != 0:
+        raise ValueError(f'Invalid warp sizes. M_tile, N_tile, K_tile should be divisible by M_warp, N_warp, K_warp. ')
+
+    # pad values must be bool
+    if not isinstance(json_data['kPadM'], bool) and not isinstance(json_data['kPadN'], bool) and not isinstance(json_data['kPadK'], bool):
+        raise ValueError(f'Invalid value for padding. Must be boolean. ')
+
+   
     print("Valid json data")
     print(json_data)
     return json_data
