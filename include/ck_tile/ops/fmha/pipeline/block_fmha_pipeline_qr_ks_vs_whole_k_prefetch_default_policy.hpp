@@ -69,8 +69,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
-        using KDataType = remove_cvref_t<typename Problem::KDataType>;
-
         constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
         constexpr index_t kNPerBlock     = Problem::BlockFmhaShape::kN0;
         constexpr index_t kKPerBlock     = Problem::BlockFmhaShape::kK0;

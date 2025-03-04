@@ -145,6 +145,9 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                void* smem_ptr,
                DropoutType& dropout) const
     {
+        ignore = q_element_func;
+        ignore = k_element_func;
+
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
                 std::is_same_v<KDataType, remove_cvref_t<typename KDramBlockWindowTmp::DataType>> &&
