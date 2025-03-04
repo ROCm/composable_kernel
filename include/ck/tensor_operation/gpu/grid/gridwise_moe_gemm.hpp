@@ -16,7 +16,7 @@
 
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r3_scatter.hpp"
 
-#define DEBUG_LOG 0
+#define DEBUG_LOG 1
 
 namespace ck {
 
@@ -1165,15 +1165,11 @@ struct GridwiseMoeGemm
             problem.N,
             problem.NPadded,
             problem.StrideC);
-        // printf("tido %d size %d %d MNBLOCK %d %d %d %d\n", threadIdx.x, problem.StrideC,
-        // c_grid_desc_m_n.GetElementSpaceSize(), problem.MBlock, problem.NBlock, MPerBlock,
-        // NPerBlock);
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);
-        // constexpr int expert_tile_cnt[8] = {2, 1, 1, 2, 2, 2, 1, 2};
-        // const index_t b_block_id = blockIdx.x % problem.NBlock;
+        // static_assert(NSwizzle == false, "to do fix: need another pr in sorting merged");
         const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.y;
         if(expert_block_id * MPerBlock >= max_token_id)
             return;
@@ -1182,19 +1178,6 @@ struct GridwiseMoeGemm
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr(NSwizzle)
             {
-                // const index_t expert_block_id = blockIdx.x / problem.NBlock;  //
-                // const index_t es = __builtin_amdgcn_readfirstlane(p_max_token_id[expert_block_id
-                // + 1]); const index_t expert_swizzle = es > 0 ? es : 1; //p_max_token_id[expert_id
-                // + 1]; const index_t expert_block_swizzle = expert_block_id / expert_swizzle;
-                // const index_t b_block_id_swizzle = blockIdx.x % (problem.NBlock *
-                // expert_swizzle); const index_t nid =
-                // __builtin_amdgcn_readfirstlane(b_block_id_swizzle % 8 +  b_block_id_swizzle / (8
-                // * expert_swizzle) * 8); const index_t mid =
-                // __builtin_amdgcn_readfirstlane(expert_block_swizzle * expert_swizzle +
-                // b_block_id_swizzle / 8 % expert_swizzle); if(threadIdx.x==0) printf("block, %d,
-                // mid, %d, nid, %d, ecnt, %d, expert %d \n", blockIdx.x, mid, nid, es,
-                // p_sorted_expert_ids[expert_block_id]);
-
                 const index_t ecnt_prefix  = p_max_token_id[1 + expert_id];
                 const index_t prefix_block = ecnt_prefix * problem.NBlock;
                 const index_t ecnt         = p_max_token_id[2 + expert_id] - ecnt_prefix;
@@ -1205,9 +1188,6 @@ struct GridwiseMoeGemm
                     bid_new % 8 + bid_new / (8 * expert_swizzle) * 8);
                 const index_t mid =
                     __builtin_amdgcn_readfirstlane(ecnt_prefix + bid_new / 8 % expert_swizzle);
-                // if(threadIdx.x==0)
-                // printf("block, %d, mid, %d, nid, %d, ecnt, %d, expert %d \n", blockIdx.x, mid,
-                // nid, ecnt, expert_id);
                 return {nid, mid};
             }
             else
@@ -1217,10 +1197,6 @@ struct GridwiseMoeGemm
         }();
         const index_t block_n_id = block_mn.first;
         const index_t block_m_id = block_mn.second;
-        // if (threadIdx.x==0) {
-        //     printf("bid %d, eid %d,  es %d, esi %d, bsi %d, m %d, n %d\n", blockIdx.x, expert_id,
-        //     expert_swizzle, expert_block_swizzle, b_block_id_swizzle, block_m_id, block_n_id);
-        // }
         const index_t token0 =
             __builtin_amdgcn_readfirstlane(p_sorted_token_ids[block_m_id * MPerBlock] & 0xffffff);
 
@@ -1234,8 +1210,7 @@ struct GridwiseMoeGemm
 
         if(token_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
-        StaticallyIndexedArray<index_t, AMRepeats>
-            gather_offsets; //= p_sorted_token_ids[token_pos];
+        StaticallyIndexedArray<index_t, AMRepeats> gather_offsets;
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             const index_t fused_token = p_sorted_token_ids[token_pos + m0];
             index_t token_offset      = fused_token & 0xffffff;
@@ -1244,7 +1219,6 @@ struct GridwiseMoeGemm
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
             gather_offsets(m0) = token_offset * problem.K;
-            // printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
         });
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
 
@@ -1257,9 +1231,6 @@ struct GridwiseMoeGemm
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride / BPackedSize,
             b_grid_desc_bpreshuffled.GetElementSpaceSize());
-        // if(threadIdx.x==0)
-        // printf("tid %d eid %d expert_stride %d bufsize %d\n",
-        // threadIdx.x, expert_id, expert_stride, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
@@ -1482,10 +1453,6 @@ struct GridwiseMoeGemm
                     {
                         ptr_ +=
                             expert_id * (problem.StrideDs[1] ? problem.StrideDs[1] * problem.N : 1);
-                        // if ( threadIdx.x  % 16 ==0)
-                        //     printf("bid %d eid %d b eoff %d %f\n", blockIdx.y, expert_id,
-                        //     expert_id * (problem.StrideDs[1]? problem.StrideDs[1] * problem.N :
-                        //     1), ptr_[0]);
                     }
                     return make_dynamic_buffer<AddressSpaceEnum::Global>(
                         ptr_, ds_grid_desc_m_n[i].GetElementSpaceSize());
@@ -1619,10 +1586,6 @@ struct GridwiseMoeGemm
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
                         weight = weight * p_sorted_weights_2[c_token_pos + m0];
                     }
-
-                    // if(threadIdx.x % 8 == 0 && blockIdx.x == 0)
-                    // printf("init off tid %d access %d tpos %d m %d off %d wei %f\n", threadIdx.x,
-                    // dstidx(I1), c_token_pos, m0(), token_offset, weight);
                     scatter_offsets(m0) = token_offset * problem.N;
                     scatter_weights(m0) = weight;
                 });
@@ -1703,15 +1666,10 @@ struct GridwiseMoeGemm
             problem.N,
             problem.NPadded,
             problem.StrideC);
-        // printf("tido %d size %d %d MNBLOCK %d %d %d %d\n", threadIdx.x, problem.StrideC,
-        // c_grid_desc_m_n.GetElementSpaceSize(), problem.MBlock, problem.NBlock, MPerBlock,
-        // NPerBlock);
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);
-        // constexpr int expert_tile_cnt[8] = {2, 1, 1, 2, 2, 2, 1, 2};
-        // const index_t b_block_id = blockIdx.x % problem.NBlock;
         const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.y;
         if(expert_block_id * MPerBlock >= max_token_id)
             return;
@@ -1720,32 +1678,15 @@ struct GridwiseMoeGemm
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr(NSwizzle)
             {
-                // const index_t expert_block_id = blockIdx.x / problem.NBlock;  //
-                // const index_t es = __builtin_amdgcn_readfirstlane(p_max_token_id[expert_block_id
-                // + 1]); const index_t expert_swizzle = es > 0 ? es : 1; //p_max_token_id[expert_id
-                // + 1]; const index_t expert_block_swizzle = expert_block_id / expert_swizzle;
-                // const index_t b_block_id_swizzle = blockIdx.x % (problem.NBlock *
-                // expert_swizzle); const index_t nid =
-                // __builtin_amdgcn_readfirstlane(b_block_id_swizzle % 8 +  b_block_id_swizzle / (8
-                // * expert_swizzle) * 8); const index_t mid =
-                // __builtin_amdgcn_readfirstlane(expert_block_swizzle * expert_swizzle +
-                // b_block_id_swizzle / 8 % expert_swizzle); if(threadIdx.x==0) printf("block, %d,
-                // mid, %d, nid, %d, ecnt, %d, expert %d \n", blockIdx.x, mid, nid, es,
-                // p_sorted_expert_ids[expert_block_id]);
-
                 const index_t ecnt_prefix  = p_max_token_id[1 + expert_id];
                 const index_t prefix_block = ecnt_prefix * problem.NBlock;
                 const index_t ecnt         = p_max_token_id[2 + expert_id] - ecnt_prefix;
-                const index_t expert_swizzle =
-                    ecnt > 0 ? ecnt : 1; // p_max_token_id[expert_id + 1]; // 2
+                const index_t expert_swizzle = ecnt > 0 ? ecnt : 1;
                 const index_t bid_new = blockIdx.x - prefix_block;
                 const index_t nid     = __builtin_amdgcn_readfirstlane(
                     bid_new % 8 + bid_new / (8 * expert_swizzle) * 8);
                 const index_t mid =
                     __builtin_amdgcn_readfirstlane(ecnt_prefix + bid_new / 8 % expert_swizzle);
-                // if(threadIdx.x==0)
-                // printf("block, %d, mid, %d, nid, %d, ecnt, %d, expert %d \n", blockIdx.x, mid,
-                // nid, ecnt, expert_id);
                 return {nid, mid};
             }
             else
@@ -1756,10 +1697,6 @@ struct GridwiseMoeGemm
         const index_t block_n_id = block_mn.first;
         const index_t block_m_id = block_mn.second;
 
-        // if (threadIdx.x==0) {
-        //     printf("bid %d, eid %d,  es %d, esi %d, bsi %d, m %d, n %d\n", blockIdx.x, expert_id,
-        //     expert_swizzle, expert_block_swizzle, b_block_id_swizzle, block_m_id, block_n_id);
-        // }
         const index_t token0 =
             __builtin_amdgcn_readfirstlane(p_sorted_token_ids[block_m_id * MPerBlock] & 0xffffff);
 
@@ -1784,7 +1721,6 @@ struct GridwiseMoeGemm
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
             gather_offsets(m0) = token_offset * problem.K;
-            // printf("init off tid %d m %d off %d\n", threadIdx.x, m0(), gather_offsets(m0));
         });
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
 
@@ -1797,9 +1733,6 @@ struct GridwiseMoeGemm
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride / BPackedSize,
             b_grid_desc_bpreshuffled.GetElementSpaceSize());
-        // if(threadIdx.x==0)
-        // printf("tid %d eid %d expert_stride %d bufsize %d\n",
-        // threadIdx.x, expert_id, expert_stride, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
@@ -2028,10 +1961,6 @@ struct GridwiseMoeGemm
                     {
                         ptr_ +=
                             expert_id * (problem.StrideDs[1] ? problem.StrideDs[1] * problem.N : 1);
-                        // if ( threadIdx.x  % 16 ==0)
-                        //     printf("bid %d eid %d b eoff %d %f\n", blockIdx.y, expert_id,
-                        //     expert_id * (problem.StrideDs[1]? problem.StrideDs[1] * problem.N :
-                        //     1), ptr_[0]);
                     }
                     return make_dynamic_buffer<AddressSpaceEnum::Global>(
                         ptr_, ds_grid_desc_m_n[i].GetElementSpaceSize());
@@ -2165,10 +2094,6 @@ struct GridwiseMoeGemm
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
                         weight = weight * p_sorted_weights_2[c_token_pos + m0];
                     }
-
-                    // if(threadIdx.x % 8 == 0 && blockIdx.x == 0)
-                    // printf("init off tid %d access %d tpos %d m %d off %d wei %f\n", threadIdx.x,
-                    // dstidx(I1), c_token_pos, m0(), token_offset, weight);
                     scatter_offsets(m0) = token_offset * problem.N;
                     scatter_weights(m0) = weight;
                 });

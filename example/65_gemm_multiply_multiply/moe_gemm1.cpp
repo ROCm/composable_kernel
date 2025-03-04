@@ -9,7 +9,6 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_moe_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle_v3.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
@@ -176,8 +175,8 @@ int main(int argc, char* argv[])
     bool time_kernel     = true;
 
     // GEMM shape
-    ck::index_t N = 14336 * 2;
-    ck::index_t K = 4096;
+    ck::index_t N = 4096 * 2;
+    ck::index_t K = 6144;
     ck::index_t experts = 8;
     ck::index_t sorted_tile_num = 16;
     ck::index_t valid_tile_num = 13;
