@@ -306,6 +306,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<dst_vector_t>(src_data_idx_seq,
                                                   op_r_v.template AsType<dst_vector_t>()[I0]);
+
             constexpr auto move_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
@@ -631,6 +632,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 dst_coord_.GetOffset() / PackedSize,
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
+
             constexpr auto move_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;

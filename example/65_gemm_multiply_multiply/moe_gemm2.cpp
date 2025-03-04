@@ -24,10 +24,10 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16  = ck::half_t;
+using F16 = ck::half_t;
 // using BF16 = ck::bhalf_t;
 using F8  = ck::f8_t;
-using F32  = float;
+using F32 = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -57,31 +57,24 @@ struct MulABScaleExpertWeight
     template <typename E, typename C, typename D0, typename D1, typename D2>
     __host__ __device__ constexpr void
     operator()(E& e, const C& c, const D0& d0, const D1& d1, const D2& d2) const;
-    //for real kernel use
+    // for real kernel use
     template <>
-    __host__ __device__ constexpr void operator()<EDataType, float, float, float, float>
-                                                                           (EDataType& e,
-                                                                            const float& c,
-                                                                            const float& d0,
-                                                                            const float& d1,
-                                                                            const float& d2) const
+    __host__ __device__ constexpr void operator()<EDataType, float, float, float, float>(
+        EDataType& e, const float& c, const float& d0, const float& d1, const float& d2) const
     {
-        //for real kernel use
-        //warning: hack hack hack here!!!! ignore d0 right now as kernel mul d0 * d2 outside. tofix:felix 
-        (void) d0;
-        e = ck::type_convert<EDataType>(c *  d1 * d2);
+        // for real kernel use
+        // warning: hack hack hack here!!!! ignore d0 right now as kernel mul d0 * d2 outside.
+        // tofix:felix
+        (void)d0;
+        e = ck::type_convert<EDataType>(c * d1 * d2);
     }
     // for reference cpu
     template <>
-    __host__ __device__ constexpr void operator()<float, float, float, float, float>
-                                                                           (float& e,
-                                                                            const float& c,
-                                                                            const float& d0,
-                                                                            const float& d1,
-                                                                            const float& d2) const
+    __host__ __device__ constexpr void operator()<float, float, float, float, float>(
+        float& e, const float& c, const float& d0, const float& d1, const float& d2) const
     {
         // for reference cpu
-        e = ck::type_convert<EDataType>(c *  d0 * d1 * d2);
+        e = ck::type_convert<EDataType>(c * d0 * d1 * d2);
     }
 };
 
@@ -123,25 +116,25 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = MulABScaleExpertWeight;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t BLOCKSIZE = 256;
-static constexpr ck::index_t MXDLPerWave = 2; 
-static constexpr ck::index_t NXDLPerWave = 2; 
-static constexpr ck::index_t NPerBlock = 128;
-static constexpr ck::index_t MNPerXDL = 32;
-static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
+static constexpr ck::index_t MXDLPerWave = 2;
+static constexpr ck::index_t NXDLPerWave = 2;
+static constexpr ck::index_t NPerBlock   = 128;
+static constexpr ck::index_t MNPerXDL    = 32;
+static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
 // static constexpr ck::index_t MXDLPerWave = MPerBlock / 32; //todo fix this constraint
 // static constexpr ck::index_t CShuffleMXDLPerWave = MPerBlock / 32;
 static constexpr ck::index_t CShuffleNLane = 32;
 static constexpr ck::index_t CShuffleMLane = BLOCKSIZE / CShuffleNLane;
-static constexpr ck::index_t AK1 = 16 / sizeof(A0DataType);
-static constexpr ck::index_t BK1 = 16 / sizeof(B0DataType);
-static constexpr ck::index_t EVec = 2;
-static constexpr ck::index_t D0Vec = 1;
-static constexpr ck::index_t D1Vec = 1;
-static constexpr ck::index_t D2Vec = 1;
-using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
+static constexpr ck::index_t AK1           = 16 / sizeof(A0DataType);
+static constexpr ck::index_t BK1           = 16 / sizeof(B0DataType);
+static constexpr ck::index_t EVec          = 2;
+static constexpr ck::index_t D0Vec         = 1;
+static constexpr ck::index_t D1Vec         = 1;
+static constexpr ck::index_t D2Vec         = 1;
+using DeviceOpInstance                     = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
 ///######|  ALayout|  BLayout| DsLayout| ELayout|      AData|      BData|     DsData|     EData|     AccData|         CShuffle|           A|           B|          CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
 ///######|         |         |         |        |       Type|       Type|       Type|      Type|        Type|         DataType| Elementwise| Elementwise|  Elementwise| Spacialization|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
@@ -182,20 +175,20 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = true;
 
-// tokens = 1
-// topk = 1
-// experts = 8
-// per expert: 
+    // tokens = 1
+    // topk = 1
+    // experts = 8
+    // per expert:
     // GEMM shape
-    ck::index_t N = 4096;
-    ck::index_t K = 14336;
-    ck::index_t experts = 8;
+    ck::index_t N               = 4096;
+    ck::index_t K               = 14336;
+    ck::index_t experts         = 8;
     ck::index_t sorted_tile_num = 16;
-    ck::index_t valid_tile_num = 13;
-    ck::index_t sorted_size = sorted_tile_num * MPerBlock;
-    ck::index_t valid_size = valid_tile_num * MPerBlock;
-    ck::index_t tokens = 512;
-    ck::index_t topk = 2;
+    ck::index_t valid_tile_num  = 13;
+    ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
+    ck::index_t valid_size      = valid_tile_num * MPerBlock;
+    ck::index_t tokens          = 512;
+    ck::index_t topk            = 2;
 
     if(argc == 1)
     {
@@ -213,48 +206,48 @@ int main(int argc, char* argv[])
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
-        N = std::stoi(argv[4]);
-        K = std::stoi(argv[5]);
-        tokens = std::stoi(argv[6]);
+        N               = std::stoi(argv[4]);
+        K               = std::stoi(argv[5]);
+        tokens          = std::stoi(argv[6]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf(
-            "arg4 to 6: N, K, tokens\n");
+        printf("arg4 to 6: N, K, tokens\n");
         exit(0);
     }
 
-    ck::index_t StrideA = K;
-    ck::index_t StrideB = K;
-    ck::index_t StrideE = N;
+    ck::index_t StrideA              = K;
+    ck::index_t StrideB              = K;
+    ck::index_t StrideE              = N;
     constexpr ck::index_t NumDTensor = DsDataType::Size();
-    constexpr auto StrideDs = std::array<ck::index_t, NumDTensor>{0, 0, 0};
+    constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{0, 0, 0};
 
     ck::index_t KBatch = 1;
-
 
     // const ck::index_t experts = 8;
     Tensor<ck::index_t> expert_ids(HostTensorDescriptor({sorted_tile_num}, {1}));
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
     // max_token_id.mData[0] = valid_size;
-    max_token_id.mData =  {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
-    int eids[] = {0, 0,1, 2,3, 3, 4,4, 5, 5, 6, 7, 7, 3, 3, 3};
-    for (int i = 0; i < sorted_tile_num; i++) {
+    max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
+    int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
+    for(int i = 0; i < sorted_tile_num; i++)
+    {
         expert_ids.mData[i] = eids[i];
     }
-    if (tokens * topk > valid_size)
+    if(tokens * topk > valid_size)
     {
         printf("err config, tokens * topk > valid_size\n");
         exit(-1);
     }
     int token_per_tile = tokens * topk / valid_tile_num;
-    int tokenid = 0;
+    int tokenid        = 0;
     // sorted_token_ids.mData[0] = 0;
-    for (int i = 0; i < sorted_size; i++) {
+    for(int i = 0; i < sorted_size; i++)
+    {
         int tile_off = i % MPerBlock;
         if(tile_off < token_per_tile)
         {
@@ -265,13 +258,12 @@ int main(int argc, char* argv[])
         {
             sorted_token_ids.mData[i] = tokens;
         }
-
     }
     expert_ids.savetxt("expert_ids.txt", "int");
     sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
-    Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk*K, K, 1}));
-    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N*K, 1, K}));
-    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N*K, 1, K}));
+    Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}));
+    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
+    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
     Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
     Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
     Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
@@ -309,7 +301,8 @@ int main(int argc, char* argv[])
         d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
         d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
     }
-    DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.mDesc.GetElementSpaceSize());
+    DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) *
+                                   sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem max_token_id_dev(sizeof(ck::index_t) * max_token_id.mDesc.GetElementSpaceSize());
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_t_k_k.mDesc.GetElementSpaceSize());
@@ -337,7 +330,6 @@ int main(int argc, char* argv[])
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
 
-
     // do GEMM
     auto device_op = DeviceOpInstance{};
 
@@ -350,9 +342,9 @@ int main(int argc, char* argv[])
     auto invoker = device_op.MakeInvoker();
     auto argument =
         device_op.MakeArgument(sorted_token_ids_dev.GetDeviceBuffer(),
-                                expert_ids_dev.GetDeviceBuffer(),
-                                max_token_id_dev.GetDeviceBuffer(),
-                                a0_device_buf.GetDeviceBuffer(),
+                               expert_ids_dev.GetDeviceBuffer(),
+                               max_token_id_dev.GetDeviceBuffer(),
+                               a0_device_buf.GetDeviceBuffer(),
                                b0_device_buf.GetDeviceBuffer(),
                                std::array<const void*, NumDTensor>{d0_device_buf.GetDeviceBuffer(),
                                                                    d1_device_buf.GetDeviceBuffer(),
@@ -378,44 +370,58 @@ int main(int argc, char* argv[])
             "wrong! device_gemm with the specified compilation parameters does "
             "not support this GEMM problem");
     }
-    if (time_kernel) {
+    if(time_kernel)
+    {
         // not result correct here because output buf not setzero
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-        std::size_t flop = std::size_t(2) * tokens * topk * N * K;
-        std::size_t num_btype =
-            sizeof(A0DataType) * tokens * K * topk + sizeof(B0DataType) * K * N * experts + sizeof(EDataType) * tokens * N;
+        std::size_t flop      = std::size_t(2) * tokens * topk * N * K;
+        std::size_t num_btype = sizeof(A0DataType) * tokens * K * topk +
+                                sizeof(B0DataType) * K * N * experts +
+                                sizeof(EDataType) * tokens * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-                << std::endl;
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s" << std::endl;
     }
 
     if(do_verification)
     {
-        //gemm2 use atomic, so need to reinit outputs
+        // gemm2 use atomic, so need to reinit outputs
         e_device_buf.ToDevice(e_t_n_device_result.mData.data());
-        invoker.Run(argument, StreamConfig{nullptr, false, 0 ,0,1});
+        invoker.Run(argument, StreamConfig{nullptr, false, 0, 0, 1});
 
         Tensor<CShuffleDataType> c_t_n({tokens, N});
 
-        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMoeGemm2<A0DataType,
-                                                                                    B0DataType,
-                                                                                    D0DataType,
-                                                                                    D1DataType,
-                                                                                    D2DataType,
-                                                                                    CShuffleDataType,
-                                                                                    AccDataType,
-                                                                                    PassThrough,
-                                                                                    PassThrough,
-                                                                                    CDEElementOp>;
-        auto ref_moe_gemm           = ReferenceGemmInstance{};
-        auto ref_invoker            = ref_moe_gemm.MakeInvoker();
-        auto ref_argument = ref_moe_gemm.MakeArgument(
-           sorted_token_ids, expert_ids, max_token_id, MPerBlock, a0_t_k_k, b0_e_n_k, d0_t_n, d1_e_n, d2_e_n, c_t_n, PassThrough{}, PassThrough{}, cde_element_op);
+        using ReferenceGemmInstance =
+            ck::tensor_operation::host::ReferenceMoeGemm2<A0DataType,
+                                                          B0DataType,
+                                                          D0DataType,
+                                                          D1DataType,
+                                                          D2DataType,
+                                                          CShuffleDataType,
+                                                          AccDataType,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          CDEElementOp>;
+        auto ref_moe_gemm = ReferenceGemmInstance{};
+        auto ref_invoker  = ref_moe_gemm.MakeInvoker();
+        auto ref_argument = ref_moe_gemm.MakeArgument(sorted_token_ids,
+                                                      expert_ids,
+                                                      max_token_id,
+                                                      MPerBlock,
+                                                      a0_t_k_k,
+                                                      b0_e_n_k,
+                                                      d0_t_n,
+                                                      d1_e_n,
+                                                      d2_e_n,
+                                                      c_t_n,
+                                                      PassThrough{},
+                                                      PassThrough{},
+                                                      cde_element_op);
 
         ref_invoker.Run(ref_argument);
         for(int t = 0; t < tokens; ++t)
