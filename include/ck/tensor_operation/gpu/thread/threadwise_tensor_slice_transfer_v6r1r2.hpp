@@ -103,39 +103,36 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
 
             auto dst_vector_container = dst_vector_type{};
 
-#if 1
-                        // Emin @debug
-                        if (threadIdx.x == 0 && threadIdx.y == 0 && is_src_valid)
-                        {
-                            if constexpr (std::is_same<SrcData, ck::bhalf_t>::value)
-                            {
-                                // Debug print for bf16: convert bf16 to fp32 before printing
-                                uint16_t src_vector_container_bf16_value =
-                                    src_vector_container.template AsType<SrcData>().At(Number<0>{});
-                                uint32_t fp32_bits = static_cast<uint32_t>(src_vector_container_bf16_value) << 16;
-                                float src_vector_container_fp32_value;
-                                memcpy(&src_vector_container_fp32_value, &fp32_bits, sizeof(float));
-
-                                printf("BlockId %d - Threadwise_tensor slice v6r1r2 (bf16) line %d: Src Vector Data at idx %d: %f \n",
-                                       static_cast<int>(blockIdx.x),
-                                       __LINE__,
-                                       static_cast<int>(idx_1d.value),
-                                       src_vector_container_fp32_value);
-                            }
-                            else
-                            {
-                                // Debug print for non-bf16: print after type conversion to float
-                                float src_val = static_cast<float>(
-                                    src_vector_container.template AsType<SrcData>().At(Number<0>{}));
-
-                                printf("BlockId %d - Threadwise_tensor slice v6r1r2 line %d: Src Vector Data at idx %d: %f \n",
-                                       static_cast<int>(blockIdx.x),
-                                       __LINE__,
-                                       static_cast<int>(idx_1d.value),
-                                       src_val);
-                            }
-                        }
-                        // Emin @debug
+#if defined(EMIN_DEBUG_THREADWISE) && (EMIN_DEBUG_THREADWISE == 1)
+    // Use compile-time flag instead of getenv in device code
+    if (threadIdx.x == 0 && threadIdx.y == 0 && is_src_valid)
+    {
+        if constexpr (std::is_same<SrcData, ck::bhalf_t>::value)
+        {
+            // Debug print for bf16: convert bf16 to fp32 before printing
+            uint16_t src_vector_container_bf16_value =
+                src_vector_container.template AsType<SrcData>().At(Number<0>{});
+            uint32_t fp32_bits = static_cast<uint32_t>(src_vector_container_bf16_value) << 16;
+            float src_vector_container_fp32_value;
+            memcpy(&src_vector_container_fp32_value, &fp32_bits, sizeof(float));
+            printf("BlockId %d - Threadwise_tensor slice v6r1r2 (bf16) line %d: Src Vector Data at idx %d: %f\n",
+                   static_cast<int>(blockIdx.x),
+                   __LINE__,
+                   static_cast<int>(idx_1d.value),
+                   src_vector_container_fp32_value);
+        }
+        else
+        {
+            // Debug print for non-bf16: print after type conversion to float
+            float src_val = static_cast<float>(
+                src_vector_container.template AsType<SrcData>().At(Number<0>{}));
+            printf("BlockId %d - Threadwise_tensor slice v6r1r2 line %d: Src Vector Data at idx %d: %f\n",
+                   static_cast<int>(blockIdx.x),
+                   __LINE__,
+                   static_cast<int>(idx_1d.value),
+                   src_val);
+        }
+    }
 #endif
 
             // apply pointwise operation
