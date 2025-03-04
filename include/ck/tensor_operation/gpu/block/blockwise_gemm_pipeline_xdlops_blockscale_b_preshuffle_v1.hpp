@@ -127,8 +127,8 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
     using Base::KRepeat;
     using Base::xdlops_gemm;
     using typename Base::HotLoopInstList;
-    using Base::GetWaveIdx;
 
+    using Base::a_block_desc_m0_m1_m2_k;
     using Base::CalculateCThreadOriginDataIndex;
     using Base::CalculateCThreadOriginDataIndex8D;
     using Base::GetCBlockDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
@@ -141,38 +141,12 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
     using Base::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
 
-    using Base::a_block_desc_m0_m1_m2_k;
-    using Base::b_block_desc_n0_n1_n2_k;
-
-    static constexpr index_t AMmaKStride = xdlops_gemm.K0PerXdlops * KPack;
-    static constexpr index_t BMmaKStride = xdlops_gemm.K0PerXdlops * KPack;
+    using Base::MWaves;
+    using Base::NWaves;
 
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 2;
-
-    // Force mfma not cross the scaleblock
-    __device__ static auto CalculateAThreadOriginDataIndex()
-    {
-        const auto wave_idx = GetWaveIdx();
-
-        const auto waveId_m = wave_idx[I0];
-
-        const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
-
-        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KPack * xdlops_a_idx[I0]);
-    }
-
-    __device__ static auto CalculateBThreadOriginDataIndex()
-    {
-        const auto wave_idx = GetWaveIdx();
-
-        const auto waveId_n = wave_idx[I1];
-
-        const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
-
-        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KPack * xdlops_b_idx[I0]);
-    }
 
     template <typename TileDesc_M0_M1_M2_K>
     __host__ __device__ static constexpr auto MakeAGemmMmaTileDescriptor(const TileDesc_M0_M1_M2_K&)
@@ -212,28 +186,45 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
     {
         constexpr auto num_ds_read_inst_a     = HotLoopInstList::A_LDS_Read_Inst_Num;
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
+        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves;
+
+        constexpr auto num_pk_fma_per_kscaleblock = MPerXDL == 16 ? 2 : 8;
+        constexpr auto num_mfma_per_kscaleblock   = MPerXDL == 16 ? KPerBlock / 32 : KPerBlock / 16;
 
         // B global
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
-            ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            /* Judging issue v_pk_fma */
+            if constexpr((i + 1) % num_mfma_per_kscaleblock == 0)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
+            }
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
         });
 
         // A global
         static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
-            ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            if constexpr((num_buffer_load_inst_b + 2*i + 1) % num_mfma_per_kscaleblock == 0)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
+            }
             __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            if constexpr((num_buffer_load_inst_b + 2*i + 2) % num_mfma_per_kscaleblock == 0)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
+            }
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
         });
 
         // A local
         static_for<0, num_ds_read_inst_a / 2, 1>{}([&](auto i) {
-            ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            if constexpr((num_buffer_load_inst_b + 2*num_buffer_load_inst_a + i + 1) % num_mfma_per_kscaleblock == 0)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
+            }
             __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
         });
     }
@@ -300,7 +291,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
     {
         ignore = b_block_desc;
         ignore = b_block_buf;
-        __builtin_amdgcn_sched_barrier(0);
+        // __builtin_amdgcn_sched_barrier(0);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
@@ -326,7 +317,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
 
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-        __builtin_amdgcn_sched_barrier(0);
+        // __builtin_amdgcn_sched_barrier(0);
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             a_scale_thread_copy.Run(a_scale_grid_desc,
@@ -437,7 +428,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
         // Initialize C
         c_thread_buf.Clear();
 
-        __builtin_amdgcn_sched_barrier(0);
+        // __builtin_amdgcn_sched_barrier(0);
 
         // main body
         if constexpr(HasMainLoop)
@@ -575,7 +566,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                     b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                            b_scale_thread_copy_step);
                     HotLoopScheduler();
-                    __builtin_amdgcn_sched_barrier(0);
+                    // __builtin_amdgcn_sched_barrier(0);
                 };
 
                 LoopFunc(I0, I1);
@@ -679,7 +670,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                 });
             });
 
-            __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {

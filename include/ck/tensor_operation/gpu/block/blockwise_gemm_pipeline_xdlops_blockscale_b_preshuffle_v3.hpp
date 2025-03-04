@@ -141,10 +141,6 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
     using Base::GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4;
     using Base::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
-
-    using Base::AMmaKStride;
-    using Base::BMmaKStride;
-
     using Base::MWaves;
 
     static constexpr index_t PrefetchStages        = 2;
@@ -266,7 +262,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             });
 
-            __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
         }
         else if constexpr(stage.value == 1)
         {
@@ -385,7 +381,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 }
             });
 
-            __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
         }
         else if constexpr(stage.value == 2)
         {
@@ -501,7 +497,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 }
             });
 
-            __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
         }
         else
         {
@@ -522,7 +518,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
             });
 
-            __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
         }
     }
 
@@ -564,30 +560,10 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);    // VMEM read
             });
 
-            __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
         }
         else if constexpr(stage.value == 1)
         {
-#if 0
-            constexpr auto staged_num_ds_write_a_per_ds_read_a =
-                num_ds_write_inst_a / staged_num_ds_read_inst_a;
-            constexpr auto staged_num_mfma_per_ds_write_a = staged_num_mfma / num_ds_write_inst_a;
-            // A local write
-            static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                ignore = i_inst;
-
-                static_for<0, staged_num_ds_write_a_per_ds_read_a, 1>{}([&](auto idswrite_inst) {
-                    ignore = idswrite_inst;
-                    __builtin_amdgcn_sched_group_barrier(
-                        0x008, staged_num_mfma_per_ds_write_a - 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                });
-
-                __builtin_amdgcn_sched_group_barrier(
-                    0x008, staged_num_ds_write_a_per_ds_read_a, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0);  // DS read
-            });
-#elif 1
             constexpr auto staged_num_mfma_per_ds_write_a =
                 math::integer_divide_ceil(staged_num_mfma, num_ds_write_inst_a);
 
@@ -631,8 +607,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     }
                 }
             });
-#endif
-            __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
         }
         else
         {
@@ -644,7 +619,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
             });
 
-            __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
         }
     }
 
@@ -666,7 +641,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
         });
 
-        __builtin_amdgcn_sched_barrier(0);
+        // __builtin_amdgcn_sched_barrier(0);
     }
 
     template <bool HasMainLoop,
@@ -731,7 +706,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
     {
         ignore = b_block_desc;
         ignore = b_block_buf;
-        __builtin_amdgcn_sched_barrier(0);
+        // __builtin_amdgcn_sched_barrier(0);
         static_assert(CScaleThreadDesc{}.GetLength(Number<0>{}) == 1,
                       "Pipeline v3 only support scaleblocksliceK=1");
         static_assert(CScaleThreadDesc{}.GetLength(Number<2>{}) == 1,
@@ -760,7 +735,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
 
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-        __builtin_amdgcn_sched_barrier(0);
+        // __builtin_amdgcn_sched_barrier(0);
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             a_scale_thread_copy.Run(a_scale_grid_desc,
@@ -852,7 +827,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                a_thread_buf);
         });
 
-        __builtin_amdgcn_sched_barrier(0);
+        // __builtin_amdgcn_sched_barrier(0);
 
         // main body
         if constexpr(HasMainLoop)
@@ -1005,6 +980,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 };
 
                 LoopFunc(I0, I1);
+                // Just adding this will cause correctness issue.
                 __builtin_amdgcn_sched_barrier(0);
                 LoopFunc(I1, I0);
 
@@ -1154,7 +1130,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             });
             // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
             // latency
-            // __builtin_amdgcn_sched_barrier(0);
+            // // __builtin_amdgcn_sched_barrier(0);
         }
         else
         {
