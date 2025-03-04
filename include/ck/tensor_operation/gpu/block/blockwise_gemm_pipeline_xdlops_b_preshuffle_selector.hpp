@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v1.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v2.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_v3.hpp"
+
 namespace ck {
 
 template <BlockGemmPipelineVersion BlkGemmPipelineVer,
@@ -32,27 +33,27 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
 constexpr auto BlockGemmBPreshufflePipeline_Selector()
 {
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-    {
-        return BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlkGemmPipeSche,
-                                                           BlockSize,
-                                                           ADataType,
-                                                           BDataType,
-                                                           ComputeDataType,
-                                                           AccDataType,
-                                                           ATileDesc,
-                                                           BTileDesc,
-                                                           AMmaTileDesc,
-                                                           BMmaTileDesc,
-                                                           ABlockTransferSrcScalarPerVector,
-                                                           BBlockTransferSrcScalarPerVector,
-                                                           MPerBlock,
-                                                           NPerBlock,
-                                                           KPerBlock,
-                                                           MPerXDL,
-                                                           NPerXDL,
-                                                           MRepeat,
-                                                           NRepeat,
-                                                           KPack>{};
+        {
+            return BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlkGemmPipeSche,
+                                                               BlockSize,
+                                                               ADataType,
+                                                               BDataType,
+                                                               ComputeDataType,
+                                                               AccDataType,
+                                                               ATileDesc,
+                                                               BTileDesc,
+                                                               AMmaTileDesc,
+                                                               BMmaTileDesc,
+                                                               ABlockTransferSrcScalarPerVector,
+                                                               BBlockTransferSrcScalarPerVector,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               KPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MRepeat,
+                                                               NRepeat,
+                                                               KPack>{};
     }
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
     {
@@ -80,26 +81,26 @@ constexpr auto BlockGemmBPreshufflePipeline_Selector()
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
     {
         static_assert(MRepeat >= 4, "MRepeat should at least be 4 in BlockGemmPipelineVersion::v3");
-        return BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlkGemmPipeSche,
-                                                           BlockSize,
-                                                           ADataType,
-                                                           BDataType,
-                                                           ComputeDataType,
-                                                           AccDataType,
-                                                           ATileDesc,
-                                                           BTileDesc,
-                                                           AMmaTileDesc,
-                                                           BMmaTileDesc,
-                                                           ABlockTransferSrcScalarPerVector,
-                                                           BBlockTransferSrcScalarPerVector,
-                                                           MPerBlock,
-                                                           NPerBlock,
-                                                           KPerBlock,
-                                                           MPerXDL,
-                                                           NPerXDL,
-                                                           MRepeat,
-                                                           NRepeat,
-                                                           KPack>{};
+            return BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlkGemmPipeSche,
+                                                               BlockSize,
+                                                               ADataType,
+                                                               BDataType,
+                                                               ComputeDataType,
+                                                               AccDataType,
+                                                               ATileDesc,
+                                                               BTileDesc,
+                                                               AMmaTileDesc,
+                                                               BMmaTileDesc,
+                                                               ABlockTransferSrcScalarPerVector,
+                                                               BBlockTransferSrcScalarPerVector,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               KPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MRepeat,
+                                                               NRepeat,
+                                                               KPack>{};
     }
     else
     {
