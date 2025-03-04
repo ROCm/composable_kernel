@@ -446,7 +446,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             else
             {
                 constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-                constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+                constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
                 constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
                 constexpr index_t warpSize   = ck_tile::get_warp_size();
 
@@ -513,7 +513,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         // K is always k-major, we use async-copy to load into LDS
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck_tile::get_warp_size();
@@ -566,7 +566,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         // K is always k-major, we use async-copy to load into LDS
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck_tile::get_warp_size();
@@ -743,7 +743,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         else
         {
             constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
             constexpr index_t kBlockSize = Problem::kBlockSize;
             constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
             constexpr index_t warpSize   = ck_tile::get_warp_size();
