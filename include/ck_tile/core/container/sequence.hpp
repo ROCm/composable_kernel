@@ -1047,6 +1047,7 @@ CK_TILE_HOST_DEVICE constexpr auto to_sequence(tuple<number<Is>...>)
 {
     return sequence<Is...>{};
 }
+
 namespace detail {
 template <index_t h_idx, typename SeqSortedSamples, typename SeqRange>
 struct sorted_sequence_histogram;
