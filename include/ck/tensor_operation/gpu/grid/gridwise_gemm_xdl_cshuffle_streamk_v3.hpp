@@ -1422,7 +1422,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                             {
                                 auto c_partial_acc_buf =
                                     make_dynamic_buffer<AddressSpaceEnum::Global,
-                                                        AmdBufferCoherenceEnum::GLC>(
+                                                        AmdBufferCoherenceEnum::DEVICE_NT1>( // @Emin-Comment !!! This is not correct for MI300 I should put if def 
                                         reinterpret_cast<AccDataType*>(p_workspace) +
                                             i * c_partial_acc_block_m_n.GetElementSpaceSize(),
                                         c_partial_acc_block_m_n.GetElementSpaceSize());
@@ -1474,13 +1474,13 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                        
                                         switch(i) {
                                             case 0: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<0>{}])); break;
-                                            case 1: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<1>{}])); break;
-                                            case 2: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<2>{}])); break;
-                                            case 3: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<3>{}])); break;
-                                            case 4: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<4>{}])); break;
-                                            case 5: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<5>{}])); break;
-                                            case 6: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<6>{}])); break;
-                                            case 7: printf("acc_buf[0] = %.4f \n", static_cast<float>(acc_buf[Number<7>{}])); break;
+                                            case 1: printf("acc_buf[1] = %.4f \n", static_cast<float>(acc_buf[Number<1>{}])); break;
+                                            case 2: printf("acc_buf[2] = %.4f \n", static_cast<float>(acc_buf[Number<2>{}])); break;
+                                            case 3: printf("acc_buf[3] = %.4f \n", static_cast<float>(acc_buf[Number<3>{}])); break;
+                                            case 4: printf("acc_buf[4] = %.4f \n", static_cast<float>(acc_buf[Number<4>{}])); break;
+                                            case 5: printf("acc_buf[5] = %.4f \n", static_cast<float>(acc_buf[Number<5>{}])); break;
+                                            case 6: printf("acc_buf[6] = %.4f \n", static_cast<float>(acc_buf[Number<6>{}])); break;
+                                            case 7: printf("acc_buf[7] = %.4f \n", static_cast<float>(acc_buf[Number<7>{}])); break;
                                             // Add more cases if CShuffleBlockTransferScalarPerVector_NPerBlock is larger than 8
                                         }
                                     }
