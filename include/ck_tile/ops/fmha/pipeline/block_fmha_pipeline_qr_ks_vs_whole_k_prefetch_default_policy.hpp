@@ -55,8 +55,9 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
     {
         using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
 
-        return BlockGemm::template MakeABlockTileDistribution<Problem::BlockFmhaShape::kM0,
-                                                              Problem::BlockFmhaShape::kK0>();
+        return BlockGemm::template MakeABlockTileDistribution<
+            Problem::BlockFmhaShape::kM0,
+            Problem::BlockFmhaShape::kQKHeaddim>();
     }
 
     template <typename Problem>
