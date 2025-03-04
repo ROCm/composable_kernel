@@ -281,19 +281,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<dst_vector_t>(src_data_idx_seq,
                                                   op_r_v.template AsType<dst_vector_t>()[I0]);
-<<<<<<< HEAD
 
             auto move_on_dim = [&]() constexpr
-=======
-                                                  
-            // if(1) {
-            //     using print_vec_t = typename vector_type<DstData, 1>::type;
-            //     static_for<0, SrcScalarPerVector, 1>{}([&](auto idx) {
-            //         printf("tid %d %f\n",threadIdx.x, type_convert<float>(src_vector_container.template AsType<print_vec_t>()[idx]));
-            //     });
-            // }
-            constexpr auto move_on_dim = [&]() constexpr
->>>>>>> e3a2aa4f9 (Updated transfer_v3r1_gather to support pk_i4_t type.)
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
@@ -312,13 +301,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             ();
             // move src coord
             static_for<0, nDim, 1>{}([&](auto i) {
-<<<<<<< HEAD
                 if(move_on_dim[i])
-=======
-                // if(threadIdx.x==0)
-                // printf("use tid %d ori cord: %d i %d mov %d\n", threadIdx.x, src_coord_.GetOffset(), i.value, move_on_dim[i]);
-                if constexpr(move_on_dim[i])
->>>>>>> e3a2aa4f9 (Updated transfer_v3r1_gather to support pk_i4_t type.)
                 {
                     if constexpr(forward_sweep[i])
                     {
