@@ -125,6 +125,7 @@ struct DeviceGemmMultipleDSplitKBPreShuffle : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
+#ifndef CK_CODE_GEN_RTC
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
@@ -145,6 +146,7 @@ struct DeviceGemmMultipleDSplitKBPreShuffle : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 
     virtual int GetPreShuffleParameters() = 0;
+#endif
 };
 
 } // namespace device
