@@ -370,9 +370,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg,
-                  const StreamConfig& stream_config       = StreamConfig{},
-                  [[maybe_unused]] hipStream_t cpy_stream = nullptr,
-                  [[maybe_unused]] hipEvent_t cpy_event   = nullptr)
+                  const StreamConfig& stream_config = StreamConfig{},
+                  hipStream_t cpy_stream            = nullptr,
+                  hipEvent_t cpy_event              = nullptr)
         {
             index_t K0                       = arg.gemm_kernel_host_args_[0].karg_.K0Padded;
             bool all_have_kbatch_gt_one      = arg.gemm_kernel_host_args_[0].karg_.k_batch > 1;
