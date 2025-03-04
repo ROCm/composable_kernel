@@ -311,12 +311,12 @@ int main(int argc, char* argv[])
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
-    a0_t_k_k.savetxt("a.txt");
-    expert_ids.savetxt("expert_ids.txt", "int");
-    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
-    d0_t_n.savetxt("d0_t_n.txt", "int");
-    d1_e_n.savetxt("d1_e_n.txt", "int");
-    d2_e_n.savetxt("d2_e_n.txt", "int");
+    // a0_t_k_k.savetxt("a.txt");
+    // expert_ids.savetxt("expert_ids.txt", "int");
+    // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
+    // d0_t_n.savetxt("d0_t_n.txt", "int");
+    // d1_e_n.savetxt("d1_e_n.txt", "int");
+    // d2_e_n.savetxt("d2_e_n.txt", "int");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     max_token_id_dev.ToDevice(max_token_id.mData.data());
@@ -434,8 +434,8 @@ int main(int argc, char* argv[])
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
-        e_t_n_device_result.savetxt("out.txt");
-        e_t_n_host_result.savetxt("ref.txt");
+        // e_t_n_device_result.savetxt("out.txt");
+        // e_t_n_host_result.savetxt("ref.txt");
         return ck::utils::check_err(
                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
                    ? 0

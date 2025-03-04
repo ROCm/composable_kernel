@@ -224,7 +224,7 @@ int main(int argc, char* argv[])
     ck::index_t StrideB              = K;
     ck::index_t StrideE              = N;
     constexpr ck::index_t NumDTensor = DsDataType::Size();
-    constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{0, 0};
+    constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{1, 0};
 
     ck::index_t KBatch = 1;
 
@@ -257,8 +257,8 @@ int main(int argc, char* argv[])
             sorted_token_ids.mData[i] = tokens;
         }
     }
-    expert_ids.savetxt("expert_ids.txt", "int");
-    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
+    // expert_ids.savetxt("expert_ids.txt", "int");
+    // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));

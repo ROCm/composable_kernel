@@ -1492,7 +1492,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = IsInputGemm ? 1 : 3; // hack fix felix
+            constexpr index_t scatter_weight_idx  = 1;
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -1576,7 +1576,7 @@ struct GridwiseMoeGemm
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     index_t token_offset      = fused_token & 0xffffff;
-                    float weight = p_sorted_weights_0[(c_token_pos + m0) * problem.StrideDs[0]];
+                    float weight = p_sorted_weights_0[token_offset * problem.StrideDs[0]];
                     if constexpr(IsInputGemm)
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
@@ -2000,7 +2000,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = IsInputGemm ? 1 : 3; // hack fix felix
+            constexpr index_t scatter_weight_idx  = 1;
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -2084,7 +2084,7 @@ struct GridwiseMoeGemm
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     index_t token_offset      = fused_token & 0xffffff;
-                    float weight = p_sorted_weights_0[(c_token_pos + m0) * problem.StrideDs[0]];
+                    float weight = p_sorted_weights_0[token_offset * problem.StrideDs[0]];
                     if constexpr(IsInputGemm)
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
@@ -2139,27 +2139,6 @@ struct GridwiseMoeGemm
             });
         }
     }
-
-    // template <bool HasMainKBlockLoop,
-    //           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-    //           bool IsInputGemm   = true,
-    //           TailNumber TailNum = TailNumber::Odd>
-    // __device__ static void Run_2Lds(const index_t* p_sorted_token_ids,
-    //                                 const index_t* p_sorted_expert_ids,
-    //                                 const index_t* p_max_token_id,
-    //                                 const ADataType* p_a_grid,
-    //                                 const BDataType* p_b_grid,
-    //                                 DsGridPointer& p_ds_grid,
-    //                                 CDataType* p_c_grid,
-    //                                 void* p_shared,
-    //                                 void* p_shared1,
-    //                                 const Problem& problem,
-    //                                 AElementwiseOperation a_element_op,
-    //                                 BElementwiseOperation b_element_op,
-    //                                 CElementwiseOperation c_element_op)
-    // {
-
-    // }
 };
 
 } // namespace ck
