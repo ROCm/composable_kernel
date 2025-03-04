@@ -41,7 +41,7 @@ template <typename SliceLengths,
           bool DstResetCoordinateAfterRun, // control whether to move back dst coordinate after each
                                            // RunWrite(),  will be fused with MoveDstSliceWindow to
                                            // save addr computation
-          index_t GatherDim = 1,
+          index_t GatherDim        = 1,
           index_t NumThreadScratch = 1>
 struct ThreadwiseTensorSliceTransfer_v3r1_gather
 {
@@ -54,7 +54,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
-    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I0            = Number<0>{};
     static constexpr index_t gather_num = SliceLengths{}.At(Number<GatherDim>{});
 
     __device__ constexpr ThreadwiseTensorSliceTransfer_v3r1_gather(
@@ -64,7 +64,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         const DstDesc& dst_desc,
         const Index& dst_slice_origin,
         const DstElementwiseOperation& dst_element_op,
-        const StaticallyIndexedArray<index_t, gather_num> &gather_offsets)
+        const StaticallyIndexedArray<index_t, gather_num>& gather_offsets)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin)),
           dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
           src_element_op_(src_element_op),
@@ -75,7 +75,15 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
     {
-        src_coord_ = make_tensor_coordinate(src_desc, src_slice_origin_idx);
+
+        auto adjusted_origin_idx = [&]() {
+            Index idx;
+            static_for<0, nDim, 1>{}([&](auto i) {
+                idx(i) = i.value == GatherDim ? 0 : src_slice_origin_idx[Number<i>{}];
+            });
+            return idx;
+        }();
+        src_coord_ = make_tensor_coordinate(src_desc, adjusted_origin_idx);
     }
 
     __device__ void SetDstSliceOrigin(const DstDesc& dst_desc, const Index& dst_slice_origin_idx)
@@ -106,7 +114,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                       "SliceLengths[SrcVectorDim] must be divisible by SrcScalarPerVector");
 
         constexpr auto src_dim_access_order = SrcDimAccessOrder{};
-        constexpr auto ordered_gather_dim = src_dim_access_order[GatherDim];
+        constexpr auto ordered_gather_dim   = src_dim_access_order[GatherDim];
         constexpr auto ordered_src_access_lengths =
             container_reorder_given_new2old(src_access_lengths, src_dim_access_order);
 
@@ -174,19 +182,22 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             constexpr auto src_data_idx_seq = generate_sequence_v2(
                 [&](auto i) { return Number<src_data_idx[i]>{}; }, Number<src_data_idx.Size()>{});
 
-            auto gather_offset = gather_offsets_(ordered_src_access_idx[Number<ordered_gather_dim>{}]);
+            auto gather_offset =
+                gather_offsets_(ordered_src_access_idx[Number<ordered_gather_dim>{}]);
 
             // maintain a container record is_src_valid, waiting for RunWrite use.
             const index_t ld_offset = src_coord_.GetOffset() + gather_offset;
-            const bool is_src_valid = ld_offset < src_desc.GetElementSpaceSize();//hack felix, todo use coord
-                //coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_) && (gather_offset < 32*512);
+            const bool is_src_valid =
+                ld_offset <
+                src_desc.GetElementSpaceSize(); // hack felix, todo use coord
+                                                // coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc,
+                                                // src_coord_) && (gather_offset < 32*512);
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, is_src_valid);
 
             using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
-            // if(threadIdx.x==0)
-            // printf("use tid %d num %d off %d %d\n", threadIdx.x, ordered_src_access_idx[Number<ordered_gather_dim>{}](), src_coord_.GetOffset(), gather_offset );
+
             auto src_vector_container =
                 src_vector_type{src_buf.template Get<src_vector_t>(ld_offset, true)};
 
@@ -228,13 +239,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<dst_vector_t>(src_data_idx_seq,
                                                   op_r_v.template AsType<dst_vector_t>()[I0]);
-                                                  
-            // if(1) {
-            //     using print_vec_t = typename vector_type<DstData, 1>::type;
-            //     static_for<0, SrcScalarPerVector, 1>{}([&](auto idx) {
-            //         printf("tid %d %f\n",threadIdx.x, type_convert<float>(src_vector_container.template AsType<print_vec_t>()[idx]));
-            //     });
-            // }
+
             auto move_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
@@ -247,9 +252,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                             ordered_src_access_idx[j] == ordered_src_access_lengths[j] - 1;
                     });
                     move_on_dim_(i) &= i.value != ordered_gather_dim;
-                    
-                    // if(threadIdx.x==0)
-                    //     printf("i %d %d ordered_gather_dim %d\n", i.value, move_on_dim_(i), ordered_gather_dim);
                 });
 
                 return move_on_dim_;
@@ -257,9 +259,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             ();
             // move src coord
             static_for<0, nDim, 1>{}([&](auto i) {
-                // if(threadIdx.x==0)
-                // printf("use tid %d ori cord: %d i %d mov %d\n", threadIdx.x, src_coord_.GetOffset(), i.value, move_on_dim[i]);
-                if (move_on_dim[i])
+                if(move_on_dim[i])
                 {
                     if constexpr(forward_sweep[i])
                     {
@@ -272,10 +272,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                             src_desc, src_coord_, src_backward_steps[src_dim_access_order[i]]);
                     }
                 }
-                // if(threadIdx.x==0)
-                // printf("use tid %d moved cord: %d\n", threadIdx.x, src_coord_.GetOffset());
             });
-            
         });
 
         // move src coordinate back to slice origin (or not)
@@ -564,13 +561,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 dst_coord_.GetOffset(),
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
-                         
-            // if(1) {
-            //     using print_vec_t = typename vector_type<DstData, 1>::type;
-            //     static_for<0, DstScalarPerVector, 1>{}([&](auto idx) {
-            //         printf("tid %d off %d valid %d val %f\n",threadIdx.x, dst_coord_.GetOffset(), is_dst_valid, type_convert<float>(dst_vector_container.template AsType<print_vec_t>()[idx]));
-            //     });
-            // }
+
             constexpr auto move_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
@@ -666,7 +657,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         constexpr auto reset_src_data_step = [&]() {
             Index reset_src_data_step_;
 
-            static_for<0, nDim, 1>{}([&](auto i) { reset_src_data_step_(i) = i.value == GatherDim ? 0 : -src_data_idx[i]; });
+            static_for<0, nDim, 1>{}([&](auto i) {
+                reset_src_data_step_(i) = i.value == GatherDim ? 0 : -src_data_idx[i];
+            });
 
             return reset_src_data_step_;
         }();

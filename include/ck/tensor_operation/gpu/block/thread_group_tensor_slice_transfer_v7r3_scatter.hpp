@@ -42,8 +42,8 @@ template <typename ThreadGroup,
           index_t DstScalarPerVector,
           typename ThreadTransferSrcResetCoordinateAfterRunFlags,
           typename ThreadTransferDstResetCoordinateAfterRunFlags,
-          index_t ScatterDim = 1,
-          bool OutputScatter = true,
+          index_t ScatterDim       = 1,
+          bool OutputScatter       = true,
           index_t ScatterWeightIdx = 3,
           index_t NumThreadScratch = 1>
 struct ThreadGroupTensorSliceTransfer_v7r3_scatter
@@ -51,14 +51,15 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
     static constexpr index_t nDim =
         remove_cvref_t<tuple_element_t<0, SrcDescs>>::GetNumOfDimension();
 
-    static constexpr index_t mod_num = ThreadClusterLengths{}.At( Number<3>{}) ; // Dirty HACK FELIX, TODO fix
+    static constexpr index_t mod_num =
+        ThreadClusterLengths{}.At(Number<3>{}); // Dirty HACK FELIX, TODO fix
     static constexpr index_t nSrc = remove_cvref_t<SrcDescs>::Size();
     static constexpr index_t nDst = remove_cvref_t<DstDescs>::Size();
 
     using Index = MultiIndex<nDim>;
 
     static constexpr auto thread_slice_lengths = SliceLengths{} / ThreadClusterLengths{};
-    static constexpr index_t scatter_num = thread_slice_lengths.At(Number<ScatterDim>{});
+    static constexpr index_t scatter_num       = thread_slice_lengths.At(Number<ScatterDim>{});
 
     __device__ constexpr ThreadGroupTensorSliceTransfer_v7r3_scatter(
         const SrcDescs& src_descs,
@@ -108,13 +109,20 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
             const auto src_thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
                 make_multi_index(ThreadGroup::GetThreadId()));
             const auto src_thread_slice_origins = generate_tuple(
-                [&](auto i) { return src_block_slice_origins[i] + src_thread_cluster_idx * thread_slice_lengths; },
+                [&](auto i) {
+                    return src_block_slice_origins[i] +
+                           src_thread_cluster_idx * thread_slice_lengths;
+                },
                 Number<nSrc>{});
 
             const auto dst_thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
-                make_multi_index( OutputScatter ? ThreadGroup::GetThreadId() % mod_num : ThreadGroup::GetThreadId()));
+                make_multi_index(OutputScatter ? ThreadGroup::GetThreadId() % mod_num
+                                               : ThreadGroup::GetThreadId()));
             const auto dst_thread_slice_origins = generate_tuple(
-                [&](auto i) { return dst_block_slice_origins[i] + dst_thread_cluster_idx * thread_slice_lengths; },
+                [&](auto i) {
+                    return dst_block_slice_origins[i] +
+                           dst_thread_cluster_idx * thread_slice_lengths;
+                },
                 Number<nDst>{});
 
             threadwise_transfer_.SetSrcSliceOrigins(src_descs, src_thread_slice_origins);
@@ -125,7 +133,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
     template <typename SrcBuffers, index_t ThreadScratchId = 0>
     __device__ void RunRead(const SrcDescs& src_descs,
                             const SrcBuffers& src_bufs,
-                            StaticallyIndexedArray<float, scatter_num> &scatter_weights,
+                            StaticallyIndexedArray<float, scatter_num>& scatter_weights,
                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
@@ -141,16 +149,18 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
     template <typename DstBuffers, index_t ThreadScratchId = 0>
     __device__ void RunWrite(const DstDescs& dst_descs,
                              DstBuffers dst_bufs,
-                             StaticallyIndexedArray<index_t, scatter_num> &scatter_offsets,
+                             StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             if constexpr(is_detected<is_tuple, decltype(dst_bufs)>::value)
-                threadwise_transfer_.RunWrite(dst_descs, dst_bufs, scatter_offsets, thread_scratch_id);
+                threadwise_transfer_.RunWrite(
+                    dst_descs, dst_bufs, scatter_offsets, thread_scratch_id);
             else
-                threadwise_transfer_.RunWrite(dst_descs, tie(dst_bufs), scatter_offsets, thread_scratch_id);
+                threadwise_transfer_.RunWrite(
+                    dst_descs, tie(dst_bufs), scatter_offsets, thread_scratch_id);
         }
     }
 
@@ -159,8 +169,8 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
                         const SrcBuffers& src_bufs,
                         const DstDescs& dst_descs,
                         DstBuffers dst_bufs,
-                        StaticallyIndexedArray<index_t, scatter_num> &scatter_offsets,
-                        StaticallyIndexedArray<float, scatter_num> &scatter_weights)
+                        StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
+                        StaticallyIndexedArray<float, scatter_num>& scatter_weights)
     {
         RunRead(src_descs, src_bufs, scatter_weights);
         RunWrite(dst_descs, dst_bufs, scatter_offsets);
@@ -206,24 +216,24 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
 
     using ThreadwiseTransfer =
         ThreadwiseTensorSliceTransfer_v7r3_scatter<SrcDatas,
-                                           DstDatas,
-                                           SrcDescs,
-                                           DstDescs,
-                                           ElementwiseOperation,
-                                           DstInMemOps,
-                                           decltype(thread_slice_lengths),
-                                           SrcDimAccessOrder,
-                                           DstDimAccessOrder,
-                                           SrcVectorDim,
-                                           DstVectorDim,
-                                           SrcScalarPerVectors,
-                                           DstScalarPerVector,
-                                           ThreadTransferSrcResetCoordinateAfterRunFlags,
-                                           ThreadTransferDstResetCoordinateAfterRunFlags,
-                                           ScatterDim,
-                                           OutputScatter,
-                                           ScatterWeightIdx,
-                                           NumThreadScratch>;
+                                                   DstDatas,
+                                                   SrcDescs,
+                                                   DstDescs,
+                                                   ElementwiseOperation,
+                                                   DstInMemOps,
+                                                   decltype(thread_slice_lengths),
+                                                   SrcDimAccessOrder,
+                                                   DstDimAccessOrder,
+                                                   SrcVectorDim,
+                                                   DstVectorDim,
+                                                   SrcScalarPerVectors,
+                                                   DstScalarPerVector,
+                                                   ThreadTransferSrcResetCoordinateAfterRunFlags,
+                                                   ThreadTransferDstResetCoordinateAfterRunFlags,
+                                                   ScatterDim,
+                                                   OutputScatter,
+                                                   ScatterWeightIdx,
+                                                   NumThreadScratch>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };

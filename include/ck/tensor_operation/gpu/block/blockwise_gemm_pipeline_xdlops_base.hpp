@@ -47,7 +47,7 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);
     static constexpr index_t A_K1 = ATileDesc{}.GetLength(I2);
     static constexpr index_t B_K1 = BTileDesc{}.GetLength(I2);
-    
+
     static constexpr auto xdlops_gemm =
         XdlopsGemm<ComputeDataType, MPerXDL, NPerXDL, KPack, ComputeDataType, TransposeC>{};
 

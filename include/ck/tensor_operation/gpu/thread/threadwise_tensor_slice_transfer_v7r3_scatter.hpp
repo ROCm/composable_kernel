@@ -43,8 +43,8 @@ template <typename SrcDatas,
           index_t DstScalarPerVector,
           typename SrcResetCoordinateAfterRunFlags, // Sequence<bool ...>
           typename DstResetCoordinateAfterRunFlags, // Sequence<bool ...>
-          index_t ScatterDim = 1,
-          bool OutputScatter = true,
+          index_t ScatterDim       = 1,
+          bool OutputScatter       = true,
           index_t ScatterWeightIdx = 3,
           index_t NumThreadScratch = 1>
 struct ThreadwiseTensorSliceTransfer_v7r3_scatter
@@ -61,8 +61,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
     static constexpr index_t nSrc = SrcDescs::Size();
     static constexpr index_t nDst = DstDescs::Size();
 
-    using Index = MultiIndex<nDim>;
-    static constexpr index_t scatter_num =  SliceLengths{}.At(Number<ScatterDim>{});
+    using Index                          = MultiIndex<nDim>;
+    static constexpr index_t scatter_num = SliceLengths{}.At(Number<ScatterDim>{});
 
     // return a tuple of coordiantes for a tuple of tensor
     template <typename Descs,
@@ -127,7 +127,10 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
     {
         static_for<0, nDst, 1>{}([&](auto i) {
             dst_coords_(i) = make_tensor_coordinate(dst_descs[i], dst_slice_origin_idxs[i]);
-            // printf("tid %d origin %d %d %d %d off %d\n", threadIdx.x, dst_slice_origin_idxs[i][I0], dst_slice_origin_idxs[i][I1], dst_slice_origin_idxs[i][I2], dst_slice_origin_idxs[i][I3], dst_coords_(i).GetOffset());
+            // printf("tid %d origin %d %d %d %d off %d\n", threadIdx.x,
+            // dst_slice_origin_idxs[i][I0], dst_slice_origin_idxs[i][I1],
+            // dst_slice_origin_idxs[i][I2], dst_slice_origin_idxs[i][I3],
+            // dst_coords_(i).GetOffset());
         });
     }
 
@@ -154,7 +157,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
               enable_if_t<SrcDescs::Size() == SrcBuffers::Size(), bool> = false>
     __device__ void RunRead(const SrcDescs& src_descs,
                             const SrcBuffers& src_bufs,
-                            StaticallyIndexedArray<float, scatter_num> &scatter_weights,
+                            StaticallyIndexedArray<float, scatter_num>& scatter_weights,
                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         // loop over space-filling curve
@@ -173,14 +176,19 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                                                                                 src_coords_[i]);
 
                 oob_val = oob_val & is_src_valid;
-                if (i.value == ScatterWeightIdx)
+                if(i.value == ScatterWeightIdx)
                 {
-                    static_assert(SrcScalarPerVectors{}[Number<ScatterWeightIdx>{}] == 1, "scatter weight dim, should only one vec");
-                    constexpr auto iScatter = SrcSpaceFillingCurve::GetIndex(iAccess)(Number<ScatterDim>{});
+                    static_assert(SrcScalarPerVectors{}[Number<ScatterWeightIdx>{}] == 1,
+                                  "scatter weight dim, should only one vec");
+                    constexpr auto iScatter =
+                        SrcSpaceFillingCurve::GetIndex(iAccess)(Number<ScatterDim>{});
                     // if(threadIdx.x % 8 ==0 )
-                    // printf("bid %d tid %d srcid %d sv %f\n", blockIdx.y, threadIdx.x, i.value, scatter_weights(Number<iScatter>{}));
-                    static_for<0, SrcScalarPerVector, 1>{}(
-                        [&](auto j) { src_vectors(i).template AsType<float>()(j) = scatter_weights(Number<iScatter>{}); });
+                    // printf("bid %d tid %d srcid %d sv %f\n", blockIdx.y, threadIdx.x, i.value,
+                    // scatter_weights(Number<iScatter>{}));
+                    static_for<0, SrcScalarPerVector, 1>{}([&](auto j) {
+                        src_vectors(i).template AsType<float>()(j) =
+                            scatter_weights(Number<iScatter>{});
+                    });
                 }
                 else if constexpr(SrcScalarPerVectors{}[i] == 1)
                 {
@@ -189,7 +197,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                     const auto tmp =
                         src_bufs[i].template Get<DataType>(src_coords_[i].GetOffset(), true);
                     // if(threadIdx.x % 8 ==0 )
-                    // printf("bid %d tid %d srcid %d off %d v %f\n", blockIdx.y, threadIdx.x, i.value, src_coords_[i].GetOffset(), tmp);
+                    // printf("bid %d tid %d srcid %d off %d v %f\n", blockIdx.y, threadIdx.x,
+                    // i.value, src_coords_[i].GetOffset(), tmp);
                     static_for<0, SrcScalarPerVector, 1>{}(
                         [&](auto j) { src_vectors(i).template AsType<DataType>()(j) = tmp; });
                 }
@@ -415,7 +424,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
               enable_if_t<DstDescs::Size() == 1 && DstBuffers::Size() == 1, bool> = false>
     __device__ void RunWrite(const DstDescs& dst_descs,
                              DstBuffers dst_bufs,
-                             StaticallyIndexedArray<index_t, scatter_num> &scatter_offsets,
+                             StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         OOBCheck(thread_scratch_id);
@@ -423,36 +432,37 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
 
         // loop over space-filling curve
         static_for<0, dst_num_access, 1>{}([&](auto iAccess) {
-            auto dst_vectors = dst_vectors_tuple_[thread_scratch_id][iAccess];
+            auto dst_vectors    = dst_vectors_tuple_[thread_scratch_id][iAccess];
             auto scatter_offset = 0;
-            if constexpr (OutputScatter)
+            if constexpr(OutputScatter)
             {
-                constexpr auto iScatter = DstSpaceFillingCurve::GetIndex(iAccess)(Number<ScatterDim>{});
+                constexpr auto iScatter =
+                    DstSpaceFillingCurve::GetIndex(iAccess)(Number<ScatterDim>{});
                 scatter_offset = scatter_offsets(Number<iScatter>{});
             }
             // copy data from buf_vectors into dst_bufs
             static_for<0, nDst, 1>{}([&](auto i) {
-                using dst_vector_t = typename remove_cvref_t<decltype(dst_vectors[i])>::type;
-                auto dst_offset = scatter_offset + dst_coords_[i].GetOffset();
+                using dst_vector_t      = typename remove_cvref_t<decltype(dst_vectors[i])>::type;
+                auto dst_offset         = scatter_offset + dst_coords_[i].GetOffset();
                 const bool is_dst_valid = dst_offset < dst_descs[i].GetElementSpaceSize();
-                    // coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_descs[i],
-                    //                                                             dst_coords_[i]);
+                // coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_descs[i],
+                //                                                             dst_coords_[i]);
 
                 constexpr InMemoryDataOperationEnum DstInMemOp =
                     static_cast<InMemoryDataOperationEnum>(DstInMemOps::At(i.value));
 
                 // if(threadIdx.x==0)
-                // printf("use tid %d off %d %d\n", threadIdx.x, dst_coords_[i].GetOffset(), scatter_offset );
+                // printf("use tid %d off %d %d\n", threadIdx.x, dst_coords_[i].GetOffset(),
+                // scatter_offset );
                 dst_bufs(i).template Update<DstInMemOp, dst_vector_t>(
-                    dst_offset,
-                    is_dst_valid,
-                    dst_vectors[i].template AsType<dst_vector_t>()[I0]);
+                    dst_offset, is_dst_valid, dst_vectors[i].template AsType<dst_vector_t>()[I0]);
                 // if(threadIdx.x%8 ==0 && blockIdx.x==0) {
                 //     static_for<0, 1, 1>{}([&](auto idx) {
                 //         using DstData = remove_cvref_t<tuple_element_t<0, DstDatas>>;
                 //         using print_vec_t = typename vector_type<DstData, 1>::type;
-                //         printf("tid %d off %d valid %d %f\n",threadIdx.x, dst_offset, is_dst_valid, 
-                //         type_convert<float>(dst_vectors[i].template AsType<print_vec_t>()[idx]));
+                //         printf("tid %d off %d valid %d %f\n",threadIdx.x, dst_offset,
+                //         is_dst_valid, type_convert<float>(dst_vectors[i].template
+                //         AsType<print_vec_t>()[idx]));
                 //     });
                 // }
             });
@@ -468,18 +478,20 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
 
                     static_for<0, nDim, 1>{}([&](auto i) {
                         step_(i) = (i.value == ScatterDim && OutputScatter) ? 0 : forward_step[i];
-                        
+
                         // if(threadIdx.x==0)
-                        //     printf("i %d %d ordered_gather_dim %d\n", i.value, step_(i), ordered_gather_dim);
+                        //     printf("i %d %d ordered_gather_dim %d\n", i.value, step_(i),
+                        //     ordered_gather_dim);
                     });
 
                     return step_;
                 }
                 ();
                 static_for<0, nDst, 1>{}([&](auto i) {
-                    move_tensor_coordinate(dst_descs[i],
-                                           dst_coords_(i),
-                                           make_tensor_coordinate_step(dst_descs[i], forward_step_scatter));
+                    move_tensor_coordinate(
+                        dst_descs[i],
+                        dst_coords_(i),
+                        make_tensor_coordinate_step(dst_descs[i], forward_step_scatter));
                 });
             }
         });
@@ -508,8 +520,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                         const SrcBuffers& src_bufs,
                         const DstDescs& dst_descs,
                         DstBuffers dst_bufs,
-                        StaticallyIndexedArray<index_t, scatter_num> &scatter_offsets,
-                        StaticallyIndexedArray<float, scatter_num> &scatter_weights)
+                        StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
+                        StaticallyIndexedArray<float, scatter_num>& scatter_weights)
     {
         RunRead(src_descs, src_bufs, scatter_weights);
         RunWrite(dst_descs, dst_bufs, scatter_offsets);
@@ -535,15 +547,18 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
         }
         else
         {
-            constexpr auto reset_step = DstSpaceFillingCurve::GetStepBetween(Number<dst_num_access - 1>{}, Number<0>{});
+            constexpr auto reset_step =
+                DstSpaceFillingCurve::GetStepBetween(Number<dst_num_access - 1>{}, Number<0>{});
             auto reset_step_scatter = [&]() constexpr
             {
                 Index step_;
                 static_for<0, nDim, 1>{}([&](auto i) {
-                    step_(i) = (i.value == ScatterDim && OutputScatter) ? 0 : reset_step[Number<i>{}];
-                    
+                    step_(i) =
+                        (i.value == ScatterDim && OutputScatter) ? 0 : reset_step[Number<i>{}];
+
                     // if(threadIdx.x==0)
-                    //     printf("i %d %d ordered_gather_dim %d\n", i.value, step_(i), ordered_gather_dim);
+                    //     printf("i %d %d ordered_gather_dim %d\n", i.value, step_(i),
+                    //     ordered_gather_dim);
                 });
 
                 return step_;
@@ -683,18 +698,18 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                 ? dst_slice_origin_step_idx
                 : dst_slice_origin_step_idx + GetDstCoordinateResetStep();
 
-        auto adjusted_step_idx_scatter = [&]() 
-        {
+        auto adjusted_step_idx_scatter = [&]() {
             Index step_;
             static_for<0, nDim, 1>{}([&](auto i) {
-                step_(i) = (i.value == ScatterDim && OutputScatter) ? 0 : adjusted_step_idx[Number<i>{}];
+                step_(i) =
+                    (i.value == ScatterDim && OutputScatter) ? 0 : adjusted_step_idx[Number<i>{}];
             });
 
             return step_;
-        }
-        ();
+        }();
         // is it OK to construct a new step every time?
-        const auto adjusted_step = make_tensor_coordinate_step(dst_descs[iDst], adjusted_step_idx_scatter);
+        const auto adjusted_step =
+            make_tensor_coordinate_step(dst_descs[iDst], adjusted_step_idx_scatter);
 
         move_tensor_coordinate(dst_descs[iDst], dst_coords_(iDst), adjusted_step);
     }
