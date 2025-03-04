@@ -56,7 +56,8 @@ void preShuffleBuffer(
         }
     }
 }
-int GetPreShufflePadded(int K) { return (K + 64 - 1) / 64 * 64; }
+
+int GetPreShufflePadded(int K) { return (K + ShufflePadded - 1) / ShufflePadded * ShufflePadded; }
 
 template <typename ADataType,
           typename BDataType,

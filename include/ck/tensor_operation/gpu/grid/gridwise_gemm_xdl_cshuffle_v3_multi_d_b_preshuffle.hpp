@@ -214,7 +214,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
     __host__ __device__ static auto CalculateBKShufflePadded(index_t K)
     {
-        return (K + 64 - 1) / 64 * 64;
+        return (K + ShufflePadded - 1) / ShufflePadded * ShufflePadded;
     }
 
     __host__ __device__ static auto CalculateKPadded(index_t K)
@@ -605,7 +605,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)},
               BN0Shuffled{CalculateBN0Shuffled(N_)},
-              BK0Shuffled{CalculateBK0Shuffled((K_ + 64 - 1) / 64 * 64)}
+              BK0Shuffled{CalculateBK0Shuffled(CalculateBKShufflePadded(K_))}
         {
         }
 
@@ -936,7 +936,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             return false;
         }
 
-        if(karg.N % NPerBlock != 0 && NXdlPerWave == 1)
+        if(karg.N % NPerBlock != 0 && karg.N % (NPerXdl * 2) != 0)
         {
             return false;
         }
