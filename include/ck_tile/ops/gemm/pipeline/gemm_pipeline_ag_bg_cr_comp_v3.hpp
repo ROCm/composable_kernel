@@ -90,6 +90,9 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
     static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
 
+    static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
+    static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
+
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
@@ -127,11 +130,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
         constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
 
         // Below should be equal to AK1|BK1
-        constexpr index_t A_LDS_Read_Width = Policy::template GetSmemPackA<Problem>();
-        constexpr index_t B_LDS_Read_Width = Policy::template GetSmemPackB<Problem>();
+        constexpr index_t A_LDS_Read_Width = GetSmemPackA();
+        constexpr index_t B_LDS_Read_Width = GetSmemPackB();
 
-        constexpr index_t A_LDS_Write_Width = Policy::template GetSmemPackA<Problem>();
-        constexpr index_t B_LDS_Write_Width = Policy::template GetSmemPackB<Problem>();
+        constexpr index_t A_LDS_Write_Width = GetSmemPackA();
+        constexpr index_t B_LDS_Write_Width = GetSmemPackB();
 
         constexpr index_t A_Buffer_Load_Inst_Num =
             MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
@@ -187,11 +190,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
 
             // Below should be equal to AK1|BK1
-            constexpr index_t A_LDS_Read_Width = Policy::template GetSmemPackA<Problem>();
-            constexpr index_t B_LDS_Read_Width = Policy::template GetSmemPackB<Problem>();
+            constexpr index_t A_LDS_Read_Width = GetSmemPackA();
+            constexpr index_t B_LDS_Read_Width = GetSmemPackB();
 
-            constexpr index_t A_LDS_Write_Width = Policy::template GetSmemPackA<Problem>();
-            constexpr index_t B_LDS_Write_Width = Policy::template GetSmemPackB<Problem>();
+            constexpr index_t A_LDS_Write_Width = GetSmemPackA();
+            constexpr index_t B_LDS_Write_Width = GetSmemPackB();
 
             constexpr index_t A_Buffer_Load_Inst_Num =
                 MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
@@ -206,7 +209,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             constexpr index_t A_LDS_Read_Inst_Num =
                 WaveNumN * MPerBlock * KPerBlock / (BlockSize * A_LDS_Read_Width);
             constexpr index_t B_LDS_Read_Inst_Num =
-                WaveNumM * MPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
+                WaveNumM * NPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
 
             constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
                                                 (BlockSize / WaveSize) /
@@ -359,17 +362,23 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // A/B tiles in LDS
             auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
 
+            // Tile distribution for load from lds
+            constexpr auto a_lds_load_tile_distr =
+                make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
+            constexpr auto b_lds_load_tile_distr =
+                make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
+
             // A DRAM tile window for load
             // A LDS tile window for store
             // A LDS tile for block GEMM
             auto&& [a_copy_dram_window, a_copy_lds_window, a_lds_gemm_window] =
-                Base::GetAWindows(a_dram_block_window_tmp, a_lds_block);
+                Base::GetAWindows(a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
 
             // B DRAM tile window for load
             // B LDS tile window for store
             // B LDS tile for block GEMM
             auto&& [b_copy_dram_window, b_copy_lds_window, b_lds_gemm_window] =
-                Base::GetBWindows(b_dram_block_window_tmp, b_lds_block);
+                Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
 
             // Block GEMM
             auto block_gemm   = BlockGemm();
