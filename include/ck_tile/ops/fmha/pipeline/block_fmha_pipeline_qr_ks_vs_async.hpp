@@ -46,6 +46,8 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr index_t kQKHeaddim    = BlockFmhaShape::kQKHeaddim;
     static constexpr index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
 
+    static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
+
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     // TODO: seq_q always support padding, hdim_q/v support multiple of vector(like 8x)
     //       only need special care about seq_k padding (oob need set -INF of p instead of zero)
@@ -115,7 +117,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                 return 1;
             }
             else
+            {
                 return 1;
+            };
         }
     }();
 

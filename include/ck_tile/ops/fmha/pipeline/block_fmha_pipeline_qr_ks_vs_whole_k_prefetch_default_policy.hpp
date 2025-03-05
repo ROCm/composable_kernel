@@ -19,10 +19,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t IsPreloadWholeNextIterationK()
     {
-        if constexpr(Problem::BlockFmhaShape::kM0 <= 64)
-            return true;
-        else
-            return false;
+        return Problem::BlockFmhaShape::kM0 <= 64;
     };
 
     template <typename Problem>
@@ -75,6 +72,8 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
         constexpr index_t kKPerBlock     = Problem::BlockFmhaShape::kK0;
         constexpr index_t kKPack         = GetSmemKPackK<Problem>();
         constexpr index_t kKVector       = GetAlignmentK<Problem>();
+
+        static_assert(kKVector % kKPack == 0);
 
         constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<NumKLdsBuffers>{},
@@ -194,12 +193,12 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
             constexpr index_t N1 = GetAlignmentV<Problem>();
             constexpr index_t N0 = kNPerBlock / N1; // P
 
-            constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
-            static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
-            constexpr index_t K3     = total_pixels / N1;
+            constexpr index_t ElemPerThread = kNPerBlock * kKPerBlock / kBlockSize;
+            static_assert(ElemPerThread % N1 == 0);
+            constexpr index_t K3     = ElemPerThread / N1;
             constexpr index_t kKPack = GetSmemKPackV<Problem>();
             static_assert(kKPack % K3 == 0);
-            constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
+            constexpr index_t K2 = kKPack / K3;
             if constexpr(get_warp_size() % (K2 * N0) == 0)
             {
                 constexpr index_t K1 = get_warp_size() / (K2 * N0);
