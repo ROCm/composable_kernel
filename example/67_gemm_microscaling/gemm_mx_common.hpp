@@ -456,16 +456,22 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
         b_k_n_scale(0, 0) = ck::type_convert<XDataType>(1.0f / 4);
         {
-            const ck::index_t n_freq = 73; // frequency of nonzero values in col(B)
-            b_k_n(0, 0) = b_k_n(n_freq, 0) = ck::type_convert<BDataType>(1.0f);
-            b_k_n(7, 0)                    = ck::type_convert<BDataType>(1.0f);
-            b_k_n(11, 0)                   = ck::type_convert<BDataType>(1.0f);
-            b_k_n(21, 0)                   = ck::type_convert<BDataType>(1.0f);
-            b_k_n(30, 0)                   = ck::type_convert<BDataType>(1.0f);
-            b_k_n(40, 0)                   = ck::type_convert<BDataType>(1.0f);
-            b_k_n(50, 0)                   = ck::type_convert<BDataType>(1.0f);
-            b_k_n(60, 0)                   = ck::type_convert<BDataType>(1.0f);
-            // expect : 5.25
+            //            const ck::index_t n_freq = 73; // frequency of nonzero values in col(B)
+            // b_k_n(0, 0) = b_k_n(n_freq, 0) = ck::type_convert<BDataType>(1.0f);
+            // b_k_n(7, 0)                    = ck::type_convert<BDataType>(1.0f);
+            // b_k_n(11, 0)                   = ck::type_convert<BDataType>(1.0f);
+            // b_k_n(21, 0)                   = ck::type_convert<BDataType>(1.0f);
+            // b_k_n(30, 0)                   = ck::type_convert<BDataType>(1.0f);
+            // b_k_n(40, 0)                   = ck::type_convert<BDataType>(1.0f);
+            // b_k_n(50, 0)                   = ck::type_convert<BDataType>(1.0f);
+            // b_k_n(60, 0)                   = ck::type_convert<BDataType>(1.0f);
+
+            for(size_t i = 00; i < 384; i += 7)
+            {
+                auto coeff  = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
+                b_k_n(i, 0) = ck::type_convert<BDataType>(coeff / 10.0f * i);
+            }
+            b_k_n(383, 0) = ck::type_convert<BDataType>(-1.0f);
         }
 
         break;
