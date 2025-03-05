@@ -604,7 +604,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
               BK0{CalculateBK0Padded(K_, KBatch_)},
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)},
-              BN0Shuffled{CalculateBN0Shuffled(NPadded)},
+              BN0Shuffled{CalculateBN0Shuffled((N + 128 - 1) / 128 * 128)},
               BK0Shuffled{CalculateBK0Shuffled(CalculateBKShufflePadded(K_))}
         {
         }
