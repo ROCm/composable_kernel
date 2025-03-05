@@ -735,7 +735,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
 
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-        // __builtin_amdgcn_sched_barrier(0);
+        __builtin_amdgcn_sched_barrier(0);
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             a_scale_thread_copy.Run(a_scale_grid_desc,
@@ -856,6 +856,12 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                         }
 
+                        vector_type<AccDataType, 2> c_scale_thread_vec;
+                        c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
+                            c_scale_thread_buf[m0];
+                        c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
+                            c_scale_thread_buf[m0];
+
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
                             static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                                 c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -890,13 +896,20 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                     b_thread_vec.template AsType<mfma_input_type>(),
                                     c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{}));
                             });
-                            static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
-                                constexpr index_t c_offset =
-                                    c_thread_desc_.CalculateOffset(make_tuple(m0, n0, t));
-                                c_thread_buf(Number<c_offset>{}) +=
+
+                            constexpr index_t c_offset =
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                            static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
+                                using pk_fma_type = typename vector_type<AccDataType, 2>::type;
+
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                    .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
                                     c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
-                                        .template AsType<AccDataType>()[Number<t>{}] *
-                                    type_convert<AccDataType>(c_scale_thread_buf[m0]);
+                                        .template AsType<pk_fma_type>()[t],
+                                    c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                        .template AsType<pk_fma_type>()[t]);
                             });
                         });
 
@@ -977,11 +990,13 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
 
                     b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                            b_scale_thread_copy_step);
+
+                    __builtin_amdgcn_sched_group_barrier(0x020, MRepeat + 1, 0); // VMEM read
                 };
 
                 LoopFunc(I0, I1);
                 // Just adding this will cause correctness issue.
-                __builtin_amdgcn_sched_barrier(0);
+                // __builtin_amdgcn_sched_barrier(0);
                 LoopFunc(I1, I0);
 
                 i += 2;
@@ -1004,6 +1019,12 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 {
                     a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
                 }
+
+                vector_type<AccDataType, 2> c_scale_thread_vec;
+                c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
+                    c_scale_thread_buf[m0];
+                c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
+                    c_scale_thread_buf[m0];
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
@@ -1031,13 +1052,20 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             b_thread_vec.template AsType<mfma_input_type>(),
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{}));
                     });
-                    static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
-                        constexpr index_t c_offset =
-                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, t));
-                        c_thread_buf(Number<c_offset>{}) +=
+
+                    constexpr index_t c_offset =
+                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
+                        using pk_fma_type = typename vector_type<AccDataType, 2>::type;
+
+                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                            .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
-                                .template AsType<AccDataType>()[Number<t>{}] *
-                            type_convert<AccDataType>(c_scale_thread_buf[m0]);
+                                .template AsType<pk_fma_type>()[t],
+                            c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
+                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                .template AsType<pk_fma_type>()[t]);
                     });
                 });
 
@@ -1076,6 +1104,12 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             });
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
+                vector_type<AccDataType, 2> c_scale_thread_vec;
+                c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
+                    c_scale_thread_buf[m0];
+                c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
+                    c_scale_thread_buf[m0];
+
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                         c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -1102,13 +1136,19 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             b_thread_vec.template AsType<mfma_input_type>(),
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{}));
                     });
-                    static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
-                        constexpr index_t c_offset =
-                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, t));
-                        c_thread_buf(Number<c_offset>{}) +=
+                    constexpr index_t c_offset =
+                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
+                        using pk_fma_type = typename vector_type<AccDataType, 2>::type;
+
+                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                            .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
-                                .template AsType<AccDataType>()[Number<t>{}] *
-                            type_convert<AccDataType>(c_scale_thread_buf[m0]);
+                                .template AsType<pk_fma_type>()[t],
+                            c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
+                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                .template AsType<pk_fma_type>()[t]);
                     });
                 });
 
@@ -1135,6 +1175,12 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
         else
         {
             static_for<0, MRepeat, 1>{}([&](auto m0) {
+                vector_type<AccDataType, 2> c_scale_thread_vec;
+                c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
+                    c_scale_thread_buf[m0];
+                c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
+                    c_scale_thread_buf[m0];
+
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                         c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -1161,13 +1207,19 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             b_thread_vec.template AsType<mfma_input_type>(),
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{}));
                     });
-                    static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
-                        constexpr index_t c_offset =
-                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, t));
-                        c_thread_buf(Number<c_offset>{}) +=
+                    constexpr index_t c_offset =
+                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
+                        using pk_fma_type = typename vector_type<AccDataType, 2>::type;
+
+                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                            .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
-                                .template AsType<AccDataType>()[Number<t>{}] *
-                            type_convert<AccDataType>(c_scale_thread_buf[m0]);
+                                .template AsType<pk_fma_type>()[t],
+                            c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
+                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                .template AsType<pk_fma_type>()[t]);
                     });
                 });
 
