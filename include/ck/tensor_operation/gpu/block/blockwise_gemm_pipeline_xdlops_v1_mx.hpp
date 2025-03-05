@@ -345,7 +345,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             vector_type<ComputeDataType, KPack> a_thread_vec;
                             vector_type<ComputeDataType, KPack> b_thread_vec;
 
-                            bool is_zero = true;
+                            bool is_B_zero = true;
+                            bool is_A_zero = true;
 
                             static_for<0, KPack, 1>{}([&](auto ik) {
                                 a_thread_vec.template AsType<ComputeDataType>()(ik) =
@@ -376,14 +377,31 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 }
                                 else
                                 {
-                                    is_zero = false;
+                                    is_B_zero = false;
+                                }
+                                if(a_thread_vec.template AsType<ComputeDataType>()(ik) ==
+                                   ComputeDataType{0})
+                                {
+                                }
+                                else
+                                {
+                                    is_A_zero = false;
                                 }
 
 #endif
                             });
 
+                            using mfma_input_type =
+                                typename vector_type<ComputeDataType,
+                                                     xdlops_gemm.K1PerXdlops>::type;
+
+                            xdlops_gemm.template Run<>(
+                                a_thread_vec.template AsType<mfma_input_type>(),
+                                b_thread_vec.template AsType<mfma_input_type>(),
+                                c_thread_buf_per_scale.GetVectorTypeReference(I0));
+
 #if 1
-                            if(!is_zero)
+                            if(!is_B_zero && !is_A_zero)
                             {
                                 printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
                                        "= %d : b_thread_vec = [%f, %f, %f, %f, %f, %f, %f, %f, "
@@ -442,17 +460,34 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                        type_convert<float>(
                                            b_thread_vec.template AsType<ComputeDataType>()(
                                                Number<15>{})));
+
+                                printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
+                                       "= %d : c_thread_buf_per_scale = [%f, %f, %f, %f, %f, %f, "
+                                       "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                       blockIdx.x,
+                                       threadIdx.x,
+                                       i,
+                                       static_cast<int>(m0),
+                                       static_cast<int>(n0),
+                                       static_cast<int>(k0),
+                                       c_thread_buf_per_scale(Number<0>{}),
+                                       c_thread_buf_per_scale(Number<1>{}),
+                                       c_thread_buf_per_scale(Number<2>{}),
+                                       c_thread_buf_per_scale(Number<3>{}),
+                                       c_thread_buf_per_scale(Number<4>{}),
+                                       c_thread_buf_per_scale(Number<5>{}),
+                                       c_thread_buf_per_scale(Number<6>{}),
+                                       c_thread_buf_per_scale(Number<7>{}),
+                                       c_thread_buf_per_scale(Number<8>{}),
+                                       c_thread_buf_per_scale(Number<9>{}),
+                                       c_thread_buf_per_scale(Number<10>{}),
+                                       c_thread_buf_per_scale(Number<11>{}),
+                                       c_thread_buf_per_scale(Number<12>{}),
+                                       c_thread_buf_per_scale(Number<13>{}),
+                                       c_thread_buf_per_scale(Number<14>{}),
+                                       c_thread_buf_per_scale(Number<15>{}));
                             }
 #endif
-
-                            using mfma_input_type =
-                                typename vector_type<ComputeDataType,
-                                                     xdlops_gemm.K1PerXdlops>::type;
-
-                            xdlops_gemm.template Run<>(
-                                a_thread_vec.template AsType<mfma_input_type>(),
-                                b_thread_vec.template AsType<mfma_input_type>(),
-                                c_thread_buf_per_scale.GetVectorTypeReference(I0));
                         });
                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                             constexpr index_t c_offset =
@@ -581,7 +616,9 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         vector_type<ComputeDataType, KPack> a_thread_vec;
                         vector_type<ComputeDataType, KPack> b_thread_vec;
 
-                        bool is_zero = true;
+                        bool is_B_zero = true;
+                        bool is_A_zero = true;
+
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeDataType>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
@@ -610,12 +647,29 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             }
                             else
                             {
-                                is_zero = false;
+                                is_B_zero = false;
+                            }
+                            if(a_thread_vec.template AsType<ComputeDataType>()(ik) ==
+                               ComputeDataType{0})
+                            {
+                            }
+                            else
+                            {
+                                is_A_zero = false;
                             }
 #endif
                         });
+
+                        using mfma_input_type =
+                            typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+
+                        xdlops_gemm.template Run<>(
+                            a_thread_vec.template AsType<mfma_input_type>(),
+                            b_thread_vec.template AsType<mfma_input_type>(),
+                            c_thread_buf_per_scale.GetVectorTypeReference(I0));
+
 #if 1
-                        if(!is_zero)
+                        if(!is_B_zero && !is_A_zero)
                         {
                             printf(
                                 "blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
@@ -659,15 +713,34 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                     b_thread_vec.template AsType<ComputeDataType>()(Number<14>{})),
                                 type_convert<float>(
                                     b_thread_vec.template AsType<ComputeDataType>()(Number<15>{})));
+
+                            printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
+                                   "= %d : c_thread_buf_per_scale = [%f, %f, %f, %f, %f, %f, "
+                                   "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                   blockIdx.x,
+                                   threadIdx.x,
+                                   -1,
+                                   static_cast<int>(m0),
+                                   static_cast<int>(n0),
+                                   static_cast<int>(k0),
+                                   c_thread_buf_per_scale(Number<0>{}),
+                                   c_thread_buf_per_scale(Number<1>{}),
+                                   c_thread_buf_per_scale(Number<2>{}),
+                                   c_thread_buf_per_scale(Number<3>{}),
+                                   c_thread_buf_per_scale(Number<4>{}),
+                                   c_thread_buf_per_scale(Number<5>{}),
+                                   c_thread_buf_per_scale(Number<6>{}),
+                                   c_thread_buf_per_scale(Number<7>{}),
+                                   c_thread_buf_per_scale(Number<8>{}),
+                                   c_thread_buf_per_scale(Number<9>{}),
+                                   c_thread_buf_per_scale(Number<10>{}),
+                                   c_thread_buf_per_scale(Number<11>{}),
+                                   c_thread_buf_per_scale(Number<12>{}),
+                                   c_thread_buf_per_scale(Number<13>{}),
+                                   c_thread_buf_per_scale(Number<14>{}),
+                                   c_thread_buf_per_scale(Number<15>{}));
                         }
 #endif
-                        using mfma_input_type =
-                            typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
-
-                        xdlops_gemm.template Run<>(
-                            a_thread_vec.template AsType<mfma_input_type>(),
-                            b_thread_vec.template AsType<mfma_input_type>(),
-                            c_thread_buf_per_scale.GetVectorTypeReference(I0));
                     });
                     static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                         constexpr index_t c_offset =
