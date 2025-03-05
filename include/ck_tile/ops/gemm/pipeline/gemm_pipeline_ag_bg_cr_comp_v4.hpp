@@ -400,13 +400,10 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                                 b_copy_lds_window0, b_global_load_tile, b_element_func);
                         }
 
-                        block_sync_lds();
-
                         Base::GlobalPrefetch(
                             a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
                         Base::GlobalPrefetch(
                             b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
-                        block_sync_lds();
                         // gemm
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                         HotLoopScheduler();
@@ -450,7 +447,6 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                             b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
                         // gemm
                         block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                        block_sync_lds();
                         HotLoopScheduler();
                         __builtin_amdgcn_sched_barrier(0);
                     }
