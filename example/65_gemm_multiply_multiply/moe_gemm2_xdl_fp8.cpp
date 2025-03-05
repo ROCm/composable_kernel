@@ -235,7 +235,7 @@ int main(int argc, char* argv[])
     // max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
     // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
     max_token_id.mData = {valid_size, 0, 1, 2, 3, 4, 5, 6, 7, 8};
-    int eids[] = {0,1, 2, 3,  4,  5,  6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+    int eids[]         = {0, 1, 2, 3, 4, 5, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     for(int i = 0; i < sorted_tile_num; i++)
     {
         expert_ids.mData[i] = eids[i];
