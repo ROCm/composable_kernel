@@ -741,11 +741,17 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
+        constexpr bool is_single_rate_mfma =
+            (((is_same<FloatAAdjusted, half_t>::value || is_same<FloatAAdjusted, bhalf_t>::value) &&
+              K1 <= 4) ||
+             (is_same<FloatAAdjusted, int8_t>::value && K1 <= 8))
+                ? true
+                : false;
 
-        constexpr index_t KPack =
-            math::max(K1,
-                      MfmaSelector<FloatAAdjusted, MPerXDL, NPerXDL, FloatBAdjusted>::selected_mfma
-                          .k_per_blk);
+        constexpr index_t KPack = math::max(
+            K1,
+            MfmaSelector<FloatAAdjusted, MPerXDL, NPerXDL, FloatBAdjusted, is_single_rate_mfma>::
+                selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
