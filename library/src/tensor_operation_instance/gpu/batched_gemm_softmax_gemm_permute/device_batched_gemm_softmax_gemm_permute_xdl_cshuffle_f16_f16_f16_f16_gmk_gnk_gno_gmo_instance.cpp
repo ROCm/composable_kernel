@@ -8,6 +8,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -58,12 +59,23 @@ using device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_
         DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,       Scale, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,   128,    32,   128,    32,   8,   8,    2,   32,   32,     1,     4,     4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>,
         DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,       Scale, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,     64,   256,    32,   128,    32,   8,   8,    2,   16,   16,     1,    16,     8,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           8,               S<1, 16, 1,16>,               8, MaskingSpec>,
         DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,       Scale, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,     64,   256,    32,    64,    32,   8,   8,    2,   16,   16,     1,    16,     4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S<16, 16, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>,               8, MaskingSpec>,
-#if !defined(CK_USE_AMD_MFMA_GFX950)
-        DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,       Scale, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,     64,   256,    64,   128,    32,   8,   8,    2,   16,   16,     1,    16,     8,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<8, 32, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           8,               S<1, 16, 1,16>,               8, MaskingSpec>,
-        DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,       Scale, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,     64,   256,    64,    64,    32,   8,   8,    2,   16,   16,     1,    16,     4,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<8, 32, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S<16, 16, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>,               8, MaskingSpec>,
-#endif // !defined(CK_USE_AMD_MFMA_GFX950)
         // Padded fallback kernel
         DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,       Scale, PassThrough, PassThrough,     GemmPadded, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,   128,    64,   128,    32,   8,   8,    2,   32,   32,     1,     4,     4,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,     false,      S<8, 32, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,      false,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
+        // clang-format on
+        >;
+
+// instances not working on gfx950
+template <index_t NumDimG,
+          index_t NumDimM,
+          index_t NumDimN,
+          index_t NumDimK,
+          index_t NumDimO,
+          MaskingSpecialization MaskingSpec>
+using device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances_part2 =
+    std::tuple<
+        // clang-format off
+        DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,       Scale, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,     64,   256,    64,   128,    32,   8,   8,    2,   16,   16,     1,    16,     8,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<8, 32, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           8,               S<1, 16, 1,16>,               8, MaskingSpec>,
+        DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,   F16,    F16,    F16,   F16,  ck::Tuple<>,  ck::Tuple<>,     F32,      F16, PassThrough, PassThrough,       Scale, PassThrough, PassThrough,    GemmDefault, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,     64,   256,    64,    64,    32,   8,   8,    2,   16,   16,     1,    16,     4,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<8, 32, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S<16, 16, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>,               8, MaskingSpec>
         // clang-format on
         >;
 
@@ -97,6 +109,19 @@ void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f
             1,
             1,
             MaskingSpecialization::MaskOutUpperTriangle>{});
+
+    if(ck::get_device_name() != "gfx950")
+    {
+        add_device_operation_instances(
+            instances,
+            device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances_part2<
+                2,
+                1,
+                1,
+                1,
+                1,
+                MaskingSpecialization::MaskOutUpperTriangle>{});
+    }
 }
 
 void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
@@ -129,6 +154,19 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_g
             1,
             1,
             MaskingSpecialization::MaskDisabled>{});
+
+    if(ck::get_device_name() != "gfx950")
+    {
+        add_device_operation_instances(
+            instances,
+            device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances_part2<
+                2,
+                1,
+                1,
+                1,
+                1,
+                MaskingSpecialization::MaskDisabled>{});
+    }
 }
 
 } // namespace instance
