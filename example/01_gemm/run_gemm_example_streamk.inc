@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_streamk.hpp"
+
 template <typename ProblemType>
 bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 {
@@ -122,50 +125,64 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto b_element_op = BElementOp{};
     auto c_element_op = CElementOp{};
 
+    using BaseStreamK = ck::tensor_operation::device::DeviceGemmStreamK<ALayout,
+                                                                        BLayout,
+                                                                        CLayout,
+                                                                        ADataType,
+                                                                        BDataType,
+                                                                        CDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        CElementOp>;
+
     // do GEMM
-    auto gemm      = DeviceGemmInstance{};
-    auto invoker   = gemm.MakeInvoker();
-    float ave_time = 0;
+    static_assert(std::is_base_of<BaseStreamK, DeviceGemmInstance>::value &&
+                  std::is_base_of<BaseStreamK, DeviceGemmInstance2>::value);
+    auto gemm           = DeviceGemmInstance{};
+    auto gemm2          = DeviceGemmInstance2{}; // instance for double rate mfma instruction
+    BaseStreamK* op_ptr = (ck::get_device_name() == "gfx950") ? static_cast<BaseStreamK*>(&gemm2)
+                                                              : static_cast<BaseStreamK*>(&gemm);
 
-    if constexpr(std::is_same<ProblemType, ProblemSize>::value)
-    {
-        auto argument = gemm.MakeArgument(
+    float ave_time   = 0;
+    auto invoker_ptr = op_ptr->MakeInvokerPointer();
+
+    auto argument_ptr = op_ptr->MakeArgumentPointer(
 #ifdef BUILD_INT4_EXAMPLE
-            static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-            static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-            static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+        static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+        static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+        static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
 #else
-            static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-            static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+        static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+        static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+        static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
 #endif
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            StrideC,
-            a_element_op,
-            b_element_op,
-            c_element_op);
+        M,
+        N,
+        K,
+        StrideA,
+        StrideB,
+        StrideC,
+        a_element_op,
+        b_element_op,
+        c_element_op,
+        problem_size.NumSKBlocks);
 
-        if(!gemm.IsSupportedArgument(argument))
-        {
-            std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
-
-            return true;
-        }
-
-        ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-    }
-    else
+    if(!op_ptr->IsSupportedArgument(argument_ptr.get()))
     {
-        // When the Problem Type and Problem Size does not fit.
+        std::cerr << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
 
-        std::cerr << gemm.GetTypeString() << ": the instance does not support the problem config."
-                  << std::endl;
         return true;
     }
+
+    auto argument              = argument_ptr.get();
+    std::size_t workspace_size = op_ptr->GetWorkSpaceSize(argument);
+    if(workspace_size != 0)
+    {
+        workspace.Realloc(workspace_size);
+        op_ptr->SetWorkSpacePointer(argument, workspace.GetDeviceBuffer());
+    }
+
+    ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, config.time_kernel});
 
     std::size_t flop = 2_uz * M * N * K;
     std::size_t num_btype =
@@ -176,7 +193,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
+              << op_ptr->GetTypeString() << std::endl;
 
     bool pass = true;
 
@@ -244,9 +261,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     return pass == true;
 }
 
-bool run_gemm_example(int argc, char* argv[])
+bool run_gemm_streamk_example(int argc, char* argv[])
 {
-    ProblemSize problem_size;
+    ProblemSizeStreamK problem_size;
     ExecutionConfig config;
 
     return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
