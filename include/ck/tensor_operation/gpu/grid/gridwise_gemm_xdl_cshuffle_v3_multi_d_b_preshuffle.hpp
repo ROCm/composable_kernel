@@ -936,6 +936,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             return false;
         }
 
+        if(karg.N % NPerXdl != 0)
+        {
+            return false;
+        }
+
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
