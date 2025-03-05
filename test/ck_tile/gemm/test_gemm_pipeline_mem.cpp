@@ -2,9 +2,10 @@
 #include "test_gemm_pipeline_util.hpp"
 #include "gtest/gtest.h"
 
-
 template <typename T>
-class TestCkTileGemmPipelineMem : public TestCkTileGemmPipeline<T> {};
+class TestCkTileGemmPipelineMem : public TestCkTileGemmPipeline<T>
+{
+};
 
 #define TEST_SUITE_NAME TestCkTileGemmPipelineMem
 
