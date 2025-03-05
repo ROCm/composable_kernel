@@ -603,6 +603,10 @@ def Build_CK(Map conf=[:]){
                             """
                         }
                     }
+                    // set ownership of all files and folders to jenkins after all steps completed
+                    dir("build"){
+                        sh "sudo chown -R jenkins:jenkins ../*"
+                    }
                 }
             }
         }
