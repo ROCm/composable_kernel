@@ -6,6 +6,7 @@
 #include "ck/ck.hpp"
 #include "ck/utility/enable_if.hpp"
 #include "ck/utility/random_gen.hpp"
+#include "ck/utility/functional.hpp"
 #include "ck/utility/type.hpp"
 
 #ifdef CK_USE_FNUZ_FP8
@@ -193,10 +194,10 @@ __host__ __device__ static inline T cast_from_f8(fp8_storage_t x)
         }
     }
 
-    typename std::conditional<
+    typename ck::conditional_t<
         sizeof(T) == 2,
         unsigned short int,
-        typename std::conditional<sizeof(T) == 4, unsigned int, unsigned long long>::type>::type
+        typename ck::conditional_t<sizeof(T) == 4, unsigned int, unsigned long long>>
         retval;
 
     if constexpr(we == 5 && is_half && !is_fnuz)
@@ -539,10 +540,10 @@ __host__ __device__ static inline fp8_storage_t cast_to_f8(T _x, unsigned int rn
 
     constexpr int mfmt = (sizeof(T) == 8) ? 52 : ((sizeof(T) == 4) ? 23 : 10);
 
-    using T_bitwise = typename std::conditional<
+    using T_bitwise = typename ck::conditional_t<
         sizeof(T) == 2,
         unsigned short int,
-        typename std::conditional<sizeof(T) == 4, unsigned int, unsigned long long>::type>::type;
+        typename ck::conditional_t<sizeof(T) == 4, unsigned int, unsigned long long>>;
     T_bitwise x_bitwise = bit_cast<T_bitwise>(_x);
 
     unsigned long long x{x_bitwise};
