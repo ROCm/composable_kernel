@@ -604,7 +604,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
               BK0{CalculateBK0Padded(K_, KBatch_)},
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)},
-              BN0Shuffled{CalculateBN0Shuffled(N_)},
+              BN0Shuffled{CalculateBN0Shuffled(NPadded)},
               BK0Shuffled{CalculateBK0Shuffled(CalculateBKShufflePadded(K_))}
         {
         }
@@ -932,11 +932,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
         // for not adding k padd operator
         if(CalculateBKShufflePadded(karg.K) % KPerBlock != 0)
-        {
-            return false;
-        }
-
-        if(karg.N % NPerBlock != 0 && karg.N % (NPerXdl * 2) != 0)
         {
             return false;
         }
