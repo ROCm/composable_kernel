@@ -146,7 +146,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     //          MfmaSelector<float, 16, 16, float>::selected_mfma.k_per_blk = mfma_f32_16x16x4xf32
     // XXX: GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3 assumes scale type is float
 
-#if 0
+#if 1
     static constexpr ck::index_t KPerBlock = 64;
     using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffleV3<
         ALayout,          // ALayout

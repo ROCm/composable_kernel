@@ -1131,6 +1131,16 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
+        constexpr auto mfma =
+            MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeA, is_single_rate_mfma>{};
+        constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
+        constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
+
+        // XXX: This condition does not apply to mfma scale instructions on gfx950
+        static_assert(
+            KPerXdlops * KPack / K1PerXdlops <= ScaleBlockSize,
+            "Single call to xdlops_gemm::Run should process less than ScaleBlockSize elements");
+
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
