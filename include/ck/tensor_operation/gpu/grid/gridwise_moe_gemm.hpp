@@ -16,7 +16,7 @@
 
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r3_scatter.hpp"
 
-#define DEBUG_LOG 1
+#define DEBUG_LOG 0
 
 namespace ck {
 

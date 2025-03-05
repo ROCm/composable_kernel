@@ -181,13 +181,13 @@ int main(int argc, char* argv[])
     // per expert:
     // GEMM shape
     ck::index_t N               = 4096;
-    ck::index_t K               = 14336;
+    ck::index_t K               = 4096;
     ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 16;
-    ck::index_t valid_tile_num  = 13;
+    ck::index_t sorted_tile_num = 6;
+    ck::index_t valid_tile_num  = 6;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
-    ck::index_t tokens          = 512;
+    ck::index_t tokens          = 128;
     ck::index_t topk            = 2;
 
     if(argc == 1)
@@ -232,8 +232,10 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
     // max_token_id.mData[0] = valid_size;
-    max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
-    int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
+    // max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
+    // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
+    max_token_id.mData = {valid_size, 0, 1, 2, 3, 4, 5, 6, 7, 8};
+    int eids[] = {0,1, 2, 3,  4,  5,  6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     for(int i = 0; i < sorted_tile_num; i++)
     {
         expert_ids.mData[i] = eids[i];
