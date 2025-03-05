@@ -1373,6 +1373,21 @@ struct XdlopsGemm
             print_type_name("XdlopsGemm::Run::p_c_thread", p_c_thread); // ck::vector_type<float,
                                                                         // 16>
         }
+#elif 0
+        [[maybe_unused]] auto print_type_name = [](const char* msg, auto param [[maybe_unused]]) {
+            printf("%s = %s\n\n", msg, __PRETTY_FUNCTION__);
+        };
+
+        if(threadIdx.x == 0 && blockIdx.x == 0)
+        {
+            print_type_name("XdlopsGemm::Run::p_a_wave",
+                            p_a_wave); // ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
+                                       // ck::non_native_vector_base<ck::f8_ocp_t, 8>>
+            print_type_name("XdlopsGemm::Run::p_b_wave",
+                            p_b_wave); // ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
+                                       // ck::non_native_vector_base<ck::f8_ocp_t, 8>>
+            print_type_name("XdlopsGemm::Run::p_c_thread", p_c_thread); // ck::vector_type<float, 4>
+        }
 #endif
         // clang-format off
 /*

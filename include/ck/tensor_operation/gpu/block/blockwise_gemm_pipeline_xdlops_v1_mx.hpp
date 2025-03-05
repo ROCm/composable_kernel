@@ -247,6 +247,64 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             printf("%s = %s\n\n", msg, __PRETTY_FUNCTION__);
         };
 
+        if(threadIdx.x == 0 && blockIdx.x == 0)
+        {
+            print_type_name(
+                "c_thread_buf_per_scale",
+                c_thread_buf_per_scale); // ck::StaticBufferTupleOfVector<ck::AddressSpaceEnum::Vgpr,
+                                         // float, 1, 4, true>
+            print_type_name("xdlops_gemm", xdlops_gemm); // ck::XdlopsGemm<ck::f8_ocp_t, 16, 16, 16>
+            using mfma_input_type =
+                typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+            print_type_name("mfma_input_type",
+                            mfma_input_type{}); // ck::non_native_vector_base<ck::f8_ocp_t, 8>
+
+            print_type_name("mfma = ", xdlops_gemm.mfma); // ck::MfmaSelector<ck::f8_ocp_t, 16, 16>
+            print_type_name(
+                "mfma_instr = ",
+                xdlops_gemm.mfma_instr); // ck::mfma_type<MfmaInstr::mfma_f32_16x16x32f8f8>
+
+            print_type_name("a_thread_buf",
+                            a_thread_buf); // ck::StaticBuffer<ck::AddressSpaceEnum::Vgpr,
+                                           // ck::f8_ocp_t, 32, true>
+            print_type_name("a_block_buf",
+                            a_block_buf); // ck::DynamicBuffer<ck::AddressSpaceEnum::Lds,
+                                          // ck::f8_ocp_t, ck::integral_constant<long, 2048>, true,
+                                          // ck::AmdBufferCoherenceEnum::DefaultCoherence>
+            print_type_name(
+                "b_scale_thread_copy",
+                b_scale_thread_copy); // ck::ThreadwiseTensorSliceTransfer_v2<_Float16, _Float16,
+                                      // const
+                                      // ck::TensorDescriptor<ck::Tuple<ck::Embed<ck::Tuple<int,
+                                      // int>, ck::Tuple<int, int>>>, ck::Tuple<ck::Sequence<0>>,
+                                      // ck::Tuple<ck::Sequence<1, 2>>, ck::Sequence<1, 2>, long> &,
+                                      // const
+                                      // ck::TensorDescriptor<ck::Tuple<ck::UnMerge<ck::Tuple<ck::integral_constant<int,
+                                      // 1>, ck::integral_constant<int, 1>>, false>>,
+                                      // ck::Tuple<ck::Sequence<0>>, ck::Tuple<ck::Sequence<1, 2>>,
+                                      // ck::Sequence<1, 2>, ck::integral_constant<long, 1>>,
+                                      // ck::Sequence<1, 1>, ck::Sequence<0, 1>, 1, 1, 1, false>
+
+            print_type_name("b_scale_thread_copy_step",
+                            b_scale_thread_copy_step); // ck::Tuple<ck::Tuple<int, int>,
+                                                       // ck::Tuple<int, int>, ck::Tuple<int, int>>
+
+            print_type_name("b_scale_thread_buf",
+                            b_scale_thread_buf); // ck::StaticBuffer<ck::AddressSpaceEnum::Vgpr,
+                                                 // _Float16, 1, true>
+            printf("MRepeat = %d\n", MRepeat);   // 1
+            printf("NRepeat = %d\n", NRepeat);   // 1
+            printf("KRepeat = %d\n", KRepeat);   // 2
+            printf("KPack = %d\n", KPack);       // 16
+            printf("xdlops_gemm.GetRegSizePerXdlops() = %d\n",
+                   xdlops_gemm.GetRegSizePerXdlops());                               // 4
+            printf("mfma_instr.k_per_blk = %d\n", xdlops_gemm.mfma_instr.k_per_blk); // 8
+        }
+#elif 0
+        [[maybe_unused]] auto print_type_name = [](const char* msg, auto param [[maybe_unused]]) {
+            printf("%s = %s\n\n", msg, __PRETTY_FUNCTION__);
+        };
+
         if(threadIdx.x == 0 && blockIdx.x == 0 && threadIdx.y == 0 && blockIdx.y == 0)
         {
             print_type_name(
@@ -301,7 +359,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                    xdlops_gemm.GetRegSizePerXdlops());                               // 16
             printf("mfma_instr.k_per_blk = %d\n", xdlops_gemm.mfma_instr.k_per_blk); // 8
         }
-
 #endif
 
         // main body
@@ -347,6 +404,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
                             bool is_B_zero = true;
                             bool is_A_zero = true;
+                            ignore         = is_B_zero;
+                            ignore         = is_A_zero;
 
                             static_for<0, KPack, 1>{}([&](auto ik) {
                                 a_thread_vec.template AsType<ComputeDataType>()(ik) =
@@ -462,8 +521,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                                Number<15>{})));
 
                                 printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
-                                       "= %d : c_thread_buf_per_scale = [%f, %f, %f, %f, %f, %f, "
-                                       "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                       "= %d : c_thread_buf_per_scale = [%f, %f, %f, %f]\n",
                                        blockIdx.x,
                                        threadIdx.x,
                                        i,
@@ -473,19 +531,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                        c_thread_buf_per_scale(Number<0>{}),
                                        c_thread_buf_per_scale(Number<1>{}),
                                        c_thread_buf_per_scale(Number<2>{}),
-                                       c_thread_buf_per_scale(Number<3>{}),
-                                       c_thread_buf_per_scale(Number<4>{}),
-                                       c_thread_buf_per_scale(Number<5>{}),
-                                       c_thread_buf_per_scale(Number<6>{}),
-                                       c_thread_buf_per_scale(Number<7>{}),
-                                       c_thread_buf_per_scale(Number<8>{}),
-                                       c_thread_buf_per_scale(Number<9>{}),
-                                       c_thread_buf_per_scale(Number<10>{}),
-                                       c_thread_buf_per_scale(Number<11>{}),
-                                       c_thread_buf_per_scale(Number<12>{}),
-                                       c_thread_buf_per_scale(Number<13>{}),
-                                       c_thread_buf_per_scale(Number<14>{}),
-                                       c_thread_buf_per_scale(Number<15>{}));
+                                       c_thread_buf_per_scale(Number<3>{}));
                             }
 #endif
                         });
@@ -618,6 +664,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
                         bool is_B_zero = true;
                         bool is_A_zero = true;
+                        ignore         = is_B_zero;
+                        ignore         = is_A_zero;
 
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeDataType>()(ik) =
@@ -715,8 +763,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                     b_thread_vec.template AsType<ComputeDataType>()(Number<15>{})));
 
                             printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
-                                   "= %d : c_thread_buf_per_scale = [%f, %f, %f, %f, %f, %f, "
-                                   "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                   "= %d : c_thread_buf_per_scale = [%f, %f, %f, %f]\n",
                                    blockIdx.x,
                                    threadIdx.x,
                                    -1,
@@ -726,19 +773,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                    c_thread_buf_per_scale(Number<0>{}),
                                    c_thread_buf_per_scale(Number<1>{}),
                                    c_thread_buf_per_scale(Number<2>{}),
-                                   c_thread_buf_per_scale(Number<3>{}),
-                                   c_thread_buf_per_scale(Number<4>{}),
-                                   c_thread_buf_per_scale(Number<5>{}),
-                                   c_thread_buf_per_scale(Number<6>{}),
-                                   c_thread_buf_per_scale(Number<7>{}),
-                                   c_thread_buf_per_scale(Number<8>{}),
-                                   c_thread_buf_per_scale(Number<9>{}),
-                                   c_thread_buf_per_scale(Number<10>{}),
-                                   c_thread_buf_per_scale(Number<11>{}),
-                                   c_thread_buf_per_scale(Number<12>{}),
-                                   c_thread_buf_per_scale(Number<13>{}),
-                                   c_thread_buf_per_scale(Number<14>{}),
-                                   c_thread_buf_per_scale(Number<15>{}));
+                                   c_thread_buf_per_scale(Number<3>{}));
                         }
 #endif
                     });

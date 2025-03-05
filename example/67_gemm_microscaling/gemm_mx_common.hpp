@@ -126,7 +126,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     static constexpr auto BlkGemmPVer =
         ck::BlockGemmPipelineVersion::v1; // can be v3 when the compiler bug is fixed.
 
-    static constexpr ck::index_t KPerBlock      = 64;
     static constexpr ck::index_t ScaleBlockSize = MXVectorSize;
 
     // XXX: DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3 is not designed to utilize MX-specific MFMA
@@ -148,24 +147,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     // XXX: GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3 assumes scale type is float
 
 #if 0
-    using BScaleDataType = XDataType;
-    static constexpr bool PermuteA = false;
-    static constexpr bool PermuteB = false;
-    static constexpr ck::index_t ScaleBlockSize = MXVectorSize;
-
-#if 1
-    // XXX: These parameters should not exist in MX-native GEMM kernel
-    static constexpr ck::index_t Scale_Block_N = 1;
-#endif
-// clang-format off
-    using DeviceOpInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3
-    // ######| ALayout| BLayout| CLayout| ADataType| BDataType|         BScale| CDataType|     GemmAcc| CShuffleDataType|AElementwise|BElementwise| CElementwise| GemmSpec|Block|   ScaleBlockN|   ScaleBlockK|    M|    N|         K| AK1| BK1|   M|   N|MXdl|NXdl|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|ABlockTransfer|   ABlock|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|BBlockTransfer|   BBlock|  CShuffle|  CShuffle|CShuffleBlockTransfer|CShuffleBlockTransfer|       BlkGemm|     BlkGemm|ComputeTypeA|ComputeTypeB| PermuteA|   PermuteB|
-    // ######|        |        |        |          |          |       DataType|          |    DataType|                 |   Operation|   Operation|    Operation|         | Size|              |              |  Per|  Per|       Per|    |    | Per| Per| Per| Per| ThreadCluster| ThreadCluster|SrcAccessOrder|  SrcVectorDim|     SrcScalar|     DstScalar|LdsExtraM| ThreadCluster| ThreadCluster|SrcAccessOrder|     SrcVector|     SrcScalar|     DstScalar|LdsExtraN|      MXdl|      NXdl|       ClusterLengths|      ScalarPerVector|     PipeSched| PipelineVer|            |            |         |           |
-    // ######|        |        |        |          |          |               |          |            |                 |            |            |             |         |     |              |              |Block|Block|     Block|    |    | XDL| XDL|Wave|Wave|       Lengths|  ArrangeOrder|              |              |     PerVector| PerVector_AK1|         |       Lengths|  ArrangeOrder|              |           Dim|     PerVector| PerVector_BK1|         |   PerWave|   PerWave|     MBlock_MPerBlock|            NPerBlock|              |            |            |            |         |           |
-    // ######|        |        |        |          |          |               |          |            |                 |            |            |             |         |     |              |              |     |     |          |    |    |    |    |    |    |     AK0_M_AK1|              |              |              |              |              |         |     BK0_N_BK1|              |              |              |              |              |         |PerShuffle|PerShuffle|     NBlock_NPerBlock|                     |              |            |            |            |         |           |
-             < ALayout, BLayout, CLayout, ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp,   CElementOp, GemmSpec,  256, Scale_Block_N, ScaleBlockSize,  128,  128, KPerBlock,  16,  16,  32,  32,   2,   2,   S<4, 64, 1>,    S<1, 0, 2>,    S<1, 0, 2>,             2,            16,            16,        0,   S<4, 64, 1>,    S<1, 0, 2>,    S<1, 0, 2>,             2,            16,            16,        0,         1,         1,       S<1, 32, 1, 8>,                    8, BlkGemmPSched, BlkGemmPVer,   ADataType,   BDataType, PermuteA,   PermuteB>;
-// clang-format on
-#else
+    static constexpr ck::index_t KPerBlock = 64;
     using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffleV3<
         ALayout,          // ALayout
         BLayout,          // BLayout
@@ -215,7 +197,57 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         ADataType,        // ComputeTypeA
         BDataType         // ComputeTypeB
         >;
-
+#else
+    static constexpr ck::index_t KPerBlock = 128;
+    using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffleV3<
+        ALayout,          // ALayout
+        BLayout,          // BLayout
+        CLayout,          // CLayout
+        ADataType,        // ADataType
+        XDataType,        // AScaleDataType
+        BDataType,        // BDataType
+        XDataType,        // BScaleDataType
+        CDataType,        // CDataType
+        AccDataType,      // GemmAccDataType
+        CShuffleDataType, // CShuffleDataType
+        AElementOp,       // AElementwiseOperation
+        BElementOp,       // BElementwiseOperation
+        CElementOp,       // CElementwiseOperation
+        GemmSpec,         // GemmSpec
+        MXVectorSize,     // ScaleBlockSize: Scaling block size
+        128,              // BlockSize: Thread block size
+        16,               // MPerBlock
+        32,               // NPerBlock
+        KPerBlock,        // KPerBlock
+        16,               // AK1
+        16,               // BK1
+        16,               // MPerXDL
+        16,               // NPerXDL
+        1,                // MXdlPerWave
+        1,                // NXdlPerWave
+        S<8, 16, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
+        S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
+        2,                // ABlockTransferSrcVectorDim
+        16,               // ABlockTransferSrcScalarPerVector
+        16,               // ABlockTransferDstScalarPerVector_AK1
+        false,            // ABlockLdsExtraM
+        S<8, 16, 1>,      // BBlockTransferThreadClusterLengths_BK0_N_BK1
+        S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
+        2,                // BBlockTransferSrcVectorDim
+        16,               // BBlockTransferSrcScalarPerVector
+        16,               // BBlockTransferDstScalarPerVector_BK1
+        false,            // BBlockLdsExtraN
+        1,                // CShuffleMXdlPerWavePerShuffle
+        1,                // CShuffleNXdlPerWavePerShuffle
+        S<1, 16, 1, 8>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        4,                // CShuffleBlockTransferScalarPerVector_NPerBlock
+        BlkGemmPSched,    // BlkGemmPipeSched
+        BlkGemmPVer,      // BlkGemmPipelineVer
+        ADataType,        // ComputeTypeA
+        BDataType         // ComputeTypeB
+        >;
 #endif
 
     auto M       = problem_size.M;
