@@ -214,20 +214,6 @@ struct GridwiseMoeGemm
             return 1;
     }();
 
-    static constexpr index_t APackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
-            return 2;
-        else
-            return 1;
-    }();
-
-    static constexpr index_t BPackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-            return 2;
-        else
-            return 1;
-    }();
-
     __host__ static auto CalculateGridSize(index_t M, index_t N)
     {
         const index_t nblock = math::integer_divide_ceil(N, NPerBlock);
@@ -1506,7 +1492,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = 1;
+            constexpr index_t scatter_weight_idx  = IsInputGemm ? 1 : 3; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -2014,7 +2000,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = 1;
+            constexpr index_t scatter_weight_idx  = IsInputGemm ? 1 : 3; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),

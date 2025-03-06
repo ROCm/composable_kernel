@@ -194,17 +194,19 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineSch
 
         constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num;
 
-        constexpr auto staged_num_ds_read_inst_a = ck::math::integer_divide_ceil(num_ds_read_inst_a,MRepeat);
-        constexpr auto staged_num_mfma           = ck::math::integer_divide_ceil(num_mfma , MRepeat);
+        constexpr auto staged_num_ds_read_inst_a =
+            ck::math::integer_divide_ceil(num_ds_read_inst_a, MRepeat);
+        constexpr auto staged_num_mfma = ck::math::integer_divide_ceil(num_mfma, MRepeat);
 
-        constexpr auto staged_num_mfma_per_ds_read_a = ck::math::integer_divide_ceil(staged_num_mfma , staged_num_ds_read_inst_a);
+        constexpr auto staged_num_mfma_per_ds_read_a =
+            ck::math::integer_divide_ceil(staged_num_mfma, staged_num_ds_read_inst_a);
 
         if constexpr(stage.value == 0)
         {
-            constexpr auto staged_num_buffer_load_b_per_ds_read_a = ck::math::integer_divide_ceil(
-                num_buffer_load_inst_b , staged_num_ds_read_inst_a);
-            constexpr auto staged_num_mfma_per_buffer_load_b =ck::math::integer_divide_ceil(
-                staged_num_mfma , num_buffer_load_inst_b);
+            constexpr auto staged_num_buffer_load_b_per_ds_read_a =
+                ck::math::integer_divide_ceil(num_buffer_load_inst_b, staged_num_ds_read_inst_a);
+            constexpr auto staged_num_mfma_per_buffer_load_b =
+                ck::math::integer_divide_ceil(staged_num_mfma, num_buffer_load_inst_b);
             // B global
             static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
                 ignore = i_inst;
@@ -550,11 +552,11 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineSch
         });
         // B VGPR->VGPR dequant
         b_thread_dequant_copy_.Run(b_block_desc_n0_n1_k0_k1,
-            b_block_origin_idx,
-            b_thread_bufs(I0),
-            b_thread_desc_,
-            make_tuple(I0, I0, I0, I0),
-            b_thread_dequant_bufs(I0));
+                                   b_block_origin_idx,
+                                   b_thread_bufs(I0),
+                                   b_thread_desc_,
+                                   make_tuple(I0, I0, I0, I0),
+                                   b_thread_dequant_bufs(I0));
 
         // Initialize C
         c_thread_buf.Clear();
@@ -909,7 +911,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineSch
     using Base::c_thread_desc_;
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-    
+
     using BThreadDequantCopy = ThreadwiseTensorSliceTransfer_StaticToStatic<
         BDataType,
         ComputeDataType,

@@ -286,7 +286,7 @@ struct ThreadwiseTensorSliceTransfer_v2
 
         // loop over tensor and copy
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
-        
+
         static_for<0, num_access, 1>{}([&](auto idx_1d) {
             typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type src_vector;
 
@@ -299,13 +299,14 @@ struct ThreadwiseTensorSliceTransfer_v2
 
             // copy data from src_buf into src_vector
             src_vector.template AsType<src_vector_t>()(Number<0>{}) =
-                src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize, is_src_valid);
+                src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize,
+                                                   is_src_valid);
 
             // copy data from src_vector into dst_buf
             static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
                 constexpr index_t dst_offset =
                     dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) + src_data_idx +
-                                            i * src_scalar_step_in_vector);
+                                             i * src_scalar_step_in_vector);
 
                 if constexpr(InvalidElementAsNaN)
                 {
@@ -1541,7 +1542,8 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
         if constexpr(is_same<remove_cvref_t<SrcData>, pk_i4_t>::value)
         {
             static_for<0, num_access, 1>{}([&](auto idx_1d) {
-                typename vector_type_maker<SrcData, DstScalarPerVector / PackedSize>::type src_tmp_vector;
+                typename vector_type_maker<SrcData, DstScalarPerVector / PackedSize>::type
+                    src_tmp_vector;
 
                 constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
 

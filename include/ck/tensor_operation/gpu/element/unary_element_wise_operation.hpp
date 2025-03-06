@@ -93,7 +93,8 @@ __device__ inline f8x4_t i4_to_f8x4(int q)
     float f32_3 = amd_assemble_cvt_f32_i4(hi >> 16);
 
     // vector_type<f8_t, 4> res;
-    // res.template AsType<f8x4_t>()(Number<0>{}) = amd_assemble_cvt_f8_f32(f32_1st, f32_2nd, f32_3rd, f32_4th);
+    // res.template AsType<f8x4_t>()(Number<0>{}) = amd_assemble_cvt_f8_f32(f32_1st, f32_2nd,
+    // f32_3rd, f32_4th);
     return amd_assembly_cvt_f8_to_f32(f32_0, f32_1, f32_2, f32_3);
 }
 
@@ -188,16 +189,16 @@ struct PassThroughPack8
         // pk_i4_t to float2_t conversion
         dst_tmp.template AsType<float2_t>()(Number<0>{}) =
             type_convert<float2_t>(src.template AsType<pk_i4_t>()[Number<0>{}]);
-       
+
         dst_tmp.template AsType<float2_t>()(Number<1>{}) =
             type_convert<float2_t>(src.template AsType<pk_i4_t>()[Number<1>{}]);
-       
+
         dst_tmp.template AsType<float2_t>()(Number<2>{}) =
             type_convert<float2_t>(src.template AsType<pk_i4_t>()[Number<2>{}]);
-        
+
         dst_tmp.template AsType<float2_t>()(Number<3>{}) =
             type_convert<float2_t>(src.template AsType<pk_i4_t>()[Number<3>{}]);
-        
+
         // float to f8_t conversion
         dst.template AsType<f8_t>()(Number<0>{}) =
             type_convert<f8_t>(dst_tmp.template AsType<float>()[Number<0>{}]);

@@ -59,25 +59,25 @@ template <index_t BlockSize,
           // ,bool TransposeC //disable transposec right now...
           >
 struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineScheduler::Intrawave,
-                                                   BlockSize,
-                                                   ADataType,
-                                                   BDataType,
-                                                   ComputeDataType,
-                                                   AccDataType,
-                                                   ATileDesc,
-                                                   BTileDesc,
-                                                   AMmaTileDesc,
-                                                   BMmaTileDesc,
-                                                   ABlockTransferSrcScalarPerVector,
-                                                   BBlockTransferSrcScalarPerVector,
-                                                   MPerBlock,
-                                                   NPerBlock,
-                                                   KPerBlock,
-                                                   MPerXDL,
-                                                   NPerXDL,
-                                                   MRepeat,
-                                                   NRepeat,
-                                                   KPack>
+                                                            BlockSize,
+                                                            ADataType,
+                                                            BDataType,
+                                                            ComputeDataType,
+                                                            AccDataType,
+                                                            ATileDesc,
+                                                            BTileDesc,
+                                                            AMmaTileDesc,
+                                                            BMmaTileDesc,
+                                                            ABlockTransferSrcScalarPerVector,
+                                                            BBlockTransferSrcScalarPerVector,
+                                                            MPerBlock,
+                                                            NPerBlock,
+                                                            KPerBlock,
+                                                            MPerXDL,
+                                                            NPerXDL,
+                                                            MRepeat,
+                                                            NRepeat,
+                                                            KPack>
     : BlockwiseGemmXdlops_pipeline_base<BlockSize,
                                         ADataType,
                                         BDataType,
@@ -528,7 +528,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
     using Base::c_thread_desc_;
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-    
+
     using BThreadDequantCopy = ThreadwiseTensorSliceTransfer_StaticToStatic<
         BDataType,
         ComputeDataType,
