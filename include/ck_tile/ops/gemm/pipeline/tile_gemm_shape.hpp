@@ -8,7 +8,11 @@
 
 namespace ck_tile {
 
-template <typename BlockTile_, typename BlockWarps_, typename WarpTile_>
+template <typename BlockTile_,
+          typename BlockWarps_,
+          typename WarpTile_,
+          bool PermuteA_ = false,
+          bool PermuteB_ = false>
 struct TileGemmShape
 {
     using BlockTile  = remove_cvref_t<BlockTile_>;
@@ -20,6 +24,9 @@ struct TileGemmShape
     static constexpr index_t kM = BlockTile::at(number<0>{});
     static constexpr index_t kN = BlockTile::at(number<1>{});
     static constexpr index_t kK = BlockTile::at(number<2>{});
+
+    static constexpr bool PermuteA = PermuteA_;
+    static constexpr bool PermuteB = PermuteB_;
 
     CK_TILE_HOST static std::string GetName()
     {

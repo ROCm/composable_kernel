@@ -33,7 +33,11 @@
 #include "ck/utility/thread_group.hpp"
 #include "ck/utility/debug.hpp"
 
-#include "ck/utility/amd_buffer_addressing.hpp"
+#if __clang_major__ >= 20
+#include "amd_buffer_addressing_builtins.hpp"
+#else
+#include "amd_buffer_addressing.hpp"
+#endif
 #include "ck/utility/amd_wave_read_first_lane.hpp"
 #include "ck/utility/generic_memory_space_atomic.hpp"
 #include "ck/utility/get_id.hpp"
