@@ -671,7 +671,7 @@ struct GemmKernel
             }
             else
             {
-                if constexpr(!(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
+                if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                                is_any_of<CDataType, fp16_t, bf16_t>::value))
                 {
                     RunGemm2LDS<memory_operation_enum::atomic_add>(a_ptr,
@@ -694,7 +694,7 @@ struct GemmKernel
             }
             else
             {
-                if constexpr(!(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
+                if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                                is_any_of<CDataType, fp16_t, bf16_t>::value))
                 {
                     RunGemm<memory_operation_enum::atomic_add>(
