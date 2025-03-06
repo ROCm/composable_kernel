@@ -99,9 +99,10 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             {
                 return 1;
             }
-            else {
+            else
+            {
                 return 1;
-	    }
+            }
         }
     }();
 
