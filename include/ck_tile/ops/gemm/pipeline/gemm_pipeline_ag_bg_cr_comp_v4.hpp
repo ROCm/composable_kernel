@@ -143,7 +143,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             constexpr index_t A_LDS_Read_Inst_Num =
                 WaveNumN * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
             constexpr index_t B_LDS_Read_Inst_Num =
-                WaveNumM * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
+                WaveNumM * NPerBlock * KPerBlock / (BlockSize * KPerXDL);
 
             constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
                                                 (BlockSize / WaveSize) /
@@ -442,6 +442,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                             Base::LocalPrefill(
                                 b_copy_lds_window1, b_global_load_tile, b_element_func);
                         }
+                        block_sync_lds();
 
                         Base::GlobalPrefetch(
                             a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);

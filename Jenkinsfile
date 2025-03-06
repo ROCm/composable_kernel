@@ -351,12 +351,12 @@ def cmake_build(Map conf=[:]){
     }
     if (params.RUN_CK_TILE_GEMM_TESTS){
         try{
-            archiveArtifacts "perf_tile_gemm_*.log"
+            archiveArtifacts "perf_tile_gemm_**.log"
             if (arch_type == 1){
-                stash includes: "perf_tile_gemm_**_fp16_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
+                stash includes: "perf_tile_gemm_**_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
             }
             else if (arch_type == 2){
-                stash includes: "perf_tile_gemm_**_fp16_gfx942.log", name: "perf_tile_gemm_log_gfx942"
+                stash includes: "perf_tile_gemm_**_gfx942.log", name: "perf_tile_gemm_log_gfx942"
             }
         }
         catch(Exception err){
@@ -799,8 +799,8 @@ pipeline {
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
             name: "RUN_CK_TILE_GEMM_TESTS",
-            defaultValue: true,
-            description: "Run the ck_tile GEMM tests (default: ON)")
+            defaultValue: false,
+            description: "Run the ck_tile GEMM tests (default: OFF)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
