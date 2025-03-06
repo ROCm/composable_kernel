@@ -43,6 +43,12 @@ struct BatchedTransposePipeline
             sweep_tile_span(span_2d_x[number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx1, idx0);
                 y(i_j_idx)             = x(i_j_idx);
+//                const auto tile_idx = get_x_indices_from_distributed_indices(
+//                    x.get_tile_distribution(), make_tuple(idx0, idx1));
+//                const auto row = tile_idx.at(number<0>{});
+//                const auto col = tile_idx.at(number<1>{});
+//                printf("%d,%d:%d|%d%d ", row, col, static_cast<int>(x(i_j_idx) & ((1<<7)-1)), blockIdx.x, blockIdx.y);
+
             });
         });
 

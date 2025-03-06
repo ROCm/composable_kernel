@@ -17,30 +17,25 @@ struct batched_transpose_kargs : public ck_tile::BatchedTransposeHostArgs
 
 
 template <typename ts_type,
-          ck_tile::index_t block_x,
-          ck_tile::index_t block_y,
-          ck_tile::index_t warp_x,
-          ck_tile::index_t warp_y,
-          ck_tile::index_t thread_x,
-          ck_tile::index_t thread_y>
+          ck_tile::index_t block_w,
+          ck_tile::index_t block_h,
+          ck_tile::index_t warp_w,
+          ck_tile::index_t warp_h,
+          ck_tile::index_t thread_w,
+          ck_tile::index_t thread_h>
 float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_config& s)
 {
-    std::cout << "Running transpose with" 
-              <<  " block_x=" << block_x << ", block_y=" << block_y
-              << ", warp_x=" << warp_x << ", warp_y=" << warp_y
-              << ", thread_x=" << thread_x << ", thread_y=" << thread_y << std::endl;
-
-    uint32_t dim_block_w = block_x;
-    uint32_t dim_block_h = block_y;
+    uint32_t dim_block_w = block_w;
+    uint32_t dim_block_h = block_h;
     uint32_t dim_stride  = a.height * a.width;		// useless, batch = 1
 
     a.dim_stride  = dim_stride;
     a.dim_block_h = dim_block_h;
     a.dim_block_w = dim_block_w;
 
-    using block_tile  = ck_tile::sequence<block_x, block_y>;
-    using warp_tile   = ck_tile::sequence<warp_x, warp_y>;
-    using thread_tile = ck_tile::sequence<thread_x, thread_y>;
+    using block_tile  = ck_tile::sequence<block_w, block_h>;
+    using warp_tile   = ck_tile::sequence<warp_w, warp_h>;
+    using thread_tile = ck_tile::sequence<thread_w, thread_h>;
 
     using ts_problem =
         ck_tile::BatchedTransposeProblem<ts_type, block_tile, warp_tile, thread_tile>;
@@ -53,6 +48,12 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     const dim3 grids      = kernel::GridSize(a);
     constexpr dim3 blocks = kernel::BlockSize();
 
+    std::cout << "Running transpose with" 
+              << " Width=" << a.width << ", Height=" << a.height
+              << ", block_w=" << block_w << ", block_h=" << block_h
+              << ", warp_w=" << warp_w << ", warp_h=" << warp_h
+              << ", thread_w=" << thread_w << ", thread_h=" << thread_h << std::endl;
+
     float ave_time = ck_tile::launch_kernel(
         s, ck_tile::make_kernel<blocks.x, 1>(kernel{}, grids, blocks, 0, kargs));
 
@@ -62,13 +63,15 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 float batched_transpose(batched_transpose_kargs a, ck_tile::stream_config s, const std::string& opt = "000")
 {
   using TransposeFunc = std::function<float(batched_transpose_kargs&, ck_tile::stream_config&)>;
+
   std::unordered_map<std::string, TransposeFunc> transpose_map = {
-      {"000", batched_transpose_dispatch<ck_tile::int8_t, 16, 16, 8, 8, 1, 1>}
+    {"000", batched_transpose_dispatch<ck_tile::int8_t, 16, 16, 8, 8, 1, 1>}
   };
-    auto it = transpose_map.find(opt);
-    if (it != transpose_map.end()) {
-        return it->second(a, s);
-    }
-    return -1;
+
+  auto it = transpose_map.find(opt);
+  if (it != transpose_map.end()) {
+    return it->second(a, s);
+  }
+  return -1;
 }
 

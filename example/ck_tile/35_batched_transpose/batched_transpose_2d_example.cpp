@@ -36,10 +36,10 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     dim_in[1]         = H; 
     dim_out[0]        = H;
     dim_out[1]        = W;
-    stride_dim_in[0]  = H;
-    stride_dim_in[1]  = 1; 
-    stride_dim_out[0] = W;
-    stride_dim_out[1] = 1;
+    stride_dim_in[0]  = 1;
+    stride_dim_in[1]  = W; 
+    stride_dim_out[0] = 1;
+    stride_dim_out[1] = H;
 
     ck_tile::HostTensor<Type> x_host(
         {dim_in[0], dim_in[1]},
@@ -49,6 +49,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         {stride_dim_out[0], stride_dim_out[1]});
 
     std::iota(std::begin(x_host), std::end(x_host), 1);
+    std::iota(std::begin(x_host)+256, std::end(x_host), 41);
 
     ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
@@ -79,13 +80,14 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     y_dev.FromDevice(y_host.data());
 
-    int idx = 0;
-    for(auto x : x_host) 
-      printf("%3u%c", ck_tile::type_convert<int>(x & ((1<<7)-1)), " \n"[++idx % W == 0]);
-    puts("");
-    idx = 0;
-    for(auto x : y_host)
-      printf("%3u%c", ck_tile::type_convert<int>(x & ((1<<7)-1)), " \n"[++idx % H == 0]);
+//    puts("");
+//    int idx = 0;
+//    for(auto x : x_host) 
+//      printf("%3u%c", ck_tile::type_convert<int>(x & ((1<<7)-1)), " \n"[++idx % W == 0]);
+//    puts("");
+//    idx = 0;
+//    for(auto x : y_host)
+//      printf("%3u%c", ck_tile::type_convert<int>(x & ((1<<7)-1)), " \n"[++idx % H == 0]);
 
     return true;
 }
