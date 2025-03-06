@@ -9,7 +9,7 @@
 namespace ck_tile {
 
 struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
-    : BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ false,
+    : BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
                                           /* AsyncCopy = */ false,
                                           /* NumPrefetchK = */ -1,
                                           /* NumPrefetchV = */ 2>

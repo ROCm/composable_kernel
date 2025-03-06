@@ -31,7 +31,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
-    static constexpr bool kQLoadOnce = false;
+    static constexpr bool kQLoadOnce = true;
     static_assert(kQLoadOnce == Policy::QLoadOnce);
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
