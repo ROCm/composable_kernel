@@ -14,6 +14,7 @@
     "kPadM": false, 
     "kPadN": false,
     "kPadK": false,
+    "Prec_datatype": "fp16",
     "Pipeline_type": "Memory",
     "Scheduler_type": "Interwave",
     "Epilogue_type": "DefaultGemm2DEpilogue"

@@ -89,12 +89,12 @@ class gemm_instance_codegen:
         init()
 
     def init(self):
-        #TODO:: pass one datatype or multiple datatypes
+        #TODO:: pass one datatype or multiple datatypes; o_type could be different
        datatype_configuration = datatype_configuration(
             DATA_TYPE_MAP[self.data['Prec_datatype']],
             DATA_TYPE_MAP[self.data['Prec_datatype']],
             DATA_TYPE_MAP['fp32'],
-            DATA_TYPE_MAP[self.data['Prec_datatype']]
+            DATA_TYPE_MAP[self.data['Prec_datatype']] 
         )
 
         gemm_trait = gemm_traits(
