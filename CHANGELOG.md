@@ -2,6 +2,29 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
+## Composable Kernel 1.1.0 for ROCm 6.5.0
+
+### Additions
+
+None
+
+### Optimizations
+
+None
+
+### Fixes
+
+None
+
+### Changes
+
+* Removed support for gfx940 and gfx941 targets (#1944)
+* Replaced the raw buffer load/store intrinsics with Clang20 built-ins (#1876)
+
+### Known issues
+
+None
+
 ## Composable Kernel 1.1.0 for ROCm 6.1.0
 
 ### Additions

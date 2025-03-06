@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <fstream>
 #include <numeric>
 #include <thread>
 #include <utility>
@@ -322,7 +323,32 @@ struct Tensor
     explicit Tensor(const Tensor<FromT>& other) : Tensor(other.template CopyAsType<T>())
     {
     }
+    void savetxt(std::string file_name, std::string dtype = "float")
+    {
+        std::ofstream file(file_name);
 
+        if(file.is_open())
+        {
+            for(auto& itm : mData)
+            {
+                if(dtype == "float")
+                    file << ck::type_convert<float>(itm) << std::endl;
+                else if(dtype == "int")
+                    file << ck::type_convert<int>(itm) << std::endl;
+                else
+                    // TODO: we didn't implement operator<< for all custom
+                    // data types, here fall back to float in case compile error
+                    file << ck::type_convert<float>(itm) << std::endl;
+            }
+            file.close();
+        }
+        else
+        {
+            // Print an error message to the standard error
+            // stream if the file cannot be opened.
+            throw std::runtime_error(std::string("unable to open file:") + file_name);
+        }
+    }
     decltype(auto) GetLengths() const { return mDesc.GetLengths(); }
 
     decltype(auto) GetStrides() const { return mDesc.GetStrides(); }

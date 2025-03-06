@@ -1053,40 +1053,49 @@ struct MfmaSelector
 #endif
     }
 
+    template <>
+    constexpr auto GetMfma<int8_t, 32, 32, int8_t, false>()
+    {
 #if defined(__gfx950__)
-    template <>
-    constexpr auto GetMfma<int8_t, 32, 32>()
-    {
         return MfmaInstr::mfma_i32_32x32x32i8;
-    }
-    template <>
-    constexpr auto GetMfma<int8_t, 16, 16>()
-    {
-        return MfmaInstr::mfma_i32_16x16x64i8;
-    }
 #elif defined(__gfx942__)
-    template <>
-    constexpr auto GetMfma<int8_t, 32, 32>()
-    {
         return MfmaInstr::mfma_i32_32x32x16i8;
-    }
-    template <>
-    constexpr auto GetMfma<int8_t, 16, 16>()
-    {
-        return MfmaInstr::mfma_i32_16x16x32i8;
-    }
 #else
-    template <>
-    constexpr auto GetMfma<int8_t, 32, 32>()
-    {
         return MfmaInstr::mfma_i32_32x32x8i8;
-    }
-    template <>
-    constexpr auto GetMfma<int8_t, 16, 16>()
-    {
-        return MfmaInstr::mfma_i32_16x16x16i8;
-    }
 #endif
+    }
+
+    template <>
+    constexpr auto GetMfma<int8_t, 32, 32, int8_t, true>()
+    {
+#if defined(__gfx942__) || defined(__gfx950__)
+        return MfmaInstr::mfma_i32_32x32x16i8;
+#else
+        return MfmaInstr::mfma_i32_32x32x8i8;
+#endif
+    }
+
+    template <>
+    constexpr auto GetMfma<int8_t, 16, 16, int8_t, false>()
+    {
+#if defined(__gfx950__)
+        return MfmaInstr::mfma_i32_16x16x64i8;
+#elif defined(__gfx942__)
+        return MfmaInstr::mfma_i32_16x16x32i8;
+#else
+        return MfmaInstr::mfma_i32_16x16x16i8;
+#endif
+    }
+
+    template <>
+    constexpr auto GetMfma<int8_t, 16, 16, int8_t, true>()
+    {
+#if defined(__gfx942__) || defined(__gfx950__)
+        return MfmaInstr::mfma_i32_16x16x32i8;
+#else
+        return MfmaInstr::mfma_i32_16x16x16i8;
+#endif
+    }
 
     template <>
     constexpr auto GetMfma<f8_t, 32, 32>()
@@ -1440,12 +1449,13 @@ struct XdlopsGemm
     }
 
     // Falls back to single rate instruction on gfx950 if KPack <= 4; no change on gfx942-
-    static constexpr auto
-        mfma = MfmaSelector < base_type,
-        MPerXdlops, NPerXdlops, additional_type,
-        ((is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value) && KPack <= 4)
-            ? true
-            : false > {};
+    static constexpr auto mfma = MfmaSelector < base_type, MPerXdlops, NPerXdlops, additional_type,
+                          (((is_same<base_type, half_t>::value ||
+                             is_same<base_type, bhalf_t>::value) &&
+                            KPack <= 4) ||
+                           (is_same<base_type, int8_t>::value && KPack <= 8))
+                              ? true
+                              : false > {};
 
     static constexpr auto mfma_instr = mfma.selected_mfma;
 
