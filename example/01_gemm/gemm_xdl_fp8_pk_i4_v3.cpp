@@ -36,16 +36,16 @@ using DeviceGemmV2Instance =
         ALayout,   BLayout,  CLayout,   
         ADataType, BDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 
-        128,
-        16, 128,
+        256,
+        128, 128,
         KPerBlock, 16, 32,
-        16,   16,
-        1,    4,
-        S<8, 16, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        32,   32,
+        2,    2,
+        S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 16, 16, 0,
-        S<4, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
-        1, 1, S<1, 16, 1, 8>, 4,
+        1, 1, S<1, 32, 1, 8>, 8,
         ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v2, ADataType, ADataType, PermuteA, PermuteB>;
 
 // clang-format on
