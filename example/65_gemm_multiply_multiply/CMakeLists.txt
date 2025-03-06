@@ -1,12 +1,3 @@
-list(APPEND TILE_EXAPMLE_BLOCKSCALE_COMPILE_OPTIONS -mllvm -greedy-reverse-local-assignment=1)
-list(APPEND TILE_EXAPMLE_BLOCKSCALE_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
- 
-add_example_executable(example_moe_gemm1 moe_gemm1.cpp)
-add_example_executable(example_moe_gemm2 moe_gemm2.cpp)
-target_compile_options(example_moe_gemm1 PRIVATE ${TILE_EXAPMLE_BLOCKSCALE_COMPILE_OPTIONS})
-target_compile_options(example_moe_gemm2 PRIVATE ${TILE_EXAPMLE_BLOCKSCALE_COMPILE_OPTIONS})
-
-
 add_example_executable(example_gemm_multiply_multiply_xdl_fp8 gemm_multiply_multiply_xdl_fp8.cpp)
 add_example_executable(example_gemm_multiply_multiply_xdl_fp8_ab_scale gemm_multiply_multiply_xdl_fp8_ab_scale.cpp)
 add_example_executable(example_gemm_multiply_multiply_xdl_fp8_bpreshuffle gemm_multiply_multiply_xdl_fp8_bpreshuffle.cpp)
@@ -17,3 +8,6 @@ set(EXAMPLE_COMPILE_OPTIONS)
 list(APPEND EXAMPLE_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker -g -fverbose-asm)
 target_compile_options(example_moe_pk_i4_gemm1 PRIVATE ${EXAMPLE_COMPILE_OPTIONS})
 add_example_executable(example_moe_pk_i4_gemm2 moe_pk_i4_gemm2.cpp)
+add_example_executable(example_moe_gemm1_xdl_fp8 moe_gemm1_xdl_fp8.cpp)
+add_example_executable(example_moe_gemm2_xdl_fp8 moe_gemm2_xdl_fp8.cpp)
+target_compile_options(example_moe_gemm1_xdl_fp8 PRIVATE ${EXAMPLE_COMPILE_OPTIONS})

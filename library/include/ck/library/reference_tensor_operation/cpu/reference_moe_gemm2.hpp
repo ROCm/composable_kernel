@@ -89,13 +89,14 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                 AccDataType v_acc{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
-                const int t = arg.sorted_token_ids_(m) & 0xffffff;
-                const int topk_id = arg.sorted_token_ids_(m) >> 24;
-                const int e = arg.expert_ids_(m / arg.sorted_tile_size_);
+                const int t         = arg.sorted_token_ids_(m) & 0xffffff;
+                const int topk_id   = arg.sorted_token_ids_(m) >> 24;
+                const int e         = arg.expert_ids_(m / arg.sorted_tile_size_);
                 const int token_cnt = arg.c_t_n_.mDesc.GetLengths()[0];
-                D2DataType v_topk_w = arg.d2_(m, 0);  //expert
+                D2DataType v_topk_w = arg.d2_(m, 0); // expert
 
-                if(t < token_cnt) {
+                if(t < token_cnt)
+                {
                     for(int k = 0; k < K; ++k)
                     {
                         if constexpr(is_same_v<ADataType, pk_i4_t>)
@@ -139,17 +140,15 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                     }
                     CDataType v_c{0};
-                    D0DataType v_d0 = arg.d0_(m, n);  // a
-                    D0DataType v_d1 = arg.d1_(e, n);  // b
+                    D0DataType v_d0 = arg.d0_(m, n); // a
+                    D0DataType v_d1 = arg.d1_(e, n); // b
                     arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_topk_w);
                     arg.c_t_n_(t, n) += v_c;
                 }
-
             };
 
             const ck::index_t max_token_id = arg.max_token_id_(0);
-            make_ParallelTensorFunctor(
-                f_mk_kn_mn, max_token_id, arg.c_t_n_.mDesc.GetLengths()[1])(
+            make_ParallelTensorFunctor(f_mk_kn_mn, max_token_id, arg.c_t_n_.mDesc.GetLengths()[1])(
                 std::thread::hardware_concurrency());
 
             return 0;
@@ -184,7 +183,19 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{sorted_token_ids, expert_ids, max_token_id, sorted_tile_size, a_t_k_k, b_e_n_k, d0, d1, d2, c_t_n, a_element_op, b_element_op, c_element_op};
+        return Argument{sorted_token_ids,
+                        expert_ids,
+                        max_token_id,
+                        sorted_tile_size,
+                        a_t_k_k,
+                        b_e_n_k,
+                        d0,
+                        d1,
+                        d2,
+                        c_t_n,
+                        a_element_op,
+                        b_element_op,
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -224,12 +235,12 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                                                        {0b100, +0.2500f},
                                                        {0b101, +0.3125f},
                                                        {0b110, +0.3750f},
-                                                       {0b111, +0.4375f}};
+                                                       { 0b111,
+                                                         +0.4375f }};
 
         return u[i4];
     }
 #endif
-
 };
 
 } // namespace host
