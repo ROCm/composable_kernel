@@ -276,7 +276,7 @@ struct DeviceGemm_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmV2BPreshuffle<AL
                     }
                 }
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
-                                 BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     if(arg.KBatch > 1)
                     {

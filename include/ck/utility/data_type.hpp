@@ -1194,7 +1194,7 @@ struct vector_type<T, 32, typename ck::enable_if_t<is_native_type<T>()>>
     } data_ = {d32_t{0}};
 
     __attribute__((host)) __attribute__((device)) constexpr vector_type() {}
- 
+
     __attribute__((host)) __attribute__((device)) constexpr vector_type(type v) { (void)v; }
 
     // __host__ __device__ constexpr vector_type() : data_{type{0}} {}
