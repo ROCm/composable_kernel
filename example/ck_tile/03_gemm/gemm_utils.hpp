@@ -114,7 +114,7 @@ struct GemmTypeConfig<ck_tile::half_t>
 };
 
 template <>
-struct GemmTypeConfig<ck_tile::bf16_t>
+struct GemmTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t>
 {
     using ADataType   = ck_tile::bf16_t;
     using BDataType   = ck_tile::bf16_t;
@@ -123,7 +123,7 @@ struct GemmTypeConfig<ck_tile::bf16_t>
 };
 
 template <>
-struct GemmTypeConfig<ck_tile::fp8_t>
+struct GemmTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>
 {
     using ADataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
@@ -132,7 +132,7 @@ struct GemmTypeConfig<ck_tile::fp8_t>
 };
 
 template <>
-struct GemmTypeConfig<ck_tile::bf8_t>
+struct GemmTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>
 {
     using ADataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;

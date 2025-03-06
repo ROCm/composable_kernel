@@ -79,6 +79,8 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
     template <typename ALayout, typename BLayout, typename CLayout>
     using GemmEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+        ADataType,
+        BDataType,
         AccDataType,
         CDataType,
         CLayout,
