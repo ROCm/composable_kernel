@@ -248,6 +248,12 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         {
             grid_size_   = 0;
             group_count_ = ck::type_convert<ck::index_t>(gemm_descs.size());
+            if(!gemm_kernel_host_args_)
+            {
+                user_handles_args_memory_ = false;
+                hip_check_error(hipHostMalloc(&gemm_kernel_host_args_,
+                                              group_count_ * sizeof(GemmTransKernelArg)));
+            }
 
             if(!(group_count_ == ck::type_convert<ck::index_t>(p_As.size()) &&
                  group_count_ == ck::type_convert<ck::index_t>(p_Bs.size()) &&
@@ -258,6 +264,22 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
             skipped_group_count_ = 0;
 
+            if(!user_handles_args_memory_)
+            {
+                LoadArgsData(p_As, p_Bs, p_Es, gemm_descs);
+            }
+        }
+
+        /**
+         * @brief      Call this function once args data has been allocated in case that the user
+         * handles that memory.
+         */
+        void LoadArgsData(std::vector<const void*>& p_As,
+                          std::vector<const void*>& p_Bs,
+                          std::vector<void*>& p_Es,
+                          std::vector<GemmDesc>& gemm_descs)
+        {
+            std::cout << "[DEBUG] LoadArgsData called..." << std::endl;
             for(std::size_t i = 0; i < gemm_descs.size(); ++i)
             {
                 const index_t M = gemm_descs[i].M_;
@@ -357,11 +379,22 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             }
         }
 
+        ~Argument() override
+        {
+            std::cout << "[DEBUG] Before Argument destructor..." << std::endl;
+            if(user_handles_args_memory_)
+            {
+                hip_check_error(hipHostFree(&gemm_kernel_host_args_));
+            }
+            std::cout << "[DEBUG] After Argument destructor..." << std::endl;
+        }
+
         //  private:
         index_t K_BATCH;
         index_t group_count_;
         index_t skipped_group_count_;
 
+        bool user_handles_args_memory_ = false;
         GemmTransKernelArg* gemm_kernel_host_args_;
         index_t grid_size_;
     };
@@ -377,6 +410,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             index_t K0                       = arg.gemm_kernel_host_args_[0].karg_.K0Padded;
             bool all_have_kbatch_gt_one      = arg.gemm_kernel_host_args_[0].karg_.k_batch > 1;
             bool all_have_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+
+            std::cout << "K0: " << K0 << std::endl;
+            std::cout << "all_have_kbatch_gt_one: " << all_have_kbatch_gt_one << std::endl;
 
             for(index_t i = 0; i < arg.group_count_; ++i)
             {
@@ -419,6 +455,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     throw std::runtime_error(err.str());
                 }
             }
+            std::cout << "[DEBUG] Before args copying..." << std::endl;
 
             if(cpy_stream && cpy_event)
             {
@@ -439,6 +476,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                                stream_config.stream_id_));
             }
 
+            std::cout << "[DEBUG] After args copying..." << std::endl;
+
             float ave_time = 0;
 
             const auto Run = [&](const auto& kernel) {
@@ -454,6 +493,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     }
                 }
 
+                std::cout << "[DEBUG] Inside run after hipMemsetAsync..." << std::endl;
                 ave_time =
                     launch_and_time_kernel(stream_config,
                                            kernel,
@@ -466,6 +506,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                            PassThrough{},
                                            PassThrough{});
             };
+
+            std::cout << "[DEBUG] Run lambda defined..." << std::endl;
 
             if(all_have_main_k0_block_loop)
             {
@@ -514,6 +556,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 }
             }
 
+            std::cout << "[DEBUG] After run called, before ave_time return..." << std::endl;
+
             return ave_time;
         }
 
@@ -535,17 +579,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     {
         if(!ck::is_xdl_supported())
         {
-            return false;
-        }
-
-        if((arg.group_count_ + arg.skipped_group_count_) != arg.group_count_)
-        {
-            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-            {
-                std::cout << "The group count is not equal to sum of skipped groups "
-                             "and kernel args size!"
-                          << std::endl;
-            }
             return false;
         }
 
@@ -688,11 +721,24 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         return this->SetWorkSpacePointer(p_arg, p_dev_kernel_args);
     }
 
-    void SetHostKernelArgs(BaseArgument* p_arg, BaseArgument* p_host_kernel_args) const
+    void SetHostKernelArgs(BaseArgument* p_arg, void* p_host_kernel_args) const
     {
+        std::cout << "[DEBUG] Start of SetHostKernelArgs function..." << std::endl;
         Argument* pArg_ = dynamic_cast<Argument*>(p_arg);
+        if(!pArg_)
+        {
+            throw std::runtime_error("Failed to cast argument pointer!");
+        }
+        std::cout << "[DEBUG] Casted p_arg successfully..." << std::endl;
 
-        pArg_->gemm_kernel_host_args_ = dynamic_cast<GemmTransKernelArg*>(p_host_kernel_args);
+        GemmTransKernelArg* pHostArg_ = static_cast<GemmTransKernelArg*>(p_host_kernel_args);
+        if(!pHostArg_)
+        {
+            throw std::runtime_error("Failed to cast host kernel argument pointer!");
+        }
+        std::cout << "[DEBUG] Casted p_host_kernel_args successfully..." << std::endl;
+
+        pArg_->gemm_kernel_host_args_ = pHostArg_;
     }
 };
 
