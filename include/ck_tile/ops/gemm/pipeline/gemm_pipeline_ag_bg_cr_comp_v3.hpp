@@ -136,7 +136,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
         constexpr index_t A_LDS_Read_Inst_Num =
             WaveNumN * MPerBlock * KPerBlock / (BlockSize * A_LDS_Read_Width);
         constexpr index_t B_LDS_Read_Inst_Num =
-            WaveNumM * MPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
+            WaveNumM * NPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
 
         constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
                                             (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
@@ -196,7 +196,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             constexpr index_t A_LDS_Read_Inst_Num =
                 WaveNumN * MPerBlock * KPerBlock / (BlockSize * A_LDS_Read_Width);
             constexpr index_t B_LDS_Read_Inst_Num =
-                WaveNumM * MPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
+                WaveNumM * NPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
 
             constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
                                                 (BlockSize / WaveSize) /
