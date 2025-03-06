@@ -188,7 +188,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
     {
         return math::integer_least_multiple(N, NPerBlock);
     }
-    
+
     __host__ __device__ static auto CalculateBN0Shuffled(index_t N)
     {
         return math::integer_divide_ceil(N, NLane);
@@ -818,7 +818,10 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
     {
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack
         return make_naive_tensor_descriptor_packed(
-            make_tuple(Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}));  //??? BK1Value same as KPack?
+            make_tuple(Number<NXdlPerWave>{},
+                       I1,
+                       Number<KRepeat>{},
+                       Number<BK1Value>{})); //??? BK1Value same as KPack?
     }
 
     __device__ static constexpr auto GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
@@ -1157,7 +1160,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
-        
+
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);

@@ -1191,9 +1191,9 @@ struct vector_type<T, 32, typename ck::enable_if_t<is_native_type<T>()>>
         StaticallyIndexedArray<d8_t, 4> d8x4_;
         StaticallyIndexedArray<d16_t, 2> d16x2_;
         StaticallyIndexedArray<d32_t, 1> d32x1_;
-    } data_ = { d32_t{0} };
+    } data_ = {d32_t{0}};
 
-    __attribute__((host)) __attribute__((device)) constexpr vector_type() {  }
+    __attribute__((host)) __attribute__((device)) constexpr vector_type() {}
  
     __attribute__((host)) __attribute__((device)) constexpr vector_type(type v) { (void)v; }
 

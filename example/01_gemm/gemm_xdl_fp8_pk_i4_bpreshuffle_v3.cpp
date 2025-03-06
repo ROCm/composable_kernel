@@ -26,8 +26,8 @@ using CElementOp = PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
-static constexpr bool PermuteA         = false;
-static constexpr bool PermuteB         = false;
+static constexpr bool PermuteA = false;
+static constexpr bool PermuteB = false;
 
 // clang-format off
 #if 0
@@ -278,14 +278,14 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             for(int k = 0; k < K; k++)
             {
                 ck::pk_i4_t i4x2 = b_k_n(k, n).data;
-                uint8_t i4        = 0;
+                uint8_t i4       = 0;
 
                 if(k % 2 == 1)
                     i4 = (i4x2.data >> 0) & 0xf;
                 else
                     i4 = (i4x2.data >> 4) & 0xf;
 
-                float v_b = i4_to_f32_gfx9(i4);
+                float v_b       = i4_to_f32_gfx9(i4);
                 b_k_n_f32(k, n) = v_b;
             }
         }
@@ -335,25 +335,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                   << " GB/s, " << gemm.GetTypeString() << std::endl;
     }
-
-#if 0
-    printf("B Matrix:\n");
-    for(int n = 0; n < N; n++)
-    {
-        for(int k = 0; k < K; k++)
-        {
-            ck::pk_i4_t i4x2 = b_k_n(k, n).data;
-            int8_t i4        = 0;
-            if(k % 2 == 1)
-                i4 = (i4x2.data >> 0) & 0xf;
-            else
-                i4 = (i4x2.data >> 4) & 0xf;
-
-            printf("%f (%d),", i4_to_f32_gfx9(i4), static_cast<int>(i4x2.data));
-        }
-        printf("\n");
-    }
-#endif
 
     return pass;
 }

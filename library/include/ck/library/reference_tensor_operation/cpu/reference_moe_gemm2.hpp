@@ -235,7 +235,8 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                                                        {0b100, +0.2500f},
                                                        {0b101, +0.3125f},
                                                        {0b110, +0.3750f},
-                                                       {0b111, +0.4375f}};
+                                                       { 0b111,
+                                                         +0.4375f }};
 
         return u[i4];
     }
