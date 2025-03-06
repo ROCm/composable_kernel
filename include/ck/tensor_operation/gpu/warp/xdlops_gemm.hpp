@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -780,7 +780,6 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x32bf8f8>
     }
 };
 
-// TODO: fix mfma...f8f6f4 instructions
 template <>
 struct mfma_type<MfmaInstr::mfma_f32_32x32x64f8f6f4>
 {
@@ -847,9 +846,14 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
     // clang-format on
 
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    __device__ void run(const FloatA& a,
+                        const int32_t scale_a,
+                        const FloatB& b,
+                        const int32_t scale_b,
+                        FloatC& reg_c) const
     {
-        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(
+            a, scale_a, b, scale_b, reg_c);
     }
 };
 
@@ -871,9 +875,14 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
     // clang-format on
 
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    __device__ void run(const FloatA& a,
+                        const int32_t scale_a,
+                        const FloatB& b,
+                        const int32_t scale_b,
+                        FloatC& reg_c) const
     {
-        intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops>::Run(
+            a, scale_a, b, scale_b, reg_c);
     }
 };
 
@@ -1044,40 +1053,49 @@ struct MfmaSelector
 #endif
     }
 
+    template <>
+    constexpr auto GetMfma<int8_t, 32, 32, int8_t, false>()
+    {
 #if defined(__gfx950__)
-    template <>
-    constexpr auto GetMfma<int8_t, 32, 32>()
-    {
         return MfmaInstr::mfma_i32_32x32x32i8;
-    }
-    template <>
-    constexpr auto GetMfma<int8_t, 16, 16>()
-    {
-        return MfmaInstr::mfma_i32_16x16x64i8;
-    }
 #elif defined(__gfx942__)
-    template <>
-    constexpr auto GetMfma<int8_t, 32, 32>()
-    {
         return MfmaInstr::mfma_i32_32x32x16i8;
-    }
-    template <>
-    constexpr auto GetMfma<int8_t, 16, 16>()
-    {
-        return MfmaInstr::mfma_i32_16x16x32i8;
-    }
 #else
-    template <>
-    constexpr auto GetMfma<int8_t, 32, 32>()
-    {
         return MfmaInstr::mfma_i32_32x32x8i8;
-    }
-    template <>
-    constexpr auto GetMfma<int8_t, 16, 16>()
-    {
-        return MfmaInstr::mfma_i32_16x16x16i8;
-    }
 #endif
+    }
+
+    template <>
+    constexpr auto GetMfma<int8_t, 32, 32, int8_t, true>()
+    {
+#if defined(__gfx942__) || defined(__gfx950__)
+        return MfmaInstr::mfma_i32_32x32x16i8;
+#else
+        return MfmaInstr::mfma_i32_32x32x8i8;
+#endif
+    }
+
+    template <>
+    constexpr auto GetMfma<int8_t, 16, 16, int8_t, false>()
+    {
+#if defined(__gfx950__)
+        return MfmaInstr::mfma_i32_16x16x64i8;
+#elif defined(__gfx942__)
+        return MfmaInstr::mfma_i32_16x16x32i8;
+#else
+        return MfmaInstr::mfma_i32_16x16x16i8;
+#endif
+    }
+
+    template <>
+    constexpr auto GetMfma<int8_t, 16, 16, int8_t, true>()
+    {
+#if defined(__gfx942__) || defined(__gfx950__)
+        return MfmaInstr::mfma_i32_16x16x32i8;
+#else
+        return MfmaInstr::mfma_i32_16x16x16i8;
+#endif
+    }
 
     template <>
     constexpr auto GetMfma<f8_t, 32, 32>()
@@ -1431,12 +1449,13 @@ struct XdlopsGemm
     }
 
     // Falls back to single rate instruction on gfx950 if KPack <= 4; no change on gfx942-
-    static constexpr auto
-        mfma = MfmaSelector < base_type,
-        MPerXdlops, NPerXdlops, additional_type,
-        ((is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value) && KPack <= 4)
-            ? true
-            : false > {};
+    static constexpr auto mfma = MfmaSelector < base_type, MPerXdlops, NPerXdlops, additional_type,
+                          (((is_same<base_type, half_t>::value ||
+                             is_same<base_type, bhalf_t>::value) &&
+                            KPack <= 4) ||
+                           (is_same<base_type, int8_t>::value && KPack <= 8))
+                              ? true
+                              : false > {};
 
     static constexpr auto mfma_instr = mfma.selected_mfma;
 

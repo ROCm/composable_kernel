@@ -159,7 +159,7 @@ __host__ __device__ constexpr auto TupleReduce(F&& f, const Tuple<Ts...>& tuple)
     }
 }
 
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <typename T>
 using is_tuple = decltype(ck::declval<T&>().IsTuple());
 #endif
@@ -167,7 +167,7 @@ using is_tuple = decltype(ck::declval<T&>().IsTuple());
 template <typename... Ts>
 __host__ __device__ constexpr auto IsNestedTuple(const Tuple<Ts...>&)
 {
-#ifndef CK_CODE_GEN_RTC
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
     return (is_detected<is_tuple, Ts>::value || ...);
 #endif
 }

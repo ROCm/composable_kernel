@@ -259,10 +259,7 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
                                             x.tile_desc.gemm1_n_per_block);
         x.update_prologue(prologue);
         x.update_epilogue(epilogue);
-        x.mask_out_upper_triangle = true;
-        result.push_back(x);
-
-        x.mask_out_upper_triangle = false;
+        x.mask_out_upper_triangle = prob.MaskOutUpperTriangle;
         result.push_back(x);
     }
     return result;
@@ -273,13 +270,20 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
 std::vector<std::vector<Operation_Xdl_CShuffle>>
 Operation_Xdl_CShuffle::CreateOperations(const std::string& prologue, const std::string& epilogue)
 {
+    std::vector<Problem> problems;
+
     Problem prob;
     prob.TransA  = false;
     prob.TransB  = true;
     prob.TransB1 = false;
     prob.TransC  = false;
+    problems.push_back(prob);
 
-    return {CreateOperations(prob, prologue, epilogue)};
+    prob.MaskOutUpperTriangle = true;
+    problems.push_back(prob);
+
+    return Transform(problems,
+                     [&](const Problem& p) { return CreateOperations(p, prologue, epilogue); });
 }
 
 static const char* const DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffleTemplate =

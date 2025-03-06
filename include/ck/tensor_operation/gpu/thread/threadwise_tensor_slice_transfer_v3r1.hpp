@@ -352,6 +352,14 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         }
     }
 
+    template <typename SeqIdx, index_t ThreadScratchId = 0>
+    __device__ constexpr auto
+    GetSrcThreadScratchIdx(Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
+    {
+        using vector_t = typename vector_type_maker<SrcData, SrcScalarPerVector>::type::type;
+        return src_thread_scratch_tuple_(thread_scratch_id).template GetAsType<vector_t>(SeqIdx{});
+    }
+
     template <index_t ThreadScratchId>
     __device__ void
     TransferDataFromSrcThreadScratchToDstThreadScratch(Number<ThreadScratchId> thread_scratch_id)
