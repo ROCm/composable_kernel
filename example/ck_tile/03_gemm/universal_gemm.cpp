@@ -76,7 +76,9 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
         using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<AccDataType,
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             AccDataType,
                                              CDataType,
                                              CLayout,
                                              GemmPipelineProblem::kBlockSize,
@@ -120,6 +122,16 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         {
             Run(ck_tile::bool_constant<true>{},
                 ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Odd)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Even)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
         }
         else
         {
@@ -205,11 +217,29 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     }
     else
     {
-        std::ostringstream err;
-        err << "Num K loop must be larger than number of prefetech stages."
-            << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages << "\n File: " << __FILE__
-            << ":" << __LINE__ << ", in function: " << __func__;
-        throw std::runtime_error(err.str());
+        if(tail_num == ck_tile::TailNumber::Full)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Odd)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Even)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else
+        {
+            std::ostringstream err;
+            err << "Num K loop must be larger than number of prefetech stages."
+                << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages
+                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+            throw std::runtime_error(err.str());
+        }
     }
 
     return ave_time;
@@ -217,133 +247,113 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
 #include "run_gemm_example.inc"
 
+template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
+int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+{
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    {
+        if(a_layout == "R" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Col{}, Col{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported memory layout for the input matrices when "
+                                     "BPrecType is ck_tile::pk_int4_t!");
+        }
+    }
+    else
+    {
+        if(a_layout == "R" && b_layout == "R")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Row{}, Row{}, Row{});
+        }
+        else if(a_layout == "R" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "R")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Col{}, Row{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Col{}, Col{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported memory layout for the input matrices!");
+        }
+    }
+}
+
 int run_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return -1;
 
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
-
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
 
-    if(a_layout == "R" && b_layout == "R")
+    if(data_type == "fp16")
     {
-        if(data_type == "fp16")
-        {
-            return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Row{}, Row{}, Row{});
-        }
-        else if(data_type == "bf16")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Row{}, Row{});
-        }
-        else if(data_type == "fp8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Row{}, Row{});
-        }
-        else if(data_type == "bf8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Row{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported data_type!");
-        }
+        return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
     }
-    else if(a_layout == "R" && b_layout == "C")
+    else if(data_type == "bf16")
     {
-        if(data_type == "fp16")
-        {
-            return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(data_type == "bf16")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(data_type == "fp8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(data_type == "bf8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Col{}, Row{});
-        }
+        return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "fp8")
+    {
+        return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "bf8")
+    {
+        return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
+    }
+
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
-        else if(data_type == "pk_int4_t")
-        {
-            // TODO: Add support for bhalf_t ADataType
-            return run_gemm_example_with_layouts<ck_tile::half_t,
-                                                 ck_tile::pk_int4_t,
-                                                 ck_tile::half_t>(argc, argv, Row{}, Col{}, Row{});
-        }
-#endif
-        else
-        {
-            throw std::runtime_error("Unsupported data_type!");
-        }
-    }
-    else if(a_layout == "C" && b_layout == "C")
+    else if(data_type == "pk_int4_t")
     {
-        if(data_type == "fp16")
-        {
-            return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Col{}, Col{}, Row{});
-        }
-        else if(data_type == "bf16")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Col{}, Col{}, Row{});
-        }
-        else if(data_type == "fp8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Col{}, Col{}, Row{});
-        }
-        else if(data_type == "bf8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Col{}, Col{}, Row{});
-        }
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
-        else if(data_type == "pk_int4_t")
-        {
-            // TODO: Add support for bhalf_t ADataType
-            return run_gemm_example_with_layouts<ck_tile::half_t,
-                                                 ck_tile::pk_int4_t,
-                                                 ck_tile::half_t>(argc, argv, Col{}, Col{}, Row{});
-        }
+        // TODO: Add support for bhalf_t ADataType
+        return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
+    }
 #endif
-        else
-        {
-            throw std::runtime_error("Unsupported data_type!");
-        }
-    }
-    else if(a_layout == "C" && b_layout == "R")
-    {
-        if(data_type == "fp16")
-        {
-            return run_gemm_example_with_layouts<ck_tile::half_t>(argc, argv, Col{}, Row{}, Row{});
-        }
-        else if(data_type == "bf16")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Col{}, Row{}, Row{});
-        }
-        else if(data_type == "fp8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Col{}, Row{}, Row{});
-        }
-        else if(data_type == "bf8")
-        {
-            return run_gemm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Col{}, Row{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported data_type!");
-        }
-    }
     else
     {
-        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+        throw std::runtime_error("Unsupported data type for this operation !!!");
     }
 }
 
-int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    try
+    {
+        run_gemm_example(argc, argv);
+    }
+    catch(const std::runtime_error& e)
+    {
+        std::cerr << "Caught runtime error: " << e.what() << '\n';
+        // Return a non-zero code to indicate failure
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
