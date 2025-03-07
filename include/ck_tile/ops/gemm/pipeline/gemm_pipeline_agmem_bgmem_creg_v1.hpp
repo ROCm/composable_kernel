@@ -26,6 +26,10 @@ struct GemmPipelineAGmemBGmemCRegV1
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
 
+    using I0 = number<0>;
+    using I1 = number<1>;
+    using I2 = number<2>;
+
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
@@ -81,11 +85,21 @@ struct GemmPipelineAGmemBGmemCRegV1
                 std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
             "wrong!");
 
-        static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
-                      "wrong!");
+        constexpr bool is_a_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+        constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
+        static_assert(is_a_col_major
+                          ? (kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                             kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                          : (kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                             kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                      "A block window has incorrect lengths for defined ALayout!");
+        static_assert(is_b_row_major
+                          ? (kKPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                             kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                          : (kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                             kKPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                      "B block window has incorrect lengths for defined BLayout!");
         // A tile in LDS
         ADataType* p_a_lds = static_cast<ADataType*>(p_smem);
 
