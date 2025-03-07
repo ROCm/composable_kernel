@@ -30,25 +30,29 @@ struct tuple_concat<std::tuple<Xs...>, std::tuple<Ys...>>
 
 template <typename Tuple>
 class TestGemmUniversal_Streamk_MK_KN
-    : public ck::test::TestGemmUniversal_Streamk<typename tuple_concat<std::tuple<Row, Row>, Tuple>::type>
+    : public ck::test::TestGemmUniversal_Streamk<
+          typename tuple_concat<std::tuple<Row, Row>, Tuple>::type>
 {
 };
 
 template <typename Tuple>
 class TestGemmUniversal_Streamk_MK_NK
-    : public ck::test::TestGemmUniversal_Streamk<typename tuple_concat<std::tuple<Row, Col>, Tuple>::type>
+    : public ck::test::TestGemmUniversal_Streamk<
+          typename tuple_concat<std::tuple<Row, Col>, Tuple>::type>
 {
 };
 
 template <typename Tuple>
 class TestGemmUniversal_Streamk_KM_KN
-    : public ck::test::TestGemmUniversal_Streamk<typename tuple_concat<std::tuple<Col, Row>, Tuple>::type>
+    : public ck::test::TestGemmUniversal_Streamk<
+          typename tuple_concat<std::tuple<Col, Row>, Tuple>::type>
 {
 };
 
 template <typename Tuple>
 class TestGemmUniversal_Streamk_KM_NK
-    : public ck::test::TestGemmUniversal_Streamk<typename tuple_concat<std::tuple<Col, Col>, Tuple>::type>
+    : public ck::test::TestGemmUniversal_Streamk<
+          typename tuple_concat<std::tuple<Col, Col>, Tuple>::type>
 {
 };
 

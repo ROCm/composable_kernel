@@ -38,15 +38,15 @@ class TestGemmUniversal_Streamk : public testing::Test
     static constexpr int init_method_ = 1; // decimal value initialization
     static constexpr bool log_        = false;
     static constexpr bool bench_      = false; // measure kernel performance
-   
 
-    std::vector<int> grid_size_list   ;
-    std::vector<int> streamk_sel_list ; 
+    std::vector<int> grid_size_list;
+    std::vector<int> streamk_sel_list;
 
-    void SetUp() override 
+    void SetUp() override
     {
-        grid_size_list = = {38, 76, 114, 152, 190, 228, 266, 304, 342, 380}; 
-        streamk_sel_list = {0, 1, 2, 3, 4}; // 0: Data Parallel (DP) mode (Stream-K OFF), 1: 1-tile Stream-K+ DP,
+        grid_size_list = = {38, 76, 114, 152, 190, 228, 266, 304, 342, 380};
+        streamk_sel_list = {
+            0, 1, 2, 3, 4}; // 0: Data Parallel (DP) mode (Stream-K OFF), 1: 1-tile Stream-K+ DP,
         // 2:2-tile Stream-K + DP
     }
 
@@ -63,7 +63,6 @@ class TestGemmUniversal_Streamk : public testing::Test
                 RunSingle(M, N, K, StrideA, StrideB, StrideC, streamk_sel, grid_size);
             }
     }
-    
 
     void RunSingle(const int M,
                    const int N,
@@ -72,31 +71,31 @@ class TestGemmUniversal_Streamk : public testing::Test
                    const int StrideB,
                    const int StrideC,
                    int streamk_sel,
-                   int Grid_size ,
+                   int Grid_size,
                    int n_warmup = 1,
                    int n_iter   = 10)
     {
         bool pass = ck::profiler::profile_gemm_universal_streamk_impl<ADataType,
-                                                              BDataType,
-                                                              ComputeDataType,
-                                                              F32,
-                                                              CDataType,
-                                                              ALayout,
-                                                              BLayout,
-                                                              CLayout>(verify_,
-                                                                       init_method_,
-                                                                       log_,
-                                                                       bench_,
-                                                                       M,
-                                                                       N,
-                                                                       K,
-                                                                       StrideA,
-                                                                       StrideB,
-                                                                       StrideC,
-                                                                       streamk_sel,
-                                                                       Grid_size,
-                                                                       n_warmup,
-                                                                       n_iter);
+                                                                      BDataType,
+                                                                      ComputeDataType,
+                                                                      F32,
+                                                                      CDataType,
+                                                                      ALayout,
+                                                                      BLayout,
+                                                                      CLayout>(verify_,
+                                                                               init_method_,
+                                                                               log_,
+                                                                               bench_,
+                                                                               M,
+                                                                               N,
+                                                                               K,
+                                                                               StrideA,
+                                                                               StrideB,
+                                                                               StrideC,
+                                                                               streamk_sel,
+                                                                               Grid_size,
+                                                                               n_warmup,
+                                                                               n_iter);
         EXPECT_TRUE(pass);
     }
 };
