@@ -67,7 +67,9 @@ class TestCkTileBatchedGemm : public ::testing::Test
         using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<AccDataType,
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             AccDataType,
                                              CDataType,
                                              CLayout,
                                              CodegenGemmPipeline::BlockSize,
