@@ -55,7 +55,8 @@ void permute_tensor_b(Tensor& tensor)
                                                                  ALayout,
                                                                  BLayout,
                                                                  CLayout,
-                                                                 GemmConfig::TransposeC>;
+                                                                 GemmConfig::TransposeC,
+                                                                 GemmConfig::UseStructuredSparsity>;
 
     using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                        BDataType,
@@ -185,13 +186,15 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
-              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
-              << " C_Layout =" << CLayout::name << " A Type = " << DataTypeTraits<ADataType>::name
-              << " B Type = " << DataTypeTraits<BDataType>::name
-              << " C Type = " << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
-              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+    std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
+              << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
+              << " A_Layout=" << ALayout::name << " B_Layout =" << BLayout::name
+              << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
+              << " B_Type=" << DataTypeTraits<BDataType>::name
+              << " C_Type=" << DataTypeTraits<CDataType>::name
+              << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
+              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << std::endl;
 
     return ave_time;
 }
@@ -257,6 +260,11 @@ int run_gemm_example_with_layouts(int argc,
     {
         a_m_k.SetZero();
         b_k_n.SetZero();
+    }
+
+    if(GemmConfig::UseStructuredSparsity)
+    {
+        ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
     }
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
