@@ -500,8 +500,14 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
             for(size_t i = 00; i < 384; i += 7)
             {
-                auto coeff  = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
+                auto coeff = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
+#if 1
                 b_k_n(i, 0) = ck::type_convert<BDataType>(coeff / 10.0f * i);
+#else
+                b_k_n(i, 3) = ck::type_convert<BDataType>(coeff / 10.0f * i);
+#endif
+                // b_k_n(i, 1) = ck::type_convert<BDataType>(coeff);
+                // b_k_n(i, 2) = ck::type_convert<BDataType>(1.1f * coeff);
             }
             b_k_n(383, 0) = ck::type_convert<BDataType>(-1.0f);
         }

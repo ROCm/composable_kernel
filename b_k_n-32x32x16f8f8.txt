@@ -27,6 +27,54 @@ blockId = 0; threadId = 0; i = -1; m0 = 0; n0 = 0; k0 = 1 : b_thread_vec = [32.0
 blockId = 0; threadId = 32; i = -1; m0 = 0; n0 = 0; k0 = 0 : b_thread_vec = [0.000000, 0.000000, 0.000000, 0.000000, 0.000000, -36.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 36.000000, 0.000000, 0.000000, 0.000000]
 blockId = 0; threadId = 32; i = -1; m0 = 0; n0 = 0; k0 = 1 : b_thread_vec = [0.000000, 0.000000, 0.000000, -36.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 36.000000, 0.000000, 0.000000, 0.000000, 0.000000, -1.000000]
 
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 0}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {0, 0, 0, 16}; src_data_coord.GetOffset(): 0
+threadIdx = 0; src_ref_to_data_disp_idx: {1, 0, 0, 16}; src_data_coord.GetOffset(): 0
 
 blockId = 0; threadId = 0; i = 0; m0 = 0; n0 = 0; k0 = 0 : b_thread_vec = [0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, -0.687500, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 1.375000, 0.000000]
 blockId = 0; threadId = 32; i = 0; m0 = 0; n0 = 0; k0 = 0 : b_thread_vec = [0.000000, 0.000000, 0.000000, -3.500000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 4.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000]

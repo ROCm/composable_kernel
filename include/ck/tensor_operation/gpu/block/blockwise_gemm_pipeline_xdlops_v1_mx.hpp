@@ -298,93 +298,15 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             //                 b_scale_thread_buf); // ck::StaticBuffer<ck::AddressSpaceEnum::Vgpr,
             // _Float16, 2, true>
 
-            print_type_name(
-                "b_thread_copy_",
-                b_thread_copy_); // ck::ThreadwiseTensorSliceTransfer_v4<ck::f8_ocp_t, ck::f8_ocp_t,
-                                 // const
-                                 // ck::TensorDescriptor<ck::Tuple<ck::Embed<ck::Tuple<ck::integral_constant<int,
-                                 // 8>, ck::integral_constant<int, 64>, ck::integral_constant<int,
-                                 // 16>>, ck::Tuple<ck::integral_constant<int, 16>,
-                                 // ck::integral_constant<int, 128>, ck::integral_constant<int,
-                                 // 1>>>, ck::Xor<ck::Tuple<ck::integral_constant<int, 64>,
-                                 // ck::integral_constant<int, 8>>, true>,
-                                 // ck::PassThrough<ck::integral_constant<int, 16>>,
-                                 // ck::UnMerge<ck::Tuple<ck::integral_constant<int, 4>,
-                                 // ck::integral_constant<int, 2>>, false>,
-                                 // ck::PassThrough<ck::integral_constant<int, 64>>,
-                                 // ck::PassThrough<ck::integral_constant<int, 16>>,
-                                 // ck::PassThrough<ck::integral_constant<int, 4>>,
-                                 // ck::Merge_v3_division_mod<ck::Tuple<ck::integral_constant<int,
-                                 // 64>, ck::integral_constant<int, 2>>>,
-                                 // ck::PassThrough<ck::integral_constant<int, 16>>,
-                                 // ck::Merge_v3_division_mod<ck::Tuple<ck::integral_constant<int,
-                                 // 4>, ck::integral_constant<int, 16>>>,
-                                 // ck::UnMerge<ck::Tuple<ck::integral_constant<int, 2>,
-                                 // ck::integral_constant<int, 2>, ck::integral_constant<int, 32>>,
-                                 // false>>, ck::Tuple<ck::Sequence<0>, ck::Sequence<2, 1>,
-                                 // ck::Sequence<3>, ck::Sequence<5>, ck::Sequence<4>,
-                                 // ck::Sequence<6>, ck::Sequence<7>, ck::Sequence<9, 8>,
-                                 // ck::Sequence<10>, ck::Sequence<11, 13>, ck::Sequence<12>>,
-                                 // ck::Tuple<ck::Sequence<1, 2, 3>, ck::Sequence<4, 5>,
-                                 // ck::Sequence<6>, ck::Sequence<7, 8>, ck::Sequence<9>,
-                                 // ck::Sequence<10>, ck::Sequence<11>, ck::Sequence<12>,
-                                 // ck::Sequence<13>, ck::Sequence<14>, ck::Sequence<15, 16, 17>>,
-                                 // ck::Sequence<15, 16, 17, 14>, ck::integral_constant<long,
-                                 // 8192>>, const
-                                 // ck::TensorDescriptor<ck::Tuple<ck::Embed<ck::Tuple<ck::integral_constant<int,
-                                 // 2>, ck::integral_constant<int, 1>, ck::integral_constant<int,
-                                 // 2>, ck::integral_constant<int, 16>>,
-                                 // ck::Tuple<ck::integral_constant<int, 16>,
-                                 // ck::integral_constant<int, 64>, ck::integral_constant<int, 32>,
-                                 // ck::integral_constant<int, 1>>>>, ck::Tuple<ck::Sequence<0>>,
-                                 // ck::Tuple<ck::Sequence<1, 2, 3, 4>>, ck::Sequence<1, 2, 3, 4>,
-                                 // ck::integral_constant<long, 64>>, ck::Sequence<1, 1, 1, 16>,
-                                 // ck::Sequence<0, 1, 2, 3>, 3, 16, 16>
-            print_type_name(
-                "b_block_desc_n0_n1_n2_k",
-                b_block_desc_n0_n1_n2_k); // ck::TensorDescriptor<ck::Tuple<ck::Embed<ck::Tuple<ck::integral_constant<int,
-                                          // 8>, ck::integral_constant<int, 64>,
-                                          // ck::integral_constant<int, 16>>,
-                                          // ck::Tuple<ck::integral_constant<int, 16>,
-                                          // ck::integral_constant<int, 128>,
-                                          // ck::integral_constant<int, 1>>>,
-                                          // ck::Xor<ck::Tuple<ck::integral_constant<int, 64>,
-                                          // ck::integral_constant<int, 8>>, true>,
-                                          // ck::PassThrough<ck::integral_constant<int, 16>>,
-                                          // ck::UnMerge<ck::Tuple<ck::integral_constant<int, 4>,
-                                          // ck::integral_constant<int, 2>>, false>,
-                                          // ck::PassThrough<ck::integral_constant<int, 64>>,
-                                          // ck::PassThrough<ck::integral_constant<int, 16>>,
-                                          // ck::PassThrough<ck::integral_constant<int, 4>>,
-                                          // ck::Merge_v3_division_mod<ck::Tuple<ck::integral_constant<int,
-                                          // 64>, ck::integral_constant<int, 2>>>,
-                                          // ck::PassThrough<ck::integral_constant<int, 16>>,
-                                          // ck::Merge_v3_division_mod<ck::Tuple<ck::integral_constant<int,
-                                          // 4>, ck::integral_constant<int, 16>>>,
-                                          // ck::UnMerge<ck::Tuple<ck::integral_constant<int, 2>,
-                                          // ck::integral_constant<int, 2>,
-                                          // ck::integral_constant<int, 32>>, false>>,
-                                          // ck::Tuple<ck::Sequence<0>, ck::Sequence<2, 1>,
-                                          // ck::Sequence<3>, ck::Sequence<5>, ck::Sequence<4>,
-                                          // ck::Sequence<6>, ck::Sequence<7>, ck::Sequence<9, 8>,
-                                          // ck::Sequence<10>, ck::Sequence<11, 13>,
-                                          // ck::Sequence<12>>, ck::Tuple<ck::Sequence<1, 2, 3>,
-                                          // ck::Sequence<4, 5>, ck::Sequence<6>, ck::Sequence<7,
-                                          // 8>, ck::Sequence<9>, ck::Sequence<10>,
-                                          // ck::Sequence<11>, ck::Sequence<12>, ck::Sequence<13>,
-                                          // ck::Sequence<14>, ck::Sequence<15, 16, 17>>,
-                                          // ck::Sequence<15, 16, 17, 14>,
-                                          // ck::integral_constant<long, 8192>>
-            print_type_name(
-                "b_thread_desc_",
-                b_thread_desc_); // ck::TensorDescriptor<ck::Tuple<ck::Embed<ck::Tuple<ck::integral_constant<int,
-                                 // 2>, ck::integral_constant<int, 1>, ck::integral_constant<int, 2>,
-                                 // ck::integral_constant<int, 16>>,
-                                 // ck::Tuple<ck::integral_constant<int, 16>,
-                                 // ck::integral_constant<int, 64>, ck::integral_constant<int, 32>,
-                                 // ck::integral_constant<int, 1>>>>, ck::Tuple<ck::Sequence<0>>,
-                                 // ck::Tuple<ck::Sequence<1, 2, 3, 4>>, ck::Sequence<1, 2, 3, 4>,
-                                 // ck::integral_constant<long, 64>>
+            print_type_name("b_thread_copy_", b_thread_copy_);
+            print_type_name("b_block_desc_n0_n1_n2_k", b_block_desc_n0_n1_n2_k);
+            print_type_name("b_thread_desc_", b_thread_desc_);
+
+            print_type_name("b_block_buf",
+                            b_block_buf); // ck::DynamicBuffer<ck::AddressSpaceEnum::Lds,
+                                          // ck::f8_ocp_t, ck::integral_constant<long, 8192>, true,
+                                          // ck::AmdBufferCoherenceEnum::DefaultCoherence>
+
             printf("MRepeat = %d\n", MRepeat); // 2
             printf("NRepeat = %d\n", NRepeat); // 2
             printf("KRepeat = %d\n", KRepeat); // 2
@@ -394,7 +316,14 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             printf("mfma_instr.k_per_blk = %d\n", xdlops_gemm.mfma_instr.k_per_blk); // 8
         }
 #endif
-
+#if 1
+        if((threadIdx.x == 0 || threadIdx.x == 32) && blockIdx.x == 0)
+        {
+            const void* ap = reinterpret_cast<const int*>(&a_block_buf);
+            const void* bp = reinterpret_cast<const int*>(&b_block_buf);
+            printf("threadIdx = %u; &a_block_buf = %p; &b_block_buf = %p\n\n", threadIdx.x, ap, bp);
+        }
+#endif
         // main body
         if constexpr(HasMainLoop)
         {
@@ -476,7 +405,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 b_thread_vec.template AsType<mfma_input_type>(),
                                 c_thread_buf_per_scale.GetVectorTypeReference(I0));
 
-#if 1
+#if 0
                             if(!is_B_zero && !is_A_zero)
                             {
                                 if constexpr(m0 == 0 && n0 == 0)
@@ -687,7 +616,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             b_thread_vec.template AsType<mfma_input_type>(),
                             c_thread_buf_per_scale.GetVectorTypeReference(I0));
 
-#if 1
+#if 0
                         if(!is_B_zero && !is_A_zero)
                         {
                             if constexpr(n0 == 0 && m0 == 0)

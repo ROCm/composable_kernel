@@ -60,6 +60,7 @@ __global__ void
                blockIdx.y,
                blockIdx.z,
                GridwiseGemm::GetSharedMemoryNumberOfByte());
+#if 0
         printf("Block {%u, %u, %u} : a_k_split_offset = %d\n",
                blockIdx.x,
                blockIdx.y,
@@ -85,6 +86,7 @@ __global__ void
                blockIdx.y,
                blockIdx.z,
                splitk_batch_offset.c_reduce_offset);
+#endif
     }
 #endif
 
