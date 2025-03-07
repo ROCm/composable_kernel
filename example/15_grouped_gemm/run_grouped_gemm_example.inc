@@ -174,7 +174,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
     std::size_t kargs_size     = gemm.GetDeviceKernelArgSize(&argument);
     std::size_t hargs_size     = gemm.GetHostKernelArgSize(&argument);
-    std::cout << "[DEBUG] hargs_size: " << hargs_size << std::endl;
 
     DeviceMem gemm_workspace, gemm_kargs;
     void* gemm_hargs;
@@ -191,14 +190,11 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         gemm_workspace.Realloc(workspace_size);
         gemm.SetWorkSpacePointer(&argument, gemm_workspace.GetDeviceBuffer());
     }
-    std::cout << "[DEBUG] Before hipHostMalloc..." << std::endl;
     if(hargs_size > 0)
     {
         hip_check_error(hipHostMalloc(&gemm_hargs, hargs_size));
-        std::cout << "[DEBUG] After hipHostMalloc..." << std::endl;
         gemm.SetHostKernelArgs(&argument, gemm_hargs);
     }
-    std::cout << "[DEBUG] After hipHostMalloc if statemnet..." << std::endl;
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -263,8 +259,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                   << " GB/s, " << gemm.GetTypeString() << std::endl;
     }
-
-    std::cout << "[DEBUG] INC: After config time kernel" << std::endl;
 
     return pass;
 }

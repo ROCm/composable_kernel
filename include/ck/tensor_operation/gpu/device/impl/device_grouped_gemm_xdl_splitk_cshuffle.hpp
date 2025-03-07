@@ -423,12 +423,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 }
             }
 
-            // TODO but NOT ALLOWED - const Argument& arg
-            // if(arg.gemm_kernel_host_args_ == nullptr)
-            // {
-            //     arg.gemm_kernel_host_args_ = arg.gemm_kernel_args_.data();
-            // }
-
             if(cpy_stream && cpy_event)
             {
                 if(arg.gemm_kernel_host_args_ == nullptr)
@@ -710,22 +704,18 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
     void SetHostKernelArgs(BaseArgument* p_arg, void* p_host_kernel_args) const
     {
-        std::cout << "[DEBUG] Start of SetHostKernelArgs function..." << std::endl;
         Argument* pArg_ = dynamic_cast<Argument*>(p_arg);
         if(!pArg_)
         {
             throw std::runtime_error("Failed to cast argument pointer!");
         }
-        std::cout << "[DEBUG] Casted p_arg successfully..." << std::endl;
 
         GemmTransKernelArg* pHostArg_ = static_cast<GemmTransKernelArg*>(p_host_kernel_args);
         if(!pHostArg_)
         {
             throw std::runtime_error("Failed to cast host kernel argument pointer!");
         }
-        std::cout << "[DEBUG] Casted p_host_kernel_args successfully..." << std::endl;
 
-        // Copy data from gemm_kernel_args_ to gemm_kernel_host_args_
         pArg_->gemm_kernel_host_args_ = pHostArg_;
         std::copy(pArg_->gemm_kernel_args_.begin(),
                   pArg_->gemm_kernel_args_.end(),
