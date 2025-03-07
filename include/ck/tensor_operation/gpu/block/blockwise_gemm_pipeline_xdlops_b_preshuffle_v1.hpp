@@ -211,11 +211,12 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
         });
 
         // A local
-        static_for<0, num_ds_read_inst_a / 2 * mfma_interleave, 1>{}([&](auto i) {
-            ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                   // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 2 / mfma_interleave, 0); // DS read
-        });
+        static_for<0, MPerXDL == 32 ? num_ds_read_inst_a / 2 : num_ds_read_inst_a, 1>{}(
+            [&](auto i) {
+                ignore = i;
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                     // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, MPerXDL == 32 ? 2 : 1, 0); // DS read
+            });
     }
 
     template <bool HasMainLoop,
