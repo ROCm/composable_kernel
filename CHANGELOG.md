@@ -20,6 +20,7 @@ None
 
 * Removed support for gfx940 and gfx941 targets (#1944)
 * Replaced the raw buffer load/store intrinsics with Clang20 built-ins (#1876)
+* DL and DPP kernels are now enabled by default.
 
 ### Known issues
 
