@@ -7,7 +7,11 @@
 #include "ck/utility/data_type.hpp"
 #include "enable_if.hpp"
 #include "c_style_pointer_cast.hpp"
+#if __clang_major__ >= 20
+#include "amd_buffer_addressing_builtins.hpp"
+#else
 #include "amd_buffer_addressing.hpp"
+#endif
 #include "generic_memory_space_atomic.hpp"
 
 namespace ck {

@@ -73,7 +73,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
     You must set the `GPU_TARGETS` macro to specify the GPU target architecture(s) you want
     to run CK on. You can specify single or multiple architectures. If you specify multiple architectures,
-    use a semicolon between each; for example, `gfx908;gfx90a;gfx940`.
+    use a semicolon between each; for example, `gfx908;gfx90a;gfx942`.
 
     ```bash
     cmake                                                                                             \
