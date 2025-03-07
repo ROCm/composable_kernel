@@ -46,6 +46,8 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr index_t kQKHeaddim    = BlockFmhaShape::kQKHeaddim;
     static constexpr index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
 
+    static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
+
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     // TODO: seq_q always support padding, hdim_q/v support multiple of vector(like 8x)
     //       only need special care about seq_k padding (oob need set -INF of p instead of zero)
@@ -114,6 +116,10 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 return 1;
             }
+            else
+            {
+                return 1;
+            };
         }
     }();
 
@@ -189,19 +195,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                     Policy::template MakeKLdsStoreBlockDescriptor<Problem>(i_buf).get_lengths(),
                     {0, 0, 0});
             },
-            number<Policy::NumPrefetchK>{});
+            number<Policy::NumKVLdsBuffers>{});
 
-#if K_LDS_LOAD_USE_OFFSET_TRANSFORM
-        auto k_lds_load = generate_tuple(
-            [&](auto i_buf) {
-                return make_tile_window(
-                    make_tensor_view<address_space_enum::lds>(
-                        k_lds_ptr, Policy::template MakeKLdsLoadBlockDescriptor<Problem>(i_buf)),
-                    Policy::template MakeKLdsLoadBlockDescriptor<Problem>(i_buf).get_lengths(),
-                    {0, 0});
-            },
-            number<Policy::NumPrefetchK>{});
-#else
         auto k_lds_Load_view = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsLoadBlockDescriptor<Problem>());
 
@@ -209,7 +204,6 @@ struct BlockFmhaPipelineQRKSVSAsync
             make_tile_window(k_lds_Load_view,
                              Policy::template MakeKLdsLoadBlockDescriptor<Problem>().get_lengths(),
                              {0, 0});
-#endif
 
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
@@ -222,11 +216,10 @@ struct BlockFmhaPipelineQRKSVSAsync
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
 
-        auto q_dram_window = make_tile_window(
-            q_dram_block_window_tmp.get_bottom_tensor_view(),
-            q_dram_block_window_tmp.get_window_lengths(),
-            q_dram_block_window_tmp.get_window_origin(),
-            Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
+        auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+                                              q_dram_block_window_tmp.get_window_lengths(),
+                                              q_dram_block_window_tmp.get_window_origin(),
+                                              Policy::template MakeQRegTileDistribution<Problem>());
         q_dram_window.init_raw();
 
         // TODO: we use async Copy for K, which is inline asm
@@ -368,14 +361,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                     gemm_0(s_acc,
                            get_slice_tile(
                                q, sequence<0, i_k0 * kK0>{}, sequence<kM0, (i_k0 + 1) * kK0>{}),
-#if K_LDS_LOAD_USE_OFFSET_TRANSFORM
-                           k_lds_load[number<LdsSeq.at(number<i_k0>{})>{}]);
-
-#else
                            get_slice_tile(k_lds_load,
                                           sequence<(LdsSeq.at(number<i_k0>{})) * kN0, 0>{},
                                           sequence<(LdsSeq.at(number<i_k0>{}) + 1) * kN0, kK0>{}));
-#endif
                 });
             }
 
@@ -391,18 +379,13 @@ struct BlockFmhaPipelineQRKSVSAsync
             auto v_buf           = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
             __builtin_amdgcn_sched_barrier(0);
             { // tail
-                gemm_0(s_acc,
-                       get_slice_tile(
-                           q, sequence<0, (k0_loops - 1) * kK0>{}, sequence<kM0, k0_loops * kK0>{}),
-#if K_LDS_LOAD_USE_OFFSET_TRANSFORM
-                       k_lds_load[number<LdsSeq.at(number<k0_loops - 1>{})>{}]);
-
-#else
-                       get_slice_tile(
-                           k_lds_load,
-                           sequence<(LdsSeq.at(number<k0_loops - 1>{})) * kN0, 0>{},
-                           sequence<(LdsSeq.at(number<k0_loops - 1>{}) + 1) * kN0, kK0>{}));
-#endif
+                gemm_0(
+                    s_acc,
+                    get_slice_tile(
+                        q, sequence<0, (k0_loops - 1) * kK0>{}, sequence<kM0, k0_loops * kK0>{}),
+                    get_slice_tile(k_lds_load,
+                                   sequence<(LdsSeq.at(number<k0_loops - 1>{})) * kN0, 0>{},
+                                   sequence<(LdsSeq.at(number<k0_loops - 1>{}) + 1) * kN0, kK0>{}));
             }
             __builtin_amdgcn_sched_barrier(1);
 
