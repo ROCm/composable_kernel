@@ -692,6 +692,93 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                         if(thread_n_cluster_id * CBlockTransferScalarPerVector_NWaveNPerXDL <
                            NPerBlock)
                         {
+#if 1
+                            if(threadIdx.x == 0 && threadIdx.y == 0)
+                            {
+                                // printf(" gridwise_gemm_xdl_cshuffle line %d , Block %d ,
+                                // reduction_idx %d, i_m %d, i_n_reduce %d,
+                                //     thread_m_cluster_id %d, thread_n_cluster_id %d\n",
+                                //     __LINE__,
+                                //     blockIdx.x,
+                                //     reduction_idx,
+                                //     i_m,
+                                //     i_n_reduce,
+                                //     thread_m_cluster_id,
+                                //     thread_n_cluster_id);
+
+                                // printf(" gridwise_gemm_xdl_cshuffle line %d , Block %d ,
+                                // reduction_idx %d, i_m %d, i_n_reduce %d, thread_m_cluster_id %d,
+                                // thread_n_cluster_id %d\n",
+                                // __LINE__, blockIdx.x, reduction_idx, i_m, i_n_reduce,
+                                // thread_m_cluster_id, thread_n_cluster_id);
+
+                                printf("Gridwise_gemm_xdl_cshuffle line %d , Block %d , "
+                                       "reduction_idx %d, i_m %d, i_n_reduce %d, "
+                                       "thread_m_cluster_id %d, thread_n_cluster_id %d\n",
+                                       __LINE__,
+                                       blockIdx.x,
+                                       reduction_idx,
+                                       i_m,
+                                       static_cast<int>(i_n_reduce),
+                                       thread_m_cluster_id,
+                                       thread_n_cluster_id);
+
+                                // Print values from acc_buf (up to 8 values to avoid excessive
+                                // output)
+                                /**for(int i = 0;
+                                    i < min(8, CShuffleBlockTransferScalarPerVector_NPerBlock);
+                                    i++)
+                                {
+
+                                    switch(i)
+                                    {
+                                    case 0:
+                                        printf("acc_buf[0] = %.4f \n",
+                                               static_cast<float>(acc_buf[Number<0>{}]));
+                                        break;
+                                    case 1:
+                                        printf("acc_buf[1] = %.4f \n",
+                                               static_cast<float>(acc_buf[Number<1>{}]));
+                                        break;
+                                    case 2:
+                                        printf("acc_buf[2] = %.4f \n",
+                                               static_cast<float>(acc_buf[Number<2>{}]));
+                                        break;
+                                    case 3:
+                                        printf("acc_buf[3] = %.4f \n",
+                                               static_cast<float>(acc_buf[Number<3>{}]));
+                                        break;
+                                    case 4:
+                                        printf("acc_buf[4] = %.4f \n",
+                                               static_cast<float>(acc_buf[Number<4>{}]));
+                                        break;
+                                    case 5:
+                                        printf("acc_buf[5] = %.4f \n",
+                                               static_cast<float>(acc_buf[Number<5>{}]));
+                                        break;
+                                    case 6:
+                                        printf("acc_buf[6] = %.4f \n",
+                                               static_cast<float>(acc_buf[Number<6>{}]));
+                                        break;
+                                    case 7:
+                                        printf("acc_buf[7] = %.4f \n",
+                                               static_cast<float>(acc_buf[Number<7>{}]));
+                                        break;
+                                        // Add more cases if
+                                        // CShuffleBlockTransferScalarPerVector_NPerBlock is larger
+                                        // than 8
+                                    }
+                                }
+
+                                // Print matrix coordinates
+                                auto global_m = spatial_idx[I0] * MPerBlock + thread_m_cluster_id;
+                                auto global_n = spatial_idx[I1] * NPerBlock +
+                                                thread_n_cluster_id *
+                                                    CShuffleBlockTransferScalarPerVector_NPerBlock;
+                                printf(" at C[%d,%d] \n", global_m, global_n);**/
+                            }
+
+#endif
                             acc_store.Run(acc_thread_buf_store_desc,
                                           make_tuple(I0, I0, I0, I0),
                                           acc_buf,
