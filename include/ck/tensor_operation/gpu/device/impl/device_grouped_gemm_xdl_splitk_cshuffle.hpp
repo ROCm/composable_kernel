@@ -244,16 +244,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                  std::vector<void*>& p_Es,
                  std::vector<GemmDesc>& gemm_descs,
                  index_t kbatch)
-            : K_BATCH{kbatch}
+            : K_BATCH{kbatch}, gemm_kernel_host_args_{nullptr}
         {
             grid_size_   = 0;
             group_count_ = ck::type_convert<ck::index_t>(gemm_descs.size());
-            if(!gemm_kernel_host_args_)
-            {
-                user_handles_args_memory_ = false;
-                hip_check_error(hipHostMalloc(&gemm_kernel_host_args_,
-                                              group_count_ * sizeof(GemmTransKernelArg)));
-            }
 
             if(!(group_count_ == ck::type_convert<ck::index_t>(p_As.size()) &&
                  group_count_ == ck::type_convert<ck::index_t>(p_Bs.size()) &&
@@ -262,24 +256,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 throw std::runtime_error("wrong! group_count_ != p_As/b/c.size");
             }
 
+            gemm_kernel_args_.reserve(group_count_);
+
             skipped_group_count_ = 0;
 
-            if(!user_handles_args_memory_)
-            {
-                LoadArgsData(p_As, p_Bs, p_Es, gemm_descs);
-            }
-        }
-
-        /**
-         * @brief      Call this function once args data has been allocated in case that the user
-         * handles that memory.
-         */
-        void LoadArgsData(std::vector<const void*>& p_As,
-                          std::vector<const void*>& p_Bs,
-                          std::vector<void*>& p_Es,
-                          std::vector<GemmDesc>& gemm_descs)
-        {
-            std::cout << "[DEBUG] LoadArgsData called..." << std::endl;
             for(std::size_t i = 0; i < gemm_descs.size(); ++i)
             {
                 const index_t M = gemm_descs[i].M_;
@@ -331,7 +311,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                            k0_padded,
                                            K_BATCH};
 
-                gemm_kernel_host_args_[i] = GemmTransKernelArg(
+                gemm_kernel_args_.emplace_back(
                     std::move(karg), std::move(grouped_block_2_ctile_map), block_start, block_end);
             }
         }
@@ -346,10 +326,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             K_BATCH    = kbatch;
             grid_size_ = 0;
 
-            for(index_t i = 0; i < group_count_; ++i)
+            for(std::size_t i = 0; i < gemm_kernel_args_.size(); ++i)
             {
 
-                auto& karg = gemm_kernel_host_args_[i].karg_;
+                auto& karg = gemm_kernel_args_[i].karg_;
 
                 const index_t k_padded  = GridwiseGemm::CalculateKPadded(karg.K, K_BATCH);
                 const index_t k0_padded = GridwiseGemm::CalculateK0Padded(karg.K, K_BATCH);
@@ -370,23 +350,13 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 auto grouped_block_2_ctile_map =
                     GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
 
-                karg.KPadded                                 = k_padded;
-                karg.K0Padded                                = k0_padded;
-                karg.k_batch                                 = K_BATCH;
-                gemm_kernel_host_args_[i].block_2_ctile_map_ = grouped_block_2_ctile_map;
-                gemm_kernel_host_args_[i].block_start_       = block_start;
-                gemm_kernel_host_args_[i].block_end_         = block_end;
+                karg.KPadded                            = k_padded;
+                karg.K0Padded                           = k0_padded;
+                karg.k_batch                            = K_BATCH;
+                gemm_kernel_args_[i].block_2_ctile_map_ = grouped_block_2_ctile_map;
+                gemm_kernel_args_[i].block_start_       = block_start;
+                gemm_kernel_args_[i].block_end_         = block_end;
             }
-        }
-
-        ~Argument() override
-        {
-            std::cout << "[DEBUG] Before Argument destructor..." << std::endl;
-            if(user_handles_args_memory_)
-            {
-                hip_check_error(hipHostFree(&gemm_kernel_host_args_));
-            }
-            std::cout << "[DEBUG] After Argument destructor..." << std::endl;
         }
 
         //  private:
@@ -394,7 +364,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         index_t group_count_;
         index_t skipped_group_count_;
 
-        bool user_handles_args_memory_ = false;
+        std::vector<GemmTransKernelArg> gemm_kernel_args_;
         GemmTransKernelArg* gemm_kernel_host_args_;
         index_t grid_size_;
     };
@@ -407,16 +377,13 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                   hipStream_t cpy_stream            = nullptr,
                   hipEvent_t cpy_event              = nullptr)
         {
-            index_t K0                       = arg.gemm_kernel_host_args_[0].karg_.K0Padded;
-            bool all_have_kbatch_gt_one      = arg.gemm_kernel_host_args_[0].karg_.k_batch > 1;
+            index_t K0                       = arg.gemm_kernel_args_[0].karg_.K0Padded;
+            bool all_have_kbatch_gt_one      = arg.gemm_kernel_args_[0].karg_.k_batch > 1;
             bool all_have_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
 
-            std::cout << "K0: " << K0 << std::endl;
-            std::cout << "all_have_kbatch_gt_one: " << all_have_kbatch_gt_one << std::endl;
-
-            for(index_t i = 0; i < arg.group_count_; ++i)
+            for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
             {
-                const auto& karg = arg.gemm_kernel_host_args_[i].karg_;
+                const auto& karg = arg.gemm_kernel_args_[i].karg_;
                 if(stream_config.log_level_ > 0)
                 {
                     karg.Print();
@@ -450,15 +417,28 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     std::ostringstream err;
                     err << "Not all gemms have same kbatch value (=1 or >1)! "
                         << "group [" << i << "], kbatch: " << kbatch
-                        << ", group [0], kbatch: " << arg.gemm_kernel_host_args_[0].karg_.k_batch
+                        << ", group [0], kbatch: " << arg.gemm_kernel_args_[0].karg_.k_batch
                         << " in " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
                     throw std::runtime_error(err.str());
                 }
             }
-            std::cout << "[DEBUG] Before args copying..." << std::endl;
+
+            // TODO but NOT ALLOWED - const Argument& arg
+            // if(arg.gemm_kernel_host_args_ == nullptr)
+            // {
+            //     arg.gemm_kernel_host_args_ = arg.gemm_kernel_args_.data();
+            // }
 
             if(cpy_stream && cpy_event)
             {
+                if(arg.gemm_kernel_host_args_ == nullptr)
+                {
+                    std::ostringstream err;
+                    err << "No memory has been allocated for gemm kernel host args "
+                        << "when providing the copy stream and copy event! In " << __FILE__ << ":"
+                        << __LINE__ << ", in function: " << __func__;
+                    throw std::runtime_error(err.str());
+                }
                 hip_check_error(hipMemcpyAsync(arg.p_workspace_,
                                                arg.gemm_kernel_host_args_,
                                                arg.group_count_ * sizeof(GemmTransKernelArg),
@@ -469,23 +449,23 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             }
             else
             {
-                hip_check_error(hipMemcpyAsync(arg.p_workspace_,
-                                               arg.gemm_kernel_host_args_,
-                                               arg.group_count_ * sizeof(GemmTransKernelArg),
-                                               hipMemcpyHostToDevice,
-                                               stream_config.stream_id_));
-            }
 
-            std::cout << "[DEBUG] After args copying..." << std::endl;
+                hip_check_error(
+                    hipMemcpyAsync(arg.p_workspace_,
+                                   arg.gemm_kernel_args_.data(),
+                                   arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
+                                   hipMemcpyHostToDevice,
+                                   stream_config.stream_id_));
+            }
 
             float ave_time = 0;
 
             const auto Run = [&](const auto& kernel) {
                 if(all_have_kbatch_gt_one)
                 {
-                    for(index_t i = 0; i < arg.group_count_; ++i)
+                    for(const auto& trans_arg : arg.gemm_kernel_args_)
                     {
-                        const auto& karg = arg.gemm_kernel_host_args_[i].karg_;
+                        const auto& karg = trans_arg.karg_;
                         hip_check_error(hipMemsetAsync(karg.p_c_grid,
                                                        0,
                                                        karg.M * karg.N * sizeof(EDataType),
@@ -493,7 +473,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     }
                 }
 
-                std::cout << "[DEBUG] Inside run after hipMemsetAsync..." << std::endl;
                 ave_time =
                     launch_and_time_kernel(stream_config,
                                            kernel,
@@ -501,13 +480,11 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                            dim3(BlockSize),
                                            0,
                                            cast_pointer_to_constant_address_space(arg.p_workspace_),
-                                           arg.group_count_,
+                                           arg.gemm_kernel_args_.size(),
                                            PassThrough{},
                                            PassThrough{},
                                            PassThrough{});
             };
-
-            std::cout << "[DEBUG] Run lambda defined..." << std::endl;
 
             if(all_have_main_k0_block_loop)
             {
@@ -556,8 +533,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 }
             }
 
-            std::cout << "[DEBUG] After run called, before ave_time return..." << std::endl;
-
             return ave_time;
         }
 
@@ -582,15 +557,27 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             return false;
         }
 
+        if((ck::type_convert<ck::index_t>(arg.gemm_kernel_args_.size()) +
+            arg.skipped_group_count_) != arg.group_count_)
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "The group count is not equal to sum of skipped groups "
+                             "and kernel args size!"
+                          << std::endl;
+            }
+            return false;
+        }
+
         if(std::is_same_v<EDataType, ck::bhalf_t> && arg.K_BATCH > 1 && !is_bf16_atomic_supported())
         {
             return false;
         }
 
         bool supported = true;
-        for(index_t i = 0; i < arg.group_count_; ++i)
+        for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
         {
-            const auto& a = arg.gemm_kernel_host_args_[i].karg_;
+            const auto& a = arg.gemm_kernel_args_[i].karg_;
 
             bool group_arg_valid = GridwiseGemm::CheckValidity(a);
             if(not group_arg_valid)
@@ -684,7 +671,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         auto p_arg_ = dynamic_cast<const Argument*>(p_arg);
         if(p_arg_)
         {
-            return p_arg_->group_count_ * sizeof(GemmTransKernelArg);
+            return p_arg_->gemm_kernel_args_.size() * sizeof(GemmTransKernelArg);
         }
         else
             throw std::runtime_error(
@@ -738,7 +725,11 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         }
         std::cout << "[DEBUG] Casted p_host_kernel_args successfully..." << std::endl;
 
+        // Copy data from gemm_kernel_args_ to gemm_kernel_host_args_
         pArg_->gemm_kernel_host_args_ = pHostArg_;
+        std::copy(pArg_->gemm_kernel_args_.begin(),
+                  pArg_->gemm_kernel_args_.end(),
+                  pArg_->gemm_kernel_host_args_);
     }
 };
 
