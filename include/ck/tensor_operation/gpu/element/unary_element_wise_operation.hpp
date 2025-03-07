@@ -95,10 +95,7 @@ __device__ inline f8x4_t i4_to_f8x4(int q)
     return amd_assembly_cvt_f8_to_f32(f32_0, f32_1, f32_2, f32_3);
 }
 
-__device__ inline f8x8_t i4_to_fp8x8(int q)
-{
-    return amd_assembly_i4_to_fp8x8(q);
-}
+__device__ inline f8x8_t i4_to_fp8x8(int q) { return amd_assembly_i4_to_fp8x8(q); }
 
 __device__ inline bhalf4_t i4_to_bhalf4(int q)
 {
