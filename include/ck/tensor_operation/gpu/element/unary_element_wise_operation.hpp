@@ -92,17 +92,11 @@ __device__ inline f8x4_t i4_to_f8x4(int q)
     float f32_2 = amd_assemble_cvt_f32_i4(hi);
     float f32_3 = amd_assemble_cvt_f32_i4(hi >> 16);
 
-    // vector_type<f8_t, 4> res;
-    // res.template AsType<f8x4_t>()(Number<0>{}) = amd_assemble_cvt_f8_f32(f32_1st, f32_2nd,
-    // f32_3rd, f32_4th);
     return amd_assembly_cvt_f8_to_f32(f32_0, f32_1, f32_2, f32_3);
 }
 
 __device__ inline f8x8_t i4_to_fp8x8(int q)
 {
-    // f8x8_t res;
-    // amd_assembly_i4_to_fp8x8(res, q);
-    // return res;
     return amd_assembly_i4_to_fp8x8(q);
 }
 
@@ -174,12 +168,6 @@ struct PassThroughPack8
 #if CK_USE_PK4_LAYOUT_SHUFFLE
         y = i4_to_fp8x8(bit_cast<int>(x));
 
-        // vector_type<f8_t, 8> result;
-
-        // result.template AsType<f8x4_t>()(Number<0>{}) = i4_to_f8x4(bit_cast<int>(x));
-        // result.template AsType<f8x4_t>()(Number<1>{}) = i4_to_f8x4(bit_cast<int>(x) >> 8);
-
-        // y = result.template AsType<f8x8_t>()[Number<0>{}];
 #else
         // Added pk_i4_t to f8x2_fnuz_t conversion
         vector_type<f8_t, 8> dst;
