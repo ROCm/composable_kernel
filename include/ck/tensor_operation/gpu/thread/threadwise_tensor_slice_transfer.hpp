@@ -1117,35 +1117,9 @@ struct ThreadwiseTensorSliceTransfer_v4
             constexpr auto src_ref_to_data_disp_coord_step =
                 make_tensor_coordinate_step(src_desc, src_ref_to_data_disp_idx);
 
+            // threadIdx = 3;   src_ref_coord_ = {0, 0, 3, 0}
+            // threadIdx = 35;  src_ref_coord_ = { 0, 0, 3, 32 }
             auto src_data_coord = src_ref_coord_;
-
-#if 0
-            if((threadIdx.x == 0) && blockIdx.x == 0)
-            {
-                printf("threadIdx = %u; "
-                       "src_ref_to_data_disp_idx: {%d, %d, %d, %d}; "
-                       "src_data_coord.GetOffset(): %d\n",
-                       threadIdx.x,
-                       src_ref_to_data_disp_idx[Number<0>{}],
-                       src_ref_to_data_disp_idx[Number<1>{}],
-                       src_ref_to_data_disp_idx[Number<2>{}],
-                       src_ref_to_data_disp_idx[Number<3>{}],
-                       src_data_coord.GetOffset());
-            }
-#elif 0
-            if((threadIdx.x == 32) && blockIdx.x == 0)
-            {
-                printf("threadIdx = %u; "
-                       "src_ref_to_data_disp_idx: {%d, %d, %d, %d}; "
-                       "src_data_coord.GetOffset(): %d\n",
-                       threadIdx.x,
-                       src_ref_to_data_disp_idx[Number<0>{}],
-                       src_ref_to_data_disp_idx[Number<1>{}],
-                       src_ref_to_data_disp_idx[Number<2>{}],
-                       src_ref_to_data_disp_idx[Number<3>{}],
-                       src_data_coord.GetOffset());
-            }
-#endif
 
             move_tensor_coordinate(src_desc, src_data_coord, src_ref_to_data_disp_coord_step);
 
@@ -1167,23 +1141,32 @@ struct ThreadwiseTensorSliceTransfer_v4
 
                 uint32_t i = 0;
 #if 0
-                i = 3;
+                i = 1;
 #endif
 
                 if((threadIdx.x == 0 + i || threadIdx.x == 32 + i || threadIdx.x == 32 + i) &&
                    blockIdx.x == 0 && p == reinterpret_cast<const void*>(0x2000000000010) &&
                    src_data_coord.GetOffset() < 4000)
                 {
-                    // printf("%d\n", Index{});
-                    printf("%d\n", src_ref_coord_.GetVisibleIndex());
-                    // printf("%d\n", src_ref_coord_.GetHiddenIndex());
+
+                    printf("threadIdx = %u; src_ref_coord_ = {%d, %d, %d, %d}; "
+                           "src_ref_to_data_disp_coord_step = {%d, %d, %d, %d}\n",
+                           threadIdx.x,
+                           src_ref_coord_.GetVisibleIndex()[Number<0>{}],
+                           src_ref_coord_.GetVisibleIndex()[Number<1>{}],
+                           src_ref_coord_.GetVisibleIndex()[Number<2>{}],
+                           src_ref_coord_.GetVisibleIndex()[Number<3>{}],
+                           src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<0>{}],
+                           src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<1>{}],
+                           src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<2>{}],
+                           src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<3>{}]);
 
                     printf(
-                        "threadIdx = %u; &src_buf = %p; Offset: %d = "
+                        "threadIdx = %u; refOffset: %d; Offset: %d = "
                         "[%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
                         threadIdx.x,
-                        p,
-                        src_data_coord.GetOffset() / PackedSize,
+                        src_ref_coord_.GetOffset(),
+                        src_data_coord.GetOffset(),
                         type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<0>{}]),
                         type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<1>{}]),
                         type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<2>{}]),
