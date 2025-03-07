@@ -7,6 +7,7 @@
 #include <iostream>
 #include <initializer_list>
 #include <numeric>
+#include <unordered_map>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
