@@ -97,7 +97,9 @@ class TestCkTileBatchedGemm : public ::testing::Test
 
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<AccDataType,
+                ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                 BDataType,
+                                                 AccDataType,
                                                  CDataType,
                                                  CLayout,
                                                  GemmPipelineProblem::kBlockSize,

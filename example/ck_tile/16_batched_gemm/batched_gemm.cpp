@@ -122,7 +122,9 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
 
         using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<AccDataType,
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             AccDataType,
                                              CDataType,
                                              CLayout,
                                              GemmPipelineProblem::kBlockSize,

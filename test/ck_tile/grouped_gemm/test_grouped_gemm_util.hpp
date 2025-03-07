@@ -24,6 +24,26 @@ class TestCkTileGroupedGemm : public ::testing::Test
     using AccDataType = std::tuple_element_t<5, Tuple>;
     using CDataType   = std::tuple_element_t<6, Tuple>;
 
+    struct GroupedGemKernelParam
+    {
+        static const bool kPadM = false;
+        static const bool kPadN = false;
+        static const bool kPadK = false;
+
+        static const int kBlockPerCu         = 1;
+        static const ck_tile::index_t M_Tile = 128;
+        static const ck_tile::index_t N_Tile = 128;
+        static const ck_tile::index_t K_Tile = 32;
+
+        static const ck_tile::index_t M_Warp = 2;
+        static const ck_tile::index_t N_Warp = 2;
+        static const ck_tile::index_t K_Warp = 1;
+
+        static const ck_tile::index_t M_Warp_Tile = 32;
+        static const ck_tile::index_t N_Warp_Tile = 32;
+        static const ck_tile::index_t K_Warp_Tile = 8;
+    };
+
     using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
     std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
     {
@@ -35,41 +55,34 @@ class TestCkTileGroupedGemm : public ::testing::Test
                              const ck_tile::stream_config& s,
                              void* p_workspace_)
     {
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = 64;
-
-        constexpr ck_tile::index_t M_Warp = 2;
-        constexpr ck_tile::index_t N_Warp = 2;
-        constexpr ck_tile::index_t K_Warp = 1;
-
-        constexpr ck_tile::index_t M_Warp_Tile = 32;
-        constexpr ck_tile::index_t N_Warp_Tile = 32;
-        constexpr ck_tile::index_t K_Warp_Tile = 16;
-
         constexpr bool DoubleSmemBuffer = false;
+        constexpr bool TransposeC       = false;
 
-        constexpr bool kPadM = false;
-        constexpr bool kPadN = false;
-        constexpr bool kPadK = false;
-
-        constexpr bool TransposeC = false;
-
-        constexpr int kBlockPerCu                         = 1;
         constexpr ck_tile::index_t TileParitionerGroupNum = 8;
         constexpr ck_tile::index_t TileParitionerM01      = 4;
 
         using GemmShape =
-            ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
-                                   ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
-                                   ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+            ck_tile::TileGemmShape<ck_tile::sequence<GroupedGemKernelParam::M_Tile,
+                                                     GroupedGemKernelParam::N_Tile,
+                                                     GroupedGemKernelParam::K_Tile>,
+                                   ck_tile::sequence<GroupedGemKernelParam::M_Warp,
+                                                     GroupedGemKernelParam::N_Warp,
+                                                     GroupedGemKernelParam::K_Warp>,
+                                   ck_tile::sequence<GroupedGemKernelParam::M_Warp_Tile,
+                                                     GroupedGemKernelParam::N_Warp_Tile,
+                                                     GroupedGemKernelParam::K_Warp_Tile>>;
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
-                                                                     kPadN,
-                                                                     kPadK,
+        using Traits              = ck_tile::TileGemmTraits<GroupedGemKernelParam::kPadM,
+                                               GroupedGemKernelParam::kPadN,
+                                               GroupedGemKernelParam::kPadK,
+                                               ALayout,
+                                               BLayout,
+                                               CLayout>;
+        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GroupedGemKernelParam::kPadM,
+                                                                     GroupedGemKernelParam::kPadN,
+                                                                     GroupedGemKernelParam::kPadK,
                                                                      DoubleSmemBuffer,
                                                                      ALayout,
                                                                      BLayout,
@@ -80,8 +93,9 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
         using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
-        const ck_tile::index_t k_grain     = gemm_descs[0].k_batch * K_Tile;
-        const ck_tile::index_t K_split     = (gemm_descs[0].K + k_grain - 1) / k_grain * K_Tile;
+        const ck_tile::index_t k_grain = gemm_descs[0].k_batch * GroupedGemKernelParam::K_Tile;
+        const ck_tile::index_t K_split =
+            (gemm_descs[0].K + k_grain - 1) / k_grain * GroupedGemKernelParam::K_Tile;
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
@@ -105,17 +119,19 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<AccDataType,
+                ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                 BDataType,
+                                                 AccDataType,
                                                  CDataType,
                                                  CLayout,
                                                  GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
-                                                 M_Warp,
-                                                 N_Warp,
-                                                 M_Warp_Tile,
-                                                 N_Warp_Tile,
-                                                 K_Warp_Tile,
+                                                 GroupedGemKernelParam::M_Warp,
+                                                 GroupedGemKernelParam::N_Warp,
+                                                 GroupedGemKernelParam::M_Warp_Tile,
+                                                 GroupedGemKernelParam::N_Warp_Tile,
+                                                 GroupedGemKernelParam::K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKargs(gemm_descs);
@@ -139,7 +155,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
             ave_time = ck_tile::launch_kernel(
                 s,
-                ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                ck_tile::make_kernel<blocks.x, GroupedGemKernelParam::kBlockPerCu>(
                     Kernel{},
                     grids,
                     blocks,

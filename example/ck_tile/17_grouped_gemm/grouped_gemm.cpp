@@ -130,7 +130,9 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
         using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<AccDataType,
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             AccDataType,
                                              CDataType,
                                              CLayout,
                                              GemmPipelineProblem::kBlockSize,
