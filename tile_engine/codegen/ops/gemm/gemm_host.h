@@ -34,7 +34,7 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType,, typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType, typename ALayout, typename BLayout, typename CLayout>
 int init_host_tensor( int argc, 
                                                 char*  argv,
                                                 ck_tile::HostTensor<ADataType>& a_m_k,

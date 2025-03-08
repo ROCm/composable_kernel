@@ -10,6 +10,7 @@ from typing import List, Optional, Any
 import functools
 import itertools
 import copy
+import json
 from dataclasses import dataclass
 
 def get_if_str(idx, total, lase_else = True):
@@ -28,7 +29,12 @@ DATA_TYPE_MAP = {'fp32' : 'float',
                  'fp16' : 'ck_tile::fp16_t',
                  'bf16' : 'ck_tile::bf16_t',
                  'int8' : 'ck_tile::int8_t',
-                 'fp8'  : 'ck_tile::fp8_t'}
+                 'fp8'  : 'ck_tile::fp8_t',
+                 'bf8'  :  'ck_tile::bf8_t'
+                }
+
+LAYOUT_MAP = {'R' : 'ck_tile::tensor_layout::gemm::RowMajor',
+              'C' : 'ck_tile::tensor_layout::gemm::ColumnMajor'}
 
 def sizeOf(data_type):
     if data_type == 'fp16' or data_type == 'bf16':
@@ -46,9 +52,19 @@ def BOOL_MAP(b_) -> str:
 
 class gemm_instance_codegen:
 
-    GEMM_KERNEL_RUN_BASE = """
+    COMMON_HEADER = """
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include "ck_tile/core.hpp"
+
+using ADataType = {ADataTypeDefine};
+using BDataType = {BDataTypeDefine};
+using AccDataType = {AccDataTypeDefine};
+using CDataType = {ODataTypeDefine};
+using ALayout = {ALayoutDefine};
+using BLayout = {BLayoutDefine};
+using CLayout = {CLayoutDefine};
 
 """
 
@@ -86,47 +102,69 @@ class gemm_instance_codegen:
         self.working_path = working_path
         self.kernel_filter = kernel_filter
         self.data = json_data
-        init()
+        self.init()
 
     def init(self):
         #TODO:: pass one datatype or multiple datatypes; o_type could be different
-       datatype_configuration = datatype_configuration(
+        ctype = self.data['Prec_datatype']
+        if self.data['Prec_datatype'] in ['fp8', 'bf8']:
+            ctype = 'fp16'
+        self.datatype_config = gemm_instance_codegen.datatype_configuration(
             DATA_TYPE_MAP[self.data['Prec_datatype']],
             DATA_TYPE_MAP[self.data['Prec_datatype']],
             DATA_TYPE_MAP['fp32'],
-            DATA_TYPE_MAP[self.data['Prec_datatype']] 
+            DATA_TYPE_MAP[ctype] 
         )
 
-        gemm_trait = gemm_traits(
+        self.trait = gemm_instance_codegen.gemm_traits(
             self.data['kPadM'], self.data['kPadN'], self.data['kPadK'], 
             self.data['A_layout'], self.data['B_layout'], self.data['C_layout']
         )
         
-        tile_shape = tile_shapes(
+        self.tile_shape = gemm_instance_codegen.tile_shapes(
             [self.data['M_tile'], self.data['N_tile'], self.data['K_tile']], 
             [self.data['M_warp'], self.data['N_warp'], self.data['K_warp']], 
             [self.data['M_warp_tile'], self.data['N_warp_tile'], self.data['K_warp_tile']]
         )
 
-        gemm_kernel_method = gemm_kernel_method(
+        self.kernel_method = gemm_instance_codegen.gemm_kernel_method(
             self.data['Pipeline_type'], 
             self.data['Scheduler_type'], 
             self.data['Epilogue_type']
         )
 
+    @property
+    def name_common_header(self) -> str:
+        return 'tensor_configuration'
+
+    @property
+    def common_header(self) -> str:
+        str1 = self.COMMON_HEADER.format(
+            ADataTypeDefine = self.datatype_config.F_ADataType,
+            BDataTypeDefine = self.datatype_config.F_BDataType,
+            AccDataTypeDefine = self.datatype_config.F_AccDataType,
+            ODataTypeDefine = self.datatype_config.F_ODataType,
+            ALayoutDefine = LAYOUT_MAP[self.trait.F_A_Layout],  
+            BLayoutDefine = LAYOUT_MAP[self.trait.F_B_Layout],
+            CLayoutDefine = LAYOUT_MAP[self.trait.F_C_Layout]            
+        )
+        return str1
 
     def content_api(self, args) -> str:
+        return ""
 
     def gen_blobs(self, args) -> None:
         w_p = Path(self.working_path)
-        w_str = self.content_api(args)
-        (w_p / (self.name_api + ".cpp")).write_text(w_str)
+        #w_str = self.content_api(args)
+        file_name = self.name_common_header + ".hpp"
+        header = self.common_header
+        (w_p / (file_name)).write_text(self.common_header)
         
-def gen_blobs(args):
+def gen_blobs(args, data):
     api_list = args.api.split(',')
     for api in api_list:
         if api == 'single':
-            gemm_instance_codegen(args.working_path, args.filter).gen_blobs(args)
+            gemm_instance_codegen(args.working_path, args.filter, data).gen_blobs(args)
 
 
 def validate_json_data(json_data):
@@ -134,7 +172,7 @@ def validate_json_data(json_data):
         Validate the json data for the kernel configurations
         For missing parameter: Assigned default values, 
         For invalid values: Raise an error
-        TODO:: check case sensitivity for parameters names, default values confirmed.
+        TODO:: check case sensitivity for parameters names.
     '''
    
     string_values = {
@@ -185,7 +223,7 @@ def validate_json_data(json_data):
     else:
         raise ValueError(f'Invalid datatype {json_data["Prec_datatype"]}. ')
 
-    # Warp validation   TODO:: confirm
+    # Warp validation  
     possible_warp_m = json_data['M_tile'] / json_data['M_warp_tile']
     possible_warp_n = json_data['N_tile'] / json_data['N_warp_tile']
     possible_warp_k = json_data['K_tile'] / json_data['K_warp_tile']
@@ -198,17 +236,15 @@ def validate_json_data(json_data):
         raise ValueError(f'Invalid value for padding. Must be boolean. ')
 
    
-    print("Valid json data")
-    print(json_data)
     return json_data
      
-
 
 def main(args):
     # Read and validate json file
     with open(args.json, 'r') as json_file:
         data = json.load(json_file)
     data = validate_json_data(data)
+    gen_blobs(args, data)
 
 
 if __name__ == "__main__":
@@ -219,6 +255,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "-a", "--api", default='single', required=False, help="supply API(s) to generate (default: single). separated by comma."
     )
+    parser.add_argument(
+        "-w", "--working_path", default="./", required=False, help="the path where all the blobs are going to be generated"
+    )
+    #TODO:: Not needed as of now just added for completeness
+    parser.add_argument(
+        "-f", "--filter", required=False, help="filter out kernels that need to generate, using fnmatch module"
+    )
+
     parser.add_argument(
         "-j", "--json", required=True, help="Path to the json which contains the kernel configurations"
     )
