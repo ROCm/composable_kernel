@@ -119,6 +119,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                                    NRepeat,
                                                    KPack>;
     using Base::I0;
+    using Base::I1;
     using Base::KRepeat;
     using Base::xdlops_gemm;
 
@@ -131,6 +132,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
     using Base::GetCThreadDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4;
+    using Base::GetWaveIdx;
     using Base::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
 
@@ -139,6 +141,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
+
+    using Tuple4 = typename Base::Tuple4;
 
     static constexpr index_t PrefetchStages  = 1;
     static constexpr index_t PrefillStages   = 1;
@@ -153,6 +157,66 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
     {
         ignore = num_loop;
         return TailNumber::Full;
+    }
+
+    __device__ static auto CalculateAThreadOriginDataIndex()
+    {
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_m = wave_idx[I0];
+
+        const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
+
+#if 0
+        uint32_t i = 0;
+        if((threadIdx.x == 0 + i || threadIdx.x == 32 + i) && blockIdx.x == 0)
+        {
+            printf("threadIdx = %u; xdlops_a_idx[I0] = %d; xdlops_a_idx[I1] = %d\n",
+                   threadIdx.x,
+                   xdlops_a_idx[I0],
+                   xdlops_a_idx[I1]);
+        }
+#endif
+
+        return make_tuple(0, waveId_m, xdlops_a_idx[I1], xdlops_gemm.KPerXdlops * xdlops_a_idx[I0]);
+    }
+
+    __device__ static auto CalculateBThreadOriginDataIndex()
+    {
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_n = wave_idx[I1];
+
+        const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
+#if 0
+        uint32_t i = 0;
+        if((threadIdx.x == 0 + i || threadIdx.x == 32 + i) && blockIdx.x == 0)
+        {
+
+            printf("threadIdx = %u; xdlops_b_idx[I0] = %d; xdlops_b_idx[I1] = %d\n",
+                   threadIdx.x,
+                   xdlops_b_idx[I0],
+                   xdlops_b_idx[I1]);
+        }
+#endif
+        return make_tuple(0, waveId_n, xdlops_b_idx[I1], xdlops_gemm.KPerXdlops * xdlops_b_idx[I0]);
+    }
+
+    /**
+     * @brief Constructor for BlockwiseGemmXdlops_pipeline_v1_mx.
+     *
+     * The primary purpose of this constructor is to modify default initialization of the base class
+     * with the origin data index suitable for microscaling.
+     *
+     * @param a_origin The origin data index for matrix A.
+     * @param b_origin The origin data index for matrix B.
+     *
+     */
+    __host__ __device__
+    BlockwiseGemmXdlops_pipeline_v1_mx(Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
+                                       Tuple4 b_origin = CalculateBThreadOriginDataIndex())
+        : Base(a_origin, b_origin)
+    {
     }
 
     template <bool HasMainLoop,
@@ -339,9 +403,12 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
                 block_sync_lds();
                 static_for<0, KRepeat, 1>{}([&](auto k) {
+                    constexpr auto a_k_step = k * AMmaKStride * KPack / xdlops_gemm.K1PerXdlops;
+                    constexpr auto b_k_step = k * BMmaKStride * KPack / xdlops_gemm.K1PerXdlops;
+
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                                           make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
+                                           make_tuple(m0, I0, I0, Number<a_k_step>{}),
                                            a_block_buf,
                                            a_thread_desc_,
                                            make_tuple(m0, I0, k, I0),
@@ -349,7 +416,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     });
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                           make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
+                                           make_tuple(n0, I0, I0, Number<b_k_step>{}),
                                            b_block_buf,
                                            b_thread_desc_,
                                            make_tuple(n0, I0, k, I0),
@@ -551,9 +618,12 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
             block_sync_lds();
             static_for<0, KRepeat, 1>{}([&](auto k) {
+                constexpr auto a_k_step = k * AMmaKStride * KPack / xdlops_gemm.K1PerXdlops;
+                constexpr auto b_k_step = k * BMmaKStride * KPack / xdlops_gemm.K1PerXdlops;
+
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                                       make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
+                                       make_tuple(m0, I0, I0, Number<a_k_step>{}),
                                        a_block_buf,
                                        a_thread_desc_,
                                        make_tuple(m0, I0, k, I0),
@@ -561,7 +631,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 });
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                       make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
+                                       make_tuple(n0, I0, I0, Number<b_k_step>{}),
                                        b_block_buf,
                                        b_thread_desc_,
                                        make_tuple(n0, I0, k, I0),
