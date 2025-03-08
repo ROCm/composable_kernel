@@ -110,6 +110,25 @@ struct BlockwiseGemmXdlops_pipeline_base
 
         const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
 
+#if 0
+        uint32_t i = 1;
+        if((threadIdx.x == 0 + i || threadIdx.x == 32 + i) && blockIdx.x == 0)
+        {
+            if(threadIdx.x == 0 + i)
+            {
+                printf("KPerBlock = %d; xdlops_gemm.K0PerXdlops = %d; KPerThread = %d\n",
+                       KPerBlock,
+                       xdlops_gemm.K0PerXdlops,
+                       KPerThread);
+            }
+
+            printf("threadIdx = %u; xdlops_a_idx[I0] = %d; xdlops_a_idx[I1] = %d\n",
+                   threadIdx.x,
+                   xdlops_a_idx[I0],
+                   xdlops_a_idx[I1]);
+        }
+#endif
+
         return make_tuple(0, waveId_m, xdlops_a_idx[I1], KPerThread * xdlops_a_idx[I0]);
     }
 
@@ -131,7 +150,17 @@ struct BlockwiseGemmXdlops_pipeline_base
         const auto waveId_n = wave_idx[I1];
 
         const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
+#if 0
+        uint32_t i = 1;
+        if((threadIdx.x == 0 + i || threadIdx.x == 32 + i) && blockIdx.x == 0)
+        {
 
+            printf("threadIdx = %u; xdlops_b_idx[I0] = %d; xdlops_b_idx[I1] = %d\n",
+                   threadIdx.x,
+                   xdlops_b_idx[I0],
+                   xdlops_b_idx[I1]);
+        }
+#endif
         return make_tuple(0, waveId_n, xdlops_b_idx[I1], KPerThread * xdlops_b_idx[I0]);
     }
 

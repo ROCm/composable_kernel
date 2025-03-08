@@ -1140,7 +1140,7 @@ struct ThreadwiseTensorSliceTransfer_v4
                 const void* p = reinterpret_cast<const int*>(&src_buf);
 
                 uint32_t i = 0;
-#if 0
+#if 1
                 i = 1;
 #endif
 
@@ -1149,17 +1149,24 @@ struct ThreadwiseTensorSliceTransfer_v4
                    src_data_coord.GetOffset() < 4000)
                 {
 
-                    printf("threadIdx = %u; src_ref_coord_ = {%d, %d, %d, %d}; "
-                           "src_ref_to_data_disp_coord_step = {%d, %d, %d, %d}\n",
+                    printf("threadIdx = %u; src_ref_coord_ = {%d, %d, %d, %d} => %d; "
+                           "src_ref_to_data_disp_coord_step = {%d, %d, %d, %d} => src_data_coord = "
+                           "{%d, %d, %d, %d} => %d\n",
                            threadIdx.x,
                            src_ref_coord_.GetVisibleIndex()[Number<0>{}],
                            src_ref_coord_.GetVisibleIndex()[Number<1>{}],
                            src_ref_coord_.GetVisibleIndex()[Number<2>{}],
                            src_ref_coord_.GetVisibleIndex()[Number<3>{}],
+                           src_ref_coord_.GetOffset(),
                            src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<0>{}],
                            src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<1>{}],
                            src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<2>{}],
-                           src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<3>{}]);
+                           src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<3>{}],
+                           src_data_coord.GetVisibleIndex()[Number<0>{}],
+                           src_data_coord.GetVisibleIndex()[Number<1>{}],
+                           src_data_coord.GetVisibleIndex()[Number<2>{}],
+                           src_data_coord.GetVisibleIndex()[Number<3>{}],
+                           src_data_coord.GetOffset());
 
                     printf(
                         "threadIdx = %u; refOffset: %d; Offset: %d = "
