@@ -141,10 +141,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
-<<<<<<< HEAD
-=======
     using Base::MWaves;
->>>>>>> develop
 
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
@@ -331,10 +328,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
                                                      [Number<b_thread_desc_.CalculateOffset(
                                                          make_tuple(n0, I0, k0, ik))>{}];
                                 });
-<<<<<<< HEAD
-
-=======
->>>>>>> develop
                                 using mfma_input_type =
                                     typename vector_type<ComputeDataType,
                                                          xdlops_gemm.K1PerXdlops>::type;
