@@ -35,8 +35,7 @@ auto create_args(int argc, char* argv[])
 }
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType, typename ALayout, typename BLayout, typename CLayout>
-int init_host_tensor( int argc, 
-                                                char*  argv,
+int init_host_tensor(                           const ck_tile::ArgParser& arg_parser
                                                 ck_tile::HostTensor<ADataType>& a_m_k,
                                                 ck_tile::HostTensor<BDataType>& b_k_n,
                                                 ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
@@ -47,10 +46,6 @@ int init_host_tensor( int argc,
                                                 const BLayout b_layout = BLayout{},
                                                 [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
