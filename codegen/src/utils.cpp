@@ -13,7 +13,7 @@ std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
 
 const std::unordered_set<std::string>& get_xdlop_archs()
 {
-    static std::unordered_set<std::string> supported_archs{"gfx90a", "gfx908", "gfx940", "gfx942"};
+    static std::unordered_set<std::string> supported_archs{"gfx90a", "gfx908", "gfx942"};
     return supported_archs;
 }
 

@@ -351,12 +351,12 @@ def cmake_build(Map conf=[:]){
     }
     if (params.RUN_CK_TILE_GEMM_TESTS){
         try{
-            archiveArtifacts "perf_tile_gemm_*.log"
+            archiveArtifacts "perf_tile_gemm_**.log"
             if (arch_type == 1){
-                stash includes: "perf_tile_gemm_**_fp16_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
+                stash includes: "perf_tile_gemm_**_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
             }
             else if (arch_type == 2){
-                stash includes: "perf_tile_gemm_**_fp16_gfx942.log", name: "perf_tile_gemm_log_gfx942"
+                stash includes: "perf_tile_gemm_**_gfx942.log", name: "perf_tile_gemm_log_gfx942"
             }
         }
         catch(Exception err){
@@ -603,6 +603,10 @@ def Build_CK(Map conf=[:]){
                             """
                         }
                     }
+                    // set ownership of all files and folders to jenkins after all steps completed
+                    dir("build"){
+                        sh "sudo chown -R jenkins:jenkins ../*"
+                    }
                 }
             }
         }
@@ -795,8 +799,8 @@ pipeline {
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
             name: "RUN_CK_TILE_GEMM_TESTS",
-            defaultValue: true,
-            description: "Run the ck_tile GEMM tests (default: ON)")
+            defaultValue: false,
+            description: "Run the ck_tile GEMM tests (default: OFF)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
@@ -858,7 +862,7 @@ pipeline {
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\' && \
                                 /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
                                 -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 -D DL_KERNELS \
-                                -D __gfx908__ -D __gfx90a__ -D __gfx940__ -D __gfx941__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
+                                -D __gfx908__ -D __gfx90a__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
                                 -U __gfx803__ -U __gfx900__ -U __gfx906__ -U CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4 \
                                 --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"
                     }

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 namespace ck {
 // Define the common macro for MI300 models
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
 
@@ -533,9 +533,9 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 0, // cbsz
                 0, // blgp
-                0, // { OPSEL_HI[0], OPSEL[0] }?
+                0, // OPSEL
                 scale_a,
-                0, // { OPSEL_HI[1], OPSEL[1] }?
+                0, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
@@ -569,9 +569,9 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                 reg_c.template AsType<float4_t>()[Number<0>{}],
                 0, // cbsz
                 0, // blgp
-                0, // { OPSEL_HI[0], OPSEL[0] }?
+                0, // OPSEL
                 scale_a,
-                0, // { OPSEL_HI[1], OPSEL[1] }?
+                0, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
