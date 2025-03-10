@@ -6,8 +6,10 @@ add_example_executable(example_gemm_multiply_multiply_xdl_int8 gemm_multiply_mul
 add_example_executable(example_moe_gemm1_xdl_fp8 moe_gemm1_xdl_fp8.cpp)
 add_example_executable(example_moe_gemm2_xdl_fp8 moe_gemm2_xdl_fp8.cpp)
 
+if(CK_USE_GFX94)
 set(EXAMPLE_COMPILE_OPTIONS)
 list(APPEND EXAMPLE_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
 list(APPEND EXAMPLE_COMPILE_OPTIONS -mllvm -greedy-reverse-local-assignment=1)
 target_compile_options(example_gemm_multiply_multiply_xdl_fp8 PRIVATE ${EXAMPLE_COMPILE_OPTIONS})
 target_compile_options(example_gemm_multiply_multiply_xdl_fp8_bpreshuffle PRIVATE ${EXAMPLE_COMPILE_OPTIONS})
+endif()
