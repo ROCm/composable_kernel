@@ -997,13 +997,20 @@ struct TestMXMFMA
             b_n_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
             b_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{126, 129});
             break;
-
         case 3:
             // expect small round off errors
             a_m_k.GenerateTensorValue(GeneratorTensor_4<ADataType>(0, 1));
             a_scales.GenerateTensorValue(
                 GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
             b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(0, 1));
+            b_scales.GenerateTensorValue(
+                GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
+            break;
+        case 4:
+            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1., 1.});
+            a_scales.GenerateTensorValue(
+                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
+            b_n_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-1., 1.});
             b_scales.GenerateTensorValue(
                 GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
             break;
