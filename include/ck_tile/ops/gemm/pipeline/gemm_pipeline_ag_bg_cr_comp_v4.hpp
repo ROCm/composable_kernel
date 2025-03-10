@@ -55,10 +55,11 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
     using Base             = BaseGemmPipelineAgBgCrCompV4<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
+    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
 

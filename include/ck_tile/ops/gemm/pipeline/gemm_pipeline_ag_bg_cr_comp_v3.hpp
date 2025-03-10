@@ -62,10 +62,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
+    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
@@ -324,13 +325,15 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                   typename ADramBlockWindowTmp,
                   typename BDramBlockWindowTmp,
                   typename AElementFunction,
-                  typename BElementFunction>
+                  typename BElementFunction,
+                  typename... BlockGemmKargs>
         CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                        const AElementFunction& a_element_func,
                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
-                                       void* p_smem) const
+                                       void* p_smem,
+                                       BlockGemmKargs... block_gemm_kargs) const
         {
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
@@ -442,7 +445,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
             block_sync_lds();
-            block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+            block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window, block_gemm_kargs...);
 
             __builtin_amdgcn_sched_barrier(0);
 
@@ -480,11 +483,12 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                     Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
                     Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
-                    block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+                    block_gemm(
+                        c_block_tile, a_lds_gemm_window, b_lds_gemm_window, block_gemm_kargs...);
 
                     block_sync_lds();
-
-                    block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                    block_gemm.LocalPrefetch(
+                        a_lds_gemm_window, b_lds_gemm_window, block_gemm_kargs...);
                     HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
 
@@ -496,11 +500,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             {
                 // Leak last MFMA block to epilogue region, cover the potential lds-shuffle
                 // latency
-                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window, block_gemm_kargs...);
             }
             else
             {
-                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window, block_gemm_kargs...);
                 block_sync_lds();
 
                 if constexpr(is_a_col_major)
@@ -526,8 +530,8 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                     Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
                 }
                 block_sync_lds();
-                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
-                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window, block_gemm_kargs...);
+                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window, block_gemm_kargs...);
             }
             // __builtin_amdgcn_sched_barrier(0);
             return c_block_tile;
@@ -537,13 +541,15 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,
               typename AElementFunction,
-              typename BElementFunction>
+              typename BElementFunction,
+              typename... BlockGemmKargs>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const AElementFunction& a_element_func,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BElementFunction& b_element_func,
                                    index_t num_loop,
-                                   void* p_smem) const
+                                   void* p_smem,
+                                   BlockGemmKargs... block_gemm_kargs) const
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
@@ -551,14 +557,18 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             b_dram_block_window_tmp,
             b_element_func,
             num_loop,
-            p_smem);
+            p_smem,
+            block_gemm_kargs...);
     }
 
-    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename... BlockGemmKargs>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    index_t num_loop,
-                                   void* p_smem) const
+                                   void* p_smem,
+                                   BlockGemmKargs... block_gemm_kargs) const
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
@@ -566,7 +576,8 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             b_dram_block_window_tmp,
             [](const BDataType& b) { return b; },
             num_loop,
-            p_smem);
+            p_smem,
+            block_gemm_kargs...);
     }
 };
 

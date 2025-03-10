@@ -3,3 +3,7 @@ add_executable(tile_example_gemm_universal EXCLUDE_FROM_ALL universal_gemm.cpp)
 target_compile_options(tile_example_gemm_universal PRIVATE
   -mllvm -enable-noalias-to-md-conversion=0
 )
+add_executable(tile_example_gemm_dequant_universal EXCLUDE_FROM_ALL universal_gemm_dequant.cpp)
+target_compile_options(tile_example_gemm_dequant_universal PRIVATE
+  -mllvm -enable-noalias-to-md-conversion=0
+)

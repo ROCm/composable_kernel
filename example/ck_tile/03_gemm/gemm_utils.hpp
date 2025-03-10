@@ -91,7 +91,7 @@ struct GemmConfig
     static constexpr bool kPadK = false;
 
     static constexpr bool PermuteA = false;
-    static constexpr bool PermuteB = false;
+    static constexpr bool PermuteB = true;
 
     static constexpr bool TransposeC = false;
 

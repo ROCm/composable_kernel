@@ -56,6 +56,37 @@ struct GemmHostArgs : public GemmProblem
     index_t k_batch;
 };
 
+template <typename ComputeDataType>
+struct GemmDequantHostArgs : public GemmProblem
+{
+    CK_TILE_HOST GemmDequantHostArgs() = default;
+    CK_TILE_HOST GemmDequantHostArgs(const void* a_ptr_,
+                                     const void* b_ptr_,
+                                     void* c_ptr_,
+                                     index_t k_batch_,
+                                     index_t M_,
+                                     index_t N_,
+                                     index_t K_,
+                                     index_t stride_A_,
+                                     index_t stride_B_,
+                                     index_t stride_C_,
+                                     const ComputeDataType scale_)
+        : GemmProblem(M_, N_, K_, stride_A_, stride_B_, stride_C_),
+          a_ptr(a_ptr_),
+          b_ptr(b_ptr_),
+          c_ptr(c_ptr_),
+          k_batch(k_batch_),
+          scale(scale_)
+    {
+    }
+
+    const void* a_ptr;
+    const void* b_ptr;
+    void* c_ptr;
+    index_t k_batch;
+    const ComputeDataType scale;
+};
+
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GemmKernel
 {
@@ -67,8 +98,9 @@ struct GemmKernel
     using CLayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
 
-    using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
-    using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
+    using ADataType       = remove_cvref_t<typename GemmPipeline::ADataType>;
+    using BDataType       = remove_cvref_t<typename GemmPipeline::BDataType>;
+    using ComputeDataType = remove_cvref_t<typename GemmPipeline::ComputeDataType>;
     // Below type is actually accumulation data type - the output of block GEMM.
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
@@ -104,6 +136,21 @@ struct GemmKernel
         index_t k_batch;
     };
 
+    struct GemmDequantKernelArgs
+    {
+        const void* a_ptr;
+        const void* b_ptr;
+        void* c_ptr;
+        index_t M;
+        index_t N;
+        index_t K;
+        index_t stride_A;
+        index_t stride_B;
+        index_t stride_C;
+        index_t k_batch;
+        ComputeDataType scale;
+    };
+
     CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(const GemmHostArgs& hostArgs)
     {
         return GemmKernelArgs{hostArgs.a_ptr,
@@ -118,6 +165,23 @@ struct GemmKernel
                               hostArgs.k_batch};
     }
 
+    template <typename ComputeDataType>
+    CK_TILE_HOST static constexpr GemmDequantKernelArgs
+    MakeKernelArgs(const GemmDequantHostArgs<ComputeDataType>& hostArgs)
+    {
+        return GemmDequantKernelArgs{hostArgs.a_ptr,
+                                     hostArgs.b_ptr,
+                                     hostArgs.c_ptr,
+                                     hostArgs.M,
+                                     hostArgs.N,
+                                     hostArgs.K,
+                                     hostArgs.stride_A,
+                                     hostArgs.stride_B,
+                                     hostArgs.stride_C,
+                                     hostArgs.k_batch,
+                                     hostArgs.scale};
+    }
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
@@ -125,8 +189,8 @@ struct GemmKernel
 
     struct SplitKBatchOffset
     {
-        __device__ SplitKBatchOffset(const GemmKernelArgs& kargs,
-                                     const std::size_t k_id = blockIdx.z)
+        template <typename KernelArgs>
+        __device__ SplitKBatchOffset(const KernelArgs& kargs, const std::size_t k_id = blockIdx.z)
         {
             constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
             const index_t K_t   = __builtin_amdgcn_readfirstlane(kargs.k_batch * K1);
@@ -165,7 +229,8 @@ struct GemmKernel
         index_t splitted_k;
     };
 
-    CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
+    template <typename KernelArgs>
+    CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
     {
         if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                      is_any_of<CDataType, fp16_t, bf16_t>::value)
@@ -307,11 +372,11 @@ struct GemmKernel
         return true;
     }
 
-    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
+    template <memory_operation_enum DstInMemOp = memory_operation_enum::set, typename KernelArgs>
     CK_TILE_DEVICE static auto MakeGemmTensorViews(const ADataType* a_ptr,
                                                    const BDataType* b_ptr,
                                                    CDataType* c_ptr,
-                                                   const GemmKernelArgs& kargs,
+                                                   const KernelArgs& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
     {
         static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
@@ -549,12 +614,12 @@ struct GemmKernel
      *
      * @tparam DstInMemOp Destination memory operation (default: set).
      */
-    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
+    template <memory_operation_enum DstInMemOp = memory_operation_enum::set, typename KernelArgs>
     CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
                                        const BDataType* b_ptr,
                                        CDataType* c_ptr,
                                        void* smem_ptr_0,
-                                       const GemmKernelArgs& kargs,
+                                       const KernelArgs& kargs,
                                        const SplitKBatchOffset& splitk_batch_offset,
                                        const index_t block_idx_m,
                                        const index_t block_idx_n)
@@ -573,15 +638,30 @@ struct GemmKernel
         const auto& a_block_window = gemm_tile_windows.at(I0);
         const auto& b_block_window = gemm_tile_windows.at(I1);
 
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, num_loop, smem_ptr_0);
+        if constexpr(std::is_same_v<KernelArgs, GemmDequantKernelArgs>)
+        {
+            const auto& c_block_tile = GemmPipeline{}.template operator()(
+                a_block_window, b_block_window, num_loop, smem_ptr_0, kargs.scale);
 
-        // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(I2);
+            // Run Epilogue Pipeline
+            auto& c_block_window = gemm_tile_windows.at(I2);
 
-        EpiloguePipeline{}
-            .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
-                c_block_window, c_block_tile, smem_ptr_0);
+            EpiloguePipeline{}
+                .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+                    c_block_window, c_block_tile, smem_ptr_0);
+        }
+        else
+        {
+            const auto& c_block_tile = GemmPipeline{}.template operator()(
+                a_block_window, b_block_window, num_loop, smem_ptr_0);
+
+            // Run Epilogue Pipeline
+            auto& c_block_window = gemm_tile_windows.at(I2);
+
+            EpiloguePipeline{}
+                .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+                    c_block_window, c_block_tile, smem_ptr_0);
+        }
     }
 
     /**
@@ -601,13 +681,13 @@ struct GemmKernel
      *
      * @tparam DstInMemOp Destination memory operation (default: set).
      */
-    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
+    template <memory_operation_enum DstInMemOp = memory_operation_enum::set, typename KernelArgs>
     CK_TILE_DEVICE static void RunGemm2LDS(const ADataType* a_ptr,
                                            const BDataType* b_ptr,
                                            CDataType* c_ptr,
                                            void* __restrict__ smem_ptr_0,
                                            void* __restrict__ smem_ptr_1,
-                                           const GemmKernelArgs& kargs,
+                                           const KernelArgs& kargs,
                                            const SplitKBatchOffset& splitk_batch_offset,
                                            const index_t block_idx_m,
                                            const index_t block_idx_n)
@@ -625,18 +705,34 @@ struct GemmKernel
         const auto& a_block_window = gemm_tile_windows.at(I0);
         const auto& b_block_window = gemm_tile_windows.at(I1);
 
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
+        if constexpr(std::is_same_v<KernelArgs, GemmDequantKernelArgs>)
+        {
+            const auto& c_block_tile = GemmPipeline{}.template operator()(
+                a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
 
-        // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(I2);
+            // Run Epilogue Pipeline
+            auto& c_block_window = gemm_tile_windows.at(I2);
 
-        EpiloguePipeline{}
-            .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
-                c_block_window, c_block_tile, smem_ptr_0);
+            EpiloguePipeline{}
+                .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+                    c_block_window, c_block_tile, smem_ptr_0, kargs.scale);
+        }
+        else
+        {
+            const auto& c_block_tile = GemmPipeline{}.template operator()(
+                a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
+
+            // Run Epilogue Pipeline
+            auto& c_block_window = gemm_tile_windows.at(I2);
+
+            EpiloguePipeline{}
+                .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+                    c_block_window, c_block_tile, smem_ptr_0);
+        }
     }
 
-    CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const
+    template <typename KernelArgs>
+    CK_TILE_DEVICE void operator()(KernelArgs& kargs) const
     {
         const auto blockId  = __builtin_amdgcn_readfirstlane(blockIdx.x);
         const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);

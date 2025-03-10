@@ -11,11 +11,12 @@ namespace ck_tile {
 template <typename Problem, typename Policy>
 struct GemmPipelineAgBgCrImplBase
 {
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using ALayout        = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout        = remove_cvref_t<typename Problem::BLayout>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+    using ALayout         = remove_cvref_t<typename Problem::ALayout>;
+    using BLayout         = remove_cvref_t<typename Problem::BLayout>;
+    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
