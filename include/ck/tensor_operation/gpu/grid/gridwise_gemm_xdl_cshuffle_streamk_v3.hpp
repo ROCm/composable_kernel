@@ -1449,7 +1449,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                             {
 
                                 // @Emin-debug
-#if 1
+#if 0
                                 if (threadIdx.x == 0 && threadIdx.y == 0)
                                 {
                                     // printf(" gridwise_gemm_xdl_cshuffle line %d , Block %d , reduction_idx %d, i_m %d, i_n_reduce %d, 
