@@ -42,6 +42,7 @@ template <typename ThreadGroup,
           index_t DstScalarPerVector,
           typename ThreadTransferSrcResetCoordinateAfterRunFlags,
           typename ThreadTransferDstResetCoordinateAfterRunFlags,
+          typename ScatterIdxType  = index_t,
           index_t ScatterDim       = 1,
           bool OutputScatter       = true,
           index_t ScatterWeightIdx = 3,
@@ -149,7 +150,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
     template <typename DstBuffers, index_t ThreadScratchId = 0>
     __device__ void RunWrite(const DstDescs& dst_descs,
                              DstBuffers dst_bufs,
-                             StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
+                             StaticallyIndexedArray<ScatterIdxType, scatter_num>& scatter_offsets,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
@@ -169,7 +170,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
                         const SrcBuffers& src_bufs,
                         const DstDescs& dst_descs,
                         DstBuffers dst_bufs,
-                        StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
+                        StaticallyIndexedArray<ScatterIdxType, scatter_num>& scatter_offsets,
                         StaticallyIndexedArray<float, scatter_num>& scatter_weights)
     {
         RunRead(src_descs, src_bufs, scatter_weights);
@@ -230,6 +231,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
                                                    DstScalarPerVector,
                                                    ThreadTransferSrcResetCoordinateAfterRunFlags,
                                                    ThreadTransferDstResetCoordinateAfterRunFlags,
+                                                   ScatterIdxType,
                                                    ScatterDim,
                                                    OutputScatter,
                                                    ScatterWeightIdx,

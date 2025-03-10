@@ -43,6 +43,7 @@ template <typename SrcDatas,
           index_t DstScalarPerVector,
           typename SrcResetCoordinateAfterRunFlags, // Sequence<bool ...>
           typename DstResetCoordinateAfterRunFlags, // Sequence<bool ...>
+          typename ScatterIdxType  = index_t,
           index_t ScatterDim       = 1,
           bool OutputScatter       = true,
           index_t ScatterWeightIdx = 3,
@@ -424,7 +425,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
               enable_if_t<DstDescs::Size() == 1 && DstBuffers::Size() == 1, bool> = false>
     __device__ void RunWrite(const DstDescs& dst_descs,
                              DstBuffers dst_bufs,
-                             StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
+                             StaticallyIndexedArray<ScatterIdxType, scatter_num>& scatter_offsets,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         OOBCheck(thread_scratch_id);
@@ -520,7 +521,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                         const SrcBuffers& src_bufs,
                         const DstDescs& dst_descs,
                         DstBuffers dst_bufs,
-                        StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
+                        StaticallyIndexedArray<ScatterIdxType, scatter_num>& scatter_offsets,
                         StaticallyIndexedArray<float, scatter_num>& scatter_weights)
     {
         RunRead(src_descs, src_bufs, scatter_weights);

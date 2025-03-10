@@ -147,6 +147,7 @@ template <typename ALayout,
           typename CDEShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
+          typename ScatterIdxType                     = index_t,
           bool NSwizzle                               = false,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
@@ -1210,7 +1211,7 @@ struct GridwiseMoeGemm
 
         if(token_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
-        StaticallyIndexedArray<index_t, AMRepeats> gather_offsets;
+        StaticallyIndexedArray<ScatterIdxType, AMRepeats> gather_offsets;
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             const index_t fused_token = p_sorted_token_ids[token_pos + m0];
             index_t token_offset      = fused_token & 0xffffff;
@@ -1261,6 +1262,7 @@ struct GridwiseMoeGemm
             1,
             AThreadTransferSrcResetCoordinateAfterRun,
             true,
+            ScatterIdxType,
             1,
             BlockwiseGemmPipe::GlobalBufferNum>(a_grid_desc_ak0_m_ak1,
                                                 make_multi_index(0, 0, 0),
@@ -1519,6 +1521,7 @@ struct GridwiseMoeGemm
                     uniform_sequence_gen_t<NumDTensor,
                                            false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
                 Sequence<false>,   // ThreadTransferDstResetCoordinateAfterRunFlags
+                ScatterIdxType,
                 1,                 // ScatterDim
                 true,              // OutputScatter: false, only use scatter weights
                 scatter_weight_idx // ScatterWeightIdx: ascale
@@ -1563,7 +1566,7 @@ struct GridwiseMoeGemm
             const float* p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
-                StaticallyIndexedArray<index_t, EMRepeats>
+                StaticallyIndexedArray<ScatterIdxType, EMRepeats>
                     scatter_offsets; //= p_sorted_token_ids[c_token_pos];
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
                 // too hack here, 2 specific for topk weights, fixme
@@ -1711,7 +1714,7 @@ struct GridwiseMoeGemm
         if(token_pos >= max_token_id || expert_block_id * MPerBlock >= max_token_id ||
            token0 >= problem.NumTokens)
             return;
-        StaticallyIndexedArray<index_t, AMRepeats>
+        StaticallyIndexedArray<ScatterIdxType, AMRepeats>
             gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             const index_t fused_token = p_sorted_token_ids[token_pos + m0];
@@ -1763,6 +1766,7 @@ struct GridwiseMoeGemm
             1,
             AThreadTransferSrcResetCoordinateAfterRun,
             true,
+            ScatterIdxType,
             1,
             2>(a_grid_desc_ak0_m_ak1,
                make_multi_index(0, 0, 0),
@@ -2027,6 +2031,7 @@ struct GridwiseMoeGemm
                     uniform_sequence_gen_t<NumDTensor,
                                            false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
                 Sequence<false>,   // ThreadTransferDstResetCoordinateAfterRunFlags
+                ScatterIdxType,
                 1,                 // ScatterDim
                 true,              // OutputScatter: false, only use scatter weights
                 scatter_weight_idx // ScatterWeightIdx: ascale
@@ -2071,7 +2076,7 @@ struct GridwiseMoeGemm
             const float* p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
-                StaticallyIndexedArray<index_t, EMRepeats>
+                StaticallyIndexedArray<ScatterIdxType, EMRepeats>
                     scatter_offsets; //= p_sorted_token_ids[c_token_pos];
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
                 // too hack here, 2 specific for topk weights, fixme
