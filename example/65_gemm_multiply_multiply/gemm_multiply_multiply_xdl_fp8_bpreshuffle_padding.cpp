@@ -129,7 +129,16 @@ void preShuffleBuffer(const DataType* src, DataType* dst, int N, int K, int NXdl
         }
     }
 }
-int GetPreShufflePadded(int K) { return (K + ShufflePadded - 1) / ShufflePadded * ShufflePadded; }
+
+int GetKPreShufflePadded(int K)
+{
+    return (K + KShufflePadded - 1) / KShufflePadded * KShufflePadded;
+}
+int GetNPreShufflePadded(int N)
+{
+    return (N + NShufflePadded - 1) / NShufflePadded * NShufflePadded;
+}
+
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using AElementOp   = PassThrough;
@@ -268,12 +277,14 @@ int main(int argc, char* argv[])
             }
         };
 
-    auto Knew       = GetPreShufflePadded(K);
+    auto Knew       = GetKPreShufflePadded(K);
     auto StrideBnew = Knew;
+    auto Nnew       = GetNPreShufflePadded(N);
+    std::cout << "Knew: " << Knew << " Nnew: " << Nnew << std::endl;
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, A0Layout{}));
     Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
     Tensor<B0DataType> b0_preshuffled(
-        f_host_tensor_descriptor(Knew, N, StrideBnew, B0Layout{})); // use laout only for size
+        f_host_tensor_descriptor(Knew, Nnew, StrideBnew, B0Layout{})); // use laout only for size
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
@@ -289,8 +300,8 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 2});
+        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-5, 5});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
         d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
         d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
         break;

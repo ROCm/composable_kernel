@@ -146,8 +146,8 @@ struct DeviceGemmMultipleDSplitKBPreShuffle : public BaseOperator
 
     virtual int GetPreShuffleParameters() = 0;
 };
-
-#define ShufflePadded 256
+#define KShufflePadded 256
+#define NShufflePadded 128
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

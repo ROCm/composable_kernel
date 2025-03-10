@@ -57,7 +57,14 @@ void preShuffleBuffer(
     }
 }
 
-int GetPreShufflePadded(int K) { return (K + ShufflePadded - 1) / ShufflePadded * ShufflePadded; }
+int GetKPreShufflePadded(int K)
+{
+    return (K + KShufflePadded - 1) / KShufflePadded * KShufflePadded;
+}
+int GetNPreShufflePadded(int N)
+{
+    return (N + NShufflePadded - 1) / NShufflePadded * NShufflePadded;
+}
 
 template <typename ADataType,
           typename BDataType,
@@ -103,14 +110,15 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                 return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
-    auto Knew       = GetPreShufflePadded(K);
+    auto Knew       = GetKPreShufflePadded(K);
     auto StrideBnew = Knew;
+    auto Nnew       = GetNPreShufflePadded(N);
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<BDataType> b_preshuffled_mfma16(
-        f_host_tensor_descriptor(Knew, N, StrideBnew, BLayout{})); // use layout only for size
+        f_host_tensor_descriptor(Knew, Nnew, StrideBnew, BLayout{})); // use layout only for size
     Tensor<BDataType> b_preshuffled_mfma32(
-        f_host_tensor_descriptor(Knew, N, StrideBnew, BLayout{})); // use layout only for size
+        f_host_tensor_descriptor(Knew, Nnew, StrideBnew, BLayout{})); // use layout only for size
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
