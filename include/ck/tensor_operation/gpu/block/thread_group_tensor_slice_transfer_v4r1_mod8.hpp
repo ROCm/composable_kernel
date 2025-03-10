@@ -41,7 +41,8 @@ template <typename ThreadGroup,
           index_t DstScalarStrideInVector,
           bool ThreadTransferSrcResetCoordinateAfterRun,
           bool ThreadTransferDstResetCoordinateAfterRun,
-          index_t GatherDim = 1,
+          typename ScatterIdxType  = index_t,
+          index_t GatherDim        = 1,
           index_t NumThreadScratch = 1>
 struct ThreadGroupTensorSliceTransfer_v4r1_mod8
 {
@@ -59,7 +60,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1_mod8
         const DstDesc& dst_desc,
         const Index& dst_block_slice_origin,
         const DstElementwiseOperation& dst_element_op,
-        const StaticallyIndexedArray<index_t, gather_num> &gather_offsets)
+        const StaticallyIndexedArray<ScatterIdxType, gather_num>& gather_offsets)
         : threadwise_transfer_(src_desc,
                                make_zero_multi_index<nDim>(),
                                src_element_op,
@@ -178,25 +179,26 @@ struct ThreadGroupTensorSliceTransfer_v4r1_mod8
 
     using ThreadwiseTransfer =
         ThreadwiseTensorSliceTransfer_v3r1_gather<decltype(thread_slice_lengths),
-                                           SrcElementwiseOperation,
-                                           DstElementwiseOperation,
-                                           DstInMemOp,
-                                           SrcData,
-                                           DstData,
-                                           SrcDesc,
-                                           DstDesc,
-                                           SrcDimAccessOrder,
-                                           DstDimAccessOrder,
-                                           SrcVectorDim,
-                                           DstVectorDim,
-                                           SrcScalarPerVector,
-                                           DstScalarPerVector,
-                                           SrcScalarStrideInVector,
-                                           DstScalarStrideInVector,
-                                           ThreadTransferSrcResetCoordinateAfterRun,
-                                           ThreadTransferDstResetCoordinateAfterRun,
-                                           GatherDim,
-                                           NumThreadScratch>;
+                                                  SrcElementwiseOperation,
+                                                  DstElementwiseOperation,
+                                                  DstInMemOp,
+                                                  SrcData,
+                                                  DstData,
+                                                  SrcDesc,
+                                                  DstDesc,
+                                                  SrcDimAccessOrder,
+                                                  DstDimAccessOrder,
+                                                  SrcVectorDim,
+                                                  DstVectorDim,
+                                                  SrcScalarPerVector,
+                                                  DstScalarPerVector,
+                                                  SrcScalarStrideInVector,
+                                                  DstScalarStrideInVector,
+                                                  ThreadTransferSrcResetCoordinateAfterRun,
+                                                  ThreadTransferDstResetCoordinateAfterRun,
+                                                  ScatterIdxType,
+                                                  GatherDim,
+                                                  NumThreadScratch>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };

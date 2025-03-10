@@ -146,7 +146,8 @@ template <typename ALayout,
           typename CDEShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
-          bool NSwizzle = false,
+          typename ScatterIdxType                     = index_t,
+          bool NSwizzle                               = false,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ADataType,
@@ -1211,7 +1212,7 @@ struct GridwiseMoeGemm
         
         if(token_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
-        StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
+        StaticallyIndexedArray<ScatterIdxType, AMRepeats> gather_offsets;
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             const index_t fused_token = p_sorted_token_ids[token_pos + m0];
             index_t token_offset = fused_token & 0xffffff;
@@ -1243,37 +1244,37 @@ struct GridwiseMoeGemm
         // dummy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         // A matrix blockwise copy
-        auto a_blockwise_copy =
-            ThreadGroupTensorSliceTransfer_v4r1_mod8<ThisThreadBlock,
-                                                AElementwiseOperation,
-                                                ck::tensor_operation::element_wise::PassThrough,
-                                                InMemoryDataOperationEnum::Set,
-                                                Sequence<AK0Number, MPerBlock, AK1Number>,
-                                                ABlockTransferThreadClusterLengths_AK0_M_AK1,
-                                                ABlockTransferThreadClusterArrangeOrder,
-                                                ADataType,
-                                                LDSTypeA,
-                                                decltype(a_grid_desc_ak0_m_ak1),
-                                                decltype(a_block_desc_ak0_m_ak1),
-                                                ABlockTransferSrcAccessOrder,
-                                                Sequence<0, 1, 2>,
-                                                ABlockTransferSrcVectorDim,
-                                                2,
-                                                ABlockTransferSrcScalarPerVector,
-                                                ABlockTransferDstScalarPerVector_AK1,
-                                                1,
-                                                1,
-                                                AThreadTransferSrcResetCoordinateAfterRun,
-                                                true,
-                                                1,
-                                                BlockwiseGemmPipe::GlobalBufferNum>(
-                a_grid_desc_ak0_m_ak1,
-                make_multi_index(0, 0, 0),
-                a_element_op,
-                a_block_desc_ak0_m_ak1,
-                make_multi_index(0, 0, 0),
-                ck::tensor_operation::element_wise::PassThrough{},
-                gather_offsets);
+        auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1_gather<
+            ThisThreadBlock,
+            AElementwiseOperation,
+            ck::tensor_operation::element_wise::PassThrough,
+            InMemoryDataOperationEnum::Set,
+            Sequence<AK0Number, MPerBlock, AK1Number>,
+            ABlockTransferThreadClusterLengths_AK0_M_AK1,
+            ABlockTransferThreadClusterArrangeOrder,
+            ADataType,
+            LDSTypeA,
+            decltype(a_grid_desc_ak0_m_ak1),
+            decltype(a_block_desc_ak0_m_ak1),
+            ABlockTransferSrcAccessOrder,
+            Sequence<0, 1, 2>,
+            ABlockTransferSrcVectorDim,
+            2,
+            ABlockTransferSrcScalarPerVector,
+            ABlockTransferDstScalarPerVector_AK1,
+            1,
+            1,
+            AThreadTransferSrcResetCoordinateAfterRun,
+            true,
+            ScatterIdxType,
+            1,
+            BlockwiseGemmPipe::GlobalBufferNum>(a_grid_desc_ak0_m_ak1,
+                                                make_multi_index(0, 0, 0),
+                                                a_element_op,
+                                                a_block_desc_ak0_m_ak1,
+                                                make_multi_index(0, 0, 0),
+                                                ck::tensor_operation::element_wise::PassThrough{},
+                                                gather_offsets);
 
         // Thread-wise copy
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack
@@ -1523,16 +1524,16 @@ struct GridwiseMoeGemm
                     Sequence<true>,
                     uniform_sequence_gen_t<NumDTensor,
                                            false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
-                Sequence<false>,      // ThreadTransferDstResetCoordinateAfterRunFlags
-                1,                    //ScatterDim
-                true,                 //OutputScatter: false, only use scatter weights
-                scatter_weight_idx    // ScatterWeightIdx: ascale
-                >                    
-                {c_ds_desc_refs,
-                 idx_c_ds_block_begin,
-                 tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                 make_tuple(make_multi_index(0, 0, block_n_id, 0)),
-                 c_element_op};
+                Sequence<false>,   // ThreadTransferDstResetCoordinateAfterRunFlags
+                ScatterIdxType,
+                1,                 // ScatterDim
+                true,              // OutputScatter: false, only use scatter weights
+                scatter_weight_idx // ScatterWeightIdx: ascale
+                >{c_ds_desc_refs,
+                  idx_c_ds_block_begin,
+                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                  make_tuple(make_multi_index(0, 0, block_n_id, 0)),
+                  c_element_op};
 
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
@@ -1567,7 +1568,8 @@ struct GridwiseMoeGemm
             const float *p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
-                StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[c_token_pos];
+                StaticallyIndexedArray<ScatterIdxType, EMRepeats>
+                    scatter_offsets; //= p_sorted_token_ids[c_token_pos];
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
                 // too hack here, 2 specific for topk weights, fixme
                 // const index_t topk_id[EMRepeats];// = (p_sorted_token_ids[block_m_id * MPerBlock] & 0xff000000) >> 24;
@@ -1717,7 +1719,8 @@ struct GridwiseMoeGemm
         
         if(token_pos >= max_token_id || expert_block_id * MPerBlock >= max_token_id || token0 >= problem.NumTokens)
             return;
-        StaticallyIndexedArray<index_t, AMRepeats> gather_offsets; //= p_sorted_token_ids[token_pos];
+        StaticallyIndexedArray<ScatterIdxType, AMRepeats>
+            gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             const index_t fused_token = p_sorted_token_ids[token_pos + m0];
             index_t token_offset = fused_token & 0xffffff;
@@ -1749,37 +1752,37 @@ struct GridwiseMoeGemm
         // dummy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         // A matrix blockwise copy
-        auto a_blockwise_copy =
-            ThreadGroupTensorSliceTransfer_v4r1_mod8<ThisThreadBlock,
-                                                AElementwiseOperation,
-                                                ck::tensor_operation::element_wise::PassThrough,
-                                                InMemoryDataOperationEnum::Set,
-                                                Sequence<AK0Number, MPerBlock, AK1Number>,
-                                                ABlockTransferThreadClusterLengths_AK0_M_AK1,
-                                                ABlockTransferThreadClusterArrangeOrder,
-                                                ADataType,
-                                                LDSTypeA,
-                                                decltype(a_grid_desc_ak0_m_ak1),
-                                                decltype(a_block_desc_ak0_m_ak1),
-                                                ABlockTransferSrcAccessOrder,
-                                                Sequence<0, 1, 2>,
-                                                ABlockTransferSrcVectorDim,
-                                                2,
-                                                ABlockTransferSrcScalarPerVector,
-                                                ABlockTransferDstScalarPerVector_AK1,
-                                                1,
-                                                1,
-                                                AThreadTransferSrcResetCoordinateAfterRun,
-                                                true,
-                                                1,
-                                                2>(
-                a_grid_desc_ak0_m_ak1,
-                make_multi_index(0, 0, 0),
-                a_element_op,
-                a_block_desc_ak0_m_ak1,
-                make_multi_index(0, 0, 0),
-                ck::tensor_operation::element_wise::PassThrough{},
-                gather_offsets);
+        auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1_gather<
+            ThisThreadBlock,
+            AElementwiseOperation,
+            ck::tensor_operation::element_wise::PassThrough,
+            InMemoryDataOperationEnum::Set,
+            Sequence<AK0Number, MPerBlock, AK1Number>,
+            ABlockTransferThreadClusterLengths_AK0_M_AK1,
+            ABlockTransferThreadClusterArrangeOrder,
+            ADataType,
+            LDSTypeA,
+            decltype(a_grid_desc_ak0_m_ak1),
+            decltype(a_block_desc_ak0_m_ak1),
+            ABlockTransferSrcAccessOrder,
+            Sequence<0, 1, 2>,
+            ABlockTransferSrcVectorDim,
+            2,
+            ABlockTransferSrcScalarPerVector,
+            ABlockTransferDstScalarPerVector_AK1,
+            1,
+            1,
+            AThreadTransferSrcResetCoordinateAfterRun,
+            true,
+            ScatterIdxType,
+            1,
+            2>(a_grid_desc_ak0_m_ak1,
+               make_multi_index(0, 0, 0),
+               a_element_op,
+               a_block_desc_ak0_m_ak1,
+               make_multi_index(0, 0, 0),
+               ck::tensor_operation::element_wise::PassThrough{},
+               gather_offsets);
 
         // Thread-wise copy
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack
@@ -2035,16 +2038,16 @@ struct GridwiseMoeGemm
                     Sequence<true>,
                     uniform_sequence_gen_t<NumDTensor,
                                            false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
-                Sequence<false>,      // ThreadTransferDstResetCoordinateAfterRunFlags
-                1,                    //ScatterDim
-                true,                 //OutputScatter: false, only use scatter weights
-                scatter_weight_idx    // ScatterWeightIdx: ascale
-                >                    
-                {c_ds_desc_refs,
-                 idx_c_ds_block_begin,
-                 tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                 make_tuple(make_multi_index(0, 0, block_n_id, 0)),
-                 c_element_op};
+                Sequence<false>,   // ThreadTransferDstResetCoordinateAfterRunFlags
+                ScatterIdxType,
+                1,                 // ScatterDim
+                true,              // OutputScatter: false, only use scatter weights
+                scatter_weight_idx // ScatterWeightIdx: ascale
+                >{c_ds_desc_refs,
+                  idx_c_ds_block_begin,
+                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                  make_tuple(make_multi_index(0, 0, block_n_id, 0)),
+                  c_element_op};
 
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
@@ -2079,7 +2082,8 @@ struct GridwiseMoeGemm
             const float *p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
-                StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets; //= p_sorted_token_ids[c_token_pos];
+                StaticallyIndexedArray<ScatterIdxType, EMRepeats>
+                    scatter_offsets; //= p_sorted_token_ids[c_token_pos];
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
                 // too hack here, 2 specific for topk weights, fixme
                 // const index_t topk_id[EMRepeats];// = (p_sorted_token_ids[block_m_id * MPerBlock] & 0xff000000) >> 24;

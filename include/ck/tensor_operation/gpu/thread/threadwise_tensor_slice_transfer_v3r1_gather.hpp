@@ -31,8 +31,8 @@ template <typename SliceLengths,
           typename DstDimAccessOrder,
           index_t SrcVectorDim,
           index_t DstVectorDim,
-          index_t SrcScalarPerVector_,
-          index_t DstScalarPerVector_,
+          index_t SrcScalarPerVector,
+          index_t DstScalarPerVector,
           index_t SrcScalarStrideInVector,
           index_t DstScalarStrideInVector,
           bool SrcResetCoordinateAfterRun, // control whether to move back src coordinate after each
@@ -41,7 +41,8 @@ template <typename SliceLengths,
           bool DstResetCoordinateAfterRun, // control whether to move back dst coordinate after each
                                            // RunWrite(),  will be fused with MoveDstSliceWindow to
                                            // save addr computation
-          index_t GatherDim = 1,
+          typename ScatterIdxType  = index_t,
+          index_t GatherDim        = 1,
           index_t NumThreadScratch = 1>
 struct ThreadwiseTensorSliceTransfer_v3r1_gather
 {
@@ -54,31 +55,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
-    static constexpr auto I0  = Number<0>{};
-    static constexpr auto I1  = Number<1>{};
-    static constexpr auto I2  = Number<2>{};
-    static constexpr auto I3  = Number<3>{};
-    static constexpr auto I4  = Number<4>{};
-    static constexpr auto I5  = Number<5>{};
-    static constexpr auto I6  = Number<6>{};
-    static constexpr auto I7  = Number<7>{};
-    static constexpr auto I8  = Number<8>{};
-    static constexpr auto I10 = Number<10>{};
-    static constexpr auto I12 = Number<12>{};
-    static constexpr auto I13 = Number<13>{};
-    static constexpr auto I14 = Number<14>{};
-    static constexpr auto I16 = Number<16>{};
-
-    static constexpr index_t PackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
-            return 2;
-        else
-            return 1;
-    }();
-
-    static constexpr auto SrcScalarPerVector = Number<SrcScalarPerVector_ / PackedSize>{};
-    static constexpr auto DstScalarPerVector = Number<DstScalarPerVector_ / PackedSize>{};
-
+    static constexpr auto I0            = Number<0>{};
     static constexpr index_t gather_num = SliceLengths{}.At(Number<GatherDim>{});
 
     __device__ constexpr ThreadwiseTensorSliceTransfer_v3r1_gather(
@@ -88,29 +65,26 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         const DstDesc& dst_desc,
         const Index& dst_slice_origin,
         const DstElementwiseOperation& dst_element_op,
-        const StaticallyIndexedArray<index_t, gather_num> &gather_offsets)
+        const StaticallyIndexedArray<ScatterIdxType, gather_num>& gather_offsets)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin)),
           dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
           src_element_op_(src_element_op),
           dst_element_op_(dst_element_op),
           gather_offsets_(gather_offsets)
     {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
-        {
-            static_assert(is_same_v<remove_cvref_t<SrcData>, remove_cvref_t<DstData>>,
-                          "SrcData != DstData");
-
-            static_assert(
-                SrcScalarPerVector_ % PackedSize == 0 && DstScalarPerVector_ % PackedSize == 0,
-                "SrcScalarPerVector_ and DstScalarPerVector_ cannot be 1 for packed data type");
-
-            static_assert(SrcVectorDim == DstVectorDim, "pk_i4_t does not support transpose");
-        }
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
     {
-        src_coord_ = make_tensor_coordinate(src_desc, src_slice_origin_idx);
+
+        auto adjusted_origin_idx = [&]() {
+            Index idx;
+            static_for<0, nDim, 1>{}([&](auto i) {
+                idx(i) = i.value == GatherDim ? 0 : src_slice_origin_idx[Number<i>{}];
+            });
+            return idx;
+        }();
+        src_coord_ = make_tensor_coordinate(src_desc, adjusted_origin_idx);
     }
 
     __device__ void SetDstSliceOrigin(const DstDesc& dst_desc, const Index& dst_slice_origin_idx)
@@ -134,15 +108,14 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
-
-        static_assert(SliceLengths::At(SrcVectorDim) % (SrcScalarPerVector_) == 0,
+        static_assert(SliceLengths::At(SrcVectorDim) % SrcScalarPerVector == 0,
                       "SliceLengths[SrcVectorDim] must be divisible by SrcScalarPerVector");
 
         constexpr auto src_dim_access_order = SrcDimAccessOrder{};
-        constexpr auto ordered_gather_dim = src_dim_access_order[GatherDim];
+        constexpr auto ordered_gather_dim   = src_dim_access_order[GatherDim];
         constexpr auto ordered_src_access_lengths =
             container_reorder_given_new2old(src_access_lengths, src_dim_access_order);
 
@@ -210,19 +183,23 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             constexpr auto src_data_idx_seq = generate_sequence_v2(
                 [&](auto i) { return Number<src_data_idx[i]>{}; }, Number<src_data_idx.Size()>{});
 
-            auto gather_offset = gather_offsets_(ordered_src_access_idx[Number<ordered_gather_dim>{}]);
+            auto gather_offset =
+                gather_offsets_(ordered_src_access_idx[Number<ordered_gather_dim>{}]);
 
             // maintain a container record is_src_valid, waiting for RunWrite use.
             const index_t ld_offset = src_coord_.GetOffset() + gather_offset;
-            const bool is_src_valid = ld_offset < src_desc.GetElementSpaceSize();//hack felix, todo use coord
-                //coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_) && (gather_offset < 32*512);
+            const bool is_src_valid =
+                ld_offset <
+                src_desc
+                    .GetElementSpaceSize(); // hack felix, todo use coord
+                                            // coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc,
+                                            // src_coord_) && (gather_offset < 32*512);
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, is_src_valid);
 
             using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
-            // if(threadIdx.x==0)
-            // printf("use tid %d num %d off %d %d\n", threadIdx.x, ordered_src_access_idx[Number<ordered_gather_dim>{}](), src_coord_.GetOffset(), gather_offset );
+
             auto src_vector_container =
                 src_vector_type{src_buf.template Get<src_vector_t>(ld_offset, true)};
 
@@ -236,22 +213,17 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                     if constexpr(decltype(src_element_op_)::is_pack8_invocable)
                         return math::min(8, SrcScalarPerVector);
                 }
-                else if constexpr(is_detected<is_pack4_invocable_t,
-                                              decltype(src_element_op_)>::value)
+                if constexpr(is_detected<is_pack4_invocable_t, decltype(src_element_op_)>::value)
                 {
                     if constexpr(decltype(src_element_op_)::is_pack4_invocable)
                         return math::min(4, SrcScalarPerVector);
                 }
-                else if constexpr(is_detected<is_pack2_invocable_t,
-                                              decltype(src_element_op_)>::value)
+                if constexpr(is_detected<is_pack2_invocable_t, decltype(src_element_op_)>::value)
                 {
                     if constexpr(decltype(src_element_op_)::is_pack2_invocable)
                         return math::min(2, SrcScalarPerVector);
                 }
-                else
-                {
-                    return 1;
-                }
+                return 1;
             };
 
             constexpr index_t elem_op_vec_len = get_elem_op_vec_len();
@@ -269,14 +241,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<dst_vector_t>(src_data_idx_seq,
                                                   op_r_v.template AsType<dst_vector_t>()[I0]);
-                                                  
-            // if(1) {
-            //     using print_vec_t = typename vector_type<DstData, 1>::type;
-            //     static_for<0, SrcScalarPerVector, 1>{}([&](auto idx) {
-            //         printf("tid %d %f\n",threadIdx.x, type_convert<float>(src_vector_container.template AsType<print_vec_t>()[idx]));
-            //     });
-            // }
-            constexpr auto move_on_dim = [&]() constexpr
+
+            auto move_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
@@ -288,9 +254,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                             ordered_src_access_idx[j] == ordered_src_access_lengths[j] - 1;
                     });
                     move_on_dim_(i) &= i.value != ordered_gather_dim;
-                    
-                    // if(threadIdx.x==0)
-                    //     printf("i %d %d ordered_gather_dim %d\n", i.value, move_on_dim_(i), ordered_gather_dim);
                 });
 
                 return move_on_dim_;
@@ -298,9 +261,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             ();
             // move src coord
             static_for<0, nDim, 1>{}([&](auto i) {
-                // if(threadIdx.x==0)
-                // printf("use tid %d ori cord: %d i %d mov %d\n", threadIdx.x, src_coord_.GetOffset(), i.value, move_on_dim[i]);
-                if constexpr(move_on_dim[i])
+                if(move_on_dim[i])
                 {
                     if constexpr(forward_sweep[i])
                     {
@@ -313,10 +274,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                             src_desc, src_coord_, src_backward_steps[src_dim_access_order[i]]);
                     }
                 }
-                // if(threadIdx.x==0)
-                // printf("use tid %d moved cord: %d\n", threadIdx.x, src_coord_.GetOffset());
             });
-            
         });
 
         // move src coordinate back to slice origin (or not)
@@ -349,7 +307,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
 
         // OOB Check
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -420,8 +378,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                       (is_same<f8_t, remove_cvref_t<DstData>>::value &&
                        SrcScalarPerVector % 4 == 0 && DstScalarPerVector % 4 == 0)))
         {
-            static_assert(!is_same_v<remove_cvref_t<SrcData>, pk_i4_t>,
-                          "in-register transpose is not supported for pk_i4_t");
             // each transpose does
             // DstScalarPerVector # of src vectors in src_thread_scratch_
             // SrcScalarPerVector # of dst vectors in dst_thread_scratch_
@@ -482,12 +438,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         }
         else
         {
-            constexpr auto packed_per_access = generate_sequence(
-                detail::lambda_scalar_per_access<SrcVectorDim, PackedSize>{}, Number<nDim>{});
-
-            constexpr auto packed_access_lengths = SliceLengths{} / packed_per_access;
-
-            static_ford<decltype(packed_access_lengths)>{}([&](auto idx) {
+            static_ford<SliceLengths>{}([&](auto idx) {
                 dst_thread_scratch_(idx) = src_thread_scratch_tuple_[thread_scratch_id][idx];
             });
         }
@@ -515,7 +466,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         // src scalar per access on each dim
         // TODO: don't use this
         constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector_>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
 
@@ -609,16 +560,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
 
             // copy data from dst_vector_container to dst_buf
             dst_buf.template Set<dst_vector_t>(
-                dst_coord_.GetOffset() / PackedSize,
+                dst_coord_.GetOffset(),
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
-                         
-            // if(1) {
-            //     using print_vec_t = typename vector_type<DstData, 1>::type;
-            //     static_for<0, DstScalarPerVector, 1>{}([&](auto idx) {
-            //         printf("tid %d off %d valid %d val %f\n",threadIdx.x, dst_coord_.GetOffset(), is_dst_valid, type_convert<float>(dst_vector_container.template AsType<print_vec_t>()[idx]));
-            //     });
-            // }
+
             constexpr auto move_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
@@ -669,7 +614,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -714,7 +659,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         constexpr auto reset_src_data_step = [&]() {
             Index reset_src_data_step_;
 
-            static_for<0, nDim, 1>{}([&](auto i) { reset_src_data_step_(i) = i.value == GatherDim ? 0 : -src_data_idx[i]; });
+            static_for<0, nDim, 1>{}([&](auto i) {
+                reset_src_data_step_(i) = i.value == GatherDim ? 0 : -src_data_idx[i];
+            });
 
             return reset_src_data_step_;
         }();
@@ -726,7 +673,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector_>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
 
@@ -811,7 +758,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
     __device__ static constexpr auto GetSrcThreadScratchDescriptor()
     {
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -860,7 +807,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
     __device__ static constexpr auto GetSrcOOBThreadScratchDescriptor()
     {
         constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -871,7 +818,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
     {
         // 1st stage of transforms
         constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector_>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
 
@@ -951,7 +898,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
     DstCoord dst_coord_;
     const SrcElementwiseOperation src_element_op_;
     const DstElementwiseOperation dst_element_op_;
-    StaticallyIndexedArray<index_t, gather_num> gather_offsets_;
+    StaticallyIndexedArray<ScatterIdxType, gather_num> gather_offsets_;
 };
 
 } // namespace ck
