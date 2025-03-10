@@ -365,7 +365,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         index_t skipped_group_count_;
 
         std::vector<GemmTransKernelArg> gemm_kernel_args_;
-        GemmTransKernelArg* gemm_kernel_host_args_;
+        void* gemm_kernel_host_args_;
         index_t grid_size_;
     };
 
@@ -710,16 +710,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             throw std::runtime_error("Failed to cast argument pointer!");
         }
 
-        GemmTransKernelArg* pHostArg_ = static_cast<GemmTransKernelArg*>(p_host_kernel_args);
-        if(!pHostArg_)
-        {
-            throw std::runtime_error("Failed to cast host kernel argument pointer!");
-        }
-
-        pArg_->gemm_kernel_host_args_ = pHostArg_;
+        pArg_->gemm_kernel_host_args_ = p_host_kernel_args;
         std::copy(pArg_->gemm_kernel_args_.begin(),
                   pArg_->gemm_kernel_args_.end(),
-                  pArg_->gemm_kernel_host_args_);
+                  static_cast<GemmTransKernelArg*>(pArg_->gemm_kernel_host_args_));
     }
 };
 
