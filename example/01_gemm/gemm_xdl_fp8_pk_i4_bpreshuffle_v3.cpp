@@ -22,7 +22,27 @@ using CLayout = Row;
 
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
-using CElementOp = PassThrough;
+
+// C = C * 16  Using the assembly instruction for int4->fp8 conversion, need mulitply 16
+struct MulConst
+{
+    template <typename C, typename C1>
+    __host__ __device__ constexpr void
+    operator()(C& c, const C1& c1) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<CDataType>(
+        CDataType& c, const CDataType& c1) const
+    {
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+        c = ck::type_convert<CDataType>(c1 * 16);
+#else
+        c = ck::type_convert<CDataType>(c1);
+#endif
+    }
+};
+
+using CElementOp = MulConst;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -334,6 +354,15 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                   << " GB/s, " << gemm.GetTypeString() << std::endl;
+    }
+
+    for(int m = 0; m < M; m++)
+    {
+        for(int n = 0; n < N; n++)
+        {
+            printf("%f ", ck::type_convert<float>(c_m_n_device_result(m, n)));
+        }
+        printf("\n");
     }
 
     return pass;
