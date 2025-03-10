@@ -497,7 +497,6 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                                   F_tile=tile,
                                   F_pipeline=pipeline,
                                   mask_impl=mask_impl)
-                print(f'{k.name} , {kernel_filter}, {fnmatch.fnmatch(k.name, kernel_filter)}')
                 if kernel_filter != '':
                     if not fnmatch.fnmatch(k.name, kernel_filter):
                         continue
