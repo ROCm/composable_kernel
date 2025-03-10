@@ -346,6 +346,10 @@ inline constexpr bool is_native_type()
            is_same<T, f6_t>::value || is_same<T, bf6_t>::value;
 }
 
+// non_native_vector_base
+template <typename T, index_t N, typename Enable = void>
+struct non_native_vector_base;
+
 // vector_type
 template <typename T, index_t N, typename Enable = void>
 struct vector_type;
@@ -411,6 +415,13 @@ using has_same_scalar_type = is_same<typename scalar_type<remove_cvref_t<X>>::ty
 
 template <typename T, index_t N>
 struct scalar_type<T __attribute__((ext_vector_type(N)))>
+{
+    using type                           = T;
+    static constexpr index_t vector_size = N;
+};
+
+template <typename T, index_t N>
+struct scalar_type<non_native_vector_base<T, N>>
 {
     using type                           = T;
     static constexpr index_t vector_size = N;
@@ -521,6 +532,13 @@ template <>
 struct scalar_type<bool>
 {
     using type                           = bool;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<f4x2_pk_t>
+{
+    using type                           = f4x2_pk_t::type;
     static constexpr index_t vector_size = 1;
 };
 
@@ -1651,9 +1669,6 @@ struct vector_type<T, 256, typename ck::enable_if_t<is_native_type<T>()>>
         }
     }
 };
-
-template <typename T, index_t N, typename Enable = void>
-struct non_native_vector_base;
 
 template <typename T>
 struct nnvb_data_t_selector
