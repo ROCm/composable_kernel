@@ -1244,7 +1244,7 @@ struct GridwiseMoeGemm
         // dummy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         // A matrix blockwise copy
-        auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1_gather<
+        auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1_mod8<
             ThisThreadBlock,
             AElementwiseOperation,
             ck::tensor_operation::element_wise::PassThrough,
@@ -1752,7 +1752,7 @@ struct GridwiseMoeGemm
         // dummy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         // A matrix blockwise copy
-        auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1_gather<
+        auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1_mod8<
             ThisThreadBlock,
             AElementwiseOperation,
             ck::tensor_operation::element_wise::PassThrough,
