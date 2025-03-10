@@ -6,6 +6,8 @@
 #include "mx_mfma_op.hpp"
 
 using ck::e8m0_bexp_t;
+using ck::f4_t;
+using ck::f4x2_pk_t;
 using ck::f8_t;
 using ck::half_t;
 using ck::type_convert;
@@ -120,5 +122,21 @@ TEST(MXMFMA, MXFP8MFMA32x32x64)
 {
     auto AB_init = 7;
     auto pass = run_mxmfma_test<f8_t, f8_t, half_t, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MXMFMA, MXFP4MFMA16x16x128)
+{
+    auto AB_init = 7;
+    auto pass =
+        run_mxmfma_test<f4x2_pk_t, f4x2_pk_t, float, ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MXMFMA, MXFP4MFMA32x32x64)
+{
+    auto AB_init = 7;
+    auto pass =
+        run_mxmfma_test<f4x2_pk_t, f4x2_pk_t, half_t, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
     EXPECT_TRUE(pass);
 }
