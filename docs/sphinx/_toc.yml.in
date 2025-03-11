@@ -11,13 +11,21 @@ subtrees:
     title: Build and install Composable Kernel
   - file: install/Composable-Kernel-Docker.rst
     title: Composable Kernel Docker images
-    
+
 - caption: Conceptual
   entries:
   - file: conceptual/Composable-Kernel-structure.rst
     title: Composable Kernel structure
   - file: conceptual/Composable-Kernel-math.rst
     title: Composable Kernel mathematical basis
+  - file: reference/Supported_Primitives_Guide.rst
+    title: Supported Primitives
+  - file: reference/precision_support.rst
+    title: Precision Support
+  - file: reference/API_Reference_Guide.rst
+    title: API Reference
+  - file: reference/wrapper.rst
+    title: Wrapper
 
 - caption: Tutorial
   entries:
@@ -37,4 +45,3 @@ subtrees:
     title: Contributing to Composable Kernel
   - file: license.rst
     title: License
-    
