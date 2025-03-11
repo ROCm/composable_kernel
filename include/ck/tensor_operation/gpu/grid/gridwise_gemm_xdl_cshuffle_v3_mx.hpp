@@ -193,8 +193,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 {
     // using BScaleType = ck::half_t;
 
-    static constexpr auto ScaleBlockN = 1; // TODO: Remove this
-
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -1133,15 +1131,21 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
+#if 0
         constexpr auto mfma =
             MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeA, is_single_rate_mfma>{};
         constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
         constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
-
-        // XXX: This condition does not apply to mfma scale instructions on gfx950
         static_assert(
             KPerXdlops * KPack / K1PerXdlops <= ScaleBlockSize,
-            "Single call to xdlops_gemm::Run should process less than ScaleBlockSize elements");
+            "Single call to xdlops_gemm::Run should not process more than ScaleBlockSize
+            elements");
+#endif
+
+        // XXX: This condition should not apply to mfma scale instructions on gfx950
+        static_assert(KPerBlock / ScaleBlockSize == BlockwiseGemmPipe::KRepeat,
+                      "Single call to xdlops_gemm::Run should process exactly ScaleBlockSize "
+                      "elements in k dimension");
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
@@ -1184,7 +1188,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
-
             auto K_t = karg.KBatch * KPerBlock;
             if(!(karg.K % K_t == 0))
             {
@@ -1531,20 +1534,21 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // static_assert(KPerBlock <= ScaleBlockK);
         static constexpr auto mfma =
             MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeA, is_single_rate_mfma>{};
-        static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
-        static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
-        static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
-        static constexpr auto KPerThread  = KPerBlock / K0PerXdlops;
+        static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();     // 16
+        static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();    // 8
+        static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops; // 2
+        static constexpr auto KPerThread  = KPerBlock / K0PerXdlops;  // 32
 
-        static constexpr auto ScaleSliceSizeN = NXdlPerWave;
-        static constexpr auto ScaleSliceSizeK = (KPerThread + ScaleBlockSize - 1) / ScaleBlockSize;
+        static constexpr auto ScaleSliceSizeN = NXdlPerWave; // 2
+        static constexpr auto ScaleSliceSizeK =
+            (KPerThread + ScaleBlockSize - 1) / ScaleBlockSize; // 1
         static constexpr auto KBlockScaleSliceSizeK =
-            (KPerBlock + ScaleBlockSize - 1) / ScaleBlockSize;
+            (KPerBlock + ScaleBlockSize - 1) / ScaleBlockSize; // 2
 
         constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
 
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl); // 2
 
         auto b_thread_offset_n =
             get_thread_local_1d_id() % NPerXdl + (get_thread_local_1d_id() / 64) % NWaves * NPerXdl;
@@ -1570,7 +1574,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                        make_multi_index(-NPerBlock, 0),
                        make_multi_index(-NPerBlock, KBlockScaleSliceSizeK));
 
-        const index_t num_k_block_per_scale = (ScaleBlockSize + KPerBlock - 1) / KPerBlock;
+        const index_t num_k_block_per_scale = (ScaleBlockSize + KPerBlock - 1) / KPerBlock; // 1
 
 #if 1
         if(threadIdx.x == 0 && blockIdx.x == 0 && threadIdx.y == 0 && blockIdx.y == 0)
@@ -1843,7 +1847,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // A Scale grid
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
             make_tuple(problem.M, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
-            make_tuple(1, problem.StrideScaleA)); // TODO: Verify layout
+            make_tuple(problem.StrideScaleA, 1)); // TODO: Verify layout
 
         // B Scale grid
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(

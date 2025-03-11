@@ -491,7 +491,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             b_k_n_scale(0, 1) = ck::type_convert<XDataType>(1.0f / 2);
             b_k_n_scale(1, 0) = ck::type_convert<XDataType>(2.0f / 1);
 #if 1
-            std::set<int> j = {1};
+            std::set<int> j = {0};
 #else
             std::set<int> j = {10, 31, 42, 103, 74, 205, 226, 187};
 #endif

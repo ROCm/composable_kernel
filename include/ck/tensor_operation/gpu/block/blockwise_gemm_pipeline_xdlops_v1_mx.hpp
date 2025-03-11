@@ -380,7 +380,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             printf("mfma_instr.k_per_blk = %d\n", xdlops_gemm.mfma_instr.k_per_blk); // 8
         }
 #endif
-#if 1
+#if 0
         if((threadIdx.x == 0 || threadIdx.x == 32) && blockIdx.x == 0)
         {
             const void* ap = reinterpret_cast<const int*>(&a_block_buf);
@@ -426,8 +426,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
-                        c_thread_buf_per_scale.Clear();
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
+                            c_thread_buf_per_scale.Clear();
                             vector_type<ComputeDataType, KPack> a_thread_vec;
                             vector_type<ComputeDataType, KPack> b_thread_vec;
 
@@ -471,8 +471,10 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 a_thread_vec.template AsType<mfma_input_type>(),
                                 b_thread_vec.template AsType<mfma_input_type>(),
                                 c_thread_buf_per_scale.GetVectorTypeReference(I0));
+                            // XXX: We must scale C here because single call processes 32 k elements
+                            // at a time (provided instruction is 32x32x16 and KPack is 16)
 
-#if 0
+#if 1
                             if(!is_B_zero && !is_A_zero)
                             {
                                 if constexpr(m0 == 0 && n0 == 0)
@@ -535,7 +537,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                         type_convert<float>(
                                             b_thread_vec.template AsType<ComputeDataType>()(
                                                 Number<15>{})));
-#if 0
+#if 1
                                     printf(
                                         "blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
                                         "= %d : c_thread_buf_per_scale = [%f, %f, %f, %f, %f, %f, "
@@ -578,13 +580,19 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 }
                             }
 #endif
-                        });
-                        static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
-                            constexpr index_t c_offset =
-                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, t));
-                            c_thread_buf(Number<c_offset>{}) +=
-                                c_thread_buf_per_scale[Number<t>{}] *
-                                type_convert<AccDataType>(b_scale_thread_buf[n0]);
+                            // one scale per k0
+                            constexpr index_t b_scale_offset =
+                                b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0));
+
+                            static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto m) {
+                                constexpr index_t c_offset =
+                                    c_thread_desc_.CalculateOffset(make_tuple(m0, n0, m));
+
+                                c_thread_buf(Number<c_offset>{}) +=
+                                    c_thread_buf_per_scale[Number<m>{}] *
+                                    type_convert<AccDataType>(
+                                        b_scale_thread_buf[Number<b_scale_offset>{}]);
+                            });
                         });
                     });
                 });
@@ -641,8 +649,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
-                    c_thread_buf_per_scale.Clear();
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
+                        c_thread_buf_per_scale.Clear();
                         vector_type<ComputeDataType, KPack> a_thread_vec;
                         vector_type<ComputeDataType, KPack> b_thread_vec;
 
@@ -686,7 +694,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             b_thread_vec.template AsType<mfma_input_type>(),
                             c_thread_buf_per_scale.GetVectorTypeReference(I0));
 
-#if 0
+#if 1
                         if(!is_B_zero && !is_A_zero)
                         {
                             if constexpr(n0 == 0 && m0 == 0)
@@ -748,7 +756,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                        type_convert<float>(
                                            b_thread_vec.template AsType<ComputeDataType>()(
                                                Number<15>{})));
-#if 0
+#if 1
                                 printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
                                        "= %d : c_thread_buf_per_scale = [%f, %f, %f, %f, %f, %f, "
                                        "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
@@ -789,13 +797,19 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             }
                         }
 #endif
-                    });
-                    static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
-                        constexpr index_t c_offset =
-                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, t));
-                        c_thread_buf(Number<c_offset>{}) +=
-                            c_thread_buf_per_scale[Number<t>{}] *
-                            type_convert<AccDataType>(b_scale_thread_buf[n0]);
+                        // one scale per k0
+                        constexpr index_t b_scale_offset =
+                            b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0));
+
+                        static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto m) {
+                            constexpr index_t c_offset =
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, m));
+
+                            c_thread_buf(Number<c_offset>{}) +=
+                                c_thread_buf_per_scale[Number<m>{}] *
+                                type_convert<AccDataType>(
+                                    b_scale_thread_buf[Number<b_scale_offset>{}]);
+                        });
                     });
                 });
             });

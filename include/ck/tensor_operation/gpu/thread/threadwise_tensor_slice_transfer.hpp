@@ -1136,7 +1136,7 @@ struct ThreadwiseTensorSliceTransfer_v4
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                     src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize,
                                                        is_src_valid);
-#if 1
+#if 0
                 const void* p = reinterpret_cast<const int*>(&src_buf);
 
                 uint32_t i = 0;
