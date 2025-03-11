@@ -26,6 +26,7 @@ The CK documentation is structured as follows:
   .. grid-item-card:: API reference
 
     * :ref:`supported-primitives`
+    * :ref:`precision-support`
     * :ref:`api-reference`
     * :ref:`wrapper`
 

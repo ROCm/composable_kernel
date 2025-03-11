@@ -17,6 +17,8 @@ subtrees:
   entries:
   - file: reference/Supported_Primitives_Guide.rst
     title: Supported Primitives
+  - file: reference/precision_support.rst
+    title: Precision Support
   - file: reference/API_Reference_Guide.rst
     title: API Reference
   - file: reference/wrapper.rst
@@ -33,4 +35,3 @@ subtrees:
     title: Contributing to CK
   - file: license.rst
     title: License
-    
