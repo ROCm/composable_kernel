@@ -834,6 +834,18 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
             {
                 return false;
             }
+
+            if(!arg.p_workspace_)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Warning: Workspace for "
+                                 "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
+                                 "allocated, use SetWorkSpacePointer."
+                              << std::endl;
+                }
+                return false;
+            }
         }
 
         // Gridwise GEMM size

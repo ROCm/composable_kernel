@@ -771,12 +771,16 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         std::size_t GetWorkspaceATensorSizeBytes() const
         {
-            return sizeof(ADataType) * a_in_transpose_desc_.GetElementSpaceSize();
+            const long_index_t a_acum = ck::accumulate_n<index_t>(
+                a_g_n_c_wis_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
+            return sizeof(ADataType) * a_acum;
         }
 
         std::size_t GetWorkspaceETensorSizeBytes() const
         {
-            return sizeof(EDataType) * e_out_transpose_desc_.GetElementSpaceSize();
+            const long_index_t e_accum = ck::accumulate_n<index_t>(
+                e_g_n_k_wos_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
+            return sizeof(EDataType) * e_accum;
         }
 
         std::size_t GetWorkspaceSizeBytes() const
@@ -1291,6 +1295,18 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
             if(output_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
+                return false;
+            }
+
+            if(!arg.p_workspace_)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Warning: Workspace for "
+                                 "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
+                                 "allocated, use SetWorkSpacePointer."
+                              << std::endl;
+                }
                 return false;
             }
         }
