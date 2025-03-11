@@ -10,7 +10,7 @@
 #include <time.h>
 #include <unordered_set>
 
-#include "batched_transpose_example.hpp"
+#include "batched_transpose_4d.hpp"
 
 #if 0
 template <typename T>
@@ -99,8 +99,7 @@ auto create_args(int argc, char* argv[])
         .insert("W", "16", "input width size. ")
         .insert("layout_in", "NCHW", "input tensor data layout - NCHW by default")
         .insert("layout_out", "NHWC", "output tensor data layout - NHWC by default ")
-        .insert("seed", "-1", "seed to be used, -1 means random every time")
-        .insert("kname", "0", "t to 1 will print kernel name");
+        .insert("seed", "-1", "seed to be used, -1 means random every time");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -162,13 +161,13 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     x_dev.ToDevice(x_host.data());
 
-    auto trait = batched_transpose_trait{prec, layout_in};
+    auto trait = batched_transpose_4d_trait{prec, layout_in};
 
     uint32_t height = nchw2nhwc ? C : H * W;
     uint32_t width  = nchw2nhwc ? H * W : C;
 
-    batched_transpose_kargs karg = [&]() {
-        batched_transpose_kargs a_;
+    batched_transpose_4d_kargs karg = [&]() {
+        batched_transpose_4d_kargs a_;
         a_.p_input  = x_dev.GetDeviceBuffer();
         a_.p_output = y_dev.GetDeviceBuffer();
         a_.batch    = N;
@@ -179,7 +178,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     ck_tile::stream_config sc{nullptr, true};
 
-    auto ms = batched_transpose(trait, karg, sc);
+    auto ms = batched_transpose_4d(trait, karg, sc);
 
     std::size_t num_operations = N * C * H * (W - 1);
     std::size_t num_bytes      = N * C * H * W * sizeof(Type);

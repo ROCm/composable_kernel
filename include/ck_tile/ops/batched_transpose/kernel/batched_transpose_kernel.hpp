@@ -81,7 +81,7 @@ struct BatchedTransposeKernel
 
         static_assert(kMPerThread == 1 && kNPerThread == 1);
 
-        const auto iDim  = blockIdx.z;
+        const auto iDim = blockIdx.z;
         // dim[0] = W(M,X), dim[1] = H(N,Y)
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -95,74 +95,6 @@ struct BatchedTransposeKernel
                                    make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
                                    sequence<kPadM, kPadN>{});
         }();
-
-
-#if 0
-if (threadIdx.x == 0) {
-    const int H = kargs.width;
-    const int W = kargs.height;
-    char p[256]; 
-    int len = 0;
-
-    auto append_str = [&](const char* str) {
-        while (*str && len < 255) {
-            p[len++] = *str++;
-        }
-    };
-
-    auto append_int = [&](int num) {
-        char temp[12];
-        int temp_len = 0;
-        bool is_negative = (num < 0);
-        if (is_negative) num = -num;
-
-        do {
-            temp[temp_len++] = '0' + (num % 10);
-            num /= 10;
-        } while (num > 0);
-
-        if (is_negative) temp[temp_len++] = '-';
-
-        while (temp_len > 0 && len < 255) {
-            p[len++] = temp[--temp_len];
-        }
-    };
-
-    auto append_char = [&](char c) {
-        if (len < 255) p[len++] = c;
-    };
-
-    auto __v = [&](int w, int h) {
-        return x_m_n.buf_[x_m_n.desc_.calculate_offset(make_tuple(w, h))];
-    };
-
-    auto __printf = [&](int w, int h) {
-        append_char('(');
-        append_int(w);
-        append_str(", ");
-        append_int(h);
-        append_str("):");
-        append_int(__v(w, h));
-        append_str(" ");
-    };
-
-    append_str("block(");
-    append_int(blockIdx.x);
-    append_str(", ");
-    append_int(blockIdx.y);
-    append_str("): ");
-
-    __printf(0, 0);
-    __printf(0, H - 1);
-    __printf(W - 1, 0);
-    __printf(W - 1, H - 1);
-
-    p[len] = '\0';
-
-    printf("%s\n", p);
-}
-#endif
-
 
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -180,17 +112,15 @@ if (threadIdx.x == 0) {
         const auto iM = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
         const auto iN = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
 
-        auto x_block_window =
-            make_tile_window(x_m_n,
-                             make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                             {static_cast<ck_tile::index_t>(iM),
-                              static_cast<ck_tile::index_t>(iN)});
+        auto x_block_window = make_tile_window(
+            x_m_n,
+            make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+            {static_cast<ck_tile::index_t>(iM), static_cast<ck_tile::index_t>(iN)});
 
-        auto y_block_window =
-            make_tile_window(y_n_m,
-                             make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
-                             {static_cast<ck_tile::index_t>(iN),
-                              static_cast<ck_tile::index_t>(iM)});
+        auto y_block_window = make_tile_window(
+            y_n_m,
+            make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
+            {static_cast<ck_tile::index_t>(iN), static_cast<ck_tile::index_t>(iM)});
 
         Pipeline{}(x_block_window, y_block_window);
     }

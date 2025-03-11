@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
-#include "batched_transpose_example.hpp"
+#include "batched_transpose_4d.hpp"
 #include <iostream>
 
 template <typename ts_type,
@@ -10,15 +10,13 @@ template <typename ts_type,
           ck_tile::index_t warp_y,
           ck_tile::index_t thread_x,
           ck_tile::index_t thread_y>
-float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_config& s)
+float batched_transpose_dispatch(batched_transpose_4d_kargs& a, ck_tile::stream_config& s)
 {
-    uint32_t dim_block_h = (a.height + block_y - 1) / block_y;
-    uint32_t dim_block_w = (a.width + block_x - 1) / block_x;
-    uint32_t dim_stride  = a.height * a.width;
+    uint32_t dim_stride = a.height * a.width;
 
     a.dim_stride  = dim_stride;
-    a.dim_block_h = dim_block_h;
-    a.dim_block_w = dim_block_w;
+    a.dim_block_h = block_y;
+    a.dim_block_w = block_x;
 
     using block_tile  = ck_tile::sequence<block_x, block_y>;
     using warp_tile   = ck_tile::sequence<warp_x, warp_y>;
@@ -51,16 +49,16 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 // Macro that defines one static function per line
 #define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, WX, WY, TX, TY)               \
     static float transpose_fn_##SHORT_NAME##_##BX##_##BY##_##WX##_##WY##_##TX##_##TY( \
-        batched_transpose_kargs& a, ck_tile::stream_config& s)                        \
+        batched_transpose_4d_kargs& a, ck_tile::stream_config& s)                     \
     {                                                                                 \
         return batched_transpose_dispatch<REAL_TYPE, BX, BY, WX, WY, TX, TY>(a, s);   \
     }
 
 FOREACH_TRANSPOSE_PARAM(GEN_TRANSPOSE_FN)
 
-float batched_transpose(batched_transpose_trait t,
-                        batched_transpose_kargs a,
-                        ck_tile::stream_config s)
+float batched_transpose_4d(batched_transpose_4d_trait t,
+                           batched_transpose_4d_kargs a,
+                           ck_tile::stream_config s)
 {
     if(t.type == "fp16")
     {

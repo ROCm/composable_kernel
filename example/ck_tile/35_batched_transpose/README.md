@@ -1,27 +1,59 @@
 # Batched Transpose
-This folder contains example for batched Transpose using ck_tile tile-programming implementation. Currently, it supports the batched transpose with NCHW to NHWC or NHWC to NCHW. So in this way from NCHW you could transpose to either NHWC or NWCH(two transposes). Now the transpose read with single data point. We would soon put it in vectorized transpose.
 
-## build
-```
-# in the root of ck_tile
+This folder contains examples for batched transpose using `ck_tile` tile-programming implementation. Currently, it supports transpose with:
+
+- **2D transpose:** Swaps width and height dimensions.
+- **4D transpose:** Converts batched data layout from **NCHW** to **NHWC**.
+
+Now the transpose read with single data point. We would soon put it in vectorized transpose.
+
+## Build
+
+```sh
+# In the root of `composable_kernel`
 mkdir build && cd build
-# you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
-# Make the transpose executable
-make tile_example_batched_transpose -j
-```
-This will result in an executable `build/bin/tile_example_batched_transpose`
 
-## example
+# You can replace <arch> with the appropriate architecture (e.g., gfx90a or gfx942) or leave it blank
+sh ../script/cmake-ck-dev.sh  ../ <arch>
+
+# Build the transpose executables
+make tile_example_batched_transpose_2d -j
+make tile_example_batched_transpose_4d -j
 ```
-args:
-          -N    input batch size (default:2)
-          -C    input channel size. (default:16)
-          -H    input height size. (default:1)
-          -W    input width size. (default:16)
-          -v    whether do CPU validation or not (default: 1)
-  -layout_in    input tensor data layout - NCHW by default
- -layout_out    output tensor data layout - NHWC by default
-       -seed    seed to be used, -1 means random every time (default:-1)
-     -k_name    t to 1 will print kernel name (default:0)
+
+This will generate the executable:
+
 ```
+build/bin/tile_example_batched_transpose_2d
+build/bin/tile_example_batched_transpose_4d
+```
+
+## Example
+
+### 2D Transpose
+
+```sh
+./bin/tile_example_batched_transpose_2d -H 16 -W 16
+```
+
+#### Arguments:
+
+- `-H` : Input height size (default: 16)
+- `-W` : Input width size (default: 16)
+
+### 4D Transpose (NCHW -> NHWC)
+
+```sh
+./bin/tile_example_batched_transpose_4d -N 2 -C 16 -H 1 -W 16 -layout_in NCHW -layout_out NHWC
+```
+
+#### Arguments:
+
+- `-N`  : Input batch size (default: 2)
+- `-C`  : Input channel size (default: 16)
+- `-H`  : Input height size (default: 1)
+- `-W`  : Input width size (default: 16)
+- `-layout_in`  : Input tensor layout (default: NCHW)
+- `-layout_out` : Output tensor layout (default: NHWC)
+- `-v`  : Enable CPU validation (default: 1)
+- `-seed` : Random seed (-1 means random every time, default: -1)
