@@ -13,8 +13,6 @@ static CK_TILE_HOST_DEVICE constexpr index_t ceil_to_qualified_tile_length(index
         return 128;
     if(len == 160)
         return 256;
-    if(len == 192)
-        return 192;
 
     // only length of 96, 160 and power-of-two is supported
     if(!(len & (len - 1)))
