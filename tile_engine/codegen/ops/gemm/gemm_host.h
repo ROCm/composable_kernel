@@ -34,77 +34,9 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType, typename ALayout, typename BLayout, typename CLayout>
-int init_host_tensor(                           const ck_tile::ArgParser& arg_parser
-                                                ck_tile::HostTensor<ADataType>& a_m_k,
-                                                ck_tile::HostTensor<BDataType>& b_k_n,
-                                                ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                                                ck_tile::DeviceMem& a_m_k_dev_buf,
-                                                ck_tile::DeviceMem& b_k_n_dev_buf,
-                                                ck_tile::DeviceMem& c_m_n_dev_buf,
-                                                const ALayout a_layout = ALayout{},
-                                                const BLayout b_layout = BLayout{},
-                                                [[maybe_unused]] const CLayout c_layout = CLayout{})
-{
-    ck_tile::index_t M = arg_parser.get_int("m");
-    ck_tile::index_t N = arg_parser.get_int("n");
-    ck_tile::index_t K = arg_parser.get_int("k");
-
-    ck_tile::index_t stride_A = arg_parser.get_int("stride_a");
-    ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
-    ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
-
-    ck_tile::index_t kbatch      = arg_parser.get_int("split_k");
-    int n_warmup                 = arg_parser.get_int("warmup");
-    int n_repeat                 = arg_parser.get_int("repeat");
-    ck_tile::index_t init_method = arg_parser.get_int("init");
-
-    stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
-    stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
-    stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
-
-
-    a_m_k(ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
-    b_k_n(ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
-    c_m_n_dev_result(ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
-
-    if(init_method == 0)
-    {
-        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
-        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
-    }
-    else if(init_method == 1)
-    {
-        ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
-        ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
-    }
-    else if(init_method == 2)
-    {
-        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
-        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
-    }
-    else
-    {
-        a_m_k.SetZero();
-        b_k_n.SetZero();
-    }
-
-    a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
-    b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
-    c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
-
-    a_m_k_dev_buf.ToDevice(a_m_k.data());
-    b_k_n_dev_buf.ToDevice(b_k_n.data());
-    c_m_n_dev_buf.SetZero();
-    c_m_n_dev_result.SetZero(); //TODO:: Can we create it later on after kernel call.
-
-    //TODO:: return or pass them as reference
-    return 1;
-}
-
 //verification code
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType,, typename ALayout, typename BLayout, typename CLayout>
-void do_verify(
+bool gemm_verify(
                 ck_tile::HostTensor<ADataType>& a_m_k,
                 ck_tile::HostTensor<BDataType>& b_k_n,  
                 ck_tile::HostTensor<CDataType>& c_m_n_dev_result,      
@@ -116,9 +48,8 @@ void do_verify(
                 ck_tile::index_t stride_A,
                 ck_tile::index_t stride_B,
                 ck_tile::index_t stride_C,
-                ck_tile::index_t kbatch)
-    /*a_host_tensor, b_host_tensor, c_host_tensor(copied from device tensor for validation on cpu), m, n, k, k+batch, stride_C, */) {
-
+                ck_tile::index_t kbatch) {
+    bool pass = true;
     if(arg_parser.get_int("v") == 1)
     {
         ck_tile::HostTensor<CDataType> c_m_n_host_ref(
@@ -200,6 +131,7 @@ void do_verify(
                 << std::endl;
         std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
     }
+    return pass;
 
 }
 

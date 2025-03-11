@@ -5,13 +5,36 @@
 #include "gemm_host.hpp"
 #include "tensor_configuration.hpp"
 
-template <typename ADataType_, typename BDataType_, typename AccDataType_, typename CDataType_>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
+    const ALayout a_layout = ALayout{};
+    const BLayout b_layout = BLayout{};
+    const CLayout c_layout = CLayout{};
+
+    ck_tile::index_t kbatch = arg_parser.get_int("split_k");
+    ck_tile::index_t M      = arg_parser.get_int("m");
+    ck_tile::index_t N      = arg_parser.get_int("n");
+    ck_tile::index_t K      = arg_parser.get_int("k");
+
+    ck_tile::index_t stride_A = arg_parser.get_int("stride_a");
+    ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
+    ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
+
     ck_tile::index_t kbatch      = arg_parser.get_int("split_k");
     int n_warmup                 = arg_parser.get_int("warmup");
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
+    stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
+    stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
+    stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
+
     ck_tile::HostTensor<ADataType> a_m_k(
         ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
     ck_tile::HostTensor<BDataType> b_k_n(
@@ -19,18 +42,125 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
+    if(init_method == 0)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+    }
+    else if(init_method == 1)
+    {
+        ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
+        ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
+    }
+    else if(init_method == 2)
+    {
+        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
+        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
+    }
+    else
+    {
+        a_m_k.SetZero();
+        b_k_n.SetZero();
+    }
+
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
-    init_host_tensor(
-        arg_parser, a_m_k, b_k_n, c_m_n_dev_result, a_m_k_dev_buf, b_k_n_dev_buf, c_m_n_dev_buf);
+
+    if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+    {
+        // Permute vector pk_i4x4 data for device implementation
+        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+        if constexpr(GemmConfig::PermuteB)
+        {
+            permute_tensor_b<decltype(b_k_n_dev),
+                             ADataType,
+                             BDataType,
+                             AccDataType,
+                             CDataType,
+                             ALayout,
+                             BLayout,
+                             CLayout>(b_k_n_dev);
+        }
+        permute_vectors_i4x4_b(b_k_n_dev);
+        b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+    }
+    else
+    {
+        if constexpr(GemmConfig::PermuteB)
+        {
+            std::cout << "Permute for this DataType is not implemented." << std::endl;
+            return false;
+        }
+        b_k_n_dev_buf.ToDevice(b_k_n.data());
+    }
+
+    a_m_k_dev_buf.ToDevice(a_m_k.data());
+    b_k_n_dev_buf.ToDevice(b_k_n.data());
+    c_m_n_dev_buf.SetZero();
+    c_m_n_dev_result.SetZero();
+
+    ck_tile::GemmHostArgs kernel_args;
+    kernel_args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
+    kernel_args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
+    kernel_args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
+    kernel_args.k_batch  = kbatch;
+    kernel_args.M        = M;
+    kernel_args.N        = N;
+    kernel_args.K        = K;
+    kernel_args.stride_A = stride_A;
+    kernel_args.stride_B = stride_B;
+    kernel_args.stride_C = stride_C;
+
+    float ave_time =
+        gemm_kernel_launch<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+            kernel_args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+    std::size_t flop = std::size_t(2) * M * N * K;
+    std::size_t num_byte =
+        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec = num_byte / 1.E6 / ave_time;
+
+    std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
+              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
+              << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
+              << " C_Layout =" << CLayout::name << " A Type = " << DataTypeTraits<ADataType>::name
+              << " B Type = " << DataTypeTraits<BDataType>::name
+              << " C Type = " << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
+              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+    c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+    bool pass =
+        gemm_verify<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+            a_m_k,
+            b_k_n,
+            c_m_n_dev_result,
+            a_m_k_dev_buf,
+            b_k_n_dev_buf,
+            M,
+            N,
+            K,
+            stride_A,
+            stride_B,
+            stride_C,
+            kbatch);
+    return pass;
 }
 
 int main(int argc, char* argv[])
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-    run<ADataType, BDataType, CDatatType>(const ck_tile::ArgParser& arg_parser);
-    return 0;
+    try
+    {
+        auto [result, arg_parser] = create_args(argc, argv);
+        if(!result)
+            return -1;
+        run<ADataType, BDataType, AccDataType, CDatatType, ALayout, BLayout, CLayout>(
+            const ck_tile::ArgParser& arg_parser);
+    }
+    catch(const std::runtime_error& e)
+    {
+        std::cerr << "Caught runtime error: " << e.what() << '\n';
+        // Return a non-zero code to indicate failure
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }
