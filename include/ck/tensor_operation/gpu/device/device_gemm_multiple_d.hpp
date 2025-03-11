@@ -140,7 +140,9 @@ struct DeviceGemmMultipleDSplitKBPreShuffle : public BaseOperator
                         ck::index_t KBatch,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
-                        CDEElementwiseOperation cde_element_op) = 0;
+                        CDEElementwiseOperation cde_element_op,
+                        ck::index_t Nr,
+                        ck::index_t Kr) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 

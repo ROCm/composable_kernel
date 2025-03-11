@@ -173,6 +173,14 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     static constexpr index_t NLane   = NPerXdl;
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
 
+    using GemmSpecialization = tensor_operation::device::GemmSpecialization;
+    static constexpr bool KPadding =
+        GemmSpec == GemmSpecialization::KPadding || GemmSpec == GemmSpecialization::MKPadding ||
+        GemmSpec == GemmSpecialization::NKPadding || GemmSpec == GemmSpecialization::MNKPadding;
+    static constexpr bool NPadding = GemmSpec == GemmSpecialization::NPadding ||
+                                     GemmSpec == GemmSpecialization::NKPadding ||
+                                     GemmSpec == GemmSpecialization::MNKPadding;
+
     static constexpr auto MakeDsGridPointer()
     {
         return generate_tuple(
@@ -291,8 +299,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             }
         }();
 
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
-
         if constexpr(GemmSpec == GemmSpecialization::MKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
         {
@@ -364,7 +370,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     {
         ignore = NPadded;
 #if 0
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
         // if K padding
         if constexpr(GemmSpec == GemmSpecialization::NPadding ||
                      GemmSpec == GemmSpecialization::NKPadding)
@@ -411,8 +416,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                 return make_naive_tensor_descriptor(make_tuple(N, K), make_tuple(StrideB, I1));
             }
         }();
-
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -518,7 +521,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
 #if 0
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -592,7 +594,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                     index_t StrideB_,
                                     std::array<index_t, NumDTensor> StrideDs_,
                                     index_t StrideC_,
-                                    index_t KBatch_)
+                                    index_t KBatch_,
+                                    index_t Nr_,
+                                    index_t Kr_)
             : M{M_},
               N{N_},
               K{K_},
@@ -609,8 +613,10 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
               BK0{CalculateBK0Padded(K_, KBatch_)},
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)},
-              BN0Shuffled{CalculateBN0Shuffled(CalculateBNShufflePadded(N_))},
-              BK0Shuffled{CalculateBK0Shuffled(CalculateBKShufflePadded(K_))}
+              BN0Shuffled{CalculateBN0Shuffled(NPadding ? CalculateBNShufflePadded(N_) : N_)},
+              BK0Shuffled{CalculateBK0Shuffled(KPadding ? CalculateBKShufflePadded(K_) : K_)},
+              Nr{Nr_},
+              Kr{Kr_}
         {
         }
 
@@ -652,6 +658,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         // FOR PRESHUFFLE ONLY
         index_t BN0Shuffled;
         index_t BK0Shuffled;
+        index_t Nr;
+        index_t Kr;
     };
 
     // Argument
@@ -671,8 +679,10 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                           index_t k_batch_,
                           AElementwiseOperation a_element_op_,
                           BElementwiseOperation b_element_op_,
-                          CElementwiseOperation c_element_op_)
-            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_},
+                          CElementwiseOperation c_element_op_,
+                          index_t Nr_,
+                          index_t Kr_)
+            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_, Nr_, Kr_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
               p_ds_grid{},
@@ -936,6 +946,16 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         }
 
         if((karg.N % NPerXdl != 0) || (karg.BN0Shuffled % NWave != 0))
+        {
+            return false;
+        }
+
+        if(NPadding && (karg.Nr != CalculateBNShufflePadded(karg.N)))
+        {
+            return false;
+        }
+
+        if(KPadding && (karg.Kr != CalculateBKShufflePadded(karg.K)))
         {
             return false;
         }

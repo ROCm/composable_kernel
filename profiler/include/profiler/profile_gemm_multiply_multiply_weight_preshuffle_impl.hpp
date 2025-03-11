@@ -110,9 +110,9 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                 return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
-    auto Knew       = GetKPreShufflePadded(K);
+    auto Knew       = (K % 128 == 0) ? K : GetKPreShufflePadded(K);
     auto StrideBnew = Knew;
-    auto Nnew       = GetNPreShufflePadded(N);
+    auto Nnew       = (N % 64 == 0) ? N : GetNPreShufflePadded(N);
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<BDataType> b_preshuffled_mfma16(
@@ -276,7 +276,9 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                 kbatch_curr,
                 a_element_op,
                 b_element_op,
-                c_element_op);
+                c_element_op,
+                Nnew,
+                Knew);
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

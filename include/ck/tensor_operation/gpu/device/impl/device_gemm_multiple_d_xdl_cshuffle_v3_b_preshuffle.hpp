@@ -564,7 +564,9 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                              index_t KBatch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op)
+                             CElementwiseOperation c_element_op,
+                             index_t Nr,
+                             index_t Kr)
     {
         return Argument{static_cast<const ADataType*>(p_a),
                         static_cast<const BDataType*>(p_b),
@@ -580,7 +582,9 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                         KBatch,
                         a_element_op,
                         b_element_op,
-                        c_element_op};
+                        c_element_op,
+                        Nr,
+                        Kr};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -600,7 +604,9 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                                                       index_t KBatch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      CElementwiseOperation c_element_op,
+                                                      index_t Nr,
+                                                      index_t Kr) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -616,7 +622,9 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                                           KBatch,
                                           a_element_op,
                                           b_element_op,
-                                          c_element_op);
+                                          c_element_op,
+                                          Nr,
+                                          Kr);
     }
 
     // polymorphic
