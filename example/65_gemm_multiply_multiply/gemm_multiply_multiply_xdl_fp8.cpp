@@ -76,13 +76,13 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
          <Row, Col, DsLayout, ELayout,
           A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
           AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,
-          128,   128,   128,
+          144,   128,   128,
+          8,   16,
           16,   16,
-          16,   16,
-          4,    4,
+          9,    2,
+          S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
           S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-          1, 2, S<1, 32, 1, 8>, S<8, 8, 1>,
+          1, 2, S<1, 16, 1, 16>, S<8, 8, 1>,
           ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
 // clang-format on
 

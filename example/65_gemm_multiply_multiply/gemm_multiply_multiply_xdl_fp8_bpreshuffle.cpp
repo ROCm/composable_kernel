@@ -140,14 +140,14 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
     // clang-format off
     <   Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
         AElementOp,  BElementOp, CDEElementOp, GemmSpec, 256,
-        256,   256,    128,
+        128,   128,    128,
         16,   16,
-        16,   16,
-        8,    8,
+        32,   32,
+        2,    2,
         S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
         S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-        1,    2,   S<1, 32, 1, 8>, S<8, 8, 1>,
-        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
+        1,    1,   S<1, 32, 1, 8>, S<8, 8, 1>,
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, FP8>;
 // clang-format on
 
 int main(int argc, char* argv[])

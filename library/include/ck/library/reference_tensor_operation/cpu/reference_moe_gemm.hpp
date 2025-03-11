@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <unordered_map>
 
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
