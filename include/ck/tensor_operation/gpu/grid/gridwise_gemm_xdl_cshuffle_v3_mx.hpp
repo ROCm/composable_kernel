@@ -1566,15 +1566,13 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                              1,
                                              false>(
                 b_scale_grid_desc_bn_ak,
-                make_multi_index(block_n_id * NPerBlock / ScaleBlockN + b_thread_offset_n,
+                make_multi_index(block_n_id * NPerBlock + b_thread_offset_n,
                                  b_thread_offset_k / ScaleBlockSize));
 
         constexpr auto b_scale_thread_slice_copy_step =
             make_tuple(make_multi_index(NWaves * NPerXdl, 0),
                        make_multi_index(-NPerBlock, 0),
                        make_multi_index(-NPerBlock, KBlockScaleSliceSizeK));
-
-        const index_t num_k_block_per_scale = (ScaleBlockSize + KPerBlock - 1) / KPerBlock; // 1
 
 #if 1
         if(threadIdx.x == 0 && blockIdx.x == 0 && threadIdx.y == 0 && blockIdx.y == 0)
@@ -1583,7 +1581,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 "\n\nBlock {%u, %u, %u} : \n\tKPerXdlops = %d; K1PerXdlops = %d; K0PerXdlops = %d; "
                 "KPerThread = %d; \n\tScaleSliceSizeN = %d; ScaleSliceSizeK = %d; "
                 "KBlockScaleSliceSizeK = %d; \n\tNWaves = %d; \n\tb_thread_offset_n = %d; "
-                "b_thread_offset_k = %d; \n\tnum_k_block_per_scale = %d\n\n",
+                "b_thread_offset_k = %d\n\n",
                 blockIdx.x,
                 blockIdx.y,
                 blockIdx.z,
@@ -1596,8 +1594,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 KBlockScaleSliceSizeK,
                 NWaves,
                 b_thread_offset_n,
-                b_thread_offset_k,
-                num_k_block_per_scale);
+                b_thread_offset_k);
         }
 #endif
 
@@ -1620,8 +1617,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             b_scale_thread_copy,
             b_scale_grid_buf,
             b_scale_thread_slice_copy_step,
-            num_k_block_main_loop,
-            num_k_block_per_scale);
+            num_k_block_main_loop);
 
         // shuffle C and write out
         {
@@ -1851,8 +1847,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         // B Scale grid
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
-                       math::integer_divide_ceil(problem.K, ScaleBlockSize)),
+            make_tuple(problem.N, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
             make_tuple(problem.StrideScaleB, 1)); // XXX: Why is it transposed?
 
         Run<decltype(a_grid_desc_ak0_m_ak1),
@@ -2081,15 +2076,13 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                              1,
                                              false>(
                 b_scale_grid_desc_bn_ak,
-                make_multi_index(block_n_id * NPerBlock / ScaleBlockN + b_thread_offset_n,
+                make_multi_index(block_n_id * NPerBlock + b_thread_offset_n,
                                  b_thread_offset_k / ScaleBlockSize));
 
         constexpr auto b_scale_thread_slice_copy_step =
             make_tuple(make_multi_index(NWaves * NPerXdl, 0),
                        make_multi_index(-NPerBlock, 0),
                        make_multi_index(-NPerBlock, KBlockScaleSliceSizeK));
-
-        const index_t num_k_block_per_scale = (ScaleBlockSize + KPerBlock - 1) / KPerBlock;
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
             a_grid_desc_ak0_m_ak1,
@@ -2105,15 +2098,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             b_block_bufs,
             b_block_slice_copy_step,
             c_thread_buf,
-
             b_scale_grid_desc_bn_ak,
             b_scale_thread_desc,
             b_scale_thread_copy,
             b_scale_grid_buf,
             b_scale_thread_slice_copy_step,
-
-            num_k_block_main_loop,
-            num_k_block_per_scale);
+            num_k_block_main_loop);
 
         // shuffle C and write out
         {
@@ -2336,8 +2326,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
-                       math::integer_divide_ceil(problem.K, ScaleBlockSize)),
+            make_tuple(problem.N, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
             make_tuple(problem.StrideScaleB, 1));
 
         Run_2Lds<decltype(a_grid_desc_ak0_m_ak1),

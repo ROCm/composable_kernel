@@ -264,11 +264,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         const BScaleGridBuffer& b_scale_grid_buf,
         const BScaleThreadTransferStep& b_scale_thread_copy_step,
         // num_loop
-        index_t num_loop,
-        index_t num_loop_per_scale) const
+        index_t num_loop) const
     {
-        // assume kperblock = scaleblockk
-        ignore            = num_loop_per_scale;
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
