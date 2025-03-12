@@ -3,3 +3,4 @@ include_directories(AFTER
 )
 
 add_subdirectory(01_add)
+add_subdirectory(02_gemm)
