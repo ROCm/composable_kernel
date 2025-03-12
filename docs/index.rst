@@ -31,12 +31,11 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
     * :doc:`Composable Kernel examples and tests <./tutorial/Composable-Kernel-examples>`
 
   .. grid-item-card:: Reference
-
-    * :ref:`supported-primitives`
-    * :ref:`precision-support`
+    * :doc:`Composable Kernel supported scalar types <../reference/Composable_Kernel_supported_scalar_types>`
+    * :doc:`Composable Kernel custom types <../reference/Composable_Kernel_custom_types>`
+    * :doc:`Composable Kernel vector utilities <../reference/Composable_Kernel_vector_utilities>`
     * :ref:`api-reference`
     * :ref:`wrapper`
-
 
 To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
 
