@@ -133,7 +133,8 @@ __device__ AFragT load_A_col_major(AType const* input_ptr)
     static constexpr int32_t WAVE_SIZE = 64;
 
     // Here we want to load from rows of A in chunks of 16 elements each.
-    static constexpr uint32_t chunk_size = 16;
+    static constexpr uint32_t chunk_size =
+        16 / (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1);
 
     // each chunk is separated by offset
     static constexpr uint32_t chunk_offset = chunk_size * WAVE_SIZE / BLOCK_M;
@@ -156,8 +157,11 @@ __device__ AFragT load_A_col_major(AType const* input_ptr)
     auto kMinorOffset = col_major(minorStepCoord2D, BLOCK_M);
     auto kMajorOffset = col_major(majorStepCoord2D, BLOCK_M);
 
-    using ARawT        = typename scalar_type<AFragT>::type;
-    using AScalarFragT = vector_type<ARawT, vectorSize(AFragT{})>::type;
+    using ARawT = typename scalar_type<AFragT>::type;
+    using AScalarFragT =
+        vector_type<ARawT,
+                    BLOCK_M * BLOCK_K / WAVE_SIZE /
+                        (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1)>::type;
 
     AScalarFragT fragA{};
 
@@ -755,8 +759,14 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
     assert(threadIdx.x < WAVE_SIZE);
     assert(blockDim.x == 1 && blockDim.y == 1 && blockDim.z == 1);
 
-    using AFragT        = vector_type<AType, BLOCK_M * BLOCK_K / WAVE_SIZE>::type;
-    using BFragT        = vector_type<BType, BLOCK_K * BLOCK_N / WAVE_SIZE>::type;
+    using AFragT =
+        vector_type<AType,
+                    BLOCK_M * BLOCK_K / WAVE_SIZE /
+                        (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1)>::type;
+    using BFragT =
+        vector_type<BType,
+                    BLOCK_K * BLOCK_N / WAVE_SIZE /
+                        (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1)>::type;
     using CFragT        = vector_type<CType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
     using AccumFragT    = vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>;
     using RawAccumFragT = vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
