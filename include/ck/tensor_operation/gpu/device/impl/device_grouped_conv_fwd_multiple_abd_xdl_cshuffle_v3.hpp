@@ -586,14 +586,14 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
         std::size_t GetWorkspaceATensorSizeBytes() const
         {
-            const long_index_t a_acum = ck::accumulate_n<index_t>(
+            const long_index_t a_acum = ck::accumulate_n<long_index_t>(
                 a_g_n_c_wis_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
             return sizeof(ADataType) * a_acum;
         }
 
         std::size_t GetWorkspaceETensorSizeBytes() const
         {
-            const long_index_t e_accum = ck::accumulate_n<index_t>(
+            const long_index_t e_accum = ck::accumulate_n<long_index_t>(
                 e_g_n_k_wos_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
             return sizeof(EDataType) * e_accum;
         }

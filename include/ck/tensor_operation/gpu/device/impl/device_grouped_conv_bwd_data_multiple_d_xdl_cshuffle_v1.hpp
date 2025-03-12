@@ -708,14 +708,14 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         std::size_t GetWorkspaceATensorSizeBytes() const
         {
-            const long_index_t a_acum = ck::accumulate_n<index_t>(
+            const long_index_t a_acum = ck::accumulate_n<long_index_t>(
                 a_g_n_k_wos_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
             return sizeof(ADataType) * a_acum;
         }
 
         std::size_t GetWorkspaceETensorSizeBytes() const
         {
-            const long_index_t e_accum = ck::accumulate_n<index_t>(
+            const long_index_t e_accum = ck::accumulate_n<long_index_t>(
                 e_g_n_c_wis_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
             return sizeof(EDataType) * e_accum;
         }
@@ -907,7 +907,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             {
                 arg.Print();
             }
-
+            // Transpose from NGKHW to NHWGK
             if constexpr(is_NGCHW_GKYXC_NGKHW<ELayout, BLayout, ALayout>() ||
                          is_NGCDHW_GKZYXC_NGKDHW<ELayout, BLayout, ALayout>())
             {
@@ -938,6 +938,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                    element_wise::PassThrough{});
             }
             ave_time += RunGemm(arg, stream_config);
+            // Transpose from NHWGC to NGCHW
             if constexpr(is_NGCHW_GKYXC_NGKHW<ELayout, BLayout, ALayout>() ||
                          is_NGCDHW_GKZYXC_NGKDHW<ELayout, BLayout, ALayout>())
             {
