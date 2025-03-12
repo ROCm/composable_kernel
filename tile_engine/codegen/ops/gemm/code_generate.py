@@ -62,11 +62,206 @@ using ADataType = {ADataTypeDefine};
 using BDataType = {BDataTypeDefine};
 using AccDataType = {AccDataTypeDefine};
 using CDataType = {ODataTypeDefine};
+
 using ALayout = {ALayoutDefine};
 using BLayout = {BLayoutDefine};
 using CLayout = {CLayoutDefine};
 
+struct GemmConfig
+{{
+    static constexpr ck_tile::index_t M_Tile = {mTileDefine};
+    static constexpr ck_tile::index_t N_Tile = {nTileDefine};
+    static constexpr ck_tile::index_t K_Tile = {kTileDefine};
+
+    static constexpr ck_tile::index_t M_Warp = {mWarpDefine};
+    static constexpr ck_tile::index_t N_Warp = {nWarpDefine};
+    static constexpr ck_tile::index_t K_Warp = {kWarpDefine};
+
+    static constexpr ck_tile::index_t M_Warp_Tile = {mWarpTileDefine};
+    static constexpr ck_tile::index_t N_Warp_Tile = {nWarpTileDefine};
+    static constexpr ck_tile::index_t K_Warp_Tile = {kWarpTileDefine};
+
+    static constexpr bool DoubleSmemBuffer = {doubleSmemBufferDefine};
+
+
+    static constexpr bool kPadM = {kPadMDefine};
+    static constexpr bool kPadN = {kPadNDefine};
+    static constexpr bool kPadK = {kPadKDefine};
+
+    static constexpr bool PermuteA = false;  //TODO:: still deciding
+    static constexpr bool PermuteB = false;
+
+    static constexpr bool TransposeC = false;
+
+    static constexpr int kBlockPerCu                         = 1;
+    static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+    static constexpr ck_tile::index_t TileParitionerM01      = 4;
+}};
+
 """
+    DEFAULT_EPILOGUE = """
+        using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
+                                ck_tile::DefaultGemm2DEpilogueProblem<AccDataType, 
+                                                                      CDatatType, 
+                                                                      CLayout, 
+                                                                      GemmConfig::kPadM,
+                                                                      GemmConfig::kPadN,
+                                                                      GemmConfig::M_Warp_Tile,
+                                                                      GemmConfig::N_Warp_Tile,
+                                                                      GemmConfig::K_Warp_Tile,
+                                                                      UniversalGemmProblem::TransposeC>>
+"""
+
+    CSHUFFLE_EPILOGUE = """
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+                            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                             BDataType,
+                                                             AccDataType,
+                                                             CDataType,
+                                                             CLayout,
+                                                             GemmPipelineProblem::kBlockSize,
+                                                             TilePartitioner::MPerBlock,
+                                                             TilePartitioner::NPerBlock,
+                                                             GemmConfig::M_Warp,
+                                                             GemmConfig::N_Warp,
+                                                             GemmConfig::M_Warp_Tile,
+                                                             GemmConfig::N_Warp_Tile,
+                                                             GemmConfig::K_Warp_Tile,
+                                                             UniversalGemmProblem::TransposeC>>;
+"""
+
+    RUN_MEM = """
+    if(tail_num < BaseGemmPipeline::PrefetchStages)
+    {
+        Run(ck_tile::bool_constant<has_hot_loop>{},
+            ck_tile::integral_constant<ck_tile::TailNumber, tail_num>{});
+    }
+"""
+
+    RUN_COMP = """
+    Run(ck_tile::bool_constant<has_hot_loop>{{}},
+            ck_tile::integral_constant<ck_tile::TailNumber, tail_num>{{}});
+    """
+
+    GEMM_KERNEL_HEADER = """
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include <hip/hip_runtime.h>
+
+#include <cstring>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <tuple>
+
+#include "ck_tile/host.hpp"
+#include "tensor_configuration.hpp"
+
+template<typename ADataType, 
+         typename BDataType, 
+         typename AccDataType,
+         typename CDataType,
+         typenmae ALayout,         
+         typename BLayout,
+         typename CLayout>
+float gemm_kernel_launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+{{
+    using GemmShape = 
+        ck_tile::TileGemmShape<ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
+                               ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
+                               ck_tile::sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>,
+                               GemmConfig::PermuteA,
+                               GemmConfig::PermuteB>;
+
+    using TilePartitioner =
+        ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+                                                   GemmConfig::TileParitionerGroupNum,
+                                                   GemmConfig::TileParitionerM01>;
+
+    using Traits  = 
+        ck_tile::TileGemmTraits<GemmConfig::kPadM,
+                                GemmConfig::kPadN,
+                                GemmConfig::kPadK,
+                                ALayout,
+                                BLayout,
+                                CLayout>; 
+
+    using GemmUniversalTraits = 
+        ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
+                                         GemmConfig::kPadN,
+                                         GemmConfig::kPadK,
+                                         GemmConfig::DoubleSmemBuffer,
+                                         ALayout,
+                                         BLayout,
+                                         CLayout,
+                                         GemmConfig::TransposeC>;     
+
+    using GemmPipelineProblem =
+        ck_tile::GemmPipelineProblem<ADataType, 
+                                     BDataType, 
+                                     AccDataType, 
+                                     GemmShape, 
+                                     Traits>;      
+
+    using BaseGemmPipeline = {universal_gemm_pipeline}<GemmPipelineProblem>; 
+
+    const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
+    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
+    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
+    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
+    const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+
+    float ave_time{{0}};    
+    const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {{
+        constexpr bool has_hot_loop_v = has_hot_loop_.value;
+        constexpr auto tail_number_v  = tail_number_.value;
+        constexpr auto scheduler      = {gemm_pipeline_scheduler}; 
+
+        using UniversalGemmProblem = 
+            ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                  BDataType,
+                                                  AccDataType,
+                                                  GemmShape,
+                                                  GemmUniversalTraits,
+                                                  scheduler,
+                                                  has_hot_loop_v,
+                                                  tail_number_v>;  
+
+        using GemmPipeline = {gemm_pipeline}<UniversalGemmProblem>;    
+
+        {epilogue_define}
+
+        using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        auto kargs   = Kernel::MakeKernelArgs(args);
+
+        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
+        constexpr dim3 blocks = Kernel::BlockSize();
+
+        if(!Kernel::IsSupportedArgument(kargs))
+        {{
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
+        }}
+
+        if(s.log_level_ > 0)
+        {{
+            std::cout << "Launching kernel with args:"
+                      << " grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
+                      << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
+                      << std::endl;
+        }}
+
+        ave_time = ck_tile::launch_kernel(s,
+                                          ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
+                                              Kernel{{}}, grids, blocks, 0, kargs));
+        return ave_time;
+    }};     
+
+    {run_func}
+                                                                                                                    
+    return ave_time;
+}}
+    """
 
     @dataclass
     class datatype_configuration:
@@ -129,13 +324,17 @@ using CLayout = {CLayoutDefine};
 
         self.kernel_method = gemm_instance_codegen.gemm_kernel_method(
             self.data['Pipeline_type'], 
-            self.data['Scheduler_type'], 
-            self.data['Epilogue_type']
+            self.data['Epilogue_type'], 
+            self.data['Scheduler_type']
         )
 
     @property
     def name_common_header(self) -> str:
         return 'tensor_configuration'
+    
+    @property
+    def name_kernel_file(self) -> str:
+        return 'gemm_kernel'
 
     @property
     def common_header(self) -> str:
@@ -146,12 +345,55 @@ using CLayout = {CLayoutDefine};
             ODataTypeDefine = self.datatype_config.F_ODataType,
             ALayoutDefine = LAYOUT_MAP[self.trait.F_A_Layout],  
             BLayoutDefine = LAYOUT_MAP[self.trait.F_B_Layout],
-            CLayoutDefine = LAYOUT_MAP[self.trait.F_C_Layout]            
+            CLayoutDefine = LAYOUT_MAP[self.trait.F_C_Layout],  
+            mTileDefine = self.tile_shape.F_BlockTile[0],
+            nTileDefine = self.tile_shape.F_BlockTile[1],
+            kTileDefine = self.tile_shape.F_BlockTile[2],
+            mWarpDefine = self.tile_shape.F_WarpPerBlock[0],
+            nWarpDefine = self.tile_shape.F_WarpPerBlock[1],
+            kWarpDefine = self.tile_shape.F_WarpPerBlock[2],
+            mWarpTileDefine = self.tile_shape.F_WarpTile[0],
+            nWarpTileDefine = self.tile_shape.F_WarpTile[1],
+            kWarpTileDefine = self.tile_shape.F_WarpTile[2],
+            doubleSmemBufferDefine = BOOL_MAP(self.kernel_method.F_pipeline == 'ComputeV4'),
+            kPadMDefine = BOOL_MAP(self.trait.F_kPadM),
+            kPadNDefine = BOOL_MAP(self.trait.F_kPadN), 
+            kPadKDefine = BOOL_MAP(self.trait.F_kPadK),        
         )
         return str1
 
+    def gemm_pipeline_func(self):
+        list_f = []
+        if self.kernel_method.F_pipeline == 'Memory':
+            list_f.append('ck_tile::BaseGemmPipelineAgBgCrMem')
+            list_f.append('ck_tile::GemmPipelineAgBgCrMem')
+        elif self.kernel_method.F_pipeline == 'ComputeV3':
+            list_f.append('ck_tile::BaseGemmPipelineAgBgCrCompV3')
+            list_f.append('ck_tile::GemmPipelineAgBgCrCompV3')
+        else:
+            list_f.append('ck_tile::BaseGemmPipelineAgBgCrCompV4')
+            list_f.append('ck_tile::GemmPipelineAgBgCrCompV4')
+        return list_f
+        
+    def gemm_scheduler(self):
+        if self.kernel_method.F_scheduler == 'Interwave':
+            return 'ck_tile::GemmPipelineScheduler::Interwave'
+        else:
+            return 'ck_tile::GemmPipelineScheduler::Intrawave'
+            
     def content_api(self, args) -> str:
-        return ""
+        list_f = self.gemm_pipeline_func()
+        str1 = self.GEMM_KERNEL_HEADER.format(
+                universal_gemm_pipeline = list_f[0], 
+                gemm_pipeline_scheduler = self.gemm_scheduler(), 
+                gemm_pipeline = list_f[1],
+                epilogue_define = self.DEFAULT_EPILOGUE if self.kernel_method.F_epilogue == "Default" else self.CSHUFFLE_EPILOGUE,
+                run_func = self.RUN_MEM if self.kernel_method.F_pipeline == 'Memory' else self.RUN_COMP               
+                )
+        return str1
+
+    def get_blobs(self, args) -> List[str]:
+        return []
     
     def list_blobs(self, args) -> None:
         w_p = Path(self.working_path)
@@ -159,7 +401,7 @@ using CLayout = {CLayoutDefine};
         blobs = self.get_blobs(args)
         with list_p.open('w') as list_f:
             # api related file
-            list_f.write(str(w_p / (self.name_api + ".cpp"))  + "\n")
+            #list_f.write(str(w_p / (self.name_api + ".cpp"))  + "\n")   #TODO:: define name_api
             list_f.write(str(w_p / (self.name_common_header + ".hpp"))  + "\n")
             # kernel instance file
             for b in blobs:
@@ -168,10 +410,12 @@ using CLayout = {CLayoutDefine};
 
     def gen_blobs(self, args) -> None:
         w_p = Path(self.working_path)
-        #w_str = self.content_api(args)
-        file_name = self.name_common_header + ".hpp"
-        header = self.common_header
-        (w_p / (file_name)).write_text(self.common_header)
+        w_str = self.content_api(args)
+        (w_p / (self.name_common_header + ".hpp")).write_text(self.common_header)
+        (w_p / (self.name_kernel_file + ".hpp")).write_text(w_str)   
+        
+        
+
         
 def do_list_blobs(args, data):
     api_list = args.api.split(',')
@@ -204,7 +448,7 @@ def validate_json_data(json_data):
         "Prec_datatype": ["fp16", "bf16", "fp8", "bf8", "fp16"],
         "Pipeline_type": ["Memory", "ComputeV3", "ComputeV4", "ComputeV3"],
         "Scheduler_type": ["Interwave", "Intrawave", "Interwave"],
-        "Epilogue_type": ["CShuffleEpilogue", "DefaultGemm2DEpilogue", "CShuffleEpilogue"]
+        "Epilogue_type": ["CShuffle", "Default", "CShuffle"]
     }
 
     datatype_to_warp_tile_map = {
@@ -287,7 +531,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-w", "--working_path", default="./", required=False, help="the path where all the blobs are going to be generated"
     )
-    #TODO:: Not needed as of now just added for completeness
+    #TODO:: Not needed; just added for completeness
     parser.add_argument(
         "-f", "--filter", required=False, help="filter out kernels that need to generate, using fnmatch module"
     )
