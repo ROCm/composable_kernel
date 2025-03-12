@@ -30,7 +30,7 @@ if(ret AND NOT ret EQUAL 0)
   message( FATAL_ERROR "Fail to generate kernels via Python. ${ret}")
 endif()
 
-file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/gemm_codegen_blobs.txt GEMM_CODEGEN_BLOBS)
+file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt GEMM_CODEGEN_BLOBS)
 
 add_custom_command(
   OUTPUT ${GEMM_CODEGEN_BLOBS}
