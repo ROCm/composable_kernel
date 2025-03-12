@@ -71,28 +71,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         // Permute vector pk_i4x4 data for device implementation
         ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-        if constexpr(GemmConfig::PermuteB)
-        {
-            permute_tensor_b<decltype(b_k_n_dev),
-                             ADataType,
-                             BDataType,
-                             AccDataType,
-                             CDataType,
-                             ALayout,
-                             BLayout,
-                             CLayout>(b_k_n_dev);
-        }
+        permute_tensor_b<decltype(b_k_n_dev),
+                         ADataType,
+                         BDataType,
+                         AccDataType,
+                         CDataType,
+                         ALayout,
+                         BLayout,
+                         CLayout>(b_k_n_dev);
         permute_vectors_i4x4_b(b_k_n_dev);
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
-    }
-    else
-    {
-        if constexpr(GemmConfig::PermuteB)
-        {
-            std::cout << "Permute for this DataType is not implemented." << std::endl;
-            return false;
-        }
-        b_k_n_dev_buf.ToDevice(b_k_n.data());
     }
 
     a_m_k_dev_buf.ToDevice(a_m_k.data());

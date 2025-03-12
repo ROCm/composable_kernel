@@ -152,6 +152,19 @@ using CLayout = {CLayoutDefine};
 
     def content_api(self, args) -> str:
         return ""
+    
+    def list_blobs(self, args) -> None:
+        w_p = Path(self.working_path)
+        list_p = w_p / 'gemm_instance_blobs.txt'
+        blobs = self.get_blobs(args)
+        with list_p.open('w') as list_f:
+            # api related file
+            list_f.write(str(w_p / (self.name_api + ".cpp"))  + "\n")
+            list_f.write(str(w_p / (self.name_common_header + ".hpp"))  + "\n")
+            # kernel instance file
+            for b in blobs:
+                list_f.write(str(w_p / (b.name + ".cpp")) + "\n")
+
 
     def gen_blobs(self, args) -> None:
         w_p = Path(self.working_path)
@@ -160,11 +173,19 @@ using CLayout = {CLayoutDefine};
         header = self.common_header
         (w_p / (file_name)).write_text(self.common_header)
         
-def gen_blobs(args, data):
+def do_list_blobs(args, data):
     api_list = args.api.split(',')
     for api in api_list:
         if api == 'single':
-            gemm_instance_codegen(args.working_path, args.filter, data).gen_blobs(args)
+            generator = gemm_instance_codegen(args.working_path, args.filter, data)
+            generator.list_blobs(args)
+
+def do_gen_blobs(args, data):
+    api_list = args.api.split(',')
+    for api in api_list:
+        if api == 'single':
+            generator = gemm_instance_codegen(args.working_path, args.filter, data)
+            generator.gen_blobs(args)
 
 
 def validate_json_data(json_data):
@@ -244,7 +265,15 @@ def main(args):
     with open(args.json, 'r') as json_file:
         data = json.load(json_file)
     data = validate_json_data(data)
-    gen_blobs(args, data)
+    if args.list_blobs:
+        do_list_blobs(args, data)
+    elif args.gen_blobs:
+        do_gen_blobs(args, data)
+    else:
+        # If neither was specified, either do nothing or default to gen_blobs
+        print("No mode specified (use --list_blobs or --gen_blobs). Generating by default...")
+        do_gen_blobs(args, data)
+
 
 
 if __name__ == "__main__":
@@ -267,5 +296,28 @@ if __name__ == "__main__":
         "-j", "--json", required=True, help="Path to the json which contains the kernel configurations"
     )
 
+    parser.add_argument(
+        "-l",
+        "--list_blobs",
+        action='store_true',
+        help="list all the kernels to a file, "
+    )
+
+    parser.add_argument(
+        "-g",
+        "--gen_blobs",
+        action='store_true',
+        help="generate all kernels into different tile"
+    )
+
     args = parser.parse_args()
+
+    if (args.gen_blobs and args.list_blobs) or ((not args.gen_blobs) and (not args.list_blobs)):
+        print('gen_blobs/list_blobs must specify only one option')
+        sys.exit()
+
+    p = Path(args.working_path)
+    if not p.exists():
+        p.mkdir()
+
     main(args)

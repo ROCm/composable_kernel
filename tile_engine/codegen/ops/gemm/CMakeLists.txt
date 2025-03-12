@@ -21,6 +21,7 @@ execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/code_generate.py
             --api ${GEMM_CODEGEN_ENABLE_APIS}
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
+            -j ${CMAKE_CURRENT_LIST_DIR}/config.json
             --list_blobs
             RESULT_VARIABLE ret
 )
