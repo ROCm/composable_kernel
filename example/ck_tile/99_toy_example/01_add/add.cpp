@@ -48,9 +48,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // 27xx -> 32xx, 1D block to 2D block
     using BlockWarps = ck_tile::sequence<1, 4>;
-    using BlockTile  = ck_tile::sequence<1, 1024>;
-    using WarpTile   = ck_tile::sequence<1, 256>;
-    using Vector     = ck_tile::sequence<1, 4>;
+    using BlockTile  = ck_tile::sequence<1, 2048>;
+    using WarpTile   = ck_tile::sequence<1, 512>;
+    using Vector     = ck_tile::sequence<1, 8>;
     
     constexpr ck_tile::index_t kBlockSize  = 256;
     constexpr ck_tile::index_t kBlockPerCu = 1;
