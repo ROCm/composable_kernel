@@ -47,10 +47,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf_b.ToDevice(x_host_b.data());
 
     // 27xx -> 32xx, 1D block to 2D block
-    using BlockWarps = ck_tile::sequence<1, 4>;
-    using BlockTile  = ck_tile::sequence<1, 2048>;
+    using BlockWarps = ck_tile::sequence<2, 2>;
+    using BlockTile  = ck_tile::sequence<2, 1024>;
     using WarpTile   = ck_tile::sequence<1, 512>;
-    using Vector     = ck_tile::sequence<1, 8>;
+    using Vector     = ck_tile::sequence<1, 4>;
     
     constexpr ck_tile::index_t kBlockSize  = 256;
     constexpr ck_tile::index_t kBlockPerCu = 1;
