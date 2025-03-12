@@ -369,8 +369,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0, index_t NPadded, index_t KBatch)
     {
         ignore = NPadded;
-#if 0
-        // if K padding
+        ignore = KBatch;
+        // if N padding
         if constexpr(GemmSpec == GemmSpecialization::NPadding ||
                      GemmSpec == GemmSpecialization::NKPadding)
         {
@@ -380,7 +380,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                 make_tuple(N0 / NWave, NWave, K0 / KBatch, NkSwizzleNumber),
                 make_tuple(
                     NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
-
+#if 0
             auto N0new = CalculateBN0Shuffled(NPadded);
 
             return transform_tensor_descriptor(
@@ -391,13 +391,15 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                            make_pass_through_transform(NkSwizzleNumber)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+#else
+            return b_grid_desc_raw;
+#endif
         }
         else
-#endif
         {
             constexpr index_t NkSwizzleNumber = Number<warpSize * KPack>{};
             return make_naive_tensor_descriptor(
-                make_tuple(N0 / NWave, NWave, K0 / KBatch, NkSwizzleNumber),
+                make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
                 make_tuple(
                     NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
         }
