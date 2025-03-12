@@ -700,9 +700,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         e_g_n_c_wis_lengths, e_g_n_c_wis_strides);
 
                 elementwise_block_2_ctile_map_transpose_a_ = Block2TileMapElementwise{
-                    e_in_transpose_desc_.GetLength(I0), e_in_transpose_desc_.GetLength(I1)};
-                elementwise_block_2_ctile_map_transpose_e_ = Block2TileMapElementwise{
                     a_in_transpose_desc_.GetLength(I0), a_in_transpose_desc_.GetLength(I1)};
+                elementwise_block_2_ctile_map_transpose_e_ = Block2TileMapElementwise{
+                    e_in_transpose_desc_.GetLength(I0), e_in_transpose_desc_.GetLength(I1)};
             }
         }
 
@@ -1135,11 +1135,19 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    std::cout << "Warning: Workspace for "
-                                 "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
-                                 "allocated, use SetWorkSpacePointer."
-                              << std::endl;
+                    std::cout
+                        << "Warning: Workspace for "
+                           "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1::Argument is not "
+                           "allocated, use SetWorkSpacePointer."
+                        << std::endl;
                 }
+                return false;
+            }
+
+            constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+            if(!(arg.a_out_transpose_desc_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+                 arg.e_in_transpose_desc_.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
+            {
                 return false;
             }
         }

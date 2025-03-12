@@ -1303,10 +1303,17 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Warning: Workspace for "
-                                 "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
+                                 "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle::Argument is not "
                                  "allocated, use SetWorkSpacePointer."
                               << std::endl;
                 }
+                return false;
+            }
+
+            constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+            if(!(arg.a_out_transpose_desc_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+                 arg.e_in_transpose_desc_.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
+            {
                 return false;
             }
         }
