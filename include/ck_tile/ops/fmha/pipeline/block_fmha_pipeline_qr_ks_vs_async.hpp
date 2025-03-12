@@ -112,6 +112,13 @@ struct BlockFmhaPipelineQRKSVSAsync
                 else
                     return 2;
             }
+            else if constexpr(kQKHeaddim <= 192)
+            {
+                if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
+                    return 1;
+                else
+                    return 2;
+            }
             else if constexpr(kQKHeaddim <= 256)
             {
                 return 1;
