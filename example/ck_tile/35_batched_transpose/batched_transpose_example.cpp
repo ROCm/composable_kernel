@@ -13,46 +13,82 @@
 #include "batched_transpose_example.hpp"
 
 //#if 0
+// template <typename T>
+// void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
+// {
+//     auto len = x.get_lengths();
+//     assert(len.size() == 4);
+//     std::cout << "[";
+//     for(size_t i = 0; i < len[0]; i++)
+//     {
+//         std::cout << i << ": [";
+//         for(size_t j = 0; j < len[1]; j++)
+//         {
+//             std::cout << j << ": [";
+//             for(size_t k = 0; k < len[2]; k++)
+//             {
+//                 std::cout << k << ": [";
+//                 for(size_t v = 0; v < len[3]; v++)
+//                 {
+//                     if constexpr(std::is_same_v<T, ck_tile::fp16_t>)
+//                     {
+//                         auto m =
+//                             ck_tile::type_convert<float>(x(std::vector<std::size_t>{i, j, k,
+//                             v}));
+
+//                         std::cout << m;
+//                         if(v != len[3] - 1)
+//                             std::cout << ",";
+//                     }
+//                     else
+//                     {
+//                         std::cout << x(std::vector<std::size_t>{i, j, k, v}) << " ";
+//                     }
+//                 }
+//                 std::cout << "]" << std::endl;
+//             }
+//             std::cout << "]" << std::endl;
+//         }
+//         std::cout << std::endl;
+//     }
+//     std::cout << "--------------------" << std::endl;
+// }
+//#endif
+
 template <typename T>
 void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
 {
     auto len = x.get_lengths();
     assert(len.size() == 4);
-    std::cout << "[";
     for(size_t i = 0; i < len[0]; i++)
     {
-        std::cout << i << ": [";
+        std::cout << "Batch " << i << ":" << std::endl;
         for(size_t j = 0; j < len[1]; j++)
         {
-            std::cout << j << ": [";
+            std::cout << "  Channel " << j << ":" << std::endl;
             for(size_t k = 0; k < len[2]; k++)
             {
-                std::cout << k << ": [";
+                std::cout << "    Row " << k << ": ";
                 for(size_t v = 0; v < len[3]; v++)
                 {
                     if constexpr(std::is_same_v<T, ck_tile::fp16_t>)
                     {
-                        auto m =
-                            ck_tile::type_convert<float>(x(std::vector<std::size_t>{i, j, k, v}));
-
-                        std::cout << m;
-                        if(v != len[3] - 1)
-                            std::cout << ",";
+                        auto m = static_cast<int>(
+                            ck_tile::type_convert<float>(x(std::vector<std::size_t>{i, j, k, v})));
+                        std::cout << m << " ";
                     }
                     else
                     {
-                        std::cout << x(std::vector<std::size_t>{i, j, k, v}) << " ";
+                        std::cout << static_cast<int>(x(std::vector<std::size_t>{i, j, k, v}))
+                                  << " ";
                     }
                 }
-                std::cout << "]" << std::endl;
+                std::cout << std::endl;
             }
-            std::cout << "]" << std::endl;
         }
-        std::cout << std::endl;
     }
     std::cout << "--------------------" << std::endl;
 }
-//#endif
 
 // different threshold for different dtype
 template <typename DataType>
@@ -155,8 +191,8 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         {dim_out[0], dim_out[1], dim_out[2], dim_out[3]},
         {stride_dim_out[0], stride_dim_out[1], stride_dim_out[2], stride_dim_out[3]});
 
-    ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
-    // ck_tile::FillUniformDistribution<Type>{0.f, 255.f}(x_host);
+    // ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
+    ck_tile::FillUniformDistribution<Type>{0, 255}(x_host);
 
     std::cout << "x_host tensor:" << std::endl;
     dump_host_tensor_4d(x_host);
@@ -215,6 +251,9 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     }
 
     y_dev.FromDevice(y_host.data());
+
+    std::cout << "y_host tensor:" << std::endl;
+    dump_host_tensor_4d(y_host);
 
     bool rtn = true;
     if(validate)

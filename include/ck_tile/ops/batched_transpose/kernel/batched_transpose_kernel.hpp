@@ -70,24 +70,30 @@ struct BatchedTransposeKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
+        // printf("Inside Operator of kernel\n");
 
-        static constexpr ck_tile::index_t kMPerBlock = Problem::kMPerBlock;
-        static constexpr ck_tile::index_t kNPerBlock = Problem::kNPerBlock;
-        static constexpr bool kPadM                  = Problem::kPadM;
-        static constexpr bool kPadN                  = Problem::kPadN;
-
+        static constexpr ck_tile::index_t kMPerBlock  = Problem::kMPerBlock;
+        static constexpr ck_tile::index_t kNPerBlock  = Problem::kNPerBlock;
+        static constexpr bool kPadM                   = Problem::kPadM;
+        static constexpr bool kPadN                   = Problem::kPadN;
         static constexpr ck_tile::index_t kMPerThread = Problem::kMPerThread;
         static constexpr ck_tile::index_t kNPerThread = Problem::kNPerThread;
 
-        static_assert(kMPerThread == 1 && kNPerThread == 1);
+        static_assert(kMPerThread == 1 && kNPerThread == 1); // This is for checkpoint 2
 
-        const auto iDim  = blockIdx.z;
+        const auto iM   = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
+        const auto iN   = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
+        const auto iDim = blockIdx.z;
+
+        static constexpr ck_tile::index_t thread_load_value =
+            128 / sizeof(Type); // Dont hardcode 128 make it a global variable
+
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride,
                 make_tuple(kargs.height, kargs.width),
                 make_tuple(kargs.width, 1),
-                number<kNPerThread>{}, // TODO thread load value
+                number<thread_load_value>{}, // TODO thread load value
                 number<1>{});
 
             return pad_tensor_view(x_dram_naive,
@@ -95,15 +101,12 @@ struct BatchedTransposeKernel
                                    sequence<kPadM, kPadN>{});
         }();
 
-        const auto iM = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
-        const auto iN = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
-
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<Type*>(kargs.p_output) + iDim * kargs.dim_stride,
                 make_tuple(kargs.width, kargs.height),
                 make_tuple(kargs.height, 1),
-                number<kMPerThread>{},
+                number<thread_load_value>{},
                 number<1>{});
 
             return pad_tensor_view(y_dram_naive,

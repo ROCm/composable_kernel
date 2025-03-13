@@ -27,6 +27,7 @@ struct BatchedTransposePipeline
     template <typename InputWindow, typename OutputWindow>
     CK_TILE_DEVICE auto operator()(const InputWindow& input_window, OutputWindow& out_window)
     {
+        // printf("Inside operator of Pipeline\n");
 
         auto inp_win =
             make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
@@ -44,6 +45,7 @@ struct BatchedTransposePipeline
         constexpr auto element_byte    = sizeof(InputType);
         constexpr auto padding_element = 4 / element_byte;
         constexpr auto smem_stride     = 16 + padding_element;
+
         __shared__ InputType smem[16 * smem_stride];
 
         __syncthreads();
@@ -57,13 +59,6 @@ struct BatchedTransposePipeline
             });
         });
 
-        // sweep_tile_span(span_2d_x[number<0>{}], [&](auto idx0) {
-        //     sweep_tile_span(span_2d_x[number<1>{}], [&](auto idx1) {
-        //         constexpr auto i_j_idx = make_tuple(idx1, idx0);
-        //         y(i_j_idx)             = x(i_j_idx);
-        //     });
-        // });
-
         __syncthreads();
 
         sweep_tile_span(span_2d_y[number<0>{}], [&](auto idx0) {
@@ -74,6 +69,8 @@ struct BatchedTransposePipeline
                 y(i_j_idx)             = smem[i_src_h * smem_stride + i_src_w];
             });
         });
+
+        // transpose_tile2d(y, x);
 
         store_tile(out_win, y);
     }
