@@ -24,9 +24,11 @@ The CK documentation is structured as follows:
     * :ref:`what-is-ck`
 
   .. grid-item-card:: API reference
-
+    
     * :ref:`supported-primitives`
-    * :ref:`precision-support`
+    * :doc:`Composable Kernel supported scalar types <../reference/Composable_Kernel_supported_scalar_types>`
+    * :doc:`Composable Kernel custom types <../reference/Composable_Kernel_custom_types>`
+    * :doc:`Composable Kernel vector utilities <../reference/Composable_Kernel_vector_utilities>`
     * :ref:`api-reference`
     * :ref:`wrapper`
 
