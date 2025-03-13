@@ -8,11 +8,8 @@
 #include "ck_tile/core/algorithm/indexing_adaptor.hpp"
 #include "ck_tile/core/algorithm/space_filling_curve.hpp"
 #include "ck_tile/core/algorithm/static_encoding_pattern.hpp"
-#if __clang_major__ == 20
-#include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
-#else
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
-#endif
+#include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
 #include "ck_tile/core/arch/utility.hpp"
