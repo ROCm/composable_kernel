@@ -13,9 +13,12 @@ namespace ck {
 
 template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           BlockGemmPipelineScheduler BlkGemmPipeSche,
-          index_t BlockSize,
+          index_t ThreadBlockSize,
+          index_t ScaleBlockSize,
           typename ADataType,
+          typename AScaleDataType,
           typename BDataType,
+          typename BScaleDataType,
           typename ComputeDataType,
           typename AccDataType,
           typename ATileDesc,
@@ -37,9 +40,12 @@ constexpr auto BlockGemmMXPipeline_Selector()
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
     {
         return BlockwiseGemmXdlops_pipeline_v1_mx<BlkGemmPipeSche,
-                                                  BlockSize,
+                                                  ThreadBlockSize,
+                                                  ScaleBlockSize,
                                                   ADataType,
+                                                  AScaleDataType,
                                                   BDataType,
+                                                  BScaleDataType,
                                                   ComputeDataType,
                                                   AccDataType,
                                                   ATileDesc,

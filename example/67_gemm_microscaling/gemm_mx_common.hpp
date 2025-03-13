@@ -487,22 +487,27 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
 
         {
-            b_k_n_scale(0, 0) = ck::type_convert<XDataType>(1.0f / 4);
-            b_k_n_scale(0, 1) = ck::type_convert<XDataType>(1.0f / 2);
-            b_k_n_scale(1, 0) = ck::type_convert<XDataType>(2.0f / 1);
-#if 1
-            std::set<int> j = {0};
+
+#if 0
+            std::set<int> col_ids = {74};
 #else
-            std::set<int> j = {10, 31, 42, 103, 74, 205, 226, 187};
+            std::set<int> col_ids = {10, 31, 42, 103, 74, 205, 226, 187};
 #endif
-            for(auto j_ : j)
+            for(auto col_id : col_ids)
             {
-                b_k_n(383, j_) = ck::type_convert<BDataType>(-1.0f);
+#if 1
+                b_k_n_scale(0, col_id)     = ck::type_convert<XDataType>(1.0f / 4);
+                b_k_n_scale(0, col_id + 1) = ck::type_convert<XDataType>(1.0f / 2);
+                b_k_n_scale(1, col_id)     = ck::type_convert<XDataType>(2.0f / 1);
+                // b_k_n_scale(5, col_id)     = ck::type_convert<XDataType>(-1.0f / 2);
+                b_k_n_scale(11, col_id) = ck::type_convert<XDataType>(4.0f / 1);
+#endif
+                b_k_n(383, col_id) = ck::type_convert<BDataType>(-1.0f);
 
                 for(size_t i = 00; i < 384; i += 7)
                 {
-                    auto coeff   = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
-                    b_k_n(i, j_) = ck::type_convert<BDataType>(coeff / 10.0f * i);
+                    auto coeff       = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
+                    b_k_n(i, col_id) = ck::type_convert<BDataType>(coeff / 10.0f * i);
                 }
             }
         }
@@ -684,13 +689,19 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             }
             std::cout << std::endl;
 #endif
-            std::cout << "Submatrix of b_k_n_scale (3x16):" << std::endl;
-            for(int i = 0; i < 3; ++i)
+            std::cout << "Submatrix of b_k_n_scale (12x16):" << std::endl;
+            for(int i = 0; i < 12; ++i)
             {
                 for(int j = 0; j < 16; ++j)
                 {
-                    std::cout << type_convert<float>(b_k_n_scale(i, j)) << " ";
+                    std::cout << std::setw(5) << type_convert<float>(b_k_n_scale(i, j));
                 }
+                std::cout << "\t\t";
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << std::setw(5) << type_convert<float>(b_k_n_scale(i, j + 64)) << " ";
+                }
+
                 std::cout << std::endl;
             }
 #if 0

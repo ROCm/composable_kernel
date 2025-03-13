@@ -1076,8 +1076,11 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                 BlkGemmPipelineVer,
                                 BlkGemmPipeSched,
                                 BlockSize,
+                                ScaleBlockSize,
                                 ADataType,
+                                AScaleDataType,
                                 BDataType,
+                                BScaleDataType,
                                 ComputeTypeA,
                                 AccDataType,
                                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
@@ -1141,6 +1144,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             "Single call to xdlops_gemm::Run should not process more than ScaleBlockSize
             elements");
 #endif
+
+        static_assert(KPerBlock % ScaleBlockSize == 0,
+                      "KPerBlock should be multiple of ScaleBlockSize");
 
         // XXX: This condition should not apply to mfma scale instructions on gfx950
         static_assert(KPerBlock / ScaleBlockSize == BlockwiseGemmPipe::KRepeat,
@@ -1545,34 +1551,35 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         static constexpr auto KBlockScaleSliceSizeK =
             (KPerBlock + ScaleBlockSize - 1) / ScaleBlockSize; // 2
 
-        constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
+        // constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
+        //     make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
 
         constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl); // 2
 
         auto b_thread_offset_n =
             get_thread_local_1d_id() % NPerXdl + (get_thread_local_1d_id() / 64) % NWaves * NPerXdl;
-        auto b_thread_offset_k = (get_thread_local_1d_id() % 64) / NPerXdl * KPerThread;
+        auto b_thread_offset_k = KPerThread * (get_thread_local_1d_id() % NPerXdl) / NPerXdl;
 
-        auto b_scale_thread_copy =
-            ThreadwiseTensorSliceTransfer_v2<BScaleDataType,
-                                             BScaleDataType,
-                                             decltype(b_scale_grid_desc_bn_ak),
-                                             decltype(b_scale_thread_desc),
-                                             Sequence<1, ScaleSliceSizeK>,
-                                             Sequence<0, 1>,
-                                             1,
-                                             ScaleSliceSizeK,
-                                             1,
-                                             false>(
-                b_scale_grid_desc_bn_ak,
-                make_multi_index(block_n_id * NPerBlock + b_thread_offset_n,
-                                 b_thread_offset_k / ScaleBlockSize));
+        // TODO: introduce fixed size block descriptor for b_scale and move b_scale_thread_copy to
+        // BlockwiseGemmXdlops_pipeline_v1_mx
+        auto b_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
+            BScaleDataType,
+            BScaleDataType,
+            decltype(b_scale_grid_desc_bn_ak),
+            decltype(BlockwiseGemmPipe::b_scale_thread_desc),
+            Sequence<1, BlockwiseGemmPipe::KRepeat>, // SliceLengths
+            Sequence<0, 1>,                          // DimAccessOrder
+            1,                                       // SrcVectorDim
+            BlockwiseGemmPipe::KRepeat,              // SrcScalarPerVector
+            1,
+            false>(b_scale_grid_desc_bn_ak,
+                   make_multi_index(block_n_id * NPerBlock + b_thread_offset_n,
+                                    b_thread_offset_k / ScaleBlockSize));
 
-        constexpr auto b_scale_thread_slice_copy_step =
-            make_tuple(make_multi_index(NWaves * NPerXdl, 0),
-                       make_multi_index(-NPerBlock, 0),
-                       make_multi_index(-NPerBlock, KBlockScaleSliceSizeK));
+        // constexpr auto b_scale_thread_slice_copy_step =
+        //     make_tuple(make_multi_index(NWaves * NPerXdl, 0),
+        //                make_multi_index(-NPerBlock, 0),
+        //                make_multi_index(-NPerBlock, KBlockScaleSliceSizeK));
 
 #if 1
         if(threadIdx.x == 0 && blockIdx.x == 0 && threadIdx.y == 0 && blockIdx.y == 0)
@@ -1580,8 +1587,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             printf(
                 "\n\nBlock {%u, %u, %u} : \n\tKPerXdlops = %d; K1PerXdlops = %d; K0PerXdlops = %d; "
                 "KPerThread = %d; \n\tScaleSliceSizeN = %d; ScaleSliceSizeK = %d; "
-                "KBlockScaleSliceSizeK = %d; \n\tNWaves = %d; \n\tb_thread_offset_n = %d; "
-                "b_thread_offset_k = %d\n\n",
+                "KBlockScaleSliceSizeK = %d; \n\tNWaves = %d\n\n",
                 blockIdx.x,
                 blockIdx.y,
                 blockIdx.z,
@@ -1592,10 +1598,22 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 ScaleSliceSizeN,
                 ScaleSliceSizeK,
                 KBlockScaleSliceSizeK,
-                NWaves,
-                b_thread_offset_n,
-                b_thread_offset_k);
+                NWaves);
         }
+        if(threadIdx.x == 0 || threadIdx.x == 32 || threadIdx.x == 0 || threadIdx.x == 32)
+        {
+            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\tb_thread_offset_n = %d; "
+                   "b_thread_offset_k = %d\n\t b_scale_origin = {%d, %d}\n\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   blockIdx.z,
+                   threadIdx.x,
+                   b_thread_offset_n,
+                   b_thread_offset_k,
+                   block_n_id * NPerBlock + b_thread_offset_n,
+                   b_thread_offset_k / ScaleBlockSize);
+        }
+
 #endif
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
@@ -1613,10 +1631,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             b_block_slice_copy_step,
             c_thread_buf,
             b_scale_grid_desc_bn_ak,
-            b_scale_thread_desc,
+            // b_scale_thread_desc,
             b_scale_thread_copy,
             b_scale_grid_buf,
-            b_scale_thread_slice_copy_step,
+            // b_scale_thread_slice_copy_step,
             num_k_block_main_loop);
 
         // shuffle C and write out
