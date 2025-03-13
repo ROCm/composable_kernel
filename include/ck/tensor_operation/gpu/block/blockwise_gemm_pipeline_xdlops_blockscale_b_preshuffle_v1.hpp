@@ -28,6 +28,9 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
+          index_t MScaleBlock,
+          index_t NScaleBlock,
+          index_t KScaleBlock,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
@@ -51,6 +54,9 @@ template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
+          index_t MScaleBlock,
+index_t NScaleBlock,
+index_t KScaleBlock,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
@@ -73,6 +79,9 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                                                               MPerBlock,
                                                               NPerBlock,
                                                               KPerBlock,
+                                                              MScaleBlock,
+                                                              NScaleBlock,
+                                                              KScaleBlock,
                                                               MPerXDL,
                                                               NPerXDL,
                                                               MRepeat,
@@ -189,7 +198,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves;
 
         constexpr auto num_pk_fma_per_kscaleblock = MPerXDL == 16 ? 2 : 8;
-        constexpr auto num_mfma_per_kscaleblock   = MPerXDL == 16 ? KPerBlock / 32 : KPerBlock / 16;
+        constexpr auto num_mfma_per_kscaleblock   = MPerXDL == 16 ? KScaleBlock / 32 : KScaleBlock / 16;
 
         // B global
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
@@ -323,7 +332,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
 
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-        // __builtin_amdgcn_sched_barrier(0);
+        __builtin_amdgcn_sched_barrier(0);
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             a_scale_thread_copy.Run(a_scale_grid_desc,
@@ -589,7 +598,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                     b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                            b_scale_thread_copy_step);
                     HotLoopScheduler();
-                    // __builtin_amdgcn_sched_barrier(0);
+                    __builtin_amdgcn_sched_barrier(0);
                 };
 
                 LoopFunc(I0, I1);
