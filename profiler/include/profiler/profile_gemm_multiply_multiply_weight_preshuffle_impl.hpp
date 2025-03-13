@@ -138,6 +138,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
     std::cout << "rotating count: " << rotating_count << std::endl;
+    std::cout << "verification: " << do_verification << std::endl;
 
     switch(init_method)
     {
@@ -325,7 +326,10 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                             << std::endl;
                     }
                 }
-
+                if(!pass)
+                {
+                    continue;
+                }
                 std::string op_name = op_ptr->GetTypeString();
 
                 float ave_time = invoker_ptr->Run(argument_ptr.get(),

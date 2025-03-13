@@ -138,6 +138,48 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
         LDSTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
+    struct DeviceArgument : public Argument
+    {
+        __host__ DeviceArgument(const ADataType* p_a_grid_,
+                                const BDataType* p_b_grid_,
+                                std::array<const void*, NumDTensor> p_ds_grid_,
+                                CDataType* p_c_grid_,
+                                index_t M_,
+                                index_t N_,
+                                index_t K_,
+                                index_t StrideA_,
+                                index_t StrideB_,
+                                std::array<index_t, NumDTensor> StrideDs_,
+                                index_t StrideC_,
+                                index_t k_batch_,
+                                AElementwiseOperation a_element_op_,
+                                BElementwiseOperation b_element_op_,
+                                CElementwiseOperation c_element_op_,
+                                index_t Nr_,
+                                index_t Kr_)
+            : Argument{p_a_grid_,
+                       p_b_grid_,
+                       p_ds_grid_,
+                       p_c_grid_,
+                       M_,
+                       N_,
+                       K_,
+                       StrideA_,
+                       StrideB_,
+                       StrideDs_,
+                       StrideC_,
+                       k_batch_,
+                       a_element_op_,
+                       b_element_op_,
+                       c_element_op_},
+              Nr{Nr_},
+              Kr{Kr_}
+        {
+        }
+
+        index_t Nr;
+        index_t Kr;
+    };
 
     int GetPreShuffleParameters() override { return NPerXDL; }
 
@@ -540,7 +582,16 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
         {
             return false;
         }
+        const auto karg = dynamic_cast<const DeviceArgument*>(&arg);
+        if(NPadding && (karg->Nr != GridwiseGemm::CalculateBNShufflePadded(arg.N)))
+        {
+            return false;
+        }
 
+        if(KPadding && (karg->Kr != GridwiseGemm::CalculateBKShufflePadded(arg.K)))
+        {
+            return false;
+        }
         return GridwiseGemm::CheckValidity(arg);
     }
 
@@ -568,23 +619,23 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                              index_t Nr,
                              index_t Kr)
     {
-        return Argument{static_cast<const ADataType*>(p_a),
-                        static_cast<const BDataType*>(p_b),
-                        p_ds,
-                        static_cast<CDataType*>(p_c),
-                        M,
-                        N,
-                        K,
-                        StrideA,
-                        StrideB,
-                        StrideDs,
-                        StrideC,
-                        KBatch,
-                        a_element_op,
-                        b_element_op,
-                        c_element_op,
-                        Nr,
-                        Kr};
+        return DeviceArgument{static_cast<const ADataType*>(p_a),
+                              static_cast<const BDataType*>(p_b),
+                              p_ds,
+                              static_cast<CDataType*>(p_c),
+                              M,
+                              N,
+                              K,
+                              StrideA,
+                              StrideB,
+                              StrideDs,
+                              StrideC,
+                              KBatch,
+                              a_element_op,
+                              b_element_op,
+                              c_element_op,
+                              Nr,
+                              Kr};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -608,23 +659,23 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                                                       index_t Nr,
                                                       index_t Kr) override
     {
-        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
-                                          static_cast<const BDataType*>(p_b),
-                                          p_ds,
-                                          static_cast<CDataType*>(p_c),
-                                          M,
-                                          N,
-                                          K,
-                                          StrideA,
-                                          StrideB,
-                                          StrideDs,
-                                          StrideC,
-                                          KBatch,
-                                          a_element_op,
-                                          b_element_op,
-                                          c_element_op,
-                                          Nr,
-                                          Kr);
+        return std::make_unique<DeviceArgument>(static_cast<const ADataType*>(p_a),
+                                                static_cast<const BDataType*>(p_b),
+                                                p_ds,
+                                                static_cast<CDataType*>(p_c),
+                                                M,
+                                                N,
+                                                K,
+                                                StrideA,
+                                                StrideB,
+                                                StrideDs,
+                                                StrideC,
+                                                KBatch,
+                                                a_element_op,
+                                                b_element_op,
+                                                c_element_op,
+                                                Nr,
+                                                Kr);
     }
 
     // polymorphic

@@ -596,9 +596,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                     index_t StrideB_,
                                     std::array<index_t, NumDTensor> StrideDs_,
                                     index_t StrideC_,
-                                    index_t KBatch_,
-                                    index_t Nr_,
-                                    index_t Kr_)
+                                    index_t KBatch_)
             : M{M_},
               N{N_},
               K{K_},
@@ -616,9 +614,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)},
               BN0Shuffled{CalculateBN0Shuffled(NPadding ? CalculateBNShufflePadded(N_) : N_)},
-              BK0Shuffled{CalculateBK0Shuffled(KPadding ? CalculateBKShufflePadded(K_) : K_)},
-              Nr{Nr_},
-              Kr{Kr_}
+              BK0Shuffled{CalculateBK0Shuffled(KPadding ? CalculateBKShufflePadded(K_) : K_)}
         {
         }
 
@@ -660,8 +656,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         // FOR PRESHUFFLE ONLY
         index_t BN0Shuffled;
         index_t BK0Shuffled;
-        index_t Nr;
-        index_t Kr;
     };
 
     // Argument
@@ -681,10 +675,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                           index_t k_batch_,
                           AElementwiseOperation a_element_op_,
                           BElementwiseOperation b_element_op_,
-                          CElementwiseOperation c_element_op_,
-                          index_t Nr_,
-                          index_t Kr_)
-            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_, Nr_, Kr_},
+                          CElementwiseOperation c_element_op_)
+            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideDs_, StrideC_, k_batch_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
               p_ds_grid{},
@@ -948,16 +940,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         }
 
         if((karg.N % NPerXdl != 0) || (karg.BN0Shuffled % NWave != 0))
-        {
-            return false;
-        }
-
-        if(NPadding && (karg.Nr != CalculateBNShufflePadded(karg.N)))
-        {
-            return false;
-        }
-
-        if(KPadding && (karg.Kr != CalculateBKShufflePadded(karg.K)))
         {
             return false;
         }
