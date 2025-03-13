@@ -1422,7 +1422,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                             {
                                 auto c_partial_acc_buf =
                                     make_dynamic_buffer<AddressSpaceEnum::Global,
-                                                        AmdBufferCoherenceEnum::DEVICE_NT1>( // @Emin-Comment !!! This is not correct for MI300 I should put if def 
+                                                        AmdBufferCoherenceEnum::DEVICE_NT1>( // @Emin-Comment !!! This is not correct for MI300 I should put if def ( DEVICE_NT1 is not correct it should SC_0)
                                         reinterpret_cast<AccDataType*>(p_workspace) +
                                             i * c_partial_acc_block_m_n.GetElementSpaceSize(),
                                         c_partial_acc_block_m_n.GetElementSpaceSize());
@@ -1492,12 +1492,24 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                 }
 
 #endif
-                                acc_store.Run(acc_thread_buf_store_desc,
+                                // acc_store.Run(acc_thread_buf_store_desc,
+                                //               make_tuple(I0, I0, I0, I0),
+                                //               acc_buf,
+                                //               c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                //               c_grid_buf);
+                            }
+
+                            if (threadIdx.x == 0 && threadIdx.y == 0){
+                                printf("Gridwise_gemm_xdl_cshuffle line %d , Block %d , acc_thread_buf_store_desc Run \n",
+                                    __LINE__, blockIdx.x);
+                            }
+
+                            //Emin @Added
+                            acc_store.Run(acc_thread_buf_store_desc,
                                               make_tuple(I0, I0, I0, I0),
                                               acc_buf,
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
                                               c_grid_buf);
-                            }
 
                             // Update positions for next iteration
                             if constexpr(NReduceIters != 1)

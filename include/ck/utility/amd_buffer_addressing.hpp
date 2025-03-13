@@ -304,10 +304,24 @@ enum struct AmdBufferCoherenceEnum
     WAVE_NT1   = 2,
     GROUP_NT0  = 1,
     GROUP_NT1  = 3,
-    DEVICE_NT0 = 8,
-    DEVICE_NT1 = 10,
-    SYSTEM_NT0 = 9,
-    SYSTEM_NT1 = 11,
+    // DEVICE_NT0 = 8,
+    // DEVICE_NT1 = 10,
+    // SYSTEM_NT0 = 9,
+    // SYSTEM_NT1 = 11,
+
+    DEVICE_NT0 = 16,
+    DEVICE_NT1 = 18,
+    SYSTEM_NT0 = 17,
+    SYSTEM_NT1 = 19,
+
+    // WAVE_NT0   = 0,
+    // WAVE_NT1   = 4,
+    // GROUP_NT0  = 1,
+    // GROUP_NT1  = 5,
+    // DEVICE_NT0 = 2,
+    // DEVICE_NT1 = 6,
+    // SYSTEM_NT0 = 3,
+    // SYSTEM_NT1 = 7,
 };
 
 template <index_t N, AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
