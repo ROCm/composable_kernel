@@ -66,6 +66,7 @@ namespace fp8_impl {
 
 typedef fp8_storage_t fp8x2_storage_t __attribute__((ext_vector_type(2)));
 typedef _Float16 half2_t __attribute__((ext_vector_type(2)));
+typedef short shortx2_t __attribute__((ext_vector_type(2)));
 typedef float float2_t __attribute__((ext_vector_type(2)));
 
 __host__ __device__ static inline constexpr bool fnuz_f8_is_nan(f8_fnuz_t a)
@@ -467,36 +468,28 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
 static __device__ fp8_storage_t cast_to_f8_from_f16(_Float16 v, unsigned int rng = 0)
 {
-    fp8_storage_t i8data;
-
-    typedef short shortx2_t __attribute__((ext_vector_type(2)));
-    typedef _Float16 _Float16x2 __attribute__((ext_vector_type(2)));
-
     union
     {
-        float fval;
-        shortx2_t short_vec;
-        _Float16x2 half_vec;
         unsigned int i32val;
-        unsigned char i8val[4]; // NOTE: not endian independent
+        half2_t half_vec;
+        fp8_storage_t i8val[4];
     } val;
 
-    unsigned int i32val = 0;
-    val.half_vec[-1]    = v;
+    constexpr unsigned int i32val = 0;
+    val.half_vec[0]               = v;
 
     if constexpr(saturate)
     {
         if((val.i32val & 0x7FFF) != 0x7FFF)
-        { /// propagate NAN/INF, no clipping
+        {
             val.half_vec[0] = __builtin_amdgcn_fmed3h(val.half_vec[0], 448.0, -448.0);
         }
     }
 
-    i32val = __builtin_amdgcn_cvt_scalef32_sr_fp8_f16(i32val, val.fval, rng, /* scale */ 1.f, 0);
-    val.i32val = i32val;
-    i8data     = val.i8val[0]; // little endian
+    val.i32val =
+        __builtin_amdgcn_cvt_scalef32_sr_fp8_f16(i32val, val.half_vec[0], rng, /* scale */ 1.f, 0);
 
-    return i8data;
+    return val.i8val[0];
 }
 
 template <ck_fp8_interpretation_t interpret,
@@ -506,9 +499,9 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
 static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rng = 0)
 {
-    std::ignore = v;
-    std::ignore = rng;
-    return fp8x2_storage_t{};
+    return fp8x2_storage_t{
+        cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[0], rng),
+        cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[1], rng)};
 }
 
 template <ck_fp8_interpretation_t interpret,
@@ -518,36 +511,28 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
 static __device__ fp8_storage_t cast_to_f8_from_f16(_Float16 v, unsigned int rng = 0)
 {
-    fp8_storage_t i8data;
-
-    typedef short shortx2_t __attribute__((ext_vector_type(2)));
-    typedef _Float16 _Float16x2 __attribute__((ext_vector_type(2)));
-
     union
     {
-        float fval;
-        shortx2_t short_vec;
-        _Float16x2 half_vec;
         unsigned int i32val;
-        unsigned char i8val[4]; // NOTE: not endian independent
+        half2_t half_vec;
+        fp8_storage_t i8val[4];
     } val;
 
-    unsigned int i32val = 0;
-    val.fval            = v;
+    constexpr unsigned int i32val = 0;
+    val.half_vec[0]               = v;
 
-    // if constexpr(saturate)
-    // {
-    //         if((val.i32val & 0x7F800000) != 0x7F800000)
-    //         { /// propagate NAN/INF, no clipping
-    //             val.fval = __builtin_amdgcn_fmed3f(val.fval, 57344.0, -57344.0);
-    //         }
-    // }
+    if constexpr(saturate)
+    {
+        if((val.i32val & 0x7FFF) != 0x7FFF)
+        {
+            val.half_vec[0] = __builtin_amdgcn_fmed3h(val.half_vec[0], 57344.0, -57344.0);
+        }
+    }
 
-    i32val = __builtin_amdgcn_cvt_scalef32_sr_bf8_f16(
-        val.i32val, val.fval, rng, /* scale */ 1.f, 0); // 0 pos
-    val.i32val = i32val;
-    i8data     = val.i8val[0]; // little endian
-    return i8data;
+    val.i32val =
+        __builtin_amdgcn_cvt_scalef32_sr_bf8_f16(i32val, val.half_vec[0], rng, /* scale */ 1.f, 0);
+
+    return val.i8val[0];
 }
 
 template <ck_fp8_interpretation_t interpret,
@@ -557,9 +542,9 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
 static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rng = 0)
 {
-    std::ignore = v;
-    std::ignore = rng;
-    return fp8x2_storage_t{};
+    return fp8x2_storage_t{
+        cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[0], rng),
+        cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[1], rng)};
 }
 
 template <ck_fp8_interpretation_t interpret,
@@ -570,35 +555,30 @@ template <ck_fp8_interpretation_t interpret,
 static __device__ fp8_storage_t cast_to_f8_from_f16(_Float16 v, unsigned int rng = 0)
 {
     std::ignore = rng;
-    fp8_storage_t i8data;
-
-    typedef short shortx2_t __attribute__((ext_vector_type(2)));
-    typedef _Float16 _Float16x2 __attribute__((ext_vector_type(2)));
 
     union
     {
-        float fval;
-        shortx2_t short_vec;
-        _Float16x2 half_vec;
         unsigned int i32val;
-        unsigned char i8val[4]; // NOTE: not endian independent
+        half2_t half_vec;
+        shortx2_t i16_vec;
+        fp8_storage_t i8val[4];
     } val;
 
-    shortx2_t ival{0, 0};
-    val.fval = v;
+    constexpr shortx2_t i16x2val = {0, 0};
+    val.half_vec[0]              = v;
 
-    // if constexpr(saturate)
-    // {
-    //         if((val.i32val & 0x7F800000) != 0x7F800000)
-    //         { /// propagate NAN/INF, no clipping
-    //             val.fval = __builtin_amdgcn_fmed3f(val.fval, 448.0, -448.0);
-    //         }
-    // }
+    if constexpr(saturate)
+    {
+        if((val.i32val & 0x7FFF) != 0x7FFF)
+        {
+            val.half_vec[0] = __builtin_amdgcn_fmed3h(val.half_vec[0], 448.0, -448.0);
+        }
+    }
 
-    ival = __builtin_amdgcn_cvt_scalef32_pk_fp8_f16(ival, val.half_vec, /* scale */ 1.f, false);
-    val.short_vec = ival;
-    i8data        = val.i8val[0];
-    return i8data;
+    val.i16_vec =
+        __builtin_amdgcn_cvt_scalef32_pk_fp8_f16(i16x2val, val.half_vec, /* scale */ 1.f, 0);
+
+    return val.i8val[0];
 }
 
 template <ck_fp8_interpretation_t interpret,
@@ -608,9 +588,35 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
 static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rng = 0)
 {
-    std::ignore = v;
     std::ignore = rng;
-    return fp8x2_storage_t{};
+
+    union
+    {
+        unsigned int i32val;
+        half2_t half_vec;
+        shortx2_t i16_vec;
+        fp8_storage_t i8val[4];
+    } val;
+
+    constexpr shortx2_t i16x2val = {0, 0};
+    val.half_vec                 = v;
+
+    if constexpr(saturate)
+    {
+        if((val.i32val & 0x7FFF) != 0x7FFF)
+        {
+            val.half_vec[0] = __builtin_amdgcn_fmed3h(val.half_vec[0], 448.0, -448.0);
+        }
+        if((val.i32val & 0x7FFF) != 0x7FFF)
+        {
+            val.half_vec[1] = __builtin_amdgcn_fmed3h(val.half_vec[1], 448.0, -448.0);
+        }
+    }
+
+    val.i16_vec =
+        __builtin_amdgcn_cvt_scalef32_pk_fp8_f16(i16x2val, val.half_vec, /* scale */ 1.f, 0);
+
+    return fp8x2_storage_t{val.i8val[0], val.i8val[1]};
 }
 
 template <ck_fp8_interpretation_t interpret,
@@ -621,38 +627,30 @@ template <ck_fp8_interpretation_t interpret,
 static __device__ fp8_storage_t cast_to_f8_from_f16(_Float16 v, unsigned int rng = 0)
 {
     std::ignore = rng;
-    fp8_storage_t i8data;
-
-    typedef short shortx2_t __attribute__((ext_vector_type(2)));
-    typedef _Float16 _Float16x2 __attribute__((ext_vector_type(2)));
 
     union
     {
-        float fval;
-        shortx2_t short_vec;
-        _Float16x2 half_vec;
         unsigned int i32val;
-        unsigned char i8val[4]; // NOTE: not endian independent
+        half2_t half_vec;
+        shortx2_t i16_vec;
+        fp8_storage_t i8val[4];
     } val;
 
-    shortx2_t ival{0, 0};
-    val.fval = v;
+    constexpr shortx2_t i16x2val = {0, 0};
+    val.half_vec[0]              = v;
 
-    // if constexpr(saturate)
-    // {
-    //         if((val.i32val & 0x7F800000) != 0x7F800000)
-    //         { /// propagate NAN/INF, no clipping
-    //             val.fval = __builtin_amdgcn_fmed3f(val.fval, 57344.0, -57344.0);
-    //         }
-    // }
+    if constexpr(saturate)
+    {
+        if((val.i32val & 0x7FFF) != 0x7FFF)
+        {
+            val.half_vec[0] = __builtin_amdgcn_fmed3h(val.half_vec[0], 57344.0, -57344.0);
+        }
+    }
 
-    ival          = __builtin_amdgcn_cvt_scalef32_pk_bf8_f16(ival,
-                                                    val.half_vec,
-                                                    /* scale */ 1.f,
-                                                    false); // false -> WORD0
-    val.short_vec = ival;
-    i8data        = val.i8val[0];
-    return i8data;
+    val.half_vec =
+        __builtin_amdgcn_cvt_scalef32_pk_bf8_f16(i16x2val, val.half_vec, /* scale */ 1.f, 0);
+
+    return val.i8val[0];
 }
 
 template <ck_fp8_interpretation_t interpret,
@@ -662,9 +660,35 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
 static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rng = 0)
 {
-    std::ignore = v;
     std::ignore = rng;
-    return fp8x2_storage_t{};
+
+    union
+    {
+        unsigned int i32val;
+        half2_t half_vec;
+        shortx2_t i16_vec;
+        fp8_storage_t i8val[4];
+    } val;
+
+    constexpr shortx2_t i16x2val = {0, 0};
+    val.half_vec                 = v;
+
+    if constexpr(saturate)
+    {
+        if((val.i32val & 0x7FFF) != 0x7FFF)
+        {
+            val.half_vec[0] = __builtin_amdgcn_fmed3h(val.half_vec[0], 448.0, -448.0);
+        }
+        if((val.i32val & 0x7FFF) != 0x7FFF)
+        {
+            val.half_vec[1] = __builtin_amdgcn_fmed3h(val.half_vec[1], 448.0, -448.0);
+        }
+    }
+
+    val.i16_vec =
+        __builtin_amdgcn_cvt_scalef32_pk_bf8_f16(i16x2val, val.half_vec, /* scale */ 1.f, 0);
+
+    return fp8x2_storage_t{val.i8val[0], val.i8val[1]};
 }
 
 #if CK_FP8_CVT_FAST_PATH
@@ -748,7 +772,6 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f32(float2_t v, unsigned int r
         {
             float fval;
             unsigned int i32val;
-            unsigned char i16val[2];
             unsigned char i8val[4];
         } val0, val1;
 
@@ -807,7 +830,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f32(float2_t v, unsigned int r
 
         val0.i32val = ival;
 
-        return fp8x2_storage_t{val0.i16val[0]};
+        return fp8x2_storage_t{val0.i8val[0], val0.i8val[1]};
     }
 }
 #endif // CK_FP8_CVT_FAST_PATH
