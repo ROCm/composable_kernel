@@ -58,12 +58,12 @@ The Composable Kernel library provides support for the following scalar data typ
 
     * - ``ck::f4_t``
       - 4-bit
-      - 4-bit floating point format
+      - 4-bit floating point format (E2M1 format) with 2 exponent bits, 1 mantissa bit, and 1 sign bit
 
     * - ``ck::f6_t``
       - 6-bit
-      - 6-bit floating point format (e2m3 format)
+      - 6-bit floating point format (E2M3 format) with 2 exponent bits, 3 mantissa bits, and 1 sign bit
 
     * - ``ck::bf6_t``
       - 6-bit
-      - 6-bit brain floating point format (e3m2 format)
+      - 6-bit brain floating point format (E3M2 format) with 3 exponent bits, 2 mantissa bits, and 1 sign bit

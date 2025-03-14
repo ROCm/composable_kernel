@@ -18,18 +18,6 @@ subtrees:
     title: Composable Kernel structure
   - file: conceptual/Composable-Kernel-math.rst
     title: Composable Kernel mathematical basis
-  - file: reference/Supported_Primitives_Guide.rst
-    title: Supported Primitives
-  - file: reference/Composable_Kernel_supported_scalar_types.rst
-    title: Composable Kernel scalar types
-  - file: reference/Composable_Kernel_custom_types.rst
-    title: Composable Kernel custom types
-  - file: reference/Composable_Kernel_vector_utilities.rst
-    title: Composable Kernel vector utilities
-  - file: reference/API_Reference_Guide.rst
-    title: API Reference
-  - file: reference/wrapper.rst
-    title: Wrapper
 
 - caption: Tutorial
   entries:
@@ -38,6 +26,12 @@ subtrees:
 
 - caption: Reference
   entries:
+  - file: reference/Composable_Kernel_supported_scalar_types.rst
+    title: Composable Kernel scalar types
+  - file: reference/Composable_Kernel_custom_types.rst
+    title: Composable Kernel custom types
+  - file: reference/Composable_Kernel_vector_utilities.rst
+    title: Composable Kernel vector utilities
   - file: reference/Composable-Kernel-API-reference.rst
     title: Composable Kernel API reference
   - file: reference/Composable-Kernel-wrapper.rst
