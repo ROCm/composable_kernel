@@ -928,6 +928,16 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             if constexpr(is_NGCHW_GKYXC_NGKHW<ELayout, BLayout, ALayout>() ||
                          is_NGCDHW_GKZYXC_NGKDHW<ELayout, BLayout, ALayout>())
             {
+                EDataType* p_e_in_grid = type_convert<EDataType*>(arg.p_workspace_) +
+                                         arg.GetWorkspaceATensorSizeBytes() / sizeof(EDataType);
+
+                const auto clear_workspace = [&]() {
+                    hip_check_error(hipMemsetAsync(p_e_in_grid,
+                                                   0,
+                                                   arg.GetWorkspaceETensorSizeBytes(),
+                                                   stream_config.stream_id_));
+                };
+
                 const index_t grid_size =
                     arg.elementwise_block_2_ctile_map_transpose_a_.CalculateGridSize(
                         arg.a_in_transpose_desc_) *
@@ -946,8 +956,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                I1,
                                                I1>;
 
-                ave_time += launch_and_time_kernel(
+                ave_time += launch_and_time_kernel_with_preprocess(
                     stream_config,
+                    clear_workspace,
                     kernel_transpose,
                     dim3(grid_size),
                     dim3(ElementwiseBlocksize),
