@@ -356,6 +356,74 @@ inline __host__ __device__ bf8_fnuz_t f8_convert_sr<bf8_fnuz_t, half_t>(half_t x
 #endif
 }
 
+// convert fp32 to fp8 with stochastic rounding
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, float>(float x)
+{
+    return f8_ocp_t{
+        fp8_impl::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation, true>(
+            x)};
+}
+
+template <>
+inline __host__ __device__ f8x2_ocp_t f8_convert_sr<f8x2_ocp_t, float2_t>(float2_t x)
+{
+    return f8x2_ocp_t{
+        fp8_impl::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation, true>(
+            x)};
+}
+
+// convert fp32 to bf8 with stochastic rounding
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_sr<bf8_ocp_t, float>(float x)
+{
+    return bf8_ocp_t{fp8_impl::cvt_float_to_fp8<bf8_ocp_t::default_interpret,
+                                                bf8_ocp_t::default_saturation,
+                                                true>(x)};
+}
+
+template <>
+inline __host__ __device__ bf8x2_ocp_t f8_convert_sr<bf8x2_ocp_t, float2_t>(float2_t x)
+{
+    return bf8x2_ocp_t{fp8_impl::cvt_float_to_fp8<bf8_ocp_t::default_interpret,
+                                                  bf8_ocp_t::default_saturation,
+                                                  true>(x)};
+}
+
+// convert _Float16 to fp8 with stochastic rounding
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, _Float16>(_Float16 x)
+{
+    return f8_ocp_t{fp8_impl::cvt_half_t_to_fp8<f8_ocp_t::default_interpret,
+                                                f8_ocp_t::default_saturation,
+                                                true>(x)};
+}
+
+template <>
+inline __host__ __device__ f8x2_ocp_t f8_convert_sr<f8x2_ocp_t, half2_t>(half2_t x)
+{
+    return f8x2_ocp_t{fp8_impl::cvt_half_t_to_fp8<f8_ocp_t::default_interpret,
+                                                  f8_ocp_t::default_saturation,
+                                                  true>(x)};
+}
+
+// convert _Float16 to bf8 with stochastic rounding
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_sr<bf8_ocp_t, _Float16>(_Float16 x)
+{
+    return bf8_ocp_t{fp8_impl::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret,
+                                                 bf8_ocp_t::default_saturation,
+                                                 true>(x)};
+}
+
+template <>
+inline __host__ __device__ bf8x2_ocp_t f8_convert_sr<bf8x2_ocp_t, half2_t>(half2_t x)
+{
+    return bf8x2_ocp_t{fp8_impl::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret,
+                                                   bf8_ocp_t::default_saturation,
+                                                   true>(x)};
+}
+
 // Declare a template function for fp8 conversion using RNE
 template <typename Y, typename X>
 __host__ __device__ constexpr Y f8_convert_rne(X x);
@@ -466,6 +534,67 @@ inline __host__ __device__ bf8_fnuz_t f8_convert_rne<bf8_fnuz_t, half_t>(half_t 
 #endif
 }
 
+// convert fp32 to fp8 with rounding to nearest even
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_rne<f8_ocp_t, float>(float x)
+{
+    return f8_ocp_t{
+        fp8_impl::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
+}
+
+template <>
+inline __host__ __device__ f8x2_ocp_t f8_convert_rne<f8x2_ocp_t, float2_t>(float2_t x)
+{
+    return f8x2_ocp_t{
+        fp8_impl::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
+}
+
+// convert fp32 to bf8 with rounding to nearest even
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_rne<bf8_ocp_t, float>(float x)
+{
+    return bf8_ocp_t{
+        fp8_impl::cvt_float_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(x)};
+}
+
+template <>
+inline __host__ __device__ bf8x2_ocp_t f8_convert_rne<bf8x2_ocp_t, float2_t>(float2_t x)
+{
+    return bf8x2_ocp_t{
+        fp8_impl::cvt_float_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(x)};
+}
+
+// convert _Float16 to fp8 with rounding to nearest even
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_rne<f8_ocp_t, _Float16>(_Float16 x)
+{
+    return f8_ocp_t{
+        fp8_impl::cvt_half_t_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
+}
+
+template <>
+inline __host__ __device__ f8x2_ocp_t f8_convert_rne<f8x2_ocp_t, half2_t>(half2_t x)
+{
+    return f8x2_ocp_t{
+        fp8_impl::cvt_half_t_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
+}
+
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_rne<bf8_ocp_t, _Float16>(_Float16 x)
+{
+    return bf8_ocp_t{
+        fp8_impl::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(
+            x)};
+}
+
+template <>
+inline __host__ __device__ bf8x2_ocp_t f8_convert_rne<bf8x2_ocp_t, half2_t>(half2_t x)
+{
+    return bf8x2_ocp_t{
+        fp8_impl::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(
+            x)};
+}
+
 // convert fp32 to fp8
 template <>
 inline __host__ __device__ f8_fnuz_t type_convert<f8_fnuz_t, float>(float x)
@@ -528,13 +657,23 @@ template <>
 inline __host__ __device__ float2_t type_convert<float2_t, f8x2_ocp_t>(f8x2_ocp_t x)
 {
 #if CK_OCP_FP8_CVT_FAST_PATH
-    return fp8_impl::cast_to_f32x2_from_f8x2<f8_ocp_t::default_interpret>(
-        x.AsType<fp8_impl::fp8x2_storage_t>()[Number<0>{}]);
+    return __builtin_amdgcn_cvt_pk_f32_fp8(bit_cast<uint16_t>(x), false);
 #else
     return float2_t{fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(
                         x.AsType<fp8_storage_t>()[Number<0>{}]),
                     fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(
                         x.AsType<fp8_storage_t>()[Number<1>{}])};
+#endif
+}
+
+template <>
+inline __host__ __device__ half2_t type_convert<half2_t, f8x2_ocp_t>(f8x2_ocp_t x)
+{
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_pk_f16_fp8(bit_cast<uint16_t>(x), /*scale*/ 1.f, 0);
+#else
+    return half2_t{type_convert<half_t>(float(x.AsType<f8_ocp_t>()[Number<0>{}])),
+                   type_convert<half_t>(float(x.AsType<f8_ocp_t>()[Number<1>{}]))};
 #endif
 }
 

@@ -65,6 +65,7 @@ enum class ck_saturation_t
 namespace fp8_impl {
 
 typedef fp8_storage_t fp8x2_storage_t __attribute__((ext_vector_type(2)));
+typedef _Float16 half2_t __attribute__((ext_vector_type(2)));
 typedef float float2_t __attribute__((ext_vector_type(2)));
 
 __host__ __device__ static inline constexpr bool fnuz_f8_is_nan(f8_fnuz_t a)
@@ -459,6 +460,213 @@ __is_interpret_supported([[maybe_unused]] ck_fp8_interpretation_t interp)
 #endif
 }
 
+template <ck_fp8_interpretation_t interpret,
+          bool saturate,
+          bool stochastic_rounding                                                 = false,
+          ck::enable_if_t<interpret == ck_fp8_interpretation_t::CK_E4M3_OCP, bool> = false,
+          ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
+static __device__ fp8_storage_t cast_to_f8_from_f16(_Float16 v, unsigned int rng = 0)
+{
+    fp8_storage_t i8data;
+
+    typedef short shortx2_t __attribute__((ext_vector_type(2)));
+    typedef _Float16 _Float16x2 __attribute__((ext_vector_type(2)));
+
+    union
+    {
+        float fval;
+        shortx2_t short_vec;
+        _Float16x2 half_vec;
+        unsigned int i32val;
+        unsigned char i8val[4]; // NOTE: not endian independent
+    } val;
+
+    unsigned int i32val = 0;
+    val.half_vec[-1]    = v;
+
+    if constexpr(saturate)
+    {
+        if((val.i32val & 0x7FFF) != 0x7FFF)
+        { /// propagate NAN/INF, no clipping
+            val.half_vec[0] = __builtin_amdgcn_fmed3h(val.half_vec[0], 448.0, -448.0);
+        }
+    }
+
+    i32val = __builtin_amdgcn_cvt_scalef32_sr_fp8_f16(i32val, val.fval, rng, /* scale */ 1.f, 0);
+    val.i32val = i32val;
+    i8data     = val.i8val[0]; // little endian
+
+    return i8data;
+}
+
+template <ck_fp8_interpretation_t interpret,
+          bool saturate,
+          bool stochastic_rounding                                                 = false,
+          ck::enable_if_t<interpret == ck_fp8_interpretation_t::CK_E4M3_OCP, bool> = false,
+          ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
+static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rng = 0)
+{
+    std::ignore = v;
+    std::ignore = rng;
+    return fp8x2_storage_t{};
+}
+
+template <ck_fp8_interpretation_t interpret,
+          bool saturate,
+          bool stochastic_rounding                                                 = false,
+          ck::enable_if_t<interpret == ck_fp8_interpretation_t::CK_E5M2_OCP, bool> = false,
+          ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
+static __device__ fp8_storage_t cast_to_f8_from_f16(_Float16 v, unsigned int rng = 0)
+{
+    fp8_storage_t i8data;
+
+    typedef short shortx2_t __attribute__((ext_vector_type(2)));
+    typedef _Float16 _Float16x2 __attribute__((ext_vector_type(2)));
+
+    union
+    {
+        float fval;
+        shortx2_t short_vec;
+        _Float16x2 half_vec;
+        unsigned int i32val;
+        unsigned char i8val[4]; // NOTE: not endian independent
+    } val;
+
+    unsigned int i32val = 0;
+    val.fval            = v;
+
+    // if constexpr(saturate)
+    // {
+    //         if((val.i32val & 0x7F800000) != 0x7F800000)
+    //         { /// propagate NAN/INF, no clipping
+    //             val.fval = __builtin_amdgcn_fmed3f(val.fval, 57344.0, -57344.0);
+    //         }
+    // }
+
+    i32val = __builtin_amdgcn_cvt_scalef32_sr_bf8_f16(
+        val.i32val, val.fval, rng, /* scale */ 1.f, 0); // 0 pos
+    val.i32val = i32val;
+    i8data     = val.i8val[0]; // little endian
+    return i8data;
+}
+
+template <ck_fp8_interpretation_t interpret,
+          bool saturate,
+          bool stochastic_rounding                                                 = false,
+          ck::enable_if_t<interpret == ck_fp8_interpretation_t::CK_E5M2_OCP, bool> = false,
+          ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
+static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rng = 0)
+{
+    std::ignore = v;
+    std::ignore = rng;
+    return fp8x2_storage_t{};
+}
+
+template <ck_fp8_interpretation_t interpret,
+          bool saturate,
+          bool stochastic_rounding                                                 = false,
+          ck::enable_if_t<interpret == ck_fp8_interpretation_t::CK_E4M3_OCP, bool> = false,
+          ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
+static __device__ fp8_storage_t cast_to_f8_from_f16(_Float16 v, unsigned int rng = 0)
+{
+    std::ignore = rng;
+    fp8_storage_t i8data;
+
+    typedef short shortx2_t __attribute__((ext_vector_type(2)));
+    typedef _Float16 _Float16x2 __attribute__((ext_vector_type(2)));
+
+    union
+    {
+        float fval;
+        shortx2_t short_vec;
+        _Float16x2 half_vec;
+        unsigned int i32val;
+        unsigned char i8val[4]; // NOTE: not endian independent
+    } val;
+
+    shortx2_t ival{0, 0};
+    val.fval = v;
+
+    // if constexpr(saturate)
+    // {
+    //         if((val.i32val & 0x7F800000) != 0x7F800000)
+    //         { /// propagate NAN/INF, no clipping
+    //             val.fval = __builtin_amdgcn_fmed3f(val.fval, 448.0, -448.0);
+    //         }
+    // }
+
+    ival = __builtin_amdgcn_cvt_scalef32_pk_fp8_f16(ival, val.half_vec, /* scale */ 1.f, false);
+    val.short_vec = ival;
+    i8data        = val.i8val[0];
+    return i8data;
+}
+
+template <ck_fp8_interpretation_t interpret,
+          bool saturate,
+          bool stochastic_rounding                                                 = false,
+          ck::enable_if_t<interpret == ck_fp8_interpretation_t::CK_E4M3_OCP, bool> = false,
+          ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
+static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rng = 0)
+{
+    std::ignore = v;
+    std::ignore = rng;
+    return fp8x2_storage_t{};
+}
+
+template <ck_fp8_interpretation_t interpret,
+          bool saturate,
+          bool stochastic_rounding                                                 = false,
+          ck::enable_if_t<interpret == ck_fp8_interpretation_t::CK_E5M2_OCP, bool> = false,
+          ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
+static __device__ fp8_storage_t cast_to_f8_from_f16(_Float16 v, unsigned int rng = 0)
+{
+    std::ignore = rng;
+    fp8_storage_t i8data;
+
+    typedef short shortx2_t __attribute__((ext_vector_type(2)));
+    typedef _Float16 _Float16x2 __attribute__((ext_vector_type(2)));
+
+    union
+    {
+        float fval;
+        shortx2_t short_vec;
+        _Float16x2 half_vec;
+        unsigned int i32val;
+        unsigned char i8val[4]; // NOTE: not endian independent
+    } val;
+
+    shortx2_t ival{0, 0};
+    val.fval = v;
+
+    // if constexpr(saturate)
+    // {
+    //         if((val.i32val & 0x7F800000) != 0x7F800000)
+    //         { /// propagate NAN/INF, no clipping
+    //             val.fval = __builtin_amdgcn_fmed3f(val.fval, 57344.0, -57344.0);
+    //         }
+    // }
+
+    ival          = __builtin_amdgcn_cvt_scalef32_pk_bf8_f16(ival,
+                                                    val.half_vec,
+                                                    /* scale */ 1.f,
+                                                    false); // false -> WORD0
+    val.short_vec = ival;
+    i8data        = val.i8val[0];
+    return i8data;
+}
+
+template <ck_fp8_interpretation_t interpret,
+          bool saturate,
+          bool stochastic_rounding                                                 = false,
+          ck::enable_if_t<interpret == ck_fp8_interpretation_t::CK_E5M2_OCP, bool> = false,
+          ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
+static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rng = 0)
+{
+    std::ignore = v;
+    std::ignore = rng;
+    return fp8x2_storage_t{};
+}
+
 #if CK_FP8_CVT_FAST_PATH
 // The conversion function is from rocblas
 // https://github.com/ROCm/rocBLAS/blob/9b7f692abe3c54b88d1e77e045a7db7f1f188b69/library/include/internal/rocblas_float8.h#L79
@@ -523,6 +731,84 @@ static __device__ fp8_storage_t cast_to_f8_from_f32(float v, unsigned int rng = 
         i8data     = val.i8val[0];
     }
     return i8data;
+}
+
+template <ck_fp8_interpretation_t interpret, bool saturate, bool stochastic_rounding = false>
+static __device__ fp8x2_storage_t cast_to_f8_from_f32(float2_t v, unsigned int rng = 0)
+{
+    if constexpr(stochastic_rounding)
+    {
+        return fp8x2_storage_t{
+            cast_to_f8_from_f32<interpret, saturate, stochastic_rounding>(v[0], rng),
+            cast_to_f8_from_f32<interpret, saturate, stochastic_rounding>(v[1], rng)};
+    }
+    else
+    {
+        union
+        {
+            float fval;
+            unsigned int i32val;
+            unsigned char i16val[2];
+            unsigned char i8val[4];
+        } val0, val1;
+
+        val0.fval = v[0];
+        val1.fval = v[1];
+
+        unsigned int ival = 0;
+
+        if constexpr(saturate)
+        {
+            if constexpr(interpret == ck_fp8_interpretation_t::CK_E4M3_FNUZ)
+            {
+                if((val0.i32val & 0x7F800000) != 0x7F800000)
+                { /// propagate NAN/INF, no clipping
+                    val0.fval = __builtin_amdgcn_fmed3f(val0.fval, 240.0, -240.0);
+                }
+                if((val1.i32val & 0x7F800000) != 0x7F800000)
+                { /// propagate NAN/INF, no clipping
+                    val1.fval = __builtin_amdgcn_fmed3f(val1.fval, 240.0, -240.0);
+                }
+            }
+            else if constexpr(interpret == ck_fp8_interpretation_t::CK_E4M3_OCP)
+            { // OCP type
+                if((val0.i32val & 0x7F800000) != 0x7F800000)
+                { /// propagate NAN/INF, no clipping
+                    val0.fval = __builtin_amdgcn_fmed3f(val0.fval, 448.0, -448.0);
+                }
+                if((val1.i32val & 0x7F800000) != 0x7F800000)
+                { /// propagate NAN/INF, no clipping
+                    val1.fval = __builtin_amdgcn_fmed3f(val1.fval, 448.0, -448.0);
+                }
+            }
+            else
+            {
+                if((val0.i32val & 0x7F800000) != 0x7F800000)
+                { /// propagate NAN/INF, no clipping
+                    val0.fval = __builtin_amdgcn_fmed3f(val0.fval, 57344.0, -57344.0);
+                }
+                if((val1.i32val & 0x7F800000) != 0x7F800000)
+                { /// propagate NAN/INF, no clipping
+                    val1.fval = __builtin_amdgcn_fmed3f(val1.fval, 57344.0, -57344.0);
+                }
+            }
+        }
+
+        // RNE CVT
+        if constexpr((interpret == ck_fp8_interpretation_t::CK_E4M3_FNUZ) ||
+                     (interpret == ck_fp8_interpretation_t::CK_E4M3_OCP))
+        {
+            ival = __builtin_amdgcn_cvt_pk_fp8_f32(val0.fval, val1.fval, ival, false);
+        }
+        else
+        {
+            ival = __builtin_amdgcn_cvt_pk_bf8_f32(val0.fval, val1.fval, ival, false);
+        }
+
+        val0.i32val = ival;
+
+        return fp8x2_storage_t{val0.i16val[0]};
+    }
 }
 #endif // CK_FP8_CVT_FAST_PATH
 
@@ -883,6 +1169,38 @@ __host__ static inline fp8_storage_t cvt_float_to_fp8(const float f)
 #endif // CK_FP8_CVT_FAST_PATH
 }
 
+template <ck_fp8_interpretation_t interp,
+          ck_saturation_t sat      = ck_saturation_t::CK_SATFINITE,
+          bool stochastic_rounding = false>
+#if CK_FP8_CVT_FAST_PATH
+__host__ __device__ static inline fp8x2_storage_t cvt_float_to_fp8(const float2_t f)
+{
+    __is_interpret_supported(interp);
+    uint32_t rng = 0;
+    if constexpr(stochastic_rounding)
+    {
+        constexpr int seed = 1254739;
+#ifndef CK_CODE_GEN_RTC
+        rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f[0]);
+#else
+        rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f[0]);
+#endif
+    }
+    return cast_to_f8_from_f32<interp, sat == ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
+        f, rng);
+#else
+#if CK_USE_OCP_FP8
+__host__ __device__ static inline fp8x2_storage_t cvt_float_to_fp8(const float2_t f)
+{
+#else
+__host__ static inline fp8x2_storage_t cvt_float_to_fp8(const float2_t f)
+{
+#endif // CK_USE_OCP_FP8
+    return fp8x2_storage_t{cvt_float_to_fp8<interp, sat, stochastic_rounding>(f[0]),
+                           cvt_float_to_fp8<interp, sat, stochastic_rounding>(f[1])};
+#endif // CK_FP8_CVT_FAST_PATH
+}
+
 /**
  * \brief convert _Float16 to @p fp8_storage_t
  *
@@ -901,86 +1219,64 @@ __host__ __device__ static inline fp8_storage_t cvt_half_t_to_fp8(const _Float16
 __host__ static inline fp8_storage_t cvt_half_t_to_fp8(const _Float16 x)
 #endif
 {
-    return cvt_float_to_fp8<interp, sat, stochastic_rounding>(static_cast<float>(x));
+    {
+        __is_interpret_supported(interp);
+        uint32_t rng = 0;
+        if constexpr(stochastic_rounding)
+        {
+            constexpr int seed = 1254739;
+#ifndef CK_CODE_GEN_RTC
+            rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#else
+            rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
+#endif
+        }
+#if CK_OCP_FP8_CVT_FAST_PATH
+        return cast_to_f8_from_f16<interp,
+                                   sat == ck_saturation_t::CK_SATFINITE,
+                                   stochastic_rounding>(x, rng);
+#else
+        std::ignore = rng;
+        return cvt_float_to_fp8<interp, ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
+            static_cast<float>(x));
+#endif // CK_OCP_FP8_CVT_FAST_PATH
+    }
+}
+
+template <ck_fp8_interpretation_t interp,
+          ck_saturation_t sat      = ck_saturation_t::CK_SATFINITE,
+          bool stochastic_rounding = false>
+#if CK_FP8_CVT_FAST_PATH || CK_USE_OCP_FP8
+__host__ __device__ static inline fp8x2_storage_t cvt_half_t_to_fp8(const half2_t x)
+#else
+__host__ static inline fp8x2_storage_t cvt_half_t_to_fp8(const half2_t x)
+#endif
+{
+    {
+        __is_interpret_supported(interp);
+        uint32_t rng = 0;
+        if constexpr(stochastic_rounding)
+        {
+            constexpr int seed = 1254739;
+#ifndef CK_CODE_GEN_RTC
+            rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+#else
+            rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
+#endif
+        }
+#if CK_OCP_FP8_CVT_FAST_PATH
+        return cast_to_f8_from_f16<interp,
+                                   sat == ck_saturation_t::CK_SATFINITE,
+                                   stochastic_rounding>(x, rng);
+#else
+        std::ignore = rng;
+        return cvt_float_to_fp8<interp, ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
+            float2_t{static_cast<float>(x[0]), static_cast<float>(x[1])});
+#endif // CK_OCP_FP8_CVT_FAST_PATH
+    }
 }
 
 } // namespace fp8_impl
-
-// Declare a template function for fp8 conversion using RNE
-template <typename Y, typename X>
-__host__ __device__ constexpr Y f8_convert_rne(X x);
-
-// convert fp32 to fp8 with rounding to nearest even
-template <>
-inline __host__ __device__ f8_ocp_t f8_convert_rne<f8_ocp_t, float>(float x)
-{
-    return f8_ocp_t{
-        fp8_impl::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
-}
-
-// convert fp32 to bf8 with rounding to nearest even
-template <>
-inline __host__ __device__ bf8_ocp_t f8_convert_rne<bf8_ocp_t, float>(float x)
-{
-    return bf8_ocp_t{
-        fp8_impl::cvt_float_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(x)};
-}
-
-// convert _Float16 to fp8 with rounding to nearest even
-template <>
-inline __host__ __device__ f8_ocp_t f8_convert_rne<f8_ocp_t, _Float16>(_Float16 x)
-{
-    return f8_ocp_t{
-        fp8_impl::cvt_half_t_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
-}
-
-template <>
-inline __host__ __device__ bf8_ocp_t f8_convert_rne<bf8_ocp_t, _Float16>(_Float16 x)
-{
-    return bf8_ocp_t{
-        fp8_impl::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(
-            x)};
-}
-
-// Declare a template function for fp8 conversion using RNE
-template <typename Y, typename X>
-__host__ __device__ constexpr Y f8_convert_sr(X x);
-
-// convert fp32 to fp8 with stochastic rounding
-template <>
-inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, float>(float x)
-{
-    return f8_ocp_t{
-        fp8_impl::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation, true>(
-            x)};
-}
-
-// convert fp32 to bf8 with stochastic rounding
-template <>
-inline __host__ __device__ bf8_ocp_t f8_convert_sr<bf8_ocp_t, float>(float x)
-{
-    return bf8_ocp_t{fp8_impl::cvt_float_to_fp8<bf8_ocp_t::default_interpret,
-                                                bf8_ocp_t::default_saturation,
-                                                true>(x)};
-}
-
-// convert _Float16 to fp8 with stochastic rounding
-template <>
-inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, _Float16>(_Float16 x)
-{
-    return f8_ocp_t{fp8_impl::cvt_half_t_to_fp8<f8_ocp_t::default_interpret,
-                                                f8_ocp_t::default_saturation,
-                                                true>(x)};
-}
-
-// convert _Float16 to bf8 with stochastic rounding
-template <>
-inline __host__ __device__ bf8_ocp_t f8_convert_sr<bf8_ocp_t, _Float16>(_Float16 x)
-{
-    return bf8_ocp_t{fp8_impl::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret,
-                                                 bf8_ocp_t::default_saturation,
-                                                 true>(x)};
-}
 
 #if CK_USE_OCP_FP8
 using f8_t  = f8_ocp_t;
