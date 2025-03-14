@@ -132,7 +132,7 @@ static constexpr ck::index_t BLOCKSIZE   = 256;
 static constexpr ck::index_t NPerBlock   = 128;
 static constexpr ck::index_t MNPerXDL    = 32;
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
-static constexpr ck::index_t Nswizzle    = true;
+static constexpr ck::index_t Nswizzle    = false;
 static constexpr ck::index_t AK1         = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1         = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec        = 16 / sizeof(EDataType);
@@ -170,11 +170,11 @@ int main(int argc, char* argv[])
 
     // GEMM shape
     ck::index_t N               = 4096;
-    ck::index_t K               = 4096;
-    ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 8;
-    ck::index_t valid_tile_num  = 8;
-    ck::index_t tokens          = 128;
+    ck::index_t K               = 6144;
+    ck::index_t experts         = 1;
+    ck::index_t sorted_tile_num = 2000;
+    ck::index_t valid_tile_num  = 2000;
+    ck::index_t tokens          = 256000;
     ck::index_t topk            = 2;
 
     // ck::index_t tokens = batch * topk;
@@ -237,11 +237,10 @@ int main(int argc, char* argv[])
     // int eids[] = {0, 0,1, 2,3, 3, 4,4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     // max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
     // int eids[] = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
-    max_token_id.mData = {valid_size, 0, 1, 2, 3, 4, 5, 6, 7, 8};
-    int eids[]         = {0, 1, 2, 3, 4, 5, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+    max_token_id.mData = {valid_size};
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        expert_ids.mData[i] = eids[i];
+        expert_ids.mData[i] = 0;
     }
     int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;

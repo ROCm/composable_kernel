@@ -491,7 +491,7 @@ struct GridwiseMoeGemm
 
     template <typename ELayout>
     __host__ __device__ static auto
-    MakeCGridDescriptor_M_N(index_t M, index_t MPad, index_t N, index_t NPad, index_t StrideC)
+    MakeCGridDescriptor_M_N(long_index_t M, long_index_t MPad, long_index_t N, long_index_t NPad, long_index_t StrideC)
     {
         const auto c_grid_desc_mraw_nraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ELayout>::value)
@@ -1171,6 +1171,8 @@ struct GridwiseMoeGemm
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);
         // static_assert(NSwizzle == false, "to do fix: need another pr in sorting merged");
         const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.y;
+        if(threadIdx.x==0 && blockIdx.y+blockIdx.x==0)
+                printf("%ld %ld %ld\n", a_grid_desc_ak0_m_ak1.GetElementSpaceSize(), c_grid_desc_m_n.GetElementSpaceSize(), c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         if(expert_block_id * MPerBlock >= max_token_id)
             return;
         const index_t expert_id =
@@ -1210,7 +1212,7 @@ struct GridwiseMoeGemm
 
         if(token_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
-        StaticallyIndexedArray<index_t, AMRepeats> gather_offsets;
+        StaticallyIndexedArray<long_index_t, AMRepeats> gather_offsets;
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             const index_t fused_token = p_sorted_token_ids[token_pos + m0];
             index_t token_offset      = fused_token & 0xffffff;
@@ -1563,7 +1565,7 @@ struct GridwiseMoeGemm
             const float* p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
-                StaticallyIndexedArray<index_t, EMRepeats>
+                StaticallyIndexedArray<long_index_t, EMRepeats>
                     scatter_offsets; //= p_sorted_token_ids[c_token_pos];
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
                 // too hack here, 2 specific for topk weights, fixme
@@ -1713,7 +1715,7 @@ struct GridwiseMoeGemm
         if(token_pos >= max_token_id || expert_block_id * MPerBlock >= max_token_id ||
            token0 >= problem.NumTokens)
             return;
-        StaticallyIndexedArray<index_t, AMRepeats>
+        StaticallyIndexedArray<long_index_t, AMRepeats>
             gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             const index_t fused_token = p_sorted_token_ids[token_pos + m0];
@@ -2073,7 +2075,7 @@ struct GridwiseMoeGemm
             const float* p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
-                StaticallyIndexedArray<index_t, EMRepeats>
+                StaticallyIndexedArray<long_index_t, EMRepeats>
                     scatter_offsets; //= p_sorted_token_ids[c_token_pos];
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
                 // too hack here, 2 specific for topk weights, fixme

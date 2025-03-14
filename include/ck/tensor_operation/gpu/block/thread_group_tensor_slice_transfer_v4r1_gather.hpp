@@ -58,7 +58,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1_gather
         const DstDesc& dst_desc,
         const Index& dst_block_slice_origin,
         const DstElementwiseOperation& dst_element_op,
-        const StaticallyIndexedArray<index_t, gather_num>& gather_offsets)
+        const StaticallyIndexedArray<long_index_t, gather_num>& gather_offsets)
         : threadwise_transfer_(src_desc,
                                make_zero_multi_index<nDim>(),
                                src_element_op,
