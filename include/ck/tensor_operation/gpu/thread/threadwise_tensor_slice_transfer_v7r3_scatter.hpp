@@ -412,7 +412,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
               enable_if_t<DstDescs::Size() == 1 && DstBuffers::Size() == 1, bool> = false>
     __device__ void RunWrite(const DstDescs& dst_descs,
                              DstBuffers dst_bufs,
-                             StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
+                             StaticallyIndexedArray<long_index_t, scatter_num>& scatter_offsets,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         OOBCheck(thread_scratch_id);
@@ -431,12 +431,27 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
             // copy data from buf_vectors into dst_bufs
             static_for<0, nDst, 1>{}([&](auto i) {
                 using dst_vector_t      = typename remove_cvref_t<decltype(dst_vectors[i])>::type;
-                auto dst_offset         = scatter_offset + dst_coords_[i].GetOffset();
+                long_index_t dst_offset         = scatter_offset + (dst_coords_[i].GetOffset());
                 const bool is_dst_valid = dst_offset < dst_descs[i].GetElementSpaceSize();
+<<<<<<< HEAD
+=======
+                // coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_descs[i],
+                //                                                             dst_coords_[i]);
+>>>>>>> f911cf739 (impl int64 but result not correct)
                 constexpr InMemoryDataOperationEnum DstInMemOp =
                     static_cast<InMemoryDataOperationEnum>(DstInMemOps::At(i.value));
                 dst_bufs(i).template Update<DstInMemOp, dst_vector_t>(
                     dst_offset, is_dst_valid, dst_vectors[i].template AsType<dst_vector_t>()[I0]);
+                // if(threadIdx.x%8 ==0 && blockIdx.x==0) {
+                // if(dst_offset>80740352 && threadIdx.x==0) {
+                //      static_for<0, 1, 1>{}([&](auto idx) {
+                //          using DstData = remove_cvref_t<tuple_element_t<0, DstDatas>>;
+                //          using print_vec_t = typename vector_type<DstData, 1>::type;
+                //          printf("tid %d off %ld valid %d %ld %f\n",threadIdx.x, dst_offset,
+                //          is_dst_valid, dst_descs[i].GetElementSpaceSize(), type_convert<float>(dst_vectors[i].template
+                //          AsType<print_vec_t>()[idx]));
+                //      });
+                //  }
             });
 
             // move coordinate
@@ -488,7 +503,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                         const SrcBuffers& src_bufs,
                         const DstDescs& dst_descs,
                         DstBuffers dst_bufs,
-                        StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
+                        StaticallyIndexedArray<long_index_t, scatter_num>& scatter_offsets,
                         StaticallyIndexedArray<float, scatter_num>& scatter_weights)
     {
         RunRead(src_descs, src_bufs, scatter_weights);

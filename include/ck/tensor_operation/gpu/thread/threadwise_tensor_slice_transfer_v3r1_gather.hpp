@@ -88,7 +88,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         const DstDesc& dst_desc,
         const Index& dst_slice_origin,
         const DstElementwiseOperation& dst_element_op,
-        const StaticallyIndexedArray<index_t, gather_num>& gather_offsets)
+        const StaticallyIndexedArray<long_index_t, gather_num>& gather_offsets)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin)),
           dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
           src_element_op_(src_element_op),
@@ -935,7 +935,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
     DstCoord dst_coord_;
     const SrcElementwiseOperation src_element_op_;
     const DstElementwiseOperation dst_element_op_;
-    StaticallyIndexedArray<index_t, gather_num> gather_offsets_;
+    StaticallyIndexedArray<long_index_t, gather_num> gather_offsets_;
 };
 
 } // namespace ck
