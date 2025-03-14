@@ -4,7 +4,6 @@
 #include "ck_tile/host.hpp"
 #include "gemm_host.hpp"
 #include "tensor_configuration.hpp"
-#include "gemm_kernel.hpp"
 
 template <typename ADataType,
           typename BDataType,
@@ -17,7 +16,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 {
     const ALayout a_layout = ALayout{};
     const BLayout b_layout = BLayout{};
-    const CLayout c_layout = CLayout{};
+    //const CLayout c_layout = CLayout{};
 
     ck_tile::index_t kbatch = arg_parser.get_int("split_k");
     ck_tile::index_t M      = arg_parser.get_int("m");
@@ -112,11 +111,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
+              << ave_time << " ms, "
+              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+
+               /*
+               << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
               << " C_Layout =" << CLayout::name << " A Type = " << DataTypeTraits<ADataType>::name
               << " B Type = " << DataTypeTraits<BDataType>::name
-              << " C Type = " << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
-              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+              << " C Type = " << DataTypeTraits<CDataType>::name << " : " 
+              */
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass =
         gemm_verify<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
@@ -143,8 +146,7 @@ int main(int argc, char* argv[])
         auto [result, arg_parser] = create_args(argc, argv);
         if(!result)
             return -1;
-        run<ADataType, BDataType, AccDataType, CDatatType, ALayout, BLayout, CLayout>(
-            const ck_tile::ArgParser& arg_parser);
+        run<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>( arg_parser);
     }
     catch(const std::runtime_error& e)
     {

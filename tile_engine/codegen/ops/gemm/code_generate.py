@@ -57,6 +57,7 @@ class gemm_instance_codegen:
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/core.hpp"
+#pragma once
 
 using ADataType = {ADataTypeDefine};
 using BDataType = {BDataTypeDefine};
@@ -156,16 +157,18 @@ struct GemmConfig
 #include <tuple>
 
 #include "ck_tile/host.hpp"
+#include "ck_tile/ops/epilogue.hpp"
 #include "tensor_configuration.hpp"
+#include "gemm_host.hpp"
 
 template<typename ADataType, 
          typename BDataType, 
          typename AccDataType,
          typename CDataType,
-         typenmae ALayout,         
+         typename ALayout,         
          typename BLayout,
          typename CLayout>
-float gemm_kernel_launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+float gemm_kernel_launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {{
     using GemmShape = 
         ck_tile::TileGemmShape<ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
@@ -230,7 +233,7 @@ float gemm_kernel_launch(const ck_tile::GemmHostArgs& args, const ck_tile::strea
 
         using GemmPipeline = {gemm_pipeline}<UniversalGemmProblem>;    
 
-        {epilogue_define}
+        {epilogue_define};
 
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
@@ -261,7 +264,7 @@ float gemm_kernel_launch(const ck_tile::GemmHostArgs& args, const ck_tile::strea
                                                                                                                     
     return ave_time;
 }}
-    """
+"""
 
     @dataclass
     class datatype_configuration:
@@ -401,8 +404,8 @@ float gemm_kernel_launch(const ck_tile::GemmHostArgs& args, const ck_tile::strea
         blobs = self.get_blobs(args)
         with list_p.open('w') as list_f:
             # api related file
-            list_f.write(str(w_p / (self.name_kernel_file + ".hpp"))  + "\n")   #TODO:: define name_api
             list_f.write(str(w_p / (self.name_common_header + ".hpp"))  + "\n")
+            list_f.write(str(w_p / (self.name_kernel_file + ".cpp"))  + "\n")   #TODO:: define name_api
             # kernel instance file
             #for b in blobs:
             #    list_f.write(str(w_p / (b.name + ".cpp")) + "\n")
@@ -413,7 +416,7 @@ float gemm_kernel_launch(const ck_tile::GemmHostArgs& args, const ck_tile::strea
         w_p = Path(self.working_path)
         w_str = self.content_api(args)
         (w_p / (self.name_common_header + ".hpp")).write_text(self.common_header)
-        (w_p / (self.name_kernel_file + ".hpp")).write_text(w_str) 
+        (w_p / (self.name_kernel_file + ".cpp")).write_text(w_str) 
         print("*************************************************")  
         
         

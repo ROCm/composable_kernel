@@ -5,7 +5,9 @@
 #include <sstream>
 #include <string>
 #include <tuple>
+#include "ck_tile/ops/gemm.hpp"
 
+#pragma once
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -36,7 +38,7 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 }
 
 
-auto create_args(int argc, char* argv[])
+inline auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("m", "3840", "m dimension")
@@ -156,4 +158,7 @@ bool gemm_verify(int verify,
     return pass;
 
 }
+
+template<typename ADataType, typename BDataType, typename AccDataType, typename CDataType, typename ALayout, typename BLayout, typename CLayout>
+float gemm_kernel_launch(ck_tile::GemmHostArgs kernel_args, const ck_tile::stream_config&);
 

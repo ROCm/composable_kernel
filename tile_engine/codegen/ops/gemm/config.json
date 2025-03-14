@@ -17,5 +17,5 @@
     "Prec_datatype": "fp16",
     "Pipeline_type": "Memory",
     "Scheduler_type": "Interwave",
-    "Epilogue_type": "Default"
+    "Epilogue_type": "CShuffle"
 }
