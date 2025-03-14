@@ -3,6 +3,7 @@
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_transpose_xdl_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -24,7 +25,6 @@ void add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkzyxc_ngcdhw_bf16_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances)
 {
-    // 1. Default
     add_device_operation_instances(
         instances,
         device_grouped_conv_bwd_data_xdl_bf16_instances<3,
@@ -33,15 +33,14 @@ void add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkzyxc_ngcdhw_bf16_instances(
                                                         Empty_Tuple,
                                                         NGCDHW,
                                                         ConvBwdDataDefault>{});
-    // 2. Filter1x1Stride1Pad0
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_xdl_bf16_instances<3,
-                                                        NGKDHW,
-                                                        GKZYXC,
-                                                        Empty_Tuple,
-                                                        NGCDHW,
-                                                        ConvBwdDataFilter1x1Stride1Pad0>{});
+        device_grouped_conv_bwd_data_transpose_xdl_bf16_instances<3,
+                                                                  NGKDHW,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NGCDHW,
+                                                                  ConvBwdDataDefault>{});
 }
 
 } // namespace instance

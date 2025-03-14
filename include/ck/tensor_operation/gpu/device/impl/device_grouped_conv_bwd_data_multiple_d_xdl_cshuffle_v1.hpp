@@ -205,9 +205,11 @@ template <index_t NDimSpatial,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler(),
-          typename AComputeType   = ADataType,
-          typename BComputeType   = AComputeType>
+          LoopScheduler LoopSched                        = make_default_loop_scheduler(),
+          typename AComputeType                          = ADataType,
+          typename BComputeType                          = AComputeType,
+          index_t MaxTransposeTransferInScalarPerVector  = 1,
+          index_t MaxTransposeTransferOutScalarPerVector = 1>
 struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     : public DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
                                                ALayout,    // output image
@@ -268,17 +270,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                                      true, /*SplitConvN*/
                                                                      ABDataType,
                                                                      EDataType>;
-
-    static constexpr index_t ClusterLengthNPerBlock =
-        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(3);
-
-    static constexpr auto conv_ngchw_to_nhwgc_transformer =
-        TransformConvNGCHWToNHWGC<ELayout,
-                                  BLayout,
-                                  ALayout,
-                                  NDimSpatial,
-                                  NPerBlock / ClusterLengthNPerBlock,
-                                  NPerBlock / ClusterLengthNPerBlock>{};
 
     static auto
     GetDummyABDsEGridDescriptor(const ConvToGemmBwdDataTransform& conv_to_gemm_transform)
@@ -401,7 +392,25 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     // block-to-e-tile map
     using Block2ETileMap =
         remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
-    using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, NPerBlock>;
+    using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, MPerBlock>;
+
+    static constexpr index_t ClusterLengthMPerBlock =
+        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(1);
+    static constexpr index_t ClusterLengthNPerBlock =
+        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(3);
+
+    static constexpr auto conv_ngchw_to_nhwgc_transformer =
+        TransformConvNGCHWToNHWGC<ELayout,
+                                  BLayout,
+                                  ALayout,
+                                  NDimSpatial,
+                                  NPerBlock / ClusterLengthNPerBlock,
+                                  MPerBlock / ClusterLengthMPerBlock>{};
+
+    static constexpr index_t TransposeTransferInScalarPerVectorAligned =
+        std::min(MPerBlock / ClusterLengthMPerBlock, MaxTransposeTransferInScalarPerVector);
+    static constexpr index_t TransposeTransferOutScalarPerVectorAligned =
+        std::min(MPerBlock / ClusterLengthMPerBlock, MaxTransposeTransferOutScalarPerVector);
 
     using NGCHWTransposeDescType =
         remove_cvref_t<decltype(conv_ngchw_to_nhwgc_transformer
@@ -410,7 +419,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         remove_cvref_t<decltype(conv_ngchw_to_nhwgc_transformer
                                     .template MakeNHWGCTransposeDesc<NDimSpatial>({}, {}))>;
 
-    static constexpr index_t ElementwiseBlocksize = ClusterLengthNPerBlock * ClusterLengthNPerBlock;
+    static constexpr index_t ElementwiseBlocksize = ClusterLengthMPerBlock * ClusterLengthNPerBlock;
 
     using GridwiseElementwiseInputTranspose =
         GridwiseElementwise<Tuple<NGCHWTransposeDescType>,
@@ -421,11 +430,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             element_wise::PassThrough,
                             ElementwiseBlocksize,
                             NPerBlock,
-                            NPerBlock,
+                            MPerBlock,
                             NPerBlock / ClusterLengthNPerBlock,
-                            NPerBlock / ClusterLengthNPerBlock,
+                            MPerBlock / ClusterLengthMPerBlock,
                             Sequence<1, 0>,
-                            Sequence<CDEBlockTransferScalarPerVector_NPerBlock>,
+                            Sequence<TransposeTransferInScalarPerVectorAligned>,
                             Sequence<CDEBlockTransferScalarPerVector_NPerBlock>,
                             I1,
                             I0>;
@@ -439,12 +448,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             element_wise::PassThrough,
                             ElementwiseBlocksize,
                             NPerBlock,
-                            NPerBlock,
+                            MPerBlock,
                             NPerBlock / ClusterLengthNPerBlock,
-                            NPerBlock / ClusterLengthNPerBlock,
+                            MPerBlock / ClusterLengthMPerBlock,
                             Sequence<1, 0>,
                             Sequence<CDEBlockTransferScalarPerVector_NPerBlock>,
-                            Sequence<CDEBlockTransferScalarPerVector_NPerBlock>,
+                            Sequence<TransposeTransferOutScalarPerVectorAligned>,
                             I0,
                             I1>;
     // Argument
@@ -681,28 +690,35 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             compute_ptr_offset_of_n_.BatchStrideE_ =
                 e_g_n_c_wis_strides_transposed[1] * conv_N_per_block_;
 
+            num_workgroups_per_Conv_N_ = a_g_n_k_wos_lengths_[I1] / conv_N_per_block_;
+
             if constexpr(is_NGCHW_GKYXC_NGKHW<ELayout, BLayout, ALayout>() ||
                          is_NGCDHW_GKZYXC_NGKDHW<ELayout, BLayout, ALayout>())
             {
                 // Use not modified base strides
                 a_in_transpose_desc_ =
                     conv_ngchw_to_nhwgc_transformer.template MakeNGCHWTransposeDesc<NDimSpatial>(
-                        a_g_n_k_wos_lengths, a_g_n_k_wos_strides);
+                        a_g_n_k_wos_lengths, a_g_n_k_wos_strides, num_workgroups_per_Conv_N_);
                 a_out_transpose_desc_ =
                     conv_ngchw_to_nhwgc_transformer.template MakeNHWGCTransposeDesc<NDimSpatial>(
-                        a_g_n_k_wos_lengths, a_g_n_k_wos_strides);
+                        a_g_n_k_wos_lengths, a_g_n_k_wos_strides, num_workgroups_per_Conv_N_);
 
                 e_in_transpose_desc_ =
                     conv_ngchw_to_nhwgc_transformer.template MakeNHWGCTransposeDesc<NDimSpatial>(
-                        e_g_n_c_wis_lengths, e_g_n_c_wis_strides);
+                        e_g_n_c_wis_lengths, e_g_n_c_wis_strides, num_workgroups_per_Conv_N_);
                 e_out_transpose_desc_ =
                     conv_ngchw_to_nhwgc_transformer.template MakeNGCHWTransposeDesc<NDimSpatial>(
-                        e_g_n_c_wis_lengths, e_g_n_c_wis_strides);
+                        e_g_n_c_wis_lengths, e_g_n_c_wis_strides, num_workgroups_per_Conv_N_);
 
                 elementwise_block_2_ctile_map_transpose_a_ = Block2TileMapElementwise{
                     a_in_transpose_desc_.GetLength(I0), a_in_transpose_desc_.GetLength(I1)};
                 elementwise_block_2_ctile_map_transpose_e_ = Block2TileMapElementwise{
                     e_in_transpose_desc_.GetLength(I0), e_in_transpose_desc_.GetLength(I1)};
+
+                compute_ptr_offset_of_workspace_n_.BatchStrideA_ =
+                    a_g_n_k_wos_strides[1] * conv_N_per_block_;
+                compute_ptr_offset_of_workspace_n_.BatchStrideE_ =
+                    e_g_n_c_wis_strides[1] * conv_N_per_block_;
             }
         }
 
@@ -789,6 +805,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         // for computing batch offset
         ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor> compute_ptr_offset_of_batch_;
         ComputePtrOffsetOfStridedBatch<I1, I1, I0> compute_ptr_offset_of_n_;
+        ComputePtrOffsetOfStridedBatch<I1, I1, I0> compute_ptr_offset_of_workspace_n_;
 
         // element-wise op
         AElementwiseOp a_element_op_;
@@ -801,6 +818,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         std::array<index_t, NDimSpatial> conv_filter_strides_;
         std::array<index_t, NDimSpatial> input_left_pads_;
         std::array<index_t, NDimSpatial> input_right_pads_;
+
+        index_t num_workgroups_per_Conv_N_;
     };
 
     // Invoker
@@ -813,9 +832,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             float ave_time = 0;
 
             const index_t gdy = arg.num_group_;
-            const index_t num_workgroups_per_Conv_N =
-                arg.a_g_n_k_wos_lengths_[I1] / arg.conv_N_per_block_;
-            const index_t gdz = num_workgroups_per_Conv_N;
+            const index_t gdz = arg.num_workgroups_per_Conv_N_;
 
             const ADataType* p_a_grid = arg.p_a_grid_;
             EDataType* p_e_grid       = arg.p_e_grid_;
@@ -913,29 +930,39 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             {
                 const index_t grid_size =
                     arg.elementwise_block_2_ctile_map_transpose_a_.CalculateGridSize(
-                        arg.a_in_transpose_desc_);
+                        arg.a_in_transpose_desc_) *
+                    arg.num_workgroups_per_Conv_N_;
 
                 ADataType* p_a_out_grid = type_convert<ADataType*>(arg.p_workspace_);
 
-                auto kernel_transpose = kernel_elementwise<GridwiseElementwiseInputTranspose,
-                                                           ck::Tuple<NGCHWTransposeDescType>,
-                                                           ck::Tuple<NHWGCTransposeDescType>,
-                                                           ck::Tuple<const ADataType*>,
-                                                           ck::Tuple<ADataType*>,
-                                                           Block2TileMapElementwise,
-                                                           element_wise::PassThrough>;
+                auto kernel_transpose =
+                    kernel_batched_elementwise<GridwiseElementwiseInputTranspose,
+                                               ck::Tuple<NGCHWTransposeDescType>,
+                                               ck::Tuple<NHWGCTransposeDescType>,
+                                               ck::Tuple<const ADataType*>,
+                                               ck::Tuple<ADataType*>,
+                                               Block2TileMapElementwise,
+                                               element_wise::PassThrough,
+                                               I1,
+                                               I1>;
 
-                ave_time += launch_and_time_kernel(stream_config,
-                                                   kernel_transpose,
-                                                   dim3(grid_size),
-                                                   dim3(ElementwiseBlocksize),
-                                                   0,
-                                                   make_tuple(arg.a_in_transpose_desc_),
-                                                   make_tuple(arg.a_out_transpose_desc_),
-                                                   make_tuple(arg.p_a_grid_),
-                                                   make_tuple(p_a_out_grid),
-                                                   arg.elementwise_block_2_ctile_map_transpose_a_,
-                                                   element_wise::PassThrough{});
+                ave_time += launch_and_time_kernel(
+                    stream_config,
+                    kernel_transpose,
+                    dim3(grid_size),
+                    dim3(ElementwiseBlocksize),
+                    0,
+                    make_tuple(arg.a_in_transpose_desc_),
+                    make_tuple(arg.a_out_transpose_desc_),
+                    make_tuple(arg.p_a_grid_),
+                    make_tuple(p_a_out_grid),
+                    arg.elementwise_block_2_ctile_map_transpose_a_,
+                    element_wise::PassThrough{},
+                    arg.num_workgroups_per_Conv_N_,
+                    std::array<index_t, I1>{
+                        static_cast<index_t>(arg.compute_ptr_offset_of_workspace_n_.BatchStrideA_)},
+                    std::array<index_t, I1>{
+                        static_cast<index_t>(arg.compute_ptr_offset_of_n_.BatchStrideA_)});
             }
             ave_time += RunGemm(arg, stream_config);
             // Transpose from NHWGC to NGCHW
@@ -944,7 +971,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             {
                 const index_t grid_size =
                     arg.elementwise_block_2_ctile_map_transpose_e_.CalculateGridSize(
-                        arg.e_in_transpose_desc_);
+                        arg.e_in_transpose_desc_) *
+                    arg.num_workgroups_per_Conv_N_;
 
                 const EDataType* p_e_in_grid =
                     type_convert<EDataType*>(arg.p_workspace_) +
@@ -952,25 +980,34 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
                 EDataType* p_e_out_grid = arg.p_e_grid_;
 
-                auto kernel_transpose = kernel_elementwise<GridwiseElementwiseOutputTranspose,
-                                                           ck::Tuple<NHWGCTransposeDescType>,
-                                                           ck::Tuple<NGCHWTransposeDescType>,
-                                                           ck::Tuple<const EDataType*>,
-                                                           ck::Tuple<EDataType*>,
-                                                           Block2TileMapElementwise,
-                                                           element_wise::PassThrough>;
+                auto kernel_transpose =
+                    kernel_batched_elementwise<GridwiseElementwiseOutputTranspose,
+                                               ck::Tuple<NHWGCTransposeDescType>,
+                                               ck::Tuple<NGCHWTransposeDescType>,
+                                               ck::Tuple<const EDataType*>,
+                                               ck::Tuple<EDataType*>,
+                                               Block2TileMapElementwise,
+                                               element_wise::PassThrough,
+                                               I1,
+                                               I1>;
 
-                ave_time += launch_and_time_kernel(stream_config,
-                                                   kernel_transpose,
-                                                   dim3(grid_size),
-                                                   dim3(ElementwiseBlocksize),
-                                                   0,
-                                                   make_tuple(arg.e_in_transpose_desc_),
-                                                   make_tuple(arg.e_out_transpose_desc_),
-                                                   make_tuple(p_e_in_grid),
-                                                   make_tuple(p_e_out_grid),
-                                                   arg.elementwise_block_2_ctile_map_transpose_e_,
-                                                   element_wise::PassThrough{});
+                ave_time += launch_and_time_kernel(
+                    stream_config,
+                    kernel_transpose,
+                    dim3(grid_size),
+                    dim3(ElementwiseBlocksize),
+                    0,
+                    make_tuple(arg.e_in_transpose_desc_),
+                    make_tuple(arg.e_out_transpose_desc_),
+                    make_tuple(p_e_in_grid),
+                    make_tuple(p_e_out_grid),
+                    arg.elementwise_block_2_ctile_map_transpose_e_,
+                    element_wise::PassThrough{},
+                    arg.num_workgroups_per_Conv_N_,
+                    std::array<index_t, I1>{
+                        static_cast<index_t>(arg.compute_ptr_offset_of_n_.BatchStrideE_)},
+                    std::array<index_t, I1>{static_cast<index_t>(
+                        arg.compute_ptr_offset_of_workspace_n_.BatchStrideE_)});
             }
 
             return ave_time;
@@ -1117,17 +1154,17 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 return false;
             }
 
-            const index_t input_spatial_acum = ck::accumulate_n<index_t>(
-                arg.e_g_n_c_wis_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
-            const index_t output_spatial_acum = ck::accumulate_n<index_t>(
+            const index_t a_spatial_acum = ck::accumulate_n<index_t>(
                 arg.a_g_n_k_wos_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
+            const index_t e_spatial_acum = ck::accumulate_n<index_t>(
+                arg.e_g_n_c_wis_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
 
-            if(input_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
+            if(a_spatial_acum % TransposeTransferInScalarPerVectorAligned != 0)
             {
                 return false;
             }
 
-            if(output_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
+            if(e_spatial_acum % TransposeTransferOutScalarPerVectorAligned != 0)
             {
                 return false;
             }
@@ -1142,13 +1179,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                            "allocated, use SetWorkSpacePointer."
                         << std::endl;
                 }
-                return false;
-            }
-
-            constexpr long_index_t TwoGB = (long_index_t{1} << 31);
-            if(!(arg.a_out_transpose_desc_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
-                 arg.e_in_transpose_desc_.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
-            {
                 return false;
             }
         }
@@ -1277,8 +1307,17 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             << ABlockTransferSrcScalarPerVector << ", "
             << BBlockTransferSrcScalarPerVector << ", "
             << CShuffleMXdlPerWavePerShuffle << ", "
-            << CShuffleNXdlPerWavePerShuffle
-            << ">";
+            << CShuffleNXdlPerWavePerShuffle;
+
+            if constexpr(is_NGCHW_GKYXC_NGKHW<ELayout, BLayout, ALayout>() ||
+                        is_NGCDHW_GKZYXC_NGKDHW<ELayout, BLayout, ALayout>()) {
+                    str << ", TransposeTransferInScalarPerVectorAligned: "
+                    << TransposeTransferInScalarPerVectorAligned <<", "
+                    << "TransposeTransferOutScalarPerVectorAligned: " << TransposeTransferOutScalarPerVectorAligned;
+                }
+    
+                
+            str << ">";
 
         return str.str();
     }
