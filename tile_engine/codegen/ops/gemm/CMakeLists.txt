@@ -2,7 +2,7 @@ set(GEMM_CODEGEN_KNOWN_APIS "single;benchmark")
 set(GEMM_CODEGEN_KNOWN_APIS "single" CACHE STRING
     "semicolon-separated list of APIs to generate (${GEMM_CODEGEN_KNOWN_APIS}) & link, or \"all\".")
 if(GEMM_CODEGEN_ENABLE_APIS  STREQUAL "all")
-    set(GEMM_CODEGEN_ENABLE_APIS  ${GEMM_CODEGEM_KNOWN_APIS})
+    set(GEMM_CODEGEN_ENABLE_APIS  ${GEMM_CODEGEN_KNOWN_APIS})
 endif()
 
 foreach(api ${GEMM_CODEGEN_ENABLE_APIS})
@@ -35,13 +35,13 @@ file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt GEMM_CODEGEN_BL
 add_custom_command(
   OUTPUT ${GEMM_CODEGEN_BLOBS}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/code_generate.py
-  --api ${GEMM_CODEGEN_ENABLE_APIS} --working_path ${CMAKE_CURRENT_BINARY_DIR} --gen_blobs
+  --api ${GEMM_CODEGEN_ENABLE_APIS} --working_path ${CMAKE_CURRENT_BINARY_DIR} -j ${CMAKE_CURRENT_LIST_DIR}/config.json
+  --gen_blobs
 )
 
 set(EXECUTABLE_GEMM_INSTANCE "tile_gemm_codegen")
-
 message("adding example ${EXECUTABLE_GEMM_INSTANCE}")
-add_executable(${EXECUTABLE_GEMM_INSTANCE} EXCLUDE_FROM_ALL gemm_single_instance.cpp)
+add_executable(${EXECUTABLE_GEMM_INSTANCE} EXCLUDE_FROM_ALL gemm_calc.cpp)
 target_include_directories(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${GEMM_CODEGEN_BLOBS})
 

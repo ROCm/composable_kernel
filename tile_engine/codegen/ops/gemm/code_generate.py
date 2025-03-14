@@ -401,18 +401,20 @@ float gemm_kernel_launch(const ck_tile::GemmHostArgs& args, const ck_tile::strea
         blobs = self.get_blobs(args)
         with list_p.open('w') as list_f:
             # api related file
-            #list_f.write(str(w_p / (self.name_api + ".cpp"))  + "\n")   #TODO:: define name_api
+            list_f.write(str(w_p / (self.name_kernel_file + ".hpp"))  + "\n")   #TODO:: define name_api
             list_f.write(str(w_p / (self.name_common_header + ".hpp"))  + "\n")
             # kernel instance file
-            for b in blobs:
-                list_f.write(str(w_p / (b.name + ".cpp")) + "\n")
-
+            #for b in blobs:
+            #    list_f.write(str(w_p / (b.name + ".cpp")) + "\n")
+        print("###################################################")  
+        
 
     def gen_blobs(self, args) -> None:
         w_p = Path(self.working_path)
         w_str = self.content_api(args)
         (w_p / (self.name_common_header + ".hpp")).write_text(self.common_header)
-        (w_p / (self.name_kernel_file + ".hpp")).write_text(w_str)   
+        (w_p / (self.name_kernel_file + ".hpp")).write_text(w_str) 
+        print("*************************************************")  
         
         
 

@@ -14,6 +14,28 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
+template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
+auto calculate_rtol_atol(const ck_tile::index_t K,
+                         const ck_tile::index_t kbatch,
+                         const float max_accumulated_value)
+{
+    using ComputeType =
+        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+    // Calculate thresholds
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
+        ck_tile::integer_divide_ceil(K, kbatch));
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
+        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+    // Calculate error due to split_k accumulation
+    const auto rtol_split_k =
+        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
+    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
+        max_accumulated_value, kbatch);
+    // Use higher threshold
+    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+}
+
+
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -35,8 +57,8 @@ auto create_args(int argc, char* argv[])
 }
 
 //verification code
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType,, typename ALayout, typename BLayout, typename CLayout>
-bool gemm_verify(
+template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType, typename ALayout, typename BLayout, typename CLayout>
+bool gemm_verify(int verify,
                 ck_tile::HostTensor<ADataType>& a_m_k,
                 ck_tile::HostTensor<BDataType>& b_k_n,  
                 ck_tile::HostTensor<CDataType>& c_m_n_dev_result,      
@@ -50,7 +72,7 @@ bool gemm_verify(
                 ck_tile::index_t stride_C,
                 ck_tile::index_t kbatch) {
     bool pass = true;
-    if(arg_parser.get_int("v") == 1)
+    if(verify == 1)
     {
         ck_tile::HostTensor<CDataType> c_m_n_host_ref(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
@@ -73,7 +95,7 @@ bool gemm_verify(
                 << std::endl;
         std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
-    else if(arg_parser.get_int("v") == 2)
+    else if(verify == 2)
     {
         ck_tile::HostTensor<CDataType> c_m_n_gpu_ref(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
