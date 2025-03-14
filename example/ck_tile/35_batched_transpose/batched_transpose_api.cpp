@@ -45,7 +45,7 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 
 // Param Comb: type_size, block_x & y, warp_x & y, thread_x & y
 #define FOREACH_TRANSPOSE_PARAM(F)               \
-    F(fp16, ck_tile::fp16_t, 16, 16, 8, 8, 1, 1) \
+    F(fp16, ck_tile::fp16_t, 16, 16, 8, 8, 2, 2) \
     F(bf16, ck_tile::bf16_t, 16, 16, 8, 8, 1, 1) \
     F(fp32, ck_tile::fp32_t, 16, 16, 8, 8, 1, 1) \
     F(int8, ck_tile::int8_t, 16, 16, 8, 8, 1, 1)
@@ -66,7 +66,7 @@ float batched_transpose(batched_transpose_trait t,
 {
     if(t.type == "fp16")
     {
-        return transpose_fn_fp16_16_16_8_8_1_1(a, s);
+        return transpose_fn_fp16_16_16_8_8_2_2(a, s);
     }
     else if(t.type == "bf16")
     {

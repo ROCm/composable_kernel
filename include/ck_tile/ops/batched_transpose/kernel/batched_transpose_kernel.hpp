@@ -70,30 +70,23 @@ struct BatchedTransposeKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        // printf("Inside Operator of kernel\n");
-
-        static constexpr ck_tile::index_t kMPerBlock  = Problem::kMPerBlock;
-        static constexpr ck_tile::index_t kNPerBlock  = Problem::kNPerBlock;
-        static constexpr bool kPadM                   = Problem::kPadM;
-        static constexpr bool kPadN                   = Problem::kPadN;
-        static constexpr ck_tile::index_t kMPerThread = Problem::kMPerThread;
-        static constexpr ck_tile::index_t kNPerThread = Problem::kNPerThread;
-
-        static_assert(kMPerThread == 1 && kNPerThread == 1); // This is for checkpoint 2
+        static constexpr ck_tile::index_t kMPerBlock       = Problem::kMPerBlock;
+        static constexpr ck_tile::index_t kNPerBlock       = Problem::kNPerBlock;
+        static constexpr bool kPadM                        = Problem::kPadM;
+        static constexpr bool kPadN                        = Problem::kPadN;
+        static constexpr ck_tile::index_t VectorSizeInput  = Problem::VectorSizeInput;
+        static constexpr ck_tile::index_t VectorSizeOutput = Problem::VectorSizeOutput;
 
         const auto iM   = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
         const auto iN   = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
         const auto iDim = blockIdx.z;
-
-        static constexpr ck_tile::index_t thread_load_value =
-            128 / sizeof(Type); // Dont hardcode 128 make it a global variable
 
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride,
                 make_tuple(kargs.height, kargs.width),
                 make_tuple(kargs.width, 1),
-                number<thread_load_value>{}, // TODO thread load value
+                number<VectorSizeInput>{},
                 number<1>{});
 
             return pad_tensor_view(x_dram_naive,
@@ -106,7 +99,7 @@ struct BatchedTransposeKernel
                 static_cast<Type*>(kargs.p_output) + iDim * kargs.dim_stride,
                 make_tuple(kargs.width, kargs.height),
                 make_tuple(kargs.height, 1),
-                number<thread_load_value>{},
+                number<VectorSizeOutput>{},
                 number<1>{});
 
             return pad_tensor_view(y_dram_naive,

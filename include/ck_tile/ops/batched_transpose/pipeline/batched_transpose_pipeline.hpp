@@ -27,12 +27,21 @@ struct BatchedTransposePipeline
     template <typename InputWindow, typename OutputWindow>
     CK_TILE_DEVICE auto operator()(const InputWindow& input_window, OutputWindow& out_window)
     {
-        // printf("Inside operator of Pipeline\n");
+        // FIGURE THE RIGHT x value to pass to the function
 
-        auto inp_win =
-            make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
+        auto y = make_static_distributed_tensor<InputType>(
+            Policy::template MakeOutputDistribution<Problem>());
+
+        transpose_tile2d(y, x);
+
         auto out_win =
             make_tile_window(out_window, Policy::template MakeOutputDistribution<Problem>());
+
+        store_tile(out_win, y);
+
+        /*auto inp_win =
+            make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
+
 
         auto x = load_tile(inp_win); // x->thread input_win->block
 
@@ -70,9 +79,10 @@ struct BatchedTransposePipeline
             });
         });
 
-        // transpose_tile2d(y, x);
+        auto out_win =
+            make_tile_window(out_window, Policy::template MakeOutputDistribution<Problem>());
 
-        store_tile(out_win, y);
+        store_tile(out_win, y);*/
     }
 };
 } // namespace ck_tile

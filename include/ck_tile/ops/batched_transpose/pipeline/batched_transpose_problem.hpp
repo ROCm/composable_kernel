@@ -42,7 +42,7 @@ struct BatchedTransposeProblem
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
 
-    static constexpr index_t AlignmentM = kPadM ? VectorLoadSize / sizeof(InputType) : 1; // TODO
-    static constexpr index_t AlignmentN = kPadN ? VectorLoadSize / sizeof(InputType) : 1;
+    static constexpr index_t VectorSizeInput  = kPadM ? VectorLoadSize / sizeof(InputType) : 1;
+    static constexpr index_t VectorSizeOutput = kPadN ? VectorLoadSize / sizeof(InputType) : 1;
 };
 } // namespace ck_tile
