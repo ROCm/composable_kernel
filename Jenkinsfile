@@ -1135,6 +1135,10 @@ pipeline {
                         beforeAgent true
                         expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_GFX908.toBoolean() }
+                    }
                     agent{ label rocmnode("gfx908") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908" -DCMAKE_CXX_FLAGS=" -O3 " """
