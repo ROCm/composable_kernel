@@ -1171,8 +1171,6 @@ struct GridwiseMoeGemm
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);
         // static_assert(NSwizzle == false, "to do fix: need another pr in sorting merged");
         const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.y;
-        if(threadIdx.x==0 && blockIdx.y+blockIdx.x==0)
-                printf("%ld %ld %ld\n", a_grid_desc_ak0_m_ak1.GetElementSpaceSize(), c_grid_desc_m_n.GetElementSpaceSize(), c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         if(expert_block_id * MPerBlock >= max_token_id)
             return;
         const index_t expert_id =
@@ -1530,7 +1528,7 @@ struct GridwiseMoeGemm
                   make_tuple(make_multi_index(0, 0, block_n_id, 0)),
                   c_element_op};
 
-            auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            auto c_grid_buf = make_long_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
@@ -1577,7 +1575,7 @@ struct GridwiseMoeGemm
                     block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats + dstidx(I1);
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
-                    index_t token_offset      = fused_token & 0xffffff;
+                    long_index_t token_offset      = fused_token & 0xffffff;
                     float weight              = token_offset < problem.NumTokens
                                                     ? p_sorted_weights_0[token_offset * problem.StrideDs[0]]
                                                     : 0.0;
@@ -2040,7 +2038,7 @@ struct GridwiseMoeGemm
                   make_tuple(make_multi_index(0, 0, block_n_id, 0)),
                   c_element_op};
 
-            auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            auto c_grid_buf = make_long_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =

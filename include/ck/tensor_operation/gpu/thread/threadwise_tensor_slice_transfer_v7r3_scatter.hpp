@@ -421,7 +421,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
         // loop over space-filling curve
         static_for<0, dst_num_access, 1>{}([&](auto iAccess) {
             auto dst_vectors    = dst_vectors_tuple_[thread_scratch_id][iAccess];
-            auto scatter_offset = 0;
+            long_index_t scatter_offset = 0;
             if constexpr(OutputScatter)
             {
                 constexpr auto iScatter =
@@ -439,16 +439,6 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                     static_cast<InMemoryDataOperationEnum>(DstInMemOps::At(i.value));
                 dst_bufs(i).template Update<DstInMemOp, dst_vector_t>(
                     dst_offset, is_dst_valid, dst_vectors[i].template AsType<dst_vector_t>()[I0]);
-                // if(threadIdx.x%8 ==0 && blockIdx.x==0) {
-                // if(dst_offset>80740352 && threadIdx.x==0) {
-                //      static_for<0, 1, 1>{}([&](auto idx) {
-                //          using DstData = remove_cvref_t<tuple_element_t<0, DstDatas>>;
-                //          using print_vec_t = typename vector_type<DstData, 1>::type;
-                //          printf("tid %d off %ld valid %d %ld %f\n",threadIdx.x, dst_offset,
-                //          is_dst_valid, dst_descs[i].GetElementSpaceSize(), type_convert<float>(dst_vectors[i].template
-                //          AsType<print_vec_t>()[idx]));
-                //      });
-                //  }
             });
 
             // move coordinate
