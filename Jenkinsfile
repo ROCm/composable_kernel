@@ -229,8 +229,11 @@ def cmake_build(Map conf=[:]){
     if (setup_args.contains("gfx10")){
         invocation_tag="gfx10"
     }
-    if (setup_args.contains("gfx90")){
-        invocation_tag="gfx90"
+    if (setup_args.contains("gfx908")){
+        invocation_tag="gfx908"
+    }
+    if (setup_args.contains("gfx90a")){
+        invocation_tag="gfx90a"
     }
     if (setup_args.contains("gfx94")){
         invocation_tag="gfx94"
