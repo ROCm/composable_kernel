@@ -148,6 +148,7 @@ template <typename ALayout,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
           bool NSwizzle                               = false,
+          typename IndexType                          = index_t,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ADataType,
@@ -298,7 +299,7 @@ struct GridwiseMoeGemm
     }
 
     __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
-        index_t M, index_t MPad, index_t K, index_t KPad, index_t StrideA, index_t AK0)
+        IndexType M, IndexType MPad, IndexType K, IndexType KPad, IndexType StrideA, IndexType AK0)
     {
         const auto a_grid_desc_mraw_kraw = [&]() {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
@@ -491,7 +492,7 @@ struct GridwiseMoeGemm
 
     template <typename ELayout>
     __host__ __device__ static auto
-    MakeCGridDescriptor_M_N(long_index_t M, long_index_t MPad, long_index_t N, long_index_t NPad, long_index_t StrideC)
+    MakeCGridDescriptor_M_N(IndexType M, IndexType MPad, IndexType N, IndexType NPad, IndexType StrideC)
     {
         const auto c_grid_desc_mraw_nraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ELayout>::value)
@@ -1210,7 +1211,7 @@ struct GridwiseMoeGemm
 
         if(token_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
-        StaticallyIndexedArray<long_index_t, AMRepeats> gather_offsets;
+        StaticallyIndexedArray<IndexType, AMRepeats> gather_offsets;
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             const index_t fused_token = p_sorted_token_ids[token_pos + m0];
             index_t token_offset      = fused_token & 0xffffff;
@@ -1218,7 +1219,7 @@ struct GridwiseMoeGemm
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
-            gather_offsets(m0) = token_offset * problem.K;
+            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
 
@@ -1226,7 +1227,7 @@ struct GridwiseMoeGemm
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
 
-        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto a_grid_buf = make_long_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride / BPackedSize,
@@ -1261,6 +1262,7 @@ struct GridwiseMoeGemm
             1,
             AThreadTransferSrcResetCoordinateAfterRun,
             true,
+            IndexType,
             1,
             BlockwiseGemmPipe::GlobalBufferNum>(a_grid_desc_ak0_m_ak1,
                                                 make_multi_index(0, 0, 0),
@@ -1519,6 +1521,7 @@ struct GridwiseMoeGemm
                     uniform_sequence_gen_t<NumDTensor,
                                            false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
                 Sequence<false>,   // ThreadTransferDstResetCoordinateAfterRunFlags
+                IndexType,
                 1,                 // ScatterDim
                 true,              // OutputScatter: false, only use scatter weights
                 scatter_weight_idx // ScatterWeightIdx: ascale
@@ -1528,8 +1531,16 @@ struct GridwiseMoeGemm
                   make_tuple(make_multi_index(0, 0, block_n_id, 0)),
                   c_element_op};
 
-            auto c_grid_buf = make_long_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+            //     using BufferType = std::conditional_t<
+            //       std::is_same_v<IndexType, long_index_t>,
+            //       decltype(make_long_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize())),
+            //       decltype(make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize()))
+            //   >;
+            auto c_grid_buf = make_long_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+              
+            //   BufferType c_grid_buf = std::is_same_v<IndexType, long_index_t> ?
+            //       make_long_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize()) :
+                //   make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
                 SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
@@ -1563,7 +1574,7 @@ struct GridwiseMoeGemm
             const float* p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
-                StaticallyIndexedArray<long_index_t, EMRepeats>
+                StaticallyIndexedArray<IndexType, EMRepeats>
                     scatter_offsets; //= p_sorted_token_ids[c_token_pos];
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
                 // too hack here, 2 specific for topk weights, fixme
@@ -1575,7 +1586,7 @@ struct GridwiseMoeGemm
                     block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats + dstidx(I1);
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
-                    long_index_t token_offset      = fused_token & 0xffffff;
+                    IndexType token_offset      = fused_token & 0xffffff;
                     float weight              = token_offset < problem.NumTokens
                                                     ? p_sorted_weights_0[token_offset * problem.StrideDs[0]]
                                                     : 0.0;
@@ -1588,7 +1599,7 @@ struct GridwiseMoeGemm
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
                         weight = weight * p_sorted_weights_2[c_token_pos + m0];
                     }
-                    scatter_offsets(m0) = token_offset * problem.N;
+                    scatter_offsets(m0) = static_cast<IndexType>(token_offset) * problem.N;
                     scatter_weights(m0) = weight;
                 });
 
@@ -1713,7 +1724,7 @@ struct GridwiseMoeGemm
         if(token_pos >= max_token_id || expert_block_id * MPerBlock >= max_token_id ||
            token0 >= problem.NumTokens)
             return;
-        StaticallyIndexedArray<long_index_t, AMRepeats>
+        StaticallyIndexedArray<IndexType, AMRepeats>
             gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             const index_t fused_token = p_sorted_token_ids[token_pos + m0];
@@ -1722,7 +1733,7 @@ struct GridwiseMoeGemm
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
-            gather_offsets(m0) = token_offset * problem.K;
+            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
 
@@ -1730,7 +1741,7 @@ struct GridwiseMoeGemm
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
 
-        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto a_grid_buf = make_long_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride / BPackedSize,
@@ -1765,6 +1776,7 @@ struct GridwiseMoeGemm
             1,
             AThreadTransferSrcResetCoordinateAfterRun,
             true,
+            IndexType,
             1,
             2>(a_grid_desc_ak0_m_ak1,
                make_multi_index(0, 0, 0),
@@ -2029,6 +2041,7 @@ struct GridwiseMoeGemm
                     uniform_sequence_gen_t<NumDTensor,
                                            false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
                 Sequence<false>,   // ThreadTransferDstResetCoordinateAfterRunFlags
+                IndexType,
                 1,                 // ScatterDim
                 true,              // OutputScatter: false, only use scatter weights
                 scatter_weight_idx // ScatterWeightIdx: ascale
@@ -2038,7 +2051,10 @@ struct GridwiseMoeGemm
                   make_tuple(make_multi_index(0, 0, block_n_id, 0)),
                   c_element_op};
 
-            auto c_grid_buf = make_long_dynamic_buffer<AddressSpaceEnum::Global>(
+            auto c_grid_buf = std::is_same_v<IndexType, long_index_t> ? 
+            make_long_dynamic_buffer<AddressSpaceEnum::Global>(
+                p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize()):
+            make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
@@ -2073,7 +2089,7 @@ struct GridwiseMoeGemm
             const float* p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
-                StaticallyIndexedArray<long_index_t, EMRepeats>
+                StaticallyIndexedArray<IndexType, EMRepeats>
                     scatter_offsets; //= p_sorted_token_ids[c_token_pos];
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
                 // too hack here, 2 specific for topk weights, fixme
@@ -2099,7 +2115,7 @@ struct GridwiseMoeGemm
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
                         weight = weight * p_sorted_weights_2[c_token_pos + m0];
                     }
-                    scatter_offsets(m0) = token_offset * problem.N;
+                    scatter_offsets(m0) = static_cast<IndexType>(token_offset) * problem.N;
                     scatter_weights(m0) = weight;
                 });
 
