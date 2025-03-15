@@ -24,7 +24,8 @@ template <AddressSpaceEnum BufferAddressSpace,
           typename T,
           typename ElementSpaceSize,
           bool InvalidElementUseNumericalZeroValue,
-          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
+          typename IndexType = index_t>
 struct DynamicBuffer
 {
     using type = T;
@@ -33,7 +34,7 @@ struct DynamicBuffer
     ElementSpaceSize element_space_size_;
     T invalid_element_value_ = T{0};
 
-    static constexpr long_index_t PackedSize = []() {
+    static constexpr index_t PackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<T>, pk_i4_t>)
             return 2;
         else
@@ -59,34 +60,34 @@ struct DynamicBuffer
         return BufferAddressSpace;
     }
 
-    __host__ __device__ constexpr const T& operator[](long_index_t i) const { return p_data_[i]; }
+    __host__ __device__ constexpr const T& operator[](IndexType i) const { return p_data_[i]; }
 
-    __host__ __device__ constexpr T& operator()(long_index_t i) { return p_data_[i]; }
+    __host__ __device__ constexpr T& operator()(IndexType i) { return p_data_[i]; }
 
     template <typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value ||
                                      !is_native_type<X>(),
                                  bool>::type = false>
-    __host__ __device__ constexpr auto Get(long_index_t i, bool is_valid_element) const
+    __host__ __device__ constexpr auto Get(IndexType i, bool is_valid_element) const
     {
         // X contains multiple T
-        constexpr long_index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
+        constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
 
-        constexpr long_index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
+        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
 
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
 
 #if CK_USE_AMD_BUFFER_LOAD
-        bool constexpr use_amd_buffer_addressing = true;
+        bool constexpr use_amd_buffer_addressing = sizeof(IndexType) <= sizeof(int32_t);
 #else
         bool constexpr use_amd_buffer_addressing = false;
 #endif
 
         if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
         {
-            constexpr long_index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
@@ -140,7 +141,7 @@ struct DynamicBuffer
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
                                  bool>::type = false>
-    __host__ __device__ void Update(long_index_t i, bool is_valid_element, const X& x)
+    __host__ __device__ void Update(IndexType i, bool is_valid_element, const X& x)
     {
         if constexpr(Op == InMemoryDataOperationEnum::Set)
         {
@@ -189,10 +190,10 @@ struct DynamicBuffer
         }
     }
 
-    template <typename DstBuffer, long_index_t NumElemsPerThread>
+    template <typename DstBuffer, index_t NumElemsPerThread>
     __host__ __device__ void DirectCopyToLds(DstBuffer& dst_buf,
-                                             long_index_t src_offset,
-                                             long_index_t dst_offset,
+                                             IndexType src_offset,
+                                             IndexType dst_offset,
                                              bool is_valid_element) const
     {
         // Copy data from global to LDS memory using direct loads.
@@ -214,17 +215,17 @@ struct DynamicBuffer
                                          typename scalar_type<remove_cvref_t<T>>::type>::value ||
                                      !is_native_type<X>(),
                                  bool>::type = false>
-    __host__ __device__ void Set(long_index_t i, bool is_valid_element, const X& x)
+    __host__ __device__ void Set(IndexType i, bool is_valid_element, const X& x)
     {
         // X contains multiple T
-        constexpr long_index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
+        constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
 
-        constexpr long_index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
+        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
 
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
 
-#if CK_USE_AMD_BUFFER_STORE
+#if 0
         bool constexpr use_amd_buffer_addressing = true;
 #else
         bool constexpr use_amd_buffer_addressing      = false;
@@ -238,7 +239,7 @@ struct DynamicBuffer
 
         if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
         {
-            constexpr long_index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
             amd_buffer_store<remove_cvref_t<T>, t_per_x, coherence>(
                 x, p_data_, i, is_valid_element, element_space_size_ / PackedSize);
@@ -358,14 +359,14 @@ struct DynamicBuffer
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
                                  bool>::type = false>
-    __host__ __device__ void AtomicAdd(long_index_t i, bool is_valid_element, const X& x)
+    __host__ __device__ void AtomicAdd(IndexType i, bool is_valid_element, const X& x)
     {
         using scalar_t = typename scalar_type<remove_cvref_t<T>>::type;
 
         // X contains multiple T
-        constexpr long_index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
+        constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
 
-        constexpr long_index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
+        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
 
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
@@ -391,7 +392,7 @@ struct DynamicBuffer
 
         if constexpr(use_amd_buffer_addressing)
         {
-            constexpr long_index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
             amd_buffer_atomic_add<remove_cvref_t<T>, t_per_x>(
                 x, p_data_, i, is_valid_element, element_space_size_ / PackedSize);
@@ -409,12 +410,12 @@ struct DynamicBuffer
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
                                  bool>::type = false>
-    __host__ __device__ void AtomicMax(long_index_t i, bool is_valid_element, const X& x)
+    __host__ __device__ void AtomicMax(IndexType i, bool is_valid_element, const X& x)
     {
         // X contains multiple T
-        constexpr long_index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
+        constexpr IndexType scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
 
-        constexpr long_index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
+        constexpr IndexType scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
 
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
@@ -430,7 +431,7 @@ struct DynamicBuffer
 
         if constexpr(use_amd_buffer_addressing)
         {
-            constexpr long_index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
             amd_buffer_atomic_max<remove_cvref_t<T>, t_per_x>(
                 x, p_data_, i, is_valid_element, element_space_size_ / PackedSize);
@@ -453,6 +454,16 @@ template <AddressSpaceEnum BufferAddressSpace,
 __host__ __device__ constexpr auto make_dynamic_buffer(T* p, ElementSpaceSize element_space_size)
 {
     return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, true, coherence>{
+        p, element_space_size};
+}
+
+template <AddressSpaceEnum BufferAddressSpace,
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
+          typename T,
+          typename ElementSpaceSize>
+__host__ __device__ constexpr auto make_long_dynamic_buffer(T* p, ElementSpaceSize element_space_size)
+{
+    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, true, coherence, long_index_t>{
         p, element_space_size};
 }
 
