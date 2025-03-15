@@ -160,5 +160,5 @@ bool gemm_verify(int verify,
 }
 
 template<typename ADataType, typename BDataType, typename AccDataType, typename CDataType, typename ALayout, typename BLayout, typename CLayout>
-float gemm_kernel_launch(ck_tile::GemmHostArgs kernel_args, const ck_tile::stream_config&);
+float gemm_kernel_launch(ck_tile::GemmHostArgs &kernel_args, const ck_tile::stream_config& s);
 

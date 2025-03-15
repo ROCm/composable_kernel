@@ -26,7 +26,7 @@ def get_if_str(idx, total, lase_else = True):
 
 
 DATA_TYPE_MAP = {'fp32' : 'float',
-                 'fp16' : 'ck_tile::fp16_t',
+                 'fp16' : 'ck_tile::half_t',
                  'bf16' : 'ck_tile::bf16_t',
                  'int8' : 'ck_tile::int8_t',
                  'fp8'  : 'ck_tile::fp8_t',
@@ -132,16 +132,28 @@ struct GemmConfig
 """
 
     RUN_MEM = """
-    if(tail_num < BaseGemmPipeline::PrefetchStages)
-    {
-        Run(ck_tile::bool_constant<has_hot_loop>{},
+    if(has_hot_loop){
+        if(static_cast<int>(tail_num) < BaseGemmPipeline::PrefetchStages)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, tail_num>{});
+        }
+    }
+    else{
+        Run(ck_tile::bool_constant<false>{},
             ck_tile::integral_constant<ck_tile::TailNumber, tail_num>{});
     }
 """
 
     RUN_COMP = """
-    Run(ck_tile::bool_constant<has_hot_loop>{{}},
-            ck_tile::integral_constant<ck_tile::TailNumber, tail_num>{{}});
+    if(has_hot_loop){
+        Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber,tail_num>{});
+    }
+    else{
+        Run(ck_tile::bool_constant<false>{},
+            ck_tile::integral_constant<ck_tile::TailNumber, tail_num>{});
+    }
     """
 
     GEMM_KERNEL_HEADER = """
@@ -405,7 +417,7 @@ float gemm_kernel_launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_conf
         with list_p.open('w') as list_f:
             # api related file
             list_f.write(str(w_p / (self.name_common_header + ".hpp"))  + "\n")
-            list_f.write(str(w_p / (self.name_kernel_file + ".cpp"))  + "\n")   #TODO:: define name_api
+            list_f.write(str(w_p / (self.name_kernel_file + ".hpp"))  + "\n")   #TODO:: define name_api
             # kernel instance file
             #for b in blobs:
             #    list_f.write(str(w_p / (b.name + ".cpp")) + "\n")
@@ -416,7 +428,7 @@ float gemm_kernel_launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_conf
         w_p = Path(self.working_path)
         w_str = self.content_api(args)
         (w_p / (self.name_common_header + ".hpp")).write_text(self.common_header)
-        (w_p / (self.name_kernel_file + ".cpp")).write_text(w_str) 
+        (w_p / (self.name_kernel_file + ".hpp")).write_text(w_str) 
         print("*************************************************")  
         
         
