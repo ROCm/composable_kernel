@@ -518,6 +518,9 @@ def Build_CK(Map conf=[:]){
                     else if ( runShell('grep -n "gfx1201" rocminfo.log') ) {
                         arch_type = 5
                     }
+                    else if ( runShell('grep -n "gfx908" rocminfo.log') ) {
+                        arch_type = 6
+                    }
                     cmake_build(conf)
                     if ( !params.BUILD_LEGACY_OS && arch_type == 1 ){
                             echo "Run inductor codegen tests"
@@ -589,7 +592,17 @@ def Build_CK(Map conf=[:]){
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx12"
                             archiveArtifacts "perf_onnx_gemm_gfx12.log"
                             stash includes: "perf_onnx_gemm_gfx12.log", name: "perf_log_gfx12"
-                        }                        
+                        }
+                        else if ( arch_type == 6 ){
+                            // run standard tests on gfx908
+                            echo "Run performance tests"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            archiveArtifacts "perf_gemm_gfx908.log"
+                            archiveArtifacts "perf_onnx_gemm_gfx908.log"
+                            archiveArtifacts "perf_resnet50_N256_gfx908.log"
+                            archiveArtifacts "perf_resnet50_N4_gfx908.log"
+                            stash includes: "perf_**.log", name: "perf_log_gfx908"
+                        }
                         }
                     }
                     if (params.hipTensor_test && arch_type == 1 ){
