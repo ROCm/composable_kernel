@@ -225,8 +225,8 @@ struct DynamicBuffer
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
 
-#if 0
-        bool constexpr use_amd_buffer_addressing = true;
+#if CK_USE_AMD_BUFFER_LOAD
+        bool constexpr use_amd_buffer_addressing = sizeof(IndexType) <= sizeof(int32_t);
 #else
         bool constexpr use_amd_buffer_addressing      = false;
 #endif
@@ -349,7 +349,7 @@ struct DynamicBuffer
                 __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
 #else
                 // if(i >= 2169041600)
-                *c_style_pointer_cast<X*>(p_data_ + i) = x;
+                *c_style_pointer_cast<X*>(&p_data_[i]) = x;
 #endif
             }
         }
@@ -380,12 +380,13 @@ struct DynamicBuffer
             (is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0) ||
             (is_same_v<remove_cvref_t<scalar_t>, bhalf_t> && scalar_per_x_vector % 2 == 0);
 #elif CK_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && (!CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT)
-        bool constexpr use_amd_buffer_addressing = is_same_v<remove_cvref_t<scalar_t>, int32_t>;
+        bool constexpr use_amd_buffer_addressing = sizeof(IndexType) <= sizeof(int32_t) && is_same_v<remove_cvref_t<scalar_t>, int32_t>;
 #elif(!CK_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER) && CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
         bool constexpr use_amd_buffer_addressing =
+        sizeof(IndexType) <= sizeof(int32_t) && (
             is_same_v<remove_cvref_t<scalar_t>, float> ||
             (is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0) ||
-            (is_same_v<remove_cvref_t<scalar_t>, bhalf_t> && scalar_per_x_vector % 2 == 0);
+            (is_same_v<remove_cvref_t<scalar_t>, bhalf_t> && scalar_per_x_vector % 2 == 0));
 #else
         bool constexpr use_amd_buffer_addressing = false;
 #endif
@@ -424,7 +425,7 @@ struct DynamicBuffer
 
 #if CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64
         using scalar_t                           = typename scalar_type<remove_cvref_t<T>>::type;
-        bool constexpr use_amd_buffer_addressing = is_same_v<remove_cvref_t<scalar_t>, double>;
+        bool constexpr use_amd_buffer_addressing = sizeof(IndexType) <= sizeof(int32_t) && is_same_v<remove_cvref_t<scalar_t>, double>;
 #else
         bool constexpr use_amd_buffer_addressing = false;
 #endif

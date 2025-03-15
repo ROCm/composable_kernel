@@ -43,6 +43,7 @@ template <typename SrcDatas,
           index_t DstScalarPerVector,
           typename SrcResetCoordinateAfterRunFlags, // Sequence<bool ...>
           typename DstResetCoordinateAfterRunFlags, // Sequence<bool ...>
+          typename IndexType,
           index_t ScatterDim       = 1,
           bool OutputScatter       = true,
           index_t ScatterWeightIdx = 3,
@@ -412,7 +413,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
               enable_if_t<DstDescs::Size() == 1 && DstBuffers::Size() == 1, bool> = false>
     __device__ void RunWrite(const DstDescs& dst_descs,
                              DstBuffers dst_bufs,
-                             StaticallyIndexedArray<long_index_t, scatter_num>& scatter_offsets,
+                             StaticallyIndexedArray<IndexType, scatter_num>& scatter_offsets,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         OOBCheck(thread_scratch_id);
@@ -421,7 +422,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
         // loop over space-filling curve
         static_for<0, dst_num_access, 1>{}([&](auto iAccess) {
             auto dst_vectors    = dst_vectors_tuple_[thread_scratch_id][iAccess];
-            long_index_t scatter_offset = 0;
+            IndexType scatter_offset = 0;
             if constexpr(OutputScatter)
             {
                 constexpr auto iScatter =
@@ -431,7 +432,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
             // copy data from buf_vectors into dst_bufs
             static_for<0, nDst, 1>{}([&](auto i) {
                 using dst_vector_t      = typename remove_cvref_t<decltype(dst_vectors[i])>::type;
-                long_index_t dst_offset         = scatter_offset + (dst_coords_[i].GetOffset());
+                IndexType dst_offset         = scatter_offset + (dst_coords_[i].GetOffset());
                 const bool is_dst_valid = dst_offset < dst_descs[i].GetElementSpaceSize();
                 // coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_descs[i],
                 //                                                             dst_coords_[i]);
@@ -490,7 +491,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                         const SrcBuffers& src_bufs,
                         const DstDescs& dst_descs,
                         DstBuffers dst_bufs,
-                        StaticallyIndexedArray<long_index_t, scatter_num>& scatter_offsets,
+                        StaticallyIndexedArray<IndexType, scatter_num>& scatter_offsets,
                         StaticallyIndexedArray<float, scatter_num>& scatter_weights)
     {
         RunRead(src_descs, src_bufs, scatter_weights);
