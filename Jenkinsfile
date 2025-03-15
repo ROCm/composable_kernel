@@ -1133,11 +1133,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
-                    }
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_GFX908.toBoolean() }
+                        expression { params.BUILD_GFX908.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx908") }
                     environment{
