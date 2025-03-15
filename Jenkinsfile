@@ -314,9 +314,13 @@ def cmake_build(Map conf=[:]){
             if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
                 sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
                 archiveArtifacts "ck_build_trace.json"
-                sh "ninja test"
+                // do not run unit tests when building instances only
+                if(!params.BUILD_INSTANCES_ONLY){
+                    sh "ninja test"
+                }
             }
             else{
+                // run unit tests
                 sh "make check"
             }
         }
@@ -718,11 +722,12 @@ def process_results(Map conf=[:]){
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;ROCMVERSION=6.3;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true
+                                              0 22 * * * % ROCMVERSION=6.3;BUILD_GFX908=true;BUILD_GFX12=false;RUN_PERFORMANCE_TESTS=false
                                               0 21 * * * % ROCMVERSION=6.3;hipTensor_test=true;RUN_CODEGEN_TESTS=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false
-                                              0 13 * * * % BUILD_LEGACY_OS=true''' : ""
+                                              0 13 * * * % BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false''' : ""
 
 pipeline {
     agent none
@@ -805,6 +810,10 @@ pipeline {
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
             description: "Test building instances for various architectures simultaneously (default: OFF)")
+        booleanParam(
+            name: "BUILD_GFX908",
+            defaultValue: false,
+            description: "Build CK and run tests on gfx908 (default: OFF)")
         booleanParam(
             name: "BUILD_GFX12",
             defaultValue: true,
@@ -1109,6 +1118,26 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx942" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
+                    }
+                }
+                stage("Build CK and run Tests on gfx908")
+                {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx908") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
+                                           cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx908" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
