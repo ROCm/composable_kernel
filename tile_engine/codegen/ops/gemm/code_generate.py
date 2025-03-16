@@ -133,15 +133,86 @@ struct GemmConfig
 
     RUN_MEM = """
     if(has_hot_loop){
-        if(static_cast<int>(tail_num) < BaseGemmPipeline::PrefetchStages)
+        if(tail_num == ck_tile::TailNumber::One)
         {
             Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, tail_num>{});
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Full)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
+
+        if constexpr(BaseGemmPipeline::PrefetchStages > 2)
+        {
+            if(tail_num == ck_tile::TailNumber::Two)
+            {
+                Run(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
+            }
+        }
+        if constexpr(BaseGemmPipeline::PrefetchStages > 3)
+        {
+            if(tail_num == ck_tile::TailNumber::Three)
+            {
+                Run(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
+            }
+        }
+        if constexpr(BaseGemmPipeline::PrefetchStages > 4)
+        {
+            if(tail_num == ck_tile::TailNumber::Four)
+            {
+                Run(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{});
+            }
+        }
+        if constexpr(BaseGemmPipeline::PrefetchStages > 5)
+        {
+            if(tail_num == ck_tile::TailNumber::Five)
+            {
+                Run(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{});
+            }
+        }
+        if constexpr(BaseGemmPipeline::PrefetchStages > 6)
+        {
+            if(tail_num == ck_tile::TailNumber::Six)
+            {
+                Run(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{});
+            }
+        }
+        if constexpr(BaseGemmPipeline::PrefetchStages > 7)
+        {
+            if(tail_num == ck_tile::TailNumber::Seven)
+            {
+                Run(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
+            }
         }
     }
     else{
-        Run(ck_tile::bool_constant<false>{},
-            ck_tile::integral_constant<ck_tile::TailNumber, tail_num>{});
+        if(tail_num == ck_tile::TailNumber::Full)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Odd)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Even)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else
+        {
+            throw std::runtime_error("The tile number is wrong! It should not exceed the prefetch stage numbers");
+        }   
     }
 """
 
@@ -420,16 +491,15 @@ float gemm_kernel_launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_conf
             list_f.write(str(w_p / (self.name_kernel_file + ".hpp"))  + "\n")   #TODO:: define name_api
             # kernel instance file
             #for b in blobs:
-            #    list_f.write(str(w_p / (b.name + ".cpp")) + "\n")
-        print("###################################################")  
+            #    list_f.write(str(w_p / (b.name + ".cpp")) + "\n") 
         
 
     def gen_blobs(self, args) -> None:
         w_p = Path(self.working_path)
         w_str = self.content_api(args)
         (w_p / (self.name_common_header + ".hpp")).write_text(self.common_header)
-        (w_p / (self.name_kernel_file + ".hpp")).write_text(w_str) 
-        print("*************************************************")  
+        (w_p / (self.name_kernel_file + ".hpp")).write_text(w_str)
+
         
         
 
