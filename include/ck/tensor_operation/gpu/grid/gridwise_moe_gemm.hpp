@@ -1530,18 +1530,8 @@ struct GridwiseMoeGemm
                   tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                   make_tuple(make_multi_index(0, 0, block_n_id, 0)),
                   c_element_op};
-
-            //     using BufferType = std::conditional_t<
-            //       std::is_same_v<IndexType, long_index_t>,
-            //       decltype(make_long_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize())),
-            //       decltype(make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize()))
-            //   >;
+                  
             auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-              
-            //   BufferType c_grid_buf = std::is_same_v<IndexType, long_index_t> ?
-            //       make_long_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize()) :
-                //   make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-            // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
                 SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,

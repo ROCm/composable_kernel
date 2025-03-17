@@ -153,7 +153,7 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         }
         }
 #else
-        if(moe_sorting_get_workspace_size(a.tokens, a.num_experts) != 0)
+        if(!a.force_one_shoot && moe_sorting_get_workspace_size(a.tokens, a.num_experts) != 0)
         {
             return moe_sorting_mp(t, a, s);
         }

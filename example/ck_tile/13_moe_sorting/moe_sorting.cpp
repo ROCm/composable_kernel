@@ -175,7 +175,8 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                           unit_size,
                           num_experts,
                           topk,
-                          static_cast<ck_tile::index_t>(moe_buf_size * sizeof(float))};
+                          static_cast<ck_tile::index_t>(moe_buf_size * sizeof(float)),
+                          false};
 
     ck_tile::stream_config sc{nullptr,
                               true,
