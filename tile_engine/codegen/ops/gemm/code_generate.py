@@ -151,46 +151,33 @@ struct GemmConfig
                 Run(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
             }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 3)
-        {
+       
             if(tail_num == ck_tile::TailNumber::Three)
             {
                 Run(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
             }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 4)
-        {
             if(tail_num == ck_tile::TailNumber::Four)
             {
                 Run(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{});
             }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 5)
-        {
             if(tail_num == ck_tile::TailNumber::Five)
             {
                 Run(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{});
             }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 6)
-        {
             if(tail_num == ck_tile::TailNumber::Six)
             {
                 Run(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{});
             }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 7)
-        {
             if(tail_num == ck_tile::TailNumber::Seven)
             {
                 Run(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
             }
+            throw std::runtime_error("The tile number is wrong! It should not exceed the prefetch stage numbers");
         }
     }
     else{
@@ -211,21 +198,55 @@ struct GemmConfig
         }
         else
         {
-            throw std::runtime_error("The tile number is wrong! It should not exceed the prefetch stage numbers");
+            throw std::runtime_error("Num K loop must be larger than number of prefetech stages.");
         }   
     }
 """
 
     RUN_COMP = """
     if(has_hot_loop){
-        Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber,tail_num>{});
+        if(tail_num == ck_tile::TailNumber::Full)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Odd)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Even)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
+        }
+        else
+        {
+            throw std::runtime_error("The tail number is wrong. It should be Full, Odd, or Even.");
+        }
     }
     else{
-        Run(ck_tile::bool_constant<false>{},
-            ck_tile::integral_constant<ck_tile::TailNumber, tail_num>{});
+        if(tail_num == ck_tile::TailNumber::Full)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Odd)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Even)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else
+        {
+            throw std::runtime_error("Num K loop must be larger than number of prefetech stages.");
+        }
     }
-    """
+"""
 
     GEMM_KERNEL_HEADER = """
 // SPDX-License-Identifier: MIT
