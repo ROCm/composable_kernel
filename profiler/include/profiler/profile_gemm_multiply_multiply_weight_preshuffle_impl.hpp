@@ -243,7 +243,10 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
     float best_kbatch     = 0;
+    int best_algo_id      = 0;
 
+    int pass_count = 0;
+    int algo_id    = -1;
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
@@ -258,6 +261,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
         for(std::size_t i = 0; i < kbatch_list.size(); i++)
         {
+            algo_id++;
             auto kbatch_curr = kbatch_list[i];
 
             auto argument_ptr = op_ptr->MakeArgumentPointer(
@@ -330,6 +334,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                 {
                     continue;
                 }
+                pass_count++;
                 std::string op_name = op_ptr->GetTypeString();
 
                 float ave_time = invoker_ptr->Run(argument_ptr.get(),
@@ -352,7 +357,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
                 std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
                           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
-                          << kbatch_curr << std::endl;
+                          << kbatch_curr << " algo_id: " << algo_id << std::endl;
 
                 if(tflops > best_tflops && ave_time > 1e-10)
                 {
@@ -361,6 +366,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                     best_ave_time   = ave_time;
                     best_gb_per_sec = gb_per_sec;
                     best_kbatch     = kbatch_curr;
+                    best_algo_id    = algo_id;
                 }
             }
             else
@@ -406,10 +412,11 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
         std::cout << " BLayout =  ColumnMajor";
     }
 
+    std::cout << "\nPass instance: " << pass_count << " in: " << op_ptrs.size() << std::endl;
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
               << " StrideB = " << StrideB << " StrideE = " << StrideE << " KBatch = " << best_kbatch
               << " : " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
-              << " GB/s, " << best_op_name << std::endl;
+              << " GB/s, " << best_op_name << " algo_id: " << best_algo_id << std::endl;
 
     return pass;
 }
