@@ -1587,7 +1587,7 @@ struct GridwiseMoeGemm
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     IndexType token_offset      = fused_token & 0xffffff;
-                    float weight              = token_offset < problem.NumTokens
+                    float weight              = token_offset < static_cast<IndexType>(problem.NumTokens)
                                                     ? p_sorted_weights_0[token_offset * problem.StrideDs[0]]
                                                     : 0.0;
                     if constexpr(IsInputGemm)
@@ -2102,7 +2102,7 @@ struct GridwiseMoeGemm
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     index_t token_offset      = fused_token & 0xffffff;
-                    float weight              = token_offset < problem.NumTokens
+                    float weight              = token_offset < static_cast<IndexType>(problem.NumTokens)
                                                     ? p_sorted_weights_0[token_offset * problem.StrideDs[0]]
                                                     : 0.0;
                     // float weight = p_sorted_weights_0[token_offset * problem.StrideDs[0]];
