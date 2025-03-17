@@ -4,7 +4,7 @@
 #include "ck_tile/host.hpp"
 #include "gemm_host.hpp"
 #include "tensor_configuration.hpp"
-#include "gemm_kernel.hpp"
+#include "launch_kernel.hpp"
 
 template <typename ADataType,
           typename BDataType,
@@ -115,7 +115,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << ave_time << " ms, "
               << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
-               /*
+               /* TODO:: Do we need to enable it ?
                << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
               << " C_Layout =" << CLayout::name << " A Type = " << DataTypeTraits<ADataType>::name
               << " B Type = " << DataTypeTraits<BDataType>::name

@@ -130,9 +130,28 @@ struct GemmConfig
                                                              GemmConfig::K_Warp_Tile,
                                                              UniversalGemmProblem::TransposeC>>;
 """
-
+    HOT_LOOP_FALSE = """
+        if(tail_num == ck_tile::TailNumber::Full)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Odd)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Even)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else
+        {
+            throw std::runtime_error("Num K loop must be larger than number of prefetech stages.");
+        }  
+"""
     RUN_MEM = """
-    if(has_hot_loop){
         if(tail_num == ck_tile::TailNumber::One)
         {
             Run(ck_tile::bool_constant<true>{},
@@ -179,32 +198,9 @@ struct GemmConfig
             }
             throw std::runtime_error("The tile number is wrong! It should not exceed the prefetch stage numbers");
         }
-    }
-    else{
-        if(tail_num == ck_tile::TailNumber::Full)
-        {
-            Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Odd)
-        {
-            Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Even)
-        {
-            Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-        }
-        else
-        {
-            throw std::runtime_error("Num K loop must be larger than number of prefetech stages.");
-        }   
-    }
 """
 
-    RUN_COMP = """
-    if(has_hot_loop){
+    RUN_COMPV3 = """
         if(tail_num == ck_tile::TailNumber::Full)
         {
             Run(ck_tile::bool_constant<true>{},
@@ -224,28 +220,19 @@ struct GemmConfig
         {
             throw std::runtime_error("The tail number is wrong. It should be Full, Odd, or Even.");
         }
-    }
-    else{
-        if(tail_num == ck_tile::TailNumber::Full)
+"""
+
+    RUN_COMPV4 = """
+        if(tail_num == ck_tile::TailNumber::Three)
         {
-            Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Odd)
-        {
-            Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Even)
-        {
-            Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
         }
         else
         {
-            throw std::runtime_error("Num K loop must be larger than number of prefetech stages.");
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
         }
-    }
 """
 
     GEMM_KERNEL_HEADER = """
@@ -364,7 +351,12 @@ float gemm_kernel_launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_conf
         return ave_time;
     }};     
 
-    {run_func}
+    if(has_hot_loop){{
+        {run_func}
+    }}else{{
+        {hot_loop_false}
+    }}
+   
                                                                                                                     
     return ave_time;
 }}
@@ -441,7 +433,7 @@ float gemm_kernel_launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_conf
     
     @property
     def name_kernel_file(self) -> str:
-        return 'gemm_kernel'
+        return 'launch_kernel'
 
     @property
     def common_header(self) -> str:
@@ -490,12 +482,14 @@ float gemm_kernel_launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_conf
             
     def content_api(self, args) -> str:
         list_f = self.gemm_pipeline_func()
+        run_f = self.RUN_MEM if self.kernel_method.F_pipeline == 'Memory' else self.RUN_COMPV3 if self.kernel_method.F_pipeline == 'ComputeV3' else self.RUN_COMPV4
         str1 = self.GEMM_KERNEL_HEADER.format(
                 universal_gemm_pipeline = list_f[0], 
                 gemm_pipeline_scheduler = self.gemm_scheduler(), 
                 gemm_pipeline = list_f[1],
                 epilogue_define = self.DEFAULT_EPILOGUE if self.kernel_method.F_epilogue == "Default" else self.CSHUFFLE_EPILOGUE,
-                run_func = self.RUN_MEM if self.kernel_method.F_pipeline == 'Memory' else self.RUN_COMP               
+                run_func = run_f.replace('{HOP_LOOP_FALSE}', self.HOT_LOOP_FALSE),
+                hot_loop_false = self.HOT_LOOP_FALSE          
                 )
         return str1
 
@@ -608,6 +602,9 @@ def validate_json_data(json_data):
     if not isinstance(json_data['kPadM'], bool) and not isinstance(json_data['kPadN'], bool) and not isinstance(json_data['kPadK'], bool):
         raise ValueError(f'Invalid value for padding. Must be boolean. ')
 
+    if json_data['Pipeline_type'] == 'ComputeV3' or json_data['Pipeline_type'] == 'ComputeV4':
+        if json_data['Scheduler_type'] == 'Interwave':
+            raise ValueError(f'Invalid scheduler type for Compute pipeline. Must be Intrawave. ')
    
     return json_data
      

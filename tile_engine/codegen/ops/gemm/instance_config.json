@@ -15,7 +15,7 @@
     "kPadN": false,
     "kPadK": false,
     "Prec_datatype": "fp16",
-    "Pipeline_type": "ComputeV3",
+    "Pipeline_type": "ComputeV4",
     "Scheduler_type": "Intrawave",
     "Epilogue_type": "CShuffle"
 }
