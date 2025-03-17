@@ -70,8 +70,8 @@ Filenames encode implementation choices using abbreviations:
   - `nwarp_sshuffle`: specific optimization for decode stage
 - **Advantage**: Enables massive sequence parallelism
 
-
-#　Dimension of FMHA: kM0, kN0, kK0, kN1, kK1
+---
+# Dimension of FMHA: kM0, kN0, kK0, kN1, kK1
 ![image](https://github.com/user-attachments/assets/17f4a19d-2b02-4907-86b3-127f9a4d0f5a)
 Q tile size : (M0, K0) 
 K tile size : (N0, K0) 
