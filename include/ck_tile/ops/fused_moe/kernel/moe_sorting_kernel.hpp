@@ -193,7 +193,6 @@ struct MoeSortingHostArgs
     index_t num_experts;
     index_t topk;
     long_index_t moe_buf_bytes;  // byte size of p_moe_buf
-    bool force_one_shoot;
 };
 
 template <typename Problem_>

@@ -413,8 +413,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                             tokens,
                             experts,
                             topk,
-                            stride,
-                            false};
+                            stride};
         float ave_time = fused_moe(
             traits, args, ck_tile::stream_config{nullptr, true, kname ? 1 : 0, warmup, repeat});
 
