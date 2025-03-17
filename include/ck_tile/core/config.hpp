@@ -3,11 +3,10 @@
 
 #pragma once
 
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
-    defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
 #define __gfx9__
 #endif
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
 #if defined(__gfx1030__) || defined(__gfx1031__) || defined(__gfx1032__) || \
@@ -51,7 +50,8 @@ CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_LOGGING)
 
 // implementing the "memory address space" attribute
 // https://llvm.org/docs/AMDGPUUsage.html#amdgpu-address-spaces-table
-#ifdef __HIPCC_
+// WA for https://github.com/ROCm/composable_kernel/issues/1946
+#if 0
 #define CK_TILE_GENERIC_ADDR __attribute__((address_space(0)))
 #define CK_TILE_GLOBAL_ADDR __attribute__((address_space(1)))
 #define CK_TILE_LDS_ADDR __attribute__((address_space(3)))
@@ -251,4 +251,12 @@ CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_LOGGING)
 #define CK_TILE_USE_OCP_FP8 1
 #else // for GPU code
 #define CK_TILE_USE_OCP_FP8 0
+#endif
+
+#ifndef CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
+#if __clang_major__ == 20
+#define CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN 1
+#else
+#define CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN 0
+#endif
 #endif
