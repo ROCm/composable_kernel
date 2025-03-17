@@ -678,6 +678,30 @@ inline __host__ __device__ half2_t type_convert<half2_t, f8x2_ocp_t>(f8x2_ocp_t 
 }
 
 template <>
+inline __host__ __device__ float2_t type_convert<float2_t, bf8x2_ocp_t>(bf8x2_ocp_t x)
+{
+#if CK_OCP_FP8_CVT_FAST_PATH
+    return __builtin_amdgcn_cvt_pk_f32_bf8(bit_cast<uint16_t>(x), false);
+#else
+    return float2_t{fp8_impl::cast_from_f8<float, bf8_ocp_t::wm, bf8_ocp_t::we, false>(
+                        x.AsType<fp8_storage_t>()[Number<0>{}]),
+                    fp8_impl::cast_from_f8<float, bf8_ocp_t::wm, bf8_ocp_t::we, false>(
+                        x.AsType<fp8_storage_t>()[Number<1>{}])};
+#endif
+}
+
+template <>
+inline __host__ __device__ half2_t type_convert<half2_t, bf8x2_ocp_t>(bf8x2_ocp_t x)
+{
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_pk_f16_bf8(bit_cast<uint16_t>(x), /*scale*/ 1.f, 0);
+#else
+    return half2_t{type_convert<half_t>(float(x.AsType<bf8_ocp_t>()[Number<0>{}])),
+                   type_convert<half_t>(float(x.AsType<bf8_ocp_t>()[Number<1>{}]))};
+#endif
+}
+
+template <>
 inline __host__ __device__ float2_t type_convert<float2_t, pk_i4_t>(pk_i4_t x)
 {
     uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
