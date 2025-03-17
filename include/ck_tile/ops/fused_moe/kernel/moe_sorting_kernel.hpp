@@ -1250,6 +1250,10 @@ CK_TILE_HOST index_t moe_sorting_mp_get_workspace_size(int tokens_, int num_expe
 CK_TILE_HOST index_t moe_sorting_get_workspace_size(int tokens_, int num_experts_)
 {
 #if 1
+    if(tokens_ >= 65536 * 2)
+    {
+        return 0;
+    }
     if(moe_sorting_is_oneshot(tokens_, num_experts_))
     {
         return 0;
