@@ -55,8 +55,8 @@ template <index_t BlockSize,
           index_t NPerBlock,
           index_t KPerBlock,
           index_t MScaleBlock,
-index_t NScaleBlock,
-index_t KScaleBlock,
+          index_t NScaleBlock,
+          index_t KScaleBlock,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
@@ -198,7 +198,8 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves;
 
         constexpr auto num_pk_fma_per_kscaleblock = MPerXDL == 16 ? 2 : 8;
-        constexpr auto num_mfma_per_kscaleblock   = MPerXDL == 16 ? KScaleBlock / 32 : KScaleBlock / 16;
+        constexpr auto num_mfma_per_kscaleblock =
+            MPerXDL == 16 ? KScaleBlock / 32 : KScaleBlock / 16;
 
         // B global
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
@@ -481,7 +482,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                                     c_scale_thread_buf[Number<cscale_offset>{}];
                                 c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
                                     c_scale_thread_buf[Number<cscale_offset>{}];
-                                
+
                                 static_for<0, KRepeat / num_scale_k_block, 1>{}([&](auto k0) {
                                     vector_type<ComputeDataType, KPack> a_thread_vec;
                                     vector_type<ComputeDataType, KPack> b_thread_vec;
@@ -730,7 +731,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                             c_scale_thread_buf[Number<cscale_offset>{}];
                         c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
                             c_scale_thread_buf[Number<cscale_offset>{}];
-                            
+
                         static_for<0, KRepeat / num_scale_k_block, 1>{}([&](auto k0) {
                             vector_type<ComputeDataType, KPack> a_thread_vec;
                             vector_type<ComputeDataType, KPack> b_thread_vec;

@@ -271,7 +271,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             });
 
-            // __builtin_amdgcn_sched_barrier(0);
+            __builtin_amdgcn_sched_barrier(0);
         }
         else if constexpr(stage.value == 1)
         {
@@ -390,7 +390,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 }
             });
 
-            // __builtin_amdgcn_sched_barrier(0);
+            __builtin_amdgcn_sched_barrier(0);
         }
         else if constexpr(stage.value == 2)
         {
@@ -506,7 +506,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 }
             });
 
-            // __builtin_amdgcn_sched_barrier(0);
+            __builtin_amdgcn_sched_barrier(0);
         }
         else
         {
@@ -527,7 +527,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
             });
 
-            // __builtin_amdgcn_sched_barrier(0);
+            __builtin_amdgcn_sched_barrier(0);
         }
     }
 
@@ -569,7 +569,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);    // VMEM read
             });
 
-            // __builtin_amdgcn_sched_barrier(0);
+            __builtin_amdgcn_sched_barrier(0);
         }
         else if constexpr(stage.value == 1)
         {
@@ -616,7 +616,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     }
                 }
             });
-            // __builtin_amdgcn_sched_barrier(0);
+            __builtin_amdgcn_sched_barrier(0);
         }
         else
         {
@@ -628,7 +628,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
             });
 
-            // __builtin_amdgcn_sched_barrier(0);
+            __builtin_amdgcn_sched_barrier(0);
         }
     }
 
@@ -650,7 +650,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
         });
 
-        // __builtin_amdgcn_sched_barrier(0);
+        __builtin_amdgcn_sched_barrier(0);
     }
 
     template <bool HasMainLoop,
@@ -715,7 +715,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
     {
         ignore = b_block_desc;
         ignore = b_block_buf;
-        // __builtin_amdgcn_sched_barrier(0);
+        __builtin_amdgcn_sched_barrier(0);
         static_assert(CScaleThreadDesc{}.GetLength(Number<0>{}) == 1,
                       "Pipeline v3 only support scaleblocksliceK=1");
         static_assert(CScaleThreadDesc{}.GetLength(Number<2>{}) == 1,
@@ -836,7 +836,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                a_thread_buf);
         });
 
-        // __builtin_amdgcn_sched_barrier(0);
+        __builtin_amdgcn_sched_barrier(0);
 
         // main body
         if constexpr(HasMainLoop)
@@ -1001,11 +1001,10 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                                            b_scale_thread_copy_step);
 
                     __builtin_amdgcn_sched_group_barrier(0x020, MRepeat + 1, 0); // VMEM read
+                    __builtin_amdgcn_sched_barrier(0);
                 };
 
                 LoopFunc(I0, I1);
-                // Just adding this will cause correctness issue.
-                // __builtin_amdgcn_sched_barrier(0);
                 LoopFunc(I1, I0);
 
                 i += 2;
