@@ -36,6 +36,16 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8_v3)
 add_example_executable(example_gemm_xdl_bf16_v3 gemm_xdl_bf16_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16_v3)
 
+list(APPEND gpu_list gfx942 gfx950)
+set(target 0)
+foreach(gpu IN LISTS GPU_TARGETS)
+    if(gpu IN_LIST gpu_list AND target EQUAL 0)
+        add_example_executable(example_gemm_xdl_fp8_pk_i4_bpreshuffle_v3 gemm_xdl_fp8_pk_i4_bpreshuffle_v3.cpp)
+        add_example_executable(example_gemm_xdl_fp8_pk_i4_v3 gemm_xdl_fp8_pk_i4_v3.cpp)
+        set(target 1)
+    endif()
+endforeach()
+
 add_example_executable(example_gemm_xdl_bf16_streamk_v3 gemm_xdl_bf16_streamk_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16_streamk_v3)
 

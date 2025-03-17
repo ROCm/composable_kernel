@@ -158,12 +158,12 @@ Additional cmake flags can be used to significantly speed-up the build:
   instances of select data types only. The main default data types are fp32 and fp16; you can safely skip
   other data types.
 
-* `DL_KERNELS` (default is OFF) must be set to ON in order to build instances, such as `gemm_dl` or
+* `DISABLE_DL_KERNELS` (default is OFF) must be set to ON in order not to build instances, such as `gemm_dl` or
   `batched_gemm_multi_d_dl`. These instances are useful on architectures like the NAVI2x, as most
   other platforms have faster instances, such as `xdl` or `wmma`, available.
 
-* `DPP_KERNELS` (default is OFF) must be set to ON in order to build instances, such as `gemm_dpp`. 
-  These instances are useful on architectures like the NAVI2x, as most other platforms have faster instances, such as `xdl` or `wmma`, available.
+* `DISABLE_DPP_KERNELS` (default is OFF) must be set to ON in order not to build instances, such as `gemm_dpp`. 
+  These instances offer a slightly better performance of fp16 gemms on NAVI2x. But on other architectures faster alternatives are available.
 
 * `CK_USE_FP8_ON_UNSUPPORTED_ARCH` (default is OFF) must be set to ON in order to build instances,
   such as `gemm_universal`, `gemm_universal_streamk` and `gemm_multiply_multiply` for fp8 data type for GPU targets which do not  have native support for fp8 data type, such as gfx908 or gfx90a. These instances are useful on

@@ -54,6 +54,8 @@ struct FmhaFwdKernel
     using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
 
+    static constexpr bool kUseAsyncCopy = FmhaPipeline::Policy::AsyncCopy;
+
     // clang-format off
     template <typename T> struct t2s;
     template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
@@ -1082,10 +1084,11 @@ struct FmhaFwdKernel
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
+            constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : false;
             return pad_tensor_view(
                 k_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
-                sequence<kPadSeqLenK, kPadHeadDimQ>{});
+                sequence<kPadSeqLenK_, kPadHeadDimQ>{});
         }();
         const auto v_dram = [&]() {
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
@@ -1104,10 +1107,11 @@ struct FmhaFwdKernel
                                           make_tuple(sequence<1>{}, sequence<0>{}),
                                           make_tuple(sequence<0>{}, sequence<1>{}));
 
+                constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : false;
                 return pad_tensor_view(
                     v_dram_transposed,
                     make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
-                    sequence<kPadHeadDimV, kPadSeqLenK>{});
+                    sequence<kPadHeadDimV, kPadSeqLenK_>{});
             }
             else
             {
@@ -1118,10 +1122,11 @@ struct FmhaFwdKernel
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
+                constexpr bool kPadHeadDimV_ = kUseAsyncCopy ? kPadHeadDimV : false;
                 return pad_tensor_view(
                     v_dram_naive,
                     make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
-                    sequence<kPadHeadDimV, kPadSeqLenK>{});
+                    sequence<kPadHeadDimV_, kPadSeqLenK>{});
             }
         }();
 
