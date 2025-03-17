@@ -114,6 +114,8 @@ struct BlockGemmPipelineAGmemBGmemCReg
         // Acc register tile
         auto c_block_tile = decltype(block_gemm(a_lds_gemm_window, b_lds_gemm_window)){};
 
+#if 0
+#pragma message ("prefetch")
         // prefetch
         // global read 0
         auto a_block_tile = load_tile(a_copy_dram_window);
@@ -186,6 +188,37 @@ struct BlockGemmPipelineAGmemBGmemCReg
             // GEMM num_loop - 1
             block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
         }
+#else
+#pragma message ("non-prefetch")
+        // non-prefetch
+        auto a_block_tile = load_tile(a_copy_dram_window);
+        auto b_block_tile = load_tile(b_copy_dram_window);
+        store_tile(a_copy_lds_window, a_block_tile);
+        store_tile(b_copy_lds_window, b_block_tile);
+
+        block_sync_lds();
+        block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+        block_sync_lds();
+
+        index_t iCounter = num_loop - 1;
+
+        while (iCounter > 0)
+        {
+            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
+            move_tile_window(b_copy_dram_window, {0, kKPerBlock});
+
+            a_block_tile = load_tile(a_copy_dram_window);
+            b_block_tile = load_tile(b_copy_dram_window);
+            store_tile(a_copy_lds_window, a_block_tile);
+            store_tile(b_copy_lds_window, b_block_tile);
+
+            block_sync_lds();
+            block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+            block_sync_lds();
+
+            iCounter--;
+        }
+#endif
 
         return c_block_tile;
     }
