@@ -592,7 +592,6 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rn
 
     union
     {
-        unsigned int i32val;
         half2_t half_vec;
         shortx2_t i16_vec;
         fp8_storage_t i8val[4];
@@ -603,11 +602,11 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rn
 
     if constexpr(saturate)
     {
-        if((val.i32val & 0x7FFF) != 0x7FFF)
+        if((val.i16_vec[0] & 0x7FFF) != 0x7FFF)
         {
             val.half_vec[0] = __builtin_amdgcn_fmed3h(val.half_vec[0], 448.0, -448.0);
         }
-        if((val.i32val & 0x7FFF) != 0x7FFF)
+        if((val.i16_vec[1] & 0x7FFF) != 0x7FFF)
         {
             val.half_vec[1] = __builtin_amdgcn_fmed3h(val.half_vec[1], 448.0, -448.0);
         }
@@ -664,7 +663,6 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rn
 
     union
     {
-        unsigned int i32val;
         half2_t half_vec;
         shortx2_t i16_vec;
         fp8_storage_t i8val[4];
@@ -675,13 +673,13 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rn
 
     if constexpr(saturate)
     {
-        if((val.i32val & 0x7FFF) != 0x7FFF)
+        if((val.i16_vec[0] & 0x7FFF) != 0x7FFF)
         {
-            val.half_vec[0] = __builtin_amdgcn_fmed3h(val.half_vec[0], 448.0, -448.0);
+            val.half_vec[0] = __builtin_amdgcn_fmed3h(val.half_vec[0], 57344.0, -57344.0);
         }
-        if((val.i32val & 0x7FFF) != 0x7FFF)
+        if((val.i16_vec[1] & 0x7FFF) != 0x7FFF)
         {
-            val.half_vec[1] = __builtin_amdgcn_fmed3h(val.half_vec[1], 448.0, -448.0);
+            val.half_vec[1] = __builtin_amdgcn_fmed3h(val.half_vec[1], 57344.0, -57344.0);
         }
     }
 
