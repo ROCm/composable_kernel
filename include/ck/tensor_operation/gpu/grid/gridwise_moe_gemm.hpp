@@ -1227,7 +1227,7 @@ struct GridwiseMoeGemm
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
 
-        const auto a_grid_buf = make_long_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride / BPackedSize,
@@ -1536,7 +1536,7 @@ struct GridwiseMoeGemm
             //       decltype(make_long_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize())),
             //       decltype(make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize()))
             //   >;
-            auto c_grid_buf = make_long_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+            auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
               
             //   BufferType c_grid_buf = std::is_same_v<IndexType, long_index_t> ?
             //       make_long_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize()) :

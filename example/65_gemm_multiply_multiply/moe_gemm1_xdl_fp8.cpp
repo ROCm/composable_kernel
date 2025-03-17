@@ -158,7 +158,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
                 2,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, ck::long_index_t, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, ck::index_t, A0DataType>;
 
 // clang-format on
 
@@ -172,9 +172,9 @@ int main(int argc, char* argv[])
     ck::index_t N               = 4096;
     ck::index_t K               = 6144;
     ck::index_t experts         = 1;
-    ck::index_t sorted_tile_num = 2000;
-    ck::index_t valid_tile_num  = 2000;
-    ck::index_t tokens          = 256000;
+    ck::index_t sorted_tile_num = 16;
+    ck::index_t valid_tile_num  = 13;
+    ck::index_t tokens          = 832;
     ck::index_t topk            = 2;
 
     // ck::index_t tokens = batch * topk;
