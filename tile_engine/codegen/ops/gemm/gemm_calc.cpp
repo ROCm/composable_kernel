@@ -32,6 +32,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int n_repeat                 = arg_parser.get_int("repeat");
     int verify                 = arg_parser.get_int("v");
     ck_tile::index_t init_method = arg_parser.get_int("init");
+
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
     stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
@@ -68,24 +69,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-    // if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
-    // {
-    //     // Permute vector pk_i4x4 data for device implementation
-    //     ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-    //     permute_tensor_b<decltype(b_k_n_dev),
-    //                      ADataType,
-    //                      BDataType,
-    //                      AccDataType,
-    //                      CDataType,
-    //                      ALayout,
-    //                      BLayout,
-    //                      CLayout>(b_k_n_dev);
-    //     permute_vectors_i4x4_b(b_k_n_dev);
-    //     b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
-    // }
+    if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+    {
+        // Permute vector pk_i4x4 data for device implementation
+        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+        permute_tensor_b<decltype(b_k_n_dev),
+                         ADataType,
+                         BDataType,
+                         AccDataType,
+                         CDataType,
+                         ALayout,
+                         BLayout,
+                         CLayout>(b_k_n_dev);
+        permute_vectors_i4x4_b(b_k_n_dev);
+        b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+    }else{
+        b_k_n_dev_buf.ToDevice(b_k_n.data());
+    }
 
     a_m_k_dev_buf.ToDevice(a_m_k.data());
-    b_k_n_dev_buf.ToDevice(b_k_n.data());
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
@@ -112,15 +114,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << ave_time << " ms, "
-              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
-
-               /* TODO:: Do we need to enable it ?
-               << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
+              << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
               << " C_Layout =" << CLayout::name << " A Type = " << DataTypeTraits<ADataType>::name
               << " B Type = " << DataTypeTraits<BDataType>::name
-              << " C Type = " << DataTypeTraits<CDataType>::name << " : " 
-              */
+              << " C Type = " << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
+              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass =
         gemm_verify<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(

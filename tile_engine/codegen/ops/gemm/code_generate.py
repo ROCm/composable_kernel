@@ -24,13 +24,14 @@ def get_if_str(idx, total, lase_else = True):
         else:
             return 'else if'
 
-
-DATA_TYPE_MAP = {'fp32' : 'float',
-                 'fp16' : 'ck_tile::half_t',
-                 'bf16' : 'ck_tile::bf16_t',
-                 'int8' : 'ck_tile::int8_t',
-                 'fp8'  : 'ck_tile::fp8_t',
-                 'bf8'  :  'ck_tile::bf8_t'
+ 
+DATA_TYPE_MAP = {'fp32'  : 'float',
+                 'fp16'  : 'ck_tile::half_t',
+                 'bf16'  : 'ck_tile::bf16_t',
+                 'int8'  : 'ck_tile::int8_t',
+                 'fp8'   : 'ck_tile::fp8_t',
+                 'bf8'   :  'ck_tile::bf8_t',
+                 'int4'  : 'ck_tile::pk_int4_t'
                 }
 
 LAYOUT_MAP = {'R' : 'ck_tile::tensor_layout::gemm::RowMajor',
@@ -39,8 +40,10 @@ LAYOUT_MAP = {'R' : 'ck_tile::tensor_layout::gemm::RowMajor',
 def sizeOf(data_type):
     if data_type == 'fp16' or data_type == 'bf16':
         return 2
-    elif data_type == 'int8' or data_type == 'fp8':
+    elif data_type == 'int8' or data_type == 'fp8' or data_type == 'bf8':
         return 1
+    elif data_type == 'int4': ## TODO:: needs to confirm
+        return 0.5
     else:
         return 4
 
@@ -252,6 +255,71 @@ struct GemmConfig
 #include "tensor_configuration.hpp"
 #include "gemm_host.hpp"
 
+
+template <typename Tensor,
+          typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
+void permute_tensor_b(Tensor& tensor)
+{{
+    using GemmShape = 
+        ck_tile::TileGemmShape<ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
+                               ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
+                               ck_tile::sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>,
+                               GemmConfig::PermuteA,
+                               GemmConfig::PermuteB>;
+
+    using GemmUniversalTraits = 
+        ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
+                                         GemmConfig::kPadN,
+                                         GemmConfig::kPadK,
+                                         GemmConfig::DoubleSmemBuffer,
+                                         ALayout,
+                                         BLayout,
+                                         CLayout,
+                                         GemmConfig::TransposeC>;  
+
+ 
+
+    using UniversalGemmProblem = 
+        ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                              BDataType,
+                                              AccDataType,
+                                              GemmShape,
+                                              GemmUniversalTraits,
+                                              {gemm_pipeline_scheduler},
+                                              true,
+                                              ck_tile::TailNumber::Full>;
+
+    using GemmPipeline =  {gemm_pipeline}<UniversalGemmProblem>;
+
+    const ck_tile::index_t K  = tensor.get_length(0);
+    const ck_tile::index_t N  = tensor.get_length(1);
+    const ck_tile::index_t K1 = GemmPipeline::GetSmemPackB();
+    const ck_tile::index_t K0 = K / K1;
+
+    Tensor tensor_copy = tensor;
+
+    // int K0, N, K1
+    for(int j = 0; j < K0; j++)
+    {{
+        for(int i = 0; i < N; i++)
+        {{
+            for(int jj = 0; jj < K1; jj++)
+            {{
+                tensor(j * N * K1 + i * K1 + jj) = tensor_copy(i * K + (j * K1 + jj));
+            }}
+        }}
+    }}
+}}
+
+
+
+
 template<typename ADataType, 
          typename BDataType, 
          typename AccDataType,
@@ -401,11 +469,17 @@ float gemm_kernel_launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_conf
     def init(self):
         #TODO:: pass one datatype or multiple datatypes; o_type could be different
         ctype = self.data['Prec_datatype']
+        atype = self.data['Prec_datatype']
+        btype = self.data['Prec_datatype']
         if self.data['Prec_datatype'] in ['fp8', 'bf8']:
             ctype = 'fp16'
+        elif self.data['Prec_datatype'] in ['int4']:
+            atype = 'fp16'
+            ctype = 'fp16'
+
         self.datatype_config = gemm_instance_codegen.datatype_configuration(
-            DATA_TYPE_MAP[self.data['Prec_datatype']],
-            DATA_TYPE_MAP[self.data['Prec_datatype']],
+            DATA_TYPE_MAP[atype],
+            DATA_TYPE_MAP[btype],
             DATA_TYPE_MAP['fp32'],
             DATA_TYPE_MAP[ctype] 
         )
@@ -547,7 +621,7 @@ def validate_json_data(json_data):
         "A_layout": ["R", "C", "R"],
         "B_layout": ["R", "C", "C"],
         "C_layout": ["R", "C", "R"], 
-        "Prec_datatype": ["fp16", "bf16", "fp8", "bf8", "fp16"],
+        "Prec_datatype": ["fp16", "bf16", "fp8", "bf8", "fp16", "int4", "fp16"],
         "Pipeline_type": ["Memory", "ComputeV3", "ComputeV4", "ComputeV3"],
         "Scheduler_type": ["Interwave", "Intrawave", "Interwave"],
         "Epilogue_type": ["CShuffle", "Default", "CShuffle"]
@@ -557,7 +631,9 @@ def validate_json_data(json_data):
         'fp16' : [(32,32,8), (16,16,16), (4,64,4), (64,4,4)],
         'bf16' : [(32,32,8), (16,16,16), (4,64,4), (64,4,4)],
         'int8' : [(32,32,16)],
-        'fp8' : [(32,32,16)]
+        'fp8' : [(32,32,16)],
+        'bf8' : [(32,32,16)] ,  ##TODO:: For int4 ??
+        'int4' : [(32,32,8), (16,16,16), (4,64,4), (64,4,4)]
     }
 
     # Validate String values
@@ -602,9 +678,14 @@ def validate_json_data(json_data):
     if not isinstance(json_data['kPadM'], bool) and not isinstance(json_data['kPadN'], bool) and not isinstance(json_data['kPadK'], bool):
         raise ValueError(f'Invalid value for padding. Must be boolean. ')
 
+    # Intrawave scheduler support for Compute pipeline
     if json_data['Pipeline_type'] == 'ComputeV3' or json_data['Pipeline_type'] == 'ComputeV4':
         if json_data['Scheduler_type'] == 'Interwave':
             raise ValueError(f'Invalid scheduler type for Compute pipeline. Must be Intrawave. ')
+
+    # int4 datatype supported only for ComputeV3 pipeline
+    if json_data['Prec_datatype'] == 'int4' and json_data['Pipeline_type'] != 'ComputeV3':
+        raise ValueError(f'Invalid pipeline type for int4 datatype. Must be ComputeV3 only')
    
     return json_data
      

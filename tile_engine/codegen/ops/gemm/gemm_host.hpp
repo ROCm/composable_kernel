@@ -9,6 +9,51 @@
 
 #pragma once
 
+template <typename T>
+struct DataTypeTraits;
+
+template <>
+struct DataTypeTraits<float>
+{
+    static constexpr const char* name = "fp32";
+};
+
+template <>
+struct DataTypeTraits<double>
+{
+    static constexpr const char* name = "fp64";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::half_t>
+{
+    static constexpr const char* name = "fp16";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::bf16_t>
+{
+    static constexpr const char* name = "bf16";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::fp8_t>
+{
+    static constexpr const char* name = "fp8";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::bf8_t>
+{
+    static constexpr const char* name = "bf8";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::pk_int4_t>
+{
+    static constexpr const char* name = "pk_int4_t";
+};
+
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -56,6 +101,61 @@ inline auto create_args(int argc, char* argv[])
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
+}
+
+template <typename Tensor>
+void permute_vectors_i4x4_b(Tensor& tensor)
+{
+    const ck_tile::index_t K = tensor.get_length(0);
+    const ck_tile::index_t N = tensor.get_length(1);
+    // vector pk_i4x4 permute
+    for(int i = 0; i < N; i++)
+    {
+        for(int j = 0; j < K; j += 8)
+        {
+            int8_t input[8];
+
+            for(int k = 0; k < 4; k++)
+            {
+                int8_t i4x2      = tensor(j + k * 2, i).data;
+                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
+                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
+            }
+
+            // permute 01234567->20643175
+            {
+                int8_t hi   = input[2];
+                int8_t lo   = input[0];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 0, i) = i4x2;
+            }
+
+            {
+                int8_t hi   = input[6];
+                int8_t lo   = input[4];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 2, i) = i4x2;
+            }
+
+            {
+                int8_t hi   = input[3];
+                int8_t lo   = input[1];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 4, i) = i4x2;
+            }
+
+            {
+                int8_t hi   = input[7];
+                int8_t lo   = input[5];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 6, i) = i4x2;
+            }
+        }
+    }
 }
 
 //verification code
