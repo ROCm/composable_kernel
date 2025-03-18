@@ -6,7 +6,7 @@ add_example_executable(example_gemm_multiply_multiply_xdl_int8 gemm_multiply_mul
 add_example_executable(example_moe_gemm1_xdl_fp8 moe_gemm1_xdl_fp8.cpp)
 add_example_executable(example_moe_gemm2_xdl_fp8 moe_gemm2_xdl_fp8.cpp)
 
-list(APPEND gpu_list gfx942 gfx950)
+list(APPEND gpu_list gfx942)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
     if(gpu IN_LIST gpu_list AND target EQUAL 0)
