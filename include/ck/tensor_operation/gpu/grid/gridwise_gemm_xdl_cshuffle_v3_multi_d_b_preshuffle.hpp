@@ -369,7 +369,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0, index_t NPadded, index_t KBatch)
     {
         ignore = NPadded;
-        ignore = KBatch;
         // if N padding
         if constexpr(GemmSpec == GemmSpecialization::NPadding ||
                      GemmSpec == GemmSpecialization::NKPadding)
