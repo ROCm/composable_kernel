@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-#include "ck/utility/data_types.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck {
 
