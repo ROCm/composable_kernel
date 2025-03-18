@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle_v3_b_preshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/gemm_multiply_multiply_wp.hpp"
+#include "ck/library/tensor_operation_instance/gpu/gemm_multiply_multiply_weight_preshuffle.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -25,13 +25,14 @@ namespace ck {
 namespace profiler {
 
 template <typename InOutDataType>
-void preShuffleBuffer(const InOutDataType* src, InOutDataType* dst, int N, int K, int NXdl)
+void preShuffleBuffer(
+    const InOutDataType* src, InOutDataType* dst, int N, int K, int NXdl, int Knew)
 {
     int KPack = 16;
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
-    int K0 = K / (KLane * KPack);
+    int K0 = Knew / (KLane * KPack);
     // K -> K0 KLane KPack
     // N -> N0 NLane
     // N, K -> N0 K0 KLane NLane KPack
@@ -54,6 +55,15 @@ void preShuffleBuffer(const InOutDataType* src, InOutDataType* dst, int N, int K
             dst[outputIndex] = src[n * K + k];
         }
     }
+}
+
+int GetKPreShufflePadded(int K)
+{
+    return (K + KShufflePadded - 1) / KShufflePadded * KShufflePadded;
+}
+int GetNPreShufflePadded(int N)
+{
+    return (N + NShufflePadded - 1) / NShufflePadded * NShufflePadded;
 }
 
 template <typename ADataType,
@@ -100,13 +110,15 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                 return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
-
+    auto Knew       = (K % 128 == 0) ? K : GetKPreShufflePadded(K);
+    auto StrideBnew = Knew;
+    auto Nnew       = (N % 64 == 0) ? N : GetNPreShufflePadded(N);
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<BDataType> b_preshuffled_mfma16(
-        f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
+        f_host_tensor_descriptor(Knew, Nnew, StrideBnew, BLayout{})); // use layout only for size
     Tensor<BDataType> b_preshuffled_mfma32(
-        f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
+        f_host_tensor_descriptor(Knew, Nnew, StrideBnew, BLayout{})); // use layout only for size
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
@@ -126,6 +138,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
     std::cout << "rotating count: " << rotating_count << std::endl;
+    std::cout << "verification: " << do_verification << std::endl;
 
     switch(init_method)
     {
@@ -143,8 +156,10 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
         d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
 
-    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma16.mData.data(), N, K, 16);
-    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma32.mData.data(), N, K, 32);
+    b_preshuffled_mfma16.SetZero();
+    b_preshuffled_mfma32.SetZero();
+    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma16.mData.data(), N, K, 16, Knew);
+    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma32.mData.data(), N, K, 32, Knew);
 
     using PassThrough      = ck::tensor_operation::element_wise::PassThrough;
     using MultiplyMultiply = ck::tensor_operation::element_wise::MultiplyMultiply;
@@ -158,8 +173,10 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     const auto c_element_op = CElementOp{};
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf_mfma16(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf_mfma32(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf_mfma16(sizeof(BDataType) *
+                                  b_preshuffled_mfma16.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf_mfma32(sizeof(BDataType) *
+                                  b_preshuffled_mfma32.mDesc.GetElementSpaceSize());
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
@@ -226,7 +243,10 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
     float best_kbatch     = 0;
+    int best_algo_id      = 0;
 
+    int pass_count = 0;
+    int algo_id    = -1;
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
@@ -241,6 +261,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
         for(std::size_t i = 0; i < kbatch_list.size(); i++)
         {
+            algo_id++;
             auto kbatch_curr = kbatch_list[i];
 
             auto argument_ptr = op_ptr->MakeArgumentPointer(
@@ -260,7 +281,9 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                 kbatch_curr,
                 a_element_op,
                 b_element_op,
-                c_element_op);
+                c_element_op,
+                Nnew,
+                Knew);
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -307,7 +330,11 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                             << std::endl;
                     }
                 }
-
+                if(!pass)
+                {
+                    continue;
+                }
+                pass_count++;
                 std::string op_name = op_ptr->GetTypeString();
 
                 float ave_time = invoker_ptr->Run(argument_ptr.get(),
@@ -330,7 +357,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
                 std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
                           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
-                          << kbatch_curr << std::endl;
+                          << kbatch_curr << " algo_id: " << algo_id << std::endl;
 
                 if(tflops > best_tflops && ave_time > 1e-10)
                 {
@@ -339,6 +366,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                     best_ave_time   = ave_time;
                     best_gb_per_sec = gb_per_sec;
                     best_kbatch     = kbatch_curr;
+                    best_algo_id    = algo_id;
                 }
             }
             else
@@ -384,10 +412,11 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
         std::cout << " BLayout =  ColumnMajor";
     }
 
+    std::cout << "\nPass instance: " << pass_count << " in: " << op_ptrs.size() << std::endl;
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
               << " StrideB = " << StrideB << " StrideE = " << StrideE << " KBatch = " << best_kbatch
               << " : " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
-              << " GB/s, " << best_op_name << std::endl;
+              << " GB/s, " << best_op_name << " algo_id: " << best_algo_id << std::endl;
 
     return pass;
 }
