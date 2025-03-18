@@ -99,13 +99,13 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
     {
-        return Problem::VectorLoadSize;
+        return Problem::VectorLoadSize / sizeof(typename Problem::ADataType);
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
     {
-        return Problem::VectorLoadSize;
+        return Problem::VectorLoadSize / sizeof(typename Problem::BDataType);
     }
 
     template <typename Problem>
@@ -129,7 +129,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
             constexpr index_t KPack = GetSmemPackA<Problem>();
             static_assert(KPack % K3 == 0);
             constexpr index_t K2 = KPack / K3;
-            if constexpr(get_warp_size() % (K2 * M0))
+            if constexpr(get_warp_size() >= (K2 * M0))
             {
                 constexpr index_t K1 = get_warp_size() / (K2 * M0);
                 constexpr index_t K0 = BlockSize / get_warp_size();
@@ -219,7 +219,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
             constexpr index_t KPack = GetSmemPackB<Problem>();
             static_assert(KPack % K3 == 0);
             constexpr index_t K2 = KPack / K3;
-            if constexpr(get_warp_size() % (K2 * N0) == 0)
+            if constexpr(get_warp_size() >= (K2 * N0))
             {
                 constexpr index_t K1 = get_warp_size() / (K2 * N0);
                 constexpr index_t K0 = BlockSize / get_warp_size();
