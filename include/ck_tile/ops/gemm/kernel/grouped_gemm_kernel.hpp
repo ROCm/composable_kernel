@@ -11,26 +11,6 @@
 
 namespace ck_tile {
 
-struct GroupedGemmHostArgs : public ck_tile::GemmHostArgs
-{
-    CK_TILE_HOST GroupedGemmHostArgs() noexcept = default;
-    CK_TILE_HOST GroupedGemmHostArgs(const void* a_ptr_,
-                                     const void* b_ptr_,
-                                     void* c_ptr_,
-                                     ck_tile::index_t M_,
-                                     ck_tile::index_t N_,
-                                     ck_tile::index_t K_,
-                                     ck_tile::index_t stride_A_,
-                                     ck_tile::index_t stride_B_,
-                                     ck_tile::index_t stride_C_)
-        : GemmHostArgs(a_ptr_, b_ptr_, c_ptr_, KBatch, M_, N_, K_, stride_A_, stride_B_, stride_C_)
-    {
-    }
-
-    private:
-    static constexpr index_t KBatch = 1;
-};
-
 struct GemmTransKernelArg
 {
     GemmKernelArgs group_karg;
@@ -75,7 +55,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // clang-format on
     }
 
-    __host__ static auto GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs>& gemm_descs)
+    __host__ static auto GetWorkSpaceSize(const std::vector<GemmHostArgs>& gemm_descs)
         -> std::size_t
     {
         return gemm_descs.size() * sizeof(GemmTransKernelArg);
@@ -83,7 +63,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     __host__ static constexpr auto BlockSize() -> dim3 { return dim3(KernelBlockSize); }
 
-    __host__ static constexpr auto GridSize(const std::vector<GroupedGemmHostArgs>& gemm_descs)
+    __host__ static constexpr auto GridSize(const std::vector<GemmHostArgs>& gemm_descs)
     {
         index_t grid_size = 0;
         for(const auto& it_desc : gemm_descs)
@@ -94,7 +74,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto MakeKargs(const std::vector<GroupedGemmHostArgs>& gemm_descs)
+    CK_TILE_HOST static auto MakeKargs(const std::vector<GemmHostArgs>& gemm_descs)
         -> std::vector<GemmTransKernelArg>
     {
         std::vector<GemmTransKernelArg> gemm_kernel_args_;

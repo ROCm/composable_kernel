@@ -171,11 +171,21 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
             Run(ck_tile::bool_constant<true>{},
                 ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
         }
+        else if(tail_num == ck_tile::TailNumber::Odd)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Even)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
+        }
         else
         {
             std::ostringstream err;
-            err << "For compute pipeline tail number should always be Full, but have \"" << tail_num
-                << "\" which is not supported! PrefetchStages: " << BaseGemmPipeline::PrefetchStages
+            err << "Incorrect tail_num for compv3 pipeline! Expected Full, Odd or Even, but got "
+                << tail_num << "\nPrefetchStages: " << BaseGemmPipeline::PrefetchStages
                 << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
             throw std::runtime_error(err.str());
         }
@@ -255,10 +265,26 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
     }
     else
     {
+        if(tail_num == ck_tile::TailNumber::Full)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Odd)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Even)
+        {
+            Run(ck_tile::bool_constant<false>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
         std::ostringstream err;
-        err << "Num K loop must be larger than number of prefetech stages."
-            << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages << "\n File: " << __FILE__
-            << ":" << __LINE__ << ", in function: " << __func__;
+        err << "Incorrect tail_num for pipeline without hotloop, expected Full, Odd or Even, but "
+               "got "
+            << tail_num << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages
+            << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
         throw std::runtime_error(err.str());
     }
 
