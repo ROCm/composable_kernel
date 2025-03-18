@@ -205,6 +205,11 @@ bool gemm_verify(int verify,
     }
     else if(verify == 2)
     {
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        {
+            // Restore input for B for gpu reference
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
         ck_tile::HostTensor<CDataType> c_m_n_gpu_ref(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_gpu_ref.get_element_space_size_in_bytes());
@@ -215,17 +220,18 @@ bool gemm_verify(int verify,
         BDataType* d_B;
         CDataType* d_C;
 
-        ck_tile::hip_check_error(hipMalloc(&d_A, M * K * sizeof(ADataType)));
-        ck_tile::hip_check_error(hipMalloc(&d_B, N * K * sizeof(BDataType)));
-        ck_tile::hip_check_error(hipMalloc(&d_C, M * N * sizeof(CDataType)));
+        ck_tile::hip_check_error(hipMalloc(&d_A, a_m_k.get_element_space_size_in_bytes()));
+        ck_tile::hip_check_error(hipMalloc(&d_B, b_k_n.get_element_space_size_in_bytes()));
+        ck_tile::hip_check_error(
+            hipMalloc(&d_C, c_m_n_dev_result.get_element_space_size_in_bytes()));
 
         ck_tile::hip_check_error(hipMemcpy(d_A,
                                            a_m_k_dev_buf.GetDeviceBuffer(),
-                                           M * K * sizeof(ADataType),
+                                           a_m_k.get_element_space_size_in_bytes(),
                                            hipMemcpyHostToDevice));
         ck_tile::hip_check_error(hipMemcpy(d_B,
                                            b_k_n_dev_buf.GetDeviceBuffer(),
-                                           N * K * sizeof(BDataType),
+                                           b_k_n.get_element_space_size_in_bytes(),
                                            hipMemcpyHostToDevice));
 
         ck_tile::reference_gemm_gpu<ADataType,
@@ -238,7 +244,7 @@ bool gemm_verify(int verify,
 
         ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
                                            d_C,
-                                           M * N * sizeof(CDataType),
+                                           c_m_n_dev_result.get_element_space_size_in_bytes(),
                                            hipMemcpyDeviceToHost));
 
         ck_tile::hip_check_error(hipFree(d_A));
