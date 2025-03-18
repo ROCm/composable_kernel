@@ -7,6 +7,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ### Added
 
 * Added support for bf16, f32, and f16 for 2D and 3D NGCHW grouped convolution backward data
+* Added support for f16 2:4 structured sparsity universal gemm
 
 ### Optimized
 
