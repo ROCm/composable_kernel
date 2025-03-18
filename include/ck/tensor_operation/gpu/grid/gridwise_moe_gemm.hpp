@@ -1151,7 +1151,8 @@ struct GridwiseMoeGemm
                                CElementwiseOperation c_element_op)
     {
         ignore                           = b_element_op;
-        const auto ld_token_num = std::is_same_v<IndexType, long_index_t> ? 1 : problem.NumTokens;
+        constexpr bool is_long_index = std::is_same_v<IndexType, long_index_t>;
+        const auto ld_token_num = is_long_index ? 1 : problem.NumTokens;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             IsInputGemm ? ld_token_num : ld_token_num * problem.TopK,
             problem.MPadded,
@@ -1212,17 +1213,25 @@ struct GridwiseMoeGemm
 
         if(token_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
-        static_assert(AMRepeats==1, "AMRepeats hack");
+        static_assert(!is_long_index || AMRepeats==1, "AMRepeats hack");
         StaticallyIndexedArray<IndexType, AMRepeats> gather_offsets;
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             const index_t fused_token = p_sorted_token_ids[token_pos + m0];
             index_t token_offset      = fused_token & 0xffffff;
-            gather_offsets(m0) = token_offset >= problem.NumTokens ?  a_grid_desc_ak0_m_ak1.GetElementSpaceSize() : 0;
-            if constexpr(!IsInputGemm)
-            {
-                token_offset = token_offset * problem.TopK + (fused_token >> 24);
+            if constexpr (is_long_index) {
+                gather_offsets(m0) = token_offset >= problem.NumTokens ?  a_grid_desc_ak0_m_ak1.GetElementSpaceSize() : 0;
+                if constexpr(!IsInputGemm)
+                {
+                    token_offset = token_offset * problem.TopK + (fused_token >> 24);
+                }
+                p_a_grid += static_cast<IndexType>(token_offset) * problem.K;
+            } else {
+                if constexpr(!IsInputGemm)
+                {
+                    token_offset = token_offset * problem.TopK + (fused_token >> 24);
+                }
+                gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
             }
-            p_a_grid += static_cast<IndexType>(token_offset) * problem.K;
         });
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
 
@@ -1561,41 +1570,50 @@ struct GridwiseMoeGemm
             constexpr auto EMThreads =
                 CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
             constexpr auto EMRepeats = CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl / EMThreads;
-            static_assert(EMRepeats==1, "EMRepeats hack");
+            static_assert(!is_long_index || EMRepeats==1, "EMRepeats hack");
             constexpr auto ENThreads =
                 CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
             const float* p_sorted_weights_0 = p_ds_grid[I0];
-            
-            // make sure it's safe to write to LDS
-            StaticallyIndexedArray<IndexType, EMRepeats> scatter_offsets; 
-            StaticallyIndexedArray<float, EMRepeats> scatter_weights; 
-
-            const index_t c_token_pos =
-                block_m_id * MPerBlock + threadIdx.x / ENThreads;
-            const index_t fused_token = p_sorted_token_ids[c_token_pos];
-            IndexType token_offset      = fused_token & 0xffffff;
-            float weight              = token_offset < static_cast<IndexType>(problem.NumTokens)
-                                            ? p_sorted_weights_0[token_offset * problem.StrideDs[0]]
-                                            : 0.0;
-            scatter_offsets(I0) = token_offset >= problem.NumTokens ?  c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize() : 0;
-            if constexpr(IsInputGemm)
-            {
-                token_offset = token_offset * problem.TopK + (fused_token >> 24);
-            }
-            else
-            {
-                const float* p_sorted_weights_2 = p_ds_grid[I2];
-                weight = weight * p_sorted_weights_2[c_token_pos];
-            }
-            scatter_weights(I0) = weight;
-            
-            const IndexType c_buf_offset = static_cast<IndexType>(token_offset) * problem.N;
-            auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid + c_buf_offset, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
             static_for<0, num_access, 1>{}([&](auto access_id) {
-
+                
+                // make sure it's safe to write to LDS
+                StaticallyIndexedArray<IndexType, EMRepeats> scatter_offsets; 
+                StaticallyIndexedArray<float, EMRepeats> scatter_weights; 
+                auto dstidx = sfc_cde_block.GetIndex(access_id);
+                const index_t c_token_pos =
+                    block_m_id * MPerBlock + threadIdx.x / ENThreads * EMRepeats + dstidx(I1);
+                static_for<0, EMRepeats, 1>{}([&](auto m0) {
+                    const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
+                    IndexType token_offset      = fused_token & 0xffffff;
+                    const bool is_valid_token = token_offset < problem.NumTokens;
+                    float weight              = is_valid_token
+                                                    ? p_sorted_weights_0[token_offset * problem.StrideDs[0]]
+                                                    : 0.0;
+                    if constexpr(IsInputGemm)
+                    {
+                        token_offset = token_offset * problem.TopK + (fused_token >> 24);
+                    }
+                    else
+                    {
+                        const float* p_sorted_weights_2 = p_ds_grid[I2];
+                        weight = weight * p_sorted_weights_2[c_token_pos + m0];
+                    }
+                    scatter_weights(m0) = weight;
+                    if constexpr(is_long_index) {
+                        const IndexType c_buf_offset = static_cast<IndexType>(token_offset) * problem.N;
+                        p_c_grid += c_buf_offset;
+                        scatter_offsets(m0) = is_valid_token ?  0 : c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
+                    }
+                    else
+                    {
+                        scatter_offsets(m0) = static_cast<IndexType>(token_offset) * problem.N;
+                    }
+                });
+                
                 block_sync_lds();
 
+                auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                               sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
@@ -1710,7 +1728,6 @@ struct GridwiseMoeGemm
         constexpr auto AK1Threads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I2);
         constexpr auto AKThreads  = AK0Threads * AK1Threads;
         constexpr auto AMRepeats  = MPerBlock / AMThreads;
-        static_assert(AMRepeats==1, "AMRepeats hack");
         const index_t token_pos   = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
 
         if(token_pos >= max_token_id || expert_block_id * MPerBlock >= max_token_id ||
@@ -2073,7 +2090,6 @@ struct GridwiseMoeGemm
             constexpr auto EMThreads =
                 CDEBlockTransferCluster{}.At(I0) * CDEBlockTransferCluster{}.At(I1);
             constexpr auto EMRepeats = CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl / EMThreads;
-            static_assert(EMRepeats==1, "EMRepeats hack");
             constexpr auto ENThreads =
                 CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
             const float* p_sorted_weights_0 = p_ds_grid[I0];
