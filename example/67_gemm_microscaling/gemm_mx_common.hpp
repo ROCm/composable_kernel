@@ -132,24 +132,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     static constexpr ck::index_t ScaleBlockSize = MXVectorSize;
 
-    // XXX: DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3 is not designed to utilize MX-specific MFMA
-    //      instructions.
-    //
-    // XXX: DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3 is not designed to utilize device-optimized
-    //      scaled type convert functions.
-    //
-    // XXX: In DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3, KPerBlock is expected to be equal to
-    //      ScaleBlockK (aka MXVectorSize).
-    //      Additionally, the following is also expected:
-    //         static_assert(ScaleBlockM % MPerBlock == 0);
-    //         static_assert(ScaleBlockN % NPerBlock == 0);
-    //         In MX-native GEMM kernel these requirements should be relaxed.
-    //
-    // XXX: It appears, by default we are using mfma_f32_16x16x4xf32
-    //      MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>::selected_mfma.k_per_blk =
-    //          MfmaSelector<float, 16, 16, float>::selected_mfma.k_per_blk = mfma_f32_16x16x4xf32
-    // XXX: GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3 assumes scale type is float
-
 #if 1
     static constexpr ck::index_t KPerBlock = 64;
     using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffleV3<
@@ -1015,8 +997,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 std::cout << std::endl;
             }
 #endif
-#if 0
-            std::cout << "Submatrix of a_m_k_scale (12x16):" << std::endl;
+#if 1
+            std::cout << "Submatrix of a_m_k_scale (16x12):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {
                 for(int j = 0; j < 12; ++j)
@@ -1032,12 +1014,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 //     ";
                 // }
 
-                std::cout << "\t\t";
-                for(int j = 0; j < 12; ++j)
-                {
-                    std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i + 200, j))
-                              << " ";
-                }
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 12; ++j)
+                // {
+                //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i + 200, j))
+                //               << " ";
+                // }
                 std::cout << std::endl;
             }
 #endif

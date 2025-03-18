@@ -264,9 +264,11 @@ struct ThreadwiseTensorSliceTransfer_v2
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+        // static_assert(src_scalar_per_access < 0, "src_scalar_per_access");
 
         constexpr auto src_scalar_step_in_vector =
             generate_sequence(detail::lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
+        // static_assert(src_scalar_step_in_vector < 0, "src_scalar_step_in_vector");
 
         using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
                                                     DimAccessOrder,
@@ -274,6 +276,8 @@ struct ThreadwiseTensorSliceTransfer_v2
 
         // loop over tensor and copy
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
+
+        // static_assert(num_access < 0, "num_access");
 
         static_for<0, num_access, 1>{}([&](auto idx_1d) {
             typename vector_type_maker<SrcData, SrcScalarPerVector>::type src_vector;
