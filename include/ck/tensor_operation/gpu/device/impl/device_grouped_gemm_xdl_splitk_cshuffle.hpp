@@ -423,7 +423,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 }
             }
 
-            if(cpy_stream && cpy_event)
+            if(cpy_stream && cpy_event) // Custom flow, user allocates pinned memory for fully async
+                                        // host args copy
             {
                 if(arg.gemm_kernel_host_args_ == nullptr)
                 {
@@ -441,7 +442,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 hip_check_error(hipEventRecord(cpy_event, cpy_stream));
                 hip_check_error(hipEventSynchronize(cpy_event));
             }
-            else
+            else // Default flow
             {
 
                 hip_check_error(
@@ -702,6 +703,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         return this->SetWorkSpacePointer(p_arg, p_dev_kernel_args);
     }
 
+    // Use for the async host args copy flow
     void SetHostKernelArgs(BaseArgument* p_arg, void* p_host_kernel_args) const
     {
         Argument* pArg_ = dynamic_cast<Argument*>(p_arg);

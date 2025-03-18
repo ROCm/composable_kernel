@@ -607,7 +607,8 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
                 }
             }
 
-            if(cpy_stream && cpy_event)
+            if(cpy_stream && cpy_event) // Custom flow, user allocates pinned memory for fully async
+                                        // host args copy
             {
                 if(arg.gemm_kernel_host_args_ == nullptr)
                 {
@@ -625,7 +626,7 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
                 hipGetErrorString(hipEventRecord(cpy_event, cpy_stream));
                 hipGetErrorString(hipEventSynchronize(cpy_event));
             }
-            else
+            else // Default flow
             {
                 hipGetErrorString(
                     hipMemcpyAsync(arg.p_workspace_,
@@ -801,6 +802,7 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
         return this->SetWorkSpacePointer(p_arg, p_dev_kernel_args);
     }
 
+    // Use for the async host args copy flow
     void SetHostKernelArgs(BaseArgument* p_arg, void* p_host_kernel_args) const
     {
         Argument* pArg_ = dynamic_cast<Argument*>(p_arg);
