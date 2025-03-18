@@ -17,7 +17,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 {
     const ALayout a_layout = ALayout{};
     const BLayout b_layout = BLayout{};
-    //const CLayout c_layout = CLayout{};
+    // const CLayout c_layout = CLayout{};
 
     ck_tile::index_t kbatch = arg_parser.get_int("split_k");
     ck_tile::index_t M      = arg_parser.get_int("m");
@@ -30,7 +30,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     int n_warmup                 = arg_parser.get_int("warmup");
     int n_repeat                 = arg_parser.get_int("repeat");
-    int verify                 = arg_parser.get_int("v");
+    int verify                   = arg_parser.get_int("v");
     ck_tile::index_t init_method = arg_parser.get_int("init");
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
@@ -83,7 +83,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                          CLayout>(b_k_n_dev);
         permute_vectors_i4x4_b(b_k_n_dev);
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
-    }else{
+    }
+    else
+    {
         b_k_n_dev_buf.ToDevice(b_k_n.data());
     }
 
@@ -146,7 +148,7 @@ int main(int argc, char* argv[])
         auto [result, arg_parser] = create_args(argc, argv);
         if(!result)
             return -1;
-        run<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>( arg_parser);
+        run<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(arg_parser);
     }
     catch(const std::runtime_error& e)
     {

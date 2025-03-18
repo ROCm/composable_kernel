@@ -326,11 +326,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                   typename AElementFunction,
                   typename BElementFunction>
         CK_TILE_DEVICE auto run_gemm(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                       const AElementFunction& a_element_func,
-                                       const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                       const BElementFunction& b_element_func,
-                                       index_t num_loop,
-                                       void* p_smem) const
+                                     const AElementFunction& a_element_func,
+                                     const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                     const BElementFunction& b_element_func,
+                                     index_t num_loop,
+                                     void* p_smem) const
         {
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
@@ -539,11 +539,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
               typename AElementFunction,
               typename BElementFunction>
     CK_TILE_DEVICE auto run_gemm(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                   const AElementFunction& a_element_func,
-                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                   const BElementFunction& b_element_func,
-                                   index_t num_loop,
-                                   void* p_smem) const
+                                 const AElementFunction& a_element_func,
+                                 const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                 const BElementFunction& b_element_func,
+                                 index_t num_loop,
+                                 void* p_smem) const
     {
         return PipelineImpl<Scheduler>{}.template run_gemm<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,

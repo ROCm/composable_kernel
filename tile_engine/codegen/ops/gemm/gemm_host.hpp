@@ -82,7 +82,6 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-
 inline auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -158,21 +157,28 @@ void permute_vectors_i4x4_b(Tensor& tensor)
     }
 }
 
-//verification code
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType, typename ALayout, typename BLayout, typename CLayout>
+// verification code
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 bool gemm_verify(int verify,
-                ck_tile::HostTensor<ADataType>& a_m_k,
-                ck_tile::HostTensor<BDataType>& b_k_n,  
-                ck_tile::HostTensor<CDataType>& c_m_n_dev_result,      
-                ck_tile::DeviceMem& a_m_k_dev_buf,
-                ck_tile::DeviceMem& b_k_n_dev_buf,
-                ck_tile::index_t M,
-                ck_tile::index_t N,
-                ck_tile::index_t K,
-                ck_tile::index_t stride_A,
-                ck_tile::index_t stride_B,
-                ck_tile::index_t stride_C,
-                ck_tile::index_t kbatch) {
+                 ck_tile::HostTensor<ADataType>& a_m_k,
+                 ck_tile::HostTensor<BDataType>& b_k_n,
+                 ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+                 ck_tile::DeviceMem& a_m_k_dev_buf,
+                 ck_tile::DeviceMem& b_k_n_dev_buf,
+                 ck_tile::index_t M,
+                 ck_tile::index_t N,
+                 ck_tile::index_t K,
+                 ck_tile::index_t stride_A,
+                 ck_tile::index_t stride_B,
+                 ck_tile::index_t stride_C,
+                 ck_tile::index_t kbatch)
+{
     bool pass = true;
     if(verify == 1)
     {
@@ -187,14 +193,14 @@ bool gemm_verify(int verify,
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
             K, kbatch, max_accumulated_value);
         pass = ck_tile::check_err(c_m_n_dev_result,
-                                c_m_n_host_ref,
-                                "Error: Incorrect results!",
-                                rtol_atol.at(ck_tile::number<0>{}),
-                                rtol_atol.at(ck_tile::number<1>{}));
+                                  c_m_n_host_ref,
+                                  "Error: Incorrect results!",
+                                  rtol_atol.at(ck_tile::number<0>{}),
+                                  rtol_atol.at(ck_tile::number<1>{}));
 
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                << std::endl;
+                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                  << std::endl;
         std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     else if(verify == 2)
@@ -214,13 +220,13 @@ bool gemm_verify(int verify,
         ck_tile::hip_check_error(hipMalloc(&d_C, M * N * sizeof(CDataType)));
 
         ck_tile::hip_check_error(hipMemcpy(d_A,
-                                        a_m_k_dev_buf.GetDeviceBuffer(),
-                                        M * K * sizeof(ADataType),
-                                        hipMemcpyHostToDevice));
+                                           a_m_k_dev_buf.GetDeviceBuffer(),
+                                           M * K * sizeof(ADataType),
+                                           hipMemcpyHostToDevice));
         ck_tile::hip_check_error(hipMemcpy(d_B,
-                                        b_k_n_dev_buf.GetDeviceBuffer(),
-                                        N * K * sizeof(BDataType),
-                                        hipMemcpyHostToDevice));
+                                           b_k_n_dev_buf.GetDeviceBuffer(),
+                                           N * K * sizeof(BDataType),
+                                           hipMemcpyHostToDevice));
 
         ck_tile::reference_gemm_gpu<ADataType,
                                     BDataType,
@@ -231,9 +237,9 @@ bool gemm_verify(int verify,
                                     CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
 
         ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
-                                        d_C,
-                                        M * N * sizeof(CDataType),
-                                        hipMemcpyDeviceToHost));
+                                           d_C,
+                                           M * N * sizeof(CDataType),
+                                           hipMemcpyDeviceToHost));
 
         ck_tile::hip_check_error(hipFree(d_A));
         ck_tile::hip_check_error(hipFree(d_B));
@@ -245,20 +251,24 @@ bool gemm_verify(int verify,
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
             K, kbatch, max_accumulated_value);
         pass = ck_tile::check_err(c_m_n_dev_result,
-                                c_m_n_gpu_ref,
-                                "Error: Incorrect results!",
-                                rtol_atol.at(ck_tile::number<0>{}),
-                                rtol_atol.at(ck_tile::number<1>{}));
+                                  c_m_n_gpu_ref,
+                                  "Error: Incorrect results!",
+                                  rtol_atol.at(ck_tile::number<0>{}),
+                                  rtol_atol.at(ck_tile::number<1>{}));
 
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                << std::endl;
+                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                  << std::endl;
         std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
     }
     return pass;
-
 }
 
-template<typename ADataType, typename BDataType, typename AccDataType, typename CDataType, typename ALayout, typename BLayout, typename CLayout>
-float gemm_kernel_launch(ck_tile::GemmHostArgs &kernel_args, const ck_tile::stream_config& s);
-
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
+float gemm_kernel_launch(ck_tile::GemmHostArgs& kernel_args, const ck_tile::stream_config& s);
