@@ -608,6 +608,7 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
+   add_subdirectory(tile_engine)
    if(BUILD_TESTING)
        add_subdirectory(test)
    endif()
