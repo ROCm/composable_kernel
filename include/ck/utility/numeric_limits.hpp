@@ -552,5 +552,4 @@ struct NumericLimits<e8m0_bexp_t>
     }
 };
 
-}
-
+} // namespace ck
