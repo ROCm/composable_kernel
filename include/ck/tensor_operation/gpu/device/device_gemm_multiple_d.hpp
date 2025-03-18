@@ -125,7 +125,6 @@ struct DeviceGemmMultipleDSplitKBPreShuffle : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-#ifndef CK_CODE_GEN_RTC
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
@@ -141,14 +140,16 @@ struct DeviceGemmMultipleDSplitKBPreShuffle : public BaseOperator
                         ck::index_t KBatch,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
-                        CDEElementwiseOperation cde_element_op) = 0;
+                        CDEElementwiseOperation cde_element_op,
+                        ck::index_t Nr,
+                        ck::index_t Kr) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 
     virtual int GetPreShuffleParameters() = 0;
-#endif
 };
-
+#define KShufflePadded 256
+#define NShufflePadded 128
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
