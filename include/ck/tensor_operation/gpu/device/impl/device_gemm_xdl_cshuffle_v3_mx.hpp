@@ -31,18 +31,78 @@ namespace device {
  * Assumptions:
  * - A and B data types are compliant with the OCP Microscaling Formats (MX) Specification
  * - Each scale applies to ScaleBlockSize elements in K direction
- * - A scale matrix has ALayout
- * - B scale matrix has BLayout
+ * - A scale matrix is row-major
+ * - B scale matrix is column-major
  * - Scale data types must have get_exponent_value() specialization, whereas lowest 8 bits of the
  * exponent will be interpreted as conventional biased Float32 exponent (E8M0)
+ *
+ * Tunable parameters.
+ * The CK instance includes a series of tunable template parameters to control the parallel
+ * granularity of the workload to achieve load balancing on different hardware platforms. These
+ * parameters include Block Size, M/N/K Per Block, M/N per XDL, AK1, BK1, etc.
+ *  - Block Size determines the number of threads in the thread block.
+ *  - M/N/K Per Block determines the size of tile that each thread block is responsible for
+ * calculating.
+ *  - M/N Per XDL refers to M/N size for Instinct accelerator Matrix Fused Multiply Add (MFMA)
+ * instructions operating on a per-wavefront basis.
+ *  - A/B K1 is related to the data type. It can be any value ranging from 1 to K Per Block. To
+ * achieve the optimal load/store performance, 128bit per load is suggested. In addition, the A/B
+ * loading parameters must be changed accordingly to match the A/B K1 value; otherwise, it will
+ * result in compilation errors.
+ *
+ * Conditions for achieving computational load balancing on different hardware platforms can vary.
+ *
+ * Serialized version of the algorithm:
+ * \code
+ * // E = A * B + C
+ * // Loop over E[MPerBlock,NPerBlock] tiles
+ * for(int mb = 0; mb < M; mb += MPerBlock){
+ *    for(int nb = 0; nb < N; nb += NPerBlock){
+ *       // initialize E[MPerBlock,NPerBlock] tile
+ *       for(int mt = mb; mt < mb + MPerBlock; mt++){
+ *          for(int nt = nb; nt < nb + NPerBlock; nt++){
+ *             E[mt,nt] = C[mt,nt];
+ *          }
+ *       }
+ *
+ *       // multiply-accumulate per tile
+ *       for(int kb = 0; kb < K; kb += KPerBlock){
+ *         for(int m0 = mb; m0 < mb + MPerBlock; m0 += MWaves * MPerXDL){
+ *           for(int n0 = nb; n0 < nb + NPerBlock; n0 += NWaves * NPerXDL){
+ *             for(int mw = m0; mw < m0 + MWaves * MPerXDL; mw += MPerXDL){
+ *               for(int nw = n0; nw < n0 + NWaves * NPerXDL; nw += NPerXDL){
+ *                 for(int k0 = kb; k0 < kb + KPerBlock; k0 += mfma.num_input_blks*KPack){
+ *                   // MFMA accumulation for multirate instructions
+ *                   for(int k_pack = k0; k_pack < k0 + mfma.num_input_blks*KPack; k_pack += KPack){
+ *                     for(int k_mfma = k_pack; k_mfma < k_pack + KPack; k_mfma += mfma.k_per_blk){
+ *                       // MFMA instruction
+ *                       for(int m = mw; m < mw + MPerXDL; m++){
+ *                         for(int n = nw; n < nw + NPerXDL; n++){
+ *                           for(int k = k_mfma; k < k_mfma + mfma.k_per_blk; k++){
+ *                            E[m,n] += A[m,k] * B[k,n];
+ *                           }
+ *                         }
+ *                       }
+ *                     }
+ *                   }
+ *                 }
+ *               }
+ *             }
+ *           }
+ *         }
+ *       }
+ *    }
+ * }
+ * \endcode
+ *
  */
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
           typename ADataType,
-          typename AScaleDataType, // Must have get_exponent_value() specialization
+          typename AScaleDataType,
           typename BDataType,
-          typename BScaleDataType, // Must have get_exponent_value() specialization
+          typename BScaleDataType,
           typename CDataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
@@ -81,8 +141,11 @@ template <typename ALayout,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
-          typename ComputeTypeA                       = ADataType,
-          typename ComputeTypeB                       = BDataType>
+          typename ComputeTypeA =
+              ADataType, // XXX: These should always be the same as ADataType and BDataType
+          typename ComputeTypeB =
+              BDataType // TODO: Hardcode them and remove from the list of template parameters
+          >
 struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                                                          BLayout,
                                                          CLayout,

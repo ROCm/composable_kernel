@@ -185,10 +185,12 @@ template <typename ALayout,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v3,
-          typename ComputeTypeA                       = ADataType,
-          typename ComputeTypeB                       = BDataType,
-          bool PermuteA                               = false,
-          bool PermuteB                               = false>
+          typename ComputeTypeA =
+              ADataType, // XXX: These should always be the same as ADataType and BDataType
+          typename ComputeTypeB =
+              BDataType, // TODO: Hardcode them and remove from the list of template parameters
+          bool PermuteA = false,
+          bool PermuteB = false>
 struct GridwiseGemmMX_xdl_cshuffle_v3
 {
     // using BScaleType = ck::half_t;
