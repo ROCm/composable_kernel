@@ -5,7 +5,7 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
-#if __clang_major__ >= 20
+#if __clang_major__ == 20
 #include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
 #else
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
