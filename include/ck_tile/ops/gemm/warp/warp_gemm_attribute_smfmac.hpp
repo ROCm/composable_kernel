@@ -3,6 +3,15 @@
 
 namespace ck_tile {
 
+// Class describing structured sparsity mfma instructions. Currently only 2:4 structured sparsity is
+// supported, which is based on requirement that in every groups of four continuous elements there
+// are at most two non-zero, which results in processing only half of elements in smfmac
+// instruction. Because of structured sparsity A vector in smfmac instruction will be smaller than B
+// vector by the factor of CompressionRatio. The indexes of non-zero elements are stored in `index`
+// which is an additional parameter to assembly instruction. Every pair of two bit indexes are
+// containing information about which two  elements in current group of 4 values are non-zero and
+// should be used inside smfmac instruction. Structured sparsity format is supported only for A
+// matrix for now.
 template <typename WarpGemmAttributeSmfmacImpl_>
 struct WarpGemmAttributeSmfmac
 {
@@ -17,15 +26,16 @@ struct WarpGemmAttributeSmfmac
     using BVecType = typename Impl::BVecType;
     using CVecType = typename Impl::CVecType;
 
-    static constexpr index_t kM          = Impl::kM;
-    static constexpr index_t kN          = Impl::kN;
-    static constexpr index_t kK          = Impl::kK;
-    static constexpr index_t kKPerThread = Impl::kABKPerLane;
+    static constexpr index_t kM                = Impl::kM;
+    static constexpr index_t kN                = Impl::kN;
+    static constexpr index_t kK                = Impl::kK;
+    static constexpr index_t kKPerThread       = Impl::kABKPerLane;
+    static constexpr index_t kCompressionRatio = Impl::CompressionRatio;
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return 1; }
 
     static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
-                  "Multi-block WarpGemmAttributeMfmaImpl is not supported");
+                  "Multi-block WarpGemmAttributeSmfmacImpl is not supported");
 
     using AWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,

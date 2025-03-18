@@ -39,6 +39,8 @@ struct WarpGemmAttributeSmfmacImplF16F16F32M32N32K16
     static constexpr index_t kCM0PerLane = 4;
     static constexpr index_t kCM1PerLane = 4;
 
+    static constexpr index_t CompressionRatio = 2;
+
     // c_vec += a_vec * b_vec[idx]
     template <bool post_nop_ = false>
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
@@ -87,6 +89,8 @@ struct WarpGemmAttributeSmfmacImplF16F16F32M16N16K32
     static constexpr index_t kCNLane     = 16;
     static constexpr index_t kCM0PerLane = 1;
     static constexpr index_t kCM1PerLane = 4;
+
+    static constexpr index_t CompressionRatio = 2;
 
     // c_vec += a_vec * b_vec[idx]
     template <bool post_nop_ = false>
