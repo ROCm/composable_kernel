@@ -933,7 +933,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
         // for not adding k padd operator
-        if((CalculateBKShufflePadded(karg.K) % KPerBlock != 0) ||
+        if((KPadding && (CalculateBKShufflePadded(karg.K) % KPerBlock != 0)) ||
            (karg.BK0Shuffled % karg.KBatch != 0))
         {
             return false;
