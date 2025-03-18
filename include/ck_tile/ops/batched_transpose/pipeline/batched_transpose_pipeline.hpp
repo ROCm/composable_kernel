@@ -29,6 +29,11 @@ struct BatchedTransposePipeline
     {
         // FIGURE THE RIGHT x value to pass to the function
 
+        auto inp_win =
+            make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
+
+        auto x = load_tile(inp_win); // x->thread input_win->block
+
         auto y = make_static_distributed_tensor<InputType>(
             Policy::template MakeOutputDistribution<Problem>());
 
