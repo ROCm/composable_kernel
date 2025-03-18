@@ -325,7 +325,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                   typename BDramBlockWindowTmp,
                   typename AElementFunction,
                   typename BElementFunction>
-        CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+        CK_TILE_DEVICE auto run_gemm(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                        const AElementFunction& a_element_func,
                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
@@ -538,14 +538,14 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
               typename BDramBlockWindowTmp,
               typename AElementFunction,
               typename BElementFunction>
-    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+    CK_TILE_DEVICE auto run_gemm(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const AElementFunction& a_element_func,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BElementFunction& b_element_func,
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
+        return PipelineImpl<Scheduler>{}.template run_gemm<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
             a_element_func,
             b_dram_block_window_tmp,
@@ -560,7 +560,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
+        return PipelineImpl<Scheduler>{}.template run_gemm<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
             [](const ADataType& a) { return a; },
             b_dram_block_window_tmp,

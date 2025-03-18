@@ -1,0 +1,21 @@
+{
+    "M_tile": 128,
+    "N_tile": 32,
+    "K_tile": 64,
+    "M_warp": 4,
+    "N_warp": 1,
+    "K_warp": 1,
+    "M_warp_tile": 32,
+    "N_warp_tile": 32,
+    "K_warp_tile": 8,
+    "A_layout": "R",
+    "B_layout": "C",
+    "C_layout": "R",
+    "kPadM": false, 
+    "kPadN": false,
+    "kPadK": false,
+    "Prec_datatype": "fp16",
+    "Pipeline_type": "ComputeV4",
+    "Scheduler_type": "Intrawave",
+    "Epilogue_type": "CShuffle"
+}
