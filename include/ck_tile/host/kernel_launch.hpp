@@ -45,7 +45,7 @@ template <typename... Callables>
 CK_TILE_HOST void launch_and_check(const stream_config& sc, Callables&&... callables)
 {
     // abort the sequence in case of intermediate error
-    if(!((callables(sc), hipPeekAtLastError() == hipSuccess) && ...))
+    if(!((static_cast<void>(callables(sc)), hipPeekAtLastError() == hipSuccess) && ...))
     {
         HIP_CHECK_ERROR(hipGetLastError());
     }
