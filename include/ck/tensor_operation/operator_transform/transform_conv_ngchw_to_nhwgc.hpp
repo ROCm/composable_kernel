@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -29,10 +29,11 @@ struct TransformConvNGCHWToNHWGC
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
     static auto MakeNGCHWTransposeDesc(std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_lengths,
-                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides)
+                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides,
+                                       const index_t split_n_size = 1)
     {
         const index_t& G  = g_n_c_wis_lengths[I0];
-        const index_t& N  = g_n_c_wis_lengths[I1];
+        const index_t N   = g_n_c_wis_lengths[I1] / split_n_size;
         const index_t& C  = g_n_c_wis_lengths[I2];
         const index_t& Wi = g_n_c_wis_lengths[I3];
 
@@ -55,10 +56,11 @@ struct TransformConvNGCHWToNHWGC
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
     static auto MakeNHWGCTransposeDesc(std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_lengths,
-                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides)
+                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides,
+                                       const index_t split_n_size = 1)
     {
         const index_t& G  = g_n_c_wis_lengths[I0];
-        const index_t& N  = g_n_c_wis_lengths[I1];
+        const index_t N   = g_n_c_wis_lengths[I1] / split_n_size;
         const index_t& C  = g_n_c_wis_lengths[I2];
         const index_t& Wi = g_n_c_wis_lengths[I3];
 
@@ -81,10 +83,11 @@ struct TransformConvNGCHWToNHWGC
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
     static auto MakeNGCHWTransposeDesc(std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_lengths,
-                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides)
+                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides,
+                                       const index_t split_n_size = 1)
     {
         const index_t& G  = g_n_c_wis_lengths[I0];
-        const index_t& N  = g_n_c_wis_lengths[I1];
+        const index_t N   = g_n_c_wis_lengths[I1] / split_n_size;
         const index_t& C  = g_n_c_wis_lengths[I2];
         const index_t& Hi = g_n_c_wis_lengths[I3];
         const index_t& Wi = g_n_c_wis_lengths[I4];
@@ -109,10 +112,11 @@ struct TransformConvNGCHWToNHWGC
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
     static auto MakeNHWGCTransposeDesc(std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_lengths,
-                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides)
+                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides,
+                                       const index_t split_n_size = 1)
     {
         const index_t& G  = g_n_c_wis_lengths[I0];
-        const index_t& N  = g_n_c_wis_lengths[I1];
+        const index_t N   = g_n_c_wis_lengths[I1] / split_n_size;
         const index_t& C  = g_n_c_wis_lengths[I2];
         const index_t& Hi = g_n_c_wis_lengths[I3];
         const index_t& Wi = g_n_c_wis_lengths[I4];
@@ -137,10 +141,11 @@ struct TransformConvNGCHWToNHWGC
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
     static auto MakeNGCHWTransposeDesc(std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_lengths,
-                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides)
+                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides,
+                                       const index_t split_n_size = 1)
     {
         const index_t& G  = g_n_c_wis_lengths[I0];
-        const index_t& N  = g_n_c_wis_lengths[I1];
+        const index_t N   = g_n_c_wis_lengths[I1] / split_n_size;
         const index_t& C  = g_n_c_wis_lengths[I2];
         const index_t& Di = g_n_c_wis_lengths[I3];
         const index_t& Hi = g_n_c_wis_lengths[I4];
@@ -168,10 +173,11 @@ struct TransformConvNGCHWToNHWGC
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
     static auto MakeNHWGCTransposeDesc(std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_lengths,
-                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides)
+                                       std::array<ck::index_t, NDimSpatial + 3> g_n_c_wis_strides,
+                                       const index_t split_n_size = 1)
     {
         const index_t& G  = g_n_c_wis_lengths[I0];
-        const index_t& N  = g_n_c_wis_lengths[I1];
+        const index_t N   = g_n_c_wis_lengths[I1] / split_n_size;
         const index_t& C  = g_n_c_wis_lengths[I2];
         const index_t& Di = g_n_c_wis_lengths[I3];
         const index_t& Hi = g_n_c_wis_lengths[I4];

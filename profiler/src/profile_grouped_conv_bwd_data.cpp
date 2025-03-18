@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -15,6 +15,7 @@ enum struct ConvLayout
 {
     GNHWC_GKYXC_GNHWK, // 0
     NHWGC_GKYXC_NHWGK, // 1
+    NGCHW_GKYXC_NGKHW, // 2
 };
 
 enum struct ConvDataType
@@ -37,6 +38,7 @@ static void print_helper_msg()
         << "                 2: Output bf16, Weight bf16, Input bf16\n"
         << "arg3: tensor layout (0: Output[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Input[G, N, Ho, Wo, K]\n"
         << "                     1: Output[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Input[N, Ho, Wo, G, K])\n"
+        << "                     2: Output[N, G, C, Hi, Wi], Weight[G, K, Y, X, C], Input[N, G, K, Ho, Wo])\n"
         << "arg4: verification (0: no, 1: yes)\n"
         << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
         << "arg6: print tensor value (0: no; 1: yes)\n"
@@ -143,6 +145,21 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
                 return profile(I2, NHWGK{}, GKYXC{}, NHWGC{}, BF16{}, BF16{}, BF16{});
             }
         }
+        else if(layout == ConvLayout::NGCHW_GKYXC_NGKHW)
+        {
+            if(data_type == ConvDataType::F32_F32_F32)
+            {
+                return profile(I2, NGKHW{}, GKYXC{}, NGCHW{}, F32{}, F32{}, F32{});
+            }
+            else if(data_type == ConvDataType::F16_F16_F16)
+            {
+                return profile(I2, NGKHW{}, GKYXC{}, NGCHW{}, F16{}, F16{}, F16{});
+            }
+            else if(data_type == ConvDataType::BF16_BF16_BF16)
+            {
+                return profile(I2, NGKHW{}, GKYXC{}, NGCHW{}, BF16{}, BF16{}, BF16{});
+            }
+        }
     }
     else if(num_dim_spatial == 3)
     {
@@ -174,6 +191,21 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             else if(data_type == ConvDataType::BF16_BF16_BF16)
             {
                 return profile(I3, NDHWGK{}, GKZYXC{}, NDHWGC{}, BF16{}, BF16{}, BF16{});
+            }
+        }
+        else if(layout == ConvLayout::NGCHW_GKYXC_NGKHW)
+        {
+            if(data_type == ConvDataType::F32_F32_F32)
+            {
+                return profile(I3, NGKDHW{}, GKZYXC{}, NGCDHW{}, F32{}, F32{}, F32{});
+            }
+            else if(data_type == ConvDataType::F16_F16_F16)
+            {
+                return profile(I3, NGKDHW{}, GKZYXC{}, NGCDHW{}, F16{}, F16{}, F16{});
+            }
+            else if(data_type == ConvDataType::BF16_BF16_BF16)
+            {
+                return profile(I3, NGKDHW{}, GKZYXC{}, NGCDHW{}, BF16{}, BF16{}, BF16{});
             }
         }
     }
