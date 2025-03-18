@@ -2481,10 +2481,6 @@ struct vector_type<T, 64, typename ck::enable_if_t<!is_native_type<T>()>>
 
 using int64_t = long;
 
-// fp64
-using double2_t = typename vector_type<double, 2>::type;
-using double4_t = typename vector_type<double, 4>::type;
-
 // fp32
 using float2_t  = typename vector_type<float, 2>::type;
 using float4_t  = typename vector_type<float, 4>::type;
@@ -2499,7 +2495,6 @@ using half4_t  = typename vector_type<half_t, 4>::type;
 using half8_t  = typename vector_type<half_t, 8>::type;
 using half16_t = typename vector_type<half_t, 16>::type;
 using half32_t = typename vector_type<half_t, 32>::type;
-using half64_t = typename vector_type<half_t, 64>::type;
 
 // bfp16
 using bhalf2_t  = typename vector_type<bhalf_t, 2>::type;
@@ -2507,7 +2502,6 @@ using bhalf4_t  = typename vector_type<bhalf_t, 4>::type;
 using bhalf8_t  = typename vector_type<bhalf_t, 8>::type;
 using bhalf16_t = typename vector_type<bhalf_t, 16>::type;
 using bhalf32_t = typename vector_type<bhalf_t, 32>::type;
-using bhalf64_t = typename vector_type<bhalf_t, 64>::type;
 
 // i32
 using int32x2_t  = typename vector_type<int32_t, 2>::type;
