@@ -99,13 +99,13 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
     {
-        return Problem::VectorLoadSize / sizeof(typename Problem::ADataType);
+        return Problem::VectorLoadSize;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
     {
-        return Problem::VectorLoadSize / sizeof(typename Problem::BDataType);
+        return Problem::VectorLoadSize;
     }
 
     template <typename Problem>
