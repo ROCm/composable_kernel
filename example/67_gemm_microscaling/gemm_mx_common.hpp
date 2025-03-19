@@ -521,18 +521,25 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         {
 
 #if 1
-            std::set<int> row_ids = {0};
+            std::set<int> row_ids = {0, 32, 64, 96};
 #else
             std::set<int> row_ids = {10, 31, 42, 103, 74, 205, 226, 187};
 #endif
             for(auto row_id : row_ids)
             {
-#if 1
+#if 0
                 a_m_k_scale(row_id, 0)     = ck::type_convert<XDataType>(1.0f / 4);
                 a_m_k_scale(row_id + 1, 0) = ck::type_convert<XDataType>(1.0f / 2);
                 a_m_k_scale(row_id, 1)     = ck::type_convert<XDataType>(2.0f / 1);
                 a_m_k_scale(row_id, 5)     = ck::type_convert<XDataType>(-1.0f / 64);
                 a_m_k_scale(row_id, 11)    = ck::type_convert<XDataType>(4.0f / 1);
+#elif 1
+                for(size_t i = 0; i < 32; i++)
+                {
+                    a_m_k_scale(row_id + i, 0) = ck::type_convert<XDataType>(i);
+                    a_m_k_scale(row_id + i, 1) = ck::type_convert<XDataType>(i);
+                }
+
 #endif
                 a_m_k(row_id, 383) = ck::type_convert<ADataType>(-1.0f);
 
@@ -1003,22 +1010,25 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             {
                 for(int j = 0; j < 12; ++j)
                 {
-                    std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i, j));
+                    std::cout << std::setw(9) << type_convert<float>(a_m_k_scale(i, j));
+                }
+
+                std::cout << "\t\t";
+                for(int j = 0; j < 12; ++j)
+                {
+                    std::cout << std::setw(9) << type_convert<float>(a_m_k_scale(i + 32, j));
                 }
 
                 // std::cout << "\t\t";
                 // for(int j = 0; j < 12; ++j)
                 // {
-                //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i + 128, j)) <<
-                //     "
-                //     ";
+                //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i + 128, j)) ;
                 // }
 
                 // std::cout << "\t\t";
                 // for(int j = 0; j < 12; ++j)
                 // {
-                //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i + 200, j))
-                //               << " ";
+                //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i + 200, j)) ;
                 // }
                 std::cout << std::endl;
             }

@@ -246,6 +246,20 @@ struct ThreadwiseTensorSliceTransfer_v2
                         const DstSliceOriginIdx&,
                         DstBuffer& dst_buf)
     {
+#if 0
+        if constexpr(SrcVectorDim == 0)
+        {
+            if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
+            {
+                printf("Run In. blockId = %u; threadId = %u; src_coord_ = [%d, %d]\n",
+                       blockIdx.x,
+                       threadIdx.x,
+                       src_coord_.GetIndex()(Number<0>{}),
+                       src_coord_.GetIndex()(Number<1>{}));
+            }
+        }
+#endif
+
         static_assert(DstDesc::IsKnownAtCompileTime(),
                       "wrong! DstDesc need to known at compile-time");
 
@@ -319,6 +333,19 @@ struct ThreadwiseTensorSliceTransfer_v2
 
                 move_tensor_coordinate(
                     src_desc, src_coord_, make_tensor_coordinate_step(src_desc, forward_step));
+#if 0
+                if constexpr(SrcVectorDim == 0)
+                {
+                    if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
+                    {
+                        printf("Run Access. blockId = %u; threadId = %u; src_coord_ = [%d, %d]\n",
+                               blockIdx.x,
+                               threadIdx.x,
+                               src_coord_.GetIndex()(Number<0>{}),
+                               src_coord_.GetIndex()(Number<1>{}));
+                    }
+                }
+#endif
             }
         });
 
@@ -329,6 +356,19 @@ struct ThreadwiseTensorSliceTransfer_v2
                 make_tensor_coordinate_step(src_desc, GetSrcCoordinateResetStep());
 
             move_tensor_coordinate(src_desc, src_coord_, src_reset_step);
+#if 0
+            if constexpr(SrcVectorDim == 0)
+            {
+                if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
+                {
+                    printf("Run Reset. blockId = %u; threadId = %u; src_coord_ = [%d, %d]\n",
+                           blockIdx.x,
+                           threadIdx.x,
+                           src_coord_.GetIndex()(Number<0>{}),
+                           src_coord_.GetIndex()(Number<1>{}));
+                }
+            }
+#endif
         }
     }
 
@@ -359,6 +399,7 @@ struct ThreadwiseTensorSliceTransfer_v2
     __device__ void MoveSrcSliceWindow(const SrcDesc& src_desc,
                                        const Index& src_slice_origin_step_idx)
     {
+
         // if src coord was not reset by Run(), then need to adjust the step here
         const auto adjusted_step_idx =
             SrcResetCoordinateAfterRun ? src_slice_origin_step_idx
@@ -367,7 +408,41 @@ struct ThreadwiseTensorSliceTransfer_v2
         // is it OK to construct a new step every time?
         const auto adjusted_step = make_tensor_coordinate_step(src_desc, adjusted_step_idx);
 
+#if 0
+        if constexpr(SrcVectorDim == 0)
+        {
+            if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
+            {
+                printf("MoveSrcSliceWindow In. blockId = %u; threadId = %u; src_coord_ = [%d, %d]; "
+                       "adjusted_step = [%d, %d]; "
+                       "ResetStep = [%d, %d]\n",
+                       blockIdx.x,
+                       threadIdx.x,
+                       src_coord_.GetIndex()(Number<0>{}),
+                       src_coord_.GetIndex()(Number<1>{}),
+                       adjusted_step.GetIndexDiff()[Number<0>{}],
+                       adjusted_step.GetIndexDiff()[Number<1>{}],
+                       GetSrcCoordinateResetStep()(Number<0>{}),
+                       GetSrcCoordinateResetStep()(Number<1>{}));
+            }
+        }
+#endif
+
         move_tensor_coordinate(src_desc, src_coord_, adjusted_step);
+#if 0
+        if constexpr(SrcVectorDim == 0)
+        {
+            if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
+            {
+                printf(
+                    "MoveSrcSliceWindow Out. blockId = %u; threadId = %u; src_coord_ = [%d, %d]\n",
+                    blockIdx.x,
+                    threadIdx.x,
+                    src_coord_.GetIndex()(Number<0>{}),
+                    src_coord_.GetIndex()(Number<1>{}));
+            }
+        }
+#endif
     }
 
     // src_slice_origin_step_idx need to be known at compile-time, for performance reason

@@ -302,33 +302,66 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
-        static_for<0, 1, 1>{}([&](auto m0) {
-            ignore = m0;
-            auto a_scale_thread_buf_group =
-                make_static_buffer<AddressSpaceEnum::Vgpr, AScaleDataType>(
-                    a_scale_thread_desc_group.GetElementSpaceSize());
-            a_scale_thread_copy.Run(a_scale_grid_desc,
-                                    a_scale_grid_buf,
-                                    a_scale_thread_desc_group,
-                                    make_tuple(I0, I0),
-                                    a_scale_thread_buf_group);
+        static_for<0, MRepeat, 1>{}([&](auto m0) {
+            static_for<0, KRepeat, 1>{}([&](auto k0) {
+                static_for<0, xdlops_gemm.mfma_instr.num_groups_per_blk, 1>{}([&](auto g) {
+                    auto a_scale_thread_buf_group =
+                        make_static_buffer<AddressSpaceEnum::Vgpr, AScaleDataType>(
+                            a_scale_thread_desc_group.GetElementSpaceSize());
+
+                    a_scale_thread_copy.Run(a_scale_grid_desc,
+                                            a_scale_grid_buf,
+                                            a_scale_thread_desc_group,
+                                            make_tuple(I0, I0),
+                                            a_scale_thread_buf_group);
 #if 1
-            if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
-            {
-                printf("blockId = %u; threadId = %u; i = %d : a_scale_thread_buf = [%f, %f, "
-                       "%f, %f]\n",
-                       blockIdx.x,
-                       threadIdx.x,
-                       0,
-                       type_convert<float>(a_scale_thread_buf_group(Number<0>{})),
-                       type_convert<float>(a_scale_thread_buf_group(Number<1>{})),
-                       type_convert<float>(a_scale_thread_buf_group(Number<2>{})),
-                       type_convert<float>(a_scale_thread_buf_group(Number<3>{})));
-            }
+                    if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32 ||
+                                           threadIdx.x == 64 || threadIdx.x == 96))
+                    {
+                        printf("blockId = %u; threadId = %u; {m0,k0,g} = {%d,%d,%d} : "
+                               "a_scale_thread_buf_group = "
+                               "[%f, %f, "
+                               "%f, %f]\n",
+                               blockIdx.x,
+                               threadIdx.x,
+                               static_cast<int>(m0),
+                               static_cast<int>(k0),
+                               static_cast<int>(g),
+                               type_convert<float>(a_scale_thread_buf_group(Number<0>{})),
+                               type_convert<float>(a_scale_thread_buf_group(Number<1>{})),
+                               type_convert<float>(a_scale_thread_buf_group(Number<2>{})),
+                               type_convert<float>(a_scale_thread_buf_group(Number<3>{})));
+                    }
 #endif
-            // a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-            //                                        make_multi_index(MWaves * MPerXDL, 0));
-        });
+                    static_for<0, xdlops_gemm.mfma_instr.group_size, 1>{}([&](auto i) {
+                        constexpr index_t a_scale_offset =
+                            a_scale_thread_desc.CalculateOffset(make_tuple(m0, k0, g, i));
+                        a_scale_thread_buf(Number<a_scale_offset>{}) =
+                            a_scale_thread_buf_group[Number<i>{}];
+                    });
+                    // go to the next group
+                    a_scale_thread_copy.MoveSrcSliceWindow(
+                        a_scale_grid_desc,
+                        make_multi_index(2 * xdlops_gemm.mfma_instr.group_size, 0));
+                }); // g
+
+                // restore row id and advance to the next scale
+                a_scale_thread_copy.MoveSrcSliceWindow(
+                    a_scale_grid_desc,
+                    make_multi_index(-2 * xdlops_gemm.mfma_instr.group_size *
+                                         xdlops_gemm.mfma_instr.num_groups_per_blk,
+                                     1));
+            }); // k0
+
+            // restore column id and advance to the next set of rows
+            a_scale_thread_copy.MoveSrcSliceWindow(
+                a_scale_grid_desc, make_multi_index(MWaves * MPerXDL, -ScalesPerKBlockSize));
+        }); // m0
+
+        // restore row id and advance to the next set of scales
+        a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
+                                               make_multi_index(-MPerBlock, ScalesPerKBlockSize));
+
 // print out a_scale_thread_buf
 #if 0
         if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
@@ -344,9 +377,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                    type_convert<float>(a_scale_thread_buf(Number<3>{})));
         }
 #endif
-        // a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-        //                                        make_multi_index(-MPerBlock,
-        //                                        ScalesPerKBlockSize));
 
         static_for<0, NRepeat, 1>{}([&](auto n0) {
             b_scale_thread_copy.Run(b_scale_grid_desc,
