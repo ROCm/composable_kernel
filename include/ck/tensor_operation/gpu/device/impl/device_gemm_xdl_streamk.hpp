@@ -73,12 +73,23 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
+    // Emin @CommentOut
+#if 0
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk<
         BlockSize,
         BlockToCTileMap_GemmStreamK<MPerBlock,
                                     NPerBlock,
                                     K0PerBlock * K1,
                                     StreamKReductionStrategy::Atomic>,
+#endif
+
+
+    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk<
+        BlockSize,
+        BlockToCTileMap_GemmStreamK<MPerBlock,
+                                    NPerBlock,
+                                    K0PerBlock * K1,
+                                    StreamKReductionStrategy::Reduction>,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,

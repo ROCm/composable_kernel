@@ -1415,7 +1415,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     {
                         static_for<0, NReduceIters, 1>{}([&](auto i_n_reduce)
                         {
-                            acc_buf.Clear();
+                            // acc_buf.Clear();
 
                             // Accumulate all partial results with proper type handling
                             for(auto i = tile_acc_offset_start; i < tile_acc_offset_end; i++)
