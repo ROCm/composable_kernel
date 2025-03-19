@@ -397,7 +397,8 @@ __device__ BFragT load_B_col_major(BType const* input_ptr)
     static constexpr int32_t WAVE_SIZE = 64;
 
     // Here we want to load from cols of B in chunks of 16 elements each.
-    static constexpr uint32_t chunk_size = 16;
+    static constexpr uint32_t chunk_size =
+        16 / (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1);
 
     // each chunk is separated by an offset
     static constexpr uint32_t chunk_offset = chunk_size * WAVE_SIZE / BLOCK_N; // 32 or 64
