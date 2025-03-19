@@ -19,7 +19,6 @@ struct BatchedTransposeHostArgs
     index_t batch;
     index_t height;
     index_t width;
-    // index_t dim_blocks;
     index_t dim_stride;
     index_t dim_block_h;
     index_t dim_block_w;
@@ -81,14 +80,13 @@ struct BatchedTransposeKernel
 
         static_assert(kMPerThread == 1 && kNPerThread == 1);
 
-        const auto iDim = blockIdx.z;
-        // dim[0] = W(M,X), dim[1] = H(N,Y)
-        const auto x_m_n = [&]() {
+        const auto iBatch = blockIdx.z;
+        const auto x_m_n  = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride,
-                make_tuple(kargs.width, kargs.height),
-                make_tuple(1, kargs.width),
-                number<kMPerThread>{},
+                static_cast<const Type*>(kargs.p_input) + iBatch * kargs.dim_stride,
+                make_tuple(kargs.height, kargs.width),
+                make_tuple(kargs.width, 1),
+                number<kNPerThread>{},
                 number<1>{});
 
             return pad_tensor_view(x_dram_naive,
@@ -98,10 +96,10 @@ struct BatchedTransposeKernel
 
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<Type*>(kargs.p_output) + iDim * kargs.dim_stride,
-                make_tuple(kargs.height, kargs.width),
-                make_tuple(1, kargs.height),
-                number<kNPerThread>{}, // TODO thread load value
+                static_cast<Type*>(kargs.p_output) + iBatch * kargs.dim_stride,
+                make_tuple(kargs.width, kargs.height),
+                make_tuple(kargs.height, 1),
+                number<kMPerThread>{},
                 number<1>{});
 
             return pad_tensor_view(y_dram_naive,
@@ -109,8 +107,8 @@ struct BatchedTransposeKernel
                                    sequence<kPadN, kPadM>{});
         }();
 
-        const auto iM = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
-        const auto iN = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
+        const auto iN = __builtin_amdgcn_readfirstlane(blockIdx.x * kNPerBlock);
+        const auto iM = __builtin_amdgcn_readfirstlane(blockIdx.y * kMPerBlock);
 
         auto x_block_window = make_tile_window(
             x_m_n,

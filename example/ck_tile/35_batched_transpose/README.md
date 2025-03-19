@@ -40,11 +40,13 @@ build/bin/tile_example_batched_transpose_4d
 
 ```
 args:
-          -v    whether do CPU validation or not (default:1)
-         -pr    input data type. fp16/fp32 (representing 8/16/32 bit data) (default:fp16)
-       -seed    seed to be used, -1 means random every time (default:-1)
-          -H    input height size. (default:16)
-          -W    input width size.  (default:16)
+           -v    whether do CPU validation or not (default:1)
+           -N    input batch size.  (default:2)
+           -H    input height size. (default:16)
+           -W    input width size.  (default:16)
+-batch_stride    Batch stride. (default:0)
+          -pr    input data type. fp16/fp32 (representing 8/16/32 bit data) (default:fp16)
+        -seed    seed to be used, -1 means random every time (default:-1)
 ```
 
 ### 4D Transpose (NCHW -> NHWC)
@@ -57,13 +59,14 @@ args:
 
 ```
 args:
-          -v    whether do CPU validation or not (default:1)
-         -pr    input data type. fp16/fp32 (representing 8/16/32 bit data) (default:fp16)
-       -seed    seed to be used, -1 means random every time (default:-1)
-          -N    input batch size.  (default:2)
-          -C    input channel size. (default:16)
-          -H    input height size. (default:1)
-          -W    input width size.  (default:16)
-  -layout_in    input tensor data layout - NCHW by default (default:NCHW)
- -layout_out    output tensor data layout - NHWC by default  (default:NHWC)
+           -v    whether do CPU validation or not (default:1)
+           -N    input batch size.  (default:2)
+           -C    input channel size. (default:16)
+           -H    input height size. (default:1)
+           -W    input width size.  (default:16)
+-batch_stride    Batch stride. (default:0)
+   -layout_in    input tensor data layout - NCHW by default (default:NCHW)
+  -layout_out    output tensor data layout - NHWC by default  (default:NHWC)
+          -pr    input data type. fp16/fp32 (representing 8/16/32 bit data) (default:fp16)
+        -seed    seed to be used, -1 means random every time (default:-1)
 ```

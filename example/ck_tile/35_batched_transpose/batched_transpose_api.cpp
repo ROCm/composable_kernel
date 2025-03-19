@@ -4,23 +4,20 @@
 #include <iostream>
 
 template <typename ts_type,
-          ck_tile::index_t block_w,
           ck_tile::index_t block_h,
-          ck_tile::index_t warp_w,
+          ck_tile::index_t block_w,
           ck_tile::index_t warp_h,
-          ck_tile::index_t thread_w,
-          ck_tile::index_t thread_h>
+          ck_tile::index_t warp_w,
+          ck_tile::index_t thread_h,
+          ck_tile::index_t thread_w>
 float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_config& s)
 {
-    uint32_t dim_stride = a.height * a.width;
-
-    a.dim_stride  = dim_stride;
     a.dim_block_h = block_h;
     a.dim_block_w = block_w;
 
-    using block_tile  = ck_tile::sequence<block_w, block_h>;
-    using warp_tile   = ck_tile::sequence<warp_w, warp_h>;
-    using thread_tile = ck_tile::sequence<thread_w, thread_h>;
+    using block_tile  = ck_tile::sequence<block_h, block_w>;
+    using warp_tile   = ck_tile::sequence<warp_h, warp_w>;
+    using thread_tile = ck_tile::sequence<thread_h, thread_w>;
 
     using ts_problem =
         ck_tile::BatchedTransposeProblem<ts_type, block_tile, warp_tile, thread_tile>;
@@ -33,8 +30,8 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     const dim3 grids      = kernel::GridSize(a);
     constexpr dim3 blocks = kernel::BlockSize();
 
-    std::cout << ", block_w=" << block_w << ", block_h=" << block_h << ", warp_w=" << warp_w
-              << ", warp_h=" << warp_h << ", thread_w=" << thread_w << ", thread_h=" << thread_h
+    std::cout << ", block_h=" << block_h << ", block_w=" << block_w << ", warp_h=" << warp_h
+              << ", warp_w=" << warp_w << ", thread_h=" << thread_h << ", thread_w=" << thread_w
               << std::endl;
 
     float ave_time = ck_tile::launch_kernel(
@@ -48,7 +45,7 @@ float batched_transpose(batched_transpose_trait t,
                         ck_tile::stream_config s)
 {
     using Func = std::function<float(batched_transpose_kargs&, ck_tile::stream_config&)>;
-    std::unordered_map<std::string, Func> functions = {
+    static const std::unordered_map<std::string, Func> functions = {
         {"fp32", batched_transpose_dispatch<ck_tile::fp32_t, 16, 16, 8, 8, 1, 1>},
         {"fp16", batched_transpose_dispatch<ck_tile::fp16_t, 16, 16, 8, 8, 1, 1>},
         {"bf16", batched_transpose_dispatch<ck_tile::bf16_t, 16, 16, 8, 8, 1, 1>},
