@@ -8,6 +8,8 @@
 
 using ck::bf8_ocp_t;
 using ck::bf8x2_ocp_t;
+using ck::bhalf2_t;
+using ck::bhalf_t;
 using ck::f8_convert_rne;
 using ck::f8_convert_sr;
 using ck::float2_t;
@@ -657,6 +659,202 @@ TEST(BF8OCP, DeviceFP16BF8Convert)
     // SR
     EXPECT_EQ(out[i++], type_convert<half_t>(-4.0f));
     EXPECT_EQ(out[i++], type_convert<half_t>(2.0f));
+
+    EXPECT_EQ(test_size, completed);
+    EXPECT_EQ(test_size, i);
+}
+
+__host__ __device__ void
+test_bf16_bf8_type_convert(uint64_t N, bhalf_t* p_test, uint64_t* p_completed)
+{
+    if(p_completed == nullptr)
+    {
+        return;
+    }
+
+    uint64_t& i = *p_completed;
+    i           = 0;
+
+    if(p_test == nullptr)
+    {
+        return;
+    }
+
+    for(ck::index_t bf8_id = 0; bf8_id < 256; bf8_id++)
+    {
+        uint8_t bf8_uid = static_cast<uint8_t>(bf8_id);
+        auto v          = type_convert<bhalf_t>(bf8_ocp_t{bf8_uid});
+        p_test[i]       = v;
+        i++;
+        if(i >= N)
+        {
+            return;
+        }
+    }
+
+    /// Test vector conversion
+    // bf8x2 -> bf16x2
+    bf8x2_ocp_t bf8x2{bf8x2_ocp_t::data_v{0b10000100, 0b00000001}}; //-2^-14, 2^-16
+
+    bhalf2_t bf16x2 = type_convert<bhalf2_t>(bf8x2);
+    p_test[i++]     = bf16x2[0];
+    if(i >= N)
+    {
+        return;
+    }
+    p_test[i++] = bf16x2[1];
+    if(i >= N)
+    {
+        return;
+    }
+
+    // bf16x2 -> bf8x2
+    bf16x2 = {type_convert<bhalf_t>(-4.0f), type_convert<bhalf_t>(2.0f)};
+    bf8x2  = f8_convert_rne<bf8x2_ocp_t>(bf16x2); // expect {-4, 2}
+
+    p_test[i++] = type_convert<bhalf_t>(bf8x2.AsType<bf8_ocp_t>()(ck::Number<0>{})); //-4f
+    if(i >= N)
+    {
+        return;
+    }
+    p_test[i++] = type_convert<bhalf_t>(bf8x2.AsType<bf8_ocp_t>()(ck::Number<1>{})); // 2f
+    if(i >= N)
+    {
+        return;
+    }
+
+    bf8x2 = f8_convert_sr<bf8x2_ocp_t>(bf16x2); // expect {-4, 2}
+
+    p_test[i++] = type_convert<bhalf_t>(bf8x2.AsType<bf8_ocp_t>()(ck::Number<0>{})); //-4f
+    if(i >= N)
+    {
+        return;
+    }
+    p_test[i++] = type_convert<bhalf_t>(bf8x2.AsType<bf8_ocp_t>()(ck::Number<1>{})); // 2f
+    if(i >= N)
+    {
+        return;
+    }
+}
+
+TEST(BF8OCP, HostBF16BF8Convert)
+{
+    std::vector<bhalf_t> out(test_size, -1.0f);
+    uint64_t completed = 0;
+
+    test_bf16_bf8_type_convert(test_size, out.data(), &completed);
+
+    std::set<uint8_t> bf8_nan_ids;
+    bf8_nan_ids.insert(0b11111111);
+    bf8_nan_ids.insert(0b01111111);
+    bf8_nan_ids.insert(0b11111101);
+    bf8_nan_ids.insert(0b01111101);
+    bf8_nan_ids.insert(0b11111110);
+    bf8_nan_ids.insert(0b01111110);
+    for(auto bf8_nan_id : bf8_nan_ids)
+    {
+        auto idx = bf8_nan_id;
+        ASSERT_TRUE(std::isnan(type_convert<float>(out[idx])));
+    }
+
+    for(ck::index_t bf8_id = 0; bf8_id < 256; bf8_id++)
+    {
+        if(bf8_nan_ids.find(bf8_id) != bf8_nan_ids.end())
+            continue;
+
+        uint8_t bf8_uid = static_cast<uint8_t>(bf8_id);
+        auto idx        = bf8_uid;
+        ASSERT_FLOAT_EQ(out[idx], type_convert<bhalf_t>(bf8_ocp_t{bf8_uid}))
+            << " bf8_id: " << bf8_id << std::endl
+            << type_convert<float>(type_convert<bhalf_t>(bf8_ocp_t{bf8_uid}));
+    }
+
+    // /// Test vector conversions
+
+    auto i = 256;
+
+    // bf8x2 -> bf16x2
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(-powf(2.0f, -14.0f)));
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(powf(2.0f, -16.0f)));
+
+    // bf16x2 -> bf8x2
+    // RNE
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(-4.0f));
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(2.0f));
+    // SR
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(-4.0f));
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(2.0f));
+
+    EXPECT_EQ(test_size, completed);
+    EXPECT_EQ(test_size, i);
+}
+
+__global__ void
+device_test_bf16_bf8_type_convert(uint64_t N, bhalf_t* p_test, uint64_t* p_completed)
+{
+    test_bf16_bf8_type_convert(N, p_test, p_completed);
+}
+
+TEST(BF8OCP, DeviceBF16BF8Convert)
+{
+    std::vector<bhalf_t> out(test_size, -1.0f);
+
+    DeviceMem device_out(test_size * sizeof(bhalf_t));
+    DeviceMem device_completed(sizeof(uint64_t));
+
+    device_out.SetValue(-21.0f);
+    device_completed.SetValue(-21.0f);
+
+    device_test_bf16_bf8_type_convert<<<1, 1>>>(
+        test_size,
+        static_cast<bhalf_t*>(device_out.GetDeviceBuffer()),
+        static_cast<uint64_t*>(device_completed.GetDeviceBuffer()));
+
+    uint64_t completed = 0;
+    device_completed.FromDevice(&completed);
+    device_out.FromDevice(out.data());
+
+    std::set<uint8_t> bf8_nan_ids;
+    bf8_nan_ids.insert(0b11111111);
+    bf8_nan_ids.insert(0b01111111);
+    bf8_nan_ids.insert(0b11111101);
+    bf8_nan_ids.insert(0b01111101);
+    bf8_nan_ids.insert(0b11111110);
+    bf8_nan_ids.insert(0b01111110);
+    for(auto bf8_nan_id : bf8_nan_ids)
+    {
+        auto idx = bf8_nan_id;
+        ASSERT_TRUE(std::isnan(type_convert<float>(out[idx])))
+            << "idx: " << idx << " out[idx]: " << type_convert<float>(out[idx]);
+    }
+
+    for(ck::index_t bf8_id = 0; bf8_id < 256; bf8_id++)
+    {
+        if(bf8_nan_ids.find(bf8_id) != bf8_nan_ids.end())
+            continue;
+
+        uint8_t bf8_uid = static_cast<uint8_t>(bf8_id);
+        auto idx        = bf8_uid;
+        ASSERT_FLOAT_EQ(out[idx], type_convert<bhalf_t>(bf8_ocp_t{bf8_uid}))
+            << " bf8_id: " << bf8_id << std::endl
+            << type_convert<float>(type_convert<bhalf_t>(bf8_ocp_t{bf8_uid}));
+    }
+
+    /// Test vector conversions
+
+    auto i = 256;
+
+    // bf8x2 -> bf16x2
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(-powf(2.0f, -14.0f)));
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(powf(2.0f, -16.0f)));
+
+    // bf16x2 -> bf8x2
+    // RNE
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(-4.0f));
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(2.0f));
+    // SR
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(-4.0f));
+    EXPECT_EQ(out[i++], type_convert<bhalf_t>(2.0f));
 
     EXPECT_EQ(test_size, completed);
     EXPECT_EQ(test_size, i);
