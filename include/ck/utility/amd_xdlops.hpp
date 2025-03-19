@@ -722,6 +722,11 @@ struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
 
         using arg_type = int32x8_t;
 
+        static_assert(0 == 0);
+
+        printf("!!!!!!! %d %d %d %d ", arg_a[0], arg_a[1], arg_a[2], arg_a[3]);
+        printf("??????? %d %d %d %d ", arg_b[0], arg_b[1], arg_b[2], arg_b[3]);
+
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
                 arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], 0, 0, 0, 0},
