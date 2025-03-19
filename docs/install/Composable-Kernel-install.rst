@@ -17,23 +17,24 @@ Before you begin, clone the `Composable Kernel GitHub repository <https://github
 Change directory to the ``build`` directory and generate the makefile using the ``cmake`` command. Two build options are required:
 
 * ``CMAKE_PREFIX_PATH``: The ROCm installation path. ROCm is installed in ``/opt/rocm`` by default.
-* ``CMAKE_CXX_COMPILER``: The path to ``hipcc``. The default path to hipcc is ``/opt/rocm/bin/hipcc``.
+* ``CMAKE_CXX_COMPILER``: The path to the Clang compiler. Clang is found at ``/opt/rocm/llvm/bin/clang++`` by default.
 
 
 .. code:: shell
 
   cd build
-  cmake ../. -D CMAKE_PREFIX_PATH="/opt/rocm" -D CMAKE_CXX_COMPILER="/opt/rocm/bin/hipcc" [-D<OPTION1=VALUE1> [-D<OPTION2=VALUE2>] ...]
+  cmake ../. -D CMAKE_PREFIX_PATH="/opt/rocm" -D CMAKE_CXX_COMPILER="/opt/rocm/llvm/bin/clang++" [-D<OPTION1=VALUE1> [-D<OPTION2=VALUE2>] ...]
 
-
-Building Composable Kernel can take a significant amount of time. To reduce the build time, the following build options can be used:
-
-* ``DL_KERNELS``: Set to ``ON`` to build deep learning (DL) instances. These instances are useful on architectures that don't support XDL or WMMA.
-* ``DPP_KERNELS``: Set to ``ON`` to build data parallel primitive (DPP) instances. These instances are useful on architectures that don't support XDL or WMMA.
-* ``CK_USE_FP8_ON_UNSUPPORTED_ARCH``: Set to ``ON`` to build fp8 data type instances for GPU targets without native fp8 support.
 
 Other build options are:
 
+* ``DISABLE_DL_KERNELS``: Set this to "ON" to not build deep learning (DL) and data parallel primitive (DPP) instances. 
+
+  .. note::
+
+      DL and DPP instances are useful on architectures that don't support XDL or WMMA.
+
+* ``CK_USE_FP8_ON_UNSUPPORTED_ARCH``: Set to ``ON`` to build FP8 data type instances on gfx90a without native FP8 support.
 * ``GPU_TARGETS``: Target architectures. Target architectures in this list must all be different versions of the same architectures. Enclose the list of targets in quotation marks. Separate multiple targets with semicolons (``;``). For example, ``cmake -D GPU_TARGETS="gfx908;gfx90a"``. This option is required to build tests and examples.
 * ``GPU_ARCHS``: Target architectures. Target architectures in this list are not limited to different versions of the same architectures. Enclose the list of targets in quotation marks. Separate multiple targets with semicolons (``;``). For example, ``cmake -D GPU_TARGETS="gfx908;gfx1100"``.
 * ``CMAKE_BUILD_TYPE``: The build type. Can be ``None``, ``Release``, ``Debug``, ``RelWithDebInfo``, or ``MinSizeRel``. CMake will use ``Release`` by default.
