@@ -256,50 +256,12 @@ struct GemmConfig
 #include "gemm_host.hpp"
 
 
-template <typename Tensor,
-          typename ADataType,
-          typename BDataType,
-          typename AccDataType,
-          typename CDataType,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout>
+template <typename Tensor>
 void permute_tensor_b(Tensor& tensor)
 {{
-    using GemmShape = 
-        ck_tile::TileGemmShape<ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
-                               ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
-                               ck_tile::sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>,
-                               GemmConfig::PermuteA,
-                               GemmConfig::PermuteB>;
-
-    using GemmUniversalTraits = 
-        ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
-                                         GemmConfig::kPadN,
-                                         GemmConfig::kPadK,
-                                         GemmConfig::DoubleSmemBuffer,
-                                         ALayout,
-                                         BLayout,
-                                         CLayout,
-                                         GemmConfig::TransposeC>;  
-
- 
-
-    using UniversalGemmProblem = 
-        ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                              BDataType,
-                                              AccDataType,
-                                              GemmShape,
-                                              GemmUniversalTraits,
-                                              {gemm_pipeline_scheduler},
-                                              true,
-                                              ck_tile::TailNumber::Full>;
-
-    using GemmPipeline =  {gemm_pipeline}<UniversalGemmProblem>;
-
     const ck_tile::index_t K  = tensor.get_length(0);
     const ck_tile::index_t N  = tensor.get_length(1);
-    const ck_tile::index_t K1 = GemmPipeline::GetSmemPackB();
+    const ck_tile::index_t K1 = {KPerThread};
     const ck_tile::index_t K0 = K / K1;
 
     Tensor tensor_copy = tensor;
@@ -501,6 +463,14 @@ float gemm_kernel_launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_conf
             self.data['Scheduler_type']
         )
 
+        if self.data['Prec_datatype'] in ['fp16', 'bf16']:
+            self.KPerThread = 4
+        elif self.data['Prec_datatype'] in ['fp8', 'bf8']:
+            self.KPerThread = 8
+        else:
+            # fallback or int4 or int8 or fp32 – up to you:
+            self.KPerThread = 1
+
     @property
     def name_common_header(self) -> str:
         return 'tensor_configuration'
@@ -563,7 +533,8 @@ float gemm_kernel_launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_conf
                 gemm_pipeline = list_f[1],
                 epilogue_define = self.DEFAULT_EPILOGUE if self.kernel_method.F_epilogue == "Default" else self.CSHUFFLE_EPILOGUE,
                 run_func = run_f.replace('{HOP_LOOP_FALSE}', self.HOT_LOOP_FALSE),
-                hot_loop_false = self.HOT_LOOP_FALSE          
+                hot_loop_false = self.HOT_LOOP_FALSE,
+                KPerThread = self.KPerThread          
                 )
         return str1
 
