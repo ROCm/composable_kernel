@@ -776,9 +776,17 @@ inline __host__ __device__ bhalf_t type_convert<bhalf_t, f8_ocp_t>(f8_ocp_t x)
     {
         uint16_t i16val;
         fp8_storage_t i8val[2];
-    } val;
-    val.i8val[0] = x.data;
-    return __builtin_amdgcn_cvt_scalef32_pk_bf16_fp8(val.i16val, /*scale*/ 1.f, 0)[0];
+    } input;
+    input.i8val[0] = x.data;
+
+    union
+    {
+        bhalf2_t bhalf_vec;
+        bhalf_t bhalf_arr[2];
+    } output;
+    output.bhalf_vec = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp8(input.i16val, /*scale*/ 1.f, 0);
+
+    return output.bhalf_arr[0];
 #else
     return type_convert<bhalf_t>(
         fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(x.data));
@@ -860,9 +868,17 @@ inline __host__ __device__ bhalf_t type_convert<bhalf_t, bf8_ocp_t>(bf8_ocp_t x)
     {
         uint16_t i16val;
         fp8_storage_t i8val[2];
-    } val;
-    val.i8val[0] = x.data;
-    return __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(val.i16val, /*scale*/ 1.f, 0)[0];
+    } input;
+    input.i8val[0] = x.data;
+
+    union
+    {
+        bhalf2_t bhalf_vec;
+        bhalf_t bhalf_arr[2];
+    } output;
+    output.bhalf_vec = __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(input.i16val, /*scale*/ 1.f, 0);
+
+    return output.bhalf_arr[0];
 #else
     return type_convert<bhalf_t>(
         fp8_impl::cast_from_f8<float, bf8_ocp_t::wm, bf8_ocp_t::we, false>(x.data));
