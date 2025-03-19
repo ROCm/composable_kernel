@@ -369,8 +369,6 @@ struct scalar_type<T __attribute__((ext_vector_type(N)))>
     static constexpr index_t vector_size = N;
 };
 
-
-
 //
 template <>
 struct scalar_type<double>

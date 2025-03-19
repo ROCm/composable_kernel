@@ -31,7 +31,6 @@ struct vector_type_maker
     using type = vector_type<T, N>;
 };
 
-
 template <typename T, index_t N>
 struct scalar_type<vector_type<T, N>>
 {
@@ -2150,4 +2149,4 @@ using pk_i4x2_t = typename vector_type<pk_i4_t, 2>::type;
 using pk_i4x4_t = typename vector_type<pk_i4_t, 4>::type;
 using pk_i4x8_t = typename vector_type<pk_i4_t, 8>::type;
 
-}
+} // namespace ck
