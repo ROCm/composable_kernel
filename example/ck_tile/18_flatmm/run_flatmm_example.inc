@@ -143,8 +143,8 @@ int run_flatmm_example_with_layouts(int argc,
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
     // TODO: add different init types
-    ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_host);
-    ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_origin_host);
+    ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
+    ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
 
     ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_dev_buf(c_rslt_host.get_element_space_size_in_bytes());
