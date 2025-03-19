@@ -36,10 +36,10 @@ Table of supported cases by instance factory with XDL instruction:
 
 |       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|GNHWC/GKYXC/GNHWK|
 |-------|---|---|---|
-|bf16|2D, 3D|&cross;|&cross;|
+|bf16|2D, 3D|2D, 3D|&cross;|
 |bf16(fp32 for weight)|2D, 3D|&cross;|1D, 2D, 3D|
-|fp16 |2D, 3D|&cross;|1D, 2D, 3D|
-|fp32  |2D, 3D|&cross;|1D, 2D, 3D|
+|fp16 |2D, 3D|2D, 3D|1D, 2D, 3D|
+|fp32  |2D, 3D|2D, 3D|1D, 2D, 3D|
 
 Table of supported cases by instance factory with WMMA instruction:
 
