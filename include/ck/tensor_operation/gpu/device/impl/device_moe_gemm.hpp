@@ -391,7 +391,9 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                              index_t KBatch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op)
+                             CElementwiseOperation c_element_op,
+                             int,
+                             int)
     {
         return Argument{static_cast<const index_t*>(p_sorted_token_ids),
                         static_cast<const index_t*>(p_sorted_expert_ids),
@@ -432,7 +434,9 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                       index_t KBatch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      CElementwiseOperation c_element_op,
+                                                      int,
+                                                      int) override
     {
         return std::make_unique<Argument>(nullptr,
                                           nullptr,
