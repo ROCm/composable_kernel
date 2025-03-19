@@ -233,11 +233,8 @@ struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
                 }
             };
 
+            // unconditional 2 to remove agpr usage
             constexpr index_t minimum_occupancy = 2;
-                // (BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave &&
-                //  MPerBlock * NPerBlock / BlockSize > 64)
-                //     ? 1
-                //     : 2;
 
             if(has_main_k_block_loop)
             {
