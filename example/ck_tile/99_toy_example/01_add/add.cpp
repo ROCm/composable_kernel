@@ -50,7 +50,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockWarps = ck_tile::sequence<2, 2>;
     using BlockTile  = ck_tile::sequence<2, 1024>;
     using WarpTile   = ck_tile::sequence<1, 512>;
-    using Vector     = ck_tile::sequence<1, 4>;
+    using Vector     = ck_tile::sequence<1, 8>;
     
     constexpr ck_tile::index_t kBlockSize  = 256;
     constexpr ck_tile::index_t kBlockPerCu = 1;
