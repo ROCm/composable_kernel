@@ -44,7 +44,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
         static const ck_tile::index_t K_Warp_Tile = 8;
     };
 
-    using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
+    using grouped_gemm_kargs = ck_tile::GemmHostArgs;
     std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
     {
         return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
@@ -106,7 +106,6 @@ class TestCkTileGroupedGemm : public ::testing::Test
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
             constexpr auto scheduler      = ck_tile::GemmPipelineScheduler::Intrawave;
-            ;
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                                BDataType,
@@ -294,8 +293,10 @@ class TestCkTileGroupedGemm : public ::testing::Test
             const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
             void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
+            // TODO add support for kbatch > 1
+            static constexpr ck_tile::index_t k_batch = 1;
             gemm_descs.push_back(
-                {p_a, p_b, p_c, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+                {p_a, p_b, p_c, k_batch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
         }
 
         ck_tile::DeviceMem gemm_workspace;
