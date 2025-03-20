@@ -5,17 +5,15 @@
 
 using ADataType = ck::f8_t;
 using BDataType = ck::f8_t;
+
+// TODO: Enable e8m0_bexp_t and FP8 scale types
 #if 1
-// XXX: MX-native GEMM kernel will work with e8m0_bexp_t scale type
 using XDataType = ck::half_t;
 #else
 using XDataType = ck::e8m0_bexp_t;
 #endif
-#if 1
-using CDataType = ck::half_t;
-#else
-using CDataType = float;
-#endif
+
+using CDataType        = ck::half_t;
 using AccDataType      = float;
 using CShuffleDataType = CDataType;
 
