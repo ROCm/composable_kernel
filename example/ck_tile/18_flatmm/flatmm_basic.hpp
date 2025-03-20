@@ -30,7 +30,7 @@
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
 #endif
 
-template <typename DataType>
+template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
 struct GemmBasicTypeConfig;
 
 template <>
@@ -43,9 +43,33 @@ struct GemmBasicTypeConfig<ck_tile::half_t>
     // ToDo: Add more bias config to support different categories of GEMM.
 };
 
+template <>
+struct GemmBasicTypeConfig<ck_tile::bf16_t>
+{
+    using ADataType   = ck_tile::bf16_t;
+    using BDataType   = ck_tile::bf16_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::bf16_t;
+};
+template <>
+struct GemmBasicTypeConfig<ck_tile::fp8_t>
+{
+    using ADataType   = ck_tile::fp8_t;
+    using BDataType   = ck_tile::fp8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+    // ToDo: Add more bias config to support different categories of GEMM.
+};
+
 template <typename T>
 struct DataTypeTraits;
 
+
+template <>
+struct DataTypeTraits<ck_tile::fp8_t>
+{
+    static constexpr const char* name = "fp8";
+};
 template <>
 struct DataTypeTraits<float>
 {
@@ -63,14 +87,6 @@ struct DataTypeTraits<ck_tile::half_t>
 {
     static constexpr const char* name = "fp16";
 };
-
-using Types = GemmBasicTypeConfig<ck_tile::half_t>;
-
-// Specific type aliases for easy access
-using ADataType   = Types::ADataType;
-using BDataType   = Types::BDataType;
-using AccDataType = Types::AccDataType;
-using CDataType   = Types::CDataType;
 
 auto create_args(int argc, char* argv[])
 {
