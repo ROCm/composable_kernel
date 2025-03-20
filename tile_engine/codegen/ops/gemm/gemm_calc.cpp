@@ -73,14 +73,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         // Permute vector pk_i4x4 data for device implementation
         ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-        permute_tensor_b<decltype(b_k_n_dev),
-                         ADataType,
-                         BDataType,
-                         AccDataType,
-                         CDataType,
-                         ALayout,
-                         BLayout,
-                         CLayout>(b_k_n_dev);
+        permute_tensor_b<decltype(b_k_n_dev)>(b_k_n_dev);
         permute_vectors_i4x4_b(b_k_n_dev);
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
     }
@@ -123,8 +116,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
-    bool pass =
-        gemm_verify<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+    bool pass = true;
+    if(verify)
+    {
+        pass = gemm_verify<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
             verify,
             a_m_k,
             b_k_n,
@@ -138,6 +133,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             stride_B,
             stride_C,
             kbatch);
+    }
     return pass;
 }
 

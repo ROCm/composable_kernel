@@ -18,10 +18,10 @@ endif()
 
 # generate a list of kernels, but not actually emit files at config sta
 execute_process(
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/code_generate.py
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             --api ${GEMM_CODEGEN_ENABLE_APIS}
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
-            -j ${CMAKE_CURRENT_LIST_DIR}/instance_config.json
+            -j ${CMAKE_CURRENT_LIST_DIR}/configs/single_instance.json
             --list_blobs
             RESULT_VARIABLE ret
 )
@@ -32,34 +32,28 @@ endif()
 
 file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt GEMM_CODEGEN_BLOBS)
 
-# add_custom_command(
-#   OUTPUT
-#   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/code_generate.py
-#   --api ${GEMM_CODEGEN_ENABLE_APIS} --working_path ${CMAKE_CURRENT_BINARY_DIR} -j ${CMAKE_CURRENT_LIST_DIR}/config.json
-#   --gen_blobs
-# )
 
 # To ensure dependency for generating tensor_configuration.hpp before generating executable
 add_custom_command(
     OUTPUT  ${GEMM_CODEGEN_BLOBS}
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/code_generate.py
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             --api ${GEMM_CODEGEN_ENABLE_APIS}
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
-            -j ${CMAKE_CURRENT_LIST_DIR}/instance_config.json
+            -j ${CMAKE_CURRENT_LIST_DIR}/configs/single_instance.json
             --gen_blobs
     DEPENDS ${GEMM_CODEGEN_BLOBS}
 )
-add_custom_target(TENSOR_CONFIG DEPENDS ${GEMM_CODEGEN_BLOBS})
+#add_custom_target(TENSOR_CONFIG DEPENDS ${GEMM_CODEGEN_BLOBS})
 
 
-set(EXECUTABLE_GEMM_INSTANCE "tile_gemm_codegen")
+set(EXECUTABLE_GEMM_INSTANCE "tile_engine_gemm")
 message("adding example ${EXECUTABLE_GEMM_INSTANCE}")
 
 # use build as include directory
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_executable(${EXECUTABLE_GEMM_INSTANCE} EXCLUDE_FROM_ALL gemm_calc.cpp)
-# Ensure EXECUTABLE_GEMM_INSTANCE depends on TENSOR_CONFIG
-add_dependencies(${EXECUTABLE_GEMM_INSTANCE}  TENSOR_CONFIG)
+# Ensure executable depends on the generated file
+#add_dependencies(${EXECUTABLE_GEMM_INSTANCE}  TENSOR_CONFIG)
 target_include_directories(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${GEMM_CODEGEN_BLOBS})
 
