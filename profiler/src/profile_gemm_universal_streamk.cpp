@@ -162,45 +162,45 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
 
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F32{}, F16{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
 #if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
     else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(F16{}, F8{}, F32{}, F16{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F8{}, F32{}, F32{}, F16{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(F16{}, F8{}, F32{}, F16{}, Row{}, Col{}, Row{});
+        return profile(F16{}, F8{}, F32{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
+        return profile(F8{}, F16{}, F32{}, F32{}, F16{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
+        return profile(F8{}, F16{}, F32{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
 #endif
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Row{}, Row{});
+        return profile(BF16{}, BF16{}, F32{}, F32{}, BF16{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Col{}, Row{});
+        return profile(BF16{}, BF16{}, F32{}, F32{}, BF16{}, Row{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        return profile(BF16{}, BF16{}, F32{}, BF16{}, Col{}, Row{}, Row{});
+        return profile(BF16{}, BF16{}, F32{}, F32{}, BF16{}, Col{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        return profile(BF16{}, BF16{}, F32{}, BF16{}, Col{}, Col{}, Row{});
+        return profile(BF16{}, BF16{}, F32{}, F32{}, BF16{}, Col{}, Col{}, Row{});
     }
 #if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
     else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
@@ -210,14 +210,6 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
     else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(F8{}, F8{}, F8{}, F32{}, BF16{}, Row{}, Col{}, Row{});
-    }
-    else if(data_type == GemmDataType::F16_I4_F16 && layout == GemmMatrixLayout::MK_NK_MN)
-    {
-        return profile(F16{}, I4{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
-    }
-    else if(data_type == GemmDataType::BF16_I4_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
-    {
-        return profile(BF16{}, I4{}, BF16{}, F32{}, BF16{}, Row{}, Col{}, Row{});
     }
 #endif
     else
