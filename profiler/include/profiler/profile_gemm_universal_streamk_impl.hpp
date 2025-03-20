@@ -26,6 +26,7 @@ namespace profiler {
 
 template <typename ADataType,
           typename BDataType,
+          typename ComputeDataType,
           typename AccDataType,
           typename CDataType,
           typename ALayout,
@@ -131,7 +132,8 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 BElementOp,
-                                                                                CElementOp>;
+                                                                                CElementOp,
+                                                                                ComputeDataType>;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();

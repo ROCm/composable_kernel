@@ -15,6 +15,7 @@ set(REGRESSION_TESTS
     test_gemm_splitk
     test_batched_gemm
     test_gemm_universal
+    test_gemm_universal_streamk
     test_batched_gemm_softmax_gemm_fp16
     test_batched_gemm_softmax_gemm_permute_fp16
     test_batched_gemm_bias_softmax_gemm_permute_fp16
@@ -239,6 +240,7 @@ add_subdirectory(gemm_add)
 add_subdirectory(gemm_layernorm)
 add_subdirectory(gemm_split_k)
 add_subdirectory(gemm_universal)
+add_subdirectory(gemm_universal_streamk)
 add_subdirectory(gemm_reduce)
 add_subdirectory(batched_gemm)
 add_subdirectory(batched_gemm_reduce)
