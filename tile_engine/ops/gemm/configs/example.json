@@ -1,0 +1,123 @@
+
+{
+    "tile_m": {
+        "value": 256,
+    },
+    "tile_n": {
+        "value": 256,
+    },
+    "tile_k": {
+        "value": 64,
+    },
+    "warp_m": {
+        "value": 2,
+    },
+    "warp_n": {
+        "value": 2,
+    },
+    "warp_k": {
+        "value": 1,
+    },
+    "warp_tile_m": {
+        "value": 32,
+    },
+    "warp_tile_n": {
+        "value": 32,
+    },
+    "warp_tile_k": {
+        "value": 16,
+    },
+    "layout_a": {
+        "value": "R",
+    },
+    "layout_b": {
+        "value": "C",
+    },
+    "layout_c": {
+        "value": "R",
+    },
+    "kPadM": {
+        "value": false,
+    },
+    "kPadN": {
+        "value": false,
+    },
+    "kPadK": {
+        "value": false,
+    },
+    "datatype": {
+        "value": "int4",
+    },
+    "pipeline": {
+        "value": "ComputeV3",
+    },
+    "scheduler": {
+        "value": "Intrawave",
+    },
+    "epilogue": {
+        "value": "CShuffle",
+    }
+}
+
+# for benchmark we use values for tile_m, n, k
+{
+    "tile_m":{
+        "values" : [32, 64, 128]
+    },
+    "tile_n":{
+        "values" : [32, 64, 128]
+    },
+    "tile_k":{
+        "values" : [32, 64, 128]
+    },
+    #if we have mulitple tile sizes then there should be multiple warp sizes as well for one specific warp tile size, there should be further more for all types of warp tile as well.
+    # warp_m  values = #tile_m * #warp_tile_m
+    "warp_m": {
+        "value": 2,
+    },
+    "warp_n": {
+        "value": 2,
+    },
+    "warp_k": {
+        "value": 1,
+    },
+    "warp_tile_m": {
+        "value": 32,
+    },
+    "warp_tile_n": {
+        "value": 32,
+    },
+    "warp_tile_k": {
+        "value": 16,
+    },
+    "layout_a": {
+        "value": "R",
+    },
+    "layout_b": {
+        "value": "C",
+    },
+    "layout_c": {
+        "value": "R",
+    },
+    "kPadM": {
+        "value": false,
+    },
+    "kPadN": {
+        "value": false,
+    },
+    "kPadK": {
+        "value": false,
+    },
+    "datatype": {
+        "values": ["int4","float"]
+    },
+    "pipeline": {
+        "value": "ComputeV3",
+    },
+    "scheduler": {
+        "value": "Intrawave",
+    },
+    "epilogue": {
+        "value": "CShuffle",
+    }   
+}
