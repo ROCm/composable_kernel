@@ -279,20 +279,6 @@ struct ThreadwiseTensorSliceTransfer_v2
                         const DstSliceOriginIdx&,
                         DstBuffer& dst_buf)
     {
-#if 0
-        if constexpr(SrcVectorDim == 0)
-        {
-            if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
-            {
-                printf("Run In. blockId = %u; threadId = %u; src_coord_ = [%d, %d]\n",
-                       blockIdx.x,
-                       threadIdx.x,
-                       src_coord_.GetIndex()(Number<0>{}),
-                       src_coord_.GetIndex()(Number<1>{}));
-            }
-        }
-#endif
-
         static_assert(DstDesc::IsKnownAtCompileTime(),
                       "wrong! DstDesc need to known at compile-time");
 
@@ -311,11 +297,9 @@ struct ThreadwiseTensorSliceTransfer_v2
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
-        // static_assert(src_scalar_per_access < 0, "src_scalar_per_access");
 
         constexpr auto src_scalar_step_in_vector =
             generate_sequence(detail::lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
-        // static_assert(src_scalar_step_in_vector < 0, "src_scalar_step_in_vector");
 
         using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
                                                     DimAccessOrder,
@@ -323,8 +307,6 @@ struct ThreadwiseTensorSliceTransfer_v2
 
         // loop over tensor and copy
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
-
-        // static_assert(num_access < 0, "num_access");
 
         static_for<0, num_access, 1>{}([&](auto idx_1d) {
             typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type src_vector;
@@ -367,19 +349,6 @@ struct ThreadwiseTensorSliceTransfer_v2
 
                 move_tensor_coordinate(
                     src_desc, src_coord_, make_tensor_coordinate_step(src_desc, forward_step));
-#if 0
-                if constexpr(SrcVectorDim == 0)
-                {
-                    if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
-                    {
-                        printf("Run Access. blockId = %u; threadId = %u; src_coord_ = [%d, %d]\n",
-                               blockIdx.x,
-                               threadIdx.x,
-                               src_coord_.GetIndex()(Number<0>{}),
-                               src_coord_.GetIndex()(Number<1>{}));
-                    }
-                }
-#endif
             }
         });
 
@@ -390,19 +359,6 @@ struct ThreadwiseTensorSliceTransfer_v2
                 make_tensor_coordinate_step(src_desc, GetSrcCoordinateResetStep());
 
             move_tensor_coordinate(src_desc, src_coord_, src_reset_step);
-#if 0
-            if constexpr(SrcVectorDim == 0)
-            {
-                if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
-                {
-                    printf("Run Reset. blockId = %u; threadId = %u; src_coord_ = [%d, %d]\n",
-                           blockIdx.x,
-                           threadIdx.x,
-                           src_coord_.GetIndex()(Number<0>{}),
-                           src_coord_.GetIndex()(Number<1>{}));
-                }
-            }
-#endif
         }
     }
 
@@ -433,7 +389,6 @@ struct ThreadwiseTensorSliceTransfer_v2
     __device__ void MoveSrcSliceWindow(const SrcDesc& src_desc,
                                        const Index& src_slice_origin_step_idx)
     {
-
         // if src coord was not reset by Run(), then need to adjust the step here
         const auto adjusted_step_idx =
             SrcResetCoordinateAfterRun ? src_slice_origin_step_idx
@@ -442,41 +397,7 @@ struct ThreadwiseTensorSliceTransfer_v2
         // is it OK to construct a new step every time?
         const auto adjusted_step = make_tensor_coordinate_step(src_desc, adjusted_step_idx);
 
-#if 0
-        if constexpr(SrcVectorDim == 0)
-        {
-            if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
-            {
-                printf("MoveSrcSliceWindow In. blockId = %u; threadId = %u; src_coord_ = [%d, %d]; "
-                       "adjusted_step = [%d, %d]; "
-                       "ResetStep = [%d, %d]\n",
-                       blockIdx.x,
-                       threadIdx.x,
-                       src_coord_.GetIndex()(Number<0>{}),
-                       src_coord_.GetIndex()(Number<1>{}),
-                       adjusted_step.GetIndexDiff()[Number<0>{}],
-                       adjusted_step.GetIndexDiff()[Number<1>{}],
-                       GetSrcCoordinateResetStep()(Number<0>{}),
-                       GetSrcCoordinateResetStep()(Number<1>{}));
-            }
-        }
-#endif
-
         move_tensor_coordinate(src_desc, src_coord_, adjusted_step);
-#if 0
-        if constexpr(SrcVectorDim == 0)
-        {
-            if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
-            {
-                printf(
-                    "MoveSrcSliceWindow Out. blockId = %u; threadId = %u; src_coord_ = [%d, %d]\n",
-                    blockIdx.x,
-                    threadIdx.x,
-                    src_coord_.GetIndex()(Number<0>{}),
-                    src_coord_.GetIndex()(Number<1>{}));
-            }
-        }
-#endif
     }
 
     // src_slice_origin_step_idx need to be known at compile-time, for performance reason
@@ -1112,9 +1033,9 @@ template <typename SrcData,
                              bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_v4
 {
-    static constexpr index_t nDim = SliceLengths::Size(); // 4
+    static constexpr index_t nDim = SliceLengths::Size();
 
-    using Index = MultiIndex<nDim>; // Tuple<int, int, int, int>
+    using Index = MultiIndex<nDim>;
 
     using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
 
@@ -1230,8 +1151,6 @@ struct ThreadwiseTensorSliceTransfer_v4
             constexpr auto src_ref_to_data_disp_coord_step =
                 make_tensor_coordinate_step(src_desc, src_ref_to_data_disp_idx);
 
-            // threadIdx = 3;   src_ref_coord_ = {0, 0, 3, 0}
-            // threadIdx = 35;  src_ref_coord_ = { 0, 0, 3, 32 }
             auto src_data_coord = src_ref_coord_;
 
             move_tensor_coordinate(src_desc, src_data_coord, src_ref_to_data_disp_coord_step);
@@ -1249,81 +1168,6 @@ struct ThreadwiseTensorSliceTransfer_v4
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                     src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize,
                                                        is_src_valid);
-#if 0
-                const void* p = reinterpret_cast<const int*>(&src_buf);
-
-                uint32_t i = 0;
-#if 1
-                i = 1;
-#endif
-
-                if((threadIdx.x == 0 + i || threadIdx.x == 32 + i || threadIdx.x == 32 + i) &&
-                   blockIdx.x == 0 && p == reinterpret_cast<const void*>(0x2000000000010) &&
-                   src_data_coord.GetOffset() < 4000)
-                {
-
-                    printf("threadIdx = %u; src_ref_coord_ = {%d, %d, %d, %d} => %d; "
-                           "src_ref_to_data_disp_coord_step = {%d, %d, %d, %d} => src_data_coord = "
-                           "{%d, %d, %d, %d} => %d\n",
-                           threadIdx.x,
-                           src_ref_coord_.GetVisibleIndex()[Number<0>{}],
-                           src_ref_coord_.GetVisibleIndex()[Number<1>{}],
-                           src_ref_coord_.GetVisibleIndex()[Number<2>{}],
-                           src_ref_coord_.GetVisibleIndex()[Number<3>{}],
-                           src_ref_coord_.GetOffset(),
-                           src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<0>{}],
-                           src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<1>{}],
-                           src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<2>{}],
-                           src_ref_to_data_disp_coord_step.GetIndexDiff()[Number<3>{}],
-                           src_data_coord.GetVisibleIndex()[Number<0>{}],
-                           src_data_coord.GetVisibleIndex()[Number<1>{}],
-                           src_data_coord.GetVisibleIndex()[Number<2>{}],
-                           src_data_coord.GetVisibleIndex()[Number<3>{}],
-                           src_data_coord.GetOffset());
-
-                    printf(
-                        "threadIdx = %u; refOffset: %d; Offset: %d = "
-                        "[%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
-                        threadIdx.x,
-                        src_ref_coord_.GetOffset(),
-                        src_data_coord.GetOffset(),
-                        type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<0>{}]),
-                        type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<1>{}]),
-                        type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<2>{}]),
-                        type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<3>{}]),
-                        type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<4>{}]),
-                        type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<5>{}]),
-                        type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<6>{}]),
-                        type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<7>{}]),
-                        type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<8>{}]),
-                        type_convert<float>(src_tmp_vector.template AsType<SrcData>()[Number<9>{}]),
-                        type_convert<float>(
-                            src_tmp_vector.template AsType<SrcData>()[Number<10>{}]),
-                        type_convert<float>(
-                            src_tmp_vector.template AsType<SrcData>()[Number<11>{}]),
-                        type_convert<float>(
-                            src_tmp_vector.template AsType<SrcData>()[Number<12>{}]),
-                        type_convert<float>(
-                            src_tmp_vector.template AsType<SrcData>()[Number<13>{}]),
-                        type_convert<float>(
-                            src_tmp_vector.template AsType<SrcData>()[Number<14>{}]),
-                        type_convert<float>(
-                            src_tmp_vector.template AsType<SrcData>()[Number<15>{}]));
-
-                    // [[maybe_unused]] auto print_type_name = [](const char* msg,
-                    //                                            auto param [[maybe_unused]]) {
-                    //     printf("%s = %s\n\n", msg, __PRETTY_FUNCTION__);
-                    // };
-
-                    // ck::non_native_vector_base<ck::f8_ocp_t, 16>
-                    // print_type_name("src_tmp_vector.template
-                    // AsType<src_vector_t>()(Number<0>{})",
-                    //                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}));
-
-                    // const void* p = reinterpret_cast<const int*>(&src_buf);
-                    // printf("threadIdx = %u; &src_buf = %p\n", threadIdx.x, p);
-                }
-#endif
             }
             else if constexpr(SrcBuffer::IsStaticBuffer())
             {

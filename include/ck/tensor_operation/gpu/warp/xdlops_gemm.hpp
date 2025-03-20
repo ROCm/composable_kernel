@@ -1366,87 +1366,6 @@ struct XdlopsGemm
                     p_b_wave[k], p_a_wave[k], p_c_thread);
             }
         });
-#if 0
-        [[maybe_unused]] auto print_type_name = [](const char* msg, auto param [[maybe_unused]]) {
-            printf("%s = %s\n\n", msg, __PRETTY_FUNCTION__);
-        };
-
-        if(threadIdx.x == 0 && blockIdx.x == 0)
-        {
-            print_type_name("XdlopsGemm::Run::p_a_wave",
-                            p_a_wave); // ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                                       // ck::non_native_vector_base<ck::f8_ocp_t, 8>>
-            print_type_name("XdlopsGemm::Run::p_b_wave",
-                            p_b_wave); // ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                                       // ck::non_native_vector_base<ck::f8_ocp_t, 8>>
-            print_type_name("XdlopsGemm::Run::p_c_thread", p_c_thread); // ck::vector_type<float,
-                                                                        // 16>
-        }
-#elif 0
-        [[maybe_unused]] auto print_type_name = [](const char* msg, auto param [[maybe_unused]]) {
-            printf("%s = %s\n\n", msg, __PRETTY_FUNCTION__);
-        };
-
-        if(threadIdx.x == 0 && blockIdx.x == 0)
-        {
-            print_type_name("XdlopsGemm::Run::p_a_wave",
-                            p_a_wave); // ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                                       // ck::non_native_vector_base<ck::f8_ocp_t, 8>>
-            print_type_name("XdlopsGemm::Run::p_b_wave",
-                            p_b_wave); // ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                                       // ck::non_native_vector_base<ck::f8_ocp_t, 8>>
-            print_type_name("XdlopsGemm::Run::p_c_thread", p_c_thread); // ck::vector_type<float, 4>
-        }
-#endif
-        // clang-format off
-/*
-        XdlopsGemm::Run::p_a_wave = auto ck::XdlopsGemm<ck::f8_ocp_t, 32, 32, 16>::Run(
-            const ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                            ck::non_native_vector_base<ck::f8_ocp_t, 8>>&,
-            const ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                            ck::non_native_vector_base<ck::f8_ocp_t, 8>>&,
-            ck::vector_type<float, 16>&)::(anonymous class)::operator()(const char*, auto) const
-            [base_type          = ck::f8_ocp_t,
-                MPerXdlops      = 32,
-                NPerXdlops      = 32,
-                KPack           = 16,
-                additional_type = ck::f8_ocp_t,
-                TransposeC      = false,
-                param:auto      = ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                                       ck::non_native_vector_base<ck::f8_ocp_t, 8>>]
-
-            XdlopsGemm::Run::p_b_wave =
-                auto ck::XdlopsGemm<ck::f8_ocp_t, 32, 32, 16>::Run(
-                    const ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                                    ck::non_native_vector_base<ck::f8_ocp_t, 8>>&,
-                    const ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                                    ck::non_native_vector_base<ck::f8_ocp_t, 8>>&,
-                    ck::vector_type<float, 16>&)::(anonymous class)::operator()(const char*, auto)
-                    const [base_type       = ck::f8_ocp_t,
-                           MPerXdlops      = 32,
-                           NPerXdlops      = 32,
-                           KPack           = 16,
-                           additional_type = ck::f8_ocp_t,
-                           TransposeC      = false,
-                        param:auto         = ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                                               ck::non_native_vector_base<ck::f8_ocp_t, 8>>]
-
-            XdlopsGemm::Run::p_c_thread =
-                auto ck::XdlopsGemm<ck::f8_ocp_t, 32, 32, 16>::Run(
-                    const ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                                    ck::non_native_vector_base<ck::f8_ocp_t, 8>>&,
-                    const ck::Tuple<ck::non_native_vector_base<ck::f8_ocp_t, 8>,
-                                    ck::non_native_vector_base<ck::f8_ocp_t, 8>>&,
-                    ck::vector_type<float, 16>&)::(anonymous class)::operator()(const char*, auto)
-                    const [base_type       = ck::f8_ocp_t,
-                           MPerXdlops      = 32,
-                           NPerXdlops      = 32,
-                           KPack           = 16,
-                           additional_type = ck::f8_ocp_t,
-                           TransposeC      = false,
-                        param:auto         = ck::vector_type<float, 16>]
-*/
-        // clang-format on
     }
 
     __device__ static auto GetLaneId() { return get_thread_local_1d_id() % mfma_instr.wave_size; }
@@ -1540,9 +1459,9 @@ struct XdlopsGemm
 
     static constexpr auto mfma_instr = mfma.selected_mfma;
 
-    static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();     // 16
-    static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();    // 8
-    static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops; // 2
+    static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
+    static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
+    static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
 
     __host__ __device__ static constexpr auto GetCM0M1M2NThreadBlkLengths()
     {
