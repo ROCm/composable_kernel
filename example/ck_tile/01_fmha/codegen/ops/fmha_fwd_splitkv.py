@@ -439,13 +439,8 @@ class FmhaFwdSplitKVCombinePipeline:
         pn = pad_name()
         n = f'{self.tag}'
         if pn != '' : n += f'_{pn}'
-        else: n += '_npad'
-        
         if self.F_lse == 't' : n += '_lse'
-        else: n += '_nlse'
-        
         if self.F_squant == 't' : n += '_squant'
-        else: n += '_nsquant'
         return n
 
 class FmhaFwdSplitKVApiPool:
