@@ -124,11 +124,15 @@ template <typename ADataType,
           ck::index_t MXVectorSize>
 bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& config)
 {
+    // Hardcode scale layouts as per pipeline assumptions
+    // TODO: Change default scale layouts to Col for A and Row for B
+    // TODO: Allow user to specify scale layouts
+    using AScaleLayout = Row;
+    using BScaleLayout = Col;
 
     static constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization::Default;
     static constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;
-    static constexpr auto BlkGemmPVer =
-        ck::BlockGemmPipelineVersion::v1; // can be v3 when the compiler bug is fixed.
+    static constexpr auto BlkGemmPVer   = ck::BlockGemmPipelineVersion::v1;
 
     static constexpr ck::index_t ScaleBlockSize = MXVectorSize;
 
@@ -283,16 +287,16 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         throw std::runtime_error("wrong! K must be multiple of ScaleBlockSize (16 or 32)");
     };
 
-    auto Scale_Stride_AM = f_get_default_stride(M, K / ScaleBlockSize, -1, ALayout{});
-    auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BLayout{});
+    auto Scale_Stride_AM = f_get_default_stride(M, K / ScaleBlockSize, -1, AScaleLayout{});
+    auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BScaleLayout{});
 
-    Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-    Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, AScaleLayout{}));
+    Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BScaleLayout{}));
 
     Tensor<XDataType> a_m_k_scale(f_host_tensor_descriptor(
-        M, K / ScaleBlockSize, Scale_Stride_AM, ALayout{})); // scales for A
+        M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{})); // scales for A
     Tensor<XDataType> b_k_n_scale(f_host_tensor_descriptor(
-        K / ScaleBlockSize, N, Scale_Stride_BN, BLayout{})); // scales for B
+        K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{})); // scales for B
 
     Tensor<CDataType> c_m_n_host_result(
         f_host_tensor_descriptor(M, N, StrideC, CLayout{})); // host verification
