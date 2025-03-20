@@ -7,11 +7,8 @@ using ADataType = ck::f8_t;
 using BDataType = ck::f8_t;
 
 // TODO: Enable e8m0_bexp_t and FP8 scale types
-#if 1
 using XDataType = ck::half_t;
-#else
-using XDataType = ck::e8m0_bexp_t;
-#endif
+// using XDataType = ck::e8m0_bexp_t;
 
 using CDataType        = ck::half_t;
 using AccDataType      = float;
