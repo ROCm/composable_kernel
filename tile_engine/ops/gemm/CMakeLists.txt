@@ -32,7 +32,6 @@ endif()
 
 file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt GEMM_CODEGEN_BLOBS)
 
-
 # To ensure dependency for generating tensor_configuration.hpp before generating executable
 add_custom_command(
     OUTPUT  ${GEMM_CODEGEN_BLOBS}
@@ -43,8 +42,6 @@ add_custom_command(
             --gen_blobs
     DEPENDS ${GEMM_CODEGEN_BLOBS}
 )
-#add_custom_target(TENSOR_CONFIG DEPENDS ${GEMM_CODEGEN_BLOBS})
-
 
 set(EXECUTABLE_GEMM_INSTANCE "tile_engine_gemm")
 message("adding example ${EXECUTABLE_GEMM_INSTANCE}")
@@ -52,8 +49,6 @@ message("adding example ${EXECUTABLE_GEMM_INSTANCE}")
 # use build as include directory
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_executable(${EXECUTABLE_GEMM_INSTANCE} EXCLUDE_FROM_ALL gemm_calc.cpp)
-# Ensure executable depends on the generated file
-#add_dependencies(${EXECUTABLE_GEMM_INSTANCE}  TENSOR_CONFIG)
 target_include_directories(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${GEMM_CODEGEN_BLOBS})
 
