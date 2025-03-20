@@ -39,57 +39,6 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-#if 1
-
-    if(threadIdx.x == 0 && blockIdx.x == 0 && threadIdx.y == 0 && blockIdx.y == 0)
-    {
-        printf("Grid dimensions: (%u, %u, %u)\n", gridDim.x, gridDim.y, gridDim.z);
-        printf("Block dimensions: (%u, %u, %u)\n", blockDim.x, blockDim.y, blockDim.z);
-        printf("KPack = %d\n", GridwiseGemm::KPack);
-        printf("AK0Number = %d\n", static_cast<int>(GridwiseGemm::AK0Number));
-        printf("BK0Number = %d\n", static_cast<int>(GridwiseGemm::BK0Number));
-        printf("AK1Number = %d\n", static_cast<int>(GridwiseGemm::AK1Number));
-        printf("BK1Number = %d\n", static_cast<int>(GridwiseGemm::BK1Number));
-        printf("lcm_AK1_BK1 = %d\n", static_cast<int>(GridwiseGemm::lcm_AK1_BK1));
-    }
-
-    if(threadIdx.x == 0 && blockIdx.x == 0)
-    {
-        printf("Block {%u, %u, %u} : GetSharedMemoryNumberOfByte = %d\n",
-               blockIdx.x,
-               blockIdx.y,
-               blockIdx.z,
-               GridwiseGemm::GetSharedMemoryNumberOfByte());
-#if 0
-        printf("Block {%u, %u, %u} : a_k_split_offset = %d\n",
-               blockIdx.x,
-               blockIdx.y,
-               blockIdx.z,
-               splitk_batch_offset.a_k_split_offset);
-        printf("Block {%u, %u, %u} : a_scale_k_split_offset = %d\n",
-               blockIdx.x,
-               blockIdx.y,
-               blockIdx.z,
-               splitk_batch_offset.a_scale_k_split_offset);
-        printf("Block {%u, %u, %u} : b_k_split_offset = %d\n",
-               blockIdx.x,
-               blockIdx.y,
-               blockIdx.z,
-               splitk_batch_offset.b_k_split_offset);
-        printf("Block {%u, %u, %u} : b_scale_k_split_offset = %d\n",
-               blockIdx.x,
-               blockIdx.y,
-               blockIdx.z,
-               splitk_batch_offset.b_scale_k_split_offset);
-        printf("Block {%u, %u, %u} : c_reduce_offset = %d\n",
-               blockIdx.x,
-               blockIdx.y,
-               blockIdx.z,
-               splitk_batch_offset.c_reduce_offset);
-#endif
-    }
-#endif
-
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
         karg.p_a_scale_grid + splitk_batch_offset.a_scale_k_split_offset,
@@ -142,9 +91,9 @@ template <typename ALayout,
           typename BLayout,
           typename CLayout,
           typename ADataType,
-          typename AScaleDataType, // Must have get_exponent_value() specialization
+          typename AScaleDataType,
           typename BDataType,
-          typename BScaleDataType, // Must have get_exponent_value() specialization
+          typename BScaleDataType,
           typename AccDataType,
           typename CShuffleDataType,
           typename CDataType,
@@ -153,7 +102,7 @@ template <typename ALayout,
           typename CElementwiseOperation,
           tensor_operation::device::GemmSpecialization GemmSpec,
           index_t ScaleBlockSize, // Scaling block size
-          index_t BlockSize,
+          index_t BlockSize,      // Thread block size
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -193,7 +142,6 @@ template <typename ALayout,
           bool PermuteB = false>
 struct GridwiseGemmMX_xdl_cshuffle_v3
 {
-    // using BScaleType = ck::half_t;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -1136,21 +1084,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
-#if 0
-        constexpr auto mfma =
-            MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeA, is_single_rate_mfma>{};
-        constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
-        constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
-        static_assert(
-            KPerXdlops * KPack / K1PerXdlops <= ScaleBlockSize,
-            "Single call to xdlops_gemm::Run should not process more than ScaleBlockSize
-            elements");
-#endif
-
         static_assert(KPerBlock % ScaleBlockSize == 0,
                       "KPerBlock should be multiple of ScaleBlockSize");
 
-        // XXX: This condition should not apply to mfma scale instructions on gfx950
         static_assert(KPerBlock / ScaleBlockSize == BlockwiseGemmPipe::KRepeat,
                       "Single call to xdlops_gemm::Run should process exactly ScaleBlockSize "
                       "elements in k dimension");
@@ -1539,18 +1475,16 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
 
-        // b scale
-        // static_assert(KPerBlock <= ScaleBlockK);
         static constexpr auto mfma        = BlockwiseGemmPipe::xdlops_gemm.mfma;
-        static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();     // 16
-        static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();    // 8
-        static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops; // 2
-        static constexpr auto KPerThread  = KPerBlock / K0PerXdlops;  // 32
+        static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
+        static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
+        static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
+        static constexpr auto KPerThread  = KPerBlock / K0PerXdlops;
 
         // NXdlPerWave == NRepeat
         // MXdlPerWave == MRepeat
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl); // 2
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl); // 2
+        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
 
         // Initial thread mapping for MPerXdl=NPerXdl=32 and MPerBlock=NPerBlock=128 MWaves=NWaves=2
         // tId in [  0,  63]  m x n = [ 0, 31] x [ 0, 31]  waveId = [0, 0]
@@ -1568,8 +1502,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             (get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) % NWaves * NPerXdl;
         auto b_thread_offset_k = KPerThread * (get_thread_local_1d_id() % NPerXdl) / NPerXdl;
 
-        // TODO: introduce fixed size block descriptors for scales and move scale_thread_copy to
-        // BlockwiseGemmXdlops_pipeline_v1_mx
         auto a_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
             AScaleDataType,
             AScaleDataType,
@@ -1597,36 +1529,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             false>(b_scale_grid_desc_bn_ak,
                    make_multi_index(block_n_id * NPerBlock + b_thread_offset_n,
                                     b_thread_offset_k / ScaleBlockSize));
-
-#if 0
-        if(blockIdx.x == 0 &&
-           (threadIdx.x == 10 || threadIdx.x == 40 || threadIdx.x == 70 || threadIdx.x == 100 ||
-            threadIdx.x == 128 || threadIdx.x == 160 || threadIdx.x == 200 || threadIdx.x == 240))
-        {
-            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\ta_thread_offset_m = %d; "
-                   "a_thread_offset_k = %d\n\t a_scale_origin = {%d, %d}\n\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   blockIdx.z,
-                   threadIdx.x,
-                   a_thread_offset_m,
-                   a_thread_offset_k,
-                   block_m_id * MPerBlock + a_thread_offset_m,
-                   a_thread_offset_k / ScaleBlockSize);
-
-            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\tb_thread_offset_n = %d; "
-                   "b_thread_offset_k = %d\n\t b_scale_origin = {%d, %d}\n\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   blockIdx.z,
-                   threadIdx.x,
-                   b_thread_offset_n,
-                   b_thread_offset_k,
-                   block_n_id * NPerBlock + b_thread_offset_n,
-                   b_thread_offset_k / ScaleBlockSize);
-        }
-
-#endif
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,

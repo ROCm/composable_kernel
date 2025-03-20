@@ -41,15 +41,13 @@ struct ExecutionConfig final
 struct ProblemSizeSplitK final
 {
 
-#if 0
-    ck::index_t M = 256;
-    ck::index_t N = 256;
-    ck::index_t K = 384;
-#else
-    ck::index_t M                          = 3840;
-    ck::index_t N                          = 4096;
-    ck::index_t K                          = 4096;
-#endif
+    // ck::index_t M = 256;
+    // ck::index_t N = 256;
+    // ck::index_t K = 384;
+
+    ck::index_t M = 3840;
+    ck::index_t N = 4096;
+    ck::index_t K = 4096;
 
     ck::index_t StrideA = -1;
     ck::index_t StrideB = -1;
@@ -124,19 +122,12 @@ template <typename ADataType,
           ck::index_t MXVectorSize>
 bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& config)
 {
-    // Hardcode scale layouts as per pipeline assumptions
-    // TODO: Change default scale layouts to Col for A and Row for B
-    // TODO: Allow user to specify scale layouts
-    using AScaleLayout = Row;
-    using BScaleLayout = Col;
-
     static constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization::Default;
     static constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;
     static constexpr auto BlkGemmPVer   = ck::BlockGemmPipelineVersion::v1;
 
     static constexpr ck::index_t ScaleBlockSize = MXVectorSize;
 
-#if 1
     static constexpr ck::index_t KPerBlock = 64;
     using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffleV3<
         ALayout,          // ALayout
@@ -187,58 +178,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         ADataType,        // ComputeTypeA
         BDataType         // ComputeTypeB
         >;
-#else
-    static constexpr ck::index_t KPerBlock = 128;
-    using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffleV3<
-        ALayout,          // ALayout
-        BLayout,          // BLayout
-        CLayout,          // CLayout
-        ADataType,        // ADataType
-        XDataType,        // AScaleDataType
-        BDataType,        // BDataType
-        XDataType,        // BScaleDataType
-        CDataType,        // CDataType
-        AccDataType,      // GemmAccDataType
-        CShuffleDataType, // CShuffleDataType
-        AElementOp,       // AElementwiseOperation
-        BElementOp,       // BElementwiseOperation
-        CElementOp,       // CElementwiseOperation
-        GemmSpec,         // GemmSpec
-        MXVectorSize,     // ScaleBlockSize: Scaling block size
-        128,              // BlockSize: Thread block size
-        16,               // MPerBlock
-        32,               // NPerBlock
-        KPerBlock,        // KPerBlock
-        16,               // AK1
-        16,               // BK1
-        16,               // MPerXDL
-        16,               // NPerXDL
-        1,                // MXdlPerWave
-        1,                // NXdlPerWave
-        S<8, 16, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
-        S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
-        2,                // ABlockTransferSrcVectorDim
-        16,               // ABlockTransferSrcScalarPerVector
-        16,               // ABlockTransferDstScalarPerVector_AK1
-        false,            // ABlockLdsExtraM
-        S<8, 16, 1>,      // BBlockTransferThreadClusterLengths_BK0_N_BK1
-        S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
-        2,                // BBlockTransferSrcVectorDim
-        16,               // BBlockTransferSrcScalarPerVector
-        16,               // BBlockTransferDstScalarPerVector_BK1
-        false,            // BBlockLdsExtraN
-        1,                // CShuffleMXdlPerWavePerShuffle
-        1,                // CShuffleNXdlPerWavePerShuffle
-        S<1, 16, 1, 8>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        4,                // CShuffleBlockTransferScalarPerVector_NPerBlock
-        BlkGemmPSched,    // BlkGemmPipeSched
-        BlkGemmPVer,      // BlkGemmPipelineVer
-        ADataType,        // ComputeTypeA
-        BDataType         // ComputeTypeB
-        >;
-#endif
 
     auto M       = problem_size.M;
     auto N       = problem_size.N;
@@ -284,8 +223,14 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     if(K % ScaleBlockSize != 0)
     {
-        throw std::runtime_error("wrong! K must be multiple of ScaleBlockSize (16 or 32)");
+        throw std::runtime_error("wrong! K must be multiple of ScaleBlockSize.");
     };
+
+    // Hardcode scale layouts as per pipeline assumptions
+    // TODO: Change default scale layouts to Col for A and Row for B
+    // TODO: Allow user to specify scale layouts
+    using AScaleLayout = Row;
+    using BScaleLayout = Col;
 
     auto Scale_Stride_AM = f_get_default_stride(M, K / ScaleBlockSize, -1, AScaleLayout{});
     auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BScaleLayout{});
@@ -343,228 +288,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
         b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{-1.0f, 1.0f});
-        break;
-
-    case 11: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.0f)}(a_m_k);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.0f)}(b_k_n);
-        // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
-
-        for(ck::index_t i = 0; i < K / ScaleBlockSize; i++)
-        {
-            for(ck::index_t j = 0; j < N / 4; j++)
-            {
-                auto j_offset = j * 4;
-                if(i % 2 == 0)
-                {
-                    b_k_n_scale(i, j_offset + (0 + i) % 4) = ck::type_convert<XDataType>(1.0f / 4);
-                    b_k_n_scale(i, j_offset + (1 + i) % 4) = ck::type_convert<XDataType>(1.0f / 2);
-                    b_k_n_scale(i, j_offset + (2 + i) % 4) = ck::type_convert<XDataType>(1.0f);
-                    b_k_n_scale(i, j_offset + (3 + i) % 4) = ck::type_convert<XDataType>(2.0f);
-                }
-                else
-                {
-                    b_k_n_scale(i, j_offset + (0 + i) % 4) = ck::type_convert<XDataType>(16.0f);
-                    b_k_n_scale(i, j_offset + (1 + i) % 4) = ck::type_convert<XDataType>(8.0f);
-                    b_k_n_scale(i, j_offset + (2 + i) % 4) = ck::type_convert<XDataType>(1.0f / 16);
-                    b_k_n_scale(i, j_offset + (3 + i) % 4) = ck::type_convert<XDataType>(1.0f / 32);
-                }
-            }
-        }
-
-        {
-            const ck::index_t n_freq   = 13;         // frequency of nonzero values in col(B)
-            const ck::index_t pert_idx = 7 * n_freq; // location of perturbation
-
-            for(ck::index_t i = 0; i < K; i++)
-            {
-                if(i % n_freq == 0)
-                {
-                    for(ck::index_t j = 0; j < N; j++)
-                    {
-                        float scale = ck::type_convert<float>(b_k_n_scale(i / ScaleBlockSize, j));
-                        if(i == pert_idx)
-                        {
-                            b_k_n(i, j) = ck::type_convert<BDataType>(2.0f / scale);
-                        }
-                        else
-                        {
-                            b_k_n(i, j) = ck::type_convert<BDataType>(1.0f / scale);
-                        }
-                    }
-                }
-            }
-
-            if(config.verbosity > 0)
-            {
-                std::cout << "Init A = {1}" << std::endl;
-                std::cout << "Init A scale = {1.0}" << std::endl;
-                std::cout << "Init B is real" << std::endl;
-                std::cout << "Init B scale is real" << std::endl;
-                std::cout << "Expect C = {"
-                          << ((pert_idx < K) ? (K + n_freq - 1) / n_freq + 1
-                                             : (K + n_freq - 1) / n_freq)
-                          << "}" << std::endl;
-            }
-        }
-        break;
-
-    case 12: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.0f)}(a_m_k);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.0f)}(b_k_n);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
-
-        for(ck::index_t i = 0; i < K / ScaleBlockSize; i++)
-        {
-            if(i % 2 == 0)
-            {
-                if(i % 4 == 0)
-                    b_k_n_scale(i, 0) = ck::type_convert<XDataType>(1.0f / 4);
-                else
-                    b_k_n_scale(i, 0) = ck::type_convert<XDataType>(2.0f);
-            }
-            else
-            {
-                if(i % 4 == 1)
-                    b_k_n_scale(i, 0) = ck::type_convert<XDataType>(16.0f);
-                else
-                    b_k_n_scale(i, 0) = ck::type_convert<XDataType>(1.0f / 32);
-            }
-        }
-
-        {
-            const ck::index_t n_freq   = 13;         // frequency of nonzero values in col(B)
-            const ck::index_t pert_idx = 7 * n_freq; // location of perturbation
-
-            for(ck::index_t i = 0; i < K; i++)
-            {
-                if(i % n_freq == 0)
-                {
-                    float scale = ck::type_convert<float>(b_k_n_scale(i / ScaleBlockSize, 0));
-                    if(i == pert_idx)
-                    {
-                        b_k_n(i, 0) = ck::type_convert<BDataType>(2.0f / scale);
-                    }
-                    else
-                    {
-                        b_k_n(i, 0) = ck::type_convert<BDataType>(1.0f / scale);
-                    }
-                }
-            }
-
-            if(config.verbosity > 0)
-            {
-                std::cout << "Init A = {1}" << std::endl;
-                std::cout << "Init A scale = {1.0}" << std::endl;
-                std::cout << "Init B is real" << std::endl;
-                std::cout << "Init B scale is real" << std::endl;
-                if(config.init_method == 12)
-                {
-                    std::cout << "Expect C = {"
-                              << ((pert_idx < K) ? (K + n_freq - 1) / n_freq + 1
-                                                 : (K + n_freq - 1) / n_freq)
-                              << "}" << std::endl;
-                }
-                else
-                {
-                    std::cout << "Expect C = {" << 2 << "}" << std::endl;
-                }
-            }
-        }
-        break;
-
-    case 13: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(0.0f)}(a_m_k);
-        for(ck::index_t j = 0; j < K; j++)
-        {
-            a_m_k(0, j) = ck::type_convert<ADataType>(1.0f);
-        }
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.0f)}(b_k_n);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
-
-        {
-
-#if 0
-            std::set<int> col_ids = {74};
-#else
-            std::set<int> col_ids = {10, 31, 42, 103, 74, 205, 226, 187};
-#endif
-            for(auto col_id : col_ids)
-            {
-#if 1
-                b_k_n_scale(0, col_id)     = ck::type_convert<XDataType>(1.0f / 4);
-                b_k_n_scale(0, col_id + 1) = ck::type_convert<XDataType>(1.0f / 2);
-                b_k_n_scale(1, col_id)     = ck::type_convert<XDataType>(2.0f / 1);
-                // b_k_n_scale(5, col_id)     = ck::type_convert<XDataType>(-1.0f / 2);
-                b_k_n_scale(11, col_id) = ck::type_convert<XDataType>(4.0f / 1);
-#endif
-                b_k_n(383, col_id) = ck::type_convert<BDataType>(-1.0f);
-
-                for(size_t i = 00; i < 384; i += 7)
-                {
-                    auto coeff       = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
-                    b_k_n(i, col_id) = ck::type_convert<BDataType>(coeff / 10.0f * i);
-                }
-            }
-        }
-
-        break;
-
-    case 14: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(0.0f)}(a_m_k);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.0f)}(b_k_n);
-        for(ck::index_t j = 0; j < K; j++)
-        {
-            b_k_n(j, 0) = ck::type_convert<BDataType>(1.0f);
-        }
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
-
-        {
-
-#if 0
-            std::set<int> row_ids = {42};
-#else
-            std::set<int> row_ids = {10, 31, 42, 103, 74, 205, 226, 187};
-#endif
-            for(auto row_id : row_ids)
-            {
-
-#if 1
-                a_m_k_scale(row_id, 0)     = ck::type_convert<XDataType>(1.0f / 4);
-                a_m_k_scale(row_id + 1, 0) = ck::type_convert<XDataType>(1.0f / 2);
-                a_m_k_scale(row_id, 1)     = ck::type_convert<XDataType>(2.0f / 1);
-                a_m_k_scale(row_id, 5)     = ck::type_convert<XDataType>(-1.0f / 64);
-                a_m_k_scale(row_id, 11)    = ck::type_convert<XDataType>(4.0f / 1);
-#elif 0
-                for(size_t i = 0; i < 32; i++)
-                {
-                    a_m_k_scale(row_id + i, 0) = ck::type_convert<XDataType>(i);
-                    a_m_k_scale(row_id + i, 1) = ck::type_convert<XDataType>(i);
-                }
-
-#endif
-#if 1
-                a_m_k(row_id, 383) = ck::type_convert<ADataType>(-1.0f);
-
-                for(size_t i = 0; i < 384; i += 7)
-                {
-                    auto coeff       = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
-                    a_m_k(row_id, i) = ck::type_convert<ADataType>(coeff / 10.0f * i);
-                }
-#else
-                for(size_t i = 0; i < 256; i++)
-                {
-                    a_m_k(i, 0) = a_m_k(i, 16) = ck::type_convert<ADataType>(1.0f * i);
-                    b_k_n(0, i) = b_k_n(16, i) = ck::type_convert<BDataType>(1.0f * i);
-                }
-
-#endif
-            }
-        }
         break;
 
     default:
@@ -627,10 +350,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     if(config.verbosity > 0)
     {
         std::cout << "Computing GEMM on device..." << std::endl << std::endl;
-        // std::cout << device_op.GetTypeString() << std::endl << std::endl;
-        // std::cout << device_op.GetObjectName().value() << std::endl;
-        // std::cout << device_op.GetTemplateInfo().value() << std::endl << std::endl;
     }
+
     float ave_time =
         invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, config.verbosity, 20, 50});
 
@@ -674,136 +395,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "Comparing results..." << std::endl;
         }
 
-#if 1
-        std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
-        for(int i = 0; i < 16; ++i)
-        {
-            for(int j = 0; j < 16; ++j)
-            {
-                std::cout << std::setw(11) << type_convert<float>(a_m_k(i, j));
-            }
-            // std::cout << "\t\t";
-            // for(int j = 0; j < 16; ++j)
-            // {
-            //     std::cout << std::setw(9) << type_convert<float>(a_m_k(i + 128, j));
-            // }
-
-            std::cout << "\t\t";
-            for(int j = 0; j < 16; ++j)
-            {
-                std::cout << std::setw(11) << type_convert<float>(a_m_k(i + 200, j));
-            }
-
-            std::cout << std::endl;
-        }
-
-        std::cout << "Submatrix of b_k_n (16x16):" << std::endl;
-        for(int i = 0; i < 16; ++i)
-        {
-            for(int j = 0; j < 16; ++j)
-            {
-                std::cout << std::setw(11) << type_convert<float>(b_k_n(i, j));
-            }
-            // std::cout << "\t\t";
-            // for(int j = 0; j < 16; ++j)
-            // {
-            //     std::cout << std::setw(9) << type_convert<float>(b_k_n(i + 128, j));
-            // }
-
-            std::cout << "\t\t";
-            for(int j = 0; j < 16; ++j)
-            {
-                std::cout << std::setw(11) << type_convert<float>(b_k_n(i + 200, j));
-            }
-
-            std::cout << std::endl;
-        }
-
-        if(K < 600)
-        {
-            std::cout << "a_m_k(0,:):" << std::endl;
-            for(int i = 0; i < K; ++i)
-            {
-                std::cout << type_convert<float>(a_m_k(0, i)) << " ";
-            }
-            std::cout << std::endl;
-            std::cout << std::endl;
-            std::cout << "b_k_n(:,0):" << std::endl;
-            for(int i = 0; i < K; ++i)
-            {
-                std::cout << type_convert<float>(b_k_n(i, 0)) << " ";
-            }
-            std::cout << std::endl;
-        }
-
-        std::cout << "Submatrix of a_m_k_scale (16x12):" << std::endl;
-        for(int i = 0; i < 16; ++i)
-        {
-            for(int j = 0; j < 12; ++j)
-            {
-                std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i, j));
-            }
-            // std::cout << "\t\t";
-            // for(int j = 0; j < 12; ++j)
-            // {
-            //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i, j + 128)) << "
-            //     ";
-            // }
-            std::cout << "\t\t";
-            for(int j = 0; j < 12; ++j)
-            {
-                std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i, j + 200)) << " ";
-            }
-
-            std::cout << std::endl;
-        }
-
-        std::cout << "Submatrix of b_k_n_scale (12x16):" << std::endl;
-        for(int i = 0; i < 12; ++i)
-        {
-            for(int j = 0; j < 16; ++j)
-            {
-                std::cout << std::setw(11) << type_convert<float>(b_k_n_scale(i, j));
-            }
-            // std::cout << "\t\t";
-            // for(int j = 0; j < 16; ++j)
-            // {
-            //     std::cout << std::setw(11) << type_convert<float>(b_k_n_scale(i, j + 128)) << "
-            //     ";
-            // }
-            std::cout << "\t\t";
-            for(int j = 0; j < 16; ++j)
-            {
-                std::cout << std::setw(11) << type_convert<float>(b_k_n_scale(i, j + 200)) << " ";
-            }
-
-            std::cout << std::endl;
-        }
-        std::cout << "Submatrix of c_m_n_device_result (16x16):" << std::endl;
-        for(int i = 0; i < 16; ++i)
-        {
-            for(int j = 0; j < 16; ++j)
-            {
-                std::cout << std::setw(9) << type_convert<float>(c_m_n_device_result(i, j));
-            }
-            // std::cout << "\t\t";
-            // for(int j = 0; j < 16; ++j)
-            // {
-            //     std::cout << std::setw(9) << type_convert<float>(c_m_n_device_result(i + 128,
-            //     j));
-            // }
-
-            std::cout << "\t\t";
-            for(int j = 0; j < 16; ++j)
-            {
-                std::cout << std::setw(9) << type_convert<float>(c_m_n_device_result(i + 200, j));
-            }
-
-            std::cout << std::endl;
-        }
-
-#endif
-
         if(config.init_method == 0)
         {
             auto expected = static_cast<float>(K);
@@ -813,341 +404,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "\nExpected vs Computed: " << expected << " vs " << computed
                       << ((res_verified) ? " (PASSED!)" : " (FAILED!)") << std::endl
                       << std::endl;
-        }
-        else if(config.init_method == 11)
-        {
-
-#if 1
-            std::cout << "Submatrix of b_k_n (16x16):" << std::endl;
-            for(int i = 0; i < 16; ++i)
-            {
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(5) << type_convert<float>(b_k_n(i, j));
-                }
-                std::cout << "\t\t";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(5) << type_convert<float>(b_k_n(i + 128, j));
-                }
-
-                std::cout << "\t\t";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(5) << type_convert<float>(b_k_n(i + 200, j));
-                }
-
-                std::cout << std::endl;
-            }
-#if 1
-            std::cout << "b_k_n(:,0):" << std::endl;
-            for(int i = 0; i < K; ++i)
-            {
-                std::cout << type_convert<float>(b_k_n(i, 0)) << " ";
-            }
-            std::cout << std::endl;
-#endif
-
-            std::cout << "Submatrix of b_k_n_scale (12x16):" << std::endl;
-            for(int i = 0; i < 12; ++i)
-            {
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(10) << type_convert<float>(b_k_n_scale(i, j));
-                }
-                std::cout << "\t\t";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(10) << type_convert<float>(b_k_n_scale(i, j + 128))
-                              << " ";
-                }
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 16; ++j)
-                // {
-                //     std::cout << std::setw(10) << type_convert<float>(b_k_n_scale(i, j + 200))
-                //               << " ";
-                // }
-
-                std::cout << std::endl;
-            }
-#endif
-#if 1
-            std::cout << "Submatrix of c_m_n_device_result (16x16):" << std::endl;
-            for(int i = 0; i < 16; ++i)
-            {
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(5) << type_convert<float>(c_m_n_device_result(i, j));
-                }
-                std::cout << "\t\t";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(5)
-                              << type_convert<float>(c_m_n_device_result(i + 128, j));
-                }
-
-                std::cout << "\t\t";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(5)
-                              << type_convert<float>(c_m_n_device_result(i + 200, j));
-                }
-
-                std::cout << std::endl;
-            }
-#endif
-
-            auto computed = type_convert<float>(c_m_n_device_result(1, 12));
-
-            std::cout << "\nComputed: " << computed << std::endl << std::endl;
-        }
-        else if(config.init_method == 12 || config.init_method == 13)
-        {
-#if 0
-            std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
-            for(int i = 0; i < 16; ++i)
-            {
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << type_convert<float>(a_m_k(i, j)) << " ";
-                }
-                std::cout << std::endl;
-            }
-            std::cout << "Submatrix of a_m_k_scale (16x3):" << std::endl;
-            for(int i = 0; i < 16; ++i)
-            {
-                for(int j = 0; j < 3; ++j)
-                {
-                    std::cout << type_convert<float>(a_m_k_scale(i, j)) << " ";
-                }
-                std::cout << std::endl;
-            }
-#endif
-#if 0
-            std::cout << "Submatrix of b_k_n (16x16):" << std::endl;
-            for(int i = 0; i < 16; ++i)
-            {
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << type_convert<float>(b_k_n(i, j)) << " ";
-                }
-                std::cout << "     ";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << type_convert<float>(b_k_n(i + ScaleBlockSize, j)) << " ";
-                }
-
-                std::cout << "     ";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << type_convert<float>(b_k_n(i + 2 * ScaleBlockSize, j)) << " ";
-                }
-
-                std::cout << std::endl;
-            }
-#endif
-#if 1
-            std::cout << "b_k_n(:,0):" << std::endl;
-            for(int i = 0; i < K; ++i)
-            {
-                std::cout << type_convert<float>(b_k_n(i, 0)) << " ";
-            }
-            std::cout << std::endl;
-#endif
-            std::cout << "Submatrix of b_k_n_scale (12x16):" << std::endl;
-            for(int i = 0; i < 12; ++i)
-            {
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(5) << type_convert<float>(b_k_n_scale(i, j));
-                }
-                std::cout << "\t\t";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(5) << type_convert<float>(b_k_n_scale(i, j + 64)) << " ";
-                }
-
-                std::cout << std::endl;
-            }
-#if 0
-            std::cout << "Submatrix of c_m_n_device_result (16x16):" << std::endl;
-            for(int i = 0; i < 16; ++i)
-            {
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << type_convert<float>(c_m_n_device_result(i, j)) << " ";
-                }
-                std::cout << std::endl;
-            }
-#endif
-#if 1
-            std::cout << "c_m_n_device_result(:,0):" << std::endl;
-            for(int i = 0; i < M; ++i)
-            {
-                std::cout << type_convert<float>(c_m_n_device_result(i, 0)) << " ";
-            }
-            std::cout << std::endl;
-            // std::cout << "c_m_n_device_result(:,1):" << std::endl;
-            // for(int i = 0; i < M; ++i)
-            // {
-            //     std::cout << type_convert<float>(c_m_n_device_result(i, 1)) << " ";
-            // }
-            // std::cout << std::endl;
-#endif
-
-            auto computed = type_convert<float>(c_m_n_device_result(0, 0));
-            std::cout << "\nComputed: " << computed << std::endl << std::endl;
-        }
-        else if(config.init_method == 14)
-        {
-#if 0
-            std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
-            for(int i = 0; i < 16; ++i)
-            {
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(11) << type_convert<float>(a_m_k(i, j));
-                }
-
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 16; ++j)
-                // {
-                //     std::cout << std::setw(9) << type_convert<float>(a_m_k(i , j+ 128));
-                // }
-
-                std::cout << "\t\t";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(11) << type_convert<float>(a_m_k(i, j + 200));
-                }
-
-                std::cout << std::endl;
-            }
-#endif
-#if 0
-            std::cout << "Submatrix of b_k_n (16x16):" << std::endl;
-            for(int i = 0; i < 16; ++i)
-            {
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(11) << type_convert<float>(b_k_n(i, j));
-                }
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 16; ++j)
-                // {
-                //     std::cout << std::setw(9) << type_convert<float>(b_k_n(i + 128, j));
-                // }
-
-                std::cout << "\t\t";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(11) << type_convert<float>(b_k_n(i + 200, j));
-                }
-
-                std::cout << std::endl;
-            }
-#endif
-
-            if(K < 600)
-            {
-                std::cout << "a_m_k(42,:) :" << std::endl;
-                for(int i = 0; i < K; ++i)
-                {
-                    std::cout << type_convert<float>(a_m_k(42, i)) << " ";
-                }
-                std::cout << std::endl;
-            }
-
-#if 0
-            if(K < 600)
-            {
-                std::cout << "b_k_n(:,0):" << std::endl;
-                for(int i = 0; i < K; ++i)
-                {
-                    std::cout << type_convert<float>(b_k_n(i, 0)) << " ";
-                }
-                std::cout << std::endl;
-            }
-#endif
-#if 1
-            std::cout << "Submatrix of a_m_k_scale (16x12):" << std::endl;
-            for(int i = 0; i < 16; ++i)
-            {
-                for(int j = 0; j < 12; ++j)
-                {
-                    std::cout << std::setw(9) << type_convert<float>(a_m_k_scale(i, j));
-                }
-
-                std::cout << "\t\t";
-                for(int j = 0; j < 12; ++j)
-                {
-                    std::cout << std::setw(9) << type_convert<float>(a_m_k_scale(i + 32, j));
-                }
-
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 12; ++j)
-                // {
-                //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i + 128, j)) ;
-                // }
-
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 12; ++j)
-                // {
-                //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i + 200, j)) ;
-                // }
-                std::cout << std::endl;
-            }
-#endif
-#if 0
-            std::cout << "Submatrix of b_k_n_scale (12x16):" << std::endl;
-            for(int i = 0; i < 12; ++i)
-            {
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(11) << type_convert<float>(b_k_n_scale(i, j));
-                }
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 16; ++j)
-                // {
-                //     std::cout << std::setw(11) << type_convert<float>(b_k_n_scale(i, j + 128)) <<
-                //     "
-                //     ";
-                // }
-                std::cout << "\t\t";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(11) << type_convert<float>(b_k_n_scale(i, j + 200))
-                              << " ";
-                }
-
-                std::cout << std::endl;
-            }
-#endif
-
-            std::cout << "Submatrix of c_m_n_device_result (16x15):" << std::endl;
-            for(int i = 0; i < 16; ++i)
-            {
-                for(int j = 0; j < 15; ++j)
-                {
-                    std::cout << std::setw(9) << type_convert<float>(c_m_n_device_result(i, j));
-                }
-#if 0
-                std::cout << "\t\t";
-                for(int j = 0; j < 15; ++j)
-                {
-                    std::cout << std::setw(9)
-                              << type_convert<float>(c_m_n_device_result(i + 200, j));
-                }
-
-                std::cout << "\t\t";
-                for(int j = 0; j < 15; ++j)
-                {
-                    std::cout << std::setw(9)
-                              << type_convert<float>(c_m_n_device_result(i, j + 200));
-                }
-#endif
-                std::cout << std::endl;
-            }
         }
 
         res_verified = res_verified && ck::utils::check_err(c_m_n_device_result,
@@ -1165,7 +421,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     if(config.time_kernel)
     {
-        std::size_t flop = std::size_t(2) * M * N * K + M * K + K * N; // GEMM + A scale + B scale
+        std::size_t flop = std::size_t(2) * M * N * K +
+                           std::size_t(2) * M * N * K / ScaleBlockSize; // GEMM + A scale + B scale
         std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
                                 sizeof(CDataType) * M * N +
                                 sizeof(XDataType) * (M * K + K * N) / ScaleBlockSize;
