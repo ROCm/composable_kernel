@@ -63,9 +63,9 @@ struct ProblemSizeStreamK_universal final
 
 struct ProblemSizeSplitK final
 {
-    ck::index_t M = 256;
-    ck::index_t N = 256;
-    ck::index_t K = 384;
+    ck::index_t M = 3840;
+    ck::index_t N = 4096;
+    ck::index_t K = 4096;
 
     ck::index_t StrideA = -1;
     ck::index_t StrideB = -1;

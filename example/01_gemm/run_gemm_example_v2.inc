@@ -173,12 +173,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      "Error: Incorrect results!",
                                      get_rtol<CDataType>(),
                                      get_atol<CDataType>());
-
-        if(pass)
-        {
-            std::cout << "Verification passed!" << std::endl;
-        }
-
 #endif
     }
 
