@@ -33,7 +33,7 @@ using ck::type_convert;
 struct ExecutionConfig final
 {
     int do_verification = 1;     // (0=no, 1=CPU)
-    int init_method     = 14;    // (0=no init, 1=integer value, 2=decimal value)
+    int init_method     = 2;     // (0=no init, 1=integer value, 2=decimal value)
     bool time_kernel    = false; // (0=no, 1=yes)
     int verbosity       = 1;     // (0=no info, 1=verbose info)
 };
@@ -41,7 +41,7 @@ struct ExecutionConfig final
 struct ProblemSizeSplitK final
 {
 
-#if 1
+#if 0
     ck::index_t M = 256;
     ck::index_t N = 256;
     ck::index_t K = 384;
@@ -310,26 +310,11 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     switch(config.init_method)
     {
-    case 0:
-        if(config.verbosity > 0)
-        {
-            std::cout << "NOTE: No input data initialization." << std::endl;
-        }
-        break;
-
-    case 2: // Initializations for development and debugging
+    case 0: // Initializations for development and debugging
         ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.0f)}(a_m_k);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
-        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{-1.0f, 1.0f});
-        break;
-
-    case 10: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.0f)}(a_m_k);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(a_m_k_scale);
         ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.5f)}(b_k_n);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(b_k_n_scale);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
         if(config.verbosity > 0)
         {
             std::cout << "Init A = {1}" << std::endl;
@@ -338,6 +323,22 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "Init B scale = {2.0}" << std::endl;
             std::cout << "Expect C = {K}" << std::endl;
         }
+        break;
+
+    case 1:
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.0f, 4.0f}(a_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
+
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-4.0f, 5.0f}(b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
+        break;
+
+    case 2:
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
+        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{-1.0f, 1.0f});
+
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
+        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{-1.0f, 1.0f});
         break;
 
     case 11: // Initializations for development and debugging
@@ -520,20 +521,21 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
         {
 
-#if 1
-            std::set<int> row_ids = {0, 32, 64, 96};
+#if 0
+            std::set<int> row_ids = {42};
 #else
             std::set<int> row_ids = {10, 31, 42, 103, 74, 205, 226, 187};
 #endif
             for(auto row_id : row_ids)
             {
-#if 0
+
+#if 1
                 a_m_k_scale(row_id, 0)     = ck::type_convert<XDataType>(1.0f / 4);
                 a_m_k_scale(row_id + 1, 0) = ck::type_convert<XDataType>(1.0f / 2);
                 a_m_k_scale(row_id, 1)     = ck::type_convert<XDataType>(2.0f / 1);
                 a_m_k_scale(row_id, 5)     = ck::type_convert<XDataType>(-1.0f / 64);
                 a_m_k_scale(row_id, 11)    = ck::type_convert<XDataType>(4.0f / 1);
-#elif 1
+#elif 0
                 for(size_t i = 0; i < 32; i++)
                 {
                     a_m_k_scale(row_id + i, 0) = ck::type_convert<XDataType>(i);
@@ -541,6 +543,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 }
 
 #endif
+#if 1
                 a_m_k(row_id, 383) = ck::type_convert<ADataType>(-1.0f);
 
                 for(size_t i = 0; i < 384; i += 7)
@@ -548,6 +551,14 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                     auto coeff       = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
                     a_m_k(row_id, i) = ck::type_convert<ADataType>(coeff / 10.0f * i);
                 }
+#else
+                for(size_t i = 0; i < 256; i++)
+                {
+                    a_m_k(i, 0) = a_m_k(i, 16) = ck::type_convert<ADataType>(1.0f * i);
+                    b_k_n(0, i) = b_k_n(16, i) = ck::type_convert<BDataType>(1.0f * i);
+                }
+
+#endif
             }
         }
         break;
@@ -659,7 +670,28 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "Comparing results..." << std::endl;
         }
 
-#if 0
+#if 1
+        std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
+        for(int i = 0; i < 16; ++i)
+        {
+            for(int j = 0; j < 16; ++j)
+            {
+                std::cout << std::setw(11) << type_convert<float>(a_m_k(i, j));
+            }
+            // std::cout << "\t\t";
+            // for(int j = 0; j < 16; ++j)
+            // {
+            //     std::cout << std::setw(9) << type_convert<float>(a_m_k(i + 128, j));
+            // }
+
+            std::cout << "\t\t";
+            for(int j = 0; j < 16; ++j)
+            {
+                std::cout << std::setw(11) << type_convert<float>(a_m_k(i + 200, j));
+            }
+
+            std::cout << std::endl;
+        }
 
         std::cout << "Submatrix of b_k_n (16x16):" << std::endl;
         for(int i = 0; i < 16; ++i)
@@ -685,11 +717,40 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
         if(K < 600)
         {
+            std::cout << "a_m_k(0,:):" << std::endl;
+            for(int i = 0; i < K; ++i)
+            {
+                std::cout << type_convert<float>(a_m_k(0, i)) << " ";
+            }
+            std::cout << std::endl;
+            std::cout << std::endl;
             std::cout << "b_k_n(:,0):" << std::endl;
             for(int i = 0; i < K; ++i)
             {
                 std::cout << type_convert<float>(b_k_n(i, 0)) << " ";
             }
+            std::cout << std::endl;
+        }
+
+        std::cout << "Submatrix of a_m_k_scale (16x12):" << std::endl;
+        for(int i = 0; i < 16; ++i)
+        {
+            for(int j = 0; j < 12; ++j)
+            {
+                std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i, j));
+            }
+            // std::cout << "\t\t";
+            // for(int j = 0; j < 12; ++j)
+            // {
+            //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i, j + 128)) << "
+            //     ";
+            // }
+            std::cout << "\t\t";
+            for(int j = 0; j < 12; ++j)
+            {
+                std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i, j + 200)) << " ";
+            }
+
             std::cout << std::endl;
         }
 
@@ -739,7 +800,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
 #endif
 
-        if(config.init_method == 10)
+        if(config.init_method == 0)
         {
             auto expected = static_cast<float>(K);
             auto computed = type_convert<float>(c_m_n_device_result(1, 12));
@@ -985,10 +1046,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
             if(K < 600)
             {
-                std::cout << "a_m_k(0,:) :" << std::endl;
+                std::cout << "a_m_k(42,:) :" << std::endl;
                 for(int i = 0; i < K; ++i)
                 {
-                    std::cout << type_convert<float>(a_m_k(0, i)) << " ";
+                    std::cout << type_convert<float>(a_m_k(42, i)) << " ";
                 }
                 std::cout << std::endl;
             }
@@ -1090,7 +1151,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                                                             "Error: Incorrect results!");
 
         if(config.verbosity > 0 && res_verified)
-            std::cout << "Done." << std::endl;
+            std::cout << "Verification Successful!" << std::endl;
     }
     else
     {
@@ -1110,7 +1171,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s" << std::endl;
+                  << " GB/s, " << device_op.GetTypeString() << std::endl;
     }
 
     return res_verified;

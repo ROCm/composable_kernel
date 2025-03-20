@@ -1552,14 +1552,20 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl); // 2
         constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl); // 2
 
+        // Initial thread mapping for MPerXdl=NPerXdl=32 and MPerBlock=NPerBlock=128 MWaves=NWaves=2
+        // tId in [  0,  63]  m x n = [ 0, 31] x [ 0, 31]  waveId = [0, 0]
+        // tId in [ 64, 127]  m x n = [ 0, 31] x [32, 63]  waveId = [0, 1]
+        // tId in [128, 191]  m x n = [32, 63] x [ 0, 31]  waveId = [1, 0]
+        // tId in [192, 255]  m x n = [32, 63] x [32, 63]  waveId = [1, 1]
+
         auto a_thread_offset_m =
-            get_thread_local_1d_id() % MPerXdl +
-            (get_thread_local_1d_id() / 64) % MWaves * MPerXdl +
-            mfma.selected_mfma.group_size * (get_thread_local_1d_id() % 64) / MPerXdl;
+            MPerXdl * ((get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) / MWaves) +
+            mfma.selected_mfma.group_size * ((get_thread_local_1d_id() % 64) / MPerXdl);
         auto a_thread_offset_k = KPerThread * (get_thread_local_1d_id() % MPerXdl) / MPerXdl;
 
         auto b_thread_offset_n =
-            get_thread_local_1d_id() % NPerXdl + (get_thread_local_1d_id() / 64) % NWaves * NPerXdl;
+            get_thread_local_1d_id() % NPerXdl +
+            (get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) % NWaves * NPerXdl;
         auto b_thread_offset_k = KPerThread * (get_thread_local_1d_id() % NPerXdl) / NPerXdl;
 
         // TODO: introduce fixed size block descriptors for scales and move scale_thread_copy to
@@ -1592,12 +1598,11 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                    make_multi_index(block_n_id * NPerBlock + b_thread_offset_n,
                                     b_thread_offset_k / ScaleBlockSize));
 
-#if 1
+#if 0
         if(blockIdx.x == 0 &&
-           (threadIdx.x == 0 || threadIdx.x == 32 || threadIdx.x == 64 || threadIdx.x == 96 ||
-            threadIdx.x == 128 || threadIdx.x == 160 || threadIdx.x == 192 || threadIdx.x == 224))
+           (threadIdx.x == 10 || threadIdx.x == 40 || threadIdx.x == 70 || threadIdx.x == 100 ||
+            threadIdx.x == 128 || threadIdx.x == 160 || threadIdx.x == 200 || threadIdx.x == 240))
         {
-
             printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\ta_thread_offset_m = %d; "
                    "a_thread_offset_k = %d\n\t a_scale_origin = {%d, %d}\n\n",
                    blockIdx.x,
@@ -1609,16 +1614,16 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                    block_m_id * MPerBlock + a_thread_offset_m,
                    a_thread_offset_k / ScaleBlockSize);
 
-            // printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\tb_thread_offset_n = %d; "
-            //        "b_thread_offset_k = %d\n\t b_scale_origin = {%d, %d}\n\n",
-            //        blockIdx.x,
-            //        blockIdx.y,
-            //        blockIdx.z,
-            //        threadIdx.x,
-            //        b_thread_offset_n,
-            //        b_thread_offset_k,
-            //        block_n_id * NPerBlock + b_thread_offset_n,
-            //        b_thread_offset_k / ScaleBlockSize);
+            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\tb_thread_offset_n = %d; "
+                   "b_thread_offset_k = %d\n\t b_scale_origin = {%d, %d}\n\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   blockIdx.z,
+                   threadIdx.x,
+                   b_thread_offset_n,
+                   b_thread_offset_k,
+                   block_n_id * NPerBlock + b_thread_offset_n,
+                   b_thread_offset_k / ScaleBlockSize);
         }
 
 #endif
