@@ -145,7 +145,6 @@ function(clang_tidy_check TARGET)
     foreach(SOURCE ${SOURCES})
         if((NOT "${SOURCE}" MATCHES "(h|hpp|hxx)$") AND (NOT "${SOURCE}" MATCHES "TARGET_OBJECTS"))
             string(MD5 tidy_file "${SOURCE}")
-            #string(MAKE_C_IDENTIFIER "${SOURCE}" tidy_file)
             set(tidy_target tidy-target-${TARGET}-${tidy_file})
             add_custom_target(${tidy_target}
                 # for some targets clang-tidy not able to get information from .clang-tidy
