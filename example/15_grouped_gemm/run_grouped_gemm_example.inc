@@ -194,7 +194,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     if(config.async_hargs && hargs_size > 0)
     {
         hip_check_error(hipHostMalloc(&gemm_hargs, hargs_size));
-        gemm.SetHostKernelArgs(&argument, gemm_hargs);
+        gemm.SetHostKernelArgsPointer(&argument, gemm_hargs);
     }
 
     if(!gemm.IsSupportedArgument(argument))

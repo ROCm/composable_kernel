@@ -423,8 +423,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 }
             }
 
-            if(cpy_stream && cpy_event) // Custom flow, user allocates pinned memory for fully async
-                                        // host args copy
+            if(cpy_stream &&
+               cpy_event) // If user provides copy stream and copy event, we assume that he's also
+                          // responsible for providing allocated host memory (eg. pinned) which
+                          // would be used to copy kernel arguments to the device.
             {
                 if(arg.gemm_kernel_host_args_ == nullptr)
                 {
@@ -442,7 +444,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 hip_check_error(hipEventRecord(cpy_event, cpy_stream));
                 hip_check_error(hipEventSynchronize(cpy_event));
             }
-            else // Default flow
+            else // In this case CK owns memory allocated on host.
             {
 
                 hip_check_error(
@@ -703,7 +705,15 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         return this->SetWorkSpacePointer(p_arg, p_dev_kernel_args);
     }
 
-    // Use for the async host args copy flow
+    //----------------------------------------------------------------------------------------------
+    /// @brief      Sets the host kernel arguments pointer and copies that data on the host side.
+    ///             This function can be utilised to use pinned memory for the host args and
+    ///             achieve fully async data copy.
+    ///
+    /// @param      p_arg              The pointer to the Argument we're going to update.
+    /// @param[in]  p_host_kernel_args The pointer to the host memory which contains kernel
+    ///                                arguments.
+    ///
     void SetHostKernelArgs(BaseArgument* p_arg, void* p_host_kernel_args) const
     {
         Argument* pArg_ = dynamic_cast<Argument*>(p_arg);
