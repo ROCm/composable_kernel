@@ -122,7 +122,7 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = MulABScaleExpertWeight;
 
-static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
 #if 0
 static constexpr ck::index_t MPerBlock = 16;
@@ -155,7 +155,7 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
 // clang-format on
 #else
 static constexpr ck::index_t MPerBlock = 16;
-using DeviceOpInstance                     = ck::tensor_operation::device::DeviceMoeGemm
+using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
         <      Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
@@ -233,7 +233,7 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
     max_token_id.mData[0] = valid_size;
     // int eids[]            = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 3, 3, 3};
-    int eids[]            = {0, 1, 3, 3, 3};
+    int eids[] = {0, 1, 3, 3, 3};
     for(int i = 0; i < sorted_tile_num; i++)
     {
         expert_ids.mData[i] = eids[i];
@@ -450,6 +450,7 @@ int main(int argc, char* argv[])
                   << " GB/s, " << device_op.GetTypeString() << std::endl;
     }
 
+    bool pass = true;
     if(do_verification)
     {
         // gemm2 use atomic, so need to reinit outputs
@@ -497,11 +498,11 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-        return ck::utils::check_err(
-                   e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
-                   ? 0
-                   : 1;
+        pass &= ck::utils::check_err(
+                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
+                    ? 0
+                    : 1;
     }
 
-    return 0;
+    return pass;
 }
