@@ -162,7 +162,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, A0DataType>;
 // clang-format on
 #else
-static constexpr ck::index_t MPerBlock = 128;
+static constexpr ck::index_t MPerBlock = 32;
 static constexpr ck::index_t Nswizzle = false;
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
@@ -171,11 +171,11 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
             256,   MPerBlock,   128,    128,
             16,   32,
-            16,   16,
-            8,    2, 
+            32,   32,
+            1,    1, 
             S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
             S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
-            2,    2,   S<1, 32, 1, 8>, S<8, 1, 1>,
+            1,    1,   S<1, 32, 1, 8>, S<8, 1, 1>,
             ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, A0DataType>;
 // clang-format on
 #endif
@@ -194,8 +194,8 @@ int main(int argc, char* argv[])
     ck::index_t N               = 14336 * 2;
     ck::index_t K               = 4096;
     ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 16;
-    ck::index_t valid_tile_num  = 13;
+    ck::index_t sorted_tile_num = 7;
+    ck::index_t valid_tile_num  = 4;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
     ck::index_t tokens          = 64;
@@ -232,7 +232,7 @@ int main(int argc, char* argv[])
     ck::index_t StrideB              = K;
     ck::index_t StrideE              = N;
     constexpr ck::index_t NumDTensor = DsDataType::Size();
-    constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{0, 0};
+    constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{1, 0};
 
     ck::index_t KBatch = 1;
 
@@ -240,17 +240,18 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1 + sorted_tile_num}));
     max_token_id.mData = {valid_size, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 0, 0, 0};
-    int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
+    // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
+    int eids[]         = {0, 1, 2, 3, 3, 3, 3};
     for(int i = 0; i < sorted_tile_num; i++)
     {
         expert_ids.mData[i] = eids[i];
     }
-    int token_per_tile = tokens * topk / valid_tile_num;
+    int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;
     for(int i = 0; i < sorted_size; i++)
     {
         int tile_off = i % MPerBlock;
-        if(tile_off < token_per_tile)
+        if(tile_off < token_per_tile && tokenid < tokens * topk)
         {
             sorted_token_ids.mData[i] = (tokenid % tokens) | ((tokenid / tokens) << 24);
             tokenid++;
@@ -460,9 +461,10 @@ int main(int argc, char* argv[])
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s" << device_op.GetTypeString() << std::endl;
+                  << " GB/s, " << device_op.GetTypeString() << std::endl;
     }
 
+    bool pass = true;
     if(do_verification)
     {
         invoker.Run(argument, StreamConfig{nullptr, false, 0, 0, 1});
@@ -515,10 +517,10 @@ int main(int argc, char* argv[])
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
-        return ck::utils::check_err(
-                   e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
-                   ? 0
-                   : 1;
+        pass &= ck::utils::check_err(
+                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
+                    ? 0
+                    : 1;
     }
 
     return 0;
