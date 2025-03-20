@@ -62,7 +62,8 @@ struct Sequence
     {
         static_assert(I < mSize, "wrong! I too large");
 
-        return Number<At(I)>{};
+        // https://reviews.llvm.org/D15421
+        return Number<__type_pack_element<I, Number<Is>...>{}>{};
     }
 
     template <index_t I>
