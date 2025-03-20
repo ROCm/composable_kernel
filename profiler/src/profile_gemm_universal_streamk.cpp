@@ -113,15 +113,17 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
 
     auto profile = [&](auto a_type,
                        auto b_type,
+                       auto comp_type,
                        auto acc_type,
                        auto c_type,
                        auto a_layout,
                        auto b_layout,
                        auto c_layout) {
-        using ADataType   = decltype(a_type);
-        using BDataType   = decltype(b_type);
-        using AccDataType = decltype(acc_type);
-        using CDataType   = decltype(c_type);
+        using ADataType       = decltype(a_type);
+        using BDataType       = decltype(b_type);
+        using ComputeDataType = decltype(comp_type);
+        using AccDataType     = decltype(acc_type);
+        using CDataType       = decltype(c_type);
 
         using ALayout = decltype(a_layout);
         using BLayout = decltype(b_layout);
@@ -133,6 +135,7 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
 
         bool pass = ck::profiler::profile_gemm_universal_streamk_impl<ADataType,
                                                                       BDataType,
+                                                                      ComputeDataType,
                                                                       AccDataType,
                                                                       CDataType,
                                                                       ALayout,
