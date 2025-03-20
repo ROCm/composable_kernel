@@ -7,6 +7,7 @@
 #include <iostream>
 #include <initializer_list>
 #include <numeric>
+#include <unordered_map>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
@@ -368,4 +369,26 @@ inline __host__ __device__ constexpr double get_atol()
     {
         return 1e-3;
     }
+}
+
+float i4_to_f32_gfx9(uint8_t i4)
+{
+    static std::unordered_map<uint8_t, float> u = {{0b1000, -0.5000f},
+                                                   {0b1001, -0.4375f},
+                                                   {0b1010, -0.3750f},
+                                                   {0b1011, -0.3125f},
+                                                   {0b1100, -0.2500f},
+                                                   {0b1101, -0.1875f},
+                                                   {0b1110, -0.1250f},
+                                                   {0b1111, -0.0625f},
+                                                   {0b0, +0.0000f},
+                                                   {0b1, +0.0625f},
+                                                   {0b10, +0.1250f},
+                                                   {0b11, +0.1875f},
+                                                   {0b100, +0.2500f},
+                                                   {0b101, +0.3125f},
+                                                   {0b110, +0.3750f},
+                                                   {0b111, +0.4375f}};
+
+    return u[i4];
 }

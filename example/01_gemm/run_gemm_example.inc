@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include "ck/tensor_operation/gpu/device/device_gemm_streamk.hpp"
-
 template <typename ProblemType>
 bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 {
@@ -124,23 +122,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto b_element_op = BElementOp{};
     auto c_element_op = CElementOp{};
 
-    using BaseStreamK = ck::tensor_operation::device::DeviceGemmStreamK<ALayout,
-                                                                        BLayout,
-                                                                        CLayout,
-                                                                        ADataType,
-                                                                        BDataType,
-                                                                        CDataType,
-                                                                        AElementOp,
-                                                                        BElementOp,
-                                                                        CElementOp>;
-
     // do GEMM
     auto gemm      = DeviceGemmInstance{};
     auto invoker   = gemm.MakeInvoker();
     float ave_time = 0;
 
-    if constexpr(std::is_same<ProblemType, ProblemSize>::value &&
-                 !std::is_base_of<BaseStreamK, DeviceGemmInstance>::value)
+    if constexpr(std::is_same<ProblemType, ProblemSize>::value)
     {
         auto argument = gemm.MakeArgument(
 #ifdef BUILD_INT4_EXAMPLE
@@ -170,61 +157,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         }
 
         ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-    }
-    else if constexpr(std::is_same<ProblemType, ProblemSizeStreamK>::value &&
-                      std::is_base_of<BaseStreamK, DeviceGemmInstance>::value)
-    {
-        auto argument = gemm.MakeArgument(
-#ifdef BUILD_INT4_EXAMPLE
-            static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-            static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-            static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#else
-            static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-            static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#endif
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            StrideC,
-            a_element_op,
-            b_element_op,
-            c_element_op,
-            problem_size.NumSKBlocks);
-
-        if(!gemm.IsSupportedArgument(argument))
-        {
-            std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
-
-            return true;
-        }
-
-        std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
-        if(workspace_size != 0)
-        {
-            workspace.Realloc(workspace_size);
-            gemm.SetWorkSpacePointer(&argument, workspace.GetDeviceBuffer());
-        }
-
-        ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-
-#if 0
-        // TODO!!!!!
-        if(workspace_size != 0){
-            float * ws_ptr = reinterpret_cast<float*>(malloc(workspace_size));
-            size_t ws_dwords = workspace_size / sizeof(float);
-            workspace.FromDevice(ws_ptr);
-
-            for(size_t i = 0; i < ws_dwords; i++) {
-                uint32_t rere = reinterpret_cast<uint32_t*>(ws_ptr)[i];
-                printf("%4lu : %f(0x%08x)\n", i, ws_ptr[i], rere);
-            }
-            free(ws_ptr);
-        }
-#endif
     }
     else
     {
@@ -315,14 +247,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 bool run_gemm_example(int argc, char* argv[])
 {
     ProblemSize problem_size;
-    ExecutionConfig config;
-
-    return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
-}
-
-bool run_gemm_streamk_example(int argc, char* argv[])
-{
-    ProblemSizeStreamK problem_size;
     ExecutionConfig config;
 
     return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);

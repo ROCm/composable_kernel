@@ -72,8 +72,14 @@ float fused_moe(fused_moe_traits t, fused_moe_args a, const ck_tile::stream_conf
 
     float r = ck_tile::launch_kernel(
         s,
-        [=, &r0](const ck_tile::stream_config&) { r0 = fused_moesorting(t0, a0, s_sub); },
-        [=, &r1](const ck_tile::stream_config&) { r1 = fused_moegemm(t1, a1, s_sub); });
+        [=, &r0](const ck_tile::stream_config&) {
+            r0 = fused_moesorting(t0, a0, s_sub);
+            return hipPeekAtLastError() == hipSuccess;
+        },
+        [=, &r1](const ck_tile::stream_config&) {
+            r1 = fused_moegemm(t1, a1, s_sub);
+            return hipPeekAtLastError() == hipSuccess;
+        });
 
     // keep unsupported case return negative
     if(r0 < 0 || r1 < 0)
