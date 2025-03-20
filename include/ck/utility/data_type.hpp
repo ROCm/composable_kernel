@@ -2479,7 +2479,11 @@ struct vector_type<T, 64, typename ck::enable_if_t<!is_native_type<T>()>>
     }
 };
 
+#if defined(_WIN32)
+using int64_t = long long;
+#else
 using int64_t = long;
+#endif
 
 // fp64
 using double2_t = typename vector_type<double, 2>::type;
