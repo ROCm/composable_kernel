@@ -60,10 +60,13 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     float ave_time{0};
 
-    const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
-        constexpr bool has_hot_loop_v = has_hot_loop_.value;
-        constexpr auto tail_number_v  = tail_number_.value;
-        constexpr auto scheduler      = GEMM_PIPELINE_SCHEDULER;
+    const auto Run_with_k_batch = [&](const auto has_hot_loop_,
+                                      const auto tail_number_,
+                                      const auto memory_operation_) {
+        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
+        constexpr auto tail_number_v    = tail_number_.value;
+        constexpr auto scheduler        = GEMM_PIPELINE_SCHEDULER;
+        constexpr auto memory_operation = memory_operation_.value;
 
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                            BDataType,
@@ -89,7 +92,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                              GemmConfig::M_Warp_Tile,
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC>>;
+                                             UniversalGemmProblem::TransposeC,
+                                             memory_operation>>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
@@ -113,6 +117,24 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                           ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
                                               Kernel{}, grids, blocks, 0, kargs));
         return ave_time;
+    };
+
+    const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
+        if(args.k_batch == 1)
+        {
+            Run_with_k_batch(has_hot_loop_,
+                             tail_number_,
+                             ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                        ck_tile::memory_operation_enum::set>{});
+        }
+        else
+        {
+            Run_with_k_batch(
+                has_hot_loop_,
+                tail_number_,
+                ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::atomic_add>{});
+        }
     };
 
     if(has_hot_loop)
