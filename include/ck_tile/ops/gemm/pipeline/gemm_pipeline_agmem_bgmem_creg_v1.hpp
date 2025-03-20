@@ -235,11 +235,12 @@ struct GemmPipelineAGmemBGmemCRegV1
                     Policy::template MakeShuffledARegTileDistribution<Problem>());
                 transpose_tile2d(a_shuffle_tmp_loop, a_block_tile);
                 store_tile(a_copy_lds_window,
-                    tile_elementwise_in(a_element_func, a_shuffle_tmp_loop));
-            } else {
+                           tile_elementwise_in(a_element_func, a_shuffle_tmp_loop));
+            }
+            else
+            {
                 const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
                 store_tile(a_copy_lds_window, a_block_tile_tmp);
-
             }
 
             // LDS write i + 1
