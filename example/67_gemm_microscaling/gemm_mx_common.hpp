@@ -35,7 +35,7 @@ struct ExecutionConfig final
     int do_verification = 1;     // (0=no, 1=CPU)
     int init_method     = 2;     // (0=no init, 1=integer value, 2=decimal value)
     bool time_kernel    = false; // (0=no, 1=yes)
-    int verbosity       = 1;     // (0=no info, 1=verbose info)
+    int verbosity       = 0;     // (0=no info, 1=verbose info)
 };
 
 struct ProblemSizeSplitK final
