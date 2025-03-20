@@ -19,7 +19,6 @@ struct BatchedTransposeHostArgs
     index_t batch;
     index_t height;
     index_t width;
-    index_t dim_stride;
     index_t dim_block_h;
     index_t dim_block_w;
 };
@@ -61,7 +60,7 @@ struct BatchedTransposeKernel
         k.batch      = h.batch;
         k.height     = h.height;
         k.width      = h.width;
-        k.dim_stride = h.dim_stride;
+        k.dim_stride = h.height * h.width;
         return k;
     }
 

@@ -15,11 +15,10 @@ auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("v", "1", "whether do CPU validation or not")
+        .insert("pr", "fp16", "input data type. int8/fp16/fp32 (representing 8/16/32 bit data)")
         .insert("N", "2", "input batch size. ")
         .insert("H", "16", "input height size.")
         .insert("W", "16", "input width size. ")
-        .insert("batch_stride", "0", "Batch stride, 0 means H * W.")
-        .insert("pr", "fp16", "input data type. fp16/fp32 (representing 8/16/32 bit data)")
         .insert("seed", "-1", "seed to be used, -1 means random every time");
 
     bool result = arg_parser.parse(argc, argv);
@@ -35,13 +34,9 @@ bool run_transpose(ck_tile::ArgParser args)
     int H            = args.get_int("H");
     int W            = args.get_int("W");
     int seed         = args.get_int("seed");
-    int batch_stride = args.get_int("batch_stride");
 
     int dim_in[3], dim_out[3];
     int stride_dim_in[3], stride_dim_out[3];
-
-    if(batch_stride == 0)
-        batch_stride = H * W;
 
     dim_in[0]         = N;
     dim_in[1]         = H;
@@ -49,10 +44,10 @@ bool run_transpose(ck_tile::ArgParser args)
     dim_out[0]        = N;
     dim_out[1]        = W;
     dim_out[2]        = H;
-    stride_dim_in[0]  = batch_stride;
+    stride_dim_in[0]  = H * W;
     stride_dim_in[1]  = W;
     stride_dim_in[2]  = 1;
-    stride_dim_out[0] = batch_stride;
+    stride_dim_out[0] = H * W;
     stride_dim_out[1] = H;
     stride_dim_out[2] = 1;
 
@@ -66,7 +61,7 @@ bool run_transpose(ck_tile::ArgParser args)
     ck_tile::HostTensor<Type> y_host({dim_out[0], dim_out[1], dim_out[2]},
                                      {stride_dim_out[0], stride_dim_out[1], stride_dim_out[2]});
 
-    ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
+    ck_tile::FillUniformDistribution<Type>{-.5f, .5f, static_cast<uint32_t>(seed)}(x_host);
 
     ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
@@ -77,12 +72,11 @@ bool run_transpose(ck_tile::ArgParser args)
 
     batched_transpose_kargs karg = [&]() {
         batched_transpose_kargs a_;
-        a_.p_input    = x_dev.GetDeviceBuffer();
-        a_.p_output   = y_dev.GetDeviceBuffer();
-        a_.batch      = N;
-        a_.height     = H;
-        a_.width      = W;
-        a_.dim_stride = batch_stride;
+        a_.p_input  = x_dev.GetDeviceBuffer();
+        a_.p_output = y_dev.GetDeviceBuffer();
+        a_.batch    = N;
+        a_.height   = H;
+        a_.width    = W;
         return a_;
     }();
 
@@ -102,8 +96,8 @@ bool run_transpose(ck_tile::ArgParser args)
         return false;
     }
 
-    std::size_t num_operations = H * (W - 1);
-    std::size_t num_bytes      = H * W * sizeof(Type);
+    std::size_t num_operations = N * H * (W - 1);
+    std::size_t num_bytes      = N * H * W * sizeof(Type);
 
     float ave_time   = ms * 1E-3;
     float gb_per_sec = num_bytes / ms * 1.E-6;

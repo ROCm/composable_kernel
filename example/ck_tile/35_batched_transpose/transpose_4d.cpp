@@ -16,14 +16,13 @@ auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("v", "1", "whether do CPU validation or not")
+        .insert("pr", "fp16", "input data type. int8/fp16/fp32 (representing 8/16/32 bit data)")
         .insert("N", "2", "input batch size. ")
         .insert("C", "16", "input channel size.")
         .insert("H", "1", "input height size.")
         .insert("W", "16", "input width size. ")
-        .insert("batch_stride", "0", "Batch stride, 0 means C * H * W.")
         .insert("layout_in", "NCHW", "input tensor data layout - NCHW by default")
         .insert("layout_out", "NHWC", "output tensor data layout - NHWC by default ")
-        .insert("pr", "fp16", "input data type. fp16/fp32 (representing 8/16/32 bit data)")
         .insert("seed", "-1", "seed to be used, -1 means random every time");
 
     bool result = arg_parser.parse(argc, argv);
@@ -42,7 +41,6 @@ bool run_transpose(ck_tile::ArgParser args)
     std::string layout_in  = args.get_str("layout_in");
     std::string layout_out = args.get_str("layout_out");
     int seed               = args.get_int("seed");
-    int batch_stride       = args.get_int("batch_stride");
 
     int dim_in[4], dim_out[4];
     int stride_dim_in[4], stride_dim_out[4];
@@ -50,9 +48,6 @@ bool run_transpose(ck_tile::ArgParser args)
     bool nhwc2nchw = layout_in == "NHWC" && layout_out == "NCHW";
     assert(nchw2nhwc != nhwc2nchw);
     (void)nhwc2nchw;
-
-    if(batch_stride == 0)
-        batch_stride = C * H * W;
 
     dim_in[0]         = N;
     dim_in[1]         = nchw2nhwc ? C : H;
@@ -62,11 +57,11 @@ bool run_transpose(ck_tile::ArgParser args)
     dim_out[1]        = nchw2nhwc ? H : C;
     dim_out[2]        = nchw2nhwc ? W : H;
     dim_out[3]        = nchw2nhwc ? C : W;
-    stride_dim_in[0]  = batch_stride;
+    stride_dim_in[0]  = H * W * C;
     stride_dim_in[1]  = nchw2nhwc ? H * W : C * W;
     stride_dim_in[2]  = nchw2nhwc ? W : C;
     stride_dim_in[3]  = 1;
-    stride_dim_out[0] = batch_stride;
+    stride_dim_out[0] = H * W * C;
     stride_dim_out[1] = nchw2nhwc ? C * W : H * W;
     stride_dim_out[2] = nchw2nhwc ? C : W;
     stride_dim_out[3] = 1;
@@ -83,7 +78,7 @@ bool run_transpose(ck_tile::ArgParser args)
         {dim_out[0], dim_out[1], dim_out[2], dim_out[3]},
         {stride_dim_out[0], stride_dim_out[1], stride_dim_out[2], stride_dim_out[3]});
 
-    ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
+    ck_tile::FillUniformDistribution<Type>{-.5f, .5f, static_cast<uint32_t>(seed)}(x_host);
 
     ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
@@ -97,12 +92,11 @@ bool run_transpose(ck_tile::ArgParser args)
 
     batched_transpose_kargs karg = [&]() {
         batched_transpose_kargs a_;
-        a_.p_input    = x_dev.GetDeviceBuffer();
-        a_.p_output   = y_dev.GetDeviceBuffer();
-        a_.batch      = N;
-        a_.height     = height;
-        a_.width      = width;
-        a_.dim_stride = batch_stride;
+        a_.p_input  = x_dev.GetDeviceBuffer();
+        a_.p_output = y_dev.GetDeviceBuffer();
+        a_.batch    = N;
+        a_.height   = height;
+        a_.width    = width;
         return a_;
     }();
 
