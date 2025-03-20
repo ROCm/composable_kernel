@@ -81,10 +81,11 @@ struct WarpGemmSmfmacImpl
         static_assert(detail::is_similiar_distributed_tensor_v<CTensor, CWarpTensor> &&
                       detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
                       detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
-        using AVec = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;
+        constexpr auto CompressionRatio = WarpGemmAttribute::kCompressionRatio
+
+            using AVec = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;
         using AVecCompressed =
-            ext_vector_t<ADataType,
-                         ATensor::get_thread_buffer_size() / WarpGemmAttribute::kCompressionRatio>;
+            ext_vector_t<ADataType, ATensor::get_thread_buffer_size() / CompressionRatio>;
         using BVec = ext_vector_t<BDataType, BTensor::get_thread_buffer_size()>;
         using CVec = ext_vector_t<CDataType, CTensor::get_thread_buffer_size()>;
 

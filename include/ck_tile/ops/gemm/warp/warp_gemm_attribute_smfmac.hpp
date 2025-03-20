@@ -3,15 +3,17 @@
 
 namespace ck_tile {
 
-// Class describing structured sparsity mfma instructions. Currently only 2:4 structured sparsity is
-// supported, which is based on requirement that in every groups of four continuous elements there
-// are at most two non-zero, which results in processing only half of elements in smfmac
-// instruction. Because of structured sparsity A vector in smfmac instruction will be smaller than B
-// vector by the factor of CompressionRatio. The indexes of non-zero elements are stored in `index`
-// which is an additional parameter to assembly instruction. Every pair of two bit indexes are
-// containing information about which two  elements in current group of 4 values are non-zero and
-// should be used inside smfmac instruction. Structured sparsity format is supported only for A
-// matrix for now.
+/**
+ *  @brief Class describing structured sparsity mfma instructions. Currently only 2:4 structured
+ * sparsity is supported, which is based on requirement that in every groups of four continuous
+ * elements there are at most two non-zero, which results in processing only half of elements in
+ * smfmac instruction. Because of structured sparsity A vector in smfmac instruction will be smaller
+ * than B vector by the factor of CompressionRatio. The indexes of non-zero elements are stored in
+ * `index` which is an additional parameter to assembly instruction. Every pair of two bit indexes
+ * are containing information about which two  elements in current group of 4 values are non-zero
+ * and should be used inside smfmac instruction. Structured sparsity format is supported only for A
+ *  matrix for now.
+ */
 template <typename WarpGemmAttributeSmfmacImpl_>
 struct WarpGemmAttributeSmfmac
 {
