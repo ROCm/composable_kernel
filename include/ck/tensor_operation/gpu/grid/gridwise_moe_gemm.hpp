@@ -1563,12 +1563,8 @@ struct GridwiseMoeGemm
             const float* p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
-                StaticallyIndexedArray<index_t, EMRepeats>
-                    scatter_offsets; //= p_sorted_token_ids[c_token_pos];
+                StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets;
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
-                // too hack here, 2 specific for topk weights, fixme
-                // const index_t topk_id[EMRepeats];// = (p_sorted_token_ids[block_m_id * MPerBlock]
-                // & 0xff000000) >> 24;
 
                 auto dstidx = sfc_cde_block.GetIndex(access_id);
                 const index_t c_token_pos =
@@ -1576,7 +1572,9 @@ struct GridwiseMoeGemm
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     index_t token_offset      = fused_token & 0xffffff;
-                    float weight = p_sorted_weights_0[token_offset * problem.StrideDs[0]];
+                    float weight              = token_offset < problem.NumTokens
+                                                    ? p_sorted_weights_0[token_offset * problem.StrideDs[0]]
+                                                    : 0.0;
                     if constexpr(IsInputGemm)
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
@@ -2074,9 +2072,6 @@ struct GridwiseMoeGemm
                 StaticallyIndexedArray<index_t, EMRepeats>
                     scatter_offsets; //= p_sorted_token_ids[c_token_pos];
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
-                // too hack here, 2 specific for topk weights, fixme
-                // const index_t topk_id[EMRepeats];// = (p_sorted_token_ids[block_m_id * MPerBlock]
-                // & 0xff000000) >> 24;
 
                 auto dstidx = sfc_cde_block.GetIndex(access_id);
                 const index_t c_token_pos =
@@ -2084,7 +2079,9 @@ struct GridwiseMoeGemm
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     index_t token_offset      = fused_token & 0xffffff;
-                    float weight = p_sorted_weights_0[token_offset * problem.StrideDs[0]];
+                    float weight              = token_offset < problem.NumTokens
+                                                    ? p_sorted_weights_0[token_offset * problem.StrideDs[0]]
+                                                    : 0.0;
                     if constexpr(IsInputGemm)
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
