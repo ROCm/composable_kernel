@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -106,9 +106,9 @@ struct TransformConvBwdDataToGemm_v1
             }
             else
             {
-                // Not possible to support even after split N.
-                // Too large tensor.
-                return N;
+                // Process one Convolution N per block (it's not sufficient but
+                // we you can split the image)
+                return 1;
             }
         }
         else

@@ -83,9 +83,9 @@ struct TransformConvFwdToGemm
             }
             else
             {
-                // Not possible to support even after split N.
-                // Too large tensor.
-                return N;
+                // Process one Convolution N per block (it's not sufficient but
+                // we you can split the image)
+                return 1;
             }
         }
         else
