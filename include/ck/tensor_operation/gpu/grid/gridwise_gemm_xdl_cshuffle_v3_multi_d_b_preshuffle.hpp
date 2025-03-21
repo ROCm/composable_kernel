@@ -900,16 +900,17 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
-        // for not adding k padd operator
+        // for B matrix  padding k
         if(KPadding)
         {
             auto K_t = KPerBlock * karg.KBatch;
-            if((CalculateBKShufflePadded(karg.K) % K_t != 0) || (karg.KPadded % KPerBlock != 0))
+            if(CalculateBKShufflePadded(karg.K) % K_t != 0)
             {
 #if DEBUG_LOG
-                std::cout << "Arg K or KPadded value is not a multiple of K_Batch * KPerBlock! K: "
-                          << karg.K << " " << karg.KPadded << " " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
+                std::cout << "Arg CalculateBKShufflePadded(K)  value is not a multiple of K_Batch "
+                             "* KPerBlock! K: "
+                          << karg.K << " " << CalculateBKShufflePadded(karg.K) << " " << __FILE__
+                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
 
 #endif // DEBUG_LOG
                 return false;

@@ -113,13 +113,12 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     bool bKPadding  = (K % 128 != 0);
     auto Knew       = bKPadding ? GetKPreShufflePadded(K) : K;
     auto StrideBnew = Knew;
-    auto Nnew       = N; //(N % 64 == 0) ? N : GetNPreShufflePadded(N);
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<BDataType> b_preshuffled_mfma16(
-        f_host_tensor_descriptor(Knew, Nnew, StrideBnew, BLayout{})); // use layout only for size
+        f_host_tensor_descriptor(Knew, N, StrideBnew, BLayout{})); // use layout only for size
     Tensor<BDataType> b_preshuffled_mfma32(
-        f_host_tensor_descriptor(Knew, Nnew, StrideBnew, BLayout{})); // use layout only for size
+        f_host_tensor_descriptor(Knew, N, StrideBnew, BLayout{})); // use layout only for size
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
