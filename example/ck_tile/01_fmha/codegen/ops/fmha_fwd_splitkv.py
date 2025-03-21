@@ -253,8 +253,8 @@ float fmha_fwd_splitkv_(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a
     << std::flush;
 
     return ck_tile::launch_kernel(s,
-        [=](const ck_tile::stream_config& s_){{ fmha_fwd_splitkv_oneshot_<fmha_fwd_splitkv_traits_>(s_, a); return hipPeekAtLastError() == hipSuccess; }},
-        [=](const ck_tile::stream_config& s_){{ fmha_fwd_splitkv_combine_oneshot_<fmha_fwd_splitkv_combine_traits_>(s_, a); return hipPeekAtLastError() == hipSuccess; }}
+        [=](const ck_tile::stream_config& s_){{ fmha_fwd_splitkv_oneshot_<fmha_fwd_splitkv_traits_>(s_, a); }},
+        [=](const ck_tile::stream_config& s_){{ fmha_fwd_splitkv_combine_oneshot_<fmha_fwd_splitkv_combine_traits_>(s_, a); }}
     );
 }}
 
@@ -439,8 +439,13 @@ class FmhaFwdSplitKVCombinePipeline:
         pn = pad_name()
         n = f'{self.tag}'
         if pn != '' : n += f'_{pn}'
+        else: n += '_npad'
+        
         if self.F_lse == 't' : n += '_lse'
+        else: n += '_nlse'
+        
         if self.F_squant == 't' : n += '_squant'
+        else: n += '_nsquant'
         return n
 
 class FmhaFwdSplitKVApiPool:
