@@ -58,6 +58,22 @@ struct static_for
     }
 };
 
+template <typename T, T... Is>
+struct range_applier
+{
+    template <typename F>
+    CK_TILE_HOST_DEVICE constexpr void operator()(F f) const
+    {
+        (f(number<Is>{}), ...);
+    }
+};
+
+template <index_t N>
+struct static_for<0, N, 1> : __make_integer_seq<range_applier, index_t, N>
+{
+    using __make_integer_seq<range_applier, index_t, N>::operator();
+};
+
 struct identity
 {
     template <typename T>

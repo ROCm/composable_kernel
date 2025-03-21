@@ -46,4 +46,20 @@ struct static_for
     }
 };
 
+template <typename T, T... Is>
+struct range_applier
+{
+    template <typename F>
+    __host__ __device__ constexpr void operator()(F f) const
+    {
+        (f(Number<Is>{}), ...);
+    }
+};
+
+template <index_t N>
+struct static_for<0, N, 1> : __make_integer_seq<range_applier, index_t, N>
+{
+    using __make_integer_seq<range_applier, index_t, N>::operator();
+};
+
 } // namespace ck
