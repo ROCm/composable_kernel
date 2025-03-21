@@ -714,7 +714,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     /// @param[in]  p_host_kernel_args The pointer to the host memory which contains kernel
     ///                                arguments.
     ///
-    void SetHostKernelArgs(BaseArgument* p_arg, void* p_host_kernel_args) const
+    void SetHostKernelArgsPointer(BaseArgument* p_arg, void* p_host_kernel_args) const
     {
         Argument* pArg_ = dynamic_cast<Argument*>(p_arg);
         if(!pArg_)

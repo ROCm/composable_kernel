@@ -7,7 +7,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ### Added
 
 * Added support for bf16, f32, and f16 for 2D and 3D NGCHW grouped convolution backward data
-* Added fully asynchronous host arguments copy flow from pinned memory for CK grouped gemm kernels
+* Added fully asynchronous host arguments copy flow for CK grouped gemm kernels
 
 ### Optimized
 
