@@ -30,8 +30,8 @@ struct GridGemm
         // divide problem
         const auto id_block = get_block_id();
 
-        const auto num_tile_m = M / kMPerBlock;
-        const auto num_tile_n = N / kNPerBlock;
+        const auto num_tile_m = integer_divide_ceil(M, kMPerBlock);
+        const auto num_tile_n = integer_divide_ceil(N, kNPerBlock);
 
         const auto block2tile = Policy::template MakeBlock2TileMap<Problem>(num_tile_m, num_tile_n);
 
