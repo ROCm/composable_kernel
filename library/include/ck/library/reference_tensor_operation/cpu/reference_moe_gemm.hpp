@@ -72,11 +72,14 @@ struct ReferenceMoeGemm : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
+            const int full_n = arg.c_t_k_n_.mDesc.GetLengths()[2];
             auto f_mk_kn_mn = [&](auto m, auto n) {
                 const int K = arg.a_t_k_.mDesc.GetLengths()[1];
                 AccDataType v_acc{0};
+                AccDataType v_acc_up{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
+                ComputeTypeB v_b_up{0};
                 const int t         = arg.sorted_token_ids_(m) & 0xffffff;
                 const int topk_id   = (arg.sorted_token_ids_(m) & 0xff000000) >> 24;
                 const int e         = arg.expert_ids_(m / arg.sorted_tile_size_);
@@ -121,22 +124,27 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         else
                         {
                             arg.b_element_op_(v_b, arg.b_e_n_k_(e, k, n));
+                            arg.b_element_op_(v_b_up, arg.b_e_n_k_(e, k, n + full_n));
                         }
 
                         v_acc +=
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
+                        v_acc_up +=
+                            ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b_up);
                     }
                     CDataType v_c{0};
+                    CDataType v_c_up{0};
 
                     arg.c_element_op_(v_c, v_acc);
-
-                    arg.c_t_k_n_(t, topk_id, n) = v_c;
+                    arg.c_element_op_(v_c_up, v_acc_up);
+                    arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up * (1.0 / (1.0 + math::exp(-v_c_up)));
+                    // arg.c_t_k_n_(t, topk_id, n) = v_c + v_c_up;
                 }
             };
 
             const ck::index_t max_token_id = arg.max_token_id_(0);
             make_ParallelTensorFunctor(
-                f_mk_kn_mn, max_token_id, arg.c_t_k_n_.mDesc.GetLengths()[2])(
+                f_mk_kn_mn, max_token_id, full_n)(
                 std::thread::hardware_concurrency());
 
             return 0;

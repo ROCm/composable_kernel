@@ -127,9 +127,9 @@ using BElementOp = PassThrough;
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t MXDLPerWave = 2;
-static constexpr ck::index_t NXDLPerWave = 2;
+static constexpr ck::index_t NXDLPerWave = 1;
 static constexpr ck::index_t BLOCKSIZE   = 256;
-static constexpr ck::index_t NPerBlock   = 128;
+static constexpr ck::index_t NPerBlock   = 64;
 static constexpr ck::index_t MNPerXDL    = 32;
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
 static constexpr ck::index_t Nswizzle    = false;
@@ -174,7 +174,7 @@ int main(int argc, char* argv[])
     ck::index_t experts         = 8;
     ck::index_t sorted_tile_num = 16;
     ck::index_t valid_tile_num  = 13;
-    ck::index_t tokens          = 832;
+    ck::index_t tokens          = 64;
     ck::index_t topk            = 2;
 
     // ck::index_t tokens = batch * topk;
@@ -261,8 +261,8 @@ int main(int argc, char* argv[])
     // expert_ids.savetxt("expert_ids.txt", "int");
     // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
-    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
-    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
+    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
+    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
     Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
@@ -329,7 +329,7 @@ int main(int argc, char* argv[])
 
     int NPerXdl = device_op.GetPreShuffleParameters();
 
-    preShuffleBuffer(b0_e_n_k.mData.data(), b0_preshuffled.mData.data(), N * experts, K, NPerXdl);
+    preShuffleBuffer(b0_e_n_k.mData.data(), b0_preshuffled.mData.data(), N * 2 * experts, K, NPerXdl);
 
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
 
@@ -367,9 +367,9 @@ int main(int argc, char* argv[])
     {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-        std::size_t flop      = std::size_t(2) * tokens * topk * N * K;
+        std::size_t flop      = std::size_t(2) * tokens * topk * N * 2 * K;
         std::size_t num_btype = sizeof(A0DataType) * valid_tile_num * K +
-                                sizeof(B0DataType) * K * N * experts +
+                                sizeof(B0DataType) * K * N * 2 * experts +
                                 sizeof(EDataType) * valid_tile_num * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
