@@ -82,9 +82,15 @@ int main(int argc, char* argv[])
 
     constexpr ck_tile::index_t kBlockSize = 256;
 
+#if 1
+#pragma message ("(Increase KperBlock, reduce MperBlock) -> increase Grid size")
+    constexpr ck_tile::index_t kGemmMPerBlock = 128;
+    constexpr ck_tile::index_t kGemmKPerBlock = 64;
+#else
     constexpr ck_tile::index_t kGemmMPerBlock = 256;
-    constexpr ck_tile::index_t kGemmNPerBlock = 128;
     constexpr ck_tile::index_t kGemmKPerBlock = 32;
+#endif
+    constexpr ck_tile::index_t kGemmNPerBlock = 128;
 
     ck_tile::index_t kGridSize = (M / kGemmMPerBlock) * (N / kGemmNPerBlock);
 

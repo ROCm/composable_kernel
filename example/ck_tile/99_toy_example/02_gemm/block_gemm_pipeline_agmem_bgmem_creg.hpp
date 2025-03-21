@@ -114,7 +114,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
         // Acc register tile
         auto c_block_tile = decltype(block_gemm(a_lds_gemm_window, b_lds_gemm_window)){};
 
-#if 0
+#if 1
 #pragma message ("prefetch")
         // prefetch
         // global read 0

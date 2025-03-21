@@ -15,7 +15,7 @@ struct BlockGemmASmemBSmemCRegDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemmMWarpNWarp()
     {
-#if 0
+#if 1
 #pragma message ("mfma k16")
         if constexpr(std::is_same_v<typename Problem::ADataType, half_t> &&
                      std::is_same_v<typename Problem::BDataType, half_t> &&
