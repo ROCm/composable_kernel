@@ -106,8 +106,9 @@ struct TransformConvBwdDataToGemm_v1
             }
             else
             {
-                // Process one Convolution N per block (it's not sufficient but
-                // we you can split the image)
+                // Split Convolution's N dimension into N workgroups. However
+                // this still might not result in sufficiently small tensor,
+                // but at least later on we could divide the image as well.
                 return 1;
             }
         }
