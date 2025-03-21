@@ -41,10 +41,6 @@ struct ExecutionConfig final
 struct ProblemSizeSplitK final
 {
 
-    // ck::index_t M = 256;
-    // ck::index_t N = 256;
-    // ck::index_t K = 384;
-
     ck::index_t M = 3840;
     ck::index_t N = 4096;
     ck::index_t K = 4096;
@@ -267,9 +263,9 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         if(config.verbosity > 0)
         {
             std::cout << "Init A = {1}" << std::endl;
-            std::cout << "Init A scale = {1.0}" << std::endl;
+            std::cout << "Init A scale = {2.0}" << std::endl;
             std::cout << "Init B = {0.5}" << std::endl;
-            std::cout << "Init B scale = {2.0}" << std::endl;
+            std::cout << "Init B scale = {1.0}" << std::endl;
             std::cout << "Expect C = {K}" << std::endl;
         }
         break;
