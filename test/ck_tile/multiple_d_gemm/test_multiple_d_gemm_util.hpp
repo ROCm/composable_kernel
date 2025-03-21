@@ -40,13 +40,13 @@ class TestCkTileMultipleDGemm : public ::testing::Test
     protected:
     using ALayout     = std::tuple_element_t<0, Tuple>;
     using BLayout     = std::tuple_element_t<1, Tuple>;
-    using D0Layout     = std::tuple_element_t<2, Tuple>;
-    using D1Layout     = std::tuple_element_t<3, Tuple>;
+    using D0Layout    = std::tuple_element_t<2, Tuple>;
+    using D1Layout    = std::tuple_element_t<3, Tuple>;
     using CLayout     = std::tuple_element_t<4, Tuple>;
     using ADataType   = std::tuple_element_t<5, Tuple>;
     using BDataType   = std::tuple_element_t<6, Tuple>;
-    using D0DataType   = std::tuple_element_t<7, Tuple>;
-    using D1DataType   = std::tuple_element_t<8, Tuple>;
+    using D0DataType  = std::tuple_element_t<7, Tuple>;
+    using D1DataType  = std::tuple_element_t<8, Tuple>;
     using AccDataType = std::tuple_element_t<9, Tuple>;
     using CDataType   = std::tuple_element_t<10, Tuple>;
     using DsLayout    = ck_tile::tuple<D0Layout, D1Layout>;
@@ -55,15 +55,15 @@ class TestCkTileMultipleDGemm : public ::testing::Test
     using CDEElementWiseFn = ck_tile::element_wise::ElementWiseAdd;
 
     template <typename ADataType,
-          typename BDataType,
-          typename DsDataType,
-          typename AccDataType,
-          typename CDataType,
-          typename ALayout,
-          typename BLayout,
-          typename DsLayout,
-          typename CLayout,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+              typename BDataType,
+              typename DsDataType,
+              typename AccDataType,
+              typename CDataType,
+              typename ALayout,
+              typename BLayout,
+              typename DsLayout,
+              typename CLayout,
+              typename CDEElementWise = ck_tile::element_wise::PassThrough>
     void invoke_multi_d_gemm(const ck_tile::GemmHostArgs<DsDataType::size()>& args,
                              const ck_tile::stream_config& s)
     {
@@ -156,7 +156,7 @@ class TestCkTileMultipleDGemm : public ::testing::Test
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids = Kernel::GridSize(args.M, args.N, args.k_batch);
+            const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
             constexpr dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
@@ -211,11 +211,11 @@ class TestCkTileMultipleDGemm : public ::testing::Test
     void Run(const int M,
              const int N,
              const int K,
-             int StrideA            = 0,
-             int StrideB            = 0,
-             int StrideD0            = 0,
-             int StrideD1            = 0,
-             int StrideC            = 0)
+             int StrideA  = 0,
+             int StrideB  = 0,
+             int StrideD0 = 0,
+             int StrideD1 = 0,
+             int StrideC  = 0)
     {
         using namespace ck_tile::literals;
 
@@ -251,18 +251,22 @@ class TestCkTileMultipleDGemm : public ::testing::Test
                     return stride;
             };
 
+        StrideA  = f_get_default_stride(M, N, StrideA, ALayout{});
+        StrideB  = f_get_default_stride(K, N, StrideB, BLayout{});
+        StrideD0 = f_get_default_stride(M, N, StrideD0, D0Layout{});
+        StrideD1 = f_get_default_stride(M, N, StrideD1, D1Layout{});
+        StrideC  = f_get_default_stride(M, N, StrideC, CLayout{});
 
-            StrideA  = f_get_default_stride(M, N, StrideA, ALayout{});
-            StrideB  = f_get_default_stride(K, N, StrideB, BLayout{});
-            StrideD0 = f_get_default_stride(M, N, StrideD0, D0Layout{});
-            StrideD1 = f_get_default_stride(M, N, StrideD1, D1Layout{});
-            StrideC  = f_get_default_stride(M, N, StrideC, CLayout{});
-
-        ck_tile::HostTensor<ADataType> a_m_k_tesnor(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-        ck_tile::HostTensor<BDataType> b_k_n_tensors(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-        ck_tile::HostTensor<D0DataType> d0_m_n_tensors(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
-        ck_tile::HostTensor<D1DataType> d1_m_n_tensors(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
-        ck_tile::HostTensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+        ck_tile::HostTensor<ADataType> a_m_k_tesnor(
+            f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
+        ck_tile::HostTensor<BDataType> b_k_n_tensors(
+            f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+        ck_tile::HostTensor<D0DataType> d0_m_n_tensors(
+            f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
+        ck_tile::HostTensor<D1DataType> d1_m_n_tensors(
+            f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
+        ck_tile::HostTensor<CDataType> c_m_n_device_result(
+            f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
         ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k_tesnor);
         ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n_tensors);
@@ -279,45 +283,41 @@ class TestCkTileMultipleDGemm : public ::testing::Test
         b_k_n_dev_buf.ToDevice(b_k_n_tensors.mData.data());
         d0_m_n_dev_buf.ToDevice(d0_m_n_tensors.mData.data());
         d1_m_n_dev_buf.ToDevice(d1_m_n_tensors.mData.data());
-    
+
         c_m_n_dev_buf.SetZero();
         c_m_n_device_result.SetZero();
 
         std::array<const void*, DsDataType::size()> ds_ptr_buf = {d0_m_n_dev_buf.GetDeviceBuffer(),
-            d1_m_n_dev_buf.GetDeviceBuffer()};
+                                                                  d1_m_n_dev_buf.GetDeviceBuffer()};
         std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {StrideD0, StrideD1};
-        
-        ck_tile::GemmHostArgs<DsDataType::size()> args({
-            a_m_k_dev_buf.GetDeviceBuffer(),
-            b_k_n_dev_buf.GetDeviceBuffer(),
-            ds_ptr_buf,
-            c_m_n_dev_buf.GetDeviceBuffer(),
-            /* kBatch */ 1,
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            stridesDs,
-            StrideC});
 
-        invoke_multi_d_gemm<
-                            ADataType,
-                                BDataType,
-                                DsDataType,
-                                AccDataType,
-                                CDataType,
-                                ALayout,
-                                BLayout,
-                                DsLayout,
-                                CLayout,
-                                CDEElementWiseFn>(args,
-                                                       ck_tile::stream_config{nullptr, false});
+        ck_tile::GemmHostArgs<DsDataType::size()> args({a_m_k_dev_buf.GetDeviceBuffer(),
+                                                        b_k_n_dev_buf.GetDeviceBuffer(),
+                                                        ds_ptr_buf,
+                                                        c_m_n_dev_buf.GetDeviceBuffer(),
+                                                        /* kBatch */ 1,
+                                                        M,
+                                                        N,
+                                                        K,
+                                                        StrideA,
+                                                        StrideB,
+                                                        stridesDs,
+                                                        StrideC});
+
+        invoke_multi_d_gemm<ADataType,
+                            BDataType,
+                            DsDataType,
+                            AccDataType,
+                            CDataType,
+                            ALayout,
+                            BLayout,
+                            DsLayout,
+                            CLayout,
+                            CDEElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
 
         std::cout << "Run kernel with M =" << M << " N =" << N << " K =" << K
                   << " StrideA =" << StrideA << " StrideB =" << StrideB << " StrideC =" << StrideC
-                  << " StrideD0 =" << StrideD0 << " StrideD1 =" << StrideD1
-                  << std::endl;
+                  << " StrideD0 =" << StrideD0 << " StrideD1 =" << StrideD1 << std::endl;
 
         c_m_n_dev_buf.FromDevice(c_m_n_device_result.data());
         bool pass = true;
@@ -326,12 +326,13 @@ class TestCkTileMultipleDGemm : public ::testing::Test
             f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
         c_m_n_host_ref.SetZero();
 
-        ck_tile::reference_gemm_multiple_d<ADataType,
-        BDataType,
-        std::tuple<ck_tile::HostTensor<D0DataType>, ck_tile::HostTensor<D1DataType>>,
-        AccDataType,
-        CDataType,
-        CDEElementWiseFn>(
+        ck_tile::reference_gemm_multiple_d<
+            ADataType,
+            BDataType,
+            std::tuple<ck_tile::HostTensor<D0DataType>, ck_tile::HostTensor<D1DataType>>,
+            AccDataType,
+            CDataType,
+            CDEElementWiseFn>(
             a_m_k_tesnor, b_k_n_tensors, std::tie(d0_m_n_tensors, d1_m_n_tensors), c_m_n_host_ref);
 
         const float max_accumulated_value =
