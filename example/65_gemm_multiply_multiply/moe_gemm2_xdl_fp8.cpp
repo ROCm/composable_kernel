@@ -365,9 +365,7 @@ int main(int argc, char* argv[])
                                KBatch,
                                a_element_op,
                                b_element_op,
-                               cde_element_op,
-                               N,
-                               K);
+                               cde_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {

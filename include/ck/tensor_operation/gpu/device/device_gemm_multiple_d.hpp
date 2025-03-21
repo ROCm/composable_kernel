@@ -8,6 +8,7 @@
 
 #include "ck/utility/array.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -140,13 +141,12 @@ struct DeviceGemmMultipleDSplitKBPreShuffle : public BaseOperator
                         ck::index_t KBatch,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
-                        CDEElementwiseOperation cde_element_op,
-                        ck::index_t Nr,
-                        ck::index_t Kr) = 0;
+                        CDEElementwiseOperation cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 
-    virtual int GetPreShuffleParameters() = 0;
+    virtual int GetPreShuffleParameters()            = 0;
+    virtual GemmSpecialization GetInstanceGemmSpec() = 0;
 };
 #define KShufflePadded 256
 #define NShufflePadded 128
