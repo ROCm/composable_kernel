@@ -14,24 +14,54 @@ namespace ck_tile {
 template <typename Problem_, typename Policy_ = BlockGemmARegBRegCRegV1DefaultPolicy>
 struct BlockGemmARegBRegCRegV1
 {
-    using Problem        = remove_cvref_t<Problem_>;
-    using Policy         = remove_cvref_t<Policy_>;
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+    private:
+    template <typename PipelineProblem_, typename GemmPolicy_>
+    struct GemmTraits_
+    {
+        using Problem        = remove_cvref_t<PipelineProblem_>;
+        using Policy         = remove_cvref_t<GemmPolicy_>;
+        using ADataType      = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType      = remove_cvref_t<typename Problem::BDataType>;
+        using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+        using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static constexpr index_t kBlockSize   = Problem::kBlockSize;
-    static constexpr index_t MPerBlock    = BlockGemmShape::kM;
-    static constexpr index_t NPerBlock    = BlockGemmShape::kN;
-    static constexpr index_t KPerBlock    = BlockGemmShape::kK;
-    static constexpr auto config          = Policy::template GetWarpGemmMWarpNWarp<Problem>();
-    using WG                              = remove_cvref_t<decltype(config.template at<0>())>;
-    static constexpr index_t MWarp        = config.template at<1>();
-    static constexpr index_t NWarp        = config.template at<2>();
-    static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
-    static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
-    static constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
+        static constexpr index_t kBlockSize = Problem::kBlockSize;
+
+        static constexpr index_t MPerBlock = BlockGemmShape::kM;
+        static constexpr index_t NPerBlock = BlockGemmShape::kN;
+        static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
+        static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm               = remove_cvref_t<decltype(config.template at<0>())>;
+
+        static constexpr index_t MWarp        = config.template at<1>();
+        static constexpr index_t NWarp        = config.template at<2>();
+        static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
+        static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
+        static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
+
+        static constexpr index_t KPack = WarpGemm::kKPerThread;
+    };
+
+    public:
+    using Problem = remove_cvref_t<Problem_>;
+    using Policy  = remove_cvref_t<Policy_>;
+
+    using Traits = GemmTraits_<Problem, Policy>;
+
+    using WarpGemm       = typename Traits::WarpGemm;
+    using BlockGemmShape = typename Traits::BlockGemmShape;
+
+    using ADataType = remove_cvref_t<typename Traits::ADataType>;
+    using BDataType = remove_cvref_t<typename Traits::BDataType>;
+    using CDataType = remove_cvref_t<typename Traits::CDataType>;
+
+    static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
+    static constexpr index_t MIterPerWarp = Traits::MIterPerWarp;
+    static constexpr index_t NIterPerWarp = Traits::NIterPerWarp;
+
+    static constexpr index_t MWarp = Traits::MWarp;
+    static constexpr index_t NWarp = Traits::NWarp;
 
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
@@ -43,7 +73,7 @@ struct BlockGemmARegBRegCRegV1
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
         constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            a_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});
+            a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
 
         return a_block_dstr_encode;
     }
@@ -58,7 +88,7 @@ struct BlockGemmARegBRegCRegV1
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
         constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            b_block_outer_dstr_encoding, typename WG::BWarpDstrEncoding{});
+            b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
 
         return b_block_dstr_encode;
     }
@@ -73,7 +103,7 @@ struct BlockGemmARegBRegCRegV1
             sequence<1, 2>,
             sequence<0, 0>>{};
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
+            c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
 
         return c_block_dstr_encode;
     }
@@ -112,13 +142,13 @@ struct BlockGemmARegBRegCRegV1
                                                        .get_static_tile_distribution_encoding())>>,
             "C distribution is wrong!");
 
-        using AWarpDstr = typename WG::AWarpDstr;
-        using BWarpDstr = typename WG::BWarpDstr;
-        using CWarpDstr = typename WG::CWarpDstr;
+        using AWarpDstr = typename WarpGemm::AWarpDstr;
+        using BWarpDstr = typename WarpGemm::BWarpDstr;
+        using CWarpDstr = typename WarpGemm::CWarpDstr;
 
-        using AWarpTensor = typename WG::AWarpTensor;
-        using BWarpTensor = typename WG::BWarpTensor;
-        using CWarpTensor = typename WG::CWarpTensor;
+        using AWarpTensor = typename WarpGemm::AWarpTensor;
+        using BWarpTensor = typename WarpGemm::BWarpTensor;
+        using CWarpTensor = typename WarpGemm::CWarpTensor;
 
         constexpr auto a_warp_y_lengths =
             to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
@@ -157,7 +187,7 @@ struct BlockGemmARegBRegCRegV1
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                     // warp GEMM
-                    WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                    WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
 
                     // write C warp tensor into C block tensor
                     c_block_tensor.set_y_sliced_thread_data(
@@ -180,7 +210,7 @@ struct BlockGemmARegBRegCRegV1
             sequence<0, 0>>{};
 
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
+            c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
         auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
         return c_block_tensor;

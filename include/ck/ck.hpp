@@ -4,8 +4,9 @@
 #pragma once
 
 #include "ck/config.h"
+
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include "ck/utility/env.hpp"
-#ifndef CK_CODE_GEN_RTC
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
@@ -54,11 +55,10 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #endif
 
 // define general macros for various architectures
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
-    defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
 #define __gfx9__
 #endif
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
 #if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__)

@@ -1495,10 +1495,13 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         // if workspace is not allocated
         if(!arg.p_workspace_)
         {
-            std::cerr << "Warning: Workspace for "
-                         "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
-                         "allocated, use SetWorkSpacePointer."
-                      << std::endl;
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Warning: Workspace for "
+                             "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
+                             "allocated, use SetWorkSpacePointer."
+                          << std::endl;
+            }
             return false;
         }
         if(!ck::is_xdl_supported())
@@ -1615,6 +1618,13 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             }
 
             if(output_spatial_acum % TransposeTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+
+            constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+            if(!(arg.a_out_transpose_desc_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+                 arg.b_out_transpose_desc_.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB))
             {
                 return false;
             }

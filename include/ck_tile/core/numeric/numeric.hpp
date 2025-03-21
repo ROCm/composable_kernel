@@ -77,7 +77,10 @@ struct numeric
 };
 
 template <typename T>
-struct numeric_traits;
+struct numeric_traits
+{
+    static constexpr int PackedSize = 1;
+};
 
 template <>
 struct numeric_traits<float>
@@ -94,6 +97,7 @@ struct numeric_traits<float>
     static constexpr uint32_t NegInf    = 0xFF800000;
     static constexpr uint32_t NaN       = 0x7F800001;
     static constexpr uint32_t Neg0      = 0x80000000;
+    static constexpr int PackedSize     = 1;
     using bitwise_type                  = uint32_t;
 };
 

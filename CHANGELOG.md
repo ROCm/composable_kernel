@@ -2,6 +2,30 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
+## Composable Kernel 1.1.0 for ROCm 6.5.0
+
+### Added
+
+* Added support for bf16, f32, and f16 for 2D and 3D NGCHW grouped convolution backward data
+
+### Optimized
+
+None
+
+### Fixes
+
+None
+
+### Changes
+
+* Removed support for gfx940 and gfx941 targets (#1944)
+* Replaced the raw buffer load/store intrinsics with Clang20 built-ins (#1876)
+* DL and DPP kernels are now enabled by default.
+
+### Known issues
+
+None
+
 ## Composable Kernel 1.1.0 for ROCm 6.1.0
 
 ### Additions

@@ -224,6 +224,13 @@ struct ThreadwiseTensorSliceTransfer_v2
 
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
 
+    static constexpr index_t PackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     __device__ constexpr ThreadwiseTensorSliceTransfer_v2(const SrcDesc& src_desc,
                                                           const Index& src_slice_origin_idx)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin_idx))
@@ -232,6 +239,11 @@ struct ThreadwiseTensorSliceTransfer_v2
                       "wrong! SrcDesc need to known at compile-time");
         static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
                       "wrong! Not divisible");
+
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        {
+            static_assert(SrcScalarPerVector % PackedSize == 0, "pk data N cannot be 1");
+        }
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -276,10 +288,10 @@ struct ThreadwiseTensorSliceTransfer_v2
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
 
         static_for<0, num_access, 1>{}([&](auto idx_1d) {
-            typename vector_type_maker<SrcData, SrcScalarPerVector>::type src_vector;
+            typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type src_vector;
 
             using src_vector_t =
-                typename vector_type_maker<SrcData, SrcScalarPerVector>::type::type;
+                typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type::type;
             constexpr auto src_data_idx = SpaceFillingCurve::GetIndex(idx_1d);
 
             const bool is_src_valid =
@@ -287,10 +299,11 @@ struct ThreadwiseTensorSliceTransfer_v2
 
             // copy data from src_buf into src_vector
             src_vector.template AsType<src_vector_t>()(Number<0>{}) =
-                src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid);
+                src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize,
+                                                   is_src_valid);
 
             // copy data from src_vector into dst_buf
-            static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+            static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
                 constexpr index_t dst_offset =
                     dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) + src_data_idx +
                                              i * src_scalar_step_in_vector);
@@ -1465,6 +1478,13 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
 
     using Index = MultiIndex<nDim>;
 
+    static constexpr index_t PackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     __device__ constexpr ThreadwiseTensorSliceTransfer_StaticToStatic(
         const ElementwiseOperation& element_op)
         : element_op_{element_op}
@@ -1485,7 +1505,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
                         const SrcBuffer& src_buf,
                         const DstDesc&,
                         const DstSliceOriginIdx&,
-                        DstBuffer& dst_buf)
+                        DstBuffer& dst_buf) const
     {
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! Desc need to known at compile-time");
@@ -1519,26 +1539,71 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
 
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
 
-        static_for<0, num_access, 1>{}([&](auto idx_1d) {
-            constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
+        if constexpr(is_same<remove_cvref_t<SrcData>, pk_i4_t>::value)
+        {
+            static_for<0, num_access, 1>{}([&](auto idx_1d) {
+                typename vector_type_maker<SrcData, DstScalarPerVector / PackedSize>::type
+                    src_tmp_vector;
 
-            // copy data from src_buf into dst_vector
-            static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
-                constexpr index_t src_offset = src_desc.CalculateOffset(
-                    src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
+                constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
 
-                constexpr index_t dst_offset = dst_desc.CalculateOffset(
-                    dst_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
+                // copy data from src_buf into dst_vector
+                static_for<0, DstScalarPerVector / PackedSize, 1>{}([&](auto i) {
+                    constexpr index_t src_offset = src_desc.CalculateOffset(
+                        src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
 
-                DstData v;
+                    src_tmp_vector.template AsType<SrcData>()(i) = src_buf[Number<src_offset>{}];
+                });
 
-                // apply element-wise operation
-                element_op_(v, src_buf[Number<src_offset>{}]);
+                // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
+                // DstData)
+                vector_type_maker_t<DstData, DstScalarPerVector> dst_tmp_vector;
 
-                // apply type convert
-                dst_buf(Number<dst_offset>{}) = v;
+                constexpr index_t pack_size = 8;
+
+                static_assert(DstScalarPerVector % pack_size == 0, "");
+
+                using src_v_t = typename vector_type_maker_t<SrcData, pack_size / PackedSize>::type;
+                using dst_v_t = typename vector_type_maker_t<DstData, pack_size>::type;
+
+                static_for<0, DstScalarPerVector / pack_size, 1>{}([&](auto i) {
+                    ck::tensor_operation::element_wise::PassThroughPack8{}(
+                        dst_tmp_vector.template AsType<dst_v_t>()(i),
+                        src_tmp_vector.template AsType<src_v_t>()[i]);
+                });
+
+                // copy data from dst_tmp_vector into dst_buf
+                static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
+                    constexpr index_t dst_offset = dst_desc.CalculateOffset(
+                        dst_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
+
+                    dst_buf(Number<dst_offset>{}) = dst_tmp_vector.template AsType<DstData>()[i];
+                });
             });
-        });
+        }
+        else
+        {
+            static_for<0, num_access, 1>{}([&](auto idx_1d) {
+                constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
+
+                // copy data from src_buf into dst_vector
+                static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
+                    constexpr index_t src_offset = src_desc.CalculateOffset(
+                        src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
+
+                    constexpr index_t dst_offset = dst_desc.CalculateOffset(
+                        dst_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
+
+                    DstData v;
+
+                    // apply element-wise operation
+                    element_op_(v, src_buf[Number<src_offset>{}]);
+
+                    // apply type convert
+                    dst_buf(Number<dst_offset>{}) = v;
+                });
+            });
+        }
     }
 
     ElementwiseOperation element_op_;
