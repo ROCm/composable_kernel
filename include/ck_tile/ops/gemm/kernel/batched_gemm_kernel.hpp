@@ -9,7 +9,7 @@
 
 namespace ck_tile {
 
-struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs
+struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs<>
 {
     CK_TILE_HOST BatchedGemmHostArgs() = default;
     CK_TILE_HOST BatchedGemmHostArgs(const void* a_ptr_,
@@ -26,8 +26,18 @@ struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs
                                      ck_tile::index_t batch_stride_B_,
                                      ck_tile::index_t batch_stride_C_,
                                      ck_tile::index_t batch_count_)
-        : GemmHostArgs(
-              a_ptr_, b_ptr_, c_ptr_, k_batch_, M_, N_, K_, stride_A_, stride_B_, stride_C_),
+        : GemmHostArgs(a_ptr_,
+                       b_ptr_,
+                       {},
+                       c_ptr_,
+                       k_batch_,
+                       M_,
+                       N_,
+                       K_,
+                       stride_A_,
+                       stride_B_,
+                       {},
+                       stride_C_),
           batch_stride_A(batch_stride_A_),
           batch_stride_B(batch_stride_B_),
           batch_stride_C(batch_stride_C_),
@@ -46,7 +56,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 {
     using Base = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
 
-    using GemmKernelArgs = typename ck_tile::GemmKernelArgs;
+    using GemmKernelArgs = typename ck_tile::GemmKernelArgs<>;
 
     using ADataType = typename Base::ADataType;
     using BDataType = typename Base::BDataType;
@@ -94,12 +104,14 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     {
         return BatchedGemmKernelArgs{{hostArgs.a_ptr,
                                       hostArgs.b_ptr,
+                                      {},
                                       hostArgs.c_ptr,
                                       hostArgs.M,
                                       hostArgs.N,
                                       hostArgs.K,
                                       hostArgs.stride_A,
                                       hostArgs.stride_B,
+                                      {},
                                       hostArgs.stride_C,
                                       hostArgs.k_batch},
                                      hostArgs.batch_stride_A,
@@ -144,12 +156,12 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
         if(kargs.k_batch == 1)
         {
-            this->RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+            this->RunGemm(a_ptr, b_ptr, {}, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
         }
         else
         {
             this->template RunGemm<memory_operation_enum::atomic_add>(
-                a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+                a_ptr, b_ptr, {}, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
         }
     }
 };

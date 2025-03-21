@@ -219,4 +219,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
+float gemm_calc(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s);

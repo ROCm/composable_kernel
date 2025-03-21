@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -8,12 +8,14 @@
 #include <ostream>
 #include <string>
 #include <tuple>
+#include <memory>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
-#include "batched_gemm.hpp"
+#include "multi_d_gemm.hpp"
+#include "utils.hpp"
 
 template <typename ADataType,
           typename BDataType,
@@ -25,7 +27,7 @@ template <typename ADataType,
           typename DsLayout,
           typename CLayout,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stream_config& s)
+auto multiple_d_gemm(const multiple_d_gemm_kargs& args, const ck_tile::stream_config& s) -> float
 {
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
     // Memory friendly for Interwave scheduler
@@ -90,10 +92,12 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+
     using TilePartitioner = ck_tile::
         GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
     using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                  kPadN,
                                                                  kPadK,
@@ -150,10 +154,10 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
                                              K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC>>;
 
-        using Kernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch, args.batch_count);
+        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
         constexpr dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
@@ -163,11 +167,8 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
 
         if(s.log_level_ > 0)
         {
-            std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                      << "shape: " << GemmShape::GetName() << '\n'
-                      << "problem: " << GemmPipelineProblem::GetName() << '\n'
-                      << "pipeline: " << GemmPipeline::GetName() << '\n'
-                      << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+            std::cout << "Launching kernel with args:"
+                      << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                       << std::endl;
         }
@@ -198,8 +199,8 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
         else
         {
             std::ostringstream err;
-            err << "Incorrect tail_num for compv3 pipeline! Expected Full, Odd or Even, but got "
-                << tail_num << "\nPrefetchStages: " << BaseGemmPipeline::PrefetchStages
+            err << "For compute pipeline tail number should always be Full, but have \"" << tail_num
+                << "\" which is not supported! PrefetchStages: " << BaseGemmPipeline::PrefetchStages
                 << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
             throw std::runtime_error(err.str());
         }
@@ -294,17 +295,19 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
             Run(ck_tile::bool_constant<false>{},
                 ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
         }
-        std::ostringstream err;
-        err << "Incorrect tail_num for pipeline without hotloop, expected Full, Odd or Even, but "
-               "got "
-            << tail_num << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages
-            << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
-        throw std::runtime_error(err.str());
+        else
+        {
+            std::ostringstream err;
+            err << "Num K loop must be larger than number of prefetech stages."
+                << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages
+                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+            throw std::runtime_error(err.str());
+        }
     }
 
     return ave_time;
 }
 
-#include "run_batched_gemm_example.inc"
+#include "run_multi_d_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return !run_batched_gemm_example(argc, argv); }
+int main(int argc, char* argv[]) { return !run_multiple_d_gemm_example(argc, argv); }

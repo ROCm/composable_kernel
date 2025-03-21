@@ -11,6 +11,7 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 template <typename Tuple>
 class TestCkTileBatchedGemm : public ::testing::Test
@@ -23,6 +24,8 @@ class TestCkTileBatchedGemm : public ::testing::Test
     using BDataType   = std::tuple_element_t<4, Tuple>;
     using AccDataType = std::tuple_element_t<5, Tuple>;
     using CDataType   = std::tuple_element_t<6, Tuple>;
+    using DsLayout    = ck_tile::tuple<>;
+    using DsDataType  = ck_tile::tuple<>;
 
     template <typename ALayout, typename BLayout, typename CLayout>
     void invoke_batched_gemm(const ck_tile::BatchedGemmHostArgs& args,
@@ -99,9 +102,12 @@ class TestCkTileBatchedGemm : public ::testing::Test
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
+                                                 DsDataType,
                                                  AccDataType,
                                                  CDataType,
+                                                 DsLayout,
                                                  CLayout,
+                                                 ck_tile::element_wise::PassThrough,
                                                  GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
