@@ -795,7 +795,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
             constexpr auto KThreadWrite     = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);
             constexpr auto K0PerThreadWrite = AK0Number / KThreadWrite;
-            constexpr auto KThreadRead      = 64 / MPerXdl;
+            constexpr auto KThreadRead      = BlockwiseGemmPipe::WaveSize / MPerXdl;
             constexpr auto K0PerThreadRead  = AK0Number / KThreadRead;
 
             constexpr auto kfold = (AK1Number * M0 * sizeof(ADataType) > 128)
@@ -927,7 +927,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
             constexpr auto KThreadWrite     = BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I0);
             constexpr auto K0PerThreadWrite = BK0Number / KThreadWrite;
-            constexpr auto KThreadRead      = 64 / NPerXdl;
+            constexpr auto KThreadRead      = BlockwiseGemmPipe::WaveSize / NPerXdl;
             constexpr auto K0PerThreadRead  = BK0Number / KThreadRead;
 
             constexpr auto kfold = (BK1Number * N0 * sizeof(BDataType) > 128)
@@ -1494,7 +1494,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         auto a_thread_offset_m =
             MPerXdl * ((get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) / MWaves) +
-            mfma.selected_mfma.group_size * ((get_thread_local_1d_id() % 64) / MPerXdl);
+            mfma.selected_mfma.group_size *
+                ((get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) / MPerXdl);
         auto a_thread_offset_k = KPerThread * (get_thread_local_1d_id() % MPerXdl) / MPerXdl;
 
         auto b_thread_offset_n =
@@ -1994,8 +1995,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
 
         auto b_thread_offset_n =
-            get_thread_local_1d_id() % NPerXdl + (get_thread_local_1d_id() / 64) % NWaves * NPerXdl;
-        auto b_thread_offset_k = (get_thread_local_1d_id() % 64) / NPerXdl * KPerThread;
+            get_thread_local_1d_id() % NPerXdl +
+            (get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) % NWaves * NPerXdl;
+        auto b_thread_offset_k =
+            (get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) / NPerXdl * KPerThread;
 
         auto b_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<BScaleDataType,

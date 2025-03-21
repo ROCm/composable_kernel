@@ -15,7 +15,8 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename AScaleDataType,
           typename BDataType,
           typename BScaleDataType,
-          typename ComputeDataType,
+          typename ComputeDataType, // TODO: remove this as in this pipeline ADataType and BDataType
+                                    // must be used for compute
           typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
