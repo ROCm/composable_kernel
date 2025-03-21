@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1_gather.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r3_scatter.hpp"
 
@@ -221,6 +221,7 @@ struct GridwiseMoeGemm
         const index_t mblock = math::integer_divide_ceil(M, MPerBlock);
         const index_t gridx  = NSwizzle ? nblock * mblock : nblock;
         const index_t gridy  = NSwizzle ? 1 : mblock;
+
         return std::make_tuple(gridx, gridy, 1);
     }
 
@@ -1221,7 +1222,7 @@ struct GridwiseMoeGemm
             }
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
-        const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
+        const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K * 2);
 
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
@@ -1233,6 +1234,10 @@ struct GridwiseMoeGemm
             p_b_grid + expert_id * expert_stride / BPackedSize,
             b_grid_desc_bpreshuffled.GetElementSpaceSize());
 
+        const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2;
+        const auto b_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_b_grid_up + expert_id * expert_stride / BPackedSize,
+            b_grid_desc_bpreshuffled.GetElementSpaceSize());
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
@@ -1293,6 +1298,21 @@ struct GridwiseMoeGemm
                                    0,
                                    KPack * (get_thread_local_1d_id() % warpSize)));
 
+        auto b_blockwise_copy_up = ThreadwiseTensorSliceTransfer_v2<
+            BDataType,
+            BDataType,
+            decltype(b_grid_desc_bpreshuffled),
+            decltype(b_block_desc_bk0_n_bk1),
+            Sequence<Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}>,
+            Sequence<1, 2, 0, 3>,
+            3,
+            BBlockTransferSrcScalarPerVector,
+            BThreadTransferSrcResetCoordinateAfterRun,
+            true>(b_grid_desc_bpreshuffled,
+                  make_multi_index(n_block_data_idx_on_grid,
+                                   get_warp_local_1d_id() % NWave,
+                                   0,
+                                   KPack * (get_thread_local_1d_id() % warpSize)));
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
@@ -1306,6 +1326,7 @@ struct GridwiseMoeGemm
         auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
         auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
 
+        StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr, AccDataType, MXdlPerWave * NXdlPerWave, 16, true> c_thread_buf_up;
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
@@ -1318,11 +1339,25 @@ struct GridwiseMoeGemm
                                                                          a_block_slice_copy_step,
                                                                          b_grid_desc_bpreshuffled,
                                                                          b_blockwise_copy,
+                                                                         b_blockwise_copy_up,
                                                                          b_grid_buf,
+                                                                         b_grid_buf_up,
                                                                          b_block_buf,
                                                                          b_block_slice_copy_step,
                                                                          c_thread_buf,
+                                                                         c_thread_buf_up,
                                                                          num_k_block_main_loop);
+
+        static constexpr int c_len = MXdlPerWave * NXdlPerWave / 2 * 16;
+        constexpr float one = 1.0;
+
+        static_for<0, c_thread_buf.Size(), 1>{}([&](auto i) {
+            // c_thread_buf(i) = c_thread_buf[i] + c_thread_buf_up[i];
+            // printf("cccc bid %d tid %d %f %f\n", blockIdx.x, threadIdx.x,
+            //     type_convert<float>(c_thread_buf[i]),
+            //     type_convert<float>(c_thread_buf_up[i]));
+            c_thread_buf(i) = c_thread_buf[i] * (c_thread_buf_up[i] * (one / (one + math::exp(-c_thread_buf_up[i]))));
+        });
 
         // shuffle C and write out
         {
