@@ -62,6 +62,6 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-using multiple_d_gemm_kargs = ck_tile::GemmHostArgs<DsDataType::size()>;
+using multiple_d_gemm_kargs = ck_tile::GemmHostArgs;
 
 float multiple_d_gemm(const multiple_d_gemm_kargs& kargs, const ck_tile::stream_config& s);

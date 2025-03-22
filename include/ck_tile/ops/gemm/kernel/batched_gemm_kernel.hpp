@@ -9,7 +9,7 @@
 
 namespace ck_tile {
 
-struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs</*NumDTensor = 0*/>
+struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs
 {
     CK_TILE_HOST BatchedGemmHostArgs() = default;
     CK_TILE_HOST BatchedGemmHostArgs(const void* a_ptr_,

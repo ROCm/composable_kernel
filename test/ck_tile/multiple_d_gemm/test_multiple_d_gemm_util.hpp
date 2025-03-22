@@ -64,8 +64,7 @@ class TestCkTileMultipleDGemm : public ::testing::Test
               typename DsLayout,
               typename CLayout,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    void invoke_multi_d_gemm(const ck_tile::GemmHostArgs<DsDataType::size()>& args,
-                             const ck_tile::stream_config& s)
+    void invoke_multi_d_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         constexpr ck_tile::index_t M_Tile = 256;
         constexpr ck_tile::index_t N_Tile = 256;
@@ -291,18 +290,18 @@ class TestCkTileMultipleDGemm : public ::testing::Test
                                                                   d1_m_n_dev_buf.GetDeviceBuffer()};
         std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {StrideD0, StrideD1};
 
-        ck_tile::GemmHostArgs<DsDataType::size()> args({a_m_k_dev_buf.GetDeviceBuffer(),
-                                                        b_k_n_dev_buf.GetDeviceBuffer(),
-                                                        ds_ptr_buf,
-                                                        c_m_n_dev_buf.GetDeviceBuffer(),
-                                                        /* kBatch */ 1,
-                                                        M,
-                                                        N,
-                                                        K,
-                                                        StrideA,
-                                                        StrideB,
-                                                        stridesDs,
-                                                        StrideC});
+        ck_tile::GemmHostArgs args({a_m_k_dev_buf.GetDeviceBuffer(),
+                                    b_k_n_dev_buf.GetDeviceBuffer(),
+                                    ds_ptr_buf.data(),
+                                    c_m_n_dev_buf.GetDeviceBuffer(),
+                                    /* kBatch */ 1,
+                                    M,
+                                    N,
+                                    K,
+                                    StrideA,
+                                    StrideB,
+                                    stridesDs.data(),
+                                    StrideC});
 
         invoke_multi_d_gemm<ADataType,
                             BDataType,

@@ -12,13 +12,12 @@
 
 namespace ck_tile {
 
-template <index_t NumDTensor = 0>
 struct GemmHostArgs
 {
     CK_TILE_HOST GemmHostArgs() = default;
     CK_TILE_HOST GemmHostArgs(const void* a_ptr_,
                               const void* b_ptr_,
-                              const std::array<const void*, NumDTensor>& ds_ptr_,
+                              const void* ds_ptr_,
                               void* c_ptr_,
                               index_t k_batch_,
                               index_t M_,
@@ -26,7 +25,7 @@ struct GemmHostArgs
                               index_t K_,
                               index_t stride_A_,
                               index_t stride_B_,
-                              const std::array<index_t, NumDTensor>& stride_Ds_,
+                              const index_t* stride_Ds_,
                               index_t stride_C_)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
@@ -45,14 +44,14 @@ struct GemmHostArgs
 
     const void* a_ptr;
     const void* b_ptr;
-    const std::array<const void*, NumDTensor> ds_ptr;
+    const void* ds_ptr;
     void* c_ptr;
     index_t M;
     index_t N;
     index_t K;
     index_t stride_A;
     index_t stride_B;
-    const std::array<index_t, NumDTensor> stride_Ds;
+    const index_t* stride_Ds;
     index_t stride_C;
     index_t k_batch;
 };
@@ -126,19 +125,18 @@ struct GemmKernel
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
-    CK_TILE_HOST static constexpr GemmKernelArgs
-    MakeKernelArgs(const GemmHostArgs<NumDTensor>& hostArgs)
+    CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(const GemmHostArgs& hostArgs)
     {
         return GemmKernelArgs{hostArgs.a_ptr,
                               hostArgs.b_ptr,
-                              static_cast<const void*>(hostArgs.ds_ptr.data()),
+                              hostArgs.ds_ptr, // static_cast<const void*>(hostArgs.ds_ptr.data()),
                               hostArgs.c_ptr,
                               hostArgs.M,
                               hostArgs.N,
                               hostArgs.K,
                               hostArgs.stride_A,
                               hostArgs.stride_B,
-                              hostArgs.stride_Ds.data(),
+                              hostArgs.stride_Ds,
                               hostArgs.stride_C,
                               hostArgs.k_batch};
     }
