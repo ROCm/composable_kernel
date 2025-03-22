@@ -59,35 +59,15 @@ struct MulABScale
     __host__ __device__ constexpr void operator()<EDataType, float, float, float>(
         EDataType& e, const float& c, const float& d0, const float& d1) const
     {
-        e = ck::type_convert<EDataType>(c * d1 * d0);
+        e = ck::type_convert<EDataType>(c * d0);
     }
 };
 
-// for gate, a_scale, b_scale, fuse silu,
-struct MulABScaleSilu
-{
-    template <typename E, typename C, typename D0, typename D1>
-    __host__ __device__ constexpr void
-    operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
-
-    template <>
-    __host__ __device__ constexpr void operator()<EDataType, float, float>(EDataType& e,
-                                                                           const float& c,
-                                                                           const float& d0,
-                                                                           const float& d1) const
-    {
-        // act
-        float x0 = 0;
-        ck::tensor_operation::element_wise::Silu{}(x0, c * d1 * d0);
-        e = ck::type_convert<EDataType>(x0);
-    }
-};
 
 // using DsLayout = DsLayoutGate;
 // using DsDataType       = DsDataTypeGate;
 using CDEElementOp = MulABScale;
 
-// using CDEElementOp = MulABScaleSiluMulGate;
 
 void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int NXdl)
 {
@@ -224,7 +204,7 @@ int main(int argc, char* argv[])
     ck::index_t StrideB              = K;
     ck::index_t StrideE              = N;
     constexpr ck::index_t NumDTensor = DsDataType::Size();
-    constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{1, 0};
+    constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{1, 1};
 
     ck::index_t KBatch = 1;
 
@@ -264,7 +244,7 @@ int main(int argc, char* argv[])
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
-    Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
+    Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N * 2}, {StrideDs[1] ? StrideDs[1] * N * 2: 1, StrideDs[1]}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
     Tensor<EDataType> e_t_n_device_result(
         HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
@@ -278,10 +258,10 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
-        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
+        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{0, 2});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 2});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{0, 2});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{0, 2});
         break;
     case 2:
         a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
@@ -404,6 +384,7 @@ int main(int argc, char* argv[])
                                                       MPerBlock,
                                                       a0_t_k,
                                                       b0_e_n_k,
+                                                      d1_e_n,
                                                       c_t_k_n,
                                                       PassThrough{},
                                                       PassThrough{},

@@ -35,6 +35,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                  const index_t sorted_tile_size,
                  const Tensor<ADataType>& a_t_k,
                  const Tensor<BDataType>& b_e_n_k,
+                 const Tensor<float>& b_scale_e_n,
                  Tensor<CDataType>& c_t_k_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -45,6 +46,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
               sorted_tile_size_{sorted_tile_size},
               a_t_k_{a_t_k},
               b_e_n_k_{b_e_n_k},
+              b_scale_e_n_{b_scale_e_n},
               c_t_k_n_{c_t_k_n},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
@@ -58,6 +60,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
         index_t sorted_tile_size_;
         const Tensor<ADataType>& a_t_k_;
         const Tensor<BDataType>& b_e_n_k_;
+        const Tensor<float>& b_scale_e_n_;
         Tensor<CDataType>& c_t_k_n_;
 
         AElementwiseOperation a_element_op_;
@@ -137,6 +140,8 @@ struct ReferenceMoeGemm : public device::BaseOperator
 
                     arg.c_element_op_(v_c, v_acc);
                     arg.c_element_op_(v_c_up, v_acc_up);
+                    v_c = v_c * arg.b_scale_e_n_(e, n);
+                    v_c_up = v_c_up * arg.b_scale_e_n_(e, n + full_n);
                     arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up * (1.0 / (1.0 + math::exp(-v_c_up)));
                     // arg.c_t_k_n_(t, topk_id, n) = v_c + v_c_up;
                 }
@@ -171,6 +176,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                              const index_t sorted_tile_size,
                              const Tensor<ADataType>& a_t_k,
                              const Tensor<BDataType>& b_e_n_k,
+                             const Tensor<float>& b_scale_e_n,
                              Tensor<CDataType>& c_t_k_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
@@ -182,6 +188,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         sorted_tile_size,
                         a_t_k,
                         b_e_n_k,
+                        b_scale_e_n,
                         c_t_k_n,
                         a_element_op,
                         b_element_op,
