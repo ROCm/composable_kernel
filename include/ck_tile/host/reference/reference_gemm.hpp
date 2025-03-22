@@ -77,12 +77,11 @@ template <typename ADataType,
           typename AccDataType,
           typename CDataType,
           typename ACCElementOp>
-CK_TILE_HOST void
-reference_gemm_multiple_d(const HostTensor<ADataType>& a_m_k,
-                          const HostTensor<BDataType>& b_k_n,
-                          const DsDataType& ds_m_n,
-                          HostTensor<CDataType>& c_m_n,
-                          const ACCElementOp& acc_element_op = {})
+CK_TILE_HOST void reference_gemm_multiple_d(const HostTensor<ADataType>& a_m_k,
+                                            const HostTensor<BDataType>& b_k_n,
+                                            const DsDataType& ds_m_n,
+                                            HostTensor<CDataType>& c_m_n,
+                                            const ACCElementOp& acc_element_op = {})
 {
     const std::size_t M = a_m_k.get_length(0);
     const std::size_t N = b_k_n.get_length(1);
