@@ -103,8 +103,8 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
 
             auto dst_vector_container = dst_vector_type{};
 
-#if defined(EMIN_DEBUG_THREADWISE) && (EMIN_DEBUG_THREADWISE == 1)
-    // Use compile-time flag instead of getenv in device code
+#if 0
+   
     if (threadIdx.x == 0 && threadIdx.y == 0 && is_src_valid)
     {
         if constexpr (std::is_same<SrcData, ck::bhalf_t>::value)
@@ -115,7 +115,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
             uint32_t fp32_bits = static_cast<uint32_t>(src_vector_container_bf16_value) << 16;
             float src_vector_container_fp32_value;
             memcpy(&src_vector_container_fp32_value, &fp32_bits, sizeof(float));
-            printf("BlockId %d - Threadwise_tensor slice v6r1r2 (bf16) line %d: Src Vector Data at idx %d: %f\n",
+            printf("Threadwise_tensor slice v6r1r2 (bf16) : BlockId %d -  line %d: Src Vector Data at idx %d: %f\n",
                    static_cast<int>(blockIdx.x),
                    __LINE__,
                    static_cast<int>(idx_1d.value),
@@ -126,7 +126,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
             // Debug print for non-bf16: print after type conversion to float
             float src_val = static_cast<float>(
                 src_vector_container.template AsType<SrcData>().At(Number<0>{}));
-            printf("BlockId %d - Threadwise_tensor slice v6r1r2 line %d: Src Vector Data at idx %d: %f\n",
+            printf("Threadwise_tensor slice v6r1r2 : BlockId %d -  line %d: Src Vector Data at idx %d: %f\n",
                    static_cast<int>(blockIdx.x),
                    __LINE__,
                    static_cast<int>(idx_1d.value),
@@ -149,7 +149,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
-#if 1
+#if 0
             // Debug print for destination values
             if (blockIdx.x == 0 && threadIdx.x == 0 && threadIdx.y == 0 && is_dst_valid)
             {
@@ -177,7 +177,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                 {
                     op_str="Unknown";
                 }
-                printf("BlockId %d - Line %d: DstInMemOp=%s, Dst Vector Data at idx %d: %f\n",
+                printf("Threadwise_tensor_slice_transfer_v6r1r2 : BlockId %d - Line %d: DstInMemOp=%s, Dst Vector Data at idx %d: %f\n",
                         static_cast<int>(blockIdx.x),
                         __LINE__,
                         op_str,
@@ -204,7 +204,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
 
          
 
-#if 1
+#if 0
             // Emin @debug
             //  // Debug: Print data before copying from dst_vector into dst_buf
             if (threadIdx.x == 0 && threadIdx.y == 0 && is_dst_valid) {
@@ -221,7 +221,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
                 auto dst_fp16_value = dst_value[0];
                 float dst_fp32_value = static_cast<float>(dst_fp16_value);
 
-                printf("BlockId %d - Line %d: (After dst_buf Update)- Dst Vector Data being copied to dst_buf at idx %d: %f\n",
+                printf("Threadwise_tensor_slice_transfer_v6r1r2 : BlockId %d - Line %d: (After dst_buf Update)- Dst Vector Data being copied to dst_buf at idx %d: %f\n",
                     static_cast<int>(blockIdx.x),
                     __LINE__,
                     static_cast<int>(idx_1d.value),
