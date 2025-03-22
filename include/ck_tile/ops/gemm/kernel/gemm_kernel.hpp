@@ -56,6 +56,20 @@ struct GemmHostArgs : public GemmProblem
     index_t k_batch;
 };
 
+struct GemmKernelArgs
+{
+    const void* a_ptr;
+    const void* b_ptr;
+    void* c_ptr;
+    index_t M;
+    index_t N;
+    index_t K;
+    index_t stride_A;
+    index_t stride_B;
+    index_t stride_C;
+    index_t k_batch;
+};
+
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GemmKernel
 {
@@ -89,20 +103,6 @@ struct GemmKernel
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
-
-    struct GemmKernelArgs
-    {
-        const void* a_ptr;
-        const void* b_ptr;
-        void* c_ptr;
-        index_t M;
-        index_t N;
-        index_t K;
-        index_t stride_A;
-        index_t stride_B;
-        index_t stride_C;
-        index_t k_batch;
-    };
 
     CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(const GemmHostArgs& hostArgs)
     {
@@ -167,7 +167,7 @@ struct GemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
     {
-        if constexpr(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
+        if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                      is_any_of<CDataType, fp16_t, bf16_t>::value)
         {
             if(kargs.k_batch != 1)
@@ -275,7 +275,7 @@ struct GemmKernel
                 }
                 return false;
             }
-            if(kargs.N % EpiloguePipeline::template GetVectorSizeC<CDataType>() != 0)
+            if(kargs.N % EpiloguePipeline::GetVectorSizeC() != 0)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
@@ -295,7 +295,7 @@ struct GemmKernel
                 }
                 return false;
             }
-            if(kargs.M % EpiloguePipeline::template GetVectorSizeC<CDataType>() != 0)
+            if(kargs.M % EpiloguePipeline::GetVectorSizeC() != 0)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
@@ -407,7 +407,7 @@ struct GemmKernel
                     c_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(kargs.stride_C, 1),
-                    number<EpiloguePipeline::template GetVectorSizeC<CDataType>()>{},
+                    number<EpiloguePipeline::GetVectorSizeC()>{},
                     number<1>{});
             }
             else
@@ -671,7 +671,7 @@ struct GemmKernel
             }
             else
             {
-                if constexpr(!(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
+                if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                                is_any_of<CDataType, fp16_t, bf16_t>::value))
                 {
                     RunGemm2LDS<memory_operation_enum::atomic_add>(a_ptr,
@@ -694,7 +694,7 @@ struct GemmKernel
             }
             else
             {
-                if constexpr(!(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
+                if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                                is_any_of<CDataType, fp16_t, bf16_t>::value))
                 {
                     RunGemm<memory_operation_enum::atomic_add>(
