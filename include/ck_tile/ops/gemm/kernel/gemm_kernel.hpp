@@ -90,7 +90,6 @@ struct GemmKernel
     // Below type is actually accumulation data type - the output of block GEMM.
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    using Empty_Tuple                   = ck_tile::tuple<>;
     static constexpr index_t NumDTensor = DsDataType::size();
 
     static constexpr auto I0 = number<0>();
