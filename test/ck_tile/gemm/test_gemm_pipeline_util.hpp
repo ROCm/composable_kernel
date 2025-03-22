@@ -82,7 +82,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
     // TODO: expose tile size through test t-param ?
 
     template <bool PadM, bool PadN, bool PadK>
-    void invoke_gemm(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s)
+    void invoke_gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
+                     const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
         constexpr ck_tile::index_t M_Tile = 256;
@@ -423,7 +424,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::GemmHostArgs<> args;
+        ck_tile::GemmHostArgs</*NumDTensor = 0*/> args;
         args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
         args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
         args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();

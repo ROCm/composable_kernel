@@ -13,12 +13,12 @@ namespace ck_tile {
 
 struct GemmTransKernelArg
 {
-    GemmKernelArgs<> group_karg;
+    GemmKernelArgs group_karg;
     ck_tile::index_t block_start;
     ck_tile::index_t block_end;
 
     GemmTransKernelArg() = delete;
-    GemmTransKernelArg(GemmKernelArgs<>&& karg, index_t bl_start, index_t bl_end)
+    GemmTransKernelArg(GemmKernelArgs&& karg, index_t bl_start, index_t bl_end)
         : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
     {
     }
@@ -106,18 +106,18 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
             grid_size += grid_size_grp;
 
-            auto karg = GemmKernelArgs<>{type_convert<const ADataType*>(gemm_descs[i].a_ptr),
-                                         type_convert<const BDataType*>(gemm_descs[i].b_ptr),
-                                         {},
-                                         type_convert<CDataType*>(gemm_descs[i].c_ptr),
-                                         M,
-                                         N,
-                                         K,
-                                         stride_a,
-                                         stride_b,
-                                         {},
-                                         stride_c,
-                                         gemm_descs[i].k_batch};
+            auto karg = GemmKernelArgs{type_convert<const ADataType*>(gemm_descs[i].a_ptr),
+                                       type_convert<const BDataType*>(gemm_descs[i].b_ptr),
+                                       {},
+                                       type_convert<CDataType*>(gemm_descs[i].c_ptr),
+                                       M,
+                                       N,
+                                       K,
+                                       stride_a,
+                                       stride_b,
+                                       {},
+                                       stride_c,
+                                       gemm_descs[i].k_batch};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }
