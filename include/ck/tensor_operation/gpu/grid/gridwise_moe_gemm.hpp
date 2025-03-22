@@ -1325,7 +1325,6 @@ struct GridwiseMoeGemm
         static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
         auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
         auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
-
         StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr, AccDataType, MXdlPerWave * NXdlPerWave, 16, true> c_thread_buf_up;
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
@@ -1350,13 +1349,19 @@ struct GridwiseMoeGemm
 
         static constexpr int c_len = MXdlPerWave * NXdlPerWave / 2 * 16;
         constexpr float one = 1.0;
-
+        static_assert(NXdlPerWave == 1, "ONLY 1 now");
+        constexpr int perTokenQuantStride = 1;
+        const float *scale_b = (const float *)p_ds_grid[I1] +  expert_id * (perTokenQuantStride ? perTokenQuantStride * problem.N * 2: 1) 
+                                                            + (block_n_id * NPerBlock + get_warp_local_1d_id() % NWave * NPerXdl + threadIdx.x % NPerXdl) * perTokenQuantStride;
+        const float scale_gate = scale_b[0];
+        const float scale_up = scale_b[problem.N * perTokenQuantStride];
         static_for<0, c_thread_buf.Size(), 1>{}([&](auto i) {
-            // c_thread_buf(i) = c_thread_buf[i] + c_thread_buf_up[i];
-            // printf("cccc bid %d tid %d %f %f\n", blockIdx.x, threadIdx.x,
-            //     type_convert<float>(c_thread_buf[i]),
-            //     type_convert<float>(c_thread_buf_up[i]));
-            c_thread_buf(i) = c_thread_buf[i] * (c_thread_buf_up[i] * (one / (one + math::exp(-c_thread_buf_up[i]))));
+            auto up =  scale_up * c_thread_buf_up[i];
+            // c_thread_buf(i) = scale_gate * c_thread_buf[i] + up;
+            // printf("tid %d off %d %d scale %f %f\n", threadIdx.x, expert_id * (perTokenQuantStride ? perTokenQuantStride * problem.N * 2: 1) 
+            // + (block_n_id * NPerBlock + threadIdx.x / 64 * NPerXdl + threadIdx.x % NPerXdl) * perTokenQuantStride,problem.N * perTokenQuantStride,
+            // scale_gate, scale_up);
+            c_thread_buf(i) = scale_gate * c_thread_buf[i] * (up * math::rcp( (one + math::exp(-up))));
         });
 
         // shuffle C and write out
@@ -1486,11 +1491,11 @@ struct GridwiseMoeGemm
                     const DDataType* ptr_ = p_ds_grid[i];
                     // hack logic here to support different kind of strides. todo fix it.
                     // ascale t, 1; bscale E, N, 1, move ptr to E
-                    if(i.value == 1)
-                    {
-                        ptr_ +=
-                            expert_id * (problem.StrideDs[1] ? problem.StrideDs[1] * problem.N : 1);
-                    }
+                    // if(i.value == 1)
+                    // {
+                    //     ptr_ +=
+                    //         expert_id * (problem.StrideDs[1] ? problem.StrideDs[1] * problem.N : 1);
+                    // }
                     return make_dynamic_buffer<AddressSpaceEnum::Global>(
                         ptr_, ds_grid_desc_m_n[i].GetElementSpaceSize());
                 },
@@ -2006,11 +2011,11 @@ struct GridwiseMoeGemm
                     const DDataType* ptr_ = p_ds_grid[i];
                     // hack logic here to support different kind of strides. todo fix it.
                     // ascale t, 1; bscale E, N, 1, move ptr to E
-                    if(i.value == 1)
-                    {
-                        ptr_ +=
-                            expert_id * (problem.StrideDs[1] ? problem.StrideDs[1] * problem.N : 1);
-                    }
+                    // if(i.value == 1)
+                    // {
+                    //     ptr_ +=
+                    //         expert_id * (problem.StrideDs[1] ? problem.StrideDs[1] * problem.N : 1);
+                    // }
                     return make_dynamic_buffer<AddressSpaceEnum::Global>(
                         ptr_, ds_grid_desc_m_n[i].GetElementSpaceSize());
                 },

@@ -199,6 +199,12 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
                 __builtin_amdgcn_sched_group_barrier(0x008, mfma_interleave, 0);
             }
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            // if constexpr(i.value < num_buffer_load_inst_a) {
+            //     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            //     __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+            //     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            //     __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            // }
         });
 
         // A global
