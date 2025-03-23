@@ -55,8 +55,8 @@ auto create_args(int argc, char* argv[])
         .insert("iperm",
                 "1",
                 "permute input\n"
-                "if true, will be b*h*s*d, else b*s*h*d")
-        .insert("operm", "1", "permute output")
+                "if true, will be b*h*s*d, else b*s*h*d")//no use, will fix to BSHD_BS2HD for input
+        .insert("operm", "1", "permute output")//no use, will fix to BSHD for output
         .insert("bias",
                 "n",
                 "n or 0, no bias\n"
@@ -297,13 +297,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const ck_tile::index_t kN0 = (hdim_q <= 128) ? 128 : 64;
     const ck_tile::index_t nsplits =
         deterministic ? ck_tile::integer_divide_ceil(max_seqlen_k, kN0) : 1;
-
+    
+    // input BSHD_BS2HD
     ck_tile::HostTensor<QDataType> q_host(
-        get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
-    ck_tile::HostTensor<KDataType> k_host(
-        get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
-    ck_tile::HostTensor<VDataType> v_host(
-        get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v));
+        std::array<ck_tile::index_t, 4>{shape_batch, shape_seqlen_q, nhead, hdim_q});
+    ck_tile::HostTensor<KDataType> kv_host(
+        std::array<ck_tile::index_t, 5>{shape_batch, shape_seqlen_k, 2, nhead_k, hdim_q});
     ck_tile::HostTensor<BiasDataType> bias_host(
         bias.type == bias_enum::elementwise_bias
             ? get_lengths(i_perm, 1, 1, shape_seqlen_q, max_seqlen_k)
@@ -313,8 +312,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ? (bias.rank_info == 0 ? std::array<ck_tile::index_t, 2>{1, nhead}
                                    : std::array<ck_tile::index_t, 2>{batch, nhead})
             : std::array<ck_tile::index_t, 2>{1, 1});
+    // o: BSHD
     ck_tile::HostTensor<ODataType> o_host(
-        get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
+        std::array<ck_tile::index_t, 4>{shape_batch, shape_seqlen_q, nhead, hdim_v});
     ck_tile::HostTensor<LSEDataType> lse_host(
         std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q});
     ck_tile::HostTensor<DDataType> d_host(
@@ -322,14 +322,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<RandValOutputDataType> randval_host(
         p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
                    : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
+    // dq, dk, dv also follows BSHD_BS2HD
     ck_tile::HostTensor<QGradDataType> dq_host(
-        get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
-    ck_tile::HostTensor<KGradDataType> dk_host(
-        get_lengths(i_perm, shape_batch, nhead, shape_seqlen_k, hdim_q));
-    ck_tile::HostTensor<VGradDataType> dv_host(
-        get_lengths(i_perm, shape_batch, nhead, shape_seqlen_k, hdim_v));
+        std::array<ck_tile::index_t, 4>{shape_batch, shape_seqlen_q, nhead, hdim_q});
+    ck_tile::HostTensor<KGradDataType> dkv_host(
+        std::array<ck_tile::index_t, 5>{shape_batch, shape_seqlen_k, 2, nhead_k, hdim_q});
+    // do same as o
     ck_tile::HostTensor<OGradDataType> do_host(
-        get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
+        std::array<ck_tile::index_t, 4>{shape_batch, shape_seqlen_q, nhead, hdim_v});
     ck_tile::HostTensor<BiasGradDataType> dbias_host(
         use_dbias
             ? get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
@@ -340,24 +340,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(init_method == 0)
     {
         ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
-        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
-        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(kv_host);
         ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
         ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, seed}(do_host);
     }
     else if(init_method == 1)
     {
         ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
-        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(kv_host);
         ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
         ck_tile::FillUniformDistribution<OGradDataType>{0.f, 1.f, seed}(do_host);
     }
     else if(init_method == 2)
     {
         ck_tile::FillTrigValue<QDataType>{}(q_host);
-        ck_tile::FillTrigValue<KDataType>{}(k_host);
-        ck_tile::FillTrigValue<VDataType>{}(v_host);
+        ck_tile::FillTrigValue<KDataType>{}(kv_host);
         ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
         ck_tile::FillTrigValue<OGradDataType>{}(do_host);
     }
@@ -381,16 +378,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem v_buf(v_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem kv_buf(kv_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem bias_buf(bias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem lse_buf(lse_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem d_buf(d_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem dq_buf(dq_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem dk_buf(dk_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem dv_buf(dv_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem dkv_buf(dkv_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem do_buf(do_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem dbias_buf(dbias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
@@ -401,8 +396,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem dq_acc_buf(dq_acc_host.get_element_space_size_in_bytes());
 
     q_buf.ToDevice(q_host.data());
-    k_buf.ToDevice(k_host.data());
-    v_buf.ToDevice(v_host.data());
+    kv_buf.ToDevice(kv_host.data());
     bias_buf.ToDevice(bias_host.data());
     do_buf.ToDevice(do_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
@@ -412,9 +406,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
 
     // clang-format off
+    // hardcoded to bshd_bs2hd
     auto layout_str = [&](bool permute){
-        if (permute) return std::string("bhsd");
-        else return std::string("bshd");
+        if (permute) return std::string("bshd_bs2hd");
+        else return std::string("bshd_bs2hd");
     };
     auto io_layout = [&](bool iperm_, bool operm_) {
         if (iperm_ == operm_) return layout_str(iperm_);
@@ -457,41 +452,44 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
         ///       'nhead_stride_bias' are 0.
         // setup stride_* arguments
-        const ck_tile::index_t stride_q       = (i_perm ? hdim_q : nhead * hdim_q);
-        const ck_tile::index_t stride_k       = (i_perm ? hdim_q : nhead_k * hdim_q);
-        const ck_tile::index_t stride_v       = (i_perm ? hdim_v : nhead_k * hdim_v);
+        // Q, K, V are BSHD_BS2HD
+        const ck_tile::index_t stride_q       = nhead * hdim_q;
+        const ck_tile::index_t stride_k       = 2*nhead_k * hdim_q;
+        const ck_tile::index_t stride_v       = 2*nhead_k * hdim_v;
         const ck_tile::index_t stride_bias    = (max_seqlen_k);
-        const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
+        // O is BSHD
+        const ck_tile::index_t stride_o       = nhead * hdim_v;
         const ck_tile::index_t stride_randval = (max_seqlen_k);
-        const ck_tile::index_t stride_do      = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck_tile::index_t stride_do      = nhead * hdim_v;
         const ck_tile::index_t stride_dq_acc  = hdim_q;
-        const ck_tile::index_t stride_dk      = (i_perm ? hdim_q : nhead * hdim_q);
-        const ck_tile::index_t stride_dv      = (i_perm ? hdim_v : nhead * hdim_v);
+        const ck_tile::index_t stride_dk      = 2*nhead * hdim_q;
+        const ck_tile::index_t stride_dv      = 2*nhead * hdim_v;
         const ck_tile::index_t stride_dbias   = (i_perm ? max_seqlen_k : nhead * max_seqlen_k);
         // setup nhead_stride_* arguments
-        const ck_tile::index_t nhead_stride_q       = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
-        const ck_tile::index_t nhead_stride_k       = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
-        const ck_tile::index_t nhead_stride_v       = (i_perm ? shape_seqlen_k * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_q       = (hdim_q);
+        const ck_tile::index_t nhead_stride_k       = (hdim_q);
+        const ck_tile::index_t nhead_stride_v       = (hdim_v);
         const ck_tile::index_t nhead_stride_bias    = 0;
-        const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_o       = (hdim_v);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t nhead_stride_do      = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_do      = (hdim_v);
         const ck_tile::index_t nhead_stride_lsed    = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_dq_acc  = shape_seqlen_q * hdim_q;
         const ck_tile::index_t nhead_stride_dbias =
             (i_perm ? shape_seqlen_q * max_seqlen_k : max_seqlen_k);
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
-        const ck_tile::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
-        const ck_tile::index_t batch_stride_v       = (nhead_k * shape_seqlen_k * hdim_v);
+        const ck_tile::index_t batch_stride_k       = (2*nhead_k * shape_seqlen_k * hdim_q);
+        const ck_tile::index_t batch_stride_v       = (2*nhead_k * shape_seqlen_k * hdim_v);
         const ck_tile::index_t batch_stride_bias    = 0;
         const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_do      = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_lsed    = (nhead * shape_seqlen_q);
-        const ck_tile::index_t batch_stride_dk      = (nhead * shape_seqlen_k * hdim_q);
-        const ck_tile::index_t batch_stride_dv      = (nhead * shape_seqlen_k * hdim_v);
+        const ck_tile::index_t batch_stride_dk      = (2*nhead * shape_seqlen_k * hdim_q);
+        const ck_tile::index_t batch_stride_dv      = (2*nhead * shape_seqlen_k * hdim_v);
         const ck_tile::index_t batch_stride_dbias   = (nhead * shape_seqlen_q * max_seqlen_k);
+        const ck_tile::index_t batch_stride_dq_acc   = (nhead * shape_seqlen_q * hdim_q);
         const ck_tile::index_t split_stride_dq_acc =
             (shape_batch * nhead * shape_seqlen_q * hdim_q);
 
@@ -508,8 +506,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }();
 
         return fmha_bwd_args{q_buf.GetDeviceBuffer(),
-                             k_buf.GetDeviceBuffer(),
-                             v_buf.GetDeviceBuffer(),
+                             kv_buf.GetDeviceBuffer(),
+                             static_cast<void*>(static_cast<int8_t*>(kv_buf.GetDeviceBuffer()) + nhead*hdim_q*sizeof(QDataType)),
                              bias.type == bias_enum::alibi ? alibi_slope_buf.GetDeviceBuffer()
                                                              : bias_buf.GetDeviceBuffer(),
                              o_buf.GetDeviceBuffer(),
@@ -518,8 +516,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              d_buf.GetDeviceBuffer(),
                              randval_buf.GetDeviceBuffer(),
                              dq_buf.GetDeviceBuffer(),
-                             dk_buf.GetDeviceBuffer(),
-                             dv_buf.GetDeviceBuffer(),
+                             dkv_buf.GetDeviceBuffer(),
+                             static_cast<void*>(static_cast<int8_t*>(dkv_buf.GetDeviceBuffer()) + nhead*hdim_q*sizeof(QDataType)),
                              dbias_buf.GetDeviceBuffer(),
                              dq_acc_buf.GetDeviceBuffer(),
                              seqstart_q.GetDeviceBuffer(),
@@ -569,7 +567,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              batch_stride_randval,
                              batch_stride_do,
                              batch_stride_lsed,
-                             batch_stride_q, // batch_stride_dq_acc
+                             batch_stride_dq_acc, // batch_stride_dq_acc
                              batch_stride_q, // batch_stride_dq
                              batch_stride_dk,
                              batch_stride_dv,
@@ -645,18 +643,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::index_t nr = nhead / nhead_k;
 
         // clang-format off
-        // permute
-        if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[0], i[1] + query_offset, i[2]); });
-        else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[1] + query_offset, i[0], i[2]); });
-
-        if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
-        else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
-
-        // v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
-        if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[2] + key_offset, i[1]); });
-        // v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
-        else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[2] + key_offset, i[0] / nr, i[1]); });
-        // clang-format on
+        q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[1] + query_offset, i[0], i[2]); });
+        k_host_ref.ForEach([&](auto& self, auto i) { self(i) = kv_host(b, i[1] + key_offset, 0, i[0] / nr, i[2]); });
+        v_host_ref.ForEach([&](auto& self, auto i) { self(i) = kv_host(b, i[2] + key_offset, 1, i[0] / nr, i[1]);});
 
         // reference
         // S = scale * Q * K^T
@@ -793,9 +782,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             p_lp_host_ref, v_host_ref, o_host_ref); // o_g_m_o = p_lp_g_m_n@v_g_o_n
 
         // clang-format off
-        // permute
-        if(o_perm) o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[0], idx[1] + query_offset, idx[2]) = self(idx); });
-        else       o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[1] + query_offset, idx[0], idx[2]) = self(idx); });
+        o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[1] + query_offset, idx[0], idx[2]) = self(idx); });
 
         lse_host_ref.ForEach([&](auto& self, auto idx) { lse_host(b, idx[0], idx[1] + query_offset) = self(idx); });
         // clang-format on
@@ -823,8 +810,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     fmha_bwd(fmha_traits, fmha_args, stream_config_v);
 
     dq_buf.FromDevice(dq_host.data());
-    dk_buf.FromDevice(dk_host.data());
-    dv_buf.FromDevice(dv_host.data());
+    dkv_buf.FromDevice(dkv_host.data());
     dbias_buf.FromDevice(dbias_host.data());
 
     for(ck_tile::index_t wb = 0; wb < batch; ++wb)
@@ -851,8 +837,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::HostTensor<VGradDataType> dv_host_ref({nhead, real_seqlen_k, hdim_v}); // dv_g_n_o
 
         // clang-format off
-        if(o_perm) do_host_ref.ForEach([&](auto& self, auto i) { self(i) = do_host(b, i[0], i[1] + query_offset, i[2]); });
-        else       do_host_ref.ForEach([&](auto& self, auto i) { self(i) = do_host(b, i[1] + query_offset, i[0], i[2]); });
+        // do is bshd
+        do_host_ref.ForEach([&](auto& self, auto i) { self(i) = do_host(b, i[1] + query_offset, i[0], i[2]); });
         // clang-format on
 
         // dP = dO@V x Z w/  dropout
@@ -931,14 +917,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         // clang-format off
         // permute
-        if(i_perm) dq_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dq_host(b, idx[0], idx[1] + query_offset, idx[2]); });
-        else       dq_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dq_host(b, idx[1] + query_offset, idx[0], idx[2]); });
-
-        if(i_perm) dk_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dk_host(b, idx[0], idx[1] + key_offset, idx[2]); });
-        else       dk_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dk_host(b, idx[1] + key_offset, idx[0], idx[2]); });
-
-        if(i_perm) dv_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dv_host(b, idx[0], idx[1] + key_offset, idx[2]); });
-        else       dv_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dv_host(b, idx[1] + key_offset, idx[0], idx[2]); });
+        // dqkv is bshd_bs2hd
+        dq_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dq_host(b, idx[1] + query_offset, idx[0], idx[2]); });
+        dk_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dkv_host(b, idx[1] + key_offset, 0, idx[0], idx[2]); });
+        dv_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dkv_host(b, idx[1] + key_offset, 1, idx[0], idx[2]); });
 
         if(use_dbias)
         {
