@@ -24,7 +24,7 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_bf16_mk_mfma1
     add_device_operation_instances(
         instances,
         device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_bf16_mk_mfma16x16_mn_compute_instances_p3<
-            GemmNKPadding>{});
+            GemmKPadding>{});
 }
 
 } // namespace instance
