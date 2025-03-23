@@ -24,7 +24,12 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_m
     add_device_operation_instances(
         instances,
         device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_instances_p1<
-            GemmNKPadding>{});
+            GemmNPadding>{});
+
+    add_device_operation_instances(
+        instances,
+        device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_instances_p1<
+            GemmKPadding>{});
 }
 
 } // namespace instance

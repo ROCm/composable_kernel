@@ -118,7 +118,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
     if(bKPadding && bNPadding)
     {
-        std::cout << "Not support N and K both Paddding!" << std::endl;
+        std::cout << "Not support N and K both paddding!" << std::endl;
         return true;
     }
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));

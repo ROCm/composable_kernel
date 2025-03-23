@@ -28,6 +28,7 @@ using MultiplyMultiply = element_wise::MultiplyMultiply;
 
 static constexpr auto GemmDefault    = GemmSpecialization::Default;
 static constexpr auto GemmKPadding   = GemmSpecialization::KPadding;
+static constexpr auto GemmNPadding   = GemmSpecialization::NPadding;
 static constexpr auto GemmNKPadding  = GemmSpecialization::NKPadding;
 static constexpr auto GemmMNPadding  = GemmSpecialization::MNPadding;
 static constexpr auto GemmMNKPadding = GemmSpecialization::MNKPadding;
