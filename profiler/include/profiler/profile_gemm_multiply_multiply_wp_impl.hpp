@@ -110,15 +110,23 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                 return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
-    bool bKPadding  = (K % 128 != 0);
-    auto Knew       = bKPadding ? GetKPreShufflePadded(K) : K;
-    auto StrideBnew = Knew;
+    bool bKPadding = (K % 128 != 0);
+    bool bNPadding = (N % 64 != 0);
+    auto Kr        = bKPadding ? GetKPreShufflePadded(K) : K;
+    auto StrideBr  = Kr;
+    auto Nr        = bNPadding ? GetNPreShufflePadded(N) : N;
+
+    if(bKPadding && bNPadding)
+    {
+        std::cout << "Not support N and K both Paddding!" << std::endl;
+        return true;
+    }
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<BDataType> b_preshuffled_mfma16(
-        f_host_tensor_descriptor(Knew, N, StrideBnew, BLayout{})); // use layout only for size
+        f_host_tensor_descriptor(Kr, Nr, StrideBr, BLayout{})); // use layout only for size
     Tensor<BDataType> b_preshuffled_mfma32(
-        f_host_tensor_descriptor(Knew, N, StrideBnew, BLayout{})); // use layout only for size
+        f_host_tensor_descriptor(Kr, Nr, StrideBr, BLayout{})); // use layout only for size
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
@@ -139,6 +147,8 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
     std::cout << "rotating count: " << rotating_count << std::endl;
     std::cout << "verification: " << do_verification << std::endl;
+    std::cout << "KPadding: " << bKPadding << std::endl;
+    std::cout << "NPadding: " << bNPadding << std::endl;
 
     switch(init_method)
     {
@@ -158,8 +168,8 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
 
     b_preshuffled_mfma16.SetZero();
     b_preshuffled_mfma32.SetZero();
-    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma16.mData.data(), N, K, 16, Knew);
-    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma32.mData.data(), N, K, 32, Knew);
+    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma16.mData.data(), N, K, 16, Kr);
+    preShuffleBuffer(b_k_n.mData.data(), b_preshuffled_mfma32.mData.data(), N, K, 32, Kr);
 
     using PassThrough      = ck::tensor_operation::element_wise::PassThrough;
     using MultiplyMultiply = ck::tensor_operation::element_wise::MultiplyMultiply;
@@ -288,12 +298,31 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
                 auto gemm_spec = op_ptr->GetInstanceGemmSpec();
-                if(bKPadding &&
-                   !(gemm_spec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                     gemm_spec == tensor_operation::device::GemmSpecialization::KPadding))
+                if(bKPadding)
                 {
-                    continue;
+                    if(!(gemm_spec == tensor_operation::device::GemmSpecialization::NKPadding ||
+                         gemm_spec == tensor_operation::device::GemmSpecialization::KPadding))
+                    {
+                        continue;
+                    }
                 }
+                if(bNPadding)
+                {
+                    if(!(gemm_spec == tensor_operation::device::GemmSpecialization::NKPadding ||
+                         gemm_spec == tensor_operation::device::GemmSpecialization::NPadding))
+                    {
+                        continue;
+                    }
+                }
+                // must default
+                if(!(bKPadding || bNPadding))
+                {
+                    if(gemm_spec != tensor_operation::device::GemmSpecialization::Default)
+                    {
+                        continue;
+                    }
+                }
+
                 c_device_buf.SetZero();
 
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
@@ -377,7 +406,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
             else
             {
                 std::cout << op_ptr->GetTypeString() << " does not support this problem"
-                          << std::endl;
+                          << " algo_id: " << algo_id << std::endl;
             }
         }
     }
