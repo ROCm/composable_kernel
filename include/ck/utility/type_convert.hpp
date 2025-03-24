@@ -749,9 +749,17 @@ inline __host__ __device__ half_t type_convert<half_t, f8_ocp_t>(f8_ocp_t x)
     {
         uint16_t i16val;
         fp8_storage_t i8val[2];
-    } val;
-    val.i8val[0] = x.data;
-    return __builtin_amdgcn_cvt_scalef32_pk_f16_fp8(val.i16val, /*scale*/ 1.f, 0)[0];
+    } input;
+    input.i8val[0] = x.data;
+
+    union
+    {
+        bhalf2_t half_vec;
+        bhalf_t half_arr[2];
+    } output;
+    output.half_vec = __builtin_amdgcn_cvt_scalef32_pk_f16_fp8(input.i16val, /*scale*/ 1.f, 0);
+
+    return output.half_arr[0];
 #else
     return fp8_impl::cast_from_f8<half_t, f8_ocp_t::wm, f8_ocp_t::we, false>(x.data);
 #endif
