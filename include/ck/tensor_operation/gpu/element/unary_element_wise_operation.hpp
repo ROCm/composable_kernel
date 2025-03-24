@@ -81,6 +81,7 @@ __device__ inline half4_t i4_to_half4_scale(int q, const ck::half2_t& scale)
 
 __device__ inline f8x4_t i4_to_f8x4(int q)
 {
+#if 0
     const int LO = 0x000f000f;
     const int HI = 0x00f000f0;
 
@@ -93,6 +94,31 @@ __device__ inline f8x4_t i4_to_f8x4(int q)
     float f32_3 = amd_assemble_cvt_f32_i4(hi >> 16);
 
     return amd_assembly_cvt_f8_to_f32(f32_0, f32_1, f32_2, f32_3);
+#else
+    // [0, 1, 2, 3] encoded as FP8
+    static constexpr uint32_t POS_E4M3s_REG1 = 0x2C282000;
+    // [4, 5, 6, 7] encoded as FP8
+    static constexpr uint32_t POS_E4M3s_REG2 = 0x36343230;
+    // [-8, -7, -6, -5] encoded as FP8
+    static constexpr uint32_t NEG_E4M3s_REG1 = 0xB2B4B6B8;
+    // [-4, -3, -2, -1] encoded as FP8
+    static constexpr uint32_t NEG_E4M3s_REG2 = 0xA0A8ACB0;
+
+    uint32_t tmp_pos, tmp_neg, tmp_res;
+
+    uint32_t sign= q & 0x08080808;
+    uint32_t dict_sel = q & 0x07070707;
+    uint32_t final_sel = 0x03020100 | (sign >> 1);
+    vector_type<f8_t, 4> res;
+
+    tmp_pos = __builtin_amdgcn_perm(POS_E4M3s_REG2, POS_E4M3s_REG1, dict_sel);
+    tmp_neg = __builtin_amdgcn_perm(NEG_E4M3s_REG2, NEG_E4M3s_REG1, dict_sel);
+    tmp_res = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
+
+    res.template AsType<f8x4_t>()(Number<0>{}) = bit_cast<f8x4_t>(tmp_res);
+
+    return res.template AsType<f8x4_t>()[Number<0>{}];
+#endif
 }
 
 __device__ inline f8x8_t i4_to_fp8x8(int q) { return amd_assembly_i4_to_fp8x8(q); }
@@ -163,7 +189,16 @@ struct PassThroughPack8
     __host__ __device__ constexpr void operator()(ck::f8x8_t& y, const ck::pk_i4x4_t& x) const
     {
 #if CK_USE_PK4_LAYOUT_SHUFFLE
+#if !CK_USE_PK4_LAYOUT_SHUFFLE_V2
         y = i4_to_fp8x8(bit_cast<int>(x));
+#else
+        vector_type<f8_t, 8> result;
+
+        result.template AsType<f8x4_t>()(Number<0>{}) = i4_to_f8x4(bit_cast<int>(x));
+        result.template AsType<f8x4_t>()(Number<1>{}) = i4_to_f8x4(bit_cast<int>(x) >> 4);
+
+        y = result.template AsType<f8x8_t>()[Number<0>{}];
+#endif
 
 #else
         // Added pk_i4_t to f8x2_fnuz_t conversion

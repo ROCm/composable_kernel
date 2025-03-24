@@ -46,7 +46,7 @@ using CElementOp = MultiplyConst;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 static constexpr bool PermuteA         = false;
-static constexpr bool PermuteB         = true;
+static constexpr bool PermuteB         = false;
 static constexpr ck::index_t KPerBlock = 128;
 
 // clang-format off
@@ -65,7 +65,7 @@ using DeviceGemmV2Instance =
         S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
         1, 1, S<1, 32, 1, 8>, 8,
-        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v2, ADataType, ADataType, PermuteA, PermuteB>;
+        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, ADataType, ADataType, PermuteA, PermuteB>;
 
 // clang-format on
 
@@ -183,7 +183,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         }
     }
 
+#if CK_USE_PK4_LAYOUT_SHUFFLE
     // vector pk_i4x4 permute
+#if !CK_USE_PK4_LAYOUT_SHUFFLE_V2
     for(int i = 0; i < N; i++)
     {
         for(int j = 0; j < K; j += 8)
@@ -231,6 +233,56 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             }
         }
     }
+#else
+    for(int i = 0; i < N; i++)
+    {
+        for(int j = 0; j < K; j += 8)
+        {
+            int input[8];
+
+            for(int k = 0; k < 4; k++)
+            {
+                int i4x2         = b_k_n_permute(j + k * 2, i).data;
+                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
+                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
+            }
+
+            // permute 01234567->04152637
+            {
+                int hi   = input[4];
+                int lo   = input[0];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 0, i) = i4x2;
+            }
+
+            {
+                int hi   = input[5];
+                int lo   = input[1];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 2, i) = i4x2;
+            }
+
+            {
+                int hi   = input[6];
+                int lo   = input[2];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 4, i) = i4x2;
+            }
+
+            {
+                int hi   = input[7];
+                int lo   = input[3];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_permute(j + 6, i) = i4x2;
+            }
+        }
+    }
+#endif
+#endif
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n_permute.mData.data());

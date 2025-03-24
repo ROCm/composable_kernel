@@ -206,7 +206,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         }
     }
 
+#if CK_USE_PK4_LAYOUT_SHUFFLE
     // vector pk_i4x4 permute
+#if !CK_USE_PK4_LAYOUT_SHUFFLE_V2
     for(int i = 0; i < N; i++)
     {
         for(int j = 0; j < K; j += 8)
@@ -254,6 +256,56 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             }
         }
     }
+#else
+for(int i = 0; i < N; i++)
+    {
+        for(int j = 0; j < K; j += 8)
+        {
+            int input[8];
+
+            for(int k = 0; k < 4; k++)
+            {
+                int i4x2         = b_k_n_preshuffled(j + k * 2, i).data;
+                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
+                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
+            }
+
+            // permute 01234567->20643175
+            {
+                int hi   = input[4];
+                int lo   = input[0];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_preshuffled(j + 0, i) = i4x2;
+            }
+
+            {
+                int hi   = input[5];
+                int lo   = input[1];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_preshuffled(j + 2, i) = i4x2;
+            }
+
+            {
+                int hi   = input[6];
+                int lo   = input[2];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_preshuffled(j + 4, i) = i4x2;
+            }
+
+            {
+                int hi   = input[7];
+                int lo   = input[3];
+                int i4x2 = (hi << 4) | lo;
+
+                b_k_n_preshuffled(j + 6, i) = i4x2;
+            }
+        }
+    }
+#endif
+#endif
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n_preshuffled.mData.data());

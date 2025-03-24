@@ -191,14 +191,14 @@ int main(int argc, char* argv[])
     // experts = 8
     // per expert:
     // GEMM shape
-    ck::index_t N               = 14336 * 2;
-    ck::index_t K               = 4096;
+    ck::index_t N               = 4096 * 2;
+    ck::index_t K               = 6144;
     ck::index_t experts         = 8;
     ck::index_t sorted_tile_num = 16;
     ck::index_t valid_tile_num  = 13;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
-    ck::index_t tokens          = 64;
+    ck::index_t tokens          = 832;
     ck::index_t topk            = 2;
 
     if(argc == 1)
@@ -362,6 +362,7 @@ int main(int argc, char* argv[])
 
 #if CK_USE_PK4_LAYOUT_SHUFFLE
     // vector pk_i4x4 permute
+#if !CK_USE_PK4_LAYOUT_SHUFFLE_V2
     for(int e = 0; e < experts; e++)
     {
         for(int i = 0; i < N; i++)
@@ -412,6 +413,58 @@ int main(int argc, char* argv[])
             }
         }
     }
+#else
+    for(int e = 0; e < experts; e++)
+    {
+        for(int i = 0; i < N; i++)
+        {
+            for(int j = 0; j < K; j += 8)
+            {
+                int input[8];
+
+                for(int k = 0; k < 4; k++)
+                {
+                    int i4x2         = b0_preshuffled(e, j + k * 2, i).data;
+                    input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
+                    input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
+                }
+
+                // permute 01234567->04152637
+                {
+                    int hi   = input[4];
+                    int lo   = input[0];
+                    int i4x2 = (hi << 4) | lo;
+
+                    b0_preshuffled(e, j + 0, i) = i4x2;
+                }
+
+                {
+                    int hi   = input[5];
+                    int lo   = input[1];
+                    int i4x2 = (hi << 4) | lo;
+
+                    b0_preshuffled(e, j + 2, i) = i4x2;
+                }
+
+                {
+                    int hi   = input[6];
+                    int lo   = input[2];
+                    int i4x2 = (hi << 4) | lo;
+
+                    b0_preshuffled(e, j + 4, i) = i4x2;
+                }
+
+                {
+                    int hi   = input[7];
+                    int lo   = input[3];
+                    int i4x2 = (hi << 4) | lo;
+
+                    b0_preshuffled(e, j + 6, i) = i4x2;
+                }
+            }
+        }
+    }
+#endif
 #endif
 
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
