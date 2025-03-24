@@ -99,8 +99,8 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WG::kN);
 
-        constexpr index_t NFlatPerBlockPerIter = flatKPerWarp;
-        constexpr index_t KFlatPerBlockPerIter = flatNPerWarp;
+        constexpr index_t KFlatPerBlockPerIter = flatKPerWarp;
+        constexpr index_t NFlatPerBlockPerIter = flatNPerWarp;
 
         // A tile in LDS
         ADataType* p_a_lds = static_cast<ADataType*>(p_smem);
@@ -288,14 +288,14 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             block_sync_lds();
 
             // move to i + 2
-            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
+            // move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
             // LDS write i + 1
             const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window, a_block_tile_tmp);
 
             // move to next flat K
-            move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
+            // move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
             block_sync_lds();
 
