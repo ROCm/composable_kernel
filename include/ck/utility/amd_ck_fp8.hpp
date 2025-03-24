@@ -712,7 +712,7 @@ static __device__ fp8_storage_t cast_to_f8_from_bf16(ushort v, unsigned int rng 
         if((val.i32val & 0x7FFF) != 0x7FFF)
         {
             val.bhalf_vec[0] =
-                ushort((uint32_t(__builtin_amdgcn_fmed3f(
+                ushort((bit_cast<uint32_t>(__builtin_amdgcn_fmed3f(
                             bit_cast<float>(uint32_t{val.bhalf_vec[0]} << 16), 448.0, -448.0)) >>
                         16)); // convert to float and back
         }
@@ -758,7 +758,7 @@ static __device__ fp8_storage_t cast_to_f8_from_bf16(ushort v, unsigned int rng 
         if((val.i32val & 0x7FFF) != 0x7FFF)
         {
             val.bhalf_vec[0] = ushort(
-                (uint32_t(__builtin_amdgcn_fmed3f(
+                (bit_cast<uint32_t>(__builtin_amdgcn_fmed3f(
                      bit_cast<float>(uint32_t{val.bhalf_vec[0]} << 16), 57344.0, -57344.0)) >>
                  16)); // convert to float and back
         }
@@ -807,7 +807,7 @@ static __device__ fp8_storage_t cast_to_f8_from_bf16(ushort v, unsigned int rng 
         if((val.i32val & 0x7FFF) != 0x7FFF)
         {
             val.bhalf_vec[0] =
-                ushort((uint32_t(__builtin_amdgcn_fmed3f(
+                ushort((bit_cast<uint32_t>(__builtin_amdgcn_fmed3f(
                             bit_cast<float>(uint32_t{val.bhalf_vec[0]} << 16), 448.0, -448.0)) >>
                         16)); // convert to float and back
         }
@@ -843,14 +843,14 @@ static __device__ fp8x2_storage_t cast_to_f8_from_bf16(ushortx2_t v, unsigned in
         if((val.i16_vec[0] & 0x7FFF) != 0x7FFF)
         {
             val.bhalf_vec[0] =
-                ushort((uint32_t(__builtin_amdgcn_fmed3f(
+                ushort((bit_cast<uint32_t>(__builtin_amdgcn_fmed3f(
                             bit_cast<float>(uint32_t{val.bhalf_vec[0]} << 16), 448.0, -448.0)) >>
                         16)); // convert to float and back
         }
         if((val.i16_vec[1] & 0x7FFF) != 0x7FFF)
         {
             val.bhalf_vec[1] =
-                ushort((uint32_t(__builtin_amdgcn_fmed3f(
+                ushort((bit_cast<uint32_t>(__builtin_amdgcn_fmed3f(
                             bit_cast<float>(uint32_t{val.bhalf_vec[1]} << 16), 448.0, -448.0)) >>
                         16)); // convert to float and back
         }
@@ -887,7 +887,7 @@ static __device__ fp8_storage_t cast_to_f8_from_bf16(ushort v, unsigned int rng 
         if((val.i32val & 0x7FFF) != 0x7FFF)
         {
             val.bhalf_vec[0] = ushort(
-                (uint32_t(__builtin_amdgcn_fmed3f(
+                (bit_cast<uint32_t>(__builtin_amdgcn_fmed3f(
                      bit_cast<float>(uint32_t{val.bhalf_vec[0]} << 16), 57344.0, -57344.0)) >>
                  16)); // convert to float and back
         }
@@ -923,14 +923,14 @@ static __device__ fp8x2_storage_t cast_to_f8_from_bf16(ushortx2_t v, unsigned in
         if((val.i16_vec[0] & 0x7FFF) != 0x7FFF)
         {
             val.bhalf_vec[0] = ushort(
-                (uint32_t(__builtin_amdgcn_fmed3f(
+                (bit_cast<uint32_t>(__builtin_amdgcn_fmed3f(
                      bit_cast<float>(uint32_t{val.bhalf_vec[0]} << 16), 57344.0, -57344.0)) >>
                  16)); // convert to float and back
         }
         if((val.i16_vec[1] & 0x7FFF) != 0x7FFF)
         {
             val.bhalf_vec[1] = ushort(
-                (uint32_t(__builtin_amdgcn_fmed3f(
+                (bit_cast<uint32_t>(__builtin_amdgcn_fmed3f(
                      bit_cast<float>(uint32_t{val.bhalf_vec[1]} << 16), 57344.0, -57344.0)) >>
                  16)); // convert to float and back
         }
