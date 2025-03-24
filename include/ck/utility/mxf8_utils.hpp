@@ -1,4 +1,7 @@
-#include "ck/utility/data_type.hpp"
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include "ck/utility/numeric_limits.hpp"
 #include "ck/utility/mxfp_utils.hpp"
 
 #if defined(__gfx950__) && __HIP_DEVICE_COMPILE__
