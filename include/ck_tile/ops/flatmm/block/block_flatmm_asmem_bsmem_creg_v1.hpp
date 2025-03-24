@@ -66,15 +66,15 @@ struct BlockFlatmmASmemBSmemCRegV1
     }
 
     // C += A * B
-    template <typename CBlockTensor, typename ABlockWindow, typename BFlatBlockWindow>
+    template <typename CBlockTensor, typename ABlockWindow, typename BFlatBlockTensor>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
                                    const ABlockWindow& a_block_window,
-                                   const BFlatBlockWindow& b_flat_block_window) const
+                                   BFlatBlockTensor& b_warp_tensor) const
     {
-        static_assert(std::is_same_v<ADataType, typename ABlockWindow::DataType> &&
-                          std::is_same_v<BDataType, typename BFlatBlockWindow::DataType> &&
-                          std::is_same_v<CDataType, typename CBlockTensor::DataType>,
-                      "wrong!");
+        // static_assert(std::is_same_v<ADataType, typename ABlockWindow::DataType> &&
+        //                   std::is_same_v<BDataType, typename BFlatBlockWindow::DataType> &&
+        //                   std::is_same_v<CDataType, typename CBlockTensor::DataType>,
+        //               "wrong!");
         constexpr index_t MPerBlock = ABlockWindow{}.get_window_lengths()[number<0>{}];
         constexpr index_t KPerBlock = ABlockWindow{}.get_window_lengths()[number<1>{}];
 
@@ -94,8 +94,8 @@ struct BlockFlatmmASmemBSmemCRegV1
         constexpr index_t MPerBlockPerIter = MPerBlock / MIterPerWarp;
         constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
 
-        constexpr index_t NFlatPerBlockPerIter = BlockGemmShape::flatNPerWarp;
-        constexpr index_t KFlatPerBlockPerIter = BlockGemmShape::flatKPerWarp;
+        // constexpr index_t NFlatPerBlockPerIter = BlockGemmShape::flatNPerWarp;
+        // constexpr index_t KFlatPerBlockPerIter = BlockGemmShape::flatKPerWarp;
 
         const index_t iMWarp = get_warp_id() / NWarp;
 
@@ -119,22 +119,22 @@ struct BlockFlatmmASmemBSmemCRegV1
         });
 
         // construct Bflat-warp-window
-        auto b_flat_warp_windows_tmp = b_flat_block_window;
-        statically_indexed_array<
-            statically_indexed_array<decltype(b_flat_warp_windows_tmp), KIterPerWarp>,
-            NIterPerWarp>
-            b_flat_warp_windows;
-        static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                b_flat_warp_windows(nIter)(kIter) = b_flat_warp_windows_tmp;
+        // auto b_flat_warp_windows_tmp = b_flat_block_window;
+        // statically_indexed_array<
+        //     statically_indexed_array<decltype(b_flat_warp_windows_tmp), KIterPerWarp>,
+        //     NIterPerWarp>
+        //     b_flat_warp_windows;
+        // static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+        //     static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+        //         b_flat_warp_windows(nIter)(kIter) = b_flat_warp_windows_tmp;
 
-                move_tile_window(b_flat_warp_windows(nIter)(kIter),
-                                 {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
-            });
-        });
+        //         move_tile_window(b_flat_warp_windows(nIter)(kIter),
+        //                          {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+        //     });
+        // });
 
         // auto b_warp_windows = b_origin_warp_windows;
-        auto b_warp_windows = b_flat_warp_windows;
+        // auto b_warp_windows = b_flat_warp_windows;
 
         using CWarpDstr   = typename WG::CWarpDstr;
         using CWarpTensor = typename WG::CWarpTensor;
@@ -151,7 +151,7 @@ struct BlockFlatmmASmemBSmemCRegV1
 
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     // read B warp tensor from B Block window
-                    const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
+                    // const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
 
                     // read C warp tensor from C block tensor
                     CWarpTensor c_warp_tensor;
@@ -161,7 +161,7 @@ struct BlockFlatmmASmemBSmemCRegV1
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                     // warp GEMM
-                    WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                    WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor(nIter)(kIter));
 
                     // write C warp tensor into C block tensor
                     c_block_tensor.set_y_sliced_thread_data(
@@ -174,14 +174,132 @@ struct BlockFlatmmASmemBSmemCRegV1
     }
 
     // C = A * B
-    template <typename ABlockTensorTmp, typename BFlatBlockWindow>
-    CK_TILE_DEVICE auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,
-                                   const BFlatBlockWindow& b_flat_block_window) const
-    {
-        auto c_block_tensor = MakeCBlockTile();
-        operator()(c_block_tensor, a_block_tensor_tmp, b_flat_block_window);
-        return c_block_tensor;
-    }
+    // template <typename ABlockTensorTmp, typename BFlatBlockTensor>
+    // CK_TILE_DEVICE auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,
+    //                                BFlatBlockTensor& b_warp_tensor) const
+    // {
+    //     auto c_block_tensor = MakeCBlockTile();
+    //     operator()(c_block_tensor, a_block_tensor_tmp, b_warp_tensor);
+    //     return c_block_tensor;
+    // }
+    
+    // // C += A * B
+    // template <typename CBlockTensor, typename ABlockWindow, typename BFlatBlockWindow>
+    // CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+    //                                const ABlockWindow& a_block_window,
+    //                                const BFlatBlockWindow& b_flat_block_window) const
+    // {
+    //     static_assert(std::is_same_v<ADataType, typename ABlockWindow::DataType> &&
+    //                       std::is_same_v<BDataType, typename BFlatBlockWindow::DataType> &&
+    //                       std::is_same_v<CDataType, typename CBlockTensor::DataType>,
+    //                   "wrong!");
+    //     constexpr index_t MPerBlock = ABlockWindow{}.get_window_lengths()[number<0>{}];
+    //     constexpr index_t KPerBlock = ABlockWindow{}.get_window_lengths()[number<1>{}];
+
+    //     static_assert(MPerBlock == BlockGemmShape::kM && KPerBlock == BlockGemmShape::kK, "wrong!");
+
+    //     constexpr auto config = BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+    //     using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+    //     constexpr index_t MWarp = config.template at<1>();
+    //     constexpr index_t NWarp = config.template at<2>();
+
+    //     constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
+    //     constexpr index_t NIterPerWarp =
+    //         BlockTile::at(idxN) / (WarpTile::at(idxN) * BlockWarps::at(idxN));
+    //     constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
+
+    //     constexpr index_t MPerBlockPerIter = MPerBlock / MIterPerWarp;
+    //     constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
+
+    //     constexpr index_t NFlatPerBlockPerIter = BlockGemmShape::flatNPerWarp;
+    //     constexpr index_t KFlatPerBlockPerIter = BlockGemmShape::flatKPerWarp;
+
+    //     const index_t iMWarp = get_warp_id() / NWarp;
+
+    //     // construct A-warp-window
+    //     auto a_warp_window_tmp = make_tile_window(
+    //         a_block_window.get_bottom_tensor_view(),
+    //         make_tuple(number<WG::kM>{}, number<WG::kK>{}),
+    //         a_block_window.get_window_origin() + multi_index<2>{iMWarp * WG::kM, 0},
+    //         make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
+    //     statically_indexed_array<
+    //         statically_indexed_array<decltype(a_warp_window_tmp), KIterPerWarp>,
+    //         MIterPerWarp>
+    //         a_warp_windows;
+    //     static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+    //         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+    //             a_warp_windows(mIter)(kIter) = a_warp_window_tmp;
+
+    //             move_tile_window(a_warp_windows(mIter)(kIter),
+    //                              {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
+    //         });
+    //     });
+
+    //     // construct Bflat-warp-window
+    //     auto b_flat_warp_windows_tmp = b_flat_block_window;
+    //     statically_indexed_array<
+    //         statically_indexed_array<decltype(b_flat_warp_windows_tmp), KIterPerWarp>,
+    //         NIterPerWarp>
+    //         b_flat_warp_windows;
+    //     static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+    //         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+    //             b_flat_warp_windows(nIter)(kIter) = b_flat_warp_windows_tmp;
+
+    //             move_tile_window(b_flat_warp_windows(nIter)(kIter),
+    //                              {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+    //         });
+    //     });
+
+    //     // auto b_warp_windows = b_origin_warp_windows;
+    //     auto b_warp_windows = b_flat_warp_windows;
+
+    //     using CWarpDstr   = typename WG::CWarpDstr;
+    //     using CWarpTensor = typename WG::CWarpTensor;
+
+    //     constexpr auto c_warp_y_lengths =
+    //         to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+    //     constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+    //     // hot loop:
+    //     static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+    //         static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+    //             // read A warp tensor from A block window
+    //             const auto a_warp_tensor = load_tile(a_warp_windows(mIter)(kIter));
+
+    //             static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+    //                 // read B warp tensor from B Block window
+    //                 const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
+
+    //                 // read C warp tensor from C block tensor
+    //                 CWarpTensor c_warp_tensor;
+
+    //                 c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+    //                     merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+    //                     merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+    //                 // warp GEMM
+    //                 WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+
+    //                 // write C warp tensor into C block tensor
+    //                 c_block_tensor.set_y_sliced_thread_data(
+    //                     merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+    //                     merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+    //                     c_warp_tensor.get_thread_buffer());
+    //             });
+    //         });
+    //     });
+    // }
+
+    // // C = A * B
+    // template <typename ABlockTensorTmp, typename BFlatBlockWindow>
+    // CK_TILE_DEVICE auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,
+    //                                const BFlatBlockWindow& b_flat_block_window) const
+    // {
+    //     auto c_block_tensor = MakeCBlockTile();
+    //     operator()(c_block_tensor, a_block_tensor_tmp, b_flat_block_window);
+    //     return c_block_tensor;
+    // }
 };
 
 } // namespace ck_tile
