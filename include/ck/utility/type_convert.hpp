@@ -754,8 +754,8 @@ inline __host__ __device__ half_t type_convert<half_t, f8_ocp_t>(f8_ocp_t x)
 
     union
     {
-        bhalf2_t half_vec;
-        bhalf_t half_arr[2];
+        half2_t half_vec;
+        half_t half_arr[2];
     } output;
     output.half_vec = __builtin_amdgcn_cvt_scalef32_pk_f16_fp8(input.i16val, /*scale*/ 1.f, 0);
 
