@@ -470,4 +470,10 @@ struct scalar_type<bool>
     static constexpr index_t vector_size = 1;
 };
 
+#if defined(_WIN32)
+using int64_t = long long;
+#else
+using int64_t = long;
+#endif
+
 } // namespace ck
