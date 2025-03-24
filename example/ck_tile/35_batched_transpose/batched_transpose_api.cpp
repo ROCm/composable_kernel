@@ -12,13 +12,11 @@ template <typename ts_type,
           ck_tile::index_t thread_y>
 float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_config& s)
 {
-    uint32_t dim_block_h = (a.height + block_y - 1) / block_y;
-    uint32_t dim_block_w = (a.width + block_x - 1) / block_x;
     uint32_t dim_stride  = a.height * a.width;
 
     a.dim_stride  = dim_stride;
-    a.dim_block_h = dim_block_h;
-    a.dim_block_w = dim_block_w;
+    a.dim_block_h = block_y;
+    a.dim_block_w = block_x;
 
     using block_tile  = ck_tile::sequence<block_x, block_y>;
     using warp_tile   = ck_tile::sequence<warp_x, warp_y>;

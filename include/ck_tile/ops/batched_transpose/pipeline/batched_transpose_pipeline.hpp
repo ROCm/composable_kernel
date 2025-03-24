@@ -34,17 +34,14 @@ struct BatchedTransposePipeline
 
         auto input_tile = load_tile(inp_win); // x->thread input_win->block
 
-        auto input_shuffle_tmp = make_static_distributed_tensor<InputType>(Policy::template MakeShuffledRegTileDistribution<Problem>());
+        auto output_tile = make_static_distributed_tensor<InputType>(Policy::template MakeOutputDistribution<Problem>());
 
-        auto y = make_static_distributed_tensor<InputType>(
-            Policy::template MakeOutputDistribution<Problem>());
-
-        transpose_tile2d(input_shuffle_tmp, input_tile);
+        transpose_tile2d(output_tile, input_tile);
 
         auto out_win =
             make_tile_window(out_window, Policy::template MakeOutputDistribution<Problem>());
 
-        store_tile(out_win, y);
+        store_tile(out_win, output_tile);
 
         /*auto inp_win =
             make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
