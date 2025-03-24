@@ -317,9 +317,9 @@ def cmake_build(Map conf=[:]){
             if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
                 sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
                 sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
-                sh """/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis-$GIT_BRANCH-$(date "+%d-%m-%y").log"""
+                sh """/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis-$GIT_BRANCH-\$(date "+%d-%m-%y").log"""
                 archiveArtifacts "ck_build_trace.json"
-                archiveArtifacts """clang_build_analysis-$GIT_BRANCH-$(date "+%d-%m-%y").log"""
+                archiveArtifacts """clang_build_analysis-$GIT_BRANCH-\$(date "+%d-%m-%y").log"""
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
                     sh "ninja test"
