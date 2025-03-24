@@ -140,6 +140,7 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
     using Argument = typename GridwiseGemm::Argument;
 
     int GetPreShuffleParameters() override { return NPerXDL; }
+    GemmSpecialization GetInstanceGemmSpec() override { return GemmSpec; }
 
     // Invoker
     struct Invoker : public BaseInvoker
