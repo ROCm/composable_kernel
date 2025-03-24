@@ -11,6 +11,13 @@
 
 namespace ck {
 
+inline __device__ int amd_assembly_and_b32(int a, int b)
+{
+    int c;
+    asm volatile("v_and_b32 %0, %1, %2" : "=v"(c) : "v"(a), "v"(b));
+    return c;
+}
+
 inline __device__ int amd_assembly_and_or_b32(int a, int b, int d)
 {
     int c;
@@ -30,6 +37,54 @@ inline __device__ half2_t amd_assembly_pk_add_f16(half2_t a, half2_t b)
     half2_t c;
     asm volatile("v_pk_add_f16 %0, %1, %2" : "=v"(c) : "v"(a), "v"(b));
     return c;
+}
+
+inline __device__ float amd_assemble_cvt_f32_i4(int b)
+{
+    float a;
+    asm volatile("v_cvt_off_f32_i4 %0, %1" : "=v"(a) : "v"(b));
+    return a;
+}
+
+inline __device__ f8x4_t amd_assembly_cvt_f8_to_f32(float b0, float b1, float b2, float b3)
+{
+    f8x4_t a;
+    asm volatile("v_cvt_pk_fp8_f32 %0, %1, %2\n"
+                 "v_cvt_pk_fp8_f32 %0, %3, %4, op_sel:[0, 0, 1]\n"
+                 : "=v"(a)
+                 : "v"(b0), "v"(b1), "v"(b2), "v"(b3));
+    return a;
+}
+
+inline __device__ f8x8_t amd_assembly_i4_to_fp8x8(int a)
+{
+    uint32_t i4x8 = static_cast<uint32_t>(a);
+    uint32_t fp8x4_0;
+    uint32_t fp8x4_1;
+    float tmp_0, tmp_1, tmp_2;
+
+    asm volatile("v_cvt_off_f32_i4 %[v_tmp_0], %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_src], src0_sel:BYTE_2\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_0], %[v_tmp_0], %[v_tmp_1]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_1\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_src], src0_sel:BYTE_3\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_1], %[v_tmp_0], %[v_tmp_1]\n"
+                 "v_lshrrev_b32 %[v_tmp_2], 4, %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_tmp_2]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_tmp_2], src0_sel:BYTE_2\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_0], %[v_tmp_0], %[v_tmp_1], op_sel:[0, 0, 1]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_tmp_2], src0_sel:BYTE_1\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_tmp_2], src0_sel:BYTE_3\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_1], %[v_tmp_0], %[v_tmp_1], op_sel:[0, 0, 1]\n"
+                 : [v_tmp_0] "+v"(tmp_0),
+                   [v_tmp_1] "+v"(tmp_1),
+                   [v_tmp_2] "+v"(tmp_2),
+                   [v_dst_0] "+v"(fp8x4_0),
+                   [v_dst_1] "+v"(fp8x4_1),
+                   [v_src] "+v"(i4x8)
+                 :);
+
+    return bit_cast<f8x8_t>(((static_cast<uint64_t>(fp8x4_1) << 32) | fp8x4_0));
 }
 
 // c0 += inner_product(a, b0)

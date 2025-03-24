@@ -94,6 +94,8 @@ struct BlockFmhaPipelineQSKSVS
             {
                 return 1;
             }
+            else
+                return 1;
         }
     }();
 

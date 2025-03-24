@@ -1,6 +1,9 @@
 add_executable(client_grouped_conv2d_bwd_data grouped_conv2d_bwd_data.cpp)
 target_link_libraries(client_grouped_conv2d_bwd_data PRIVATE composable_kernel::device_conv_operations)
 
+add_executable(client_grouped_conv2d_bwd_data_ngchw grouped_conv2d_bwd_data_ngchw.cpp)
+target_link_libraries(client_grouped_conv2d_bwd_data_ngchw PRIVATE composable_kernel::device_conv_operations)
+
 add_executable(client_grouped_conv3d_bwd_data grouped_conv3d_bwd_data.cpp)
 target_link_libraries(client_grouped_conv3d_bwd_data PRIVATE composable_kernel::device_conv_operations)
 
