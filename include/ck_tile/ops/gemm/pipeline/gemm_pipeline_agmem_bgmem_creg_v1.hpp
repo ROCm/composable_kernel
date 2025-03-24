@@ -12,7 +12,7 @@ namespace ck_tile {
 //  A Tile Window: global memory
 //  B Tile Window: global memory
 //  C Distributed tensor: register
-template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCRegV1DefaultPolicy>
+template <typename Problem, typename Policy = UniversalGemmPipelineAgBgCrPolicy>
 struct GemmPipelineAGmemBGmemCRegV1
 {
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
@@ -182,11 +182,11 @@ struct GemmPipelineAGmemBGmemCRegV1
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
             // LDS write 0
-            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>)
+            if constexpr(is_a_col_major)
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                    Policy::template MakeShuffledARegBlockDistribution<Problem>());
-                shuffle_tile(a_shuffle_tmp, a_block_tile);
+                    Policy::template MakeShuffledARegTileDistribution<Problem>());
+                transpose_tile2d(a_shuffle_tmp, a_block_tile);
                 const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_shuffle_tmp);
                 store_tile(a_copy_lds_window, a_block_tile_tmp);
             }
@@ -196,11 +196,11 @@ struct GemmPipelineAGmemBGmemCRegV1
             }
 
             // LDS write 0
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(is_b_row_major)
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-                    Policy::template MakeShuffledBRegBlockDistribution<Problem>());
-                shuffle_tile(b_shuffle_tmp, b_block_tile);
+                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                transpose_tile2d(b_shuffle_tmp, b_block_tile);
                 const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_shuffle_tmp);
                 store_tile(b_copy_lds_window, b_block_tile_tmp);
             }
@@ -229,15 +229,26 @@ struct GemmPipelineAGmemBGmemCRegV1
             move_tile_window(b_copy_dram_window, {0, kKPerBlock});
 
             // LDS write i + 1
-            const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
-            store_tile(a_copy_lds_window, a_block_tile_tmp);
+            if constexpr(is_a_col_major)
+            {
+                auto a_shuffle_tmp_loop = make_static_distributed_tensor<ADataType>(
+                    Policy::template MakeShuffledARegTileDistribution<Problem>());
+                transpose_tile2d(a_shuffle_tmp_loop, a_block_tile);
+                store_tile(a_copy_lds_window,
+                           tile_elementwise_in(a_element_func, a_shuffle_tmp_loop));
+            }
+            else
+            {
+                const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
+                store_tile(a_copy_lds_window, a_block_tile_tmp);
+            }
 
             // LDS write i + 1
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(is_b_row_major)
             {
                 auto b_shuffle_tmp_loop = make_static_distributed_tensor<BDataType>(
-                    Policy::template MakeShuffledBRegBlockDistribution<Problem>());
-                shuffle_tile(b_shuffle_tmp_loop, b_block_tile);
+                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                transpose_tile2d(b_shuffle_tmp_loop, b_block_tile);
                 store_tile(b_copy_lds_window,
                            tile_elementwise_in(b_element_func, b_shuffle_tmp_loop));
             }

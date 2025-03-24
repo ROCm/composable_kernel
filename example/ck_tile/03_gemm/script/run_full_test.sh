@@ -32,6 +32,9 @@ function print_log_header(){
 }
 
 # run verification tests
+for dtype in fp16 bf16 fp8 bf8; do
+    example/ck_tile/03_gemm/script/benchmark_basic_$dtype.sh
+done
 example/ck_tile/03_gemm/script/smoke_test_mem_pipeline.sh
 
 # run performance benchmarks
