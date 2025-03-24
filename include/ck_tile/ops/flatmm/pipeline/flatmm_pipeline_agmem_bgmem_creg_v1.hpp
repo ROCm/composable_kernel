@@ -246,6 +246,8 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                 });
             });
             
+            block_sync_lds();
+            
             // GEMM i
             block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor_2);
 
