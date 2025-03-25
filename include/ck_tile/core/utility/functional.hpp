@@ -58,20 +58,25 @@ struct static_for
     }
 };
 
+namespace detail {
+
 template <typename T, T... Is>
 struct range_applier
 {
     template <typename F>
     CK_TILE_HOST_DEVICE constexpr void operator()(F f) const
     {
+        // tweak -fbracket-depth if compilation fails. Clang default limit is 256
         (f(number<Is>{}), ...);
     }
 };
 
+} // namespace detail
+
 template <index_t N>
-struct static_for<0, N, 1> : __make_integer_seq<range_applier, index_t, N>
+struct static_for<0, N, 1> : __make_integer_seq<detail::range_applier, index_t, N>
 {
-    using __make_integer_seq<range_applier, index_t, N>::operator();
+    using __make_integer_seq<detail::range_applier, index_t, N>::operator();
 };
 
 struct identity
