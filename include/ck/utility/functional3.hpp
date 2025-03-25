@@ -88,26 +88,65 @@ struct ford_impl<Sequence<>, Orders>
 
 // Lengths is Sequence<...>, it is the length of each dimension for
 // N-dimensional loop
-// Orders is Sequence<...>, it is the order of dimension in which static_ford
-// will loop over each
-// dimension
-template <class Lengths,
-          class Orders = typename arithmetic_sequence_gen<0, Lengths::GetSize(), 1>::type>
-struct static_ford
-{
-    __host__ __device__ constexpr static_ford()
-    {
-        static_assert(Lengths::GetSize() > 0, "wrong! Lengths is empty");
-        static_assert(Lengths::GetSize() == Orders::GetSize(), "wrong! inconsistent size");
-    }
+template <typename T>
+struct static_ford;
 
-    // F signature: F(Sequence<...> multi_id)
-    // multi_id is the unordered multi-index
-    template <class F>
+namespace detail {
+template <typename T, T... Is>
+struct range_applier
+{
+    template <typename F>
     __host__ __device__ constexpr void operator()(F f) const
     {
-        constexpr auto ordered_lengths = Lengths::ReorderGivenNew2Old(Orders{});
-        detail::static_ford_impl<decltype(ordered_lengths), Orders>{}(f, Sequence<>{});
+        (f(ck::Number<Is>{}), ...);
+    }
+};
+
+template<int32_t... Idims>
+struct make_cumulative_product {
+    using type = ck::Sequence<>;
+};
+
+template<int32_t IDim0>
+struct make_cumulative_product<IDim0> {
+    using type = ck::Sequence<IDim0>;
+};
+
+template<int32_t IDim0, int32_t IDim1>
+struct make_cumulative_product<IDim0, IDim1> {
+    using type = ck::Sequence<IDim0, IDim0 * IDim1>;
+};
+
+template<int32_t IDim0, int32_t IDim1, int32_t IDim2>
+struct make_cumulative_product<IDim0, IDim1, IDim2> {
+    using type = ck::Sequence<IDim0, IDim0 * IDim1, IDim0 * IDim1 * IDim2>;
+};
+
+template<typename T, int32_t... Dims>
+struct convert_flat_to_multi_index;
+
+template<int32_t flat_idx, int32_t... Dims>
+struct convert_flat_to_multi_index<ck::Number<flat_idx>, Dims...> {
+    using SDim = ck::Sequence<Dims...>;
+    static constexpr auto Prod = (Dims * ...);
+    using TCumProd = typename make_cumulative_product<Dims...>::type;
+
+    using type = decltype((TCumProd{} * ck::Number<flat_idx>{} / ck::Number<Prod>{}) % SDim{});
+};
+}
+
+template<int32_t... Dims>
+struct static_ford<ck::Sequence<Dims...>> {
+
+    static constexpr auto Prod = (Dims * ...);
+
+    static constexpr auto ra = __make_integer_seq<detail::range_applier, ck::index_t, Prod>{};
+
+    template<typename F>
+    __host__ __device__ constexpr void operator() (F f) const {
+        ra([f] (auto I) {
+            f(typename detail::convert_flat_to_multi_index<decltype(I), Dims...>::type{});
+        });
     }
 };
 
