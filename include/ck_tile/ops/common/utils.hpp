@@ -18,6 +18,7 @@ template <> struct typeToStr<bf16_t> { static constexpr const char * name = "bf1
 template <> struct typeToStr<fp8_t> { static constexpr const char * name = "fp8"; };
 template <> struct typeToStr<bf8_t> { static constexpr const char * name = "bf8"; };
 template <> struct typeToStr<int8_t> { static constexpr const char * name = "int8"; };
+template <> struct typeToStr<pk_int4_t> { static constexpr const char * name = "pk_int4"; };
 // clang-format on
 
 template <typename ADataType_, typename BDataType_>
