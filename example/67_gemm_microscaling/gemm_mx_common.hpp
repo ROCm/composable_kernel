@@ -91,7 +91,7 @@ bool parse_cmd_args(int argc,
     else
     {
         std::cerr << "arg1: verification (0=no, 1=CPU)" << std::endl
-                  << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)"
+                  << "arg2: initialization (0=constant values, 1=integer values, 2=decimal values)"
                   << std::endl
                   << "arg3: time kernel (0=no, 1=yes)" << std::endl
                   << "arg4: verbosity (0=no info, 1=verbose info)" << std::endl
@@ -223,7 +223,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     };
 
     // Hardcode scale layouts as per pipeline assumptions
-    // TODO: Change default scale layouts to Col for A and Row for B
     // TODO: Allow user to specify scale layouts
     using AScaleLayout = Row;
     using BScaleLayout = Col;
