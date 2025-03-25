@@ -462,9 +462,12 @@ __device__ BFragT load_B_col_major(BType const* input_ptr)
     auto majorStepCoord2D = std::make_pair(chunk_offset, 0); // read a chunk from a col
 
     // BLOCK_K is a stride in B matrix
-    auto startOffset = col_major(startCoord2D, BLOCK_K);
+    auto startOffset = col_major(
+        startCoord2D, BLOCK_K / (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1));
     // auto kMinorOffset = col_major(minorStepCoord2D, BLOCK_K);
-    auto kMajorOffset = col_major(majorStepCoord2D, BLOCK_K);
+    auto kMajorOffset =
+        col_major(majorStepCoord2D,
+                  BLOCK_K / (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1));
 
     using BRawT        = typename scalar_type<BFragT>::type;
     using BScalarFragT = vector_type<BRawT, chunk_size>::type;
@@ -835,24 +838,6 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
     fragA = load_A_col_major<AType, AFragT, BLOCK_M, BLOCK_K>(a);
     // B = col major, BLOCK_K x BLOCK_N
     fragB = load_B_col_major<BType, BFragT, BLOCK_K, BLOCK_N>(b);
-
-    printf("&&&&&&& %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u",
-           uint32_t(fragA.template AsType<AType>()[Number<0>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<1>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<2>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<3>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<4>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<5>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<6>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<7>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<8>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<9>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<10>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<11>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<12>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<13>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<14>{}].data),
-           uint32_t(fragA.template AsType<AType>()[Number<15>{}].data));
 
     // Matrix multiply-accumulate using MFMA units
     // Accumulation intermediate = BLOCK_M x BLOCK_N
