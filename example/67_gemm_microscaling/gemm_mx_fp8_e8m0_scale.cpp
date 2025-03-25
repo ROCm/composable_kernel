@@ -6,7 +6,6 @@
 using ADataType = ck::f8_t;
 using BDataType = ck::f8_t;
 
-// using XDataType = ck::half_t;
 using XDataType = ck::e8m0_bexp_t;
 
 using CDataType        = ck::half_t;

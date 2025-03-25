@@ -32,10 +32,10 @@ using ck::type_convert;
 
 struct ExecutionConfig final
 {
-    int do_verification = 1;     // (0=no, 1=CPU)
-    int init_method     = 1;     // (0=constant values, 1=integer values, 2=decimal values)
-    bool time_kernel    = false; // (0=no, 1=yes)
-    int verbosity       = 1;     // (0=no info, 1=verbose info)
+    int do_verification = 1;    // (0=no, 1=CPU)
+    int init_method     = 2;    // (0=constant values, 1=integer values, 2=decimal values)
+    bool time_kernel    = true; // (0=no, 1=yes)
+    int verbosity       = 1;    // (0=no info, 1=verbose info)
 };
 
 struct ProblemSizeSplitK final
@@ -95,7 +95,7 @@ bool parse_cmd_args(int argc,
                   << std::endl
                   << "arg3: time kernel (0=no, 1=yes)" << std::endl
                   << "arg4: verbosity (0=no info, 1=verbose info)" << std::endl
-                  << "arg5 to 10: M(256x), N(128x), K(32x), StrideA, StrideB, StrideC" << std::endl
+                  << "arg5 to 10: M(128x), N(128x), K(64x), StrideA, StrideB, StrideC" << std::endl
                   << "arg11: KBatch" << std::endl;
         return false;
     }
