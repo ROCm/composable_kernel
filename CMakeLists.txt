@@ -547,6 +547,9 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERS
     add_compile_options(-fdiagnostics-color=always)
 endif()
 
+# fold expression depth
+add_compile_options(-fbracket-depth=1024)
+
 # make check runs the entire set of examples and tests
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 # make smoke runs the tests and examples that runs within 30 seconds on gfx90a
