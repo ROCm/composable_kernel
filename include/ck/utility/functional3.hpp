@@ -190,19 +190,9 @@ struct static_ford<ck::Sequence<Dims...>>
     }
 };
 
-template <int32_t... Dims>
-struct static_ford<const ck::Sequence<Dims...>>
-    : __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>
-{
-    using base = __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>;
-    template <typename I>
-    using multi_index_t = typename detail::convert_flat_to_multi_index<I, Dims...>::type;
-
-    template <typename F>
-    __host__ __device__ constexpr void operator()(F f) const
-    {
-        base::operator()([f](auto I) constexpr { f(multi_index_t<decltype(I)>{}); });
-    }
+template<template <int32_t...> typename T, int32_t... Dims>
+struct static_ford<const T<Dims...>> : static_ford<T<Dims...>> {
+    using static_ford<T<Dims...>>::operator();
 };
 
 // Lengths is Sequence<...>, it is the length of each dimension for
