@@ -49,9 +49,10 @@ using KernelTypes_MK_KN = ::testing::Types<
 #if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94))
     std::tuple<      F16,        F8,             F16,     F16>,
     std::tuple<       F8,       F16,             F16,     F16>,
-    std::tuple<       F8,        F8,              F8,    BF16>
+    std::tuple<       F8,        F8,              F8,    BF16>,
 #endif
-
+    // Fallback test type when FP8 is not enabled
+    std::tuple<      F16,       F16,             F16,     F16>
     >;
 using KernelTypes_MK_NK = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
@@ -59,9 +60,10 @@ using KernelTypes_MK_NK = ::testing::Types<
 #if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94))
     std::tuple<      F16,        F8,             F16,     F16>,
     std::tuple<       F8,       F16,             F16,     F16>,
-    std::tuple<       F8,        F8,              F8,    BF16>
+    std::tuple<       F8,        F8,              F8,    BF16>,
 #endif
-
+    // Fallback test type when FP8 is not enabled
+    std::tuple<      F16,       F16,             F16,     F16>
     >;
 
 // clang-format on
