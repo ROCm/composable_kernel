@@ -28,6 +28,7 @@ struct GridGemmProblem
     using CElementFunction = CElementFunction_;
 };
 
+#ifndef INSTRUCTION_SCHEDULE
 template <index_t kMPerTile, index_t kNPerTile, index_t kKPerTile>
 struct TileGemmShape
 {
@@ -35,6 +36,7 @@ struct TileGemmShape
     static constexpr index_t kN = kNPerTile;
     static constexpr index_t kK = kKPerTile;
 };
+#endif
 
 template <typename ADataType_,
           typename BDataType_,
@@ -124,6 +126,7 @@ struct Gemm
 #endif
         }
 
+#ifndef INSTRUCTION_SCHEDULE
         template <typename Problem>
         CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemmPipeline()
         {
@@ -136,6 +139,7 @@ struct Gemm
 
             return BlockGemmPipelineAGmemBGmemCReg<BlockGemmPipelineProblem_>{};
         }
+#endif
     };
 
     using GridGemm = GridGemm<GridGemmProblem, GridGemmPolicy>;
