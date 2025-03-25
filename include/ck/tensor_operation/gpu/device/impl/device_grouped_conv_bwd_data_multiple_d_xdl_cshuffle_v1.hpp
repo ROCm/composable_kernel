@@ -496,11 +496,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
               input_right_pads_{input_right_pads}
         {
             std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_transposed =
-                conv_ngchw_to_nhwgc_transformer.TransposeStrides(a_g_n_k_wos_lengths,
-                                                                 a_g_n_k_wos_strides);
+                conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(a_g_n_k_wos_lengths,
+                                                                      a_g_n_k_wos_strides);
             std::array<index_t, NDimSpatial + 3> e_g_n_c_wis_strides_transposed =
-                conv_ngchw_to_nhwgc_transformer.TransposeStrides(e_g_n_c_wis_lengths,
-                                                                 e_g_n_c_wis_strides);
+                conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(e_g_n_c_wis_lengths,
+                                                                      e_g_n_c_wis_strides);
 
             // populate Ds pointer
             static_for<0, NumDTensor, 1>{}([&](auto i) {
