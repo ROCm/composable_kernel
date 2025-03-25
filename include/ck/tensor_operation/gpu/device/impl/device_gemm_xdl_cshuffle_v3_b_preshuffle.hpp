@@ -379,7 +379,7 @@ struct DeviceGemm_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmV2BPreshuffle<AL
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!is_bf16_atomic_supported())
+        if(!ck::is_xdl_supported())
         {
             return false;
         }
