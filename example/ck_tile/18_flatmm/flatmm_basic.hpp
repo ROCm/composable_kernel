@@ -64,7 +64,6 @@ struct GemmBasicTypeConfig<ck_tile::fp8_t>
 template <typename T>
 struct DataTypeTraits;
 
-
 template <>
 struct DataTypeTraits<ck_tile::fp8_t>
 {

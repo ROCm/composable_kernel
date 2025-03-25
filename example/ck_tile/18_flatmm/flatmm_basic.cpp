@@ -115,8 +115,8 @@ int run_flatmm_example(int argc, char* argv[])
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
     std::string data_type = arg_parser.get_str("prec");
-    std::string a_layout = arg_parser.get_str("a_layout");
-    std::string b_layout = arg_parser.get_str("b_layout");
+    std::string a_layout  = arg_parser.get_str("a_layout");
+    std::string b_layout  = arg_parser.get_str("b_layout");
 
     if(a_layout == "R" && b_layout == "C")
     {
@@ -139,7 +139,7 @@ int run_flatmm_example(int argc, char* argv[])
     }
     else
     {
-        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!"); 
+        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
     }
     return -1;
 }
