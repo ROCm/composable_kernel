@@ -90,27 +90,27 @@ struct Gemm
             return [=](index_t block_1d_id) {
                 constexpr index_t M01 = 2;
                 constexpr index_t GroupNum = 4;
-                
+
                 const auto group_size = integer_divide_ceil(M0 * N0, GroupNum);
                 const auto big_group_num = GroupNum - (group_size * GroupNum - M0 * N0);
-                
+
                 const auto group_id_x = block_1d_id % GroupNum;
-                
+
                 const auto remap_block_1d_id = (group_id_x <= big_group_num)
                     ? (group_id_x * group_size + block_1d_id / GroupNum)
                     : (group_id_x * group_size + big_group_num - group_id_x);
-                
+
                 const index_t idx_M0 = remap_block_1d_id / N0;
                 const index_t idx_N0 = remap_block_1d_id % N0;
-                
+
                 const index_t M0_mod_M01 = M0 % M01;
-                
+
                 const auto M01_adapt = (idx_M0 < M0 - M0_mod_M01) ? M01 : M0_mod_M01;
-                
+
                 const index_t idx_M00 = idx_M0 / M01;
                 const index_t idx_M01 = idx_M0 % M01;
                 const index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
-                
+
                 return make_multi_index(idx_N0_M01_local % M01_adapt + idx_M00 * M01, idx_N0_M01_local / M01_adapt);
             };
 #else
@@ -120,7 +120,7 @@ struct Gemm
                 multi_index<2> unmerged;
                 unmerge.calculate_lower_index(unmerged, make_multi_index(block_id));
 
-                return make_multi_index(unmerged.at(number<1>{}), unmerged.at(number<0>{}));  
+                return make_multi_index(unmerged.at(number<1>{}), unmerged.at(number<0>{}));
 
             };
 #endif

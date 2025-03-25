@@ -28,12 +28,7 @@ int main(int argc, char* argv[])
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::half_t;
     using AccDataType = float;
-// TODO: FIXME
-#ifdef INSTRUCTION_SCHEDULE
-    using CDataType   = float;
-#else
     using CDataType   = ck_tile::half_t;
-#endif
 
     ck_tile::index_t verification = 0;
     ck_tile::index_t M            = 3328;
