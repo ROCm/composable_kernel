@@ -1406,31 +1406,35 @@ struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T)
 };
 
 template <typename T, index_t N>
-struct scalar_type<non_native_vector_base<T, N>>;
-
-template <index_t N>
-struct scalar_type<non_native_vector_base<f8_ocp_t, N>>
+struct scalar_type<non_native_vector_base<T, N>>
 {
-    using type = typename non_native_vector_base<f8_ocp_t, N>::data_t;
-
+    using type                           = typename non_native_vector_base<T, N>::data_t;
     static constexpr index_t vector_size = N;
 };
 
-template <index_t N>
-struct scalar_type<non_native_vector_base<bf8_ocp_t, N>>
-{
-    using type = typename non_native_vector_base<bf8_ocp_t, N>::data_t;
+// template <index_t N>
+// struct scalar_type<non_native_vector_base<f8_ocp_t, N>>
+// {
+//     using type = typename non_native_vector_base<f8_ocp_t, N>::data_t;
 
-    static constexpr index_t vector_size = N;
-};
+//     static constexpr index_t vector_size = N;
+// };
 
-template <index_t N>
-struct scalar_type<non_native_vector_base<pk_i4_t, N>>
-{
-    using type = typename non_native_vector_base<pk_i4_t, N>::data_t;
+// template <index_t N>
+// struct scalar_type<non_native_vector_base<bf8_ocp_t, N>>
+// {
+//     using type = typename non_native_vector_base<bf8_ocp_t, N>::data_t;
 
-    static constexpr index_t vector_size = N;
-};
+//     static constexpr index_t vector_size = N;
+// };
+
+// template <index_t N>
+// struct scalar_type<non_native_vector_base<pk_i4_t, N>>
+// {
+//     using type = typename non_native_vector_base<pk_i4_t, N>::data_t;
+
+//     static constexpr index_t vector_size = N;
+// };
 
 // non-native vector_type implementation
 template <typename T>
