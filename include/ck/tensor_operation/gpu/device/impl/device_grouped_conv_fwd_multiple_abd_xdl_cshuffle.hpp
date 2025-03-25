@@ -1253,11 +1253,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     return false;
                 }
             }
-            if constexpr(!is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>())
-            {
-                return false;
-            }
         }
+        printf("XX1\n");
 
         if constexpr(NumGroupsToMerge > 1)
         {
@@ -1270,7 +1267,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 return false;
             }
             if constexpr(!(is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>() ||
-                           is_NGCSpatial_GKSpatial_NGKSpatial<ALayout, BLayout, ELayout>()))
+                           is_NGCSpatial_GKSpatial_NGKSpatial<ALayout, BLayout, ELayout>() ||
+                           is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
+                           is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>()))
             {
                 return false;
             }
@@ -1291,7 +1290,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 // If not possible, check access per G
                 if(!(ABlockTransferSrcVectorDim == 1 && (C == 1 || NumGroupsToMerge == 1) &&
                      (is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>() ||
-                      is_NGCSpatial_GKSpatial_NGKSpatial<ALayout, BLayout, ELayout>()) &&
+                      is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
+                      is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>()) &&
                      G % ABlockTransferSrcScalarPerVector == 0))
                 {
                     return false;
@@ -1302,6 +1302,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             return false;
         }
+        printf("XX1\n");
 
         // check vector access of B
         // FIXME: layout
@@ -1325,7 +1326,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         //  check vector access of Ds
         bool valid = true;
-
+        printf("XX1\n");
         static_for<0, NumDTensor, 1>{}([&](auto i) {
             using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
 
@@ -1367,7 +1368,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 valid = false;
             }
         });
-
+        printf("XX2\n");
         if constexpr(is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
                      is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>())
         {
@@ -1375,12 +1376,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             {
                 return false;
             }
-
+            printf("XX2\n");
             if((G * K) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
                 return false;
             }
-
+            printf("XX2\n");
             const index_t input_spatial_acum = ck::accumulate_n<index_t>(
                 arg.a_g_n_c_wis_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
             const index_t output_spatial_acum = ck::accumulate_n<index_t>(
@@ -1390,12 +1391,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             {
                 return false;
             }
-
+            printf("XX2\n");
             if(output_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
                 return false;
             }
-
+            printf("XX2\n");
             if(!arg.p_workspace_)
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
@@ -1407,7 +1408,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 }
                 return false;
             }
-
+            printf("XX3\n");
             constexpr long_index_t TwoGB = (long_index_t{1} << 31);
             if(!(arg.a_out_transpose_desc_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
                  arg.e_in_transpose_desc_.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))

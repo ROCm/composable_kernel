@@ -1186,7 +1186,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         const index_t G = arg.b_g_k_c_xs_lengths_[I0];
         const index_t K = arg.b_g_k_c_xs_lengths_[I1];
         const index_t C = arg.b_g_k_c_xs_lengths_[I2];
-        const index_t X = arg.b_g_k_c_xs_lengths_[NDimSpatial + I2];
 
         // check device
         if(get_device_name() == "gfx908")
@@ -1263,19 +1262,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                      is_same_v<BLayout, ctc::G_K_ZYX_C> || is_same_v<BLayout, ctc::GKXC> ||
                      is_same_v<BLayout, ctc::GKYXC> || is_same_v<BLayout, ctc::GKZYXC> ||
                      is_same_v<BLayout, ctc::KXGC> || is_same_v<BLayout, ctc::KYXGC> ||
-                     is_same_v<BLayout, ctc::KZYXGC>)
+                     is_same_v<BLayout, ctc::KZYXGC> || is_same_v<BLayout, ctc::GKCX> ||
+                     is_same_v<BLayout, ctc::GKCYX> || is_same_v<BLayout, ctc::GKCZYX>)
 
         {
             if(!(BBlockTransferSrcVectorDim == 2 && C % BBlockTransferSrcScalarPerVector == 0))
-            {
-                return false;
-            }
-        }
-        else if constexpr(is_same_v<BLayout, ctc::GKCX> || is_same_v<BLayout, ctc::GKCYX> ||
-                          is_same_v<BLayout, ctc::GKCZYX>)
-
-        {
-            if(!(BBlockTransferSrcVectorDim == 2 && X % BBlockTransferSrcScalarPerVector == 0))
             {
                 return false;
             }
