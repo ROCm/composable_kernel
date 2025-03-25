@@ -98,6 +98,7 @@ struct range_applier
     template <typename F>
     __host__ __device__ constexpr void operator()(F f) const
     {
+        static_assert(sizeof...(Is) <= 3136, "tweak -fbracket-depth");
         (f(ck::Number<Is>{}), ...);
     }
 };
@@ -106,7 +107,7 @@ struct range_applier
 template <int32_t... Idims>
 struct make_cumulative_product
 {
-    using type = ck::Sequence<>;
+    static_assert(sizeof...(Idims) < 7, "implement cumulative product for larger sequence size");
 };
 
 template <int32_t IDim0>
@@ -176,35 +177,31 @@ struct convert_flat_to_multi_index<ck::Number<flat_idx>, Dims...>
 
 template <int32_t... Dims>
 struct static_ford<ck::Sequence<Dims...>>
+    : __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>
 {
-
-    static constexpr auto Prod = (Dims * ...);
-
-    static constexpr auto ra = __make_integer_seq<detail::range_applier, ck::index_t, Prod>{};
+    using base = __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>;
+    template <typename I>
+    using multi_index_t = typename detail::convert_flat_to_multi_index<I, Dims...>::type;
 
     template <typename F>
     __host__ __device__ constexpr void operator()(F f) const
     {
-        ra([f](auto I) constexpr {
-            f(typename detail::convert_flat_to_multi_index<decltype(I), Dims...>::type{});
-        });
+        base::operator()([f](auto I) constexpr { f(multi_index_t<decltype(I)>{}); });
     }
 };
 
 template <int32_t... Dims>
 struct static_ford<const ck::Sequence<Dims...>>
+    : __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>
 {
-
-    static constexpr auto Prod = (Dims * ...);
-
-    static constexpr auto ra = __make_integer_seq<detail::range_applier, ck::index_t, Prod>{};
+    using base = __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>;
+    template <typename I>
+    using multi_index_t = typename detail::convert_flat_to_multi_index<I, Dims...>::type;
 
     template <typename F>
     __host__ __device__ constexpr void operator()(F f) const
     {
-        ra([f](auto I) constexpr {
-            f(typename detail::convert_flat_to_multi_index<decltype(I), Dims...>::type{});
-        });
+        base::operator()([f](auto I) constexpr { f(multi_index_t<decltype(I)>{}); });
     }
 };
 
