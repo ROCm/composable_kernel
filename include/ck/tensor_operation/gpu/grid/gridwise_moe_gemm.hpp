@@ -1347,23 +1347,18 @@ struct GridwiseMoeGemm
                                                                          c_thread_buf_up,
                                                                          num_k_block_main_loop);
 
-        static constexpr int c_len = MXdlPerWave * NXdlPerWave / 2 * 16;
-        constexpr float one = 1.0;
         static_assert(NXdlPerWave == 1, "ONLY 1 now");
-        constexpr int perTokenQuantStride = 1;
-        const float *scale_b = (const float *)p_ds_grid[I1] +  expert_id * (perTokenQuantStride ? perTokenQuantStride * problem.N * 2: 1) 
-                                                            + (block_n_id * NPerBlock + get_warp_local_1d_id() % NWave * NPerXdl + threadIdx.x % NPerXdl) * perTokenQuantStride;
-        const float scale_gate = scale_b[0];
-        const float scale_up = scale_b[problem.N * perTokenQuantStride];
-        static_for<0, c_thread_buf.Size(), 1>{}([&](auto i) {
-            auto up =  scale_up * c_thread_buf_up[i];
-            // c_thread_buf(i) = scale_gate * c_thread_buf[i] + up;
-            // printf("tid %d off %d %d scale %f %f\n", threadIdx.x, expert_id * (perTokenQuantStride ? perTokenQuantStride * problem.N * 2: 1) 
-            // + (block_n_id * NPerBlock + threadIdx.x / 64 * NPerXdl + threadIdx.x % NPerXdl) * perTokenQuantStride,problem.N * perTokenQuantStride,
-            // scale_gate, scale_up);
-            c_thread_buf(i) = scale_gate * c_thread_buf[i] * (up * math::rcp( (one + math::exp(-up))));
-        });
-
+        // const float scale_gate = scale_b[0];
+        // const float scale_up = scale_b[problem.N * perTokenQuantStride];
+        // static_for<0, c_thread_buf.Size(), 1>{}([&](auto i) {
+        //     auto up =  scale_up * c_thread_buf_up[i];
+        //     // c_thread_buf(i) = scale_gate * c_thread_buf[i] + up;
+        //     // printf("tid %d off %d %d scale %f %f\n", threadIdx.x, expert_id * (perTokenQuantStride ? perTokenQuantStride * problem.N * 2: 1) 
+        //     // + (block_n_id * NPerBlock + threadIdx.x / 64 * NPerXdl + threadIdx.x % NPerXdl) * perTokenQuantStride,problem.N * perTokenQuantStride,
+        //     // scale_gate, scale_up);
+        //     c_thread_buf(i) = scale_gate * c_thread_buf[i] * (up * math::rcp( (one + math::exp(-up))));
+        // });
+        
         // shuffle C and write out
         {
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
@@ -1371,7 +1366,7 @@ struct GridwiseMoeGemm
                           "wrong!");
 
             constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-
+            
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
                 blockwise_gemm_pipeline.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
@@ -1389,6 +1384,51 @@ struct GridwiseMoeGemm
             constexpr auto M3 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I5);
             constexpr auto M4 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I6);
             constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I7);
+            
+            // mul scales
+            constexpr int perTokenQuantStride = 1;
+            const float *scale_b = p_ds_grid[I1] +  expert_id * (perTokenQuantStride ? perTokenQuantStride * problem.N * 2: 1) 
+                                                            + (block_n_id * NPerBlock + get_warp_local_1d_id() % NWave * NPerXdl + threadIdx.x % NPerXdl) * perTokenQuantStride;
+            const float scale_gate = scale_b[0];
+            const float scale_up = scale_b[problem.N * perTokenQuantStride];
+            const float* p_sorted_weights_0 = p_ds_grid[I0];
+            static_assert(M0 * M1 * M2 * M3 * M4 == MPerBlock);
+            static_assert(M4 == 4);
+            const index_t m1 = get_warp_local_1d_id() / M1;
+            const index_t m3 = threadIdx.x % get_warp_size() / MPerXdl;
+            vector_type<int32_t, 4>  scale_token_ids;
+            static_for<0, MXdlPerWave, 1>{}([&](auto m0) {        // MXDLPerWave
+                static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
+                    static_for<0, M2, 1>{}([&](auto m2) {         // m_inst_num_groups_per_blk
+                        
+                        if constexpr(perTokenQuantStride) {
+                            const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 + m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
+                            scale_token_ids = *c_style_pointer_cast<vector_type<int32_t, 4> *>(p_sorted_token_ids + m_pos);
+                        }
+                        static_for<0, M4, 1>{}([&](auto m4) {     // m_inst_group_size
+                            float scale_a = [&]() {
+                                if constexpr(perTokenQuantStride)
+                                {
+                                    index_t fused_token = scale_token_ids.AsType<index_t>()[m4];
+                                    const index_t token_offset      = fused_token & 0xffffff;
+                                    return token_offset < problem.NumTokens ? p_sorted_weights_0[token_offset] : 0.0;
+                                }
+                                else
+                                {
+                                    return p_sorted_weights_0[0];
+                                }
+                            }();
+                            constexpr index_t c_offset =
+                                blockwise_gemm_pipeline.c_thread_desc_.CalculateOffset(make_tuple(m0, n0, m2 * M4 + m4));
+                            constexpr auto cidx = Number<c_offset>{};
+                            auto gate = scale_a * scale_gate * c_thread_buf[cidx];
+                            auto up = scale_a * scale_up * c_thread_buf_up[cidx];
+                            // gate = gate * math::rcp(1.0 + math::exp(-gate)); 
+                            c_thread_buf(cidx) = gate + up;
+                        });
+                    });
+                });
+            });
 
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
@@ -1611,7 +1651,7 @@ struct GridwiseMoeGemm
             constexpr auto EMRepeats = CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl / EMThreads;
             constexpr auto ENThreads =
                 CDEBlockTransferCluster{}.At(I2) * CDEBlockTransferCluster{}.At(I3);
-            const float* p_sorted_weights_0 = p_ds_grid[I0];
+            // const float* p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
                 StaticallyIndexedArray<IndexType, EMRepeats>
@@ -1627,9 +1667,7 @@ struct GridwiseMoeGemm
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     IndexType token_offset      = fused_token & 0xffffff;
-                    float weight              = token_offset < static_cast<IndexType>(problem.NumTokens)
-                                                    ? p_sorted_weights_0[token_offset * problem.StrideDs[0]]
-                                                    : 0.0;
+                    float weight              = 1.0f;
                     if constexpr(IsInputGemm)
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);

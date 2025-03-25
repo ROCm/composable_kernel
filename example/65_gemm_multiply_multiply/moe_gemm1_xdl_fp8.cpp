@@ -36,7 +36,7 @@ using A0DataType       = F8;
 using B0DataType       = F8;
 using EDataType        = F16;
 using AccDataType      = F32;
-using CShuffleDataType = F32;
+using CShuffleDataType = EDataType;
 using D0DataType       = F32;
 using D1DataType       = F32;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
@@ -59,7 +59,25 @@ struct MulABScale
     __host__ __device__ constexpr void operator()<EDataType, float, float, float>(
         EDataType& e, const float& c, const float& d0, const float& d1) const
     {
-        e = ck::type_convert<EDataType>(c * d0);
+        (void)d0;
+        (void)d1;
+        e = ck::type_convert<EDataType>(c);
+    }
+    template <>
+    __host__ __device__ constexpr void operator()<EDataType, EDataType, float, float>(
+        EDataType& e, const EDataType& c, const float& d0, const float& d1) const
+    {
+        (void)d0;
+        (void)d1;
+        e = ck::type_convert<EDataType>(c);
+    }
+    template <>
+    __host__ __device__ constexpr void operator()<EDataType, EDataType, EDataType, EDataType>(
+        EDataType& e, const EDataType& c, const EDataType& d0, const EDataType& d1) const
+    {
+        (void)d0;
+        (void)d1;
+        e = ck::type_convert<EDataType>(c);
     }
 };
 
@@ -112,7 +130,7 @@ static constexpr ck::index_t BLOCKSIZE   = 256;
 static constexpr ck::index_t NPerBlock   = 64;
 static constexpr ck::index_t MNPerXDL    = 32;
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
-static constexpr ck::index_t Nswizzle    = false;
+static constexpr ck::index_t Nswizzle    = true;
 static constexpr ck::index_t AK1         = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1         = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec        = 16 / sizeof(EDataType);
@@ -138,7 +156,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
                 2,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, uint32_t, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, int32_t, A0DataType>;
 
 // clang-format on
 
@@ -270,10 +288,10 @@ int main(int argc, char* argv[])
         d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
         break;
     case 3:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
         d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
-        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
         break;
     default:
         a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
@@ -291,7 +309,7 @@ int main(int argc, char* argv[])
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
     // a0_t_k.savetxt("a.txt");
-    // d0_t_n.savetxt("d0_t_n.txt", "int");
+    d0_t_n.savetxt("d0_t_n.txt", "float");
     // d1_e_n.savetxt("d1_e_n.txt", "int");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
@@ -383,6 +401,7 @@ int main(int argc, char* argv[])
                                                       max_token_id,
                                                       MPerBlock,
                                                       a0_t_k,
+                                                      d0_t_n,
                                                       b0_e_n_k,
                                                       d1_e_n,
                                                       c_t_k_n,
@@ -413,8 +432,8 @@ int main(int argc, char* argv[])
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
-        // e_t_n_device_result.savetxt("out.txt");
-        // e_t_n_host_result.savetxt("ref.txt");
+        e_t_n_device_result.savetxt("out.txt");
+        e_t_n_host_result.savetxt("ref.txt");
         return ck::utils::check_err(
                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
                    ? 0
