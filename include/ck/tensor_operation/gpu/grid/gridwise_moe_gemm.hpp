@@ -1423,8 +1423,8 @@ struct GridwiseMoeGemm
                             constexpr auto cidx = Number<c_offset>{};
                             auto gate = scale_a * scale_gate * c_thread_buf[cidx];
                             auto up = scale_a * scale_up * c_thread_buf_up[cidx];
-                            // gate = gate * math::rcp(1.0 + math::exp(-gate)); 
-                            c_thread_buf(cidx) = gate + up;
+                            gate = gate * math::rcp(1.0 + math::exp(-gate)); 
+                            c_thread_buf(cidx) = gate * up;
                         });
                     });
                 });
