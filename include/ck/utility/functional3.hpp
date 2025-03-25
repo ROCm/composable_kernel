@@ -176,7 +176,7 @@ template <typename T>
 struct static_ford;
 
 template<template <int32_t...> typename T, int32_t... Dims>
-struct static_ford<T<Dims...>> :
+struct static_ford<T<Dims...>>
     : __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>
 {
     using base = __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>;
