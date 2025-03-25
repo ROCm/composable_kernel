@@ -144,6 +144,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
     using Base::BMmaKStride;
 
     using Base::MWaves;
+    using Base::c_thread_desc_;
 
     static constexpr index_t PrefetchStages        = 2;
     static constexpr index_t PrefillStages         = 1;
@@ -853,8 +854,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
 
     static constexpr BTileDesc b_block_desc_n0_n1_k0_k1;
-
-    using Base::c_thread_desc_;
 };
 
 } // namespace ck
