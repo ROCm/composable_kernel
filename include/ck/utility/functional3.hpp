@@ -90,11 +90,11 @@ namespace detail {
 template <typename T, T... Is>
 struct range_applier
 {
-    template <typename F>
+    template <typename F, template<int32_t> typename G = ck::Number>
     __host__ __device__ constexpr void operator()(F f) const
     {
         static_assert(sizeof...(Is) <= 3136, "tweak -fbracket-depth");
-        (f(ck::Number<Is>{}), ...);
+        (f(G<Is>{}), ...);
     }
 };
 
@@ -156,18 +156,15 @@ struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3, IDim4, IDim5>
                               IDim0 * IDim1 * IDim2 * IDim3 * IDim4 * IDim5>;
 };
 // clang-format on
-template <typename T, int32_t... Dims>
-struct convert_flat_to_multi_index;
-
-template <int32_t flat_idx, int32_t... Dims>
-struct convert_flat_to_multi_index<ck::Number<flat_idx>, Dims...>
-{
-    using SDim                 = ck::Sequence<Dims...>;
+template<int32_t flat_idx, int32_t... Dims>
+struct convert_flat_to_multi_index {
+    using SDim = ck::Sequence<Dims...>;
     static constexpr auto Prod = (Dims * ...);
-    using TCumProd             = typename make_cumulative_product<Dims...>::type;
+    using TCumProd = typename make_cumulative_product<Dims...>::type;
 
     using type = decltype((TCumProd{} * ck::Number<flat_idx>{} / ck::Number<Prod>{}) % SDim{});
 };
+
 } // namespace detail
 
 // Lengths is Sequence<...>, it is the length of each dimension for
@@ -180,13 +177,12 @@ struct static_ford<T<Dims...>>
     : __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>
 {
     using base = __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>;
-    template <typename I>
+    template <int32_t I>
     using multi_index_t = typename detail::convert_flat_to_multi_index<I, Dims...>::type;
 
-    template <typename F>
-    __host__ __device__ constexpr void operator()(F f) const
-    {
-        base::operator()([f](auto I) constexpr { f(multi_index_t<decltype(I)>{}); });
+    template<typename F>
+    __host__ __device__ constexpr void operator() (F f) const {
+        base::template operator()<F, multi_index_t>(f);
     }
 };
 
