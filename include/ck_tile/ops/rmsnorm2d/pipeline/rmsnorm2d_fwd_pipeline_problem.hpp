@@ -12,6 +12,7 @@ template <typename XDataType_,
           typename ComputeDataType_,
           typename YDataType_,
           typename InvRmsDataType_,
+          typename UnquantYDataType_,
           typename SmoothScaleDataType_,
           typename YScaleDataType_,
           typename BlockShape_,
@@ -23,6 +24,7 @@ struct Rmsnorm2dFwdPipelineProblem
     using ComputeDataType     = remove_cvref_t<ComputeDataType_>;
     using YDataType           = remove_cvref_t<YDataType_>;
     using InvRmsDataType      = remove_cvref_t<InvRmsDataType_>;
+    using UnquantYDataType    = remove_cvref_t<UnquantYDataType_>;
     using SmoothScaleDataType = remove_cvref_t<SmoothScaleDataType_>;
     using YScaleDataType      = remove_cvref_t<YScaleDataType_>;
     using BlockShape          = remove_cvref_t<BlockShape_>;
