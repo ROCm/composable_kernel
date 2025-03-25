@@ -102,6 +102,7 @@ struct range_applier
     }
 };
 
+// clang-format off
 template <int32_t... Idims>
 struct make_cumulative_product
 {
@@ -117,20 +118,25 @@ struct make_cumulative_product<IDim0>
 template <int32_t IDim0, int32_t IDim1>
 struct make_cumulative_product<IDim0, IDim1>
 {
-    using type = ck::Sequence<IDim0, IDim0 * IDim1>;
+    using type = ck::Sequence<IDim0, 
+                              IDim0 * IDim1>;
 };
 
 template <int32_t IDim0, int32_t IDim1, int32_t IDim2>
 struct make_cumulative_product<IDim0, IDim1, IDim2>
 {
-    using type = ck::Sequence<IDim0, IDim0 * IDim1, IDim0 * IDim1 * IDim2>;
+    using type = ck::Sequence<IDim0, 
+                              IDim0 * IDim1, 
+                              IDim0 * IDim1 * IDim2>;
 };
 
 template <int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3>
 struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3>
 {
-    using type =
-        ck::Sequence<IDim0, IDim0 * IDim1, IDim0 * IDim1 * IDim2, IDim0 * IDim1 * IDim2 * IDim3>;
+    using type = ck::Sequence<IDim0, 
+                              IDim0 * IDim1, 
+                              IDim0 * IDim1 * IDim2, 
+                              IDim0 * IDim1 * IDim2 * IDim3>;
 };
 
 template <int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3, int32_t IDim4>
@@ -153,7 +159,7 @@ struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3, IDim4, IDim5>
                               IDim0 * IDim1 * IDim2 * IDim3 * IDim4,
                               IDim0 * IDim1 * IDim2 * IDim3 * IDim4 * IDim5>;
 };
-
+// clang-format on
 template <typename T, int32_t... Dims>
 struct convert_flat_to_multi_index;
 
