@@ -15,8 +15,16 @@ struct MoeGemmHostArgs : public ck_tile::GemmHostArgs
 {
     ck_tile::index_t NumTokens;
     ck_tile::index_t TopK;
+    const ck_tile::index_t* p_sorted_token_ids;
+    const ck_tile::index_t* p_sorted_expert_ids;
+    const ck_tile::index_t* p_max_token_id;
+
+    // TODO: add kbatch for splitk
     CK_TILE_HOST MoeGemmHostArgs() noexcept = default;
-    CK_TILE_HOST MoeGemmHostArgs(const void* a_ptr_,
+    CK_TILE_HOST MoeGemmHostArgs(const ck_tile::index_t* p_sorted_token_ids_,
+                                 const ck_tile::index_t* p_sorted_expert_ids_,
+                                 const ck_tile::index_t* p_max_token_id_,
+                                 const void* a_ptr_,
                                  const void* b_ptr_,
                                  void* c_ptr_,
                                  ck_tile::index_t NumTokens_,
@@ -27,10 +35,12 @@ struct MoeGemmHostArgs : public ck_tile::GemmHostArgs
                                  ck_tile::index_t stride_A_,
                                  ck_tile::index_t stride_B_,
                                  ck_tile::index_t stride_C_)
-        : GemmHostArgs(a_ptr_, b_ptr_, c_ptr_, KBatch, M_, N_, K_, stride_A_, stride_B_, stride_C_)
-              NumTokens(NumTokens_),
+        : GemmHostArgs(a_ptr_, b_ptr_, c_ptr_, 1, M_, N_, K_, stride_A_, stride_B_, stride_C_),
+          NumTokens(NumTokens_),
           TopK(TopK_),
-
+          p_sorted_token_ids(p_sorted_token_ids_),
+          p_sorted_expert_ids(p_sorted_expert_ids_),
+          p_max_token_id(p_max_token_id_)
     {
     }
 
@@ -80,34 +90,33 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
                                        ck_tile::index_t K_,
                                        ck_tile::index_t stride_A_,
                                        ck_tile::index_t stride_B_,
-                                       ck_tile::index_t stride_C_)
+                                       ck_tile::index_t stride_C_,
+                                       ck_tile::index_t KBatch)
             : GemmKernelArgs{a_ptr_,
                              b_ptr_,
                              c_ptr_,
-                             KBatch,
                              M_,
                              N_,
                              K_,
                              stride_A_,
                              stride_B_,
-                             stride_C_},
-              NumTokens(NumTokens_),
-              TopK(TopK_),
+                             stride_C_,
+                             KBatch},
               p_sorted_token_ids(p_sorted_token_ids_),
               p_sorted_expert_ids(p_sorted_expert_ids_),
-              p_max_token_id(p_max_token_id_)
+              p_max_token_id(p_max_token_id_),
+              NumTokens(NumTokens_),
+              TopK(TopK_)
         {
         }
 
         CK_TILE_HOST static constexpr MoeGemmKernelArgs
-        MakeKernelArgs(const MoeGemmHostArgs& hostArgs,
-                       const ck_tile::index_t* p_sorted_token_ids_,
-                       const ck_tile::index_t p_sorted_expert_ids_,
-                       const ck_tile::index_t p_max_token_id_)
+        MakeKernelArgs(const MoeGemmHostArgs& hostArgs)
         {
-            return MoeGemmKernelArgs{p_sorted_token_ids_,
-                                     p_sorted_expert_ids_,
-                                     p_max_token_id_,
+            printf("in moe gemm kernel args!");
+            return MoeGemmKernelArgs{hostArgs.p_sorted_token_ids,
+                                     hostArgs.p_sorted_expert_ids,
+                                     hostArgs.p_max_token_id,
                                      hostArgs.a_ptr,
                                      hostArgs.b_ptr,
                                      hostArgs.c_ptr,
@@ -119,7 +128,8 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
                                      hostArgs.stride_A,
                                      hostArgs.stride_B,
                                      hostArgs.stride_C,
-                                     hostArgs.k_batch};
+                                     1
+                                     /*hostArgs.k_batch*/};
         }
     };
 
@@ -127,9 +137,8 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
     {
         // clang-format off
         using P_ = GemmPipeline;
-
         return concat('_', "moe_gemm", gemm_prec_str<ADataType, BDataType>,
-                      concat('x', P_::kMPerBlock, P_::kNPerBlock, P_::kKPerBlock),
+                      concat('x', P_::MPerBlock, P_::NPerBlock, P_::KPerBlock),
                       concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK));
         // clang-format on
@@ -140,7 +149,8 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
     __host__ static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
         // TODO: remove assertion
-        assert(KBatch == 1) return Base::GridSize(M, N, KBatch);
+        assert(KBatch == 1);
+        return Base::GridSize(M, N, KBatch);
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemSize() -> index_t
@@ -148,30 +158,120 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    CK_TILE_DEVICE void Run(const MoeGemmKernelArgs& kargs) const
+    template <typename AView>
+    CK_TILE_DEVICE static auto GetATransformGemmView(const AView& view, const index_t token_id)
     {
-        const auto [iM, iN] = OffsetTile1DPartitioner::GetOffsetedTileIndex(
-            kargs.block_start, kargs.group_karg.M, kargs.group_karg.N);
+        if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
+            return transform_tensor_view(
+                view,
+                make_tuple(make_indexing_transform(
+                               view.get_tensor_descriptor().get_length(number<0>()), token_id),
+                           make_pass_through_transform(
+                               view.get_tensor_descriptor().get_length(number<1>()))),
+                make_tuple(sequence<0>{}, sequence<1>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+        else
+            return transform_tensor_view(
+                view,
+                make_tuple(make_pass_through_transform(
+                               view.get_tensor_descriptor().get_length(number<0>())),
+                           make_indexing_transform(
+                               view.get_tensor_descriptor().get_length(number<1>()), token_id)),
+                make_tuple(sequence<0>{}, sequence<1>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+    }
 
-        const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+    template <typename CView>
+    CK_TILE_DEVICE static auto GetCTransformGemmView(const CView& view, const index_t token_id)
+    {
+        if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, CLayout>)
+            return transform_tensor_view(
+                view,
+                make_tuple(make_indexing_transform(
+                               view.get_tensor_descriptor().get_length(number<0>()), token_id),
+                           make_pass_through_transform(
+                               view.get_tensor_descriptor().get_length(number<1>()))),
+                make_tuple(sequence<0>{}, sequence<1>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+        else
+            return transform_tensor_view(
+                view,
+                make_tuple(make_pass_through_transform(
+                               view.get_tensor_descriptor().get_length(number<0>())),
+                           make_indexing_transform(
+                               view.get_tensor_descriptor().get_length(number<1>()), token_id)),
+                make_tuple(sequence<0>{}, sequence<1>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+    }
 
-        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs.group_karg, blockIdx.z);
+    template <typename PadView>
+    CK_TILE_DEVICE static auto TransformGemmPadViews(const PadView& views, const index_t token_id)
+    {
+        auto a_pad_view = views.at(number<0>());
+        auto b_pad_view = views.at(number<1>());
+        auto c_pad_view = views.at(number<2>());
 
-        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.group_karg.a_ptr);
-        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.group_karg.b_ptr);
-        CDataType* c_ptr       = static_cast<CDataType*>(kargs.group_karg.c_ptr);
+        const auto a_gather_view = GetATransformGemmView(a_pad_view, token_id);
+        // TODO： Caculate expert offset of the buf in B.
 
-        // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
+        // const auto c_scatter_view = GetCTransformGemmView(c_pad_view, token_id);
+        // if (token_id){}
+        return make_tuple(a_gather_view, b_pad_view, c_pad_view);
+    }
 
-        this->RunGemm(
-            a_ptr, b_ptr, c_ptr, smem_ptr, kargs.group_karg, splitk_batch_offset, i_m, i_n);
+    template <typename PadView>
+    CK_TILE_DEVICE static auto
+    MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
+    {
+        const auto& a_pad_view = views.at(number<0>{});
+        const auto& b_pad_view = views.at(number<1>{});
+        const auto& c_pad_view = views.at(number<2>{});
+        if(i_m) {}
+        const auto& a_block_window = [&]() {
+            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+            {
+                return make_tile_window(a_pad_view,
+                                        make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                   number<TilePartitioner::KPerBlock>{}),
+                                        {0, 0});
+            }
+            else
+            {
+                return make_tile_window(a_pad_view,
+                                        make_tuple(number<TilePartitioner::KPerBlock>{},
+                                                   number<TilePartitioner::MPerBlock>{}),
+                                        {0, 0});
+            }
+        }();
+
+        const auto& b_block_window = [&]() {
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+            {
+                return make_tile_window(b_pad_view,
+                                        make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                   number<TilePartitioner::KPerBlock>{}),
+                                        {i_n, 0});
+            }
+            else
+            {
+                return make_tile_window(b_pad_view,
+                                        make_tuple(number<TilePartitioner::KPerBlock>{},
+                                                   number<TilePartitioner::NPerBlock>{}),
+                                        {0, i_n});
+            }
+        }();
+
+        auto c_block_window = make_tile_window(
+            c_pad_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            {0, i_n});
+
+        return make_tuple(a_block_window, b_block_window, c_block_window);
     }
 
     CK_TILE_DEVICE void operator()(const MoeGemmKernelArgs gemm_desc) const
     {
-
+        // TODO: implement C scatter store accordring to expert_id
         // TODO: the branch without swizzle
         const index_t max_token_id = __builtin_amdgcn_readfirstlane(gemm_desc.p_max_token_id[0]);
         const index_t block_id     = ck_tile::get_block_1d_id();
@@ -180,11 +280,11 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
         const auto [expert_blk_id, _] =
             OffsetTile1DPartitioner::GetOffsetedTileIndex(0, gemm_desc.M, gemm_desc.N);
 
-        if(expert_blk_id * MPerBlock >= max_token_id)
+        if(expert_blk_id * TilePartitioner::MPerBlock >= max_token_id)
             return;
 
         const index_t NBlocks        = gemm_desc.N / TilePartitioner::NPerBlock;
-        const index_t expert_id      = gemm_desc.p_sorted_expert_ids[iM];
+        const index_t expert_id      = gemm_desc.p_sorted_expert_ids[expert_blk_id];
         const index_t prefix_blk_m   = gemm_desc.p_max_token_id[1 + expert_id];
         const index_t blk_cnt_of_eid = gemm_desc.p_max_token_id[2 + expert_id];
 
@@ -198,11 +298,67 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
         const index_t im = __builtin_amdgcn_readfirstlane(prefix_blk_m + block_id_start_in_expert /
                                                                              8 % expert_swizzle);
         const index_t in = __builtin_amdgcn_readfirstlane(
-            block_id_start_in_expert % 8 + block_id_start_in_expert / (8 * expert_swizzle) * 8)
-            // const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
-            //     cast_pointer_to_generic_address_space(gemm_descs_const));
+            block_id_start_in_expert % 8 + block_id_start_in_expert / (8 * expert_swizzle) * 8);
 
-            Run(gemm_desc_ptr[group_id]);
+        const auto a_coord         = GemmPipeline::GetACoord(); // 2d thread offset, [i_row, i_col]
+        const auto sorted_token_id = a_coord[number<0>{}] + im * TilePartitioner::MPerBlock;
+
+        // constexpr auto AMRepeat = GemmPipeline::GetAMRepeat();
+
+        // ck_tile::statically_indexed_array<ck_tile::index_t, AMRepeat> gather_offset;
+        // static_for<0, AMRepeat, 1>{}([&](auto thr_offset_m){
+        //     const index_t fused_token = gemm_desc.p_sorted_token_ids[sorted_token_id +
+        //     thr_offset_m]; gather_offset(thr_offset_m) = fused_token & 0xffffff;
+        // });
+
+        const index_t fused_token = gemm_desc.p_sorted_token_ids[sorted_token_id];
+        // printf("a_coord[number<0>{}]: %d \n",a_coord[number<0>{}]);
+
+        // TODO: token_id should include topk offset depends on ffn1 or ffn2
+        const index_t token_id = fused_token & 0xffffff;
+
+        // const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
+
+        const typename Base::SplitKBatchOffset splitk_batch_offset(gemm_desc);
+        // options
+        const ADataType* a_ptr =
+            static_cast<const ADataType*>(gemm_desc.a_ptr) + splitk_batch_offset.a_k_split_offset;
+        const BDataType* b_ptr =
+            static_cast<const BDataType*>(gemm_desc.b_ptr) + splitk_batch_offset.b_k_split_offset;
+        CDataType* c_ptr = static_cast<CDataType*>(gemm_desc.c_ptr);
+
+        const auto& gemm_tensor_views_tuple =
+            Base::MakeGemmTensorViews(a_ptr, b_ptr, c_ptr, gemm_desc, splitk_batch_offset);
+        const auto& gemm_pad_views    = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
+        const auto& transformed_views = TransformGemmPadViews(gemm_pad_views, token_id);
+        auto gemm_tile_windows        = MakeGemmTileWindows(
+            transformed_views, im * TilePartitioner::MPerBlock, in * TilePartitioner::NPerBlock);
+        const index_t num_loop =
+            __builtin_amdgcn_readfirstlane(TilePartitioner::GetLoopNum(gemm_desc.K));
+
+        // printf("num_loop: %d", num_loop);
+
+        static_assert(GemmPipeline::DoubleSmemBuffer == true,
+                      "For now, only support doublesmembuffer");
+
+        __shared__ char smem_ptr_0[GetSmemSize()];
+        __shared__ char smem_ptr_1[GetSmemSize()];
+        // Run GEMM cooperatively by whole workgroup.
+        const auto& a_block_window = gemm_tile_windows.at(number<0>{});
+        const auto& b_block_window = gemm_tile_windows.at(number<1>{});
+
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
+
+        // Run Epilogue Pipeline
+        auto& c_block_window = gemm_tile_windows.at(number<2>{});
+
+        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+            c_block_window,
+            c_block_tile,
+            smem_ptr_0,
+            gemm_desc.p_sorted_token_ids,
+            im * TilePartitioner::MPerBlock);
     }
 };
 
