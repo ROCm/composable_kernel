@@ -1,6 +1,6 @@
 #pragma once
 
-TYPED_TEST(TestGemmUniversal_Streamk_MK_KN, SmallM)
+TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_KN, SmallM)
 {
     std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 512;
@@ -14,7 +14,7 @@ TYPED_TEST(TestGemmUniversal_Streamk_MK_KN, SmallM)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
 }
 
-TYPED_TEST(TestGemmUniversal_Streamk_MK_NK, SmallM)
+TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_NK, SmallM)
 {
     std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 512;
@@ -28,7 +28,7 @@ TYPED_TEST(TestGemmUniversal_Streamk_MK_NK, SmallM)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
 }
 
-TYPED_TEST(TestGemmUniversal_Streamk_MK_KN, MidLargeM)
+TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_KN, MidLargeM)
 {
     std::vector<int> Ms{127, 255, 312, 799, 1573};
     constexpr int N = 512;
@@ -42,7 +42,7 @@ TYPED_TEST(TestGemmUniversal_Streamk_MK_KN, MidLargeM)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
 }
 
-TYPED_TEST(TestGemmUniversal_Streamk_MK_NK, MidLargeM)
+TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_NK, MidLargeM)
 {
     std::vector<int> Ms{127, 255, 312, 799, 1573};
     constexpr int N = 512;
@@ -56,7 +56,7 @@ TYPED_TEST(TestGemmUniversal_Streamk_MK_NK, MidLargeM)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
 }
 
-TYPED_TEST(TestGemmUniversal_Streamk_MK_KN, PaddK)
+TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_KN, PaddK)
 {
     std::vector<int> Ms{127};
     constexpr int N = 512;
@@ -70,7 +70,7 @@ TYPED_TEST(TestGemmUniversal_Streamk_MK_KN, PaddK)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
 }
 
-TYPED_TEST(TestGemmUniversal_Streamk_MK_NK, PaddK)
+TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_NK, PaddK)
 {
     std::vector<int> Ms{127};
     constexpr int N = 512;
@@ -84,7 +84,7 @@ TYPED_TEST(TestGemmUniversal_Streamk_MK_NK, PaddK)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
 }
 
-TYPED_TEST(TestGemmUniversal_Streamk_MK_KN, Regular)
+TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_KN, Regular)
 {
     std::vector<int> Ms{512};
     constexpr int N = 512;
@@ -98,7 +98,7 @@ TYPED_TEST(TestGemmUniversal_Streamk_MK_KN, Regular)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
 }
 
-TYPED_TEST(TestGemmUniversal_Streamk_MK_NK, Regular)
+TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_NK, Regular)
 {
     std::vector<int> Ms{512};
     constexpr int N = 512;
