@@ -102,79 +102,101 @@ struct range_applier
     }
 };
 
-template<int32_t... Idims>
-struct make_cumulative_product {
+template <int32_t... Idims>
+struct make_cumulative_product
+{
     using type = ck::Sequence<>;
 };
 
-template<int32_t IDim0>
-struct make_cumulative_product<IDim0> {
+template <int32_t IDim0>
+struct make_cumulative_product<IDim0>
+{
     using type = ck::Sequence<IDim0>;
 };
 
-template<int32_t IDim0, int32_t IDim1>
-struct make_cumulative_product<IDim0, IDim1> {
+template <int32_t IDim0, int32_t IDim1>
+struct make_cumulative_product<IDim0, IDim1>
+{
     using type = ck::Sequence<IDim0, IDim0 * IDim1>;
 };
 
-template<int32_t IDim0, int32_t IDim1, int32_t IDim2>
-struct make_cumulative_product<IDim0, IDim1, IDim2> {
+template <int32_t IDim0, int32_t IDim1, int32_t IDim2>
+struct make_cumulative_product<IDim0, IDim1, IDim2>
+{
     using type = ck::Sequence<IDim0, IDim0 * IDim1, IDim0 * IDim1 * IDim2>;
 };
 
-template<int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3>
-struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3> {
-    using type = ck::Sequence<IDim0, IDim0 * IDim1, IDim0 * IDim1 * IDim2, IDim0 * IDim1 * IDim2 * IDim3>;
+template <int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3>
+struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3>
+{
+    using type =
+        ck::Sequence<IDim0, IDim0 * IDim1, IDim0 * IDim1 * IDim2, IDim0 * IDim1 * IDim2 * IDim3>;
 };
 
-template<int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3, int32_t IDim4>
-struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3, IDim4> {
-    using type = ck::Sequence<IDim0, IDim0 * IDim1, IDim0 * IDim1 * IDim2, IDim0 * IDim1 * IDim2 * IDim3, IDim0 * IDim1 * IDim2 * IDim3 * IDim4>;
+template <int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3, int32_t IDim4>
+struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3, IDim4>
+{
+    using type = ck::Sequence<IDim0,
+                              IDim0 * IDim1,
+                              IDim0 * IDim1 * IDim2,
+                              IDim0 * IDim1 * IDim2 * IDim3,
+                              IDim0 * IDim1 * IDim2 * IDim3 * IDim4>;
 };
 
-template<int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3, int32_t IDim4, int32_t IDim5>
-struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3, IDim4, IDim5> {
-    using type = ck::Sequence<IDim0, IDim0 * IDim1, IDim0 * IDim1 * IDim2, IDim0 * IDim1 * IDim2 * IDim3, IDim0 * IDim1 * IDim2 * IDim3 * IDim4, IDim0 * IDim1 * IDim2 * IDim3 * IDim4 * IDim5>;
+template <int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3, int32_t IDim4, int32_t IDim5>
+struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3, IDim4, IDim5>
+{
+    using type = ck::Sequence<IDim0,
+                              IDim0 * IDim1,
+                              IDim0 * IDim1 * IDim2,
+                              IDim0 * IDim1 * IDim2 * IDim3,
+                              IDim0 * IDim1 * IDim2 * IDim3 * IDim4,
+                              IDim0 * IDim1 * IDim2 * IDim3 * IDim4 * IDim5>;
 };
 
-template<typename T, int32_t... Dims>
+template <typename T, int32_t... Dims>
 struct convert_flat_to_multi_index;
 
-template<int32_t flat_idx, int32_t... Dims>
-struct convert_flat_to_multi_index<ck::Number<flat_idx>, Dims...> {
-    using SDim = ck::Sequence<Dims...>;
+template <int32_t flat_idx, int32_t... Dims>
+struct convert_flat_to_multi_index<ck::Number<flat_idx>, Dims...>
+{
+    using SDim                 = ck::Sequence<Dims...>;
     static constexpr auto Prod = (Dims * ...);
-    using TCumProd = typename make_cumulative_product<Dims...>::type;
+    using TCumProd             = typename make_cumulative_product<Dims...>::type;
 
     using type = decltype((TCumProd{} * ck::Number<flat_idx>{} / ck::Number<Prod>{}) % SDim{});
 };
-}
+} // namespace detail
 
-template<int32_t... Dims>
-struct static_ford<ck::Sequence<Dims...>> {
+template <int32_t... Dims>
+struct static_ford<ck::Sequence<Dims...>>
+{
 
     static constexpr auto Prod = (Dims * ...);
 
     static constexpr auto ra = __make_integer_seq<detail::range_applier, ck::index_t, Prod>{};
 
-    template<typename F>
-    __host__ __device__ constexpr void operator() (F f) const {
-        ra([f] (auto I) constexpr {
+    template <typename F>
+    __host__ __device__ constexpr void operator()(F f) const
+    {
+        ra([f](auto I) constexpr {
             f(typename detail::convert_flat_to_multi_index<decltype(I), Dims...>::type{});
         });
     }
 };
 
-template<int32_t... Dims>
-struct static_ford<const ck::Sequence<Dims...>> {
+template <int32_t... Dims>
+struct static_ford<const ck::Sequence<Dims...>>
+{
 
     static constexpr auto Prod = (Dims * ...);
 
     static constexpr auto ra = __make_integer_seq<detail::range_applier, ck::index_t, Prod>{};
 
-    template<typename F>
-    __host__ __device__ constexpr void operator() (F f) const {
-        ra([f] (auto I) constexpr {
+    template <typename F>
+    __host__ __device__ constexpr void operator()(F f) const
+    {
+        ra([f](auto I) constexpr {
             f(typename detail::convert_flat_to_multi_index<decltype(I), Dims...>::type{});
         });
     }
