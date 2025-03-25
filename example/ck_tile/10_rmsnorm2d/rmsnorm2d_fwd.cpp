@@ -349,6 +349,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
             pass = ck_tile::check_err(
                 y_host_dev, y_host_ref, std::string("\nOUT Error: Incorrect results!"), rtol, atol);
 
+            if constexpr(SaveUnquant)
+            {
+                pass &= ck_tile::check_err(unquant_y_host_dev,
+                                           unquant_y_host_ref,
+                                           std::string("\n OUT ERROR: Incorrect unquant results!"),
+                                           rtol,
+                                           atol);
+            }
+
             if(fused_add == 1)
             {
                 pass &= ck_tile::check_err(y_residual_host_dev,

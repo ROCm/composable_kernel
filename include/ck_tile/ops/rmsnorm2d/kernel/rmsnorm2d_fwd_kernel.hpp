@@ -21,8 +21,7 @@ struct Rmsnorm2dFwdHostArgs
     void* p_y_residual; // [m, n], shortcut output, prec same as input, nullptr if not used
     void* p_y_scale;    // [m, 1], output a dynamic quant per row, nullptr if not used
     void* p_invRms;     // [m, 1], output inv-rms, prec same as input, nullptr if not used
-    void*
-        p_y_unquant; // [m, n], output result before quant if quant is enbaled, nullptr if not used
+    void* p_y_unquant;  // [m, n], output result before quant, nullptr if not used
 
     float epsilon;
 
