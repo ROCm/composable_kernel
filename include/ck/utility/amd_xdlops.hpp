@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+#include "ck/utility/dtype_fp64.hpp"
 
 namespace ck {
 // Define the common macro for MI300 models
