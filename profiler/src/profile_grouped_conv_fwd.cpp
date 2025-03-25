@@ -302,6 +302,14 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
         {
             return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
         }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
+        }
     }
     else if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
     {
