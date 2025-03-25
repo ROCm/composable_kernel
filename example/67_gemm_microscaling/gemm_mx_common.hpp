@@ -270,11 +270,23 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         break;
 
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.0f, 4.0f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
 
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-4.0f, 5.0f}(b_k_n);
-        ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
+
+        if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
+        {
+            a_m_k_scale.GenerateTensorValue(
+                GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+            b_k_n_scale.GenerateTensorValue(
+                GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+        }
+        else
+        {
+            ck::utils::FillUniformDistributionIntegerValue<ADataType>{-1.0f, 1.0f}(a_m_k_scale);
+            ck::utils::FillUniformDistributionIntegerValue<ADataType>{-1.0f, 1.0f}(b_k_n_scale);
+        }
+
         break;
 
     case 2:
