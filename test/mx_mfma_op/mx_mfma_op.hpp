@@ -836,6 +836,24 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
     // B = col major, BLOCK_K x BLOCK_N
     fragB = load_B_col_major<BType, BFragT, BLOCK_K, BLOCK_N>(b);
 
+    printf("&&&&&&& %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u",
+           uint32_t(fragA.template AsType<AType>()[Number<0>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<1>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<2>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<3>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<4>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<5>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<6>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<7>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<8>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<9>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<10>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<11>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<12>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<13>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<14>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<15>{}].data));
+
     // Matrix multiply-accumulate using MFMA units
     // Accumulation intermediate = BLOCK_M x BLOCK_N
     mfma_type_selector<AFragT, BFragT, AccumFragT, BLOCK_M, BLOCK_N>{}(fragA, fragB, fragAcc);
