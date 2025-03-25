@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -181,6 +181,23 @@ struct BlockwiseGemmXdlops_pipeline_base
 
     using Tuple4 = decltype(CalculateAThreadOriginDataIndex());
 
+    /**
+     * @brief Constructor for BlockwiseGemmXdlops_pipeline_base.
+     *
+     * This constructor initializes the thread copy objects for matrices A and B.
+     * It also performs several compile-time checks to ensure the correctness of the
+     * matrix tile descriptors.
+     *
+     * @param a_origin The origin data index for matrix A.
+     * @param b_origin The origin data index for matrix B.
+     *
+     * @note The constructor includes static assertions to ensure that:
+     * - The matrix tile descriptors for A and B are known at compile-time.
+     * - The number of threads in the thread block matches the product of MWaves, NWaves, and
+     * WaveSize.
+     * - The dimensions of the block are divisible by the product of the corresponding XDL and
+     * repeat dimensions.
+     */
     __host__ __device__
     BlockwiseGemmXdlops_pipeline_base(Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
                                       Tuple4 b_origin = CalculateBThreadOriginDataIndex())
