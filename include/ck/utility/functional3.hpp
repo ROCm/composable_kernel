@@ -127,6 +127,11 @@ struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3> {
     using type = ck::Sequence<IDim0, IDim0 * IDim1, IDim0 * IDim1 * IDim2, IDim0 * IDim1 * IDim2 * IDim3>;
 };
 
+template<int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3, int32_t IDim4>
+struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3, IDim4> {
+    using type = ck::Sequence<IDim0, IDim0 * IDim1, IDim0 * IDim1 * IDim2, IDim0 * IDim1 * IDim2 * IDim3, IDim0 * IDim1 * IDim2 * IDim3 * IDim4>;
+};
+
 template<typename T, int32_t... Dims>
 struct convert_flat_to_multi_index;
 
@@ -149,7 +154,22 @@ struct static_ford<ck::Sequence<Dims...>> {
 
     template<typename F>
     __host__ __device__ constexpr void operator() (F f) const {
-        ra([f] (auto I) {
+        ra([f] (auto I) constexpr {
+            f(typename detail::convert_flat_to_multi_index<decltype(I), Dims...>::type{});
+        });
+    }
+};
+
+template<int32_t... Dims>
+struct static_ford<const ck::Sequence<Dims...>> {
+
+    static constexpr auto Prod = (Dims * ...);
+
+    static constexpr auto ra = __make_integer_seq<detail::range_applier, ck::index_t, Prod>{};
+
+    template<typename F>
+    __host__ __device__ constexpr void operator() (F f) const {
+        ra([f] (auto I) constexpr {
             f(typename detail::convert_flat_to_multi_index<decltype(I), Dims...>::type{});
         });
     }
