@@ -133,6 +133,7 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                         BlkGemmPipeSched,
                         BlkGemmPipelineVer,
                         NSwizzle,
+                        IsInputGemm,
                         IndexType,
                         ComputeTypeA,
                         ComputeTypeB,
@@ -257,7 +258,6 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                 true,
                                                                 MemoryDataOp,
                                                                 minimum_occupancy,
-                                                                IsInputGemm,
                                                                 TailNumber::Odd>;
                             RunKernel(kernel);
                         }
@@ -267,7 +267,6 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                 true,
                                                                 MemoryDataOp,
                                                                 minimum_occupancy,
-                                                                IsInputGemm,
                                                                 TailNumber::Even>;
                             RunKernel(kernel);
                         }
@@ -282,7 +281,6 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                  true,
                                                                  MemoryDataOp,
                                                                  minimum_occupancy,
-                                                                 IsInputGemm,
                                                                  TailNumber::Odd>;
                         RunKernel(kernel);
                     }
@@ -292,7 +290,6 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                  true,
                                                                  MemoryDataOp,
                                                                  minimum_occupancy,
-                                                                 IsInputGemm,
                                                                  TailNumber::Even>;
                         RunKernel(kernel);
                     }
@@ -312,7 +309,6 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                         true,
                                                         InMemoryDataOperationEnum::Set,
                                                         minimum_occupancy,
-                                                        IsInputGemm,
                                                         TailNumber::Odd>;
                     RunKernel(kernel);
                 }
