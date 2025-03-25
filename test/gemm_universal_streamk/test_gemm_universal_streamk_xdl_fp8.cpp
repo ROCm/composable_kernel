@@ -42,8 +42,6 @@ class TestGemmUniversal_Streamk_FP8_MK_NK
 {
 };
 
-
-
 // clang-format off
 using KernelTypes_MK_KN = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
@@ -66,12 +64,9 @@ using KernelTypes_MK_NK = ::testing::Types<
 
     >;
 
-
-
 // clang-format on
 
 TYPED_TEST_SUITE(TestGemmUniversal_Streamk_FP8_MK_KN, KernelTypes_MK_KN);
 TYPED_TEST_SUITE(TestGemmUniversal_Streamk_FP8_MK_NK, KernelTypes_MK_NK);
-
 
 #include "test_gemm_universal_streamk_ut_cases_fp8.inc"
