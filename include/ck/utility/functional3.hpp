@@ -86,11 +86,6 @@ struct ford_impl<Sequence<>, Orders>
 
 } // namespace detail
 
-// Lengths is Sequence<...>, it is the length of each dimension for
-// N-dimensional loop
-template <typename T>
-struct static_ford;
-
 namespace detail {
 template <typename T, T... Is>
 struct range_applier
@@ -175,8 +170,13 @@ struct convert_flat_to_multi_index<ck::Number<flat_idx>, Dims...>
 };
 } // namespace detail
 
-template <int32_t... Dims>
-struct static_ford<ck::Sequence<Dims...>>
+// Lengths is Sequence<...>, it is the length of each dimension for
+// N-dimensional loop
+template <typename T>
+struct static_ford;
+
+template<template <int32_t...> typename T, int32_t... Dims>
+struct static_ford<T<Dims...>> :
     : __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>
 {
     using base = __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>;
