@@ -548,7 +548,8 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERS
 endif()
 
 # fold expression depth
-add_compile_options(-fbracket-depth=1024)
+# device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_comp_instance.cpp
+add_compile_options(-fbracket-depth=3136)
 
 # make check runs the entire set of examples and tests
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
