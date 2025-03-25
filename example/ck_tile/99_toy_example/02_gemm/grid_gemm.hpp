@@ -21,6 +21,7 @@ struct GridGemm
     using ADataType        = typename Problem::ADataType;
     using BDataType        = typename Problem::BDataType;
     using CDataType        = typename Problem::CDataType;
+    using AccDataType      = typename Problem::AccDataType;
     using CElementFunction = typename Problem::CElementFunction;
 
     static constexpr auto kMPerBlock = Policy::kMPerBlock;
@@ -110,7 +111,7 @@ struct GridGemm
 
         using UniversalGemmProblem = UniversalGemmPipelineProblem<ADataType,
                                                                   BDataType,
-                                                                  CDataType,
+                                                                  AccDataType,
                                                                   GemmShape,
                                                                   GemmUniversalTraits,
                                                                   GemmPipelineScheduler::Intrawave,
