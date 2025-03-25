@@ -54,6 +54,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
               typename InvRmsWindow,
               typename SmoothScaleWindow,
               typename YScaleWindow,
+              typename UnquantYWindow,
               typename Epilogue>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
                                    const XResidualWindow& x_residual_window_,
@@ -63,6 +64,7 @@ struct Rmsnorm2dFwdPipelineTwoPass
                                    InvRmsWindow& inv_rms_window,
                                    const SmoothScaleWindow& /*sm_scale_window_*/,
                                    YScaleWindow& /*y_scale_window*/,
+                                   UnquantYWindow& /*unquant_y_window*/,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
                                    void* smem,
@@ -136,32 +138,51 @@ struct Rmsnorm2dFwdPipelineTwoPass
         ck_tile::index_t stride_to_right_most_window =
             row_size % Block_N == 0 ? row_size - Block_N : row_size - row_size % Block_N;
 
-        move_tile_window(x_window, {0, -Block_N});
-        move_tile_window(x_residual_window, {0, -Block_N});
+        if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
+        {
+            move_tile_window(y_residual_window, {0, -Block_N});
+        }
+        else
+        {
+            move_tile_window(x_window, {0, -Block_N});
+            move_tile_window(x_residual_window, {0, -Block_N});
+        }
         move_tile_window(gamma_window, {stride_to_right_most_window});
         move_tile_window(y_window, {0, stride_to_right_most_window});
 
         // rmsnorm computation
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
-            auto x      = load_tile(x_window);
-            auto x_resi = load_tile(x_residual_window);
-            auto acc    = cast_tile<ComputeDataType>(x);
+            auto acc = make_static_distributed_tensor<ComputeDataType>(
+                decltype(load_tile(x_window))::get_tile_distribution());
 
-            if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE ||
-                         kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD)
+            if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
             {
-                sweep_tile(x_resi, [&](auto idx) {
-                    // compute x = x_resi + x
-                    acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
-                });
+                acc = cast_tile<ComputeDataType>(load_tile(y_residual_window));
+                move_tile_window(y_residual_window, {0, -Block_N});
+            }
+            else
+            {
+                acc = cast_tile<ComputeDataType>(load_tile(x_window));
+                move_tile_window(x_window, {0, -Block_N});
+
+                if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD)
+                {
+                    auto x_resi = load_tile(x_residual_window);
+                    sweep_tile(x_resi, [&](auto idx) {
+                        // compute x = x_resi + x
+                        acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
+                    });
+                    move_tile_window(x_residual_window, {0, -Block_N});
+                }
             }
 
             // load gamma (TODO: support no gamma?)
             const auto gamma = load_tile(gamma_window);
 
             // rmsnorm computation
-            auto rmsn = make_static_distributed_tensor<ComputeDataType>(x.get_tile_distribution());
+            auto rmsn = make_static_distributed_tensor<ComputeDataType>(
+                decltype(load_tile(x_window))::get_tile_distribution());
             sweep_tile(rmsn, [&, inv_rms_ = inv_rms](auto idx) {
                 constexpr auto i_idx = make_tuple(idx[number<0>{}]);
                 constexpr auto j_idx = make_tuple(idx[number<1>{}]);
@@ -176,8 +197,6 @@ struct Rmsnorm2dFwdPipelineTwoPass
             static_assert(kFusedQuant == Rmsnorm2dFusedQuantEnum::NO_SWEEP);
             Epilogue{}(y_window, rmsn);
 
-            move_tile_window(x_window, {0, -Block_N});
-            move_tile_window(x_residual_window, {0, -Block_N});
             move_tile_window(gamma_window, {-Block_N});
             move_tile_window(y_window, {0, -Block_N});
         }
