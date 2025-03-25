@@ -91,7 +91,7 @@ template <typename AType, typename AFragT, int32_t BLOCK_M, int32_t BLOCK_K>
 __device__ AFragT load_A_col_major(AType const* input_ptr)
 {
     // clang-format off
-    // Register Mapping for 16x128:                                                        ||    Register Mapping for 32x64:
+    // Register Mapping for 16x128 for FP8:                                                ||    Register Mapping for 32x64 for FP8:
     // Size              |   BLOCK_M  |   BLOCK_M   |   BLOCK_M  |   BLOCK_M   |           ||    Size              |   BLOCK_M  |   BLOCK_M   |        |
     // M                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    M                 | 0  ...  31 |  0  ...  31 | Vector |
     // Thread Id         | 0  ...  15 | 16  ...  31 | 32  ... 47 | 48  ...  63 | Element   ||    Thread Id         | 0  ...  31 | 32  ...  63 | Element|
@@ -128,13 +128,34 @@ __device__ AFragT load_A_col_major(AType const* input_ptr)
     // Reg 7 [8:15]      |     K77    |     K93     |     K109   |     K125    |  v[29]    ||    Reg 7 [8:15]      |     K45    |     K61     |  v[29] |
     // Reg 7 [16:23]     |     K78    |     K94     |     K110   |     K126    |  v[30]    ||    Reg 7 [16:23]     |     K46    |     K62     |  v[30] |
     // Reg 7 [24:31]     |     K79    |     K95     |     K111   |     K127    |  v[31]    ||    Reg 7 [24:31]     |     K47    |     K63     |  v[31] |
+
+    // Register Mapping for 128x16 for FP4:                                                ||    Register Mapping for 64x32 for FP4:
+    // Size              |   BLOCK_N  |   BLOCK_N   |   BLOCK_N  |   BLOCK_N   |           ||    Size              |   BLOCK_N  |   BLOCK_N   |        |
+    // N                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    N                 | 0  ...  31 |  0  ...  31 | Vector |
+    // Thread Id         | 0  ...  15 | 16  ...  31 | 32  ... 47 | 48  ...  63 | Element   ||    Thread Id         | 0  ...  31 | 32  ...  63 | Element|
+    // Register Element  |------------|-------------|------------|-------------|-----------||    Register Element  |------------|-------------|--------|
+    // Reg 0 [0:7]       |     K0K1   |     K32K33  |     K64K65 |    K96K97   |  v[0]     ||    Reg 0 [0:7]       |     K0K1   |     K32K33  |  v[0]  |
+    // Reg 0 [8:15]      |     K2K3   |     K34K35  |     K66K67 |    K98K99   |  v[1]     ||    Reg 0 [8:15]      |     K2K3   |     K34K35  |  v[1]  |
+    // Reg 0 [16:23]     |     K4K5   |     K36K37  |     K68K69 |    K100K101 |  v[2]     ||    Reg 0 [16:23]     |     K4K5   |     K36K37  |  v[2]  |
+    // Reg 0 [24:31]     |     K6K7   |     K38K39  |     K70K71 |    K102K103 |  v[3]     ||    Reg 0 [24:31]     |     K6K7   |     K38K39  |  v[3]  |
+    // Reg 1 [0:7]       |     K8K9   |     K40K41  |     K72K73 |    K104K105 |  v[4]     ||    Reg 1 [0:7]       |     K8K9   |     K40K41  |  v[4]  |
+    // Reg 1 [8:15]      |     K10K11 |     K42K43  |     K74K75 |    K106K107 |  v[5]     ||    Reg 1 [8:15]      |     K10K11 |     K42K43  |  v[5]  |
+    // Reg 1 [16:23]     |     K12K13 |     K44K45  |     K76K77 |    K108K109 |  v[6]     ||    Reg 1 [16:23]     |     K12K13 |     K44K45  |  v[6]  |
+    // Reg 1 [24:31]     |     K14K15 |     K46K47  |     K78K79 |    K110K111 |  v[7]     ||    Reg 1 [24:31]     |     K14K15 |     K46K47  |  v[7]  |
+    // Reg 2 [0:7]       |     K16K17 |     K48K49  |     K80K81 |    K112K113 |  v[8]     ||    Reg 2 [0:7]       |     K16K17 |     K48K49  |  v[8]  |
+    // Reg 2 [8:15]      |     K18K19 |     K50K51  |     K82K83 |    K114K115 |  v[9]     ||    Reg 2 [8:15]      |     K18K19 |     K50K51  |  v[9]  |
+    // Reg 2 [16:23]     |     K20K21 |     K52K53  |     K84K85 |    K116K117 |  v[10]    ||    Reg 2 [16:23]     |     K20K21 |     K52K53  |  v[10] |
+    // Reg 2 [24:31]     |     K22K23 |     K54K55  |     K86K87 |    K118K119 |  v[11]    ||    Reg 2 [24:31]     |     K22K23 |     K54K55  |  v[11] |
+    // Reg 3 [0:7]       |     K24K25 |     K56K57  |     K88K89 |    K120K121 |  v[12]    ||    Reg 3 [0:7]       |     K24K25 |     K56K57  |  v[12] |
+    // Reg 3 [8:15]      |     K26K27 |     K58K59  |     K90K91 |    K122K123 |  v[13]    ||    Reg 3 [8:15]      |     K26K27 |     K58K59  |  v[13] |
+    // Reg 3 [16:23]     |     K28K29 |     K60K61  |     K92K93 |    K124K125 |  v[14]    ||    Reg 3 [16:23]     |     K28K29 |     K60K61  |  v[14] |
+    // Reg 3 [24:31]     |     K30K31 |     K62K63  |     K94K95 |    K126K127 |  v[15]    ||    Reg 3 [24:31]     |     K30K31 |     K62K63  |  v[15] |
     // clang-format on
 
     static constexpr int32_t WAVE_SIZE = 64;
 
     // Here we want to load from rows of A in chunks of 16 elements each.
-    static constexpr uint32_t chunk_size =
-        16 / (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1);
+    static constexpr uint32_t chunk_size = 16;
 
     // each chunk is separated by offset
     static constexpr uint32_t chunk_offset = chunk_size * WAVE_SIZE / BLOCK_M;
@@ -165,8 +186,11 @@ __device__ AFragT load_A_col_major(AType const* input_ptr)
 
     AScalarFragT fragA{};
 
+    constexpr index_t num_chunks =
+        (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 1 : 2);
+
 #pragma unroll
-    for(int chunk = 0; chunk < 2; chunk++)
+    for(int chunk = 0; chunk < num_chunks; chunk++)
     {
 #pragma unroll
         for(uint32_t i = 0; i < chunk_size; i++)
@@ -355,7 +379,7 @@ template <typename BType, typename BFragT, int32_t BLOCK_K, int32_t BLOCK_N>
 __device__ BFragT load_B_col_major(BType const* input_ptr)
 {
     // clang-format off
-    // Register Mapping for 128x16:                                                        ||    Register Mapping for 64x32:
+    // Register Mapping for 128x16 for FP8:                                                ||    Register Mapping for 64x32 for FP8:
     // Size              |   BLOCK_N  |   BLOCK_N   |   BLOCK_N  |   BLOCK_N   |           ||    Size              |   BLOCK_N  |   BLOCK_N   |        |
     // N                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    N                 | 0  ...  31 |  0  ...  31 | Vector |
     // Thread Id         | 0  ...  15 | 16  ...  31 | 32  ... 47 | 48  ...  63 | Element   ||    Thread Id         | 0  ...  31 | 32  ...  63 | Element|
@@ -392,13 +416,34 @@ __device__ BFragT load_B_col_major(BType const* input_ptr)
     // Reg 7 [8:15]      |     K77    |     K93     |     K109   |     K125    |  v[29]    ||    Reg 7 [8:15]      |     K45    |     K61     |  v[29] |
     // Reg 7 [16:23]     |     K78    |     K94     |     K110   |     K126    |  v[30]    ||    Reg 7 [16:23]     |     K46    |     K62     |  v[30] |
     // Reg 7 [24:31]     |     K79    |     K95     |     K111   |     K127    |  v[31]    ||    Reg 7 [24:31]     |     K47    |     K63     |  v[31] |
+
+    // Register Mapping for 128x16 for FP4:                                                ||    Register Mapping for 64x32 for FP4:
+    // Size              |   BLOCK_N  |   BLOCK_N   |   BLOCK_N  |   BLOCK_N   |           ||    Size              |   BLOCK_N  |   BLOCK_N   |        |
+    // N                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    N                 | 0  ...  31 |  0  ...  31 | Vector |
+    // Thread Id         | 0  ...  15 | 16  ...  31 | 32  ... 47 | 48  ...  63 | Element   ||    Thread Id         | 0  ...  31 | 32  ...  63 | Element|
+    // Register Element  |------------|-------------|------------|-------------|-----------||    Register Element  |------------|-------------|--------|
+    // Reg 0 [0:7]       |     K0K1   |     K32K33  |     K64K65 |    K96K97   |  v[0]     ||    Reg 0 [0:7]       |     K0K1   |     K32K33  |  v[0]  |
+    // Reg 0 [8:15]      |     K2K3   |     K34K35  |     K66K67 |    K98K99   |  v[1]     ||    Reg 0 [8:15]      |     K2K3   |     K34K35  |  v[1]  |
+    // Reg 0 [16:23]     |     K4K5   |     K36K37  |     K68K69 |    K100K101 |  v[2]     ||    Reg 0 [16:23]     |     K4K5   |     K36K37  |  v[2]  |
+    // Reg 0 [24:31]     |     K6K7   |     K38K39  |     K70K71 |    K102K103 |  v[3]     ||    Reg 0 [24:31]     |     K6K7   |     K38K39  |  v[3]  |
+    // Reg 1 [0:7]       |     K8K9   |     K40K41  |     K72K73 |    K104K105 |  v[4]     ||    Reg 1 [0:7]       |     K8K9   |     K40K41  |  v[4]  |
+    // Reg 1 [8:15]      |     K10K11 |     K42K43  |     K74K75 |    K106K107 |  v[5]     ||    Reg 1 [8:15]      |     K10K11 |     K42K43  |  v[5]  |
+    // Reg 1 [16:23]     |     K12K13 |     K44K45  |     K76K77 |    K108K109 |  v[6]     ||    Reg 1 [16:23]     |     K12K13 |     K44K45  |  v[6]  |
+    // Reg 1 [24:31]     |     K14K15 |     K46K47  |     K78K79 |    K110K111 |  v[7]     ||    Reg 1 [24:31]     |     K14K15 |     K46K47  |  v[7]  |
+    // Reg 2 [0:7]       |     K16K17 |     K48K49  |     K80K81 |    K112K113 |  v[8]     ||    Reg 2 [0:7]       |     K16K17 |     K48K49  |  v[8]  |
+    // Reg 2 [8:15]      |     K18K19 |     K50K51  |     K82K83 |    K114K115 |  v[9]     ||    Reg 2 [8:15]      |     K18K19 |     K50K51  |  v[9]  |
+    // Reg 2 [16:23]     |     K20K21 |     K52K53  |     K84K85 |    K116K117 |  v[10]    ||    Reg 2 [16:23]     |     K20K21 |     K52K53  |  v[10] |
+    // Reg 2 [24:31]     |     K22K23 |     K54K55  |     K86K87 |    K118K119 |  v[11]    ||    Reg 2 [24:31]     |     K22K23 |     K54K55  |  v[11] |
+    // Reg 3 [0:7]       |     K24K25 |     K56K57  |     K88K89 |    K120K121 |  v[12]    ||    Reg 3 [0:7]       |     K24K25 |     K56K57  |  v[12] |
+    // Reg 3 [8:15]      |     K26K27 |     K58K59  |     K90K91 |    K122K123 |  v[13]    ||    Reg 3 [8:15]      |     K26K27 |     K58K59  |  v[13] |
+    // Reg 3 [16:23]     |     K28K29 |     K60K61  |     K92K93 |    K124K125 |  v[14]    ||    Reg 3 [16:23]     |     K28K29 |     K60K61  |  v[14] |
+    // Reg 3 [24:31]     |     K30K31 |     K62K63  |     K94K95 |    K126K127 |  v[15]    ||    Reg 3 [24:31]     |     K30K31 |     K62K63  |  v[15] |
     // clang-format on
 
     static constexpr int32_t WAVE_SIZE = 64;
 
     // Here we want to load from cols of B in chunks of 16 elements each.
-    static constexpr uint32_t chunk_size =
-        16 / (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1);
+    static constexpr uint32_t chunk_size = 16;
 
     // each chunk is separated by an offset
     static constexpr uint32_t chunk_offset = chunk_size * WAVE_SIZE / BLOCK_N; // 32 or 64
@@ -424,16 +469,23 @@ __device__ BFragT load_B_col_major(BType const* input_ptr)
     using BRawT        = typename scalar_type<BFragT>::type;
     using BScalarFragT = vector_type<BRawT, chunk_size>::type;
 
+    constexpr index_t num_chunks =
+        (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 1 : 2);
+
     union
     {
         BFragT frag;
-        BScalarFragT chunks[2];
+        BScalarFragT chunks[num_chunks];
     } fragB{};
 
-    auto* fragPtr   = reinterpret_cast<BScalarFragT const*>(input_ptr + startOffset);
-    fragB.chunks[0] = *fragPtr;
-    fragPtr         = reinterpret_cast<BScalarFragT const*>(input_ptr + startOffset + kMajorOffset);
-    fragB.chunks[1] = *fragPtr;
+    const BScalarFragT* fragPtr;
+
+    for(index_t chunk = 0; chunk < num_chunks; chunk++)
+    {
+        fragPtr =
+            reinterpret_cast<BScalarFragT const*>(input_ptr + startOffset + chunk * kMajorOffset);
+        fragB.chunks[chunk] = *fragPtr;
+    }
 
     return fragB.frag;
 }
