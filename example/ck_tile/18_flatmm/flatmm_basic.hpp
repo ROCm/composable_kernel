@@ -61,6 +61,15 @@ struct GemmBasicTypeConfig<ck_tile::fp8_t>
     // ToDo: Add more bias config to support different categories of GEMM.
 };
 
+template <>
+struct GemmBasicTypeConfig<ck_tile::bf8_t>
+{
+    using ADataType   = ck_tile::bf8_t;
+    using BDataType   = ck_tile::bf8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
 template <typename T>
 struct DataTypeTraits;
 
@@ -68,6 +77,12 @@ template <>
 struct DataTypeTraits<ck_tile::fp8_t>
 {
     static constexpr const char* name = "fp8";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::bf8_t>
+{
+    static constexpr const char* name = "bf8";
 };
 template <>
 struct DataTypeTraits<float>
@@ -85,6 +100,12 @@ template <>
 struct DataTypeTraits<ck_tile::half_t>
 {
     static constexpr const char* name = "fp16";
+};
+
+template <typename T>
+struct is_8bit_type
+    : std::bool_constant<std::is_same_v<T, ck_tile::fp8_t> || std::is_same_v<T, ck_tile::bf8_t>>
+{
 };
 
 auto create_args(int argc, char* argv[])

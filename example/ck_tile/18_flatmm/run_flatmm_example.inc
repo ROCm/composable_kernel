@@ -9,6 +9,8 @@ constexpr const char* DataTypeToString() {
         return "fp16";
     } else if constexpr (std::is_same_v<T, ck_tile::fp8_t>) {
         return "fp8";
+    } else if constexpr (std::is_same_v<T, ck_tile::bf8_t>) {
+        return "bf8";
     } else {
         return "unknown";
     }
@@ -41,13 +43,13 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t, std::string mfma_dtype, int mfma
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
     }
-    else if((mfma_dtype == "int8" || mfma_dtype == "fp8") && mfma_type == 0)
+    else if((mfma_dtype == "int8" || mfma_dtype == "fp8" || mfma_dtype == "bf8") && mfma_type == 0)
     {
         ck_tile::HostTensor<T> t_view({n_ / 32, 32, k_ / 32, 2, 16});
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
     }
-    else if((mfma_dtype == "int8" || mfma_dtype == "fp8") && mfma_type == 1)
+    else if((mfma_dtype == "int8" || mfma_dtype == "fp8" || mfma_dtype == "bf8") && mfma_type == 1)
     {
         ck_tile::HostTensor<T> t_view({n_ / 16, 16, k_ / 64, 4, 16});
         std::copy(t.begin(), t.end(), t_view.begin());
