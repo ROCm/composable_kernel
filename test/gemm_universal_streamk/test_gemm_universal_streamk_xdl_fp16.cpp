@@ -9,7 +9,7 @@
 
 using F8   = ck::f8_t;
 using F16  = ck::half_t;
-using BF16 = ck::bhalf_t;
+
 using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
@@ -29,28 +29,28 @@ struct tuple_concat<std::tuple<Xs...>, std::tuple<Ys...>>
 } // namespace
 
 template <typename Tuple>
-class TestGemmUniversal_Streamk_MK_KN
+class TestGemmUniversal_Streamk_FP16_MK_KN
     : public ck::test::TestGemmUniversal_Streamk<
           typename tuple_concat<std::tuple<Row, Row>, Tuple>::type>
 {
 };
 
 template <typename Tuple>
-class TestGemmUniversal_Streamk_MK_NK
+class TestGemmUniversal_Streamk_FP16_MK_NK
     : public ck::test::TestGemmUniversal_Streamk<
           typename tuple_concat<std::tuple<Row, Col>, Tuple>::type>
 {
 };
 
 template <typename Tuple>
-class TestGemmUniversal_Streamk_KM_KN
+class TestGemmUniversal_Streamk_FP16_KM_KN
     : public ck::test::TestGemmUniversal_Streamk<
           typename tuple_concat<std::tuple<Col, Row>, Tuple>::type>
 {
 };
 
 template <typename Tuple>
-class TestGemmUniversal_Streamk_KM_NK
+class TestGemmUniversal_Streamk_FP16_KM_NK
     : public ck::test::TestGemmUniversal_Streamk<
           typename tuple_concat<std::tuple<Col, Col>, Tuple>::type>
 {
@@ -63,36 +63,24 @@ using KernelTypes_MK_KN = ::testing::Types<
 #if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94))
     std::tuple<      F16,        F8,             F16,     F16>,
     std::tuple<       F8,       F16,             F16,     F16>,
-    std::tuple<       F8,        F8,              F8,    BF16>,
 #endif
-    std::tuple<     BF16,      BF16,            BF16,    BF16>
+
     >;
 using KernelTypes_MK_NK = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
     std::tuple<      F16,       F16,             F16,     F16>,
 #if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94))
     std::tuple<      F16,        F8,             F16,     F16>,
-    std::tuple<       F8,       F16,             F16,     F16>,
-    std::tuple<       F8,        F8,              F8,    BF16>,
+    std::tuple<       F8,       F16,             F16,     F16>
 #endif
-    std::tuple<     BF16,      BF16,            BF16,    BF16>
     >;
 
-using KernelTypes_KM_NK = ::testing::Types<
-    //         ADataType, BDataType, ComputeDataType, CDataType
-    std::tuple<     BF16,      BF16,            BF16,    BF16>
-    >;
 
-using KernelTypes_KM_KN = ::testing::Types<
-    //         ADataType, BDataType, ComputeDataType, CDataType
-    std::tuple<     BF16,      BF16,            BF16,    BF16>
-    >;
 
 // clang-format on
 
-TYPED_TEST_SUITE(TestGemmUniversal_Streamk_MK_KN, KernelTypes_MK_KN);
-TYPED_TEST_SUITE(TestGemmUniversal_Streamk_MK_NK, KernelTypes_MK_NK);
-TYPED_TEST_SUITE(TestGemmUniversal_Streamk_KM_KN, KernelTypes_KM_KN);
-TYPED_TEST_SUITE(TestGemmUniversal_Streamk_KM_NK, KernelTypes_KM_NK);
+TYPED_TEST_SUITE(TestGemmUniversal_Streamk_FP16_MK_KN, KernelTypes_MK_KN);
+TYPED_TEST_SUITE(TestGemmUniversal_Streamk_FP16_MK_NK, KernelTypes_MK_NK);
 
-#include "test_gemm_universal_streamk_ut_cases.inc"
+
+#include "test_gemm_universal_streamk_ut_cases_fp16.inc"
