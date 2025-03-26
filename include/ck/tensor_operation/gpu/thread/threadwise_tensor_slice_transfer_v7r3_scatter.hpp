@@ -154,7 +154,6 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
               enable_if_t<SrcDescs::Size() == SrcBuffers::Size(), bool> = false>
     __device__ void RunRead(const SrcDescs& src_descs,
                             const SrcBuffers& src_bufs,
-                            StaticallyIndexedArray<float, scatter_num>& scatter_weights,
                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         // loop over space-filling curve
@@ -173,31 +172,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                                                                                 src_coords_[i]);
 
                 oob_val = oob_val & is_src_valid;
-                if(i.value == ScatterWeightIdx)
-                {
-                    // static_assert(SrcScalarPerVectors{}[Number<ScatterWeightIdx>{}] == 1,
-                    //               "scatter weight dim, should only one vec");
-                    // constexpr auto iScatter =
-                    //     SrcSpaceFillingCurve::GetIndex(iAccess)(Number<ScatterDim>{});
-                    // static_for<0, SrcScalarPerVector, 1>{}([&](auto j) {
-                    //     src_vectors(i).template AsType<float>()(j) =
-                    //         scatter_weights(Number<iScatter>{});
-                    // });
-                }
-                else if constexpr(SrcScalarPerVectors{}[i] == 1)
-                {
-                    // auto data_types = SrcDatas{};
-                    // using DataType  = remove_cvref_t<decltype(data_types[i])>;
-                    // const auto tmp =
-                    //     src_bufs[i].template Get<DataType>(src_coords_[i].GetOffset(), true);
-                    // static_for<0, SrcScalarPerVector, 1>{}(
-                    //     [&](auto j) { src_vectors(i).template AsType<DataType>()(j) = tmp; });
-                }
-                else
-                {
-                    src_vectors(i).template AsType<src_vector_t>()(I0) =
-                        src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(), true);
-                }
+                src_vectors(i).template AsType<src_vector_t>()(I0) =
+                    src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(), true);
             });
 
             constexpr auto get_elem_op_vec_len = []() {
@@ -491,10 +467,9 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                         const SrcBuffers& src_bufs,
                         const DstDescs& dst_descs,
                         DstBuffers dst_bufs,
-                        StaticallyIndexedArray<IndexType, scatter_num>& scatter_offsets,
-                        StaticallyIndexedArray<float, scatter_num>& scatter_weights)
+                        StaticallyIndexedArray<IndexType, scatter_num>& scatter_offsets)
     {
-        RunRead(src_descs, src_bufs, scatter_weights);
+        RunRead(src_descs, src_bufs);
         RunWrite(dst_descs, dst_bufs, scatter_offsets);
     }
 
