@@ -87,16 +87,6 @@ struct ford_impl<Sequence<>, Orders>
 } // namespace detail
 
 namespace detail {
-template <typename T, T... Is>
-struct range_applier
-{
-    template <typename F, template<int32_t> typename G = ck::Number>
-    __host__ __device__ constexpr void operator()(F f) const
-    {
-        static_assert(sizeof...(Is) <= 3136, "tweak -fbracket-depth");
-        (f(G<Is>{}), ...);
-    }
-};
 
 // clang-format off
 template <int32_t... Idims>
@@ -156,13 +146,29 @@ struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3, IDim4, IDim5>
                               IDim0 * IDim1 * IDim2 * IDim3 * IDim4 * IDim5>;
 };
 // clang-format on
-template<int32_t flat_idx, int32_t... Dims>
-struct convert_flat_to_multi_index {
-    using SDim = ck::Sequence<Dims...>;
+template <int32_t... Dims>
+struct convert_flat_to_multi_index
+{
+    using SDim                 = ck::Sequence<Dims...>;
     static constexpr auto Prod = (Dims * ...);
-    using TCumProd = typename make_cumulative_product<Dims...>::type;
+    using TCumProd             = typename make_cumulative_product<Dims...>::type;
 
+    template <ck::index_t flat_idx>
     using type = decltype((TCumProd{} * ck::Number<flat_idx>{} / ck::Number<Prod>{}) % SDim{});
+};
+
+template <typename T, T... Is>
+struct range_applier
+{
+    // F: code block parameterized by compile-time constant
+    // IndexTransform: metafunction from int32_t to code block argument type
+    // Result: side effect of executing the code block for each element in (Is...)
+    template <typename F, template <int32_t> typename IndexTransform = ck::Number>
+    __host__ __device__ constexpr void operator()(F f) const
+    {
+        static_assert(sizeof...(Is) <= 3136, "tweak -fbracket-depth");
+        (f(IndexTransform<Is>{}), ...);
+    }
 };
 
 } // namespace detail
@@ -172,22 +178,26 @@ struct convert_flat_to_multi_index {
 template <typename T>
 struct static_ford;
 
-template<template <int32_t...> typename T, int32_t... Dims>
+template <template <int32_t...> typename T, int32_t... Dims>
 struct static_ford<T<Dims...>>
     : __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>
 {
+    // `base` is the same as `range_applier<index_t, 0, ..., product of Dims>`
     using base = __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>;
-    template <int32_t I>
-    using multi_index_t = typename detail::convert_flat_to_multi_index<I, Dims...>::type;
 
-    template<typename F>
-    __host__ __device__ constexpr void operator() (F f) const {
-        base::template operator()<F, multi_index_t>(f);
+    template <ck::index_t I>
+    using convert_t = typename detail::convert_flat_to_multi_index<Dims...>::template type<I>;
+
+    template <typename F>
+    __host__ __device__ constexpr void operator()(F f) const
+    {
+        base::template operator()<F, convert_t>(f);
     }
 };
 
-template<template <int32_t...> typename T, int32_t... Dims>
-struct static_ford<const T<Dims...>> : static_ford<T<Dims...>> {
+template <template <int32_t...> typename T, int32_t... Dims>
+struct static_ford<const T<Dims...>> : static_ford<T<Dims...>>
+{
     using static_ford<T<Dims...>>::operator();
 };
 
