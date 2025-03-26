@@ -73,7 +73,7 @@ namespace device {
 ///                                                 order to spread threads through tensor axes?".
 /// @tparam ABlockTransferSrcAccessOrder The order of accessing input tensor axes. "Which dimension
 ///                                      to read first? And which next?" etc.
-/// @tparam ABlockTransferSrcVectorDim   The index of axis on which we could do verctorized memory
+/// @tparam ABlockTransferSrcVectorDim   The index of axis on which we could do vectorized memory
 ///                                      access - the one with contiguous memory.
 /// @tparam ABlockTransferSrcScalarPerVector The size of vector access instruction - the number of
 ///                                          elements accessed per thread per instruction.
