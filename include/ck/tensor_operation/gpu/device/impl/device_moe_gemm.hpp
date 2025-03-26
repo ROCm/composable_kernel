@@ -238,9 +238,9 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
             constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) / BlockSize /
                                              4 * (1 + GridwiseGemm::NWave);
             constexpr auto estimated_reg_b =
-                NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize / 4 * (2);
+                NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize / 4 * (2) * (IsInputGemm ? 2 : 1);
             constexpr auto estimated_reg_c =
-                MPerBlock * NPerBlock * sizeof(GemmAccDataType) / BlockSize / 4;
+                MPerBlock * NPerBlock * sizeof(GemmAccDataType) / BlockSize / 4 * (IsInputGemm ? 2 : 1);
             constexpr auto estimated_reg_total =
                 estimated_reg_a + estimated_reg_b + estimated_reg_c;
 
