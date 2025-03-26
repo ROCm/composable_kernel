@@ -97,10 +97,10 @@ namespace device {
 /// @tparam BBlockTransferDstScalarPerVector_BK1 The size of vectorized store into LDS memory.
 /// @tparam BBlockLdsExtraN                      Whether to use padding for LDS or not. With
 ///                                              universal GEMM there's no need for padding.
-/// @tparam CShuffleMXdlPerWavePerShuffle   The number of matrix-multiplication's instructions
+/// @tparam CShuffleMXdlPerWavePerShuffle   The number of matrix-multiplication instructions
 ///                                         results to process per wave per iteration of CShuffle
 ///                                         in M dimension.
-/// @tparam CShuffleNXdlPerWavePerShuffle   The number of matrix-multiplication's instructions
+/// @tparam CShuffleNXdlPerWavePerShuffle   The number of matrix-multiplication instructions
 ///                                         results to process per wave per iteration of CShuffle
 ///                                         in N dimension.
 /// @tparam CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock The spatial
