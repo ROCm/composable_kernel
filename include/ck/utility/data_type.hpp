@@ -464,6 +464,13 @@ struct scalar_type<bf8_ocp_t>
 };
 
 template <>
+struct scalar_type<e8m0_bexp_t>
+{
+    using type                           = e8m0_bexp_t::type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
 struct scalar_type<bool>
 {
     using type                           = bool;
