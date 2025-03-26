@@ -61,7 +61,7 @@ namespace device {
 /// @tparam BK1         The vector load size from global memory for B tensor.
 /// @tparam MPerXDL     M size of matrix-fused-multiply-add instruction.
 /// @tparam NPerXDL     N size of matrix-fused-multiply-add instruction.
-/// @tparam MXdlPerWave The number of iterations in M dimension over output tile per wavefront.
+/// @tparam MXdlPerWave The number of iterations in the M dimension over output tile per wavefront.
 /// @tparam NXdlPerWave The number of iterations in N dimension over output tile per wavefront.
 /// @tparam ABlockTransferThreadClusterLengths_AK0_M_AK1 Spatial thread distribution over the input
 ///                                                      data. You could think of it as an answer
