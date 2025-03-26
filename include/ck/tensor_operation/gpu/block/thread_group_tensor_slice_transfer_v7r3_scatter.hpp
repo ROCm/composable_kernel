@@ -134,13 +134,12 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
     template <typename SrcBuffers, index_t ThreadScratchId = 0>
     __device__ void RunRead(const SrcDescs& src_descs,
                             const SrcBuffers& src_bufs,
-                            StaticallyIndexedArray<float, scatter_num>& scatter_weights,
                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.RunRead(src_descs, src_bufs, scatter_weights, thread_scratch_id);
+            threadwise_transfer_.RunRead(src_descs, src_bufs, thread_scratch_id);
         }
     }
 
@@ -170,10 +169,9 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
                         const SrcBuffers& src_bufs,
                         const DstDescs& dst_descs,
                         DstBuffers dst_bufs,
-                        StaticallyIndexedArray<IndexType, scatter_num>& scatter_offsets,
-                        StaticallyIndexedArray<float, scatter_num>& scatter_weights)
+                        StaticallyIndexedArray<IndexType, scatter_num>& scatter_offsets)
     {
-        RunRead(src_descs, src_bufs, scatter_weights);
+        RunRead(src_descs, src_bufs);
         RunWrite(dst_descs, dst_bufs, scatter_offsets);
     }
 
