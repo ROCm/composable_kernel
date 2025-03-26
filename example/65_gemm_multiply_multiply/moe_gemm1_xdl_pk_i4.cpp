@@ -176,7 +176,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
             S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
             1,    1,   S<1, 32, 1, 8>, S<8, 1, 1>,
-            ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, ck::index_t, A0DataType>;
+            ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, true, ck::index_t, A0DataType>;
 // clang-format on
 #endif
 
