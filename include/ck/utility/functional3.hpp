@@ -158,7 +158,7 @@ struct convert_flat_to_multi_index
 };
 
 template <typename T, T... Is>
-struct range_applier
+struct applier
 {
     // F: code block parameterized by compile-time constant
     // IndexTransform: metafunction from int32_t to code block argument type
@@ -171,6 +171,9 @@ struct range_applier
     }
 };
 
+template <int32_t Size>
+using make_applier = __make_integer_seq<applier, ck::index_t, Size>;
+
 } // namespace detail
 
 // Lengths is Sequence<...>, it is the length of each dimension for
@@ -179,11 +182,10 @@ template <typename T>
 struct static_ford;
 
 template <template <int32_t...> typename T, int32_t... Dims>
-struct static_ford<T<Dims...>>
-    : __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>
+struct static_ford<T<Dims...>> : detail::make_applier<(Dims * ...)>
 {
-    // `base` is the same as `range_applier<index_t, 0, ..., product of Dims>`
-    using base = __make_integer_seq<detail::range_applier, ck::index_t, (Dims * ...)>;
+    // `base` is the same as `applier<index_t, 0, ..., product of Dims>`
+    using base = detail::make_applier<(Dims * ...)>;
 
     template <ck::index_t I>
     using convert_t = typename detail::convert_flat_to_multi_index<Dims...>::template type<I>;
