@@ -55,12 +55,12 @@ TEST_CASE(test_problem_kernel)
         std::cout << "Testing solution " << std::to_string(i + 1) << std::endl;
         auto&& solution = solutions[i];
         auto src        = ck::host::InterpolateString(gemm_compile_check,
-                                                      {{"include", prob.GetIncludeHeader()},
-                                                       {"template", solution.ToTemplateString()},
-                                                       {"m", std::to_string(prob.M)},
-                                                       {"n", std::to_string(prob.N)},
-                                                       {"k", std::to_string(prob.K)},
-                                                       {"o", std::to_string(prob.O)}});
+                                               {{"include", prob.GetIncludeHeader()},
+                                                {"template", solution.ToTemplateString()},
+                                                {"m", std::to_string(prob.M)},
+                                                {"n", std::to_string(prob.N)},
+                                                {"k", std::to_string(prob.K)},
+                                                {"o", std::to_string(prob.O)}});
         auto srcs       = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
         rtc::compile_options options;
