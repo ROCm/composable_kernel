@@ -64,7 +64,7 @@ namespace device {
 /// @tparam MXdlPerWave The number of iterations in the M dimension over output tile per wavefront.
 /// @tparam NXdlPerWave The number of iterations in N dimension over output tile per wavefront.
 /// @tparam ABlockTransferThreadClusterLengths_AK0_M_AK1 Spatial thread distribution over the input
-///                                                      data. You could think of it as an answer
+///                                                      data. Can be interpreted as the answer to the question, 
 ///                                                      to question: "How many threads to arrange
 ///                                                      on each input data axis?"
 /// @tparam ABlockTransferThreadClusterArrangeOrder The order of thread spatial distribution over
