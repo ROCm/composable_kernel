@@ -48,22 +48,19 @@ TEST_CASE(test_problem_kernel)
     auto b1 = to_gpu(generate_buffer<half>(1024 * 1024, 2));
     auto c  = to_gpu(generate_buffer<half>(1024 * 1024, 3));
 
-    std::string epilogue = "";
-    std::string prologue = "";
-
-    auto solutions = prob.GetSolutions("gfx90a", prologue, epilogue);
+    auto solutions = prob.GetSolutions("gfx90a");
     std::cout << "Num solutions: " << solutions.size() << std::endl;
     for(auto i = 0; i < solutions.size(); ++i)
     {
         std::cout << "Testing solution " << std::to_string(i + 1) << std::endl;
         auto&& solution = solutions[i];
         auto src        = ck::host::InterpolateString(gemm_compile_check,
-                                               {{"include", prob.GetIncludeHeader()},
-                                                {"template", solution.ToTemplateString()},
-                                                {"m", std::to_string(prob.M)},
-                                                {"n", std::to_string(prob.N)},
-                                                {"k", std::to_string(prob.K)},
-                                                {"o", std::to_string(prob.O)}});
+                                                      {{"include", prob.GetIncludeHeader()},
+                                                       {"template", solution.ToTemplateString()},
+                                                       {"m", std::to_string(prob.M)},
+                                                       {"n", std::to_string(prob.N)},
+                                                       {"k", std::to_string(prob.K)},
+                                                       {"o", std::to_string(prob.O)}});
         auto srcs       = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
         rtc::compile_options options;
