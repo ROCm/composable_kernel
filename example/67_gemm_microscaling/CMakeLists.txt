@@ -1,5 +1,10 @@
 add_custom_target(example_gemm_mx)
 
-add_example_executable(example_gemm_mx_fp8 gemm_mx_fp8.cpp)
-add_example_dependencies(example_gemm_mx example_gemm_mx_fp8)
+add_example_executable(example_gemm_mx_fp8_e8m0_scale gemm_mx_fp8_e8m0_scale.cpp)
+add_example_dependencies(example_gemm_mx example_gemm_mx_fp8_e8m0_scale)
 
+add_example_executable(example_gemm_mx_fp8_fp8_scale gemm_mx_fp8_fp8_scale.cpp)
+add_example_dependencies(example_gemm_mx example_gemm_mx_fp8_fp8_scale)
+
+add_example_executable(example_gemm_mx_fp8_fp16_scale gemm_mx_fp8_fp16_scale.cpp)
+add_example_dependencies(example_gemm_mx example_gemm_mx_fp8_fp16_scale)
