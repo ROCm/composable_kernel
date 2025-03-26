@@ -476,8 +476,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                             Sequence<1, 0>,
                             Sequence<1>,
                             Sequence<CDEBlockTransferScalarPerVector_NPerBlock>,
-                            I1,
-                            I0>;
+                            I0,
+                            I1>;
 
     using GridwiseElementwiseOutputTranspose =
         GridwiseElementwise<Tuple<NHWGCTransposeDescType>,
@@ -634,7 +634,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             {
                 const long_index_t a_acum = ck::accumulate_n<long_index_t>(
                     a_g_n_c_wis_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
-                return sizeof(ADataType) * a_acum;
+                // Align to 128B
+                return math::integer_divide_ceil(sizeof(ADataType) * a_acum, 128) * 128;
             }
             else
             {
@@ -649,7 +650,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             {
                 const long_index_t b_acum = ck::accumulate_n<long_index_t>(
                     b_g_k_c_xs_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
-                return sizeof(BDataType) * b_acum;
+                // Align to 128B
+                return math::integer_divide_ceil(sizeof(BDataType) * b_acum, 128) * 128;
             }
             else
             {
@@ -1141,12 +1143,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                     arg.elementwise_block_2_ctile_map_transpose_e_.CalculateGridSize(
                         arg.e_in_transpose_desc_);
 
-                const EDataType* p_e_out_grid =
+                const EDataType* p_e_in_grid =
                     type_convert<EDataType*>(arg.p_workspace_) +
                     (arg.GetWorkspaceATensorSizeBytes() + arg.GetWorkspaceBTensorSizeBytes()) /
                         sizeof(EDataType);
 
-                EDataType* p_e_in_grid = arg.p_e_grid_;
+                EDataType* p_e_out_grid = arg.p_e_grid_;
 
                 auto kernel_transpose = kernel_elementwise<GridwiseElementwiseOutputTranspose,
                                                            ck::Tuple<NHWGCTransposeDescType>,
@@ -1163,8 +1165,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                    0,
                                                    make_tuple(arg.e_in_transpose_desc_),
                                                    make_tuple(arg.e_out_transpose_desc_),
-                                                   make_tuple(p_e_out_grid),
                                                    make_tuple(p_e_in_grid),
+                                                   make_tuple(p_e_out_grid),
                                                    arg.elementwise_block_2_ctile_map_transpose_e_,
                                                    element_wise::PassThrough{});
             }

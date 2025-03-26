@@ -813,7 +813,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             {
                 const long_index_t a_acum = ck::accumulate_n<long_index_t>(
                     a_g_n_c_wis_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
-                return sizeof(ADataType) * a_acum;
+                // Align to 128B
+                return math::integer_divide_ceil(sizeof(ADataType) * a_acum, 128) * 128;
             }
             else
             {
@@ -828,7 +829,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             {
                 const long_index_t b_acum = ck::accumulate_n<long_index_t>(
                     b_g_k_c_xs_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
-                return sizeof(BDataType) * b_acum;
+                // Align to 128B
+                return math::integer_divide_ceil(sizeof(BDataType) * b_acum, 128) * 128;
             }
             else
             {
