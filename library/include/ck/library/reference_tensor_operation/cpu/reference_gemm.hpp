@@ -83,10 +83,10 @@ struct ReferenceGemm : public device::BaseOperator
                     {
                         if(k % 2 == 1)
                             v_a = type_convert<ComputeTypeA>(
-                                arg.a_m_k_(m, k).template unpack<>(Number<1>{}));
+                                f4_t(arg.a_m_k_(m, k).template unpack<>(Number<1>{})));
                         else
                             v_a = type_convert<ComputeTypeA>(
-                                arg.a_m_k_(m, k).template unpack<>(Number<0>{}));
+                                f4_t(arg.a_m_k_(m, k).template unpack<>(Number<0>{})));
                     }
                     else
                     {
