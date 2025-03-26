@@ -188,10 +188,10 @@ struct static_ford<T<Dims...>>
     template <ck::index_t I>
     using convert_t = typename detail::convert_flat_to_multi_index<Dims...>::template type<I>;
 
-    template <typename F>
+    template <typename F, template <auto> typename IndexTransform = convert_t>
     __host__ __device__ constexpr void operator()(F f) const
     {
-        base::template operator()<F, convert_t>(f);
+        base::template operator()<F, IndexTransform>(f);
     }
 };
 
