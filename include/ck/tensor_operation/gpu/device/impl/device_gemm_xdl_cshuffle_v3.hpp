@@ -56,7 +56,7 @@ namespace device {
 /// @tparam BlockSize   The number of threads within workgroup.
 /// @tparam MPerBlock   The input/output data tile size in the M dimension.
 /// @tparam NPerBlock   The input/output data tile size in N dimension.
-/// @tparam KPerBlock   The input data tile size in K dimension.
+/// @tparam KPerBlock   The input data tile size in the K dimension.
 /// @tparam AK1         The vector load size from global memory for A tensor.
 /// @tparam BK1         The vector load size from global memory for B tensor.
 /// @tparam MPerXDL     M size of matrix-fused-multiply-add instruction.
