@@ -48,7 +48,10 @@ struct MoeGemmHostArgs : public ck_tile::GemmHostArgs
     static constexpr index_t KBatch = 1;
 };
 
-template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
+template <typename TilePartitioner_,
+          typename GemmPipeline_,
+          typename EpiloguePipeline_,
+          bool IsInputGemm_ = true>
 struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>
 {
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
@@ -58,6 +61,8 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
     using BLayout          = remove_cvref_t<typename GemmPipeline::BLayout>;
     using CLayout          = remove_cvref_t<typename GemmPipeline::CLayout>;
 
+    static constexpr bool IsInputGemm = IsInputGemm_;
+
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
@@ -66,7 +71,13 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
     using Base                    = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
     using GemmKernelArgs          = typename Base::GemmKernelArgs;
 
+    using SplitKBatchOffset = typename Base::SplitKBatchOffset;
+
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+
+    static constexpr auto I0 = number<0>();
+    static constexpr auto I1 = number<1>();
+    static constexpr auto I2 = number<2>();
 
     struct MoeGemmKernelArgs : public GemmKernelArgs
     {
@@ -156,6 +167,127 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemSize() -> index_t
     {
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
+    }
+
+    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
+    CK_TILE_DEVICE static auto MakeGemmTensorViews(const ADataType* a_ptr,
+                                                   const BDataType* b_ptr,
+                                                   CDataType* c_ptr,
+                                                   const MoeGemmKernelArgs& kargs,
+                                                   const SplitKBatchOffset& splitk_batch_offset)
+    {
+        static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
+        const auto& a_tensor_view = [&]() {
+            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+            {
+                return make_naive_tensor_view<address_space_enum::global>(
+                    a_ptr,
+                    make_tuple(IsInputGemm ? kargs.NumTokens : kargs.NumTokens * kargs.TopK,
+                               splitk_batch_offset.splitted_k),
+                    make_tuple(kargs.stride_A, 1),
+                    number<GemmPipeline::GetVectorSizeA()>{},
+                    number<1>{});
+            }
+            else
+            {
+                return make_naive_tensor_view<address_space_enum::global>(
+                    a_ptr,
+                    make_tuple(splitk_batch_offset.splitted_k,
+                               IsInputGemm ? kargs.NumTokens : kargs.NumTokens * kargs.TopK),
+                    make_tuple(kargs.stride_A, 1),
+                    number<GemmPipeline::GetVectorSizeA()>{},
+                    number<1>{});
+            }
+        }();
+
+        const auto& b_tensor_view = [&]() {
+            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+            {
+                if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
+                {
+                    constexpr index_t K1          = GemmPipeline::GetSmemPackB();
+                    const index_t K0              = splitk_batch_offset.splitted_k / K1;
+                    constexpr index_t VectorSizeB = std::min(K1, GemmPipeline::GetVectorSizeB());
+                    const auto b_k0_n_k1_desc =
+                        make_naive_tensor_descriptor(make_tuple(K0, kargs.N, K1),
+                                                     make_tuple(kargs.N * K1, K1, I1),
+                                                     number<VectorSizeB>{},
+                                                     number<1>{});
+                    const auto b_n_k_desc = transform_tensor_descriptor(
+                        b_k0_n_k1_desc,
+                        make_tuple(make_merge_transform(make_tuple(K0, K1)),
+                                   make_pass_through_transform(kargs.N)),
+                        make_tuple(sequence<0, 2>{}, sequence<1>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                    return make_tensor_view<address_space_enum::global>(b_ptr, b_n_k_desc);
+                }
+                else
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        b_ptr,
+                        make_tuple(splitk_batch_offset.splitted_k, kargs.N),
+                        make_tuple(kargs.stride_B, 1),
+                        number<GemmPipeline::GetVectorSizeB()>{},
+                        number<1>{});
+                }
+            }
+            else
+            {
+                if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
+                {
+                    constexpr index_t K1          = GemmPipeline::GetSmemPackB();
+                    const index_t K0              = splitk_batch_offset.splitted_k / K1;
+                    constexpr index_t VectorSizeB = std::min(K1, GemmPipeline::GetVectorSizeB());
+                    const auto b_k0_n_k1_desc =
+                        make_naive_tensor_descriptor(make_tuple(K0, kargs.N, K1),
+                                                     make_tuple(kargs.N * K1, K1, I1),
+                                                     number<VectorSizeB>{},
+                                                     number<1>{});
+                    const auto b_n_k_desc = transform_tensor_descriptor(
+                        b_k0_n_k1_desc,
+                        make_tuple(make_merge_transform(make_tuple(K0, K1)),
+                                   make_pass_through_transform(kargs.N)),
+                        make_tuple(sequence<0, 2>{}, sequence<1>{}),
+                        make_tuple(sequence<1>{}, sequence<0>{}));
+                    return make_tensor_view<address_space_enum::global>(b_ptr, b_n_k_desc);
+                }
+                else
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        b_ptr,
+                        make_tuple(kargs.N, splitk_batch_offset.splitted_k),
+                        make_tuple(kargs.stride_B, 1),
+                        number<GemmPipeline::GetVectorSizeB()>{},
+                        number<1>{});
+                }
+            }
+        }();
+
+        // TODO: enable vector write for C in ColMajor
+        const auto& c_tensor_view = [&]() {
+            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+            {
+                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
+                    c_ptr,
+                    make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumTokens,
+                               kargs.N),
+                    make_tuple(kargs.stride_C, 1),
+                    number<EpiloguePipeline::GetVectorSizeC()>{},
+                    number<1>{});
+            }
+            else
+            {
+                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
+                    c_ptr,
+                    make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumToken,
+                               kargs.N),
+                    make_tuple(1, kargs.stride_C),
+                    number<1>{},
+                    number<1>{});
+            }
+        }();
+
+        return make_tuple(a_tensor_view, b_tensor_view, c_tensor_view);
     }
 
     template <typename AView>
@@ -269,6 +401,7 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
         return make_tuple(a_block_window, b_block_window, c_block_window);
     }
 
+    template <bool IsInputGemm = true>
     CK_TILE_DEVICE void operator()(const MoeGemmKernelArgs gemm_desc) const
     {
         // TODO: implement C scatter store accordring to expert_id
@@ -287,6 +420,10 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
         const index_t expert_id      = gemm_desc.p_sorted_expert_ids[expert_blk_id];
         const index_t prefix_blk_m   = gemm_desc.p_max_token_id[1 + expert_id];
         const index_t blk_cnt_of_eid = gemm_desc.p_max_token_id[2 + expert_id];
+
+        // printf("expert_blk_id: %d, expert_id: %d \n",expert_blk_id, expert_id);
+
+        // expert_id = expert_blk_id;
 
         const index_t block_start = prefix_blk_m * NBlocks;
 
@@ -312,23 +449,27 @@ struct MoeGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Epilog
         // });
 
         const index_t fused_token = gemm_desc.p_sorted_token_ids[sorted_token_id];
-        // printf("a_coord[number<0>{}]: %d \n",a_coord[number<0>{}]);
 
         // TODO: token_id should include topk offset depends on ffn1 or ffn2
         const index_t token_id = fused_token & 0xffffff;
 
-        // const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
+        if constexpr(!IsInputGemm)
+        {
+            token_id = token_id * gemm_desc.TopK + (fused_token >> 24);
+        }
+
+        const index_t expert_stride = __builtin_amdgcn_readfirstlane(gemm_desc.N * gemm_desc.K);
 
         const typename Base::SplitKBatchOffset splitk_batch_offset(gemm_desc);
         // options
         const ADataType* a_ptr =
             static_cast<const ADataType*>(gemm_desc.a_ptr) + splitk_batch_offset.a_k_split_offset;
-        const BDataType* b_ptr =
-            static_cast<const BDataType*>(gemm_desc.b_ptr) + splitk_batch_offset.b_k_split_offset;
+        const BDataType* b_ptr = static_cast<const BDataType*>(gemm_desc.b_ptr) +
+                                 splitk_batch_offset.b_k_split_offset + expert_stride * expert_id;
         CDataType* c_ptr = static_cast<CDataType*>(gemm_desc.c_ptr);
 
         const auto& gemm_tensor_views_tuple =
-            Base::MakeGemmTensorViews(a_ptr, b_ptr, c_ptr, gemm_desc, splitk_batch_offset);
+            MakeGemmTensorViews(a_ptr, b_ptr, c_ptr, gemm_desc, splitk_batch_offset);
         const auto& gemm_pad_views    = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
         const auto& transformed_views = TransformGemmPadViews(gemm_pad_views, token_id);
         auto gemm_tile_windows        = MakeGemmTileWindows(

@@ -94,7 +94,7 @@ int run_moe_gemm_example_with_layouts(int argc,
     const ck_tile::index_t num_tokens = arg_parser.get_int("NumTokens");
     const ck_tile::index_t topk       = arg_parser.get_int("TopK");
     const ck_tile::index_t repeat     = arg_parser.get_int("repeat");
-    // const ck_tile::index_t experts     = arg_parser.get_int("experts");
+    const ck_tile::index_t experts    = arg_parser.get_int("experts");
 
     // TODO: replace the magic declaration
     const ck_tile::index_t MPerBlock = 128;
@@ -116,7 +116,9 @@ int run_moe_gemm_example_with_layouts(int argc,
 
     // TODO: add the experts' weights in b
     auto b_k_n_tensor = ck_tile::HostTensor<BDataType>(
-        ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
+        is_row_major(b_layout)
+            ? ck_tile::host_tensor_descriptor(experts * K, N, stride_B, is_row_major(b_layout))
+            : ck_tile::host_tensor_descriptor(K, experts * N, stride_B, is_row_major(b_layout)));
     auto c_m_n_tensor = ck_tile::HostTensor<CDataType>(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
@@ -159,8 +161,8 @@ int run_moe_gemm_example_with_layouts(int argc,
     std::unique_ptr<ck_tile::DeviceMem> max_token_id_dev = std::make_unique<ck_tile::DeviceMem>(
         sizeof(ck_tile::index_t) * max_token_id.get_element_space_size_in_bytes());
 
-    max_token_id.mData = {valid_tile_num * MPerBlock, 0, 1, 2, 3, 4, 5, 6, 7, 8};
-    int eids[]         = {0, 1, 2, 3, 4, 5, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+    max_token_id.mData = {valid_tile_num * MPerBlock, 0, 1, 2, 3, 4, 6, 7, 8, 8};
+    int eids[]         = {0, 1, 2, 3, 4, 4, 5, 6, 3, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     for(int i = 0; i < sorted_tile_num; i++)
     {
         expert_ids.mData[i] = eids[i];

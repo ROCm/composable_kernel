@@ -28,7 +28,7 @@ struct MoeGemmKernelParam
     static const int kBlockPerCu         = 1;
     static const ck_tile::index_t M_Tile = 128;
     static const ck_tile::index_t N_Tile = 128;
-    static const ck_tile::index_t K_Tile = 16; // need to ensure the M_per_thread = 1
+    static const ck_tile::index_t K_Tile = 32; // need to ensure the M_per_thread = 1
 
     static const ck_tile::index_t M_Warp = 2;
     static const ck_tile::index_t N_Warp = 2;

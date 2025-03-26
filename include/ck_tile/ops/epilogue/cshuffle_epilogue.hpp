@@ -121,6 +121,7 @@ struct CShuffleEpilogue
 
     template <typename ODramWindow,
               typename OAccTile,
+              bool IsInputGemm                         = true,
               memory_operation_enum out_memory_data_op = memory_operation_enum::set>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
@@ -177,10 +178,17 @@ struct CShuffleEpilogue
 
             statically_indexed_array<index_t, 2> offsets;
             static_for<0, 2 /*CMrepeats*/, 1>{}([&](auto m0) {
-                auto token_id        = token_pos + m0 + c_coord[0] + mIter * kMPerXdl * kMWave;
-                auto fused_token     = p_sorted_tokens_id[token_id];
+                auto token_id    = token_pos + m0 + c_coord[0] + mIter * kMPerXdl * kMWave;
+                auto fused_token = p_sorted_tokens_id[token_id];
+
                 index_t token_offset = fused_token & 0xffffff;
-                offsets[m0]          = token_offset * 4096; // Problem::kN_;
+
+                if constexpr(IsInputGemm)
+                {
+                    token_offset = token_offset * 3 /*TopK*/ + (fused_token >> 24);
+                }
+
+                offsets[m0] = token_offset * 4096; // Problem::kN_;
             });
             // printf("c_coord[number<0>{}]: %d \n", coord[number<0>{}]);
             // printf("mIter: %d", mIter+0);

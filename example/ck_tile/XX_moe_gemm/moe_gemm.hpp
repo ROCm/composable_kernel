@@ -34,9 +34,9 @@ using moe_gemm_kargs = ck_tile::MoeGemmHostArgs;
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("experts", "1", "Num of experts - 8 by default")
+    arg_parser.insert("experts", "8", "Num of experts - 8 by default")
         .insert("NumTokens", "128", "M dimensions - 128 by default.")
-        .insert("TopK", "1", "Top K - 2 by default.")
+        .insert("TopK", "3", "Top K - 2 by default.")
         .insert("N", "4096", "N dimensions - 4096 by default.")
         .insert("K", "4096", "K dimensions - 4096 by default.")
         .insert("stride_A", "", "Tensor A strides - it is empty by default.")

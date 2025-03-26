@@ -77,7 +77,8 @@ template <typename ADataType,
           typename CDataType,
           typename LayoutA,
           typename LayoutB,
-          typename LayoutC>
+          typename LayoutC,
+          bool IsInputGemm = true>
 __global__ void naive_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
                                   const ck_tile::index_t* p_sorted_expert_ids_,
                                   const ck_tile::index_t* p_max_token_id_,
@@ -100,15 +101,26 @@ __global__ void naive_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
     // assert(p_sorted_expert_ids_ != nullptr);
     // assert(TopK == 1);
     // assert(Num_tokens == 128);
-    if(Num_tokens == 128 && TopK == 1 && p_sorted_expert_ids_ != nullptr) {}
+    // if(Num_tokens == 128 && TopK == 1 && p_sorted_expert_ids_ != nullptr) {}
 
     // index_t max_tokens = p_max_token_id_[0];
-    index_t token_id = 0;
-    // index_t expert_id = 0;
+    index_t gather_token_id  = 0;
+    index_t scatter_token_id = 0;
+    index_t expert_id        = 0;
 
     if(row < p_max_token_id_[0])
     {
-        token_id = p_sorted_token_ids_[row] & 0xffffff;
+        expert_id        = p_sorted_expert_ids_[row / 128];
+        gather_token_id  = p_sorted_token_ids_[row] & 0xffffff;
+        scatter_token_id = p_sorted_token_ids_[row] & 0xffffff;
+        if(!IsInputGemm)
+        {
+            gather_token_id = gather_token_id * TopK + (p_sorted_token_ids_[row] >> 24);
+        }
+        else
+        {
+            scatter_token_id = scatter_token_id * TopK + (p_sorted_token_ids_[row] >> 24);
+        }
     }
     else
     {
@@ -124,13 +136,14 @@ __global__ void naive_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
             constexpr index_t packed_size_b = ck_tile::numeric_traits<BDataType>::PackedSize;
             // Adjust indexing based on matrix layout
             int a_index = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>)
-                              ? token_id * strideA + k
-                              : k * strideA + token_id;
+                              ? gather_token_id * strideA + k
+                              : k * strideA + gather_token_id;
 
             // TODO: add experts weights dispatch
-            int b_index = (std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
-                              ? col * strideB + k
-                              : k * strideB + col;
+            int b_index =
+                expert_id * N * K + ((std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
+                                         ? col * strideB + k
+                                         : k * strideB + col);
 
             AccDataType v_a;
             AccDataType v_b;
@@ -162,8 +175,8 @@ __global__ void naive_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
         }
 
         int c_index = (std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>)
-                          ? token_id * strideC + col
-                          : col * strideC + token_id;
+                          ? scatter_token_id * strideC + col
+                          : col * strideC + scatter_token_id;
         C[c_index]  = ck_tile::type_convert<CDataType>(acc);
     }
 }
@@ -174,7 +187,8 @@ template <typename ADataType,
           typename CDataType,
           typename LayoutA,
           typename LayoutB,
-          typename LayoutC>
+          typename LayoutC,
+          bool IsInputGemm = true>
 void reference_moe_gemm_gpu(const index_t* p_sorted_token_ids_,
                             const index_t* p_sorted_expert_ids_,
                             const index_t* p_max_token_id_,
@@ -194,21 +208,27 @@ void reference_moe_gemm_gpu(const index_t* p_sorted_token_ids_,
     int numThreadsPerBlock = 256; // Common choice for threads per block
     int numBlocks          = (totalElements + numThreadsPerBlock - 1) / numThreadsPerBlock;
 
-    naive_gemm_kernel<ADataType, BDataType, AccDataType, CDataType, LayoutA, LayoutB, LayoutC>
-        <<<numBlocks, numThreadsPerBlock>>>(p_sorted_token_ids_,
-                                            p_sorted_expert_ids_,
-                                            p_max_token_id_,
-                                            a_ptr,
-                                            b_ptr,
-                                            c_ptr,
-                                            Num_tokens,
-                                            TopK,
-                                            M,
-                                            N,
-                                            K,
-                                            stride_a,
-                                            stride_b,
-                                            stride_c);
+    naive_gemm_kernel<ADataType,
+                      BDataType,
+                      AccDataType,
+                      CDataType,
+                      LayoutA,
+                      LayoutB,
+                      LayoutC,
+                      IsInputGemm><<<numBlocks, numThreadsPerBlock>>>(p_sorted_token_ids_,
+                                                                      p_sorted_expert_ids_,
+                                                                      p_max_token_id_,
+                                                                      a_ptr,
+                                                                      b_ptr,
+                                                                      c_ptr,
+                                                                      Num_tokens,
+                                                                      TopK,
+                                                                      M,
+                                                                      N,
+                                                                      K,
+                                                                      stride_a,
+                                                                      stride_b,
+                                                                      stride_c);
 
     return;
 }
