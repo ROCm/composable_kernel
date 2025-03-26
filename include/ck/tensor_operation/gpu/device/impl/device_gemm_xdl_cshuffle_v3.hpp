@@ -54,7 +54,7 @@ namespace device {
 ///                               tensor (after GEMM).
 /// @tparam GemmSpec    Determines used "padding" version.
 /// @tparam BlockSize   The number of threads within workgroup.
-/// @tparam MPerBlock   The input/output data tile size in M dimension.
+/// @tparam MPerBlock   The input/output data tile size in the M dimension.
 /// @tparam NPerBlock   The input/output data tile size in N dimension.
 /// @tparam KPerBlock   The input data tile size in K dimension.
 /// @tparam AK1         The vector load size from global memory for A tensor.
