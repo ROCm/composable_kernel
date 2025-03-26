@@ -27,7 +27,7 @@ namespace device {
 ///         This GEMM operation implements the following mathematical equation:
 ///         C{M,N} = C_op(A_op(A{M,K}) * B_op(B{K,N}))
 ///         Where A, B are input tensors and C is the output tensor. The A/B/C_op are
-///         elementwise operations that could be applied on each tensor respectively.
+///         elementwise operations applied to the A, B, and C tensors, respectively.
 ///         This operation is called \"universal\" since it provides multiple blockwise GEMM
 ///         pipelines optimized for memory-bound, latency and compute-bound cases.
 ///
