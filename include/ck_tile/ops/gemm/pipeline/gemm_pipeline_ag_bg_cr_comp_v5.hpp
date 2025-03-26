@@ -274,7 +274,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 }
             };
 
-            if(op_id == 1)
+            if(op_id == 0)
             {
                 MemoryOpsStep();
             }            
@@ -287,7 +287,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 block_sync_lds();
                 op_id = (op_id + 1) % num_stages_;
 
-                if(op_id == 1)
+                if(op_id == 0)
                 {
                     MemoryOpsStep();
                 }
@@ -302,7 +302,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
             // Handle Tail Number here.
             block_sync_lds();
-            if(op_id == 1)
+            if(op_id == 0)
             {
                 ComputeStep(group_id);
             }
