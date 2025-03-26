@@ -90,13 +90,9 @@ __device__ inline f8x4_t i4_to_f8x4(int q)
 
     uint32_t dict_sel = q & 0x07070707;
     uint32_t sign = q >> 1;
-#if 0
     asm volatile("v_and_or_b32 %0, %1, %2, %3"
                  : "=v"(final_sel)
                  : "v"(sign), "v"(0x04040404), "v"(0x03020100));
-#else
-    final_sel = (sign & 0x04040404) | 0x03020100;
-#endif
 
     vector_type<f8_t, 4> res;
 
