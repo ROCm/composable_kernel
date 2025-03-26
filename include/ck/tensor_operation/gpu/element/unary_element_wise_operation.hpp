@@ -81,20 +81,6 @@ __device__ inline half4_t i4_to_half4_scale(int q, const ck::half2_t& scale)
 
 __device__ inline f8x4_t i4_to_f8x4(int q)
 {
-#if 0
-    const int LO = 0x000f000f;
-    const int HI = 0x00f000f0;
-
-    int lo = amd_assembly_and_b32(q, LO);
-    int hi = amd_assembly_and_b32(q, HI);
-
-    float f32_0 = amd_assemble_cvt_f32_i4(lo);
-    float f32_1 = amd_assemble_cvt_f32_i4(lo >> 16);
-    float f32_2 = amd_assemble_cvt_f32_i4(hi);
-    float f32_3 = amd_assemble_cvt_f32_i4(hi >> 16);
-
-    return amd_assembly_cvt_f8_to_f32(f32_0, f32_1, f32_2, f32_3);
-#else
     // [0, 1, 2, 3] encoded as FP8
     static constexpr uint32_t POS_E4M3s_TABLE1 = 0x2C282000;
     // [4, 5, 6, 7] encoded as FP8
@@ -108,9 +94,14 @@ __device__ inline f8x4_t i4_to_f8x4(int q)
 
     uint32_t dict_sel = q & 0x07070707;
     uint32_t sign = q >> 1;
+   
+    #if 0
     asm volatile("v_and_or_b32 %0, %1, %2, %3"
                  : "=v"(final_sel)
                  : "v"(sign), "v"(0x04040404), "v"(0x03020100));
+#else
+    final_sel = (sign & 0x04040404) | 0x03020100;
+#endif
 
     vector_type<f8_t, 4> res;
 
@@ -121,7 +112,6 @@ __device__ inline f8x4_t i4_to_f8x4(int q)
     res.template AsType<f8x4_t>()(Number<0>{}) = bit_cast<f8x4_t>(tmp_res);
 
     return res.template AsType<f8x4_t>()[Number<0>{}];
-#endif
 }
 
 __device__ inline f8x8_t i4_to_fp8x8(int q) 
