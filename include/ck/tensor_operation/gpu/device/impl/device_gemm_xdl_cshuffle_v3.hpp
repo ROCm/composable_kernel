@@ -24,7 +24,7 @@ namespace device {
 /// @brief \"Universal\" GEMM operation with SplitK support.
 ///
 /// @par Overview
-///         This GEMM operation is carrying out following mathematical equation:
+///         This GEMM operation implements the following mathematical equation:
 ///         C{M,N} = C_op(A_op(A{M,K}) * B_op(B{K,N}))
 ///         Where A, B are input tensors and C is the output tensor. The A/B/C_op are
 ///         elementwise operations that could be applied on each tensor respectively.
