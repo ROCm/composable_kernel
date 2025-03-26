@@ -43,7 +43,7 @@ namespace device {
 /// @tparam BDataType   B tensor data type.
 /// @tparam CDataType   C tensor data type.
 /// @tparam GemmAccDataType The so called "accumulation" data type related to hardware
-///                         matrix-multiplication instrucion.
+///                         matrix-multiplication instruction.
 /// @tparam CShuffleDataType The data type used to store matrix-multiplication results into
 ///                          LDS memory during \"CShuffle\" data layout optimization.
 /// @tparam AElementwiseOperation An elementwise operation which could be applied on A input tensor
