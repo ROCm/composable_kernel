@@ -225,7 +225,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
             // define ping, pong steps here as lambda functions.
-            auto MemoryOpsStep = [&](auto idx) {
+            auto MemoryOpsStep = [&]() {
                 // Memory read half here.
                 Base::GlobalPrefetch(
                     a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
@@ -255,36 +255,28 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 {
                     Base::LocalPrefill(b_copy_lds_window, b_global_load_tile, b_element_func);
                 }
-
-                // transfer from LDS to registers
-                if(idx == 0)
-                {
-                    Base::LocalPrefetch(a_tile_0, a_lds_window);
-                    Base::LocalPrefetch(b_tile_0, b_lds_window);
-                }
-                else
-                {
-                    Base::LocalPrefetch(a_tile_1, a_lds_window);
-                    Base::LocalPrefetch(b_tile_1, b_lds_window);
-                }
             };
 
             auto ComputeStep = [&](auto idx) {
                 if(idx == 0)
                 {
+                    Base::LocalPrefetch(a_tile_0, a_lds_window);
+                    Base::LocalPrefetch(b_tile_0, b_lds_window);                    
                     block_gemm(c_block_tile, a_tile_0, b_tile_0);
                     // tile_elementwise_inout([](auto& c) { c += 1; }, c_block_tile);
                 }
                 else
                 {
+                    Base::LocalPrefetch(a_tile_1, a_lds_window);
+                    Base::LocalPrefetch(b_tile_1, b_lds_window);                    
                     block_gemm(c_block_tile, a_tile_1, b_tile_1);
                     // tile_elementwise_inout([](auto& c) { c += 1; }, c_block_tile);
                 }
             };
 
-            if(op_id == 0)
+            if(op_id == 1)
             {
-                MemoryOpsStep(group_id);
+                MemoryOpsStep();
             }            
             // start the main loop.
             index_t num_compute_steps = __builtin_amdgcn_readfirstlane(num_loop) * 2 - 1;
@@ -295,9 +287,9 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 block_sync_lds();
                 op_id = (op_id + 1) % num_stages_;
 
-                if(op_id == 0)
+                if(op_id == 1)
                 {
-                    MemoryOpsStep(group_id);
+                    MemoryOpsStep();
                 }
                 else
                 {
@@ -310,7 +302,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
             // Handle Tail Number here.
             block_sync_lds();
-            if(op_id == 0)
+            if(op_id == 1)
             {
                 ComputeStep(group_id);
             }

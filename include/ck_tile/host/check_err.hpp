@@ -186,7 +186,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 20)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -194,6 +194,34 @@ check_err(const Range& out,
             res = false;
         }
     }
+    int total_err_count = err_count - 20;
+    err_count = 0;
+    for(std::size_t i = 0; i < ref.size(); ++i)
+    {
+        const double o = type_convert<float>(*std::next(std::begin(out), i));
+        const double r = type_convert<float>(*std::next(std::begin(ref), i));
+        err            = std::abs(o - r);
+        if(err > atol + rtol * std::abs(r) || is_infinity_error(o, r))
+        {
+            max_err = err > max_err ? err : max_err;
+            err_count++;
+            if(err_count >= total_err_count)
+            {
+                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            }
+            res = false;
+        }
+    }  
+    for(std::size_t i = 0; i < ref.size() / 32; i++)
+    {
+        for(std::size_t j = 0; j < 32; j++)
+        {
+            const double o = type_convert<float>(*std::next(std::begin(out), i * 32 + j));
+            std::cerr << std::setw(10) << o; 
+        }
+        std::cerr << std::endl;
+    }       
     if(!res)
     {
         const float error_percent =
@@ -246,7 +274,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 20)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -254,6 +282,34 @@ check_err(const Range& out,
             res = false;
         }
     }
+    int total_err_count = err_count - 20;
+    err_count = 0;
+    for(std::size_t i = 0; i < ref.size(); ++i)
+    {
+        const double o = type_convert<float>(*std::next(std::begin(out), i));
+        const double r = type_convert<float>(*std::next(std::begin(ref), i));
+        err            = std::abs(o - r);
+        if(err > atol + rtol * std::abs(r) || is_infinity_error(o, r))
+        {
+            max_err = err > max_err ? err : max_err;
+            err_count++;
+            if(err_count >= total_err_count)
+            {
+                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            }
+            res = false;
+        }
+    }    
+    for(std::size_t i = 0; i < ref.size() / 32; i++)
+    {
+        for(std::size_t j = 0; j < 32; j++)
+        {
+            const double o = type_convert<float>(*std::next(std::begin(out), i * 32 + j));
+            std::cerr << std::setw(10) << o; 
+        }
+        std::cerr << std::endl;
+    }    
     if(!res)
     {
         const float error_percent =
@@ -305,13 +361,41 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 20)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
         }
+    }
+    int total_err_count = err_count - 20;
+    err_count = 0;
+    for(std::size_t i = 0; i < ref.size(); ++i)
+    {
+        const double o = type_convert<float>(*std::next(std::begin(out), i));
+        const double r = type_convert<float>(*std::next(std::begin(ref), i));
+        err            = std::abs(o - r);
+        if(err > atol + rtol * std::abs(r) || is_infinity_error(o, r))
+        {
+            max_err = err > max_err ? err : max_err;
+            err_count++;
+            if(err_count >= total_err_count)
+            {
+                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            }
+            res = false;
+        }
+    }     
+    for(std::size_t i = 0; i < ref.size() / 32; i++)
+    {
+        for(std::size_t j = 0; j < 32; j++)
+        {
+            const double o = type_convert<float>(*std::next(std::begin(out), i * 32 + j));
+            std::cerr << std::setw(10) << o; 
+        }
+        std::cerr << std::endl;
     }
     if(!res)
     {
@@ -367,7 +451,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
             }
             res = false;
         }
-    }
+    }    
     if(!res)
     {
         const float error_percent =
