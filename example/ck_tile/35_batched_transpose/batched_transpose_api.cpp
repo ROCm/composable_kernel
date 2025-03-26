@@ -12,7 +12,7 @@ template <typename ts_type,
           ck_tile::index_t thread_y>
 float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_config& s)
 {
-    uint32_t dim_stride  = a.height * a.width;
+    uint32_t dim_stride = a.height * a.width;
 
     a.dim_stride  = dim_stride;
     a.dim_block_h = block_y;
@@ -43,8 +43,9 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 
 // Param Comb: type_size, block_x & y, warp_x & y, thread_x & y
 #define FOREACH_TRANSPOSE_PARAM(F)                 \
+    F(fp8, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8)   \
     F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8) \
-    F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8) 
+    F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8)
 
 // Macro that defines one static function per line
 #define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, WX, WY, TX, TY)               \
@@ -60,7 +61,11 @@ float batched_transpose(batched_transpose_trait t,
                         batched_transpose_kargs a,
                         ck_tile::stream_config s)
 {
-    if(t.type == "fp16")
+    if(t.type == "fp8")
+    {
+        return transpose_fn_fp8_64_64_64_64_8_8(a, s);
+    }
+    else if(t.type == "fp16")
     {
         return transpose_fn_fp16_64_64_64_64_8_8(a, s);
     }
@@ -68,13 +73,5 @@ float batched_transpose(batched_transpose_trait t,
     {
         return transpose_fn_bf16_64_64_64_64_8_8(a, s);
     }
-    // else if(t.type == "fp32")
-    // {
-    //     return transpose_fn_fp32_32_32_16_16_2_2(a, s);
-    // }
-    // else if(t.type == "int8")
-    // {
-    //     return transpose_fn_int8_32_32_16_16_2_2(a, s);
-    // }
     return -1;
 }

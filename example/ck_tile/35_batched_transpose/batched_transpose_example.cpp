@@ -201,7 +201,8 @@ bool run_batched_transpose(ck_tile::ArgParser args)
            layout_in.c_str(),
            ms);
     if(ms < 0)
-        printf("not supported\n");
+        printf("------------------------------------not "
+               "supported-------------------------------------\n");
     fflush(stdout);
 
     if(ms < 0)
@@ -226,7 +227,9 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         rtn &= ck_tile::check_err(
             y_host, y_ref, std::string("y Error: Incorrect results!"), rtol, atol);
     }
-    printf("valid:%s\n", rtn ? "y" : "n");
+    printf("-----------------------------------------------------------------------valid:%s--------"
+           "--------------------------------------------------------------------\n",
+           rtn ? "y" : "n");
     fflush(stdout);
     return rtn;
 }
@@ -239,9 +242,9 @@ int main(int argc, char** argv)
     std::string prec = args.get_str("pr");
 
     bool r = true;
-    if(prec.compare("fp32") == 0)
+    if(prec.compare("fp8") == 0)
     {
-        r &= run_batched_transpose<float>(args);
+        r &= run_batched_transpose<ck_tile::fp8_t>(args);
     }
     else if(prec.compare("fp16") == 0)
     {
@@ -250,10 +253,6 @@ int main(int argc, char** argv)
     else if(prec.compare("bf16") == 0)
     {
         r &= run_batched_transpose<ck_tile::bf16_t>(args);
-    }
-    else if(prec.compare("int8") == 0)
-    {
-        r &= run_batched_transpose<ck_tile::int8_t>(args);
     }
 
     return r ? 0 : -1;
