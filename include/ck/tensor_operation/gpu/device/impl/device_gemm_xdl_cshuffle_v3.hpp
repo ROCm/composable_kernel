@@ -33,7 +33,7 @@ namespace device {
 ///
 /// @note   This Kernel implementation supports SplitK algorithm. It can be configured
 ///         to split the work of K dimension dot product accumulation into multiple workgroups.
-///         The partial products of different workgroups are then reduced using AtomicAdd
+///         The partial products of different workgroups are then reduced using the AtomicAdd
 ///         operation.
 ///
 /// @tparam ALayout     A tensor data layout.
