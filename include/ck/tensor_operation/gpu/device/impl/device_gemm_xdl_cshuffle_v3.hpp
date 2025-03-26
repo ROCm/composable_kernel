@@ -46,9 +46,9 @@ namespace device {
 ///                         matrix-multiplication instrucion.
 /// @tparam CShuffleDataType The data type used to store matrix-multiplication results into
 ///                          LDS memory during \"CShuffle\" data layout optimization.
-/// @tparam AElementwiseOperation An elementwise operation which could by applied on A input tensor
+/// @tparam AElementwiseOperation An elementwise operation which could be applied on A input tensor
 ///                               elements.
-/// @tparam BElementwiseOperation An elementwise operation which could by applied on B input tensor
+/// @tparam BElementwiseOperation An elementwise operation which could be applied on B input tensor
 ///                               elements.
 /// @tparam CElementwiseOperation An elementwise operation which could by applied on C output
 ///                               tensor (after GEMM).
