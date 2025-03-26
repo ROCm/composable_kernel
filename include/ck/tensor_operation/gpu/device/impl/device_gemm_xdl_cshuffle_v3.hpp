@@ -42,36 +42,35 @@ namespace device {
 /// @tparam ADataType   A tensor data type.
 /// @tparam BDataType   B tensor data type.
 /// @tparam CDataType   C tensor data type.
-/// @tparam GemmAccDataType The so called "accumulation" data type related to hardware
+/// @tparam GemmAccDataType The accumulation data type related to the hardware
 ///                         matrix-multiplication instruction.
 /// @tparam CShuffleDataType The data type used to store matrix-multiplication results into
 ///                          LDS memory during \"CShuffle\" data layout optimization.
-/// @tparam AElementwiseOperation An elementwise operation which could be applied on A input tensor
-///                               elements.
-/// @tparam BElementwiseOperation An elementwise operation which could be applied on B input tensor
-///                               elements.
-/// @tparam CElementwiseOperation An elementwise operation which could by applied on C output
-///                               tensor (after GEMM).
+/// @tparam AElementwiseOperation Elementwise operation applied to the A input tensor elements.
+/// @tparam BElementwiseOperation Elementwise operation applied to the B input tensor elements.
+/// @tparam CElementwiseOperation Elementwise operation applied to the C output tensor
+///                               (after GEMM).
 /// @tparam GemmSpec    Determines used "padding" version.
 /// @tparam BlockSize   The number of threads within workgroup.
 /// @tparam MPerBlock   The input/output data tile size in the M dimension.
-/// @tparam NPerBlock   The input/output data tile size in N dimension.
+/// @tparam NPerBlock   The input/output data tile size in the N dimension.
 /// @tparam KPerBlock   The input data tile size in the K dimension.
 /// @tparam AK1         The vector load size from global memory for A tensor.
 /// @tparam BK1         The vector load size from global memory for B tensor.
 /// @tparam MPerXDL     M size of matrix-fused-multiply-add instruction.
 /// @tparam NPerXDL     N size of matrix-fused-multiply-add instruction.
 /// @tparam MXdlPerWave The number of iterations in the M dimension over output tile per wavefront.
-/// @tparam NXdlPerWave The number of iterations in N dimension over output tile per wavefront.
+/// @tparam NXdlPerWave The number of iterations in the N dimension over output tile per wavefront.
 /// @tparam ABlockTransferThreadClusterLengths_AK0_M_AK1 Spatial thread distribution over the input
-///                                                      data. Can be interpreted as the answer to the question, 
-///                                                      to the question, "How many threads can be arranged
-///                                                      on each input data axis?"
+///                                                      data. Can be interpreted as the answer
+///                                                      to the question, "How many threads can be
+///                                                      arranged on each input data axis?"
 /// @tparam ABlockTransferThreadClusterArrangeOrder The order of thread spatial distribution over
-///                                                 the input tensor dimension. You could think of
-///                                                 it as an answer to the question: "In which
+///                                                 the input tensor dimension. Can be interpreted
+///                                                 as the answer to the question: "In which
 ///                                                 order to spread threads through tensor axes?".
-/// @tparam ABlockTransferSrcAccessOrder The order of accessing input tensor axes. "Which dimension
+/// @tparam ABlockTransferSrcAccessOrder The order of accessing input tensor axes. Can be
+///                                      interpreted as the answer to the question "Which dimension
 ///                                      to read first? And which next?" etc.
 /// @tparam ABlockTransferSrcVectorDim   The index of axis on which we could do vectorized memory
 ///                                      access - the one with contiguous memory.
@@ -81,14 +80,15 @@ namespace device {
 /// @tparam ABlockLdsExtraM                      Whether to use padding for LDS or not. With
 ///                                              universal GEMM there's no need for padding.
 /// @tparam BBlockTransferThreadClusterLengths_BK0_N_BK1 Spatial thread distribution over the input
-///                                                      data. You could think of it as an answer
-///                                                      to question: "How many threads to arrange
-///                                                      on each input data axis?"
+///                                                      data. Can be interpreted as the answer
+///                                                      to the question: "How many threads to
+///                                                      arrange on each input data axis?"
 /// @tparam BBlockTransferThreadClusterArrangeOrder The order of thread spatial distribution over
-///                                                 the input tensor dimension. You could think of
-///                                                 it as an answer to the question: "In which
+///                                                 the input tensor dimension. Can be interpreted
+///                                                 as the answer to the question: "In which
 ///                                                 order to spread threads through tensor axes?".
-/// @tparam BBlockTransferSrcAccessOrder The order of accessing input tensor axes. "Which dimension
+/// @tparam BBlockTransferSrcAccessOrder he order of accessing input tensor axes. Can be
+///                                      interpreted as the answer to the question "Which dimension
 ///                                      to read first? And which next?" etc.
 /// @tparam BBlockTransferSrcVectorDim  The index of axis on which we could do vectorized memory
 ///                                      access - the one with contiguous memory.
