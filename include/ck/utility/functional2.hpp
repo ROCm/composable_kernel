@@ -59,7 +59,7 @@ struct applier
     }
 };
 
-template<int32_t Size>
+template<int32_t Size> // == sizeof...(Is)
 using make_applier = __make_integer_seq<applier, index_t, Size>;
 
 } // namespace detail
