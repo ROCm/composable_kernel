@@ -32,7 +32,7 @@ namespace device {
 ///         pipelines optimized for memory-bound, latency and compute-bound cases.
 ///
 /// @note   This Kernel implementation supports SplitK algorithm. It can be configured
-///         to split the work of K dimension dot product accumulation into multiple work groups.
+///         to split the work of K dimension dot product accumulation into multiple workgroups.
 ///         The partial products of different workgroups are then reduced using AtomicAdd
 ///         operation.
 ///
