@@ -72,7 +72,7 @@ struct applier
 };
 
 template<int32_t Size>
-using make_applier = __make_integer_seq<detail::applier, index_t, Size>;
+using make_applier = __make_integer_seq<applier, index_t, Size>;
 
 } // namespace detail
 
