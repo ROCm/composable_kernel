@@ -102,7 +102,7 @@ __global__ void
 /// @tparam CLayout     C tensor data layout.
 /// @tparam ADataType   A tensor data type.
 /// @tparam BDataType   B tensor data type.
-/// @tparam GemmAccDataType The accumulation data type related to the hardware
+/// @tparam AccDataType The accumulation data type related to the hardware
 ///                         matrix-multiplication instruction.
 /// @tparam CShuffleDataType The data type used to store matrix-multiplication results into
 ///                          LDS memory during \"CShuffle\" data layout optimization.
@@ -116,10 +116,10 @@ __global__ void
 /// @tparam MPerBlock   The input/output data tile size in the M dimension.
 /// @tparam NPerBlock   The input/output data tile size in the N dimension.
 /// @tparam KPerBlock   The input data tile size in the K dimension.
-/// @tparam AK1         The vector load size from global memory for A tensor.
-/// @tparam BK1         The vector load size from global memory for B tensor.
-/// @tparam MPerXDL     M size of matrix-fused-multiply-add instruction.
-/// @tparam NPerXDL     N size of matrix-fused-multiply-add instruction.
+/// @tparam AK1Value    The vector load size from global memory for A tensor.
+/// @tparam BK1Value    The vector load size from global memory for B tensor.
+/// @tparam MPerXdl     M size of matrix-fused-multiply-add instruction.
+/// @tparam NPerXdl     N size of matrix-fused-multiply-add instruction.
 /// @tparam MXdlPerWave The number of iterations in the M dimension over output tile per wavefront.
 /// @tparam NXdlPerWave The number of iterations in the N dimension over output tile per wavefront.
 /// @tparam ABlockTransferThreadClusterLengths_AK0_M_AK1 Spatial thread distribution over the input
