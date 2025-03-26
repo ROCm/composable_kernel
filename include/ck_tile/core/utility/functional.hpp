@@ -61,7 +61,7 @@ struct static_for
 namespace detail {
 
 template <typename T, T... Is>
-struct range_applier
+struct applier
 {
     template <typename F>
     CK_TILE_HOST_DEVICE constexpr void operator()(F f) const
@@ -71,12 +71,15 @@ struct range_applier
     }
 };
 
+template<int32_t Size>
+using make_applier = __make_integer_seq<detail::applier, index_t, Size>;
+
 } // namespace detail
 
 template <index_t N>
-struct static_for<0, N, 1> : __make_integer_seq<detail::range_applier, index_t, N>
+struct static_for<0, N, 1> : detail::make_applier<N>
 {
-    using __make_integer_seq<detail::range_applier, index_t, N>::operator();
+    using detail::make_applier<N>::operator();
 };
 
 struct identity
