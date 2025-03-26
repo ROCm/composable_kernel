@@ -123,14 +123,14 @@ using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr ck::index_t MPerBlock = 128;
-static constexpr ck::index_t MXDLPerWave = 2;
+static constexpr ck::index_t MPerBlock = 32;
+static constexpr ck::index_t MXDLPerWave = 1;
 static constexpr ck::index_t NXDLPerWave = 1;
 static constexpr ck::index_t BLOCKSIZE   = 256;
-static constexpr ck::index_t NPerBlock   = 64;
+static constexpr ck::index_t NPerBlock   = 128;
 static constexpr ck::index_t MNPerXDL    = 32;
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
-static constexpr ck::index_t Nswizzle    = true;
+static constexpr ck::index_t Nswizzle    = false;
 static constexpr ck::index_t AK1         = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1         = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec        = 16 / sizeof(EDataType);
@@ -155,7 +155,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
                //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-                2,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
+                1,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, true, int32_t, A0DataType>;
 
 // clang-format on
@@ -170,8 +170,8 @@ int main(int argc, char* argv[])
     ck::index_t N               = 4096;
     ck::index_t K               = 6144;
     ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 16;
-    ck::index_t valid_tile_num  = 13;
+    ck::index_t sorted_tile_num = 8;
+    ck::index_t valid_tile_num  = 8;
     ck::index_t tokens          = 64;
     ck::index_t topk            = 2;
 
@@ -234,7 +234,8 @@ int main(int argc, char* argv[])
     // max_token_id.mData =  {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
     // int eids[] = {0, 0,1, 2,3, 3, 4,4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
-    int eids[] = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+    // int eids[] = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+    int eids[] = {0, 1, 2, 3, 4, 5, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     // max_token_id.mData = {valid_size};
     for(int i = 0; i < sorted_tile_num; i++)
     {

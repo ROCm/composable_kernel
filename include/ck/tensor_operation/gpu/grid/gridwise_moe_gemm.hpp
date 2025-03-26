@@ -1305,7 +1305,7 @@ struct GridwiseMoeGemm
         static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
         auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
         auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
-        StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr, AccDataType, MXdlPerWave * NXdlPerWave, 16, true> c_thread_buf_up;
+        decltype(c_thread_buf) c_thread_buf_up;
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
@@ -1402,7 +1402,7 @@ struct GridwiseMoeGemm
             const float* p_sorted_weights_0 = p_ds_grid[I0];
             static_assert(M0 * M1 * M2 * M3 * M4 == MPerBlock);
             static_assert(M4 == 4);
-            const index_t m1 = get_warp_local_1d_id() / M1;
+            const index_t m1 = get_warp_local_1d_id() / NWave;
             const index_t m3 = threadIdx.x % get_warp_size() / MPerXdl;
             vector_type<int32_t, 4>  scale_token_ids;
             vector_type<float, 4>  topk_weights;  // for gemm2 only
@@ -1412,11 +1412,11 @@ struct GridwiseMoeGemm
                     static_for<0, M2, 1>{}([&](auto m2) {         // m_inst_num_groups_per_blk
                         const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 + m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
                         if constexpr(PerTokenQuant) {
-                            scale_token_ids = *c_style_pointer_cast<const vector_type<int32_t, 4> *>(p_sorted_token_ids + m_pos);
+                            scale_token_ids = *c_style_pointer_cast<const vector_type<int32_t, M4> *>(p_sorted_token_ids + m_pos);
                         }
                         if constexpr (!IsInputGemm) 
                         {
-                            topk_weights = *c_style_pointer_cast<const vector_type<float, 4> *>(p_ds_grid[I2] + m_pos);
+                            topk_weights = *c_style_pointer_cast<const vector_type<float, M4> *>(p_ds_grid[I2] + m_pos);
                         }
                         static_for<0, M4, 1>{}([&](auto m4) {     // m_inst_group_size
                             float scale_a = [&]() {
@@ -1623,17 +1623,7 @@ struct GridwiseMoeGemm
                   make_tuple(make_multi_index(0, 0, block_n_id, 0)),
                   c_element_op};
 
-            //     using BufferType = std::conditional_t<
-            //       std::is_same_v<IndexType, long_index_t>,
-            //       decltype(make_long_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize())),
-            //       decltype(make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize()))
-            //   >;
             auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-              
-            //   BufferType c_grid_buf = std::is_same_v<IndexType, long_index_t> ?
-            //       make_long_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize()) :
-                //   make_dynamic_buffer<AddressSpaceEnum::Global>(p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-            // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
                 SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
