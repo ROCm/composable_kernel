@@ -291,6 +291,11 @@ def cmake_build(Map conf=[:]){
             setup_cmd = conf.get("setup_cmd", """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 -ftime-trace "  .. """)
             build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
         }
+        else if (setup_args.contains("gfx908;gfx90a;gfx942")){
+            //limit the number of build threads when building for multiple gfx9 targets
+            setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
+            build_cmd = conf.get("build_cmd", "${build_envs} make -j32 ${config_targets}")
+        }
         else{
             setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
             build_cmd = conf.get("build_cmd", "${build_envs} make -j${nt} ${config_targets}")
