@@ -65,11 +65,6 @@ struct GridGemm
         constexpr auto block_gemm_pipeline = Policy::template GetBlockGemmPipeline<Problem>();
 
         __shared__ char p_smem_char[block_gemm_pipeline.GetStaticLdsSize()];
-
-        const auto acc_block_tile = block_gemm_pipeline(a_block_window,
-                                                        b_block_window,
-                                                        K / kKPerBlock,
-                                                        p_smem_char);
 #else
 #pragma message ("enable instruction scheduling")
         // Block GEMM pipeline w/ instruction scheduling
@@ -121,12 +116,11 @@ struct GridGemm
         constexpr auto block_gemm_pipeline = GemmPipelineAgBgCrCompV3<UniversalGemmProblem>();
 
         __shared__ char p_smem_char[block_gemm_pipeline.GetSmemSize()];
-
+#endif
         const auto acc_block_tile = block_gemm_pipeline(a_block_window,
                                                         b_block_window,
                                                         K / kKPerBlock,
                                                         p_smem_char);
-#endif
 
         // cast to CDataType and apply CElementFunction
         const auto c_block_tile = tile_elementwise_in(
