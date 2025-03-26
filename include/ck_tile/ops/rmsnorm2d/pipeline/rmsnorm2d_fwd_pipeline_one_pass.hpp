@@ -25,8 +25,9 @@ struct Rmsnorm2dFwdPipelineOnePass
     using XResidualDataType = XDataType;
     using YResidualDataType = XDataType;
 
-    static constexpr bool kHasGamma   = !std::is_same_v<GammaDataType, ck_tile::null_type>;
-    static constexpr bool kSaveInvRms = Problem::Traits::kSaveInvRms;
+    static constexpr bool kHasGamma    = !std::is_same_v<GammaDataType, ck_tile::null_type>;
+    static constexpr bool kSaveInvRms  = Problem::Traits::kSaveInvRms;
+    static constexpr bool kSaveUnquant = Problem::Traits::kSaveUnquant;
 
     static constexpr bool kNeedCrossWarpSync = Problem::kNeedCrossWarpSync;
     static constexpr bool kPadM              = false; // TODO - BlockRmsnorm2dFwdProblem::kPadM
@@ -54,6 +55,7 @@ struct Rmsnorm2dFwdPipelineOnePass
               typename InvRmsWindow,
               typename SmoothScaleWindow,
               typename YScaleWindow,
+              typename UnquantYWindow,
               typename Epilogue>
     CK_TILE_DEVICE auto operator()(const XWindow& x_window_,
                                    const XResidualWindow& x_residual_window_,
@@ -63,6 +65,7 @@ struct Rmsnorm2dFwdPipelineOnePass
                                    InvRmsWindow& inv_rms_window,
                                    const SmoothScaleWindow& sm_scale_window_,
                                    YScaleWindow& y_scale_window_,
+                                   UnquantYWindow& unquant_y_window,
                                    ComputeDataType epsilon,
                                    ck_tile::index_t row_size,
                                    void* smem,
@@ -137,11 +140,26 @@ struct Rmsnorm2dFwdPipelineOnePass
 
         if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
         {
-            Epilogue{}(y_window_, sm_scale_window_, y_scale_window_, rmsn, smem);
+            if constexpr(kSaveUnquant)
+            {
+                Epilogue{}(
+                    unquant_y_window, y_window_, sm_scale_window_, y_scale_window_, rmsn, smem);
+            }
+            else
+            {
+                Epilogue{}(y_window_, sm_scale_window_, y_scale_window_, rmsn, smem);
+            }
         }
         else if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT)
         {
-            Epilogue{}(y_window_, y_scale_window_, rmsn, smem);
+            if constexpr(kSaveUnquant)
+            {
+                Epilogue{}(unquant_y_window, y_window_, y_scale_window_, rmsn, smem);
+            }
+            else
+            {
+                Epilogue{}(y_window_, y_scale_window_, rmsn, smem);
+            }
         }
         else
         {

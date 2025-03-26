@@ -1213,6 +1213,12 @@ struct nnvb_data_t_selector<bf8_ocp_t>
 };
 
 template <>
+struct nnvb_data_t_selector<e8m0_bexp_t>
+{
+    using type = e8m0_bexp_t::type;
+};
+
+template <>
 struct nnvb_data_t_selector<f6x16_pk_t>
 {
     using type = f6x16_pk_t::type;
@@ -1400,29 +1406,9 @@ struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T)
 };
 
 template <typename T, index_t N>
-struct scalar_type<non_native_vector_base<T, N>>;
-
-template <index_t N>
-struct scalar_type<non_native_vector_base<f8_ocp_t, N>>
+struct scalar_type<non_native_vector_base<T, N>>
 {
-    using type = typename non_native_vector_base<f8_ocp_t, N>::data_t;
-
-    static constexpr index_t vector_size = N;
-};
-
-template <index_t N>
-struct scalar_type<non_native_vector_base<bf8_ocp_t, N>>
-{
-    using type = typename non_native_vector_base<bf8_ocp_t, N>::data_t;
-
-    static constexpr index_t vector_size = N;
-};
-
-template <index_t N>
-struct scalar_type<non_native_vector_base<pk_i4_t, N>>
-{
-    using type = typename non_native_vector_base<pk_i4_t, N>::data_t;
-
+    using type                           = typename non_native_vector_base<T, N>::data_t;
     static constexpr index_t vector_size = N;
 };
 
