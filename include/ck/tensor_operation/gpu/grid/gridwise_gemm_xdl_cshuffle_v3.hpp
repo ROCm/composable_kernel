@@ -103,7 +103,7 @@ __global__ void
 /// @tparam ADataType   A tensor data type.
 /// @tparam BDataType   B tensor data type.
 /// @tparam AccDataType The so called "accumulation" data type related to hardware
-///                     matrix-multiplication instrucion.
+///                     matrix-multiplication instruction.
 /// @tparam CShuffleDataType The data type used to store matrix-multiplication results into
 ///                          LDS memory during \"CShuffle\" data layout optimization.
 /// @tparam CDataType   C tensor data type.
