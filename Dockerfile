@@ -85,6 +85,11 @@ RUN pip install --upgrade cmake==3.27.5 && \
     gunzip /usr/local/bin/ninja.gz && \
     chmod a+x /usr/local/bin/ninja && \
     git clone https://github.com/nico/ninjatracing.git && \
+#Install ClangBuildAnalyzer
+    git clone https://github.com/aras-p/ClangBuildAnalyzer.git && \
+    cd ClangBuildAnalyzer/ && \
+    make -f projects/make/Makefile && \
+    cd / && \
 #Install latest cppcheck
     git clone https://github.com/danmar/cppcheck.git && \
     cd cppcheck && mkdir build && cd build && cmake .. && cmake --build . && \
