@@ -129,20 +129,15 @@ constexpr auto make_cumulative_product(ck::Number<IDim0>, ck::Number<IDim1>, ck:
                     IDim0 * IDim1 * IDim2 * IDim3 * IDim4,
                     IDim0 * IDim1 * IDim2 * IDim3 * IDim4 * IDim5>;
 // clang-format on
-template <int32_t... Dims>
-struct convert_flat_to_multi_index
-{
-    using SDim                 = ck::Sequence<Dims...>;
-    static constexpr auto Prod = (Dims * ...);
-    using TCumProd             = decltype(make_cumulative_product(ck::Number<Dims>{}...));
+template<int32_t flat_idx, int32_t... cumulative_products, int32_t... dims>
+constexpr auto make_multi_index(ck::Sequence<cumulative_products...>, ck::Sequence<dims...>, ck::Number<flat_idx>)
+  -> ck::Sequence<(cumulative_products * flat_idx / (dims * ...)) % dims...>;
 
-    template<int32_t flat_idx, int32_t... values>
-    static constexpr auto infer_size_from(ck::Sequence<values...>, ck::Number<flat_idx>)
-      -> ck::Sequence<values * flat_idx / Prod ...>;
-
-    template <ck::index_t flat_idx>
-    using type = decltype(decltype(infer_size_from(TCumProd{}, ck::Number<flat_idx>{})){} % SDim{});
-};
+template<int32_t flat_idx, int32_t... dims>
+using convert_flat_to_multi_index_t = decltype(make_multi_index(
+    make_cumulative_product(ck::Number<dims>{}...),
+    ck::Sequence<dims...>{},
+    ck::Number<flat_idx>{}));
 
 template <typename T, T... Is>
 struct applier
@@ -175,7 +170,7 @@ struct static_ford<T<Dims...>> : detail::make_applier<(Dims * ...)>
     using base = detail::make_applier<(Dims * ...)>;
 
     template <ck::index_t I>
-    using convert_t = typename detail::convert_flat_to_multi_index<Dims...>::template type<I>;
+    using convert_t = detail::convert_flat_to_multi_index_t<I, Dims...>;
 
     template <typename F, template <auto> typename IndexTransform = convert_t>
     __host__ __device__ constexpr void operator()(F f) const
