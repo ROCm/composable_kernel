@@ -116,15 +116,23 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         if constexpr(is_same_v<BDataType, pk_i4_t>)
                         {
                             uint8_t i4x2 = arg.b_e_n_k_(e, k, n).data;
+                            uint8_t i4x2_up = arg.b_e_n_k_(e, k, n + full_n).data;
                             uint8_t i4   = 0;
-                            if(k % 2 == 1)
+                            uint8_t i4_up   = 0;
+                            if(k % 2 == 1) {
                                 i4 = (i4x2 >> 0) & 0xf;
-                            else
+                                i4_up = (i4x2_up >> 0) & 0xf;
+                            }
+                            else {
                                 i4 = (i4x2 >> 4) & 0xf;
+                                i4_up = (i4x2_up >> 4) & 0xf;
+                            }
 #if CK_USE_PK4_LAYOUT_SHUFFLE
                             v_b = i4_to_f32_gfx9(i4);
+                            v_b_up = i4_to_f32_gfx9(i4_up);
 #else
                             v_b = i4 - 8;
+                            v_b_up = i4_up - 8;
 #endif
                         }
                         else

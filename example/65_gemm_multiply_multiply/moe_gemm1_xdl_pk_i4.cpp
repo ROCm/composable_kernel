@@ -162,7 +162,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, ck::index_t, A0DataType>;
 // clang-format on
 #else
-static constexpr ck::index_t MPerBlock = 128;
+static constexpr ck::index_t MPerBlock = 64;
 static constexpr ck::index_t Nswizzle = false;
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
@@ -172,7 +172,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             256,   MPerBlock,   128,    128,
             16,   32,
             32,   32,
-            4,    1,
+            2,    1,
             S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
             S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
             1,    1,   S<1, 32, 1, 8>, S<8, 1, 1>,
@@ -486,7 +486,9 @@ int main(int argc, char* argv[])
                                                       max_token_id,
                                                       MPerBlock,
                                                       a0_t_k,
+                                                      d0_t_n,
                                                       b0_e_n_k,
+                                                      d1_e_n,
                                                       c_t_k_n,
                                                       PassThrough{},
                                                       PassThrough{},
