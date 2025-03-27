@@ -132,53 +132,23 @@ using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
-#if 0
-static constexpr ck::index_t MPerBlock = 64;
-static constexpr ck::index_t MXDLPerWave = 1; 
-static constexpr ck::index_t NXDLPerWave = 2; 
-static constexpr ck::index_t BLOCKSIZE = 256;
-static constexpr ck::index_t NPerBlock = 128;
-static constexpr ck::index_t MNPerXDL = 32;
-static constexpr ck::index_t KPerBlock = 64 / sizeof(A0DataType);
-static constexpr ck::index_t Nswizzle = false;
-static constexpr ck::index_t AK1 = 16 / sizeof(A0DataType);
-static constexpr ck::index_t BK1 = 32 / sizeof(B0DataType);
-static constexpr ck::index_t EVec = 16 / sizeof(EDataType);
-static constexpr ck::index_t D0Vec = 1;
-static constexpr ck::index_t D1Vec = 1;
 
-// clang-format off
-using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
-            Row, Col, DsLayout, ELayout, 
-            A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
-            AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
-            BLOCKSIZE,   MPerBlock,   NPerBlock,    KPerBlock,
-            AK1,   BK1,
-            MNPerXDL,   MNPerXDL,
-            MXDLPerWave,    NXDLPerWave,
-            S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
-            S<2, 128, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
-            MXDLPerWave,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
-            ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, ck::index_t, A0DataType>;
-// clang-format on
-#else
-static constexpr ck::index_t MPerBlock = 64;
+static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t Nswizzle = false;
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             Row, Col, DsLayout, ELayout, 
             A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
             AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
-            256,   MPerBlock,   128,    128,
+            256,   MPerBlock,   64,    128,
             16,   32,
-            32,   32,
-            2,    1,
+            16,   16,
+            8,    1,
             S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
             S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
-            1,    1,   S<1, 32, 1, 8>, S<8, 1, 1>,
+            2,    1,   S<1, 32, 1, 8>, S<8, 1, 1>,
             ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, true, ck::index_t, A0DataType>;
 // clang-format on
-#endif
 
 int main(int argc, char* argv[])
 {
@@ -260,11 +230,12 @@ int main(int argc, char* argv[])
             sorted_token_ids.mData[i] = tokens;
         }
     }
+
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
-    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
-    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
+    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
+    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
-    Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
+    Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N * 2}, {1, StrideDs[1]}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
     Tensor<EDataType> e_t_n_device_result(
         HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
@@ -279,10 +250,10 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
-        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
+        a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
         break;
     case 2:
         a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
