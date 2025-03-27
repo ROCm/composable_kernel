@@ -141,15 +141,17 @@ constexpr auto make_cumulative_product(ck::Number<IDim0>, ck::Number<IDim1>, ck:
 // then x = I * a / (a * b * c) % a ; using integer division
 // then y = I * (a * b) / (a * b * c) % b ; using integer division
 // then z = I * (a * b * c) / (a * b * c) % c ; using integer division
-template<int32_t flat_idx, int32_t... cumulative_products, int32_t... dims>
-constexpr auto make_multi_index(ck::Sequence<cumulative_products...>, ck::Sequence<dims...>, ck::Number<flat_idx>)
-  -> ck::Sequence<(cumulative_products * flat_idx / (dims * ...)) % dims...>;
+template <int32_t flat_idx, int32_t... cumulative_products, int32_t... dims>
+constexpr auto make_multi_index(ck::Sequence<cumulative_products...>,
+                                ck::Sequence<dims...>,
+                                ck::Number<flat_idx>)
+    -> ck::Sequence<(cumulative_products * flat_idx / (dims * ...)) % dims...>;
 
-template<int32_t flat_idx, int32_t... dims>
-using convert_flat_to_multi_index_t = decltype(make_multi_index(
-    make_cumulative_product(ck::Number<dims>{}...),
-    ck::Sequence<dims...>{},
-    ck::Number<flat_idx>{}));
+template <int32_t flat_idx, int32_t... dims>
+using convert_flat_to_multi_index_t =
+    decltype(make_multi_index(make_cumulative_product(ck::Number<dims>{}...),
+                              ck::Sequence<dims...>{},
+                              ck::Number<flat_idx>{}));
 
 template <typename T, T... Is>
 struct applier
