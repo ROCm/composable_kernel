@@ -1,20 +1,15 @@
 .. meta::
-  :description: Composable Kernel documentation and API reference library
-  :keywords: composable kernel, CK, ROCm, API, documentation
+  :description: Composable Kernel wrapper
+  :keywords: composable kernel, CK, ROCm, API, wrapper
 
 .. _wrapper:
 
 ********************************************************************
-Wrapper
+Composable Kernel wrapper
 ********************************************************************
 
--------------------------------------
-Description
--------------------------------------
 
-
-The CK library provides a lightweight wrapper for more complex operations implemented in 
-the library.
+The Composable Kernel library provides a lightweight wrapper to simplify the more complex operations.
 
 Example:
 
