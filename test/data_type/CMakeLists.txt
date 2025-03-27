@@ -75,6 +75,12 @@ if(GPU_TARGETS MATCHES "gfx950")
   endif()
   add_dependencies(test_mx_data_types test_mx_bf8)
 
+  add_gtest_executable(test_mx_fp4 test_mx_fp4.cpp)
+  if(result EQUAL 0)
+    target_link_libraries(test_mx_fp4 PRIVATE utility)
+  endif()
+  add_dependencies(test_mx_data_types test_mx_fp4)
+
   add_gtest_executable(test_e8m0 test_e8m0.cpp)
   if(result EQUAL 0)
     target_link_libraries(test_e8m0 PRIVATE utility)

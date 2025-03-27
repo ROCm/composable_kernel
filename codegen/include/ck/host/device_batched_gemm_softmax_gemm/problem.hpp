@@ -39,8 +39,8 @@ struct Problem
 
     // returns a list of instances based on the problem spec and provided fusion operations
     std::vector<Solution> GetSolutions(const std::string& arch,
-                                       const std::string& prologue,
-                                       const std::string& epilogue) const;
+                                       const std::string& prologue = "",
+                                       const std::string& epilogue = "") const;
 };
 
 } // namespace device_batched_gemm_softmax_gemm
