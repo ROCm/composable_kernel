@@ -25,13 +25,13 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ngcdhw_gkzyxc_ngkdhw_f32_instances
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_xdl_c_shuffle_f32_instances<3,
-                                                                   NGCDHW,
-                                                                   GKZYXC,
-                                                                   NGKDHW,
-                                                                   ConvBwdWeightDefault,
-                                                                   1,
-                                                                   1>{});
+        device_grouped_conv_bwd_weight_xdl_c_shuffle_f32_generic_instances<3,
+                                                                           NGCDHW,
+                                                                           GKZYXC,
+                                                                           NGKDHW,
+                                                                           ConvBwdWeightDefault,
+                                                                           1,
+                                                                           1>{});
 }
 
 } // namespace instance
