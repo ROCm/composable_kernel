@@ -89,72 +89,59 @@ struct ford_impl<Sequence<>, Orders>
 namespace detail {
 
 // clang-format off
-template <int32_t... Idims>
-struct make_cumulative_product
-{
-    static_assert(sizeof...(Idims) < 7, "implement cumulative product for larger sequence size");
-};
 
 template <int32_t IDim0>
-struct make_cumulative_product<IDim0>
-{
-    using type = ck::Sequence<IDim0>;
-};
+constexpr auto make_cumulative_product(ck::Number<IDim0>)
+    -> ck::Sequence<IDim0>;
 
 template <int32_t IDim0, int32_t IDim1>
-struct make_cumulative_product<IDim0, IDim1>
-{
-    using type = ck::Sequence<IDim0, 
-                              IDim0 * IDim1>;
-};
+constexpr auto make_cumulative_product(ck::Number<IDim0>, ck::Number<IDim1>)
+    -> ck::Sequence<IDim0, 
+                    IDim0 * IDim1>;
 
 template <int32_t IDim0, int32_t IDim1, int32_t IDim2>
-struct make_cumulative_product<IDim0, IDim1, IDim2>
-{
-    using type = ck::Sequence<IDim0, 
-                              IDim0 * IDim1, 
-                              IDim0 * IDim1 * IDim2>;
-};
+constexpr auto make_cumulative_product(ck::Number<IDim0>, ck::Number<IDim1>, ck::Number<IDim2>)
+    -> ck::Sequence<IDim0, 
+                    IDim0 * IDim1, 
+                    IDim0 * IDim1 * IDim2>;
 
 template <int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3>
-struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3>
-{
-    using type = ck::Sequence<IDim0, 
-                              IDim0 * IDim1, 
-                              IDim0 * IDim1 * IDim2, 
-                              IDim0 * IDim1 * IDim2 * IDim3>;
-};
+constexpr auto make_cumulative_product(ck::Number<IDim0>, ck::Number<IDim1>, ck::Number<IDim2>, ck::Number<IDim3>)
+    -> ck::Sequence<IDim0, 
+                    IDim0 * IDim1, 
+                    IDim0 * IDim1 * IDim2,
+                    IDim0 * IDim1 * IDim2 * IDim3>;
 
 template <int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3, int32_t IDim4>
-struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3, IDim4>
-{
-    using type = ck::Sequence<IDim0,
-                              IDim0 * IDim1,
-                              IDim0 * IDim1 * IDim2,
-                              IDim0 * IDim1 * IDim2 * IDim3,
-                              IDim0 * IDim1 * IDim2 * IDim3 * IDim4>;
-};
+constexpr auto make_cumulative_product(ck::Number<IDim0>, ck::Number<IDim1>, ck::Number<IDim2>, ck::Number<IDim3>, ck::Number<IDim4>)
+    -> ck::Sequence<IDim0, 
+                    IDim0 * IDim1, 
+                    IDim0 * IDim1 * IDim2,
+                    IDim0 * IDim1 * IDim2 * IDim3,
+                    IDim0 * IDim1 * IDim2 * IDim3 * IDim4>;
 
 template <int32_t IDim0, int32_t IDim1, int32_t IDim2, int32_t IDim3, int32_t IDim4, int32_t IDim5>
-struct make_cumulative_product<IDim0, IDim1, IDim2, IDim3, IDim4, IDim5>
-{
-    using type = ck::Sequence<IDim0,
-                              IDim0 * IDim1,
-                              IDim0 * IDim1 * IDim2,
-                              IDim0 * IDim1 * IDim2 * IDim3,
-                              IDim0 * IDim1 * IDim2 * IDim3 * IDim4,
-                              IDim0 * IDim1 * IDim2 * IDim3 * IDim4 * IDim5>;
-};
+constexpr auto make_cumulative_product(ck::Number<IDim0>, ck::Number<IDim1>, ck::Number<IDim2>, ck::Number<IDim3>, ck::Number<IDim4>, ck::Number<IDim5>)
+    -> ck::Sequence<IDim0, 
+                    IDim0 * IDim1, 
+                    IDim0 * IDim1 * IDim2,
+                    IDim0 * IDim1 * IDim2 * IDim3,
+                    IDim0 * IDim1 * IDim2 * IDim3 * IDim4,
+                    IDim0 * IDim1 * IDim2 * IDim3 * IDim4 * IDim5>;
 // clang-format on
 template <int32_t... Dims>
 struct convert_flat_to_multi_index
 {
     using SDim                 = ck::Sequence<Dims...>;
     static constexpr auto Prod = (Dims * ...);
-    using TCumProd             = typename make_cumulative_product<Dims...>::type;
+    using TCumProd             = decltype(make_cumulative_product(ck::Number<Dims>{}...));
+
+    template<int32_t flat_idx, int32_t... values>
+    static constexpr auto infer_size_from(ck::Sequence<values...>, ck::Number<flat_idx>)
+      -> ck::Sequence<values * flat_idx / Prod ...>;
 
     template <ck::index_t flat_idx>
-    using type = decltype((TCumProd{} * ck::Number<flat_idx>{} / ck::Number<Prod>{}) % SDim{});
+    using type = decltype(decltype(infer_size_from(TCumProd{}, ck::Number<flat_idx>{})){} % SDim{});
 };
 
 template <typename T, T... Is>
