@@ -27,7 +27,7 @@ def parse_layouts(args):
     if args.in_layout == "NCW" or args.in_layout == "NCHW" or \
        args.in_layout == "NCDHW":
         if args.ck_profier_op == "grouped_conv_bwd_weight":
-            args.layout = 3
+            args.layout = 4
         elif args.ck_profier_op == "grouped_conv_bwd_data" or \
              args.ck_profier_op == "grouped_conv_fwd":
             args.layout = 2
