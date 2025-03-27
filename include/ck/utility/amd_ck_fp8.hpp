@@ -1614,6 +1614,11 @@ __host__ __device__ static inline fp8x2_storage_t cvt_bhalf_t_to_fp8(const ushor
 __host__ static inline fp8x2_storage_t cvt_bhalf_t_to_fp8(const ushortx2_t x)
 #endif
 {
+#if CK_WORKAROUND_BF16_TO_FP8_CONVERSION
+    return cvt_float_to_fp8<interp, ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
+        float2_t{bit_cast<float>(uint32_t{x[0]} << 16),
+                 bit_cast<float>(uint32_t{x[1]} << 16)}); // convert values to float
+#else                                                     // CK_WORKAROUND_BF16_TO_FP8_CONVERSION
     {
         __is_interpret_supported(interp);
         uint32_t rng = 0;
@@ -1639,6 +1644,7 @@ __host__ static inline fp8x2_storage_t cvt_bhalf_t_to_fp8(const ushortx2_t x)
                      bit_cast<float>(uint32_t{x[1]} << 16)}); // convert values to float
 #endif // CK_OCP_FP8_CVT_FAST_PATH
     }
+#endif // CK_WORKAROUND_BF16_TO_FP8_CONVERSION
 }
 
 } // namespace fp8_impl
