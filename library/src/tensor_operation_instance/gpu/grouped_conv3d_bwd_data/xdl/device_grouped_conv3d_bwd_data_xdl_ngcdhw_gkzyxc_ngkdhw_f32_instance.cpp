@@ -27,20 +27,12 @@ void add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkzyxc_ngcdhw_f32_instances(
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_xdl_f32_instances<3,
-                                                       NGKDHW,
-                                                       GKZYXC,
-                                                       Empty_Tuple,
-                                                       NGCDHW,
-                                                       ConvBwdDataDefault>{});
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_bwd_data_transpose_xdl_f32_instances<3,
-                                                                 NGKDHW,
-                                                                 GKZYXC,
-                                                                 Empty_Tuple,
-                                                                 NGCDHW,
-                                                                 ConvBwdDataDefault>{});
+        device_grouped_conv_bwd_data_xdl_f32_generic_instances<3,
+                                                               NGKDHW,
+                                                               GKZYXC,
+                                                               Empty_Tuple,
+                                                               NGCDHW,
+                                                               ConvBwdDataDefault>{});
 }
 
 } // namespace instance

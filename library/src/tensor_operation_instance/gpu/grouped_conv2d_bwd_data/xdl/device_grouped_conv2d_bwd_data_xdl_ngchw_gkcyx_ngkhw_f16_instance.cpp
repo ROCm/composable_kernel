@@ -10,28 +10,36 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 // Compilation parameters for out[n, hi, wi, g, c] * wei[g, k, y, x, c] = in[n, ho, wo, g, k]
-void add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkyxc_ngchw_f32_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkcyx_ngchw_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NGKHW,
-                                                                  GKYXC,
+                                                                  GKCYX,
                                                                   Empty_Tuple,
                                                                   NGCHW,
-                                                                  F32,
-                                                                  F32,
+                                                                  F16,
+                                                                  F16,
                                                                   Empty_Tuple,
-                                                                  F32,
+                                                                  F16,
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances)
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_xdl_f32_generic_instances<2,
-                                                               NGKHW,
-                                                               GKYXC,
-                                                               Empty_Tuple,
-                                                               NGCHW,
-                                                               ConvBwdDataDefault>{});
+        device_grouped_conv_bwd_data_xdl_f16_instances<2,
+                                                       NGKHW,
+                                                       GKCYX,
+                                                       Empty_Tuple,
+                                                       NGCHW,
+                                                       ConvBwdDataDefault>{});
+    add_device_operation_instances(
+        instances,
+        device_grouped_conv_bwd_data_transpose_xdl_f16_instances<2,
+                                                                 NGKHW,
+                                                                 GKCYX,
+                                                                 Empty_Tuple,
+                                                                 NGCHW,
+                                                                 ConvBwdDataDefault>{});
 }
 
 } // namespace instance
