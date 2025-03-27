@@ -36,7 +36,7 @@ using A0DataType       = F8;
 using B0DataType       = I4;
 using EDataType        = F16;
 using AccDataType      = F32;
-using CShuffleDataType = F32;
+using CShuffleDataType = F16;
 using D0DataType       = F32;
 using D1DataType       = F32;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
@@ -56,40 +56,31 @@ struct MulABScale
     operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
 
     template <>
+    __host__ __device__ constexpr void operator()<EDataType, EDataType, float, float>(
+        EDataType& e, const EDataType& c, const float& d0, const float& d1) const
+    {
+        (void) d0;
+        (void) d1;
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+        e = ck::type_convert<EDataType>(c * 16);
+#else
+        e = ck::type_convert<EDataType>(c);
+#endif
+    }
+    template <>
     __host__ __device__ constexpr void operator()<EDataType, float, float, float>(
         EDataType& e, const float& c, const float& d0, const float& d1) const
     {
+        (void) d0;
+        (void) d1;
 #if CK_USE_PK4_LAYOUT_SHUFFLE
-        e = ck::type_convert<EDataType>(c * d1 * d0 * 16);
+        e = ck::type_convert<EDataType>(c * 16);
 #else
-        e = ck::type_convert<EDataType>(c * d1 * d0);
+        e = ck::type_convert<EDataType>(c);
 #endif
     }
 };
 
-// for gate, a_scale, b_scale, fuse silu,
-struct MulABScaleSilu
-{
-    template <typename E, typename C, typename D0, typename D1>
-    __host__ __device__ constexpr void
-    operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
-
-    template <>
-    __host__ __device__ constexpr void operator()<EDataType, float, float>(EDataType& e,
-                                                                           const float& c,
-                                                                           const float& d0,
-                                                                           const float& d1) const
-    {
-        // act
-        float x0 = 0;
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        ck::tensor_operation::element_wise::Silu{}(x0, c * d1 * d0 * 16);
-#else
-        ck::tensor_operation::element_wise::Silu{}(x0, c * d1 * d0);
-#endif
-        e = ck::type_convert<EDataType>(x0);
-    }
-};
 
 using CDEElementOp = MulABScale;
 
@@ -421,9 +412,9 @@ int main(int argc, char* argv[])
     {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-        std::size_t flop      = std::size_t(2) * tokens * topk * N * K;
+        std::size_t flop      = std::size_t(2) * tokens * topk * N * 2 * K;
         std::size_t num_btype = sizeof(A0DataType) * valid_tile_num * K +
-                                sizeof(B0DataType) / 2 * K * N * experts +
+                                sizeof(B0DataType) / 2 * K * N * 2 * experts +
                                 sizeof(EDataType) * valid_tile_num * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
