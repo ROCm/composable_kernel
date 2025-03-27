@@ -35,15 +35,15 @@ struct ExecutionConfig final
     int do_verification = 1;     // (0=no, 1=CPU)
     int init_method     = 2;     // (0=constant values, 1=integer values, 2=decimal values)
     bool time_kernel    = false; // (0=no, 1=yes)
-    int verbosity       = 0;     // (0=no info, 1=verbose info)
+    int verbosity       = 1;     // (0=no info, 1=verbose info)
 };
 
 struct ProblemSizeSplitK final
 {
 
-    ck::index_t M = 3840;
-    ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t M = 256;
+    ck::index_t N = 256;
+    ck::index_t K = 512;
 
     ck::index_t StrideA = -1;
     ck::index_t StrideB = -1;
