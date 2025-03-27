@@ -785,10 +785,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             if constexpr(is_NGCHW_GKCYX_NGKHW<ELayout, BLayout, ALayout>() ||
                          is_NGCDHW_GKCZYX_NGKDHW<ELayout, BLayout, ALayout>())
             {
-                const long_index_t a_acum = ck::accumulate_n<long_index_t>(
-                    a_g_n_k_wos_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
+                const long_index_t b_acum = ck::accumulate_n<long_index_t>(
+                    b_g_k_c_xs_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
                 // Align to 128B
-                return math::integer_divide_ceil(sizeof(ADataType) * a_acum, 128) * 128;
+                return math::integer_divide_ceil(sizeof(BDataType) * b_acum, 128) * 128;
             }
             else
             {
@@ -1076,10 +1076,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     I1, // B is not splited per N
                     std::array<index_t, I1>{
                         static_cast<index_t>(arg.compute_ptr_offset_of_workspace_n_.BatchStrideA_)},
-                    std::array<index_t, I1>{static_cast<index_t>(0)},
+                    std::array<index_t, I1>{0},
                     std::array<index_t, I1>{
                         static_cast<index_t>(arg.compute_ptr_offset_of_n_.BatchStrideA_)},
-                    std::array<index_t, I1>{static_cast<index_t>(0)});
+                    std::array<index_t, I1>{0});
             }
             ave_time += RunGemm(arg, stream_config);
             // Transpose from NHWGC to NGCHW
@@ -1093,7 +1093,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
                 const EDataType* p_e_in_grid =
                     type_convert<EDataType*>(arg.p_workspace_) +
-                    arg.GetWorkspaceATensorSizeBytes() / sizeof(EDataType);
+                    (arg.GetWorkspaceATensorSizeBytes() + arg.GetWorkspaceBTensorSizeBytes()) /
+                        sizeof(EDataType);
 
                 EDataType* p_e_out_grid = arg.p_e_grid_;
 
