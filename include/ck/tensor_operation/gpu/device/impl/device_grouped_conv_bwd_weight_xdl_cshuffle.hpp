@@ -712,6 +712,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
                 // Different data type for A and B is not supported
                 auto kernel_transpose = kernel_elementwise_dual<GridwiseInOutTranspose,
+                                                                GridwiseInOutTranspose,
                                                                 ck::Tuple<NGCHWTransposeDescType>,
                                                                 ck::Tuple<NGCHWTransposeDescType>,
                                                                 ck::Tuple<NHWGCTransposeDescType>,
