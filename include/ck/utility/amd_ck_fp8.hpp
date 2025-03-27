@@ -589,6 +589,11 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
 static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rng = 0)
 {
+#if CK_WORKAROUND_FP16_TO_FP8_CONVERSION
+    return fp8x2_storage_t{
+        cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[0], rng),
+        cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[1], rng)};
+#else
     std::ignore = rng;
 
     union
@@ -599,7 +604,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rn
     } val;
 
     constexpr shortx2_t i16x2val = {0, 0};
-    val.half_vec                 = v;
+    val.half_vec = v;
 
     if constexpr(saturate)
     {
@@ -617,6 +622,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rn
         __builtin_amdgcn_cvt_scalef32_pk_fp8_f16(i16x2val, val.half_vec, /* scale */ 1.f, 0);
 
     return fp8x2_storage_t{val.i8val[0], val.i8val[1]};
+#endif
 }
 
 template <ck_fp8_interpretation_t interpret,
