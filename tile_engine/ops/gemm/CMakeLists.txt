@@ -1,27 +1,10 @@
-set(GEMM_CODEGEN_KNOWN_APIS "single;benchmark")
-set(GEMM_CODEGEN_KNOWN_APIS "single" CACHE STRING
-    "semicolon-separated list of APIs to generate (${GEMM_CODEGEN_KNOWN_APIS}) & link, or \"all\".")
-if(GEMM_CODEGEN_ENABLE_APIS  STREQUAL "all")
-    set(GEMM_CODEGEN_ENABLE_APIS  ${GEMM_CODEGEN_KNOWN_APIS})
-endif()
 
-foreach(api ${GEMM_CODEGEN_ENABLE_APIS})
-    if(NOT "${api}" IN_LIST GEMM_CODEGEN_KNOWN_APIS)
-        message(FATAL_ERROR "${api} isn't a known api: ${GEMM_CODEGEN_KNOWN_APIS}.")
-    endif()
-endforeach()
-
-# "single" is a must-have api for the fmha_fwd example, add it if not specified
-if(NOT "single" IN_LIST GEMM_CODEGEN_ENABLE_APIS)
-  list(APPEND GEMM_CODEGEN_ENABLE_APIS "single")
-endif()
 
 # generate a list of kernels, but not actually emit files at config sta
 execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
-            --api ${GEMM_CODEGEN_ENABLE_APIS}
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
-            -j ${CMAKE_CURRENT_LIST_DIR}/configs/single_instance.json
+            --json ${CMAKE_CURRENT_LIST_DIR}/configs/single_instance.json
             --list_blobs
             RESULT_VARIABLE ret
 )
@@ -36,9 +19,8 @@ file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt GEMM_CODEGEN_BL
 add_custom_command(
     OUTPUT  ${GEMM_CODEGEN_BLOBS}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
-            --api ${GEMM_CODEGEN_ENABLE_APIS}
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
-            -j ${CMAKE_CURRENT_LIST_DIR}/configs/single_instance.json
+            --json ${CMAKE_CURRENT_LIST_DIR}/configs/single_instance.json
             --gen_blobs
     DEPENDS ${GEMM_CODEGEN_BLOBS}
 )
@@ -48,7 +30,7 @@ message("adding example ${EXECUTABLE_GEMM_INSTANCE}")
 
 # use build as include directory
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-add_executable(${EXECUTABLE_GEMM_INSTANCE} EXCLUDE_FROM_ALL gemm_calc.cpp)
+add_executable(${EXECUTABLE_GEMM_INSTANCE} EXCLUDE_FROM_ALL gemm_host_api.cpp)
 target_include_directories(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${GEMM_CODEGEN_BLOBS})
 

@@ -1,21 +1,60 @@
 {
-    "M_tile": 256,
-    "N_tile": 256,
-    "K_tile": 64,
-    "M_warp": 2,
-    "N_warp": 2,
-    "K_warp": 1,
-    "M_warp_tile": 32,
-    "N_warp_tile": 32,
-    "K_warp_tile": 16,
-    "A_layout": "R",
-    "B_layout": "C",
-    "C_layout": "R",
-    "kPadM": false, 
-    "kPadN": false,
-    "kPadK": false,
-    "Prec_datatype": "int4",
-    "Pipeline_type": "ComputeV3",
-    "Scheduler_type": "Intrawave",
-    "Epilogue_type": "CShuffle"
+   
+    "layout_a": {
+      "values": ["r"]
+    },
+    "layout_b": {
+      "values": ["c"]
+    },
+    "layout_c": {
+      "values": ["r"] 
+    },
+    "datatype": {
+      "values": ["fp16"] 
+    },
+    "tile_m": {
+      "values": [256]
+    },
+    "tile_n": {
+      "values": [256]
+    },
+    "tile_k": {
+      "values": [64]
+    },
+    "warp_m": {
+      "values": [2]
+    },
+    "warp_n": {
+      "values": [2]
+    },
+    "warp_k": {
+      "values": [1]
+    },
+    "warp_tile_m": {
+      "values": [32]
+    },
+    "warp_tile_n": {
+      "values": [32]
+    },
+    "warp_tile_k": {
+      "values": [16]
+    },
+    "kPadM": {
+      "values": [false]
+    },
+    "kPadN": {
+      "values": [false]
+    },
+    "kPadK": {
+      "values": [false]
+    },
+    "pipeline": {
+      "values": ["compv3"]
+    },
+    "scheduler": {
+      "values": ["intrawave"]
+    },
+    "epilogue": {
+      "values": ["default", "cshuffle"]
+    }
 }

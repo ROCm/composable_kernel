@@ -2,9 +2,15 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/host.hpp"
-#include "gemm_host.hpp"
-#include "tensor_configuration.hpp"
-#include "launch_kernel.hpp"
+#include "gemm_common.hpp"
+#include "gemm_dispatcher.hpp"
+#include "gemm_host_api.hpp"
+
+
+float gemm_kernel_launch(kernel_traits &trait, ck_tile::GemmHostArgs& args, 
+                        const ck_tile::stream_config& s) {
+    return GemmDispatcher::dispatch(trait, args, s);
+}
 
 template <typename ADataType,
           typename BDataType,
@@ -73,7 +79,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         // Permute vector pk_i4x4 data for device implementation
         ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-        permute_tensor_b<decltype(b_k_n_dev)>(b_k_n_dev);
+        //permute_tensor_b<decltype(b_k_n_dev)>(b_k_n_dev);
         permute_vectors_i4x4_b(b_k_n_dev);
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
     }
@@ -86,21 +92,30 @@ bool run(const ck_tile::ArgParser& arg_parser)
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    ck_tile::GemmHostArgs kernel_args;
-    kernel_args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
-    kernel_args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-    kernel_args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
-    kernel_args.k_batch  = kbatch;
-    kernel_args.M        = M;
-    kernel_args.N        = N;
-    kernel_args.K        = K;
-    kernel_args.stride_A = stride_A;
-    kernel_args.stride_B = stride_B;
-    kernel_args.stride_C = stride_C;
+    ck_tile::GemmHostArgs gemm_args;
+    gemm_args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
+    gemm_args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
+    gemm_args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
+    gemm_args.k_batch  = kbatch;
+    gemm_args.M        = M;
+    gemm_args.N        = N;
+    gemm_args.K        = K;
+    gemm_args.stride_A = stride_A;
+    gemm_args.stride_B = stride_B;
+    gemm_args.stride_C = stride_C;
+
+    kernel_traits trait;
+    trait.pipeline = arg_parser.get_str("pipeline");
+    trait.scheduler = arg_parser.get_str("scheduler");
+    trait.epilogue = arg_parser.get_str("epilogue");
+    trait.kPadM = arg_parser.get_bool("pad_m");
+    trait.kPadN = arg_parser.get_bool("pad_n");
+    trait.kPadK = arg_parser.get_bool("pad_k");
+    
 
     float ave_time =
-        gemm_kernel_launch<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
-            kernel_args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+        gemm_kernel_launch(trait, gemm_args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
         sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
@@ -137,20 +152,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     return pass;
 }
 
-int main(int argc, char* argv[])
-{
-    try
-    {
-        auto [result, arg_parser] = create_args(argc, argv);
-        if(!result)
-            return -1;
-        run<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(arg_parser);
-    }
-    catch(const std::runtime_error& e)
-    {
-        std::cerr << "Caught runtime error: " << e.what() << '\n';
-        // Return a non-zero code to indicate failure
+int main(int argc, char* argv[]) {
+    try {
+        auto [result, parser] = create_args(argc, argv);
+        if (!result) return EXIT_FAILURE;
+        return run<ADataType, BDataType, AccDataType, CDataType,
+                  ALayout, BLayout, CLayout>(parser);
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << "\n";
         return EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
 }

@@ -54,6 +54,15 @@ struct DataTypeTraits<ck_tile::pk_int4_t>
     static constexpr const char* name = "pk_int4_t";
 };
 
+struct kernel_traits{
+    std::string pipeline;
+    std::string scheduler;
+    std::string epilogue;
+    bool kPadM;
+    bool kPadN;
+    bool kPadK;
+};
+
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -96,7 +105,14 @@ inline auto create_args(int argc, char* argv[])
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("init", "0", "0:random, 1:linear, 2:constant(1)");
+        .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
+        .insert("pipeline", "compv3", "compv3, compv4, mem")
+        .insert("scheduler", "intrawave", "intrawave, interwave")
+        .insert("epilogue", "cshuffle", "cshuffle, default")
+        .insert("pad_m", "f", "true, false")
+        .insert("pad_n", "f", "true, false")
+        .insert("pad_k", "f", "true, false");
+       
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -269,12 +285,3 @@ bool gemm_verify(int verify,
     }
     return pass;
 }
-
-template <typename ADataType,
-          typename BDataType,
-          typename AccDataType,
-          typename CDataType,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout>
-float gemm_kernel_launch(ck_tile::GemmHostArgs& kernel_args, const ck_tile::stream_config& s);
