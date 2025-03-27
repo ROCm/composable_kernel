@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -70,6 +70,10 @@ using GNDHWC = ck::tensor_layout::convolution::GNDHWC;
 using GKXC   = ck::tensor_layout::convolution::GKXC;
 using GKYXC  = ck::tensor_layout::convolution::GKYXC;
 using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
+
+using GKCX   = ck::tensor_layout::convolution::GKCX;
+using GKCYX  = ck::tensor_layout::convolution::GKCYX;
+using GKCZYX = ck::tensor_layout::convolution::GKCZYX;
 
 using GNWK   = ck::tensor_layout::convolution::GNWK;
 using GNHWK  = ck::tensor_layout::convolution::GNHWK;
