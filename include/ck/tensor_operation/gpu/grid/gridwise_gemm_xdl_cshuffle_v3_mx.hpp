@@ -160,15 +160,21 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
     static constexpr auto lcm_AK1_BK1         = math::lcm(AK1Number, BK1Number);
     static constexpr bool is_single_rate_mfma = false;
+    static constexpr auto is_scale_mfma =
+        use_scale_mfma<ADataType, BDataType, AScaleDataType, BScaleDataType>();
 
     //> KPack is at least the k_per_blk of selected mfma
     //
     // Should be a multiple of k_per_blk.
     // TODO: Move this to blockwise pipeline base
-    static constexpr index_t KPack = math::max(
-        lcm_AK1_BK1,
-        MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB, is_single_rate_mfma, true>::
-            selected_mfma.k_per_blk);
+    static constexpr index_t KPack =
+        math::max(lcm_AK1_BK1,
+                  MfmaSelector<ComputeTypeA,
+                               MPerXdl,
+                               NPerXdl,
+                               ComputeTypeB,
+                               is_single_rate_mfma,
+                               is_scale_mfma>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -1087,10 +1093,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         static_assert(KPerBlock % ScaleBlockSize == 0,
                       "KPerBlock should be multiple of ScaleBlockSize");
-
-        static_assert(KPerBlock / ScaleBlockSize == BlockwiseGemmPipe::KRepeat,
-                      "Single call to xdlops_gemm::Run should process exactly ScaleBlockSize "
-                      "elements in k dimension");
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||

@@ -855,6 +855,16 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
         intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(
             a, scale_a, b, scale_b, reg_c);
     }
+
+    /**
+     * @brief Run the MFMA instruction without scaling
+     */
+    // TODO: Remove this function when the API is mature enough
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(a, 0, b, 0, reg_c);
+    }
 };
 
 template <>

@@ -12,7 +12,7 @@ namespace ck {
  * @brief Define matrix data types that have hardware support for MX GEMMs
  */
 template <typename T>
-static constexpr bool is_mx_gemm_hw_data_type()
+static constexpr bool is_scale_mfma_data_type()
 {
     return is_same_v<T, f8_ocp_t> || is_same_v<T, bf8_ocp_t> || is_same_v<T, f6_t> ||
            is_same_v<T, bf6_t> || is_same_v<T, f4_t>;
@@ -22,9 +22,19 @@ static constexpr bool is_mx_gemm_hw_data_type()
  * @brief Define scale data types that have hardware support for MX GEMMs
  */
 template <typename T>
-static constexpr bool is_mx_gemm_hw_scale_type()
+static constexpr bool is_scale_mfma_scale_type()
 {
     return is_same_v<T, e8m0_bexp_t>;
+}
+
+/**
+ * @brief Combination of data types that have hardware support for MX GEMMs
+ */
+template <typename ADataType, typename BDataType, typename AScaleDataType, typename BScaleDataType>
+static constexpr bool use_scale_mfma()
+{
+    return is_scale_mfma_data_type<ADataType>() && is_scale_mfma_data_type<BDataType>() &&
+           is_scale_mfma_scale_type<AScaleDataType>() && is_scale_mfma_scale_type<BScaleDataType>();
 }
 
 template <BlockGemmPipelineVersion BlkGemmPipelineVer,
@@ -55,9 +65,7 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
 constexpr auto BlockGemmMXPipeline_Selector()
 {
 
-    if constexpr(is_mx_gemm_hw_data_type<ADataType>() && is_mx_gemm_hw_data_type<BDataType>() &&
-                 is_mx_gemm_hw_scale_type<AScaleDataType>() &&
-                 is_mx_gemm_hw_scale_type<BScaleDataType>())
+    if constexpr(use_scale_mfma<ADataType, BDataType, AScaleDataType, BScaleDataType>())
     {
         // Hardware MX GEMM pipeline
         if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)

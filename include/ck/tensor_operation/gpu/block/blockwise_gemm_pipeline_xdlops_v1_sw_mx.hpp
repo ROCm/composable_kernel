@@ -209,6 +209,10 @@ struct BlockwiseGemmXdlops_pipeline_v1_sw_mx<BlockGemmPipelineScheduler::Intrawa
                                           Tuple4 b_origin = CalculateBThreadOriginDataIndex())
         : Base(a_origin, b_origin)
     {
+
+        static_assert(ScalesPerKBlockSize == KRepeat,
+                      "Single call to xdlops_gemm::Run should process exactly ScaleBlockSize "
+                      "elements in k dimension");
     }
 
     template <bool HasMainLoop,
