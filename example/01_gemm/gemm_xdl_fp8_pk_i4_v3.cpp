@@ -240,7 +240,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                       b_element_op,
                                       c_element_op);
 
-    if(!gemm.IsSupportedArgument(argument))
+    if(!gemm.IsSupportedArgument(argument) || ck::get_device_name() != "gfx942" ||
+       ck::get_device_name() != "gfx950")
     {
         std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
 

@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "data_type.hpp"
+#include "numeric_limits.hpp"
 #include "integral_constant.hpp"
 #include "number.hpp"
 #include "type.hpp"

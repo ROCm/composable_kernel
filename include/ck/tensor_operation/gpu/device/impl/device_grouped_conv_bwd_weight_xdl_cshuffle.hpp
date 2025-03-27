@@ -718,6 +718,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                                                                 ck::Tuple<NHWGCTransposeDescType>,
                                                                 ck::Tuple<NHWGCTransposeDescType>,
                                                                 ck::Tuple<const ADataType*>,
+                                                                ck::Tuple<const ADataType*>,
+                                                                ck::Tuple<ADataType*>,
                                                                 ck::Tuple<ADataType*>,
                                                                 Block2TileMapTranspose,
                                                                 Block2TileMapTranspose,
