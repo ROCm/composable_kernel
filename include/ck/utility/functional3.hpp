@@ -129,6 +129,18 @@ constexpr auto make_cumulative_product(ck::Number<IDim0>, ck::Number<IDim1>, ck:
                     IDim0 * IDim1 * IDim2 * IDim3 * IDim4,
                     IDim0 * IDim1 * IDim2 * IDim3 * IDim4 * IDim5>;
 // clang-format on
+
+// (dims * ...) is product of dims
+// cumulative products and dims pack are zipped together
+// e.g. for 3D
+// dims = <a, b, c>
+// cumulative products = <a, a*b, a*b*c>
+// product = a * b * c
+// flat index = I = x * bc + y * c + z
+// where multi index = <x, y, z>
+// then x = I * a / (a * b * c) % a ; using integer division
+// then y = I * (a * b) / (a * b * c) % b ; using integer division
+// then z = I * (a * b * c) / (a * b * c) % c ; using integer division
 template<int32_t flat_idx, int32_t... cumulative_products, int32_t... dims>
 constexpr auto make_multi_index(ck::Sequence<cumulative_products...>, ck::Sequence<dims...>, ck::Number<flat_idx>)
   -> ck::Sequence<(cumulative_products * flat_idx / (dims * ...)) % dims...>;
