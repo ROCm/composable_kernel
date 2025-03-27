@@ -398,7 +398,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     // block-to-e-tile map
     using Block2ETileMap =
         remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
-    using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, MPerBlock>;
+    using Block2TileMapInOutElementwise = BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, MPerBlock>;
+    using Block2TileMapWeiElementwise   = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
 
     static constexpr index_t ClusterLengthMPerBlock =
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(1);
@@ -438,7 +439,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             Tuple<NHWGCTransposeDescType>,
                             Tuple<const ADataType*>,
                             Tuple<ADataType*>,
-                            Block2TileMapElementwise,
+                            Block2TileMapInOutElementwise,
                             element_wise::PassThrough,
                             ElementwiseBlocksize,
                             NPerBlock,
@@ -456,13 +457,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             Tuple<GKYXCTransposeDescType>,
                             Tuple<const BDataType*>,
                             Tuple<BDataType*>,
-                            Block2TileMapElementwise,
+                            Block2TileMapWeiElementwise,
                             element_wise::PassThrough,
                             ElementwiseBlocksize,
-                            NPerBlock,
                             MPerBlock,
-                            NPerBlock / ClusterLengthNPerBlock,
+                            NPerBlock,
                             MPerBlock / ClusterLengthMPerBlock,
+                            NPerBlock / ClusterLengthNPerBlock,
                             Sequence<1, 0>,
                             Sequence<1>,
                             Sequence<CDEBlockTransferScalarPerVector_NPerBlock>,
@@ -474,7 +475,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             Tuple<NGCHWTransposeDescType>,
                             Tuple<const EDataType*>,
                             Tuple<EDataType*>,
-                            Block2TileMapElementwise,
+                            Block2TileMapInOutElementwise,
                             element_wise::PassThrough,
                             ElementwiseBlocksize,
                             NPerBlock,
@@ -651,7 +652,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                               DoPadGemmM,
                                                               DoPadGemmN,
                                                               ALayoutAfterTranspose,
-                                                              BLayout,
+                                                              BLayoutAfterTranspose,
                                                               DLayout,
                                                               true, /*SplitConvN*/
                                                               ABDataType,
@@ -750,11 +751,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     conv_ngchw_to_nhwgc_transformer.template MakeNGCHWTransposeDesc<NDimSpatial>(
                         e_g_n_c_wis_lengths, e_g_n_c_wis_strides, num_workgroups_per_Conv_N_);
 
-                elementwise_block_2_ctile_map_transpose_a_ = Block2TileMapElementwise{
+                elementwise_block_2_ctile_map_transpose_a_ = Block2TileMapInOutElementwise{
                     a_in_transpose_desc_.GetLength(I0), a_in_transpose_desc_.GetLength(I1)};
-                elementwise_block_2_ctile_map_transpose_b_ = Block2TileMapElementwise{
+                elementwise_block_2_ctile_map_transpose_b_ = Block2TileMapWeiElementwise{
                     b_in_transpose_desc_.GetLength(I0), b_in_transpose_desc_.GetLength(I1)};
-                elementwise_block_2_ctile_map_transpose_e_ = Block2TileMapElementwise{
+                elementwise_block_2_ctile_map_transpose_e_ = Block2TileMapInOutElementwise{
                     e_in_transpose_desc_.GetLength(I0), e_in_transpose_desc_.GetLength(I1)};
 
                 compute_ptr_offset_of_workspace_n_.BatchStrideA_ =
@@ -863,8 +864,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         // block-to-e-tile map
         std::vector<Block2ETileMap> block_2_etile_map_container_;
-        Block2TileMapElementwise elementwise_block_2_ctile_map_transpose_a_,
-            elementwise_block_2_ctile_map_transpose_b_, elementwise_block_2_ctile_map_transpose_e_;
+        Block2TileMapInOutElementwise elementwise_block_2_ctile_map_transpose_a_,
+            elementwise_block_2_ctile_map_transpose_e_;
+        Block2TileMapWeiElementwise elementwise_block_2_ctile_map_transpose_b_;
 
         NGCHWTransposeDescType a_in_transpose_desc_, e_out_transpose_desc_;
         NHWGCTransposeDescType a_out_transpose_desc_, e_in_transpose_desc_;
@@ -1045,8 +1047,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                     ck::Tuple<const BDataType*>,
                                                     ck::Tuple<ADataType*>,
                                                     ck::Tuple<BDataType*>,
-                                                    Block2TileMapElementwise,
-                                                    Block2TileMapElementwise,
+                                                    Block2TileMapInOutElementwise,
+                                                    Block2TileMapWeiElementwise,
                                                     element_wise::PassThrough,
                                                     I1,
                                                     I1,
@@ -1104,7 +1106,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                ck::Tuple<NGCHWTransposeDescType>,
                                                ck::Tuple<const EDataType*>,
                                                ck::Tuple<EDataType*>,
-                                               Block2TileMapElementwise,
+                                               Block2TileMapInOutElementwise,
                                                element_wise::PassThrough,
                                                I1,
                                                I1>;
