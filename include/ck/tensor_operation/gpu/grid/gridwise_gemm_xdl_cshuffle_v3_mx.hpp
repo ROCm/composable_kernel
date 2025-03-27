@@ -158,16 +158,17 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     static constexpr auto AK1Number = Number<AK1Value>{};
     static constexpr auto BK1Number = Number<BK1Value>{};
 
-    static constexpr auto lcm_AK1_BK1 = math::lcm(AK1Number, BK1Number);
-    static constexpr bool is_single_rate_mfma =
-        ((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
-         lcm_AK1_BK1 <= 4)
-            ? true
-            : false;
-    static constexpr index_t KPack =
-        math::max(lcm_AK1_BK1,
-                  MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeA, is_single_rate_mfma>::
-                      selected_mfma.k_per_blk);
+    static constexpr auto lcm_AK1_BK1         = math::lcm(AK1Number, BK1Number);
+    static constexpr bool is_single_rate_mfma = false;
+
+    //> KPack is at least the k_per_blk of selected mfma
+    //
+    // Should be a multiple of k_per_blk.
+    // TODO: Move this to blockwise pipeline base
+    static constexpr index_t KPack = math::max(
+        lcm_AK1_BK1,
+        MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB, is_single_rate_mfma, true>::
+            selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 

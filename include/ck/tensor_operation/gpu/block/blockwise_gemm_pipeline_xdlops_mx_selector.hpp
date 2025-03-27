@@ -4,8 +4,28 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v1_mx.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v1_sw_mx.hpp"
 
 namespace ck {
+
+/**
+ * @brief Define matrix data types that have hardware support for MX GEMMs
+ */
+template <typename T>
+static constexpr bool is_mx_gemm_hw_data_type()
+{
+    return is_same_v<T, f8_ocp_t> || is_same_v<T, bf8_ocp_t> || is_same_v<T, f6_t> ||
+           is_same_v<T, bf6_t> || is_same_v<T, f4_t>;
+}
+
+/**
+ * @brief Define scale data types that have hardware support for MX GEMMs
+ */
+template <typename T>
+static constexpr bool is_mx_gemm_hw_scale_type()
+{
+    return is_same_v<T, e8m0_bexp_t>;
+}
 
 template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           BlockGemmPipelineScheduler BlkGemmPipeSche,
@@ -34,35 +54,74 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t KPack>
 constexpr auto BlockGemmMXPipeline_Selector()
 {
-    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+
+    if constexpr(is_mx_gemm_hw_data_type<ADataType>() && is_mx_gemm_hw_data_type<BDataType>() &&
+                 is_mx_gemm_hw_scale_type<AScaleDataType>() &&
+                 is_mx_gemm_hw_scale_type<BScaleDataType>())
     {
-        return BlockwiseGemmXdlops_pipeline_v1_mx<BlkGemmPipeSche,
-                                                  ThreadBlockSize,
-                                                  ScaleBlockSize,
-                                                  ADataType,
-                                                  AScaleDataType,
-                                                  BDataType,
-                                                  BScaleDataType,
-                                                  ComputeDataType,
-                                                  AccDataType,
-                                                  ATileDesc,
-                                                  BTileDesc,
-                                                  AMmaTileDesc,
-                                                  BMmaTileDesc,
-                                                  ABlockTransferSrcScalarPerVector,
-                                                  BBlockTransferSrcScalarPerVector,
-                                                  MPerBlock,
-                                                  NPerBlock,
-                                                  KPerBlock,
-                                                  MPerXDL,
-                                                  NPerXDL,
-                                                  MRepeat,
-                                                  NRepeat,
-                                                  KPack>{};
+        // Hardware MX GEMM pipeline
+        if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+        {
+            return BlockwiseGemmXdlops_pipeline_v1_mx<BlkGemmPipeSche,
+                                                      ThreadBlockSize,
+                                                      ScaleBlockSize,
+                                                      ADataType,
+                                                      AScaleDataType,
+                                                      BDataType,
+                                                      BScaleDataType,
+                                                      ATileDesc,
+                                                      BTileDesc,
+                                                      AMmaTileDesc,
+                                                      BMmaTileDesc,
+                                                      ABlockTransferSrcScalarPerVector,
+                                                      BBlockTransferSrcScalarPerVector,
+                                                      MPerBlock,
+                                                      NPerBlock,
+                                                      KPerBlock,
+                                                      MPerXDL,
+                                                      NPerXDL,
+                                                      MRepeat,
+                                                      NRepeat,
+                                                      KPack>{};
+        }
+        else
+        {
+            std::cerr << "MX GEMM Pipeline configuration is not available" << std::endl;
+        }
     }
     else
     {
-        std::cerr << "BlockGemmPipeline configuration is not available" << std::endl;
+        // Software emulation of MX pipeline
+        if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+        {
+            return BlockwiseGemmXdlops_pipeline_v1_sw_mx<BlkGemmPipeSche,
+                                                         ThreadBlockSize,
+                                                         ScaleBlockSize,
+                                                         ADataType,
+                                                         AScaleDataType,
+                                                         BDataType,
+                                                         BScaleDataType,
+                                                         ComputeDataType,
+                                                         AccDataType,
+                                                         ATileDesc,
+                                                         BTileDesc,
+                                                         AMmaTileDesc,
+                                                         BMmaTileDesc,
+                                                         ABlockTransferSrcScalarPerVector,
+                                                         BBlockTransferSrcScalarPerVector,
+                                                         MPerBlock,
+                                                         NPerBlock,
+                                                         KPerBlock,
+                                                         MPerXDL,
+                                                         NPerXDL,
+                                                         MRepeat,
+                                                         NRepeat,
+                                                         KPack>{};
+        }
+        else
+        {
+            std::cerr << "Software MX GEMM Pipeline configuration is not available" << std::endl;
+        }
     }
 }
 

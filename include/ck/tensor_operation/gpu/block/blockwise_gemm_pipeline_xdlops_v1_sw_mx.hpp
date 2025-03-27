@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ck/tensor_operation/gpu/block/blockwise_gemm_mx_pipeline_xdlops_base.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_base.hpp"
 
 namespace ck {
 
@@ -20,6 +20,8 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           typename AScaleDataType,
           typename BDataType,
           typename BScaleDataType,
+          typename ComputeDataType,
+          typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
           typename AMmaTileDesc,
@@ -34,7 +36,7 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t MRepeat, // MXdlPerWave
           index_t NRepeat, // NXdlPerWave
           index_t KPack>
-struct BlockwiseGemmXdlops_pipeline_v1_mx
+struct BlockwiseGemmXdlops_pipeline_v1_sw_mx
 {
 };
 
@@ -44,6 +46,8 @@ template <index_t ThreadBlockSize,
           typename AScaleDataType,
           typename BDataType,
           typename BScaleDataType,
+          typename ComputeDataType,
+          typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
           typename AMmaTileDesc,
@@ -58,64 +62,69 @@ template <index_t ThreadBlockSize,
           index_t MRepeat, // MXdlPerWave
           index_t NRepeat, // NXdlPerWave
           index_t KPack>
-struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
-                                          ThreadBlockSize,
-                                          ScaleBlockSize,
-                                          ADataType,
-                                          AScaleDataType,
-                                          BDataType,
-                                          BScaleDataType,
-                                          ATileDesc,
-                                          BTileDesc,
-                                          AMmaTileDesc,
-                                          BMmaTileDesc,
-                                          ABlockTransferSrcScalarPerVector,
-                                          BBlockTransferSrcScalarPerVector,
-                                          MPerBlock,
-                                          NPerBlock,
-                                          KPerBlock,
-                                          MPerXDL,
-                                          NPerXDL,
-                                          MRepeat,
-                                          NRepeat,
-                                          KPack>
-    : BlockwiseGemmXdlops_mx_pipeline_base<ThreadBlockSize,
-                                           ADataType,
-                                           BDataType,
-                                           ATileDesc,
-                                           BTileDesc,
-                                           AMmaTileDesc,
-                                           BMmaTileDesc,
-                                           ABlockTransferSrcScalarPerVector,
-                                           BBlockTransferSrcScalarPerVector,
-                                           MPerBlock,
-                                           NPerBlock,
-                                           KPerBlock,
-                                           MPerXDL,
-                                           NPerXDL,
-                                           MRepeat,
-                                           NRepeat,
-                                           KPack>
+struct BlockwiseGemmXdlops_pipeline_v1_sw_mx<BlockGemmPipelineScheduler::Intrawave,
+                                             ThreadBlockSize,
+                                             ScaleBlockSize,
+                                             ADataType,
+                                             AScaleDataType,
+                                             BDataType,
+                                             BScaleDataType,
+                                             ComputeDataType,
+                                             AccDataType,
+                                             ATileDesc,
+                                             BTileDesc,
+                                             AMmaTileDesc,
+                                             BMmaTileDesc,
+                                             ABlockTransferSrcScalarPerVector,
+                                             BBlockTransferSrcScalarPerVector,
+                                             MPerBlock,
+                                             NPerBlock,
+                                             KPerBlock,
+                                             MPerXDL,
+                                             NPerXDL,
+                                             MRepeat,
+                                             NRepeat,
+                                             KPack>
+    : BlockwiseGemmXdlops_pipeline_base<ThreadBlockSize,
+                                        ADataType,
+                                        BDataType,
+                                        ComputeDataType,
+                                        AccDataType,
+                                        ATileDesc,
+                                        BTileDesc,
+                                        AMmaTileDesc,
+                                        BMmaTileDesc,
+                                        ABlockTransferSrcScalarPerVector,
+                                        BBlockTransferSrcScalarPerVector,
+                                        MPerBlock,
+                                        NPerBlock,
+                                        KPerBlock,
+                                        MPerXDL,
+                                        NPerXDL,
+                                        MRepeat,
+                                        NRepeat,
+                                        KPack>
 
 {
-
-    using Base = BlockwiseGemmXdlops_mx_pipeline_base<ThreadBlockSize,
-                                                      ADataType,
-                                                      BDataType,
-                                                      ATileDesc,
-                                                      BTileDesc,
-                                                      AMmaTileDesc,
-                                                      BMmaTileDesc,
-                                                      ABlockTransferSrcScalarPerVector,
-                                                      BBlockTransferSrcScalarPerVector,
-                                                      MPerBlock,
-                                                      NPerBlock,
-                                                      KPerBlock,
-                                                      MPerXDL,
-                                                      NPerXDL,
-                                                      MRepeat,
-                                                      NRepeat,
-                                                      KPack>;
+    using Base = BlockwiseGemmXdlops_pipeline_base<ThreadBlockSize,
+                                                   ADataType,
+                                                   BDataType,
+                                                   ComputeDataType,
+                                                   AccDataType,
+                                                   ATileDesc,
+                                                   BTileDesc,
+                                                   AMmaTileDesc,
+                                                   BMmaTileDesc,
+                                                   ABlockTransferSrcScalarPerVector,
+                                                   BBlockTransferSrcScalarPerVector,
+                                                   MPerBlock,
+                                                   NPerBlock,
+                                                   KPerBlock,
+                                                   MPerXDL,
+                                                   NPerXDL,
+                                                   MRepeat,
+                                                   NRepeat,
+                                                   KPack>;
     using Base::I0;
     using Base::I1;
     using Base::KRepeat;
@@ -143,10 +152,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
     using Base::AMmaKStride;
     using Base::BMmaKStride;
 
-    using AccType      = typename Base::AccType;
-    using Tuple4       = typename Base::Tuple4;
-    using ComputeTypeA = typename Base::ComputeTypeA;
-    using ComputeTypeB = typename Base::ComputeTypeB;
+    using Tuple4 = typename Base::Tuple4;
 
     static constexpr index_t PrefetchStages  = 1;
     static constexpr index_t PrefillStages   = 1;
@@ -189,7 +195,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
     }
 
     /**
-     * @brief Constructor for BlockwiseGemmXdlops_pipeline_v1_mx.
+     * @brief Constructor for BlockwiseGemmXdlops_pipeline_v1_sw_mx.
      *
      * The primary purpose of this constructor is to modify default initialization of the base class
      * with the origin data index suitable for microscaling.
@@ -199,8 +205,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
      *
      */
     __host__ __device__
-    BlockwiseGemmXdlops_pipeline_v1_mx(Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
-                                       Tuple4 b_origin = CalculateBThreadOriginDataIndex())
+    BlockwiseGemmXdlops_pipeline_v1_sw_mx(Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
+                                          Tuple4 b_origin = CalculateBThreadOriginDataIndex())
         : Base(a_origin, b_origin)
     {
     }
@@ -252,9 +258,9 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         const BScaleGridBuffer& b_scale_grid_buf,
         index_t num_loop) const
     {
-        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
             a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeB>(
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
             b_thread_desc_.GetElementSpaceSize());
 
         auto a_scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, AScaleDataType>(
@@ -383,22 +389,21 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
                             c_thread_buf_per_scale.Clear();
-                            vector_type<ComputeTypeA, KPack> a_thread_vec;
-                            vector_type<ComputeTypeB, KPack> b_thread_vec;
+                            vector_type<ComputeDataType, KPack> a_thread_vec;
+                            vector_type<ComputeDataType, KPack> b_thread_vec;
 
                             static_for<0, KPack, 1>{}([&](auto ik) {
-                                a_thread_vec.template AsType<ComputeTypeA>()(ik) =
+                                a_thread_vec.template AsType<ComputeDataType>()(ik) =
                                     a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                         make_tuple(m0, I0, k0, ik))>{}];
-                                b_thread_vec.template AsType<ComputeTypeB>()(ik) =
+                                b_thread_vec.template AsType<ComputeDataType>()(ik) =
                                     b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                         make_tuple(n0, I0, k0, ik))>{}];
                             });
 
-                            using mfma_input_type_a =
-                                typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
-                            using mfma_input_type_b =
-                                typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops>::type;
+                            using mfma_input_type =
+                                typename vector_type<ComputeDataType,
+                                                     xdlops_gemm.K1PerXdlops>::type;
 
                             // MFMA accumulation
                             // m = 1:MPerXDL
@@ -406,8 +411,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             //     k = 1:KPack
                             //       c(m,n) += a(m,k)*b(k,n)
                             xdlops_gemm.template Run<>(
-                                a_thread_vec.template AsType<mfma_input_type_a>(),
-                                b_thread_vec.template AsType<mfma_input_type_b>(),
+                                a_thread_vec.template AsType<mfma_input_type>(),
+                                b_thread_vec.template AsType<mfma_input_type>(),
                                 c_thread_buf_per_scale.GetVectorTypeReference(I0));
 
                             // one scale per k0
@@ -431,9 +436,9 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
                                             c_thread_buf(Number<c_offset>{}) +=
                                                 c_thread_buf_per_scale[Number<reg_offset>{}] *
-                                                type_convert<AccType>(
+                                                type_convert<AccDataType>(
                                                     b_scale_thread_buf[Number<b_scale_offset>{}]) *
-                                                type_convert<AccType>(
+                                                type_convert<AccDataType>(
                                                     a_scale_thread_buf[Number<a_scale_offset>{}]);
                                         });
                                 });
@@ -537,26 +542,24 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         c_thread_buf_per_scale.Clear();
-                        vector_type<ComputeTypeA, KPack> a_thread_vec;
-                        vector_type<ComputeTypeB, KPack> b_thread_vec;
+                        vector_type<ComputeDataType, KPack> a_thread_vec;
+                        vector_type<ComputeDataType, KPack> b_thread_vec;
 
                         static_for<0, KPack, 1>{}([&](auto ik) {
-                            a_thread_vec.template AsType<ComputeTypeA>()(ik) =
+                            a_thread_vec.template AsType<ComputeDataType>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(m0, I0, k0, ik))>{}];
-                            b_thread_vec.template AsType<ComputeTypeB>()(ik) =
+                            b_thread_vec.template AsType<ComputeDataType>()(ik) =
                                 b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(n0, I0, k0, ik))>{}];
                         });
 
-                        using mfma_input_type_a =
-                            typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
-                        using mfma_input_type_b =
-                            typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops>::type;
+                        using mfma_input_type =
+                            typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
 
                         xdlops_gemm.template Run<>(
-                            a_thread_vec.template AsType<mfma_input_type_a>(),
-                            b_thread_vec.template AsType<mfma_input_type_b>(),
+                            a_thread_vec.template AsType<mfma_input_type>(),
+                            b_thread_vec.template AsType<mfma_input_type>(),
                             c_thread_buf_per_scale.GetVectorTypeReference(I0));
 
                         // one scale per k0
@@ -576,9 +579,9 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
                                 c_thread_buf(Number<c_offset>{}) +=
                                     c_thread_buf_per_scale[Number<reg_offset>{}] *
-                                    type_convert<AccType>(
+                                    type_convert<AccDataType>(
                                         b_scale_thread_buf[Number<b_scale_offset>{}]) *
-                                    type_convert<AccType>(
+                                    type_convert<AccDataType>(
                                         a_scale_thread_buf[Number<a_scale_offset>{}]);
                             });
                         });
