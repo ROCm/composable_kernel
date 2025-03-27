@@ -130,8 +130,8 @@ __device__ AFragT load_A_col_major(AType const* input_ptr)
     // Reg 7 [24:31]     |     K79    |     K95     |     K111   |     K127    |  v[31]    ||    Reg 7 [24:31]     |     K47    |     K63     |  v[31] |
 
     // Register Mapping for 128x16 for FP4:                                                ||    Register Mapping for 64x32 for FP4:
-    // Size              |   BLOCK_N  |   BLOCK_N   |   BLOCK_N  |   BLOCK_N   |           ||    Size              |   BLOCK_N  |   BLOCK_N   |        |
-    // N                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    N                 | 0  ...  31 |  0  ...  31 | Vector |
+    // Size              |   BLOCK_M  |   BLOCK_M   |   BLOCK_M  |   BLOCK_M   |           ||    Size              |   BLOCK_M  |   BLOCK_M   |        |
+    // M                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    N                 | 0  ...  31 |  0  ...  31 | Vector |
     // Thread Id         | 0  ...  15 | 16  ...  31 | 32  ... 47 | 48  ...  63 | Element   ||    Thread Id         | 0  ...  31 | 32  ...  63 | Element|
     // Register Element  |------------|-------------|------------|-------------|-----------||    Register Element  |------------|-------------|--------|
     // Reg 0 [0:7]       |     K0K1   |     K32K33  |     K64K65 |    K96K97   |  v[0]     ||    Reg 0 [0:7]       |     K0K1   |     K32K33  |  v[0]  |
@@ -839,6 +839,42 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
     // B = col major, BLOCK_K x BLOCK_N
     fragB = load_B_col_major<BType, BFragT, BLOCK_K, BLOCK_N>(b);
 
+    printf("&&&&&&& %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u\n",
+           uint32_t(fragA.template AsType<AType>()[Number<0>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<1>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<2>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<3>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<4>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<5>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<6>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<7>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<8>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<9>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<10>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<11>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<12>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<13>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<14>{}].data),
+           uint32_t(fragA.template AsType<AType>()[Number<15>{}].data));
+
+    printf("$$$$$$ %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u\n",
+           uint32_t(fragB.template AsType<BType>()[Number<0>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<1>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<2>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<3>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<4>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<5>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<6>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<7>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<8>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<9>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<10>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<11>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<12>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<13>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<14>{}].data),
+           uint32_t(fragB.template AsType<BType>()[Number<15>{}].data));
+
     // Matrix multiply-accumulate using MFMA units
     // Accumulation intermediate = BLOCK_M x BLOCK_N
     mfma_type_selector<AFragT, BFragT, AccumFragT, BLOCK_M, BLOCK_N>{}(fragA, fragB, fragAcc);
@@ -1261,6 +1297,10 @@ struct TestMFMA
             // expect small round off errors
             a_m_k.GenerateTensorValue(GeneratorTensor_4<ADataType>(-1, 3));
             b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(1, 3));
+            break;
+        case 4:
+            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-4, 5});
+            b_n_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{-4, 5});
             break;
         default:
             // all initial values are representable in FP8, BF8
