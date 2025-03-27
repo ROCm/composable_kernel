@@ -1,18 +1,15 @@
 .. meta::
-  :description: Composable Kernel documentation and API reference library
-  :keywords: composable kernel, CK, ROCm, API, documentation
+  :description: Composable Kernel mathematical basis
+  :keywords: composable kernel, CK, ROCm, API, mathematics, algorithm
 
 .. _supported-primitives:
 
 ********************************************************************
-Supported Primitives Guide
+Composable Kernel mathematical basis
 ********************************************************************
 
-This document contains details of supported primitives in Composable Kernel (CK). In contrast to the API Reference Guide, the Supported Primitives Guide is an introduction to the math which underpins the algorithms implemented in CK.
+This is an introduction to the math which underpins the algorithms implemented in Composable Kernel.
 
-------------
-Softmax
-------------
 
 For vectors :math:`x^{(1)}, x^{(2)}, \ldots, x^{(T)}` of size :math:`B` you can decompose the
 softmax of concatenated :math:`x = [ x^{(1)}\ | \ \ldots \ | \ x^{(T)} ]` as,

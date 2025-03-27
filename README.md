@@ -104,6 +104,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     ```bash
     make -j install
     ```
+    **[See Note on -j](#notes)**
 
 ## Optional post-install steps
 
@@ -146,7 +147,8 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
     ```
 
-Note the `-j` option for building with multiple threads in parallel, which speeds up the build significantly.
+### Notes
+The `-j` option for building with multiple threads in parallel, which speeds up the build significantly.
 However, `-j` launches unlimited number of threads, which can cause the build to run out of memory and
 crash. On average, you should expect each thread to use ~2Gb of RAM.
 Depending on the number of CPU cores and the amount of RAM on your system, you may want to

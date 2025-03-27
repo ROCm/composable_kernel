@@ -5,26 +5,20 @@
 .. _api-reference:
 
 ********************************************************************
-API reference guide
+Composable Kernel API reference guide
 ********************************************************************
 
-
-This document contains details of the APIs for the Composable Kernel (CK) library and introduces
-some of the key design principles that are used to write new classes that extend CK functionality.
+This document contains details of the APIs for the Composable Kernel library and introduces some of the key design principles that are used to write new classes that extend the functionality of the Composable Kernel library.
 
 =================
-CK Datatypes
-=================
-
------------------
 DeviceMem
------------------
+=================
 
 .. doxygenstruct:: DeviceMem
 
----------------------------
+=============================
 Kernels For Flashattention
----------------------------
+=============================
 
 The Flashattention algorithm is defined in :cite:t:`dao2022flashattention`. This section lists
 the classes that are used in the CK GPU implementation of Flashattention.
