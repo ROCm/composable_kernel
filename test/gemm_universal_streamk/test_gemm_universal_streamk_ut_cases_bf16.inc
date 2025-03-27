@@ -44,7 +44,6 @@ TYPED_TEST(TestGemmUniversal_Streamk_BF16_KM_KN, SmallM)
     }
 }
 
-
 TYPED_TEST(TestGemmUniversal_Streamk_BF16_MK_KN, MidLargeM)
 {
     std::vector<int> Ms{127, 255, 312, 799, 1573};
@@ -88,8 +87,6 @@ TYPED_TEST(TestGemmUniversal_Streamk_BF16_KM_KN, MidLargeM)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
     }
 }
-
-
 
 TYPED_TEST(TestGemmUniversal_Streamk_BF16_MK_KN, PaddK)
 {
@@ -178,4 +175,3 @@ TYPED_TEST(TestGemmUniversal_Streamk_BF16_MK_NK, Regular)
     for(int M : Ms)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
 }
-

@@ -513,7 +513,6 @@ struct PassThrough
     {
         y = type_convert<bf8_t>(x);
     }
-
 };
 
 struct UnaryConvert

@@ -23,7 +23,6 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/reference_tensor_operation/gpu/reference_gemm.hpp"
 
-
 namespace ck {
 namespace profiler {
 
@@ -74,7 +73,6 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_ref_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
-
     int total_gemm_needed = a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes();
     int rotating_count    = std::max(
         1,
@@ -110,7 +108,8 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
-    DeviceMem c_m_n_device_ref_buf(sizeof(CDataType) *c_m_n_device_ref_result.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_device_ref_buf(sizeof(CDataType) *
+                                   c_m_n_device_ref_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
@@ -134,25 +133,22 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
     // Run reference GEMM
     if(do_verification)
     {
-        
 
-            // Use CPU validation
-            // Note: GPU validation is not supported for fp8 !!!
-            using ReferenceGemmInstanceCPU = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                                         BDataType,
-                                                                                         CDataType,
-                                                                                         AccDataType,
-                                                                                         AElementOp,
-                                                                                         BElementOp,
-                                                                                         CElementOp,
-                                                                                         ComputeDataType>;
-            auto ref_gemm_cpu    = ReferenceGemmInstanceCPU{};
-            auto ref_invoker_cpu = ref_gemm_cpu.MakeInvoker();
-            auto ref_argument_cpu = ref_gemm_cpu.MakeArgument(a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
-            ref_invoker_cpu.Run(ref_argument_cpu);
-
-    
-
+        // Use CPU validation
+        // Note: GPU validation is not supported for fp8 !!!
+        using ReferenceGemmInstanceCPU = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                                   BDataType,
+                                                                                   CDataType,
+                                                                                   AccDataType,
+                                                                                   AElementOp,
+                                                                                   BElementOp,
+                                                                                   CElementOp,
+                                                                                   ComputeDataType>;
+        auto ref_gemm_cpu              = ReferenceGemmInstanceCPU{};
+        auto ref_invoker_cpu           = ref_gemm_cpu.MakeInvoker();
+        auto ref_argument_cpu          = ref_gemm_cpu.MakeArgument(
+            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+        ref_invoker_cpu.Run(ref_argument_cpu);
     }
 
     std::string best_op_name;
@@ -217,8 +213,7 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
                         c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
                         // Always compare against CPU reference results computed earlier
-                        pass = pass & ck::utils::check_err(c_m_n_device_result,
-                                                           c_m_n_host_result);
+                        pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
 
                         if(do_log)
                         {
