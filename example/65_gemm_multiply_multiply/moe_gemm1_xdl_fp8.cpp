@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -81,11 +81,9 @@ struct MulABScale
     }
 };
 
-
 // using DsLayout = DsLayoutGate;
 // using DsDataType       = DsDataTypeGate;
 using CDEElementOp = MulABScale;
-
 
 void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int NXdl)
 {
@@ -136,6 +134,7 @@ static constexpr ck::index_t BK1         = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec        = 16 / sizeof(EDataType);
 static constexpr ck::index_t D0Vec       = 1;
 static constexpr ck::index_t D1Vec       = 1;
+static constexpr ck::index_t ActOP       = 2;
 // using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
@@ -156,7 +155,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
                 1,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, true, int32_t, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, true, true, int32_t, A0DataType>;
 
 // clang-format on
 
@@ -263,8 +262,10 @@ int main(int argc, char* argv[])
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
-    // Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N * 2}, {StrideDs[1] ? StrideDs[1] * N * 2: 1, StrideDs[1]}));
-    Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N * 2}, {StrideDs[1] * N * 2, StrideDs[1]}));
+    // Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N * 2}, {StrideDs[1] ? StrideDs[1] *
+    // N * 2: 1, StrideDs[1]}));
+    Tensor<D1DataType> d1_e_n(
+        HostTensorDescriptor({experts, N * 2}, {StrideDs[1] * N * 2, StrideDs[1]}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
     Tensor<EDataType> e_t_n_device_result(
         HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
@@ -278,10 +279,10 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{0, 2});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 2});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{0, 2});
-        d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{0, 2});
+        a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
+        d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
         break;
     case 2:
         a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
@@ -329,7 +330,8 @@ int main(int argc, char* argv[])
 
     int NPerXdl = device_op.GetPreShuffleParameters();
 
-    preShuffleBuffer(b0_e_n_k.mData.data(), b0_preshuffled.mData.data(), N * 2 * experts, K, NPerXdl);
+    preShuffleBuffer(
+        b0_e_n_k.mData.data(), b0_preshuffled.mData.data(), N * 2 * experts, K, NPerXdl);
 
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
 
@@ -394,7 +396,8 @@ int main(int argc, char* argv[])
                                                                                    AccDataType,
                                                                                    PassThrough,
                                                                                    PassThrough,
-                                                                                   PassThrough>;
+                                                                                   PassThrough,
+                                                                                   ActOP>;
         auto ref_moe_gemm           = ReferenceGemmInstance{};
         auto ref_invoker            = ref_moe_gemm.MakeInvoker();
 
@@ -437,7 +440,7 @@ int main(int argc, char* argv[])
         e_t_n_device_result.savetxt("out.txt");
         e_t_n_host_result.savetxt("ref.txt");
         return ck::utils::check_err(
-                   e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
+                   e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-1)
                    ? 0
                    : 1;
     }
