@@ -8,30 +8,33 @@
 Composable Kernel User Guide
 ********************************************************************
 
-The Composable Kernel (CK) library provides a programming model for writing performance critical kernels for machine learning workloads across multiple architectures including GPUs and CPUs, through general purpose kernel languages like HIP C++. This document contains instructions for installing, using, and contributing to the Composable Kernel project. To learn more see :ref:`what-is-ck`.
+The Composable Kernel library provides a programming model for writing performance critical kernels for machine learning workloads across multiple architectures including GPUs and CPUs, through general purpose kernel languages such as `HIP C++ <https://rocm.docs.amd.com/projects/HIP/en/latest/index.html>`_. 
 
-The CK documentation is structured as follows:
+The Composable Kernel repository is located at `https://github.com/ROCm/composable-kernel <https://github.com/ROCm/composable-kernel>`_.
 
 .. grid:: 2
   :gutter: 3
 
-  .. grid-item-card:: Installation
+  .. grid-item-card:: Install
 
-    * :ref:`docker-hub`
+    * :doc:`Composable Kernel prerequisites <./install/Composable-Kernel-prerequisites>`
+    * :doc:`Build and install Composable Kernel <./install/Composable-Kernel-install>`
+    * :doc:`Build and install Composable Kernel on a Docker image <./install/Composable-Kernel-Docker>`
 
   .. grid-item-card:: Conceptual
 
-    * :ref:`what-is-ck`
+    * :doc:`Composable Kernel structure <./conceptual/Composable-Kernel-structure>`
+    * :doc:`Composable Kernel mathematical basis <./conceptual/Composable-Kernel-math>`
 
-  .. grid-item-card:: API reference
+  .. grid-item-card:: Tutorials
 
-    * :ref:`supported-primitives`
+    * :doc:`Composable Kernel examples and tests <./tutorial/Composable-Kernel-examples>`
+
+  .. grid-item-card:: Reference
+
     * :ref:`api-reference`
     * :ref:`wrapper`
 
-  .. grid-item-card:: Tutorial
-
-    * :ref:`hello-world`
 
 To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
 
