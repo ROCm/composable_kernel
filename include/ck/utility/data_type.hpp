@@ -36,22 +36,22 @@ struct f4x2_pk_t
 {
     using type = uint8_t;
     type data;
-    f4x2_pk_t() : data{type{}} {}
-    f4x2_pk_t(type init) : data{init} {}
+    __host__ __device__ f4x2_pk_t() : data{type{}} {}
+    __host__ __device__ f4x2_pk_t(type init) : data{init} {}
 
     template <index_t I>
     __host__ __device__ inline type unpack(Number<I>) const
     {
         static_assert(I < 2, "Index is out of range.");
         if constexpr(I == 0)
-            return data & 0b00001111;
-        else
             return (data >> 4);
+        else
+            return data & 0b00001111;
     }
 
     __host__ __device__ inline type pack(const type x0, const type x1)
     {
-        return (x1 << 4) | (x0 & 0b00001111);
+        return (x0 << 4) | (x1 & 0b00001111);
     }
 };
 
