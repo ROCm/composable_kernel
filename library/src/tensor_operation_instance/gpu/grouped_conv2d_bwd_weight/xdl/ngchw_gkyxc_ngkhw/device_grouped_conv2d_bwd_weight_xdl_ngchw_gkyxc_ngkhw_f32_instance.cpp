@@ -29,9 +29,7 @@ void add_device_grouped_conv2d_bwd_weight_xdl_ngchw_gkyxc_ngkhw_f32_instances(
                                                                            NGCHW,
                                                                            GKYXC,
                                                                            NGKHW,
-                                                                           ConvBwdWeightDefault,
-                                                                           1,
-                                                                           1>{});
+                                                                           ConvBwdWeightDefault>{});
 }
 
 } // namespace instance
