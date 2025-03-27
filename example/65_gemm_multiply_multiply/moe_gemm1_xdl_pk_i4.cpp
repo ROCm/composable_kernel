@@ -441,7 +441,7 @@ int main(int argc, char* argv[])
                                cde_element_op);
 
     if(!device_op.IsSupportedArgument(argument) ||
-       !(ck::get_device_name() != "gfx942" || ck::get_device_name() != "gfx950"))
+       !(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
     {
         throw std::runtime_error(
             "wrong! device_gemm with the specified compilation parameters does "
