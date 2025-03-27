@@ -890,14 +890,16 @@ template <typename base_type,
           index_t MPerXdlops,
           index_t NPerXdlops,
           typename additional_type = base_type,
-          bool is_single_rate_mfma = false>
+          bool is_single_rate_mfma = false,
+          bool is_scale_mfma       = false>
 struct MfmaSelector
 {
     template <typename base_type_,
               index_t MPerXdlops_,
               index_t NPerXdlops_,
               typename additional_type_ = base_type_,
-              bool is_single_rate_mfma_ = false>
+              bool is_single_rate_mfma_ = false,
+              bool is_scale_mfma_       = false>
     static constexpr auto GetMfma();
 
     template <>
@@ -1104,9 +1106,21 @@ struct MfmaSelector
     }
 
     template <>
+    constexpr auto GetMfma<f8_t, 32, 32, f8_t, false, true>()
+    {
+        return MfmaInstr::mfma_scale_f32_32x32x64f8f6f4;
+    }
+
+    template <>
     constexpr auto GetMfma<f8_t, 16, 16>()
     {
         return MfmaInstr::mfma_f32_16x16x32f8f8;
+    }
+
+    template <>
+    constexpr auto GetMfma<f8_t, 16, 16, f8_t, false, true>()
+    {
+        return MfmaInstr::mfma_scale_f32_16x16x128f8f6f4;
     }
 
     template <>
@@ -1145,8 +1159,12 @@ struct MfmaSelector
         return MfmaInstr::mfma_f32_16x16x32bf8f8;
     }
 
-    static constexpr auto selected_mfma = mfma_type<
-        GetMfma<base_type, MPerXdlops, NPerXdlops, additional_type, is_single_rate_mfma>()>{};
+    static constexpr auto selected_mfma = mfma_type<GetMfma<base_type,
+                                                            MPerXdlops,
+                                                            NPerXdlops,
+                                                            additional_type,
+                                                            is_single_rate_mfma,
+                                                            is_scale_mfma>()>{};
 
     __host__ __device__ constexpr MfmaSelector()
     {
@@ -1194,7 +1212,8 @@ template <typename base_type,
           index_t NPerXdlops,
           index_t KPack,
           typename additional_type = base_type,
-          bool TransposeC          = false>
+          bool TransposeC          = false,
+          bool is_scale_mfma       = false>
 struct XdlopsGemm
 {
     static constexpr auto I0 = Number<0>{};
@@ -1225,7 +1244,7 @@ struct XdlopsGemm
                           MPerXdlops == 64,
                       "Only support GemmMPerXdlops == 4, 8, 16, 32 or 64 for xdlops");
 
-        static_assert(KPack % mfma_instr.k_per_blk == 0, "KPack cannot be divided by k_per_blk");
+        static_assert(KPack % mfma_instr.k_per_blk == 0, "KPack should be a multiple of k_per_blk");
     }
 
     // XDL output supporting C = A * B
@@ -1455,7 +1474,8 @@ struct XdlopsGemm
                             KPack <= 4) ||
                            (is_same<base_type, int8_t>::value && KPack <= 8))
                               ? true
-                              : false > {};
+                              : false,
+                          is_scale_mfma > {};
 
     static constexpr auto mfma_instr = mfma.selected_mfma;
 
