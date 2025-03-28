@@ -853,7 +853,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
 
     static constexpr BTileDesc b_block_desc_n0_n1_k0_k1;
-    
+
     using Base::c_thread_desc_;
 };
 
