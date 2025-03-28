@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1_gather.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r3_scatter.hpp"
 
@@ -38,6 +38,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
+          bool IsInputGemm         = false,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -51,7 +52,7 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, IsInputGemm, TailNum>(
         karg.p_sorted_token_ids,
         karg.p_sorted_expert_ids,
         karg.p_max_token_id,
@@ -73,6 +74,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
+          bool IsInputGemm         = false,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -229,7 +231,6 @@ struct GridwiseMoeGemm
         const index_t mblock = math::integer_divide_ceil(M, MPerBlock);
         const index_t gridx  = NSwizzle ? nblock * mblock : nblock;
         const index_t gridy  = NSwizzle ? 1 : mblock;
-
         return std::make_tuple(gridx, gridy, 1);
     }
 
@@ -308,7 +309,7 @@ struct GridwiseMoeGemm
     }
 
     __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
-        IndexType M, IndexType MPad, IndexType K, IndexType KPad, IndexType StrideA, IndexType AK0)
+        index_t M, index_t MPad, index_t K, index_t KPad, index_t StrideA, index_t AK0)
     {
         const auto a_grid_desc_mraw_kraw = [&]() {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
@@ -912,8 +913,7 @@ struct GridwiseMoeGemm
                                 NPerXdl,
                                 MXdlPerWave,
                                 NXdlPerWave,
-                                KPack,
-                                IsInputGemm>())>;
+                                KPack>())>;
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -1145,6 +1145,7 @@ struct GridwiseMoeGemm
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+              bool IsInputGemm   = true,
               TailNumber TailNum = TailNumber::Odd>
     __device__ static void Run(const index_t* p_sorted_token_ids,
                                const index_t* p_sorted_expert_ids,
@@ -1228,7 +1229,7 @@ struct GridwiseMoeGemm
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
-            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
+            gather_offsets(m0) = token_offset * problem.K;
         });
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
@@ -1242,6 +1243,7 @@ struct GridwiseMoeGemm
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride / BPackedSize,
             b_grid_desc_bpreshuffled.GetElementSpaceSize());
+
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
@@ -1271,7 +1273,6 @@ struct GridwiseMoeGemm
             1,
             AThreadTransferSrcResetCoordinateAfterRun,
             true,
-            IndexType,
             1,
             BlockwiseGemmPipe::GlobalBufferNum>(a_grid_desc_ak0_m_ak1,
                                                 make_multi_index(0, 0, 0),
@@ -1586,8 +1587,17 @@ struct GridwiseMoeGemm
 
             const auto ds_grid_buf = generate_tuple(
                 [&](auto i) {
+                    using DDataType       = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                    const DDataType* ptr_ = p_ds_grid[i];
+                    // hack logic here to support different kind of strides. todo fix it.
+                    // ascale t, 1; bscale E, N, 1, move ptr to E
+                    if(i.value == 1)
+                    {
+                        ptr_ +=
+                            expert_id * (problem.StrideDs[1] ? problem.StrideDs[1] * problem.N : 1);
+                    }
                     return make_dynamic_buffer<AddressSpaceEnum::Global>(
-                        p_ds_grid[i], ds_grid_desc_m_n[i].GetElementSpaceSize());
+                        ptr_, ds_grid_desc_m_n[i].GetElementSpaceSize());
                 },
                 Number<NumDTensor>{});
 
@@ -1752,6 +1762,7 @@ struct GridwiseMoeGemm
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+              bool IsInputGemm   = true,
               TailNumber TailNum = TailNumber::Odd>
     __device__ static void Run_2Lds(const index_t* p_sorted_token_ids,
                                     const index_t* p_sorted_expert_ids,
@@ -1837,7 +1848,7 @@ struct GridwiseMoeGemm
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
-            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
+            gather_offsets(m0) = token_offset * problem.K;
         });
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K);
 
@@ -1880,7 +1891,6 @@ struct GridwiseMoeGemm
             1,
             AThreadTransferSrcResetCoordinateAfterRun,
             true,
-            IndexType,
             1,
             2>(a_grid_desc_ak0_m_ak1,
                make_multi_index(0, 0, 0),

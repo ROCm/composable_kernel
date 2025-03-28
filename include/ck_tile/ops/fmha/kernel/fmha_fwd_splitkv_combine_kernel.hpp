@@ -54,9 +54,9 @@ struct FmhaFwdSplitKVCombineKernel
             "b" + _TS_(FmhaPipeline::kN1) + "_" +
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) +
             _SS_(FmhaPipeline::name) +
-            (pn.empty() ? "" : "_" + pn) +
-            (kStoreLSE ? "_lse" : "" ) +
-            (kDoFp8StaticQuant ? "_squant" : "" );
+            (pn.empty() ? "_npad" : "_" + pn) +
+            (kStoreLSE ? "_lse" : "_nlse" ) +
+            (kDoFp8StaticQuant ? "_squant" : "_nsquant" );
         #undef _SS_
         #undef _TS_
         // clang-format on

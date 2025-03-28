@@ -38,7 +38,6 @@ make_kernel(KernelImpl /*f*/, dim3 grid_dim, dim3 block_dim, std::size_t lds_byt
 
     return [=](const stream_config& s) {
         kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
-        return hipPeekAtLastError() == hipSuccess;
     };
 }
 
@@ -46,7 +45,7 @@ template <typename... Callables>
 CK_TILE_HOST void launch_and_check(const stream_config& sc, Callables&&... callables)
 {
     // abort the sequence in case of intermediate error
-    if(!(callables(sc) && ...))
+    if(!((static_cast<void>(callables(sc)), hipPeekAtLastError() == hipSuccess) && ...))
     {
         HIP_CHECK_ERROR(hipGetLastError());
     }
