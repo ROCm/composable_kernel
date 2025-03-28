@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -59,7 +59,7 @@ struct MulABScaleExpertWeight
     // for real kernel use
     template <>
     __host__ __device__ constexpr void operator()<EDataType, float, float, float, float>(
-        EDataType& e, const EDataType& c, const float& d0, const float& d1, const float& d2) const
+        EDataType& e, const float& c, const float& d0, const float& d1, const float& d2) const
     {
         (void)d0;
         (void)d1;
@@ -151,7 +151,7 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
                S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
                2,    2,   S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, false, ck::index_t, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, 0, false, false, false, ck::index_t, A0DataType>;
 // clang-format on
 
 int main(int argc, char* argv[])
@@ -409,8 +409,7 @@ int main(int argc, char* argv[])
                                b_element_op,
                                cde_element_op);
 
-    if(!device_op.IsSupportedArgument(argument) || ck::get_device_name() != "gfx942" ||
-       ck::get_device_name() != "gfx950")
+    if(!device_op.IsSupportedArgument(argument))
     {
         throw std::runtime_error(
             "wrong! device_gemm with the specified compilation parameters does "
