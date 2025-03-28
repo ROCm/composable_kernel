@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -1233,10 +1233,12 @@ CK_TILE_DEVICE void moe_buf_set_zero_kernel(uint8x16_t* buf, long_index_t buf_by
 // prefer to run mp kernel if is not oneshot
 CK_TILE_HOST bool moe_sorting_is_oneshot(int tokens_, int num_experts_)
 {
+#if CK_TILE_WA_ISSUE_2028
     if(tokens_ >= 65536 * 2)
     {
-        return 0;
+        return true;
     }
+#endif
     auto sub_token_          = moe_sorting_get_sub_token(tokens_, num_experts_);
     bool is_sub_token_onshot = tokens_ <= sub_token_;
     return is_sub_token_onshot;

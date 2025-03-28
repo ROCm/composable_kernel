@@ -159,7 +159,7 @@ int main(int argc, char* argv[])
     ck::index_t valid_tile_num  = 13;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
-    ck::index_t tokens          = 64;
+    ck::index_t tokens          = 644;
     ck::index_t topk            = 2;
 
     if(argc == 1)
