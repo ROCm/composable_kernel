@@ -453,11 +453,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                       begin(output_spatial_lengths_));
 
             std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_strides_transposed =
-                conv_ngchw_to_nhwgc_transformer.TransposeStrides(b_g_n_c_wis_lengths,
-                                                                 b_g_n_c_wis_strides);
+                conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(b_g_n_c_wis_lengths,
+                                                                      b_g_n_c_wis_strides);
             std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_transposed =
-                conv_ngchw_to_nhwgc_transformer.TransposeStrides(a_g_n_k_wos_lengths,
-                                                                 a_g_n_k_wos_strides);
+                conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(a_g_n_k_wos_lengths,
+                                                                      a_g_n_k_wos_strides);
 
             const auto descs =
                 conv_to_gemm_transformer
@@ -641,11 +641,14 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
                 // Different data type for A and B is not supported
                 auto kernel_transpose = kernel_elementwise_dual<GridwiseElementwiseTranspose,
+                                                                GridwiseElementwiseTranspose,
                                                                 ck::Tuple<NGCHWTransposeDescType>,
                                                                 ck::Tuple<NGCHWTransposeDescType>,
                                                                 ck::Tuple<NHWGCTransposeDescType>,
                                                                 ck::Tuple<NHWGCTransposeDescType>,
                                                                 ck::Tuple<const ADataType*>,
+                                                                ck::Tuple<const ADataType*>,
+                                                                ck::Tuple<ADataType*>,
                                                                 ck::Tuple<ADataType*>,
                                                                 Block2TileMapElementwise,
                                                                 Block2TileMapElementwise,
@@ -831,6 +834,25 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
             }
 
             if(output_spatial_acum % TransposeTransferSrcScalarPerVectorAligned != 0)
+            {
+                return false;
+            }
+
+            if(!arg.p_workspace_)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Warning: Workspace for "
+                                 "DeviceGroupedConvBwdWeight_Xdl_CShuffle::Argument is not "
+                                 "allocated, use SetWorkSpacePointer."
+                              << std::endl;
+                }
+                return false;
+            }
+
+            constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+            if(!(arg.a_out_transpose_desc_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+                 arg.b_out_transpose_desc_.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB))
             {
                 return false;
             }

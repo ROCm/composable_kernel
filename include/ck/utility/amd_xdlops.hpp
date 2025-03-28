@@ -2,10 +2,11 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+#include "ck/utility/dtype_fp64.hpp"
 
 namespace ck {
 // Define the common macro for MI300 models
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
 

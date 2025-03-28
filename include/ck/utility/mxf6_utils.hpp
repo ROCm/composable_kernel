@@ -4,7 +4,7 @@
 #ifndef CK_CODE_GEN_RTC
 #pragma once
 
-#include "ck/utility/data_type.hpp"
+#include "ck/utility/numeric_limits.hpp"
 #include "ck/utility/mxfp_utils.hpp"
 
 namespace ck::utils {

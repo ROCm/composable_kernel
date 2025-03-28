@@ -21,8 +21,7 @@
 #define CK_USE_OCP_FP8 0
 #endif
 
-#if(defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx1200__) || \
-    defined(__gfx1201__) || defined(__gfx950__)) &&                                              \
+#if(defined(__gfx942__) || defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx950__)) && \
     __HIP_DEVICE_COMPILE__
 #define CK_FP8_CVT_FAST_PATH 1
 #else
@@ -247,7 +246,7 @@ __host__ __device__ static inline T cast_from_f8(fp8_storage_t x)
 
 #if CK_FP8_CVT_FAST_PATH
 template <ck_fp8_interpretation_t interpret>
-static __device__ float cast_to_f32_from_f8(fp8_storage_t v)
+static __host__ __device__ float cast_to_f32_from_f8(fp8_storage_t v)
 {
     union
     {

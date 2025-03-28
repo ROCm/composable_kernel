@@ -55,11 +55,10 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #endif
 
 // define general macros for various architectures
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
-    defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
 #define __gfx9__
 #endif
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
 #if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__)
@@ -245,6 +244,9 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
+
+// workaround: compiler issue on gfx950
+#define CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION 1
 
 // workaround: compiler issue on gfx950
 #define CK_WORKAROUND_FP16_TO_FP8_CONVERSION 1
