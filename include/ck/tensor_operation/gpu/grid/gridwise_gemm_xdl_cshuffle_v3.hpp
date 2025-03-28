@@ -89,11 +89,12 @@ __global__ void
 ///         C{M,N} = C_op(A_op(A{M,K}) * B_op(B{K,N}))
 ///         Where A, B are input tensors and C is the output tensor. The A/B/C_op are
 ///         elementwise operations that could be applied on each tensor respectively.
-///         This operation is called \"universal\" since it provides multiple blockwise GEMM
-///         pipelines optimized for memory-bound, latency and compute-bound cases.
+///         The \"universal\" gemm comes with multiple pipelines optimized for different usage
+///         scenarios. That's why it's called \"universal\". It's universal through it's design
+///         and versatilty.
 ///
 /// @note   This Kernel implementation supports SplitK algorithm. It can be configured
-///         to split the work of K dimension dot product accumulation into multiple workgroups.
+///         to split the dot product accumulated over the K dimension into multiple working groups.
 ///         The partial products of different workgroups are then reduced using the AtomicAdd
 ///         operation.
 ///
