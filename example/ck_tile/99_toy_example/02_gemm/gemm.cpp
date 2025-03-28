@@ -42,9 +42,9 @@ int main(int argc, char* argv[])
     if(argc == 5)
     {
         verification = std::stoi(argv[1]);
-        M            = std::stoi(argv[1]);
-        N            = std::stoi(argv[2]);
-        K            = std::stoi(argv[3]);
+        M            = std::stoi(argv[2]);
+        N            = std::stoi(argv[3]);
+        K            = std::stoi(argv[4]);
     }
 
     const ck_tile::index_t Lda = K;
@@ -114,7 +114,7 @@ int main(int argc, char* argv[])
                                   kGemmKPerBlock>;
 
     float ave_time =
-        ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true},
+        ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},
                                ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
                                     gemm_kernel{},
                                     kGridSize,
