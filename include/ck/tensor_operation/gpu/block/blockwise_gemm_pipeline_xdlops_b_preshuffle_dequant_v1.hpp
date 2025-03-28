@@ -141,7 +141,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
-    using Base::c_thread_desc_;
 
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
@@ -525,6 +524,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
         make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
 
     static constexpr BTileDesc b_block_desc_n0_n1_k0_k1;
+
+    using Base::c_thread_desc_;
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
