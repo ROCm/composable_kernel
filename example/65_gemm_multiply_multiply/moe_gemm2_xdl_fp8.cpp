@@ -255,7 +255,7 @@ int main(int argc, char* argv[])
     // max_token_id.mData[0] = valid_size;
     max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
     int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
-    //max_token_id.mData = {valid_size, 0, 1, 2, 3, 4, 5, 6, 7, 8};
+    // max_token_id.mData = {valid_size, 0, 1, 2, 3, 4, 5, 6, 7, 8};
     // int eids[]         = {0, 1, 2, 3, 4, 5, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     for(int i = 0; i < sorted_tile_num; i++)
     {
@@ -419,20 +419,19 @@ int main(int argc, char* argv[])
 
         Tensor<float> c_t_n({tokens, N});
 
-        using ReferenceGemmInstance =
-            ck::tensor_operation::host::ReferenceMoeGemm2<A0DataType,
-                                                          B0DataType,
-                                                          D0DataType,
-                                                          D1DataType,
-                                                          D2DataType,
-                                                          float,
-                                                          AccDataType,
-                                                          PassThrough,
-                                                          PassThrough,
-                                                          CDEElementOp>;
-        auto ref_moe_gemm = ReferenceGemmInstance{};
-        auto ref_invoker  = ref_moe_gemm.MakeInvoker();
-        auto ref_argument = ref_moe_gemm.MakeArgument(sorted_token_ids,
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMoeGemm2<A0DataType,
+                                                                                    B0DataType,
+                                                                                    D0DataType,
+                                                                                    D1DataType,
+                                                                                    D2DataType,
+                                                                                    float,
+                                                                                    AccDataType,
+                                                                                    PassThrough,
+                                                                                    PassThrough,
+                                                                                    CDEElementOp>;
+        auto ref_moe_gemm           = ReferenceGemmInstance{};
+        auto ref_invoker            = ref_moe_gemm.MakeInvoker();
+        auto ref_argument           = ref_moe_gemm.MakeArgument(sorted_token_ids,
                                                       expert_ids,
                                                       max_token_id,
                                                       MPerBlock,
