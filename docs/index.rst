@@ -8,7 +8,7 @@
 Composable Kernel User Guide
 ********************************************************************
 
-The Composable Kernel library provides a programming model for writing performance critical kernels for machine learning workloads across multiple architectures including GPUs and CPUs, through general purpose kernel languages such as `HIP C++ <https://rocm.docs.amd.com/projects/HIP/en/latest/index.html>`_. 
+The Composable Kernel library provides a programming model for writing performance critical kernels for machine learning workloads across multiple architectures including GPUs and CPUs, through general purpose kernel languages such as `HIP C++ <https://rocm.docs.amd.com/projects/HIP/en/latest/index.html>`_.
 
 The Composable Kernel repository is located at `https://github.com/ROCm/composable-kernel <https://github.com/ROCm/composable-kernel>`_.
 
@@ -32,9 +32,11 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
 
   .. grid-item-card:: Reference
 
+    * :doc:`Composable Kernel supported scalar types <./reference/Composable_Kernel_supported_scalar_types>`
+    * :doc:`Composable Kernel custom types <./reference/Composable_Kernel_custom_types>`
+    * :doc:`Composable Kernel vector utilities <./reference/Composable_Kernel_vector_utilities>`
     * :ref:`api-reference`
     * :ref:`wrapper`
-
 
 To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
 

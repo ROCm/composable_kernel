@@ -11,7 +11,7 @@ subtrees:
     title: Build and install Composable Kernel
   - file: install/Composable-Kernel-Docker.rst
     title: Composable Kernel Docker images
-    
+
 - caption: Conceptual
   entries:
   - file: conceptual/Composable-Kernel-structure.rst
@@ -26,6 +26,12 @@ subtrees:
 
 - caption: Reference
   entries:
+  - file: reference/Composable_Kernel_supported_scalar_types.rst
+    title: Composable Kernel scalar types
+  - file: reference/Composable_Kernel_custom_types.rst
+    title: Composable Kernel custom types
+  - file: reference/Composable_Kernel_vector_utilities.rst
+    title: Composable Kernel vector utilities
   - file: reference/Composable-Kernel-API-reference.rst
     title: Composable Kernel API reference
   - file: reference/Composable-Kernel-wrapper.rst
@@ -37,4 +43,3 @@ subtrees:
     title: Contributing to Composable Kernel
   - file: license.rst
     title: License
-    
