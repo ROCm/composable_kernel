@@ -1532,7 +1532,7 @@ __host__ static inline fp8_storage_t cvt_half_t_to_fp8(const _Float16 x)
             rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #endif
         }
-#if CK_OCP_FP8_CVT_FAST_PATH
+#if defined(__gfx950__)
         return cast_to_f8_from_f16<interp,
                                    sat == ck_saturation_t::CK_SATFINITE,
                                    stochastic_rounding>(x, rng);
@@ -1540,7 +1540,7 @@ __host__ static inline fp8_storage_t cvt_half_t_to_fp8(const _Float16 x)
         std::ignore = rng;
         return cvt_float_to_fp8<interp, ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
             static_cast<float>(x));
-#endif // CK_OCP_FP8_CVT_FAST_PATH
+#endif // defined(__gfx950__)
     }
 }
 
@@ -1574,7 +1574,7 @@ __host__ static inline fp8x2_storage_t cvt_half_t_to_fp8(const half2_t x)
             rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
 #endif
         }
-#if CK_OCP_FP8_CVT_FAST_PATH
+#if defined(__gfx950__)
         return cast_to_f8_from_f16<interp,
                                    sat == ck_saturation_t::CK_SATFINITE,
                                    stochastic_rounding>(x, rng);
@@ -1582,7 +1582,7 @@ __host__ static inline fp8x2_storage_t cvt_half_t_to_fp8(const half2_t x)
         std::ignore = rng;
         return cvt_float_to_fp8<interp, ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
             float2_t{static_cast<float>(x[0]), static_cast<float>(x[1])});
-#endif // CK_OCP_FP8_CVT_FAST_PATH
+#endif // defined(__gfx950__)
     }
 }
 
@@ -1617,7 +1617,7 @@ __host__ static inline fp8_storage_t cvt_bhalf_t_to_fp8(const ushort x)
             rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), static_cast<float>(x));
 #endif
         }
-#if CK_OCP_FP8_CVT_FAST_PATH
+#if defined(__gfx950__)
         return cast_to_f8_from_bf16<interp,
                                     sat == ck_saturation_t::CK_SATFINITE,
                                     stochastic_rounding>(x, rng);
@@ -1625,7 +1625,7 @@ __host__ static inline fp8_storage_t cvt_bhalf_t_to_fp8(const ushort x)
         std::ignore = rng;
         return cvt_float_to_fp8<interp, ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
             bit_cast<float>(uint32_t{x} << 16)); // convert value to float
-#endif // CK_OCP_FP8_CVT_FAST_PATH
+#endif // defined(__gfx950__)
     }
 }
 
@@ -1666,7 +1666,7 @@ __host__ static inline fp8x2_storage_t cvt_bhalf_t_to_fp8(const ushortx2_t x)
                                                static_cast<float>(x[0]));
 #endif
         }
-#if CK_OCP_FP8_CVT_FAST_PATH
+#if defined(__gfx950__)
         return cast_to_f8_from_bf16<interp,
                                     sat == ck_saturation_t::CK_SATFINITE,
                                     stochastic_rounding>(x, rng);
@@ -1675,7 +1675,7 @@ __host__ static inline fp8x2_storage_t cvt_bhalf_t_to_fp8(const ushortx2_t x)
         return cvt_float_to_fp8<interp, ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
             float2_t{bit_cast<float>(uint32_t{x[0]} << 16),
                      bit_cast<float>(uint32_t{x[1]} << 16)}); // convert values to float
-#endif // CK_OCP_FP8_CVT_FAST_PATH
+#endif // defined(__gfx950__)
     }
 #endif // CK_WORKAROUND_BF16_TO_FP8_CONVERSION
 }
