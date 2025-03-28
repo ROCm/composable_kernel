@@ -88,8 +88,8 @@ struct Gemm
 #if 1
 #pragma message ("Cache-aware work group sch")
             return [=](index_t block_1d_id) {
-                const auto M01 = 4;
-                const auto GroupNum = 8;
+                constexpr index_t M01 = 4;
+                constexpr index_t GroupNum = 8;
 
                 const auto update_N0 = ((((N0 / 2) * 2) / 2) / M01) * M01 * 2;
                 const auto update_M0 = ((M0 / (GroupNum / 2)) * (GroupNum / 2)) / GroupNum / M01 * M01 * GroupNum;
