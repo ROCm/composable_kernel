@@ -73,12 +73,12 @@ void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_int8_mem_inter_instance
                                                                 PassThrough>>>& instances);
 #endif
 
-// grouped conv2d forward, NGCHW/GKYXC/NGKHW
+// grouped conv2d forward, NGCHW/GKCYX/NGKHW
 #ifdef CK_ENABLE_FP16
-void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_mem_inter_instances(
+void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_mem_inter_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NGCHW,
-                                                                GKYXC,
+                                                                GKCYX,
                                                                 Empty_Tuple,
                                                                 NGKHW,
                                                                 F16,
@@ -91,10 +91,10 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_mem_inter_instances
 #endif
 
 #ifdef CK_ENABLE_BF16
-void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_bf16_mem_inter_instances(
+void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_mem_inter_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NGCHW,
-                                                                GKYXC,
+                                                                GKCYX,
                                                                 Empty_Tuple,
                                                                 NGKHW,
                                                                 BF16,
@@ -107,32 +107,16 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_bf16_mem_inter_instance
 #endif
 
 #ifdef CK_ENABLE_FP32
-void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_mem_inter_instances(
+void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_mem_inter_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NGCHW,
-                                                                GKYXC,
+                                                                GKCYX,
                                                                 Empty_Tuple,
                                                                 NGKHW,
                                                                 F32,
                                                                 F32,
                                                                 Empty_Tuple,
                                                                 F32,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                PassThrough>>>& instances);
-#endif
-
-#ifdef CK_ENABLE_INT8
-void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_mem_inter_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-                                                                NGCHW,
-                                                                GKYXC,
-                                                                Empty_Tuple,
-                                                                NGKHW,
-                                                                int8_t,
-                                                                int8_t,
-                                                                Empty_Tuple,
-                                                                int8_t,
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);

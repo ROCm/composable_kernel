@@ -21,6 +21,7 @@ struct RmsnormTypeConfig<ck_tile::half_t, OutType, SmoothScaleDataType_, YScaleD
     using YDataType           = OutType;
     using GammaDataType       = ck_tile::half_t;
     using InvRmsDataType      = ck_tile::half_t;
+    using UnquantYDataType    = ck_tile::half_t;
     using ComputeDataType     = float;
     using SmoothScaleDataType = SmoothScaleDataType_;
     using YScaleDataType      = YScaleDataType_;
@@ -33,6 +34,7 @@ struct RmsnormTypeConfig<ck_tile::bf16_t, OutType, SmoothScaleDataType_, YScaleD
     using YDataType           = OutType;
     using GammaDataType       = ck_tile::bf16_t;
     using InvRmsDataType      = ck_tile::bf16_t;
+    using UnquantYDataType    = ck_tile::bf16_t;
     using ComputeDataType     = float;
     using SmoothScaleDataType = SmoothScaleDataType_;
     using YScaleDataType      = YScaleDataType_;
@@ -59,6 +61,7 @@ struct rmsnorm2d_fwd_traits
     std::string prec_sy; // y-scale, used for [M*1] output for next layer
 
     bool save_rms;
+    bool save_unquant;
     int fused_add;   // 0:no-add, 1:pre-add-store, 2:pre-add
     int fused_quant; // 0:no-sweep, 1:smooth-dynamic-quant, 2:dynamic-quant
 };

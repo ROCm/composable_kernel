@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_CODE_GEN_RTC
 #pragma once
@@ -14,7 +14,7 @@ __host__ __device__ inline bool is_nan<f4_t>(e8m0_bexp_t const scale,
                                              f4_t const dataBytes [[maybe_unused]])
 {
     // no need to check for data as it does not have NaN representation
-    return scale == NumericLimits<e8m0_bexp_t>::QuietNaN();
+    return scale.is_nan();
 }
 
 // no infinity representation in ocp_e2m1_mxfp4 will always return false
@@ -27,11 +27,9 @@ __host__ __device__ inline bool is_inf<f4_t>(e8m0_bexp_t const scale [[maybe_unu
 }
 
 template <>
-__host__ __device__ inline bool is_zero<f4_t>(e8m0_bexp_t const scale, f4_t const data)
+__host__ __device__ inline bool is_zero<f4_t>(e8m0_bexp_t const scale [[maybe_unused]],
+                                              f4_t const data)
 {
-    if(is_nan<f4_t>(scale, data))
-        return false;
-
     // no need to check for scale as it does not have a 0 representation
     f4_t result = (data & 0b00001111) & NumericUtils<f4_t>::set_sign_mask;
 
