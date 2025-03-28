@@ -304,7 +304,7 @@ test_fp32_bf8_type_convert(uint64_t N, float* p_test, uint64_t* p_completed)
     }
 
     /// Test vector conversion
-    // bf8x2 -> f32x2
+    // bf8x2 -> fp32x2
     bf8x2_ocp_t bf8x2{bf8x2_ocp_t::data_v{0b10000100, 0b00000001}}; //-2^-14, 2^-16
 
     float2_t f32x2 = type_convert<float2_t>(bf8x2);
@@ -319,7 +319,7 @@ test_fp32_bf8_type_convert(uint64_t N, float* p_test, uint64_t* p_completed)
         return;
     }
 
-    // f32x2 -> bf8x2
+    // fp32x2 -> bf8x2
     f32x2 = {-4.0f, 2.0f};
     bf8x2 = f8_convert_rne<bf8x2_ocp_t>(f32x2); // expect {-4, 2}
 
@@ -384,11 +384,11 @@ TEST(BF8OCP, HostFP32BF8Convert)
 
     auto i = 256;
 
-    // bf8x2 -> f32x2
+    // bf8x2 -> fp32x2
     EXPECT_EQ(out[i++], -powf(2.0f, -14.0f));
     EXPECT_EQ(out[i++], powf(2.0f, -16.0f));
 
-    // f32x2 -> bf8x2
+    // fp32x2 -> bf8x2
     // RNE
     EXPECT_EQ(out[i++], -4.0f);
     EXPECT_EQ(out[i++], 2.0f);
@@ -453,11 +453,11 @@ TEST(BF8OCP, DeviceFP32BF8Convert)
 
     auto i = 256;
 
-    // bf8x2 -> f32x2
+    // bf8x2 -> fp32x2
     EXPECT_EQ(out[i++], -powf(2.0f, -14.0f));
     EXPECT_EQ(out[i++], powf(2.0f, -16.0f));
 
-    // f32x2 -> bf8x2
+    // fp32x2 -> bf8x2
     // RNE
     EXPECT_EQ(out[i++], -4.0f);
     EXPECT_EQ(out[i++], 2.0f);
@@ -498,7 +498,7 @@ test_fp16_bf8_type_convert(uint64_t N, half_t* p_test, uint64_t* p_completed)
     }
 
     /// Test vector conversion
-    // bf8x2 -> f16x2
+    // bf8x2 -> fp16x2
     bf8x2_ocp_t bf8x2{bf8x2_ocp_t::data_v{0b10000100, 0b00000001}}; //-2^-14, 2^-16
 
     half2_t f16x2 = type_convert<half2_t>(bf8x2);
@@ -513,7 +513,7 @@ test_fp16_bf8_type_convert(uint64_t N, half_t* p_test, uint64_t* p_completed)
         return;
     }
 
-    // f16x2 -> bf8x2
+    // fp16x2 -> bf8x2
     f16x2 = {-4.0f, 2.0f};
     bf8x2 = f8_convert_rne<bf8x2_ocp_t>(f16x2); // expect {-4, 2}
 
@@ -578,11 +578,11 @@ TEST(BF8OCP, HostFP16BF8Convert)
 
     auto i = 256;
 
-    // bf8x2 -> f16x2
+    // bf8x2 -> fp16x2
     EXPECT_EQ(out[i++], type_convert<half_t>(-powf(2.0f, -14.0f)));
     EXPECT_EQ(out[i++], type_convert<half_t>(powf(2.0f, -16.0f)));
 
-    // f16x2 -> bf8x2
+    // fp16x2 -> bf8x2
     // RNE
     EXPECT_EQ(out[i++], type_convert<half_t>(-4.0f));
     EXPECT_EQ(out[i++], type_convert<half_t>(2.0f));
@@ -648,11 +648,11 @@ TEST(BF8OCP, DeviceFP16BF8Convert)
 
     auto i = 256;
 
-    // bf8x2 -> f16x2
+    // bf8x2 -> fp16x2
     EXPECT_EQ(out[i++], type_convert<half_t>(-powf(2.0f, -14.0f)));
     EXPECT_EQ(out[i++], type_convert<half_t>(powf(2.0f, -16.0f)));
 
-    // f16x2 -> bf8x2
+    // fp16x2 -> bf8x2
     // RNE
     EXPECT_EQ(out[i++], type_convert<half_t>(-4.0f));
     EXPECT_EQ(out[i++], type_convert<half_t>(2.0f));

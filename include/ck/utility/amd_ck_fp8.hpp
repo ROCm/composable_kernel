@@ -1375,6 +1375,7 @@ __host__ __device__ static inline fp8_storage_t cast_to_f8(T _x, unsigned int rn
  *
  * \tparam interp interpretation of fp8
  * \tparam sat saturation of fp8
+ * \tparam stochastic_rounding switch between RNE and SR
  * \param f float number
  * \return fp8_storage_t
  */
@@ -1460,6 +1461,15 @@ __host__ static inline fp8_storage_t cvt_float_to_fp8(const float f)
 #endif // CK_FP8_CVT_FAST_PATH
 }
 
+/**
+ * \brief convert vector of 2 floats to vector of 2 @p fp8_storage_t
+ *
+ * \tparam interp interpretation of fp8
+ * \tparam sat saturation of fp8
+ * \tparam stochastic_rounding switch between RNE and SR
+ * \param f vector of 2 floats
+ * \return fp8x2_storage_t
+ */
 template <ck_fp8_interpretation_t interp,
           ck_saturation_t sat      = ck_saturation_t::CK_SATFINITE,
           bool stochastic_rounding = false>
@@ -1534,6 +1544,15 @@ __host__ static inline fp8_storage_t cvt_half_t_to_fp8(const _Float16 x)
     }
 }
 
+/**
+ * \brief convert vector of 2 _Float16 to vector of 2 @p fp8_storage_t
+ *
+ * \tparam sat saturation of fp8
+ * \tparam interp interpretation of fp8
+ * \tparam stochastic_rounding switch between RNE and SR
+ * \param x vector of 2 _Float16
+ * \return fp8x2_storage_t
+ */
 template <ck_fp8_interpretation_t interp,
           ck_saturation_t sat      = ck_saturation_t::CK_SATFINITE,
           bool stochastic_rounding = false>
@@ -1610,6 +1629,15 @@ __host__ static inline fp8_storage_t cvt_bhalf_t_to_fp8(const ushort x)
     }
 }
 
+/**
+ * \brief convert vector of 2 bhalf_t to vector of 2 @p fp8_storage_t
+ *
+ * \tparam sat saturation of fp8
+ * \tparam interp interpretation of fp8
+ * \tparam stochastic_rounding switch between RNE and SR
+ * \param x vector of 2 bhalf_t
+ * \return fp8x2_storage_t
+ */
 template <ck_fp8_interpretation_t interp,
           ck_saturation_t sat      = ck_saturation_t::CK_SATFINITE,
           bool stochastic_rounding = false>
