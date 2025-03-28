@@ -27,8 +27,8 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
     constexpr ck_tile::index_t N_Tile = 128;
     constexpr ck_tile::index_t K_Tile = 64;
 
-    constexpr ck_tile::index_t M_Warp = 2;
-    constexpr ck_tile::index_t N_Warp = 2;
+    constexpr ck_tile::index_t M_Warp = 1;
+    constexpr ck_tile::index_t N_Warp = 4;
     constexpr ck_tile::index_t K_Warp = 1;
 
     constexpr ck_tile::index_t M_Warp_Tile = 32;

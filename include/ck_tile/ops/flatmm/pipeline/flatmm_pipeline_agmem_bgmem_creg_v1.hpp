@@ -171,12 +171,13 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             });
         });
 
-        move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
-
 
         {
             // move to 1
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
+
+            // move to next flat K
+            move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -194,6 +195,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             {
                 store_tile(a_copy_lds_window, tile_elementwise_in(a_element_func, a_block_tile));
             }
+            block_sync_lds();
         }
 
         index_t iCounter = num_loop/2 - 1;
@@ -202,6 +204,12 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             // global read i + 1
             a_block_tile = load_tile(a_copy_dram_window);
         
+            // GEMM i
+            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor);
+
+            block_sync_lds();
+
+            // move to next flat K
             static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                 static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                     b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
@@ -213,28 +221,27 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                 });
             });
 
-            block_sync_lds();
-
-            // GEMM i
-            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor);
-
-            block_sync_lds();
-
             // move to i + 2
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
+
+            // move to next flat K
+            move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
             // LDS write i + 1
             auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window, a_block_tile_tmp);
-
-            // move to next flat K
-            move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
+            block_sync_lds();
 
             //iCounter--;
 
             // global read i + 1
             a_block_tile = load_tile(a_copy_dram_window);
+            
+            // GEMM i
+            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor_2);
 
+            block_sync_lds();
+            
             static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                 static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                     b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
@@ -245,23 +252,17 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                     b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
-            
-            block_sync_lds();
-            
-            // GEMM i
-            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor_2);
-
-            block_sync_lds();
 
             // move to i + 2
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
+            // move to next flat K
+            move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
+
             // LDS write i + 1
             a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window, a_block_tile_tmp);
-
-            // move to next flat K
-            move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
+            block_sync_lds();
 
             iCounter--;
         }
@@ -271,6 +272,11 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             // global read i + 1
             a_block_tile = load_tile(a_copy_dram_window);
         
+            // GEMM i
+            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor);
+
+            block_sync_lds();
+
             static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                 static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                     b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
@@ -281,13 +287,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                     b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
-
-            block_sync_lds();
-
-            // GEMM i
-            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor);
-
-            block_sync_lds();
 
             // move to i + 2
             // move_tile_window(a_copy_dram_window, {0, kKPerBlock});
