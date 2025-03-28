@@ -903,7 +903,7 @@ inline __host__ __device__ float2_t type_convert<float2_t, f8x2_ocp_t>(f8x2_ocp_
 template <>
 inline __host__ __device__ half_t type_convert<half_t, f8_ocp_t>(f8_ocp_t x)
 {
-#if CK_OCP_FP8_CVT_FAST_PATH
+#if defined(__gfx950__)
     union
     {
         uint16_t i16val;
@@ -950,7 +950,7 @@ inline __host__ __device__ half2_t type_convert<half2_t, f8x2_ocp_t>(f8x2_ocp_t 
 template <>
 inline __host__ __device__ bhalf_t type_convert<bhalf_t, f8_ocp_t>(f8_ocp_t x)
 {
-#if CK_OCP_FP8_CVT_FAST_PATH
+#if defined(__gfx950__)
     union
     {
         uint16_t i16val;
@@ -1039,7 +1039,7 @@ inline __host__ __device__ float2_t type_convert<float2_t, bf8x2_ocp_t>(bf8x2_oc
 template <>
 inline __host__ __device__ half_t type_convert<half_t, bf8_ocp_t>(bf8_ocp_t x)
 {
-#if CK_OCP_FP8_CVT_FAST_PATH
+#if defined(__gfx950__)
     union
     {
         uint16_t i16val;
@@ -1078,7 +1078,7 @@ inline __host__ __device__ half2_t type_convert<half2_t, bf8x2_ocp_t>(bf8x2_ocp_
 template <>
 inline __host__ __device__ bhalf_t type_convert<bhalf_t, bf8_ocp_t>(bf8_ocp_t x)
 {
-#if CK_OCP_FP8_CVT_FAST_PATH
+#if defined(__gfx950__)
     union
     {
         uint16_t i16val;
