@@ -263,28 +263,32 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 num_mfma_stage1 / (num_buffer_load_inst_a + num_buffer_load_inst_b);
             constexpr auto num_dswrite_per_issue_a = num_ds_write_inst_a / num_buffer_load_inst_a;
             constexpr auto num_dswrite_per_issue_b = num_ds_write_inst_b / num_buffer_load_inst_b;
+            constexpr auto num_mfma_per_dswrite_a =
+                (num_mfma_per_issue - num_dswrite_per_issue_a * 2 >= 1) ? 2 : 1;
+            constexpr auto num_mfma_per_dswrite_b =
+                (num_mfma_per_issue - num_dswrite_per_issue_b * 2 >= 1) ? 2 : 1;
 
             static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
                 ignore = i;
                 static_for<0, num_dswrite_per_issue_a, 1>{}([&](auto idswrite) {
                     ignore = idswrite;
                     __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                    __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_dswrite_a, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
                 __builtin_amdgcn_sched_group_barrier(
-                    0x008, num_mfma_per_issue - num_dswrite_per_issue_a, 0); // MFMA
+                    0x008, num_mfma_per_issue - num_mfma_per_dswrite_a * num_dswrite_per_issue_a, 0); // MFMA
             });
             static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
                 ignore = i;
                 static_for<0, num_dswrite_per_issue_b, 1>{}([&](auto idswrite) {
                     ignore = idswrite;
                     __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                    __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_dswrite_b, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
                 __builtin_amdgcn_sched_group_barrier(
-                    0x008, num_mfma_per_issue - num_dswrite_per_issue_b, 0); // MFMA
+                    0x008, num_mfma_per_issue - num_mfma_per_dswrite_b * num_dswrite_per_issue_b, 0); // MFMA
             });
 
             // stage 2
