@@ -74,7 +74,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     int topk                = args.get_int("k");
     int seed                = args.get_int("seed");
     int unit_size           = args.get_int("unit");
-    int moe_buf_size        = args.get_int("moe_buf_size");
+    int64_t moe_buf_size    = static_cast<int64_t>(args.get_uint64("moe_buf_size"));
     int kname               = args.get_int("kname");
     int warmup              = args.get_int("warmup");
     int repeat              = args.get_int("repeat");
@@ -175,7 +175,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                           unit_size,
                           num_experts,
                           topk,
-                          static_cast<ck_tile::index_t>(moe_buf_size * sizeof(float))};
+                          static_cast<ck_tile::long_index_t>(moe_buf_size * sizeof(float))};
 
     ck_tile::stream_config sc{nullptr,
                               true,
