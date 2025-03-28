@@ -3,34 +3,38 @@ defaults:
 root: index
 subtrees:
 
-- caption: Conceptual
-  entries:
-  - file: conceptual/what-is-ck.rst
-    title: What is Composable Kernel?
-
 - caption: Install
   entries:
-  - file: install/dockerhub.rst
-    title: Docker Hub
-
-- caption: CK API Reference
+  - file: install/Composable-Kernel-prerequisites.rst
+    title: Composable Kernel prerequisites
+  - file: install/Composable-Kernel-install.rst
+    title: Build and install Composable Kernel
+  - file: install/Composable-Kernel-Docker.rst
+    title: Composable Kernel Docker images
+    
+- caption: Conceptual
   entries:
-  - file: reference/Supported_Primitives_Guide.rst
-    title: Supported Primitives
-  - file: reference/API_Reference_Guide.rst
-    title: API Reference
-  - file: reference/wrapper.rst
-    title: Wrapper
+  - file: conceptual/Composable-Kernel-structure.rst
+    title: Composable Kernel structure
+  - file: conceptual/Composable-Kernel-math.rst
+    title: Composable Kernel mathematical basis
 
 - caption: Tutorial
   entries:
-  - file: tutorial/tutorial_hello_world.rst
-    title: Hello World Tutorial
+  - file: tutorial/Composable-Kernel-examples.rst
+    title: Composable Kernel examples
+
+- caption: Reference
+  entries:
+  - file: reference/Composable-Kernel-API-reference.rst
+    title: Composable Kernel API reference
+  - file: reference/Composable-Kernel-wrapper.rst
+    title: Composable Kernel Wrapper
 
 - caption: About
   entries:
   - file: Contributors_Guide.rst
-    title: Contributing to CK
+    title: Contributing to Composable Kernel
   - file: license.rst
     title: License
     
