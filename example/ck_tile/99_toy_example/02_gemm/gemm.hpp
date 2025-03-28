@@ -88,31 +88,52 @@ struct Gemm
 #if 1
 #pragma message ("Cache-aware work group sch")
             return [=](index_t block_1d_id) {
-                constexpr index_t M01 = 2;
-                constexpr index_t GroupNum = 4;
+                const auto M01 = 4;
+                const auto GroupNum = 8;
 
-                const auto group_size = integer_divide_ceil(M0 * N0, GroupNum);
-                const auto big_group_num = GroupNum - (group_size * GroupNum - M0 * N0);
+                const auto update_N0 = ((((N0 / 2) * 2) / 2) / M01) * M01 * 2;
+                const auto update_M0 = ((M0 / (GroupNum / 2)) * (GroupNum / 2)) / GroupNum / M01 * M01 * GroupNum;
 
-                const auto group_id_x = block_1d_id % GroupNum;
+                const auto xcd_id = block_1d_id % GroupNum;
 
-                const auto remap_block_1d_id = (group_id_x <= big_group_num)
-                    ? (group_id_x * group_size + block_1d_id / GroupNum)
-                    : (group_id_x * group_size + big_group_num - group_id_x);
+                const auto l_block_id = block_1d_id - (xcd_id % 2);
 
-                const index_t idx_M0 = remap_block_1d_id / N0;
-                const index_t idx_N0 = remap_block_1d_id % N0;
+                const auto ridn = GroupNum * M01 * (update_N0 / 2);
+                const auto rid = (l_block_id - (l_block_id % GroupNum)) / ridn;
+                const auto lu = (l_block_id % GroupNum) + rid * ridn;
 
-                const index_t M0_mod_M01 = M0 % M01;
+                const auto sub_N0_id  = (l_block_id - lu) / (GroupNum * M01);
+                const auto sub_M0_id = (l_block_id - (sub_N0_id * (GroupNum * M01)+ lu ) ) / GroupNum;
 
-                const auto M01_adapt = (idx_M0 < M0 - M0_mod_M01) ? M01 : M0_mod_M01;
+                auto n = sub_N0_id + (xcd_id % 2) * (update_N0 / 2);
+                auto m = rid * M01 + sub_M0_id + (update_M0 / (GroupNum / 2)) * (xcd_id / 2);
 
-                const index_t idx_M00 = idx_M0 / M01;
-                const index_t idx_M01 = idx_M0 % M01;
-                const index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
+                const auto total_update_size = update_N0 * update_M0;
 
-                return make_multi_index(idx_N0_M01_local % M01_adapt + idx_M00 * M01, idx_N0_M01_local / M01_adapt);
-            };
+                if (block_1d_id >= total_update_size) {
+                    auto x = (block_1d_id + 1) - total_update_size;
+                    auto rlen = N0 - update_N0;
+
+                    auto rm = 0;
+                    auto rn = 0;
+                    if (rlen > 0) {
+                        rm = (x - 1) / rlen;
+                        rn = x % rlen;
+                    }
+
+                    if (rlen > 0 and rm < M0) {
+                        n = rn + update_N0;
+                        m = rm;
+                    } else {
+                        x = x - rlen * M0;
+                        rm = (x - 1) / update_N0;
+                        rn = x % update_N0;
+                        n = rn;
+                        m = update_M0 + rm;
+                    }
+                }
+                return make_multi_index(m, n);
+	    };
 #else
             const auto unmerge = make_merge_transform(make_tuple(N0, M0));
 
