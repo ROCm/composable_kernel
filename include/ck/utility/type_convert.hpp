@@ -390,9 +390,9 @@ inline __host__ __device__ bf8x2_ocp_t f8_convert_sr<bf8x2_ocp_t, float2_t>(floa
                                                   true>(x)};
 }
 
-// convert _Float16 to fp8 with stochastic rounding
+// convert fp16 to fp8 with stochastic rounding
 template <>
-inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, _Float16>(_Float16 x)
+inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, half_t>(half_t x)
 {
     return f8_ocp_t{fp8_impl::cvt_half_t_to_fp8<f8_ocp_t::default_interpret,
                                                 f8_ocp_t::default_saturation,
@@ -407,9 +407,9 @@ inline __host__ __device__ f8x2_ocp_t f8_convert_sr<f8x2_ocp_t, half2_t>(half2_t
                                                   true>(x)};
 }
 
-// convert _Float16 to bf8 with stochastic rounding
+// convert fp16 to bf8 with stochastic rounding
 template <>
-inline __host__ __device__ bf8_ocp_t f8_convert_sr<bf8_ocp_t, _Float16>(_Float16 x)
+inline __host__ __device__ bf8_ocp_t f8_convert_sr<bf8_ocp_t, half_t>(half_t x)
 {
     return bf8_ocp_t{fp8_impl::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret,
                                                  bf8_ocp_t::default_saturation,
