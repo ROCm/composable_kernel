@@ -27,8 +27,9 @@ namespace ck_tile {
 template <typename InOutDataType,
           typename GemmAccDataType,
           typename CompDataType,
-          bool use_causal,
-          bool use_local>
+          bool kIsJagged,
+          bool kUseCausal,
+          bool kUseLocal>
 struct reference_hstu_attention
 {
     struct hstu_mask
@@ -49,15 +50,15 @@ struct reference_hstu_attention
             max_uih_len           = max_uih_len_;
         };
 
-        bool IsPixelInsideMask(int row, int col)
+        bool IsTokenPairInsideMask(int row, int col)
         {
             if(row < contextual_seq_len)
                 return true;
 
             bool result = false;
-            if constexpr(use_local)
+            if constexpr(kUseLocal)
             {
-                if constexpr(use_causal)
+                if constexpr(kUseCausal)
                     result = (row >= col) && (row - col <= max_attn_len);
                 else
                     result = std::abs(row - col) <= max_attn_len;
@@ -67,7 +68,7 @@ struct reference_hstu_attention
             }
             else
             {
-                if constexpr(use_causal)
+                if constexpr(kUseCausal)
                     result = (row >= col);
             };
 
@@ -90,12 +91,10 @@ struct reference_hstu_attention
                     int min_full_attn_seq_len) // define masking length at the end of query token
                                                // sequence which is included for full attention
     {
-        bool is_jagged = !seq_offsets.empty();
-
-        if(is_jagged)
+        if constexpr(kIsJagged)
         {
             // check the number of batches
-            assert(seq_offsets.size() == num_batch + 1);
+            assert(!seq_offsets.empty() && seq_offsets.size() == num_batch + 1);
             assert(q_batch_seq_nhead_hdim.get_lengths()[0] == 1);
             assert(k_batch_seq_nhead_hdim.get_lengths()[0] == 1);
             assert(v_batch_seq_nhead_hdim.get_lengths()[0] == 1);
@@ -103,6 +102,7 @@ struct reference_hstu_attention
         }
         else
         {
+            assert(seq_offsets.empty());
             assert(q_batch_seq_nhead_hdim.get_lengths()[0] == num_batch);
             assert(k_batch_seq_nhead_hdim.get_lengths()[0] == num_batch);
             assert(v_batch_seq_nhead_hdim.get_lengths()[0] == num_batch);
@@ -140,7 +140,7 @@ struct reference_hstu_attention
             assert(num_targets.size() == num_batch);
 
         auto f = [&](auto i_batch, auto i_head) {
-            int seqlen = is_jagged ? (seq_offsets[i_batch + 1] - seq_offsets[i_batch])
+            int seqlen = kIsJagged ? (seq_offsets[i_batch + 1] - seq_offsets[i_batch])
                                    : q_batch_seq_nhead_hdim.get_lengths()[1];
 
             int max_uih_len = seqlen;
@@ -161,16 +161,29 @@ struct reference_hstu_attention
                 // for all cols in the batch
                 for(int sk = 0; sk < max_uih_len; sk++)
                 {
-                    if(mask.IsPixelInsideMask(sq, sk))
+                    if(mask.IsTokenPairInsideMask(sq, sk))
                     {
                         GemmAccDataType dot_prod = 0.f;
                         for(int k = 0; k < hdim_qk; k++)
                         {
-                            InOutDataType qreg = q_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
-                            InOutDataType kreg = k_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
+                            if constexpr(kIsJagged)
+                            {
+                                InOutDataType qreg =
+                                    q_batch_seq_nhead_hdim(0, seq_offsets[i_batch] + sq, i_head, k);
+                                InOutDataType kreg =
+                                    k_batch_seq_nhead_hdim(0, seq_offsets[i_batch] + sk, i_head, k);
 
-                            dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
-                                        ck_tile::type_convert<GemmAccDataType>(kreg);
+                                dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
+                                            ck_tile::type_convert<GemmAccDataType>(kreg);
+                            }
+                            else
+                            {
+                                InOutDataType qreg = q_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
+                                InOutDataType kreg = k_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
+
+                                dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
+                                            ck_tile::type_convert<GemmAccDataType>(kreg);
+                            };
                         }
 
                         locals.push_back(ck_tile::type_convert<CompDataType>(dot_prod) *
@@ -191,15 +204,31 @@ struct reference_hstu_attention
 
                     for(int sk = 0; sk < max_uih_len; sk++)
                     {
-                        InOutDataType preg = ck_tile::type_convert<InOutDataType>(locals[sk]);
-                        InOutDataType vreg = v_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
+                        if constexpr(kIsJagged)
+                        {
+                            InOutDataType preg = ck_tile::type_convert<InOutDataType>(locals[sk]);
+                            InOutDataType vreg =
+                                v_batch_seq_nhead_hdim(0, seq_offsets[i_batch] + sk, i_head, k);
 
-                        dot_prod += ck_tile::type_convert<GemmAccDataType>(preg) *
-                                    ck_tile::type_convert<GemmAccDataType>(vreg);
+                            dot_prod += ck_tile::type_convert<GemmAccDataType>(preg) *
+                                        ck_tile::type_convert<GemmAccDataType>(vreg);
+                        }
+                        else
+                        {
+                            InOutDataType preg = ck_tile::type_convert<InOutDataType>(locals[sk]);
+                            InOutDataType vreg = v_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
+
+                            dot_prod += ck_tile::type_convert<GemmAccDataType>(preg) *
+                                        ck_tile::type_convert<GemmAccDataType>(vreg);
+                        };
                     };
 
-                    o_batch_seq_nhead_hdim(i_batch, sq, i_head, k) =
-                        ck_tile::type_convert<InOutDataType>(dot_prod);
+                    if constexpr(kIsJagged)
+                        o_batch_seq_nhead_hdim(0, seq_offsets[i_batch] + sq, i_head, k) =
+                            ck_tile::type_convert<InOutDataType>(dot_prod);
+                    else
+                        o_batch_seq_nhead_hdim(i_batch, sq, i_head, k) =
+                            ck_tile::type_convert<InOutDataType>(dot_prod);
                 };
             };
         };
