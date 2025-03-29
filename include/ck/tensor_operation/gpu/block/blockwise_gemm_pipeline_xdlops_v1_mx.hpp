@@ -142,6 +142,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
+    using Base::KThreadChunk;
 
     using AccType      = typename Base::AccType;
     using Tuple4       = typename Base::Tuple4;
@@ -186,23 +187,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
 
         return make_tuple(0, waveId_n, xdlops_b_idx[I1], xdlops_gemm.KPerXdlops * xdlops_b_idx[I0]);
-    }
-
-    /**
-     * @brief Constructor for BlockwiseGemmXdlops_pipeline_v1_mx.
-     *
-     * The primary purpose of this constructor is to modify default initialization of the base class
-     * with the origin data index suitable for microscaling.
-     *
-     * @param a_origin The origin data index for matrix A.
-     * @param b_origin The origin data index for matrix B.
-     *
-     */
-    __host__ __device__
-    BlockwiseGemmXdlops_pipeline_v1_mx(Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
-                                       Tuple4 b_origin = CalculateBThreadOriginDataIndex())
-        : Base(a_origin, b_origin)
-    {
     }
 
     template <bool HasMainLoop,
@@ -400,8 +384,21 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
                 block_sync_lds();
 
+                // b_k_step mapping to threads for 32x32x64:
+                // t0 : |0  --> 15 32 --> 47 | 64 --> 79 96  --> 111 | etc.
+                // t32: |16 --> 31 48 --> 63 | 80 --> 95 112 --> 127 | etc.
+                //              k = 0                 k = 1
+
+                // b_k_step mapping to threads for 16x16x128:
+                // t0 : |0  --> 15 64  --> 79 | 128 --> 143 192 --> 207| etc.
+                // t16: |16 --> 31 80  --> 95 | 144 --> 159 208 --> 223| etc.
+                // t32: |32 --> 47 96  --> 111| 160 --> 175 224 --> 239| etc.
+                // t48: |48 --> 63 112 --> 127| 176 --> 191 240 --> 255| etc.
+                //              k = 0                    k = 1
                 static_for<0, KRepeat, 1>{}([&](auto k) {
                     constexpr auto a_k_step = k * AMmaKStride * KPack / xdlops_gemm.K1PerXdlops;
+                    constexpr auto b_k_step =
+                        k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
 #if 0
                     if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
                     {
@@ -444,12 +441,20 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                            a_thread_buf);
                     });
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
-                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                           make_tuple(n0, I0, I0, Number<b_k_step>{}),
-                                           b_block_buf,
-                                           b_thread_desc_,
-                                           make_tuple(n0, I0, k, I0),
-                                           b_thread_buf);
+                        // read block data in chunks to assemble correct thread vectors
+                        // for now expect just two iterations
+                        static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
+                            constexpr auto b_k_step_chunk =
+                                b_k_step +
+                                chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                            b_thread_copy_.Run(
+                                b_block_desc_n0_n1_n2_k,
+                                make_tuple(n0, I0, I0, Number<b_k_step_chunk>{}),
+                                b_block_buf,
+                                b_thread_desc_,
+                                make_tuple(n0, I0, k, Number<chunk * KThreadChunk>{}),
+                                b_thread_buf);
+                        });
                     });
                 });
 
@@ -987,6 +992,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto a_k_step = k * AMmaKStride * KPack / xdlops_gemm.K1PerXdlops;
+                constexpr auto b_k_step =
+                    k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
 #if 0
                 if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
                 {
@@ -1029,12 +1036,18 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                        a_thread_buf);
                 });
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
-                    b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                       make_tuple(n0, I0, I0, Number<b_k_step>{}),
-                                       b_block_buf,
-                                       b_thread_desc_,
-                                       make_tuple(n0, I0, k, I0),
-                                       b_thread_buf);
+                    // read block data in chunks to assemble correct thread vectors
+                    // for now expect just two iterations
+                    static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
+                        constexpr auto b_k_step_chunk =
+                            b_k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                           make_tuple(n0, I0, I0, Number<b_k_step_chunk>{}),
+                                           b_block_buf,
+                                           b_thread_desc_,
+                                           make_tuple(n0, I0, k, Number<chunk * KThreadChunk>{}),
+                                           b_thread_buf);
+                    });
                 });
             });
 

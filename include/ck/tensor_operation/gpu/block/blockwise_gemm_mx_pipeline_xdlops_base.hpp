@@ -56,6 +56,10 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t AMmaKStride = KPack;
     static constexpr index_t BMmaKStride = KPack;
 
+    //> store rows/cols into thread registers in chunks of 16
+    //> e.g. [k0,...,k15,k64,...,k79] or [k0,...,k15,k32,...,k47]
+    static constexpr index_t KThreadChunk = 16;
+
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
     static constexpr index_t KPerInnerLoop = KPack;
@@ -112,7 +116,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
         const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KPerThread * xdlops_a_idx[I0]);
+        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KThreadChunk * xdlops_a_idx[I0]);
     }
 
     __device__ static auto CalculateAThreadOriginDataIndex6D()
@@ -134,7 +138,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
         const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KPerThread * xdlops_b_idx[I0]);
+        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KThreadChunk * xdlops_b_idx[I0]);
     }
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
@@ -372,7 +376,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                          ComputeTypeB,
                                                          decltype(b_block_desc_n0_n1_n2_k),
                                                          decltype(b_thread_desc_),
-                                                         Sequence<1, 1, 1, KPack>,
+                                                         Sequence<1, 1, 1, KThreadChunk>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
                                                          B_K1,
