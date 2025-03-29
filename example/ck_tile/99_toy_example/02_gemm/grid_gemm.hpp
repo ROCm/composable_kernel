@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#define INSTRUCTION_SCHEDULE
 
-#ifdef INSTRUCTION_SCHEDULE
+#ifdef ENABLE_INSTRUCTION_SCH
 #include "instruction_schedule/gemm_pipeline_ag_bg_cr_comp_v3.hpp"
 #include "instruction_schedule/gemm_pipeline_problem.hpp"
 #include "instruction_schedule/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
@@ -59,7 +58,7 @@ struct GridGemm
         auto b_block_window = make_tile_window(
             b_grid, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {iN, 0});
 
-#ifndef INSTRUCTION_SCHEDULE
+#ifndef ENABLE_INSTRUCTION_SCH
 #pragma message ("disable instruction scheduling")
         // Block GEMM pipeline w/o instruction scheduling
         constexpr auto block_gemm_pipeline = Policy::template GetBlockGemmPipeline<Problem>();

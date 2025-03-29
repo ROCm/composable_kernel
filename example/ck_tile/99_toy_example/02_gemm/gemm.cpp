@@ -3,6 +3,7 @@
 #include "ck_tile/host.hpp"
 #include "reference_gemm.hpp"
 
+#include "config.h"
 #include "gemm.hpp"
 
 /*
@@ -47,6 +48,43 @@ int main(int argc, char* argv[])
         K            = std::stoi(argv[4]);
     }
 
+#if defined(KERNEL_A)
+    printf("*** KernelA test ***  \n");
+    printf("  --> Using mfma_16x16x(8x2)\n");
+#elif defined(KERNEL_B)
+    printf("*** KernelB test ***  \n");
+    printf("  --> Using mfma_16x16x16\n");
+#elif defined(KERNEL_C)
+    printf("*** KernelC test ***  \n");
+    printf("  --> Using mfma_16x16x(16x2)\n");
+#elif defined(KERNEL_D)
+    printf("*** KernelD test ***  \n");
+    printf("  --> Using mfma_16x16x(16x2)\n");
+    printf("  --> XOR-based banck conflict-free\n");
+#elif defined(KERNEL_E)
+    printf("*** KernelE test ***\n");
+    printf("  --> Using mfma_16x16x(16x2)\n");
+    printf("  --> XOR-based banck conflict-free\n");
+    printf("  --> Adjust block tile shape\n");
+#elif defined(KERNEL_F)
+    printf("*** KernelF test ***\n");
+    printf("  --> Using mfma_16x16x(16x2)\n");
+    printf("  --> XOR-based banck conflict-free\n");
+    printf("  --> Adjust block tile shape\n");
+    printf("  --> Enable prefetch\n");
+    printf("  --> Enable instruction schedule\n");
+#elif defined(KERNEL_G)
+    printf("*** KernelG test ***\n");
+    printf("  --> Using mfma_16x16x(16x2)\n");
+    printf("  --> XOR-based banck conflict-free\n");
+    printf("  --> Adjust block tile shape\n");
+    printf("  --> Enable prefetch\n");
+    printf("  --> Enable instruction schedule\n");
+    printf("  --> Enable cache-aware thread blocks schedule\n");
+#else
+    printf("*** Naive implementation test ***\n");
+#endif
+
     const ck_tile::index_t Lda = K;
     const ck_tile::index_t Ldb = K;
     const ck_tile::index_t Ldc = N;
@@ -82,7 +120,7 @@ int main(int argc, char* argv[])
 
     constexpr ck_tile::index_t kBlockSize = 256;
 
-#if 1
+#ifdef ADJUST_BLOCK_TILE_SHAPE
 #pragma message ("(Increase KperBlock, reduce MperBlock) -> increase Grid size")
     constexpr ck_tile::index_t kGemmMPerBlock = 128;
     constexpr ck_tile::index_t kGemmKPerBlock = 64;

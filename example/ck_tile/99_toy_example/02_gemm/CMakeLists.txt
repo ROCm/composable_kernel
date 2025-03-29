@@ -13,6 +13,11 @@ set(EXAMPLE_REDUCE_COMPILE_OPTIONS)
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
 list(APPEND EXAMPLE_REDUCE_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
 
+if(DEFINED kernel)
+    message("Compiling with Kernel: ${kernel}")
+    target_compile_definitions(${EXAMPLE_REDUCE} PRIVATE KERNEL_${kernel}=1)
+endif()
+
 target_compile_options(${EXAMPLE_REDUCE} PRIVATE ${EXAMPLE_REDUCE_COMPILE_OPTIONS})
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated

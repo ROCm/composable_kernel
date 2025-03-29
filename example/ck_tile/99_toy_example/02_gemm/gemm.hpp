@@ -9,6 +9,7 @@
 #include "ck_tile/core/tensor/tile_distribution.hpp"
 
 #include "block_gemm_pipeline_agmem_bgmem_creg.hpp"
+#include "config.h"
 #include "grid_gemm.hpp"
 
 namespace ck_tile {
@@ -28,7 +29,7 @@ struct GridGemmProblem
     using CElementFunction = CElementFunction_;
 };
 
-#ifndef INSTRUCTION_SCHEDULE
+#ifndef ENABLE_INSTRUCTION_SCH
 template <index_t kMPerTile, index_t kNPerTile, index_t kKPerTile>
 struct TileGemmShape
 {
@@ -85,7 +86,7 @@ struct Gemm
         CK_TILE_HOST_DEVICE static constexpr auto MakeBlock2TileMap(index_t M0,
                                                                     index_t N0)
         {
-#if 1
+#if defined(ENABLE_CACHE_AWARE_WG_SCH)
 #pragma message ("Cache-aware work group sch")
             return [=](index_t block_1d_id) {
                 constexpr index_t M01 = 4;
@@ -147,7 +148,7 @@ struct Gemm
 #endif
         }
 
-#ifndef INSTRUCTION_SCHEDULE
+#ifndef ENABLE_INSTRUCTION_SCH
         template <typename Problem>
         CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemmPipeline()
         {
