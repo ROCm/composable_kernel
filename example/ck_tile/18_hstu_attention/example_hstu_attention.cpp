@@ -216,22 +216,23 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using GemmAccDataType   = typename HSTUAttentionTypeConfig<InOutDataType>::GemmAccDataType;
     using SMComputeDataType = typename HSTUAttentionTypeConfig<InOutDataType>::SMComputeDataType;
 
-    BOOL_SWITCH_2(use_causal, USE_CAUSAL_, use_local, USE_LOCAL_, [&] {
+    BOOL_SWITCH_3(is_jagged, kIsJagged, use_causal, kUseCausal, use_local, kUseLocal, [&] {
         ck_tile::reference_hstu_attention<InOutDataType,
                                           GemmAccDataType,
                                           SMComputeDataType,
-                                          USE_CAUSAL_,
-                                          USE_LOCAL_>::Run(q_host,
-                                                           k_host,
-                                                           v_host,
-                                                           o_host_ref,
-                                                           num_batch,
-                                                           1.0f,
-                                                           seq_offsets,
-                                                           num_targets,
-                                                           max_attn_len,
-                                                           contextual_seq_len,
-                                                           min_full_seq_len);
+                                          kIsJagged,
+                                          kUseCausal,
+                                          kUseLocal>::Run(q_host,
+                                                          k_host,
+                                                          v_host,
+                                                          o_host_ref,
+                                                          num_batch,
+                                                          1.0f,
+                                                          seq_offsets,
+                                                          num_targets,
+                                                          max_attn_len,
+                                                          contextual_seq_len,
+                                                          min_full_seq_len);
     });
     return 0;
 }
