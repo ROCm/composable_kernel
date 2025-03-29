@@ -29,7 +29,8 @@
 ## test/verify
 
    ``` bash
-   #>  build/bin/tile_example_hstu_attention -v=1 -prec=fp16 -b=10 -nidx=9 -nhead=4 -hsizeq=64 -hsizev=64 -seqq=13 -seqk=512 -init=u -seed=123 -perf=0 -maskmax=0
+   #>  build/bin/tile_example_hstu_attention -v=1 -prec=bf16 -b=10 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlen=750,730,733,860,870,788,760,821,833,779 -targets=5,5,6,6,5,6,5,6,4,6
+       -causal=1 -local_len=5 -context_len=6 -minfull_len=6 
    #>  . example/ck_tile/07_hstu_attention/test_hstu_attention.sh
    ```
 
@@ -38,16 +39,18 @@
   ``` C++
     arg_parser.insert("v", "1", "weather do CPU validation or not")
         .insert("prec", "fp16", "data type. fp16/bf16")
+        .insert("jagged", "0", "q/k/v batched sequence is jagged or not")
         .insert("b", "12", "batch size")
-        .insert("nidx", "9", "number of indices for accessing the batches")
         .insert("nhead", "4", "number of heads")
-        .insert("hsizeq", "64", "headdim size of Q/K")
-        .insert("hsizev", "64", "headdim size of V/O")
-        .insert("seqq", "13", "length of the sequence dimension of query tensor")
-        .insert("seqv", "1024", "length of the sequence dimension of key tensor")
-        .insert("init", "u", "init method for input tensor values, u, uniform random float values, n, normalized random float values")
+        .insert("hdim_qk", "64", "headdim size of Q/K")
+        .insert("hdim_v", "64", "headdim size of V/O")
+        .insert("seqlen", "400", "seqlen of single or all batches for query and key/value tensor")
+        .insert("targets", "16", "sequence length at the end of query/key token sequence that should be excluded from attention")
+        .insert("causal", "1", "enable causal mask or not")
+        .insert("local_len", "5", "length of the diagonal window for enabling masking, value 0 to disable")
+        .insert("context_len", "6", "sequence length at the begin of the query sequence the should be included for attention")
+        .insert("minfull_len", "6", "sequence length at the end of the query sequence that should be included for attention")
         .insert("seed", "13579", "seed by the uniform or normal distribution generator")
-        .insert("perf", "0", "weather measure execution time or not")
-        .insert("maskmax", "0", "used to set mask values to random [0, maskmax), maskmax should in [0, 128], 0 means set all values to 1");
+        .insert("perf", "0", "weather measure execution time or not");
   ```
 
