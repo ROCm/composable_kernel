@@ -6,10 +6,10 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 
-#define mfma_m32_n32_k8 0
+#define mfma_m32_n32_k8 1
 #define mfma_m32_n32_k16 0
 #define mfma_m16_n16_k16 0
-#define mfma_m16_n16_k32 1
+#define mfma_m16_n16_k32 0
 
 namespace ck_tile {
 
