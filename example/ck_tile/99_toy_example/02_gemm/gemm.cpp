@@ -72,8 +72,14 @@ int main(int argc, char* argv[])
     printf("  --> XOR-based banck conflict-free\n");
     printf("  --> Adjust block tile shape\n");
     printf("  --> Enable prefetch\n");
-    printf("  --> Enable instruction schedule\n");
 #elif defined(KERNEL_G)
+    printf("*** KernelF test ***\n");
+    printf("  --> Using mfma_16x16x(16x2)\n");
+    printf("  --> XOR-based banck conflict-free\n");
+    printf("  --> Adjust block tile shape\n");
+    printf("  --> Enable prefetch\n");
+    printf("  --> Enable instruction schedule\n");
+#elif defined(KERNEL_H)
     printf("*** KernelG test ***\n");
     printf("  --> Using mfma_16x16x(16x2)\n");
     printf("  --> XOR-based banck conflict-free\n");
