@@ -65,7 +65,7 @@ using DeviceGemmV2Instance =
         S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
         1, 1, S<1, 32, 1, 8>, 8,
-        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, F8, F8, PermuteA, PermuteB>;
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v2, F8, F8, PermuteA, PermuteB>;
         
 #else
 using DeviceGemmV2Instance = 
