@@ -122,7 +122,7 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t kKPack     = 8;
 
-#if defined(NAIVE_IMPLEMENTATION)
+#if defined(PADDING_K_FIRST) || defined(NAIVE_IMPLEMENTATION)
 #pragma message ("BANK_CONFLICT: K_FIRST")
         constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock>{}, number<kKPerBlock / kKPack>{}, number<kKPack>{}),
