@@ -115,7 +115,6 @@ struct BlockGemmPipelineAGmemBGmemCReg
         auto c_block_tile = decltype(block_gemm(a_lds_gemm_window, b_lds_gemm_window)){};
 
 #if defined(ENABLE_PREFETCH)
-#pragma message ("prefetch")
         // prefetch
         // global read 0
         auto a_block_tile = load_tile(a_copy_dram_window);
@@ -189,7 +188,6 @@ struct BlockGemmPipelineAGmemBGmemCReg
             block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
         }
 #else
-#pragma message ("non-prefetch")
         // non-prefetch
         auto a_block_tile = load_tile(a_copy_dram_window);
         auto b_block_tile = load_tile(b_copy_dram_window);

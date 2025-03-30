@@ -59,13 +59,11 @@ struct GridGemm
             b_grid, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {iN, 0});
 
 #ifndef ENABLE_INSTRUCTION_SCH
-#pragma message ("disable instruction scheduling")
         // Block GEMM pipeline w/o instruction scheduling
         constexpr auto block_gemm_pipeline = Policy::template GetBlockGemmPipeline<Problem>();
 
         __shared__ char p_smem_char[block_gemm_pipeline.GetStaticLdsSize()];
 #else
-#pragma message ("enable instruction scheduling")
         // Block GEMM pipeline w/ instruction scheduling
         static constexpr index_t M_Tile = 128;
         static constexpr index_t N_Tile = 128;

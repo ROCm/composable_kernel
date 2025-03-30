@@ -24,7 +24,6 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
         constexpr index_t kKPack     = 8;
 
 #if defined(NAIVE_IMPLEMENTATION)
-#pragma message ("BANK_CONFLICT: K_FIRST")
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kMPerBlock>{}, number<kKPerBlock / kKPack>{}, number<kKPack>{}),
             make_tuple(number<kKPerBlock>{}, number<kKPack>{}, number<1>{}),
@@ -39,7 +38,6 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
 #elif defined(PADDING_K_FIRST)
-#pragma message ("BANK_CONFLICT: PADDING_K_FIRST")
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kMPerBlock>{}, number<kKPerBlock / kKPack>{}, number<kKPack>{}),
             make_tuple(number<(kKPerBlock / kKPack + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
@@ -54,7 +52,6 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
 #elif defined(PADDING_MN_FIRST)
-#pragma message ("BANK_CONFLICT: PADDING_MN_FIRST")
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
             make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
@@ -69,7 +66,6 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
 #elif defined(USING_XOR_BASED_BANK_CONFLICT_FREE)
-#pragma message ("BANK_CONFLICT: XOR")
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
 
         constexpr auto DataTypeSize = sizeof(ADataType);
@@ -123,7 +119,6 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
         constexpr index_t kKPack     = 8;
 
 #if defined(PADDING_K_FIRST) || defined(NAIVE_IMPLEMENTATION)
-#pragma message ("BANK_CONFLICT: K_FIRST")
         constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock>{}, number<kKPerBlock / kKPack>{}, number<kKPack>{}),
             make_tuple(number<kKPerBlock>{}, number<kKPack>{}, number<1>{}),
@@ -138,7 +133,6 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
 #elif defined(PADDING_K_FIRST)
-#pragma message ("BANK_CONFLICT: PADDING_K_FIRST")
         constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock>{}, number<kKPerBlock / kKPack>{}, number<kKPack>{}),
             make_tuple(number<(kKPerBlock / kKPack + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
@@ -153,7 +147,6 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
 #elif defined(PADDING_MN_FIRST)
-#pragma message ("BANK_CONFLICT: PADDING_MN_FIRST")
         constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / kKPack>{}, number<kNPerBlock>{}, number<kKPack>{}),
             make_tuple(number<(kNPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
@@ -168,7 +161,6 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
 #elif defined(USING_XOR_BASED_BANK_CONFLICT_FREE)
-#pragma message ("BANK_CONFLICT: XOR")
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
 
         constexpr auto DataTypeSize = sizeof(BDataType);

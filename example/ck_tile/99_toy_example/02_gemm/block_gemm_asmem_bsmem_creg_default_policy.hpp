@@ -17,8 +17,7 @@ struct BlockGemmASmemBSmemCRegDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemmMWarpNWarp()
     {
-#if defined(USING_MFMA_32x32x_8x2)
-#pragma message ("mfma m32 n32 k16")
+#if defined(NAIVE_IMPLEMENTATION)
         if constexpr(std::is_same_v<typename Problem::ADataType, half_t> &&
                      std::is_same_v<typename Problem::BDataType, half_t> &&
                      std::is_same_v<typename Problem::CDataType, float>)
@@ -31,8 +30,7 @@ struct BlockGemmASmemBSmemCRegDefaultPolicy
         {
         return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K8TransposedCDistribution{}, 4, 1);
         }
-#elif defined(NAIVE_IMPLEMENTATION)
-#pragma message ("mfma m32 n32 k8")
+#elif defined(USING_MFMA_32x32x_8x2)
         if constexpr(std::is_same_v<typename Problem::ADataType, half_t> &&
                      std::is_same_v<typename Problem::BDataType, half_t> &&
                      std::is_same_v<typename Problem::CDataType, float>)
@@ -47,7 +45,6 @@ struct BlockGemmASmemBSmemCRegDefaultPolicy
         }
 	
 #elif defined(USING_MFMA_16x16x16)
-#pragma message("mfma m16 n16 k16")
         if constexpr(std::is_same_v<typename Problem::ADataType, half_t> &&
                      std::is_same_v<typename Problem::BDataType, half_t> &&
                      std::is_same_v<typename Problem::CDataType, float>)
@@ -61,7 +58,6 @@ struct BlockGemmASmemBSmemCRegDefaultPolicy
         return make_tuple(WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution{}, 4, 1);
         }
 #elif defined(USING_MFMA_16x16x_16x2)
-#pragma message("mfma m16 n16 k32")
         if constexpr(std::is_same_v<typename Problem::ADataType, half_t> &&
                      std::is_same_v<typename Problem::BDataType, half_t> &&
                      std::is_same_v<typename Problem::CDataType, float>)
