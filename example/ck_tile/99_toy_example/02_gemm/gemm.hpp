@@ -87,7 +87,6 @@ struct Gemm
                                                                     index_t N0)
         {
 #if defined(ENABLE_CACHE_AWARE_WG_SCH)
-#pragma message ("Cache-aware work group sch")
             return [=](index_t block_1d_id) {
                 constexpr index_t M01 = 4;
                 constexpr index_t GroupNum = 8;

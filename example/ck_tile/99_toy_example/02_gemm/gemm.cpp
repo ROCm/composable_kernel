@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
 
 #if defined(KERNEL_A)
     printf("*** KernelA test ***  \n");
-    printf("  --> Using mfma_16x16x(8x2)\n");
+    printf("  --> Using mfma_32x32x(8x2)\n");
 #elif defined(KERNEL_B)
     printf("*** KernelB test ***  \n");
     printf("  --> Using mfma_16x16x16\n");
@@ -127,7 +127,6 @@ int main(int argc, char* argv[])
     constexpr ck_tile::index_t kBlockSize = 256;
 
 #ifdef ADJUST_BLOCK_TILE_SHAPE
-#pragma message ("(Increase KperBlock, reduce MperBlock) -> increase Grid size")
     constexpr ck_tile::index_t kGemmMPerBlock = 128;
     constexpr ck_tile::index_t kGemmKPerBlock = 64;
 #else
