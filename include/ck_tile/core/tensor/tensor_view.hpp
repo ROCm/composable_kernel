@@ -384,22 +384,6 @@ struct tensor_view
             coord.get_offset() / PackedSize, linear_offset / PackedSize, is_valid_element, x);
     }
 
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("tensor_view{");
-
-        // buf_
-        printf("buf_: ");
-        print(buf_);
-        printf(", ");
-
-        // desc_
-        printf("desc_: ");
-        print(desc_);
-
-        printf("}");
-    }
-
     // member
     buffer_view buf_;
     TensorDesc desc_;
