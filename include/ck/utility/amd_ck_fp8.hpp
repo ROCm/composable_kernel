@@ -499,6 +499,7 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
 static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rng = 0)
 {
+    // there is no packed conversion with SR, so convert one element at a time
     return fp8x2_storage_t{
         cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[0], rng),
         cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[1], rng)};
@@ -542,6 +543,7 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
 static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rng = 0)
 {
+    // there is no packed conversion with SR, so convert one element at a time
     return fp8x2_storage_t{
         cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[0], rng),
         cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[1], rng)};
@@ -742,6 +744,7 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
 static __device__ fp8x2_storage_t cast_to_f8_from_bf16(ushortx2_t v, unsigned int rng = 0)
 {
+    // there is no packed conversion with SR, so convert one element at a time
     return fp8x2_storage_t{
         cast_to_f8_from_bf16<interpret, saturate, stochastic_rounding>(v[0], rng),
         cast_to_f8_from_bf16<interpret, saturate, stochastic_rounding>(v[1], rng)};
@@ -788,6 +791,7 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == true, bool>                       = false>
 static __device__ fp8x2_storage_t cast_to_f8_from_bf16(ushortx2_t v, unsigned int rng = 0)
 {
+    // there is no packed conversion with SR, so convert one element at a time
     return fp8x2_storage_t{
         cast_to_f8_from_bf16<interpret, saturate, stochastic_rounding>(v[0], rng),
         cast_to_f8_from_bf16<interpret, saturate, stochastic_rounding>(v[1], rng)};
@@ -1030,6 +1034,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f32(float2_t v, unsigned int r
 {
     if constexpr(stochastic_rounding)
     {
+        // there is no packed conversion with SR, so convert one element at a time
         return fp8x2_storage_t{
             cast_to_f8_from_f32<interpret, saturate, stochastic_rounding>(v[0], rng),
             cast_to_f8_from_f32<interpret, saturate, stochastic_rounding>(v[1], rng)};
