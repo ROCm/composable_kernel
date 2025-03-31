@@ -1407,7 +1407,7 @@ struct GridwiseMoeGemm
             vector_type<int32_t, 4>  scale_token_ids;
             vector_type<float, 4>  topk_weights;  // for gemm2 only
             static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
-                const float scale_b = p_scale_b[n0 * NWave * PerTokenQuant];
+                const float scale_b = p_scale_b[n0 * NWave * NPerXdl * PerTokenQuant];
                 static_for<0, MXdlPerWave, 1>{}([&](auto m0) {        // MXDLPerWave
                     static_for<0, M2, 1>{}([&](auto m2) {         // m_inst_num_groups_per_blk
                         const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 + m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
@@ -1436,7 +1436,7 @@ struct GridwiseMoeGemm
                             constexpr auto cidx = Number<c_offset>{};
                             if constexpr (IsInputGemm) // gu fusion
                             {
-                                const float scale_up = p_scale_b[(n0 * NPerXdl + problem.N) * PerTokenQuant];
+                                const float scale_up = p_scale_b[(n0 * NWave * NPerXdl + problem.N) * PerTokenQuant];
                                 auto gate = scale_a * scale_b * c_thread_buf[cidx];
                                 auto up = scale_a * scale_up * c_thread_buf_up[cidx];
                                 gate = gate * math::rcp(1.0 + math::exp(-gate)); 

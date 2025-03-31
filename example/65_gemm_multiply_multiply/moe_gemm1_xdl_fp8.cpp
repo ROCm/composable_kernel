@@ -123,12 +123,12 @@ using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr ck::index_t MPerBlock = 32;
-static constexpr ck::index_t MXDLPerWave = 1;
-static constexpr ck::index_t NXDLPerWave = 1;
+static constexpr ck::index_t MPerBlock = 128;
+static constexpr ck::index_t MXDLPerWave = 4;
+static constexpr ck::index_t NXDLPerWave = 2;
 static constexpr ck::index_t BLOCKSIZE   = 256;
-static constexpr ck::index_t NPerBlock   = 128;
-static constexpr ck::index_t MNPerXDL    = 32;
+static constexpr ck::index_t NPerBlock   = 64;
+static constexpr ck::index_t MNPerXDL    = 16;
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
 static constexpr ck::index_t Nswizzle    = false;
 static constexpr ck::index_t AK1         = 16 / sizeof(A0DataType);
@@ -155,7 +155,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
                //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-                1,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
+                2,    2,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Nswizzle, true, true, int32_t, A0DataType>;
 
 // clang-format on
@@ -170,8 +170,8 @@ int main(int argc, char* argv[])
     ck::index_t N               = 4096;
     ck::index_t K               = 6144;
     ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 8;
-    ck::index_t valid_tile_num  = 8;
+    ck::index_t sorted_tile_num = 16;
+    ck::index_t valid_tile_num  = 13;
     ck::index_t tokens          = 64;
     ck::index_t topk            = 2;
 
@@ -233,9 +233,10 @@ int main(int argc, char* argv[])
     // max_token_id.mData =  {valid_size, 2, 2, 1, 1, 2, 2, 2,2, 2, 2, 2, 2,1,0,0,0};
     // max_token_id.mData =  {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
     // int eids[] = {0, 0,1, 2,3, 3, 4,4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
-    max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
-    // int eids[] = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
-    int eids[] = {0, 1, 2, 3, 4, 5, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+    // max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
+    max_token_id.mData = {valid_size};
+    int eids[] = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+    // int eids[] = {0, 1, 2, 3, 4, 5, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     // max_token_id.mData = {valid_size};
     for(int i = 0; i < sorted_tile_num; i++)
     {
@@ -284,9 +285,10 @@ int main(int argc, char* argv[])
         d1_e_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{0, 2});
         break;
     case 2:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
+    a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+    b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+    d0_t_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0, 1});
+        // d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{});
         d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
         break;
     case 3:
