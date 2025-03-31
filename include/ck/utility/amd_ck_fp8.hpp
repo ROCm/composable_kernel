@@ -1479,7 +1479,7 @@ template <ck_fp8_interpretation_t interp,
           ck_saturation_t sat      = ck_saturation_t::CK_SATFINITE,
           bool stochastic_rounding = false>
 #if CK_FP8_CVT_FAST_PATH
-__host__ __device__ static inline fp8x2_storage_t cvt_float_to_fp8(const float2_t f)
+__device__ static inline fp8x2_storage_t cvt_float_to_fp8(const float2_t f)
 {
     __is_interpret_supported(interp);
     uint32_t rng = 0;
