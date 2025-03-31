@@ -152,7 +152,7 @@ int main(int argc, char* argv[])
     // experts = 8
     // per expert:
     // GEMM shape
-    ck::index_t N               = 14336 * 2;
+    ck::index_t N               = 14336;
     ck::index_t K               = 4096;
     ck::index_t experts         = 8;
     ck::index_t sorted_tile_num = 16;
