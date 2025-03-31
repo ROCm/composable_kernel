@@ -461,6 +461,7 @@ __is_interpret_supported([[maybe_unused]] ck_fp8_interpretation_t interp)
 #endif
 }
 
+#if defined(__gfx950__)
 template <ck_fp8_interpretation_t interpret,
           bool saturate,
           bool stochastic_rounding                                                 = false,
@@ -605,7 +606,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rn
     } val;
 
     constexpr shortx2_t i16x2val = {0, 0};
-    val.half_vec = v;
+    val.half_vec                 = v;
 
     if constexpr(saturate)
     {
@@ -682,7 +683,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rn
     } val;
 
     constexpr shortx2_t i16x2val = {0, 0};
-    val.half_vec = v;
+    val.half_vec                 = v;
 
     if constexpr(saturate)
     {
@@ -856,7 +857,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_bf16(ushortx2_t v, unsigned in
     } val;
 
     constexpr shortx2_t i16x2val = {0, 0};
-    val.bhalf_vec = v;
+    val.bhalf_vec                = v;
 
     if constexpr(saturate)
     {
@@ -962,6 +963,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_bf16(ushortx2_t v, unsigned in
 
     return fp8x2_storage_t{val.i8val[0], val.i8val[1]};
 }
+#endif // defined(__gfx950__)
 
 #if CK_FP8_CVT_FAST_PATH
 // The conversion function is from rocblas
