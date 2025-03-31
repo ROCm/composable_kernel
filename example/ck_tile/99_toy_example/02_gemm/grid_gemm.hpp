@@ -71,9 +71,9 @@ struct GridGemm
         static constexpr index_t M_Warp = 2;
         static constexpr index_t N_Warp = 2;
         static constexpr index_t K_Warp = 1;
-        static constexpr index_t M_Warp_Tile = 32;
-        static constexpr index_t N_Warp_Tile = 32;
-        static constexpr index_t K_Warp_Tile = 16;
+        static constexpr index_t M_Warp_Tile = 16;
+        static constexpr index_t N_Warp_Tile = 16;
+        static constexpr index_t K_Warp_Tile = 32;
         static constexpr bool DoubleSmemBuffer = false;
         static constexpr bool kPadM = false;
         static constexpr bool kPadN = false;
