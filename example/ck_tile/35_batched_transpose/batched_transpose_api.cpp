@@ -33,7 +33,13 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     const dim3 grids      = kernel::GridSize(a);
     constexpr dim3 blocks = kernel::BlockSize();
 
-    printf("Inside batched_transpose_dispatch\n");
+    printf("Grid: %d %d %d\n", grids.x, grids.y, grids.z);
+    printf("Block: %d %d %d\n", blocks.x, blocks.y, blocks.z);
+    printf("kargs: kargs.batch %d kargs.height %d kargs.width %d kargs.dim_strid %d\n",
+           kargs.batch,
+           kargs.height,
+           kargs.width,
+           kargs.dim_stride);
 
     float ave_time = ck_tile::launch_kernel(
         s, ck_tile::make_kernel<blocks.x, 1>(kernel{}, grids, blocks, 0, kargs));

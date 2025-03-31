@@ -28,8 +28,10 @@ struct BatchedTransposeHostArgs
 template <typename Pipeline_>
 struct BatchedTransposeKernel
 {
-    using Pipeline = remove_cvref_t<Pipeline_>;
-    using Problem  = remove_cvref_t<typename Pipeline::Problem>;
+
+    CK_TILE_DEVICE static index_t counter = 0;
+    using Pipeline                        = remove_cvref_t<Pipeline_>;
+    using Problem                         = remove_cvref_t<typename Pipeline::Problem>;
 
     using Type = typename Problem::InputType;
 
@@ -70,6 +72,23 @@ struct BatchedTransposeKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
+
+        // if (get_thread_global_1d_id() == 0)
+        // {
+        //     printf("OPERATOR KERNEL %d\n", atomicAdd(&counter, 1));
+        // }
+
+        // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 &&
+        //     threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 )
+        // {
+        //     printf("OPERATOR KERNEL %d\n", atomicAdd(&counter, 1));
+        // }
+
+        // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ){
+        //     printf("INSIDE KERNEL ");
+        //     printf("threadIdx: (%d, %d, %d)\n", threadIdx.x, threadIdx.y, threadIdx.z);
+        // }
+
         static constexpr ck_tile::index_t kMPerBlock       = Problem::kMPerBlock;
         static constexpr ck_tile::index_t kNPerBlock       = Problem::kNPerBlock;
         static constexpr bool kPadM                        = Problem::kPadM;
@@ -80,6 +99,27 @@ struct BatchedTransposeKernel
         const auto iM   = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
         const auto iN   = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
         const auto iDim = blockIdx.z;
+
+        //     if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 &&
+        //         threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
+        // {
+        //     const Type* input_data = static_cast<const Type*>(kargs.p_input);
+        //     printf("Input Tensor Data:\n");
+        //     for (index_t i = 0; i < kargs.batch; ++i)
+        //     {
+        //         printf("Batch %d:\n", static_cast<int>(i));
+        //         for (index_t h = 0; h < kargs.height; ++h)
+        //         {
+        //             for (index_t w = 0; w < kargs.width; ++w)
+        //             {
+        //                 index_t idx = i * kargs.dim_stride + h * kargs.width + w;
+        //                 printf("%f ", static_cast<float>(input_data[idx])); // Adjust type
+        //                 casting as needed
+        //             }
+        //             printf("\n");
+        //         }
+        //     }
+        // }
 
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -107,17 +147,15 @@ struct BatchedTransposeKernel
                                    sequence<kPadN, kPadM>{});
         }();
 
-        auto x_block_window =
-            make_tile_window(x_m_n,
-                             make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                             {static_cast<ck_tile::index_t>(iM),
-                              static_cast<ck_tile::index_t>(iN)});
+        auto x_block_window = make_tile_window(
+            x_m_n,
+            make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+            {static_cast<ck_tile::index_t>(iM), static_cast<ck_tile::index_t>(iN)});
 
-        auto y_block_window =
-            make_tile_window(y_n_m,
-                             make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
-                             {static_cast<ck_tile::index_t>(iN),
-                              static_cast<ck_tile::index_t>(iM)});
+        auto y_block_window = make_tile_window(
+            y_n_m,
+            make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
+            {static_cast<ck_tile::index_t>(iN), static_cast<ck_tile::index_t>(iM)});
 
         Pipeline{}(x_block_window, y_block_window);
     }

@@ -12,7 +12,7 @@
 
 #include "batched_transpose_example.hpp"
 
-#if 0
+// #if 0
 template <typename T>
 void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
 {
@@ -33,8 +33,7 @@ void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
                     if constexpr(std::is_same_v<T, ck_tile::fp16_t>)
                     {
                         auto m =
-                            ck_tile::type_convert<float>(x(std::vector<std::size_t>{i, j, k,
-                            v}));
+                            ck_tile::type_convert<float>(x(std::vector<std::size_t>{i, j, k, v}));
 
                         std::cout << m;
                         if(v != len[3] - 1)
@@ -42,7 +41,8 @@ void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
                     }
                     else
                     {
-                        std::cout << x(std::vector<std::size_t>{i, j, k, v}) << " ";
+                        std::cout << static_cast<int>(x(std::vector<std::size_t>{i, j, k, v}))
+                                  << " ";
                     }
                 }
                 std::cout << std::endl;
@@ -51,7 +51,7 @@ void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
     }
     std::cout << "--------------------" << std::endl;
 }
-#endif
+// #endif
 
 // different threshold for different dtype
 template <typename DataType>
@@ -92,12 +92,12 @@ auto create_args(int argc, char* argv[])
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("v", "1", "whether do CPU validation or not")
         .insert("pr", "fp16", "input data type. fp16/fp32 (representing 8/16/32 bit data)")
-        .insert("N", "2", "input batch size. ")
-        .insert("C", "16", "input channel size.")
-        .insert("H", "1", "input height size.")
-        .insert("W", "16", "input width size. ")
-        .insert("layout_in", "NCHW", "input tensor data layout - NCHW by default")
-        .insert("layout_out", "NHWC", "output tensor data layout - NHWC by default ")
+        .insert("N", "3", "input batch size. ")
+        .insert("C", "3", "input channel size.")
+        .insert("H", "4", "input height size.")
+        .insert("W", "5", "input width size. ")
+        .insert("layout_in", "NHWW", "input tensor data layout - NCHW by default")
+        .insert("layout_out", "NCHW", "output tensor data layout - NHWC by default ")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "t to 1 will print kernel name");
 
@@ -156,10 +156,19 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
 
+    auto total_elements = x_host.get_element_space_size();
+    for(size_t i = 0; i < total_elements; ++i)
+    {
+        x_host.data()[i] = static_cast<Type>(i + 1); // Assign unique values starting from 1
+    }
+
     ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
 
     x_dev.ToDevice(x_host.data());
+
+    printf("x_host\n");
+    dump_host_tensor_4d(x_host);
 
     auto trait = batched_transpose_trait{prec, layout_in};
 
@@ -211,6 +220,9 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     }
 
     y_dev.FromDevice(y_host.data());
+
+    printf("y_host\n");
+    dump_host_tensor_4d(y_host);
 
     bool rtn = true;
     if(validate)
