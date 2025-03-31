@@ -477,10 +477,10 @@ struct GemmKernel {{
 
 struct GemmDispatcher {
     static std::unordered_map<std::string, 
-        std::function<std::vector<float>(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& get_kernel_map() {
+        std::function<float(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& get_kernel_map() {
         // Use a static local variable
         static std::unordered_map<std::string, 
-            std::function<std::vector<float>(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>> kernel_map;
+            std::function<float(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>> kernel_map;
         return kernel_map;
     }
 
@@ -514,9 +514,8 @@ struct GemmDispatcher {
                     continue
                 content += f"""
                 //we can have multiple tiles config for the one kernel_trait
-                results.push_back({group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}>::launch(args, s));"""
+                return {group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}>::launch(args, s);"""
             content += """
-                return results;
             };\n"""
 
         content += """    }
@@ -528,7 +527,7 @@ struct GemmDispatcher {
         const std::string key = assemble_key(trait);
         auto& kernel_map = get_kernel_map(); 
         if(auto it = kernel_map.find(key); it != kernel_map.end()) {
-            return it->second(gemm_args, s)[0]; //Running single instance
+            return it->second(gemm_args, s); //Running single instance
         }
         throw std::runtime_error("No suitable kernel found: " + key);
     }

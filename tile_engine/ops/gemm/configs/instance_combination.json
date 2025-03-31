@@ -49,10 +49,10 @@
       "values": [false]
     },
     "pipeline": {
-      "values": ["compv3"]
+      "values": ["compv3", "mem"]
     },
     "scheduler": {
-      "values": ["intrawave"]
+      "values": ["intrawave", "interwave"]
     },
     "epilogue": {
       "values": ["default", "cshuffle"]
