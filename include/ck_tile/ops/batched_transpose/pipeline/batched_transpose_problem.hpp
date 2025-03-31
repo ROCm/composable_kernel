@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include <string>
 #include <type_traits>
 
 #define VectorLoadSize 16
