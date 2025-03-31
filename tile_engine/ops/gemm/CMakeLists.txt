@@ -4,7 +4,7 @@
 execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
-            --json ${CMAKE_CURRENT_LIST_DIR}/configs/single_instance.json
+            --json ${CMAKE_CURRENT_LIST_DIR}/configs/instance_combination.json
             --list_blobs
             RESULT_VARIABLE ret
 )
@@ -20,7 +20,7 @@ add_custom_command(
     OUTPUT  ${GEMM_CODEGEN_BLOBS}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
-            --json ${CMAKE_CURRENT_LIST_DIR}/configs/single_instance.json
+            --json ${CMAKE_CURRENT_LIST_DIR}/configs/instance_combination.json
             --gen_blobs
     DEPENDS ${GEMM_CODEGEN_BLOBS}
 )
