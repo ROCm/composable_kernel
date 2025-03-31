@@ -458,7 +458,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                             Sequence<CBlockTransferScalarPerVector_NWaveNPerXdl>,
                             I1,
                             I1>;
-
+    // NPerBlock is used for the first dim which is store dimension
+    // (with CBlockTransferScalarPerVector_NWaveNPerXdl scalar per vector).
     using GridwiseElementwiseWeightTransposeCast =
         GridwiseElementwise<Tuple<GKYXCTransposeDescType>,
                             Tuple<GKCYXTransposeDescType>,

@@ -520,6 +520,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                             I1,
                             I0>;
 
+    // NPerBlock is used for the first and second dim. Second dim is store dimension
+    // (with CBlockTransferScalarPerVector_NWaveNPerXdl scalar per vector).
     using GridwiseElementwiseWeightTranspose =
         GridwiseElementwise<Tuple<GKCYXTransposeDescType>,
                             Tuple<GKYXCTransposeDescType>,
