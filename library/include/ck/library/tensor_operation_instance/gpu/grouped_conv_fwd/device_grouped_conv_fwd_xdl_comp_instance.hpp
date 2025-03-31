@@ -84,7 +84,6 @@ using device_grouped_conv_fwd_xdl_bf16_comp_instances = std::tuple<
         DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,  BF16,  BF16,     F32,     BF16,    DsLayout,  BF16, PassThrough, PassThrough, PassThrough,       ConvSpec, GemmMNKPadding,   256,   128,   128,    32,   8,   8,  32,   32,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          1,           1,                   S<1, 32, 1, 8>,               8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v4>,
         DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,  BF16,  BF16,     F32,     BF16,    DsLayout,  BF16, PassThrough, PassThrough, PassThrough,       ConvSpec, GemmMNKPadding,   256,   256,   256,    32,   8,   8,  32,   32,    4,    4,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          1,           1,                   S<1, 32, 1, 8>,               8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3>,
         DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,  BF16,  BF16,     F32,     BF16,    DsLayout,  BF16, PassThrough, PassThrough, PassThrough,       ConvSpec, GemmMNKPadding,   256,   256,   256,    32,   8,   8,  32,   32,    4,    4,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          1,           1,                   S<1, 32, 1, 8>,               8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v5>,
-        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,  BF16,  BF16,     F32,     BF16,    DsLayout,  BF16, PassThrough, PassThrough, PassThrough,       ConvSpec, GemmMNKPadding,   256,   256,   256,    32,   8,   8,  16,   16,    8,    8,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          1,           2,                   S<1, 32, 1, 8>,               8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3>,
         DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,  BF16,  BF16,     F32,     BF16,    DsLayout,  BF16, PassThrough, PassThrough, PassThrough,       ConvSpec, GemmMNKPadding,   256,   128,   256,    32,   8,   8,  32,   32,    2,    4,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          1,           1,                   S<1, 32, 1, 8>,               8,  BlockGemmPipelineScheduler::Interwave, BlockGemmPipelineVersion::v1>,
         DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,  BF16,  BF16,     F32,     BF16,    DsLayout,  BF16, PassThrough, PassThrough, PassThrough,       ConvSpec, GemmMNKPadding,   256,   256,   128,    32,   8,   8,  32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          1,           1,                   S<1, 32, 1, 8>,               8,  BlockGemmPipelineScheduler::Interwave, BlockGemmPipelineVersion::v1>,
         DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,  BF16,  BF16,     F32,     BF16,    DsLayout,  BF16, PassThrough, PassThrough, PassThrough,       ConvSpec, GemmMNKPadding,   256,   128,   128,    64,   8,   8,  32,   32,    2,    2,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          1,           1,                   S<1, 32, 1, 8>,               8,  BlockGemmPipelineScheduler::Interwave, BlockGemmPipelineVersion::v1>,
@@ -94,6 +93,7 @@ using device_grouped_conv_fwd_xdl_bf16_comp_instances = std::tuple<
     // clang-format on
     >;
 
+// instances not working on gfx950
 template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
@@ -102,6 +102,7 @@ template <index_t NDimSpatial,
           ConvolutionForwardSpecialization ConvSpec>
 using device_grouped_conv_fwd_xdl_bf16_comp_instances_part2 = std::tuple<
     // clang-format off
+        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,  BF16,  BF16,     F32,     BF16,    DsLayout,  BF16, PassThrough, PassThrough, PassThrough,       ConvSpec, GemmMNKPadding,   256,   256,   256,    32,   8,   8,  16,   16,    8,    8,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          1,           2,                   S<1, 32, 1, 8>,               8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3>,
         // AGPR Spill when use permuted lds layout. so, use padding for these two.
         DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,  BF16,  BF16,     F32,     BF16,    DsLayout,  BF16, PassThrough, PassThrough, PassThrough,       ConvSpec, GemmMNKPadding,   256,   224,   256,    64,   8,   8,  16,   16,    7,    8,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          1,           2,                   S<1, 32, 1, 8>,               8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3>,
         DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,  BF16,  BF16,     F32,     BF16,    DsLayout,  BF16, PassThrough, PassThrough, PassThrough,       ConvSpec, GemmMNKPadding,   256,   256,   224,    64,   8,   8,  16,   16,    8,    7,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,          2,           1,                   S<1, 64, 1, 4>,               8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3>,
@@ -143,6 +144,7 @@ using device_grouped_conv_fwd_xdl_f16_comp_instances = std::tuple<
     // clang-format on
     >;
 
+// instances not working on gfx950
 template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
@@ -219,6 +221,7 @@ using device_grouped_conv_fwd_xdl_int8_comp_instances = std::tuple<
     // clang-format on
     >;
 
+// instances not working on gfx950
 template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
