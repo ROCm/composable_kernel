@@ -9,7 +9,6 @@
     #define PADDING_K_FIRST
     #define USING_MFMA_16x16x_16x2
 #elif defined(KERNEL_D)
-    #define PADDING_K_FIRST
     #define USING_MFMA_16x16x_16x2
     #define USING_XOR_BASED_BANK_CONFLICT_FREE
 #elif defined(KERNEL_E)
