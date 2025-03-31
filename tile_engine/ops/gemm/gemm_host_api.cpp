@@ -6,9 +6,10 @@
 #include "gemm_dispatcher.hpp"
 #include "gemm_host_api.hpp"
 
-
-float gemm_kernel_launch(kernel_traits &trait, ck_tile::GemmHostArgs& args, 
-                        const ck_tile::stream_config& s) {
+float gemm_kernel_launch(kernel_traits& trait,
+                         ck_tile::GemmHostArgs& args,
+                         const ck_tile::stream_config& s)
+{
     return GemmDispatcher::dispatch(trait, args, s);
 }
 
@@ -79,7 +80,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         // Permute vector pk_i4x4 data for device implementation
         ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-        //permute_tensor_b<decltype(b_k_n_dev)>(b_k_n_dev);
+        // permute_tensor_b<decltype(b_k_n_dev)>(b_k_n_dev);
         permute_vectors_i4x4_b(b_k_n_dev);
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
     }
@@ -105,16 +106,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
     gemm_args.stride_C = stride_C;
 
     kernel_traits trait;
-    trait.pipeline = arg_parser.get_str("pipeline");
+    trait.pipeline  = arg_parser.get_str("pipeline");
     trait.scheduler = arg_parser.get_str("scheduler");
-    trait.epilogue = arg_parser.get_str("epilogue");
-    trait.kPadM = arg_parser.get_bool("pad_m");
-    trait.kPadN = arg_parser.get_bool("pad_n");
-    trait.kPadK = arg_parser.get_bool("pad_k");
-    
+    trait.epilogue  = arg_parser.get_str("epilogue");
+    trait.kPadM     = arg_parser.get_bool("pad_m");
+    trait.kPadN     = arg_parser.get_bool("pad_n");
+    trait.kPadK     = arg_parser.get_bool("pad_k");
 
-    float ave_time =
-        gemm_kernel_launch(trait, gemm_args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+    float ave_time = gemm_kernel_launch(
+        trait, gemm_args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
@@ -152,13 +152,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     return pass;
 }
 
-int main(int argc, char* argv[]) {
-    try {
+int main(int argc, char* argv[])
+{
+    try
+    {
         auto [result, parser] = create_args(argc, argv);
-        if (!result) return EXIT_FAILURE;
-        return run<ADataType, BDataType, AccDataType, CDataType,
-                  ALayout, BLayout, CLayout>(parser);
-    } catch (const std::exception& e) {
+        if(!result)
+            return EXIT_FAILURE;
+        return run<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(parser);
+    }
+    catch(const std::exception& e)
+    {
         std::cerr << "Error: " << e.what() << "\n";
         return EXIT_FAILURE;
     }

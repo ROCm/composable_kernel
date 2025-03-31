@@ -54,7 +54,8 @@ struct DataTypeTraits<ck_tile::pk_int4_t>
     static constexpr const char* name = "pk_int4_t";
 };
 
-struct kernel_traits{
+struct kernel_traits
+{
     std::string pipeline;
     std::string scheduler;
     std::string epilogue;
@@ -112,7 +113,6 @@ inline auto create_args(int argc, char* argv[])
         .insert("pad_m", "f", "true, false")
         .insert("pad_n", "f", "true, false")
         .insert("pad_k", "f", "true, false");
-       
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
