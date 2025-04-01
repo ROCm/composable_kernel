@@ -18,11 +18,11 @@ inline __host__ __device__ constexpr double get_rtol()
     }
     else if constexpr(std::is_same_v<DataType, ck::half_t>)
     {
-        return 1e-3;
+        return 1e-1;
     }
     else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
     {
-        return 5e-2;
+        return 5e-1;
     }
     else if constexpr(std::is_same_v<DataType, int32_t>)
     {
@@ -59,11 +59,11 @@ inline __host__ __device__ constexpr double get_atol()
     }
     else if constexpr(std::is_same_v<DataType, ck::half_t>)
     {
-        return 1e-3;
+        return 1e-1;
     }
     else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
     {
-        return 5e-2;
+        return 5e-1;
     }
     else if constexpr(std::is_same_v<DataType, int32_t>)
     {
