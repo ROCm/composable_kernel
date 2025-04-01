@@ -100,7 +100,9 @@ CK_TILE_DEVICE void transpose_tile2d_impl_in_thread(OutTensor& out_tensor,
 
     if constexpr(num_vec_in == 1 || num_vec_out == 1)
     {
+        // loop over SFC
         static_for<0, num_access, 1>{}([&](auto iAccess) {
+            // data index [y0, y1, ...] in the order of input tensor
             constexpr auto idx_y = SFC_Y::get_index(iAccess);
 
             constexpr index_t in_offset  = y_in_desc.calculate_offset(idx_y);
@@ -126,10 +128,13 @@ CK_TILE_DEVICE void transpose_tile2d_impl_in_thread(OutTensor& out_tensor,
         using InVec  = array<DataType, vec_length_in>;
         using OutVec = array<DataType, vec_length_out>;
 
+        // in/out vectors to be transposed
         thread_buffer<InVec, num_vec_in> in_vectors;
         thread_buffer<OutVec, num_vec_out> out_vectors;
 
+        // loop over SFC and do transpose
         static_for<0, num_access, 1>{}([&](auto iAccess) {
+            // data index [y0, y1, ...] in the order of input tensor
             constexpr auto idx_y_start = SFC_Y::get_index(iAccess);
 
             // get input vectors
