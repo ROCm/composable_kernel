@@ -114,7 +114,6 @@ struct BatchedTransposeKernel
         //             {
         //                 index_t idx = i * kargs.dim_stride + h * kargs.width + w;
         //                 printf("%f ", static_cast<float>(input_data[idx])); // Adjust type
-        //                 casting as needed
         //             }
         //             printf("\n");
         //         }
@@ -122,8 +121,11 @@ struct BatchedTransposeKernel
         // }
 
         const auto x_m_n = [&]() {
+            const auto input_ptr =
+                static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride;
+
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride,
+                input_ptr,
                 make_tuple(kargs.height, kargs.width),
                 make_tuple(kargs.width, 1),
                 number<VectorSizeInput>{},
@@ -133,6 +135,23 @@ struct BatchedTransposeKernel
                                    make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
                                    sequence<kPadM, kPadN>{});
         }();
+
+        if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0 &&
+           threadIdx.y == 0 && threadIdx.z == 0)
+        {
+
+            auto my_buffer_view = x_m_n.get_buffer_view();
+
+            printf("x_m_n\n");
+
+            int len = static_cast<int>(my_buffer_view.buffer_size_);
+            for(int i = 0; i < len; i++)
+            {
+                // printf("pad_tensor_view: buffer_view[%d] = %f\n", i,
+                // static_cast<float>(my_buffer_view[i]));
+                printf("x_m_n: buffer_view[%d] = %f\n", i, static_cast<float>(my_buffer_view[i]));
+            }
+        }
 
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(

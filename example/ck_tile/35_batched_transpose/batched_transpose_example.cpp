@@ -154,7 +154,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         {dim_out[0], dim_out[1], dim_out[2], dim_out[3]},
         {stride_dim_out[0], stride_dim_out[1], stride_dim_out[2], stride_dim_out[3]});
 
-    ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
+    // ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
 
     auto total_elements = x_host.get_element_space_size();
     for(size_t i = 0; i < total_elements; ++i)
@@ -169,6 +169,9 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     printf("x_host\n");
     dump_host_tensor_4d(x_host);
+
+    printf("y_host\n");
+    dump_host_tensor_4d(y_host);
 
     auto trait = batched_transpose_trait{prec, layout_in};
 
@@ -254,18 +257,19 @@ int main(int argc, char** argv)
     std::string prec = args.get_str("pr");
 
     bool r = true;
-    if(prec.compare("fp8") == 0)
-    {
-        r &= run_batched_transpose<ck_tile::fp8_t>(args);
-    }
-    else if(prec.compare("fp16") == 0)
+    // if(prec.compare("fp8") == 0)
+    // {
+    //     r &= run_batched_transpose<ck_tile::fp8_t>(args);
+    // }
+    // else
+    if(prec.compare("fp16") == 0)
     {
         r &= run_batched_transpose<ck_tile::fp16_t>(args);
     }
-    else if(prec.compare("bf16") == 0)
-    {
-        r &= run_batched_transpose<ck_tile::bf16_t>(args);
-    }
+    // else if(prec.compare("bf16") == 0)
+    // {
+    //     r &= run_batched_transpose<ck_tile::bf16_t>(args);
+    // }
 
     return r ? 0 : -1;
 }
