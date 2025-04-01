@@ -78,8 +78,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
         BlockToCTileMap_GemmStreamK<MPerBlock,
                                     NPerBlock,
                                     K0PerBlock * K1,
-                                    StreamKReductionStrategy::Atomic>,
-                                    // StreamKReductionStrategy::Reduction>,
+                                    // StreamKReductionStrategy::Atomic>,
+                                    StreamKReductionStrategy::Reduction>,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
@@ -152,7 +152,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
             num_cu = dev_prop.multiProcessorCount;
             dim3 grid_dims =
                 (karg.block_mapping.sk_num_blocks ? karg.block_mapping.sk_num_blocks
-                                                  : karg.block_mapping.reduction_start_block_idx);            
+                                                  : karg.block_mapping.reduction_start_block_idx);
             float ave_time = 0;
 
             // TODO: remove clear buffer for streamk kernels
