@@ -8,7 +8,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 * Added support for bf16, f32, and f16 for 2D and 3D NGCHW grouped convolution backward data
 * Added support GKCYX layout for grouped convolution forward (NGCHW/GKCYX/NGKHW, number of instances in instance factory for NGCHW/GKYXC/NGKHW has been reduced).
-
+* Added support for Stream-K version of mixed fp8/bf16 GEMM
 ### Optimized
 
 None
