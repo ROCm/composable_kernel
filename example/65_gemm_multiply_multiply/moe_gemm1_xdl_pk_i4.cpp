@@ -59,11 +59,7 @@ struct MulABScale
     __host__ __device__ constexpr void operator()<EDataType, float, float, float>(
         EDataType& e, const float& c, const float& d0, const float& d1) const
     {
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        e = ck::type_convert<EDataType>(c * d1 * d0 * 16);
-#else
         e = ck::type_convert<EDataType>(c * d1 * d0);
-#endif
     }
 };
 
@@ -82,11 +78,8 @@ struct MulABScaleSilu
     {
         // act
         float x0 = 0;
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        ck::tensor_operation::element_wise::Silu{}(x0, c * d1 * d0 * 16);
-#else
+
         ck::tensor_operation::element_wise::Silu{}(x0, c * d1 * d0);
-#endif
         e = ck::type_convert<EDataType>(x0);
     }
 };
@@ -360,60 +353,8 @@ int main(int argc, char* argv[])
     }
 #endif
 
-#if CK_USE_PK4_LAYOUT_SHUFFLE
+#if CK_USE_PK4_LAYOUT_SHUFFLE_V2
     // vector pk_i4x4 permute
-#if !CK_USE_PK4_LAYOUT_SHUFFLE_V2
-    for(int e = 0; e < experts; e++)
-    {
-        for(int i = 0; i < N; i++)
-        {
-            for(int j = 0; j < K; j += 8)
-            {
-                int input[8];
-
-                for(int k = 0; k < 4; k++)
-                {
-                    int i4x2         = b0_preshuffled(e, j + k * 2, i).data;
-                    input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
-                    input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
-                }
-
-                // permute 01234567->20643175
-                {
-                    int hi   = input[2];
-                    int lo   = input[0];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 0, i) = i4x2;
-                }
-
-                {
-                    int hi   = input[6];
-                    int lo   = input[4];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 2, i) = i4x2;
-                }
-
-                {
-                    int hi   = input[3];
-                    int lo   = input[1];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 4, i) = i4x2;
-                }
-
-                {
-                    int hi   = input[7];
-                    int lo   = input[5];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 6, i) = i4x2;
-                }
-            }
-        }
-    }
-#else
     for(int e = 0; e < experts; e++)
     {
         for(int i = 0; i < N; i++)
@@ -464,7 +405,6 @@ int main(int argc, char* argv[])
             }
         }
     }
-#endif
 #endif
 
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
@@ -565,6 +505,7 @@ int main(int argc, char* argv[])
                                c_t_k_n(t, topk_id, n),
                                d0_t_n(t, n),
                                d1_e_n(e, n));
+                e_t_n_host_result(t, topk_id, n) *= 16; // the result need to multiply by 16
             }
         }
 

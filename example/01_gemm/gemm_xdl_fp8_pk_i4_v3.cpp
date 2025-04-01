@@ -22,26 +22,7 @@ using CLayout = Row;
 
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
-
-// C = C * 16  Using the assembly instruction for int4->fp8 conversion, need to mulitply 16
-struct MultiplyConst
-{
-    template <typename C, typename C1>
-    __host__ __device__ constexpr void operator()(C& c, const C1& c1) const;
-
-    template <>
-    __host__ __device__ constexpr void operator()<CDataType>(CDataType& c,
-                                                             const CDataType& c1) const
-    {
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        c = ck::type_convert<CDataType>(c1 * 16);
-#else
-        c = ck::type_convert<CDataType>(c1);
-#endif
-    }
-};
-
-using CElementOp = MultiplyConst;
+using CElementOp = PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -183,57 +164,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         }
     }
 
-#if CK_USE_PK4_LAYOUT_SHUFFLE
+#if CK_USE_PK4_LAYOUT_SHUFFLE_V2
     // vector pk_i4x4 permute
-#if !CK_USE_PK4_LAYOUT_SHUFFLE_V2
-    for(int i = 0; i < N; i++)
-    {
-        for(int j = 0; j < K; j += 8)
-        {
-            int input[8];
-
-            for(int k = 0; k < 4; k++)
-            {
-                int i4x2         = b_k_n_permute(j + k * 2, i).data;
-                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
-                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
-            }
-
-            // permute 01234567->20643175
-            {
-                int hi   = input[2];
-                int lo   = input[0];
-                int i4x2 = (hi << 4) | lo;
-
-                b_k_n_permute(j + 0, i) = i4x2;
-            }
-
-            {
-                int hi   = input[6];
-                int lo   = input[4];
-                int i4x2 = (hi << 4) | lo;
-
-                b_k_n_permute(j + 2, i) = i4x2;
-            }
-
-            {
-                int hi   = input[3];
-                int lo   = input[1];
-                int i4x2 = (hi << 4) | lo;
-
-                b_k_n_permute(j + 4, i) = i4x2;
-            }
-
-            {
-                int hi   = input[7];
-                int lo   = input[5];
-                int i4x2 = (hi << 4) | lo;
-
-                b_k_n_permute(j + 6, i) = i4x2;
-            }
-        }
-    }
-#else
     for(int i = 0; i < N; i++)
     {
         for(int j = 0; j < K; j += 8)
@@ -281,7 +213,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             }
         }
     }
-#endif
 #endif
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
@@ -335,7 +266,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                 else
                     i4 = (i4x2.data >> 4) & 0xf;
 
-#if CK_USE_PK4_LAYOUT_SHUFFLE
+#if CK_USE_PK4_LAYOUT_SHUFFLE_V2
                 float v_b = i4_to_f32_gfx9(i4) * 16;
 #else
                 float v_b = i4 - 8;

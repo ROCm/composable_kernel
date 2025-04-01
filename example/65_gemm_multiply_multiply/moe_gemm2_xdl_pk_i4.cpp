@@ -63,11 +63,7 @@ struct MulABScaleExpertWeight
     {
         (void)d0;
 
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        e = ck::type_convert<EDataType>(c * d1 * d2 * 16);
-#else
         e = ck::type_convert<EDataType>(c * d1 * d2);
-#endif
     }
     // for reference cpu
     template <>
@@ -75,11 +71,7 @@ struct MulABScaleExpertWeight
         float& e, const float& c, const float& d0, const float& d1, const float& d2) const
     {
         // for reference cpu
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        e = ck::type_convert<EDataType>(c * d0 * d1 * d2 * 16);
-#else
         e = ck::type_convert<EDataType>(c * d0 * d1 * d2);
-#endif
     }
 };
 
@@ -154,18 +146,18 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, A0DataType>;
 // clang-format on
 #else
-static constexpr ck::index_t MPerBlock = 16;
+static constexpr ck::index_t MPerBlock = 128;
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
         <      Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
-               256,   MPerBlock,   128,    256,
+               256,   MPerBlock,   128,    128,
                16,   32,
-               16,   16,
-               1,    2,
-               S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
-               1,    2,   S<1, 16, 1, 16>, S<2, 1, 1, 1>,
+               32,   32,
+               4,    1,
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+               S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
+               1,    1,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, A0DataType>;
 // clang-format on
 #endif
@@ -184,7 +176,7 @@ int main(int argc, char* argv[])
     ck::index_t N               = 4096;
     ck::index_t K               = 14336;
     ck::index_t experts         = 8;
-    ck::index_t valid_tile_num  = 2;
+    ck::index_t valid_tile_num  = 16;
     ck::index_t sorted_tile_num = valid_tile_num + 3;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
@@ -232,8 +224,7 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
     max_token_id.mData[0] = valid_size;
-    // int eids[]            = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 3, 3, 3};
-    int eids[] = {0, 1, 3, 3, 3};
+    int eids[]            = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 3, 3, 3};
     for(int i = 0; i < sorted_tile_num; i++)
     {
         expert_ids.mData[i] = eids[i];
@@ -345,10 +336,8 @@ int main(int argc, char* argv[])
                      K,
                      device_op.GetPreShuffleParameters());
 
-#if CK_USE_PK4_LAYOUT_SHUFFLE
+#if CK_USE_PK4_LAYOUT_SHUFFLE_V2
     // vector pk_i4x4 permute
-
-#if !CK_USE_PK4_LAYOUT_SHUFFLE_V2
     for(int e = 0; e < experts; e++)
     {
         for(int i = 0; i < N; i++)
@@ -366,7 +355,7 @@ int main(int argc, char* argv[])
 
                 // permute 01234567->20643175
                 {
-                    int hi   = input[2];
+                    int hi   = input[4];
                     int lo   = input[0];
                     int i4x2 = (hi << 4) | lo;
 
@@ -374,16 +363,16 @@ int main(int argc, char* argv[])
                 }
 
                 {
-                    int hi   = input[6];
-                    int lo   = input[4];
+                    int hi   = input[5];
+                    int lo   = input[1];
                     int i4x2 = (hi << 4) | lo;
 
                     b0_preshuffled(e, j + 2, i) = i4x2;
                 }
 
                 {
-                    int hi   = input[3];
-                    int lo   = input[1];
+                    int hi   = input[6];
+                    int lo   = input[2];
                     int i4x2 = (hi << 4) | lo;
 
                     b0_preshuffled(e, j + 4, i) = i4x2;
@@ -391,7 +380,7 @@ int main(int argc, char* argv[])
 
                 {
                     int hi   = input[7];
-                    int lo   = input[5];
+                    int lo   = input[3];
                     int i4x2 = (hi << 4) | lo;
 
                     b0_preshuffled(e, j + 6, i) = i4x2;
@@ -399,58 +388,6 @@ int main(int argc, char* argv[])
             }
         }
     }
-#else
-    for(int e = 0; e < experts; e++)
-    {
-        for(int i = 0; i < N; i++)
-        {
-            for(int j = 0; j < K; j += 8)
-            {
-                int input[8];
-
-                for(int k = 0; k < 4; k++)
-                {
-                    int i4x2         = b0_preshuffled(e, j + k * 2, i).data;
-                    input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
-                    input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
-                }
-
-                // permute 01234567->20643175
-                {
-                    int hi   = input[2];
-                    int lo   = input[0];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 0, i) = i4x2;
-                }
-
-                {
-                    int hi   = input[6];
-                    int lo   = input[4];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 2, i) = i4x2;
-                }
-
-                {
-                    int hi   = input[3];
-                    int lo   = input[1];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 4, i) = i4x2;
-                }
-
-                {
-                    int hi   = input[7];
-                    int lo   = input[5];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 6, i) = i4x2;
-                }
-            }
-        }
-    }
-#endif
 #endif
 
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
