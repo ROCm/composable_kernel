@@ -159,7 +159,12 @@ struct BlockwiseGemmXdlops_pipeline_v1_sw_mx<BlockGemmPipelineScheduler::Intrawa
     static constexpr index_t GlobalBufferNum = 1;
 
     static constexpr auto ScalesPerKBlockSize =
-        KPerBlock / ScaleBlockSize; // How many mx-vectors per K block size
+        KPerBlock / ScaleBlockSize; // How many mx-vectors per K block
+
+    static constexpr auto ScalesPerXdlopsRun =
+        (KPack * xdlops_gemm.K0PerXdlops) / ScaleBlockSize; // How many mx-vectors per MFMA call
+
+    static constexpr auto ScalesPerXdlopsRunPerThread = ScalesPerXdlopsRun;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -210,7 +215,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_sw_mx<BlockGemmPipelineScheduler::Intrawa
         : Base(a_origin, b_origin)
     {
 
-        static_assert(ScalesPerKBlockSize == KRepeat,
+        static_assert(ScalesPerKBlockSize == KRepeat && ScalesPerXdlopsRunPerThread == 1,
                       "Single call to xdlops_gemm::Run should process exactly ScaleBlockSize "
                       "elements in k dimension");
     }
@@ -607,8 +612,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_sw_mx<BlockGemmPipelineScheduler::Intrawa
         make_tuple(Number<xdlops_gemm.mfma_instr.group_size>{}, Number<1>{}));
 
     // TODO: make this field protected when b_scale_thread_copy_ is moved here
-    static constexpr auto b_scale_thread_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(Number<NRepeat>{}, Number<KRepeat>{}));
+    static constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<NRepeat>{}, Number<KRepeat * ScalesPerXdlopsRunPerThread>{}));
 
     protected:
     using Base::a_thread_copy_;

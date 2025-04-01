@@ -1501,11 +1501,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 ((get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) / MPerXdl);
         auto a_thread_offset_k = KPerThread * (get_thread_local_1d_id() % MPerXdl) / MPerXdl;
 
-        auto b_thread_offset_n =
-            get_thread_local_1d_id() % NPerXdl +
-            (get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) % NWaves * NPerXdl;
-        auto b_thread_offset_k = KPerThread * (get_thread_local_1d_id() % NPerXdl) / NPerXdl;
-
         auto a_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
             AScaleDataType,
             AScaleDataType,
@@ -1520,19 +1515,54 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                   make_multi_index(block_m_id * MPerBlock + a_thread_offset_m,
                                    a_thread_offset_k / ScaleBlockSize));
 
-        auto b_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
-            BScaleDataType,
-            BScaleDataType,
-            decltype(b_scale_grid_desc_bn_ak),
-            decltype(BlockwiseGemmPipe::b_scale_thread_desc),
-            Sequence<1, BlockwiseGemmPipe::KRepeat>, // SliceLengths
-            Sequence<0, 1>,                          // DimAccessOrder
-            1,                                       // SrcVectorDim
-            BlockwiseGemmPipe::KRepeat,              // SrcScalarPerVector
-            1,
-            false>(b_scale_grid_desc_bn_ak,
-                   make_multi_index(block_n_id * NPerBlock + b_thread_offset_n,
-                                    b_thread_offset_k / ScaleBlockSize));
+        auto b_thread_offset_n =
+            get_thread_local_1d_id() % NPerXdl +
+            (get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) % NWaves * NPerXdl;
+        auto b_thread_offset_k = (get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) /
+                                 mfma.selected_mfma.num_threads_per_blk;
+
+        auto b_scale_thread_copy =
+            ThreadwiseTensorSliceTransfer_v2<BScaleDataType,
+                                             BScaleDataType,
+                                             decltype(b_scale_grid_desc_bn_ak),
+                                             decltype(BlockwiseGemmPipe::b_scale_thread_desc_copy),
+                                             Sequence<1, 1>, // SliceLengths
+                                             Sequence<0, 1>, // DimAccessOrder
+                                             1,              // SrcVectorDim
+                                             1,              // SrcScalarPerVector
+                                             1,
+                                             false>(
+                b_scale_grid_desc_bn_ak,
+                make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, b_thread_offset_k));
+
+#if 1
+        if(blockIdx.x == 0 &&
+           (threadIdx.x == 0 || threadIdx.x == 16 || threadIdx.x == 32 || threadIdx.x == 48))
+        {
+            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\ta_thread_offset_m = %d; "
+                   "a_thread_offset_k = %d\n\t a_scale_origin = {%d, %d}\n\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   blockIdx.z,
+                   threadIdx.x,
+                   a_thread_offset_m,
+                   a_thread_offset_k,
+                   block_m_id * MPerBlock + a_thread_offset_m,
+                   a_thread_offset_k / ScaleBlockSize);
+
+            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\tb_thread_offset_n = %d; "
+                   "b_thread_offset_k = %d\n\t b_scale_origin = {%d, %d}\n\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   blockIdx.z,
+                   threadIdx.x,
+                   b_thread_offset_n,
+                   b_thread_offset_k,
+                   block_n_id * NPerBlock + b_thread_offset_n,
+                   b_thread_offset_k);
+        }
+
+#endif
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,

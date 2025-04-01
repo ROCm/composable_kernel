@@ -154,7 +154,14 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
     static constexpr index_t GlobalBufferNum = 1;
 
     static constexpr auto ScalesPerKBlockSize =
-        KPerBlock / ScaleBlockSize; // How many mx-vectors per K block size
+        KPerBlock / ScaleBlockSize; // How many mx-vectors per K block
+
+    //> How many mx-vectors in each row/col is processed in one call to xdlops_gemm.Run()
+    static constexpr auto ScalesPerXdlopsRun = (KPack * xdlops_gemm.K0PerXdlops) / ScaleBlockSize;
+
+    //> How many scales a thread must read to accommodate one call to xdlops_gemm.Run()
+    static constexpr auto ScalesPerXdlopsRunPerThread =
+        ScalesPerXdlopsRun / xdlops_gemm.mfma_instr.num_input_blks;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -498,6 +505,24 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 #endif
                             });
 
+                            static_assert(1 <= ScalesPerXdlopsRunPerThread &&
+                                              ScalesPerXdlopsRunPerThread <= 4,
+                                          "Must have at least one scale and no more than 4 scales "
+                                          "per Xdlops per Thread.");
+                            static_assert(sizeof(BScaleDataType) == 1,
+                                          "BScaleDataType must be 1 byte");
+
+                            constexpr index_t b_scale_offset =
+                                b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0));
+
+                            vector_type<BScaleDataType, sizeof(int32_t)> b_scale_thread_vec;
+
+                            // Pack b_scale_thread_buf into b_scale_thread_vec
+                            static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
+                                b_scale_thread_vec.template AsType<BScaleDataType>()(s) =
+                                    b_scale_thread_buf[Number<b_scale_offset + s>{}];
+                            });
+
                             using mfma_input_type_a =
                                 typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
                             using mfma_input_type_b =
@@ -524,9 +549,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 }
                             });
 #endif
-                            // one scale per k0
-                            constexpr index_t b_scale_offset =
-                                b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0));
+
 #if 1
                             if(!is_B_zero && !is_A_zero)
                             {
@@ -659,112 +682,123 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                            static_cast<int>(n0),
                                            static_cast<int>(k0),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<0>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<1>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<2>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<3>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<4>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<5>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<6>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<7>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<8>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<9>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<10>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<11>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<12>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<13>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<14>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<15>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<16>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<17>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<18>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<19>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<20>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<21>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<22>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<23>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<24>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<25>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<26>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<27>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<28>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<29>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<30>{})),
                                            type_convert<float>(
-                                               b_thread_vec.template AsType<ComputeTypeA>()(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<31>{})));
-#if 0
-                                        printf("blockId = %u; threadId = %u; i = %d; m0 = %d : "
-                                               "b_scale_thread_buf[%d,%d] = %f\n",
-                                               blockIdx.x,
-                                               threadIdx.x,
-                                               i,
-                                               static_cast<int>(m0),
-                                               static_cast<int>(n0),
-                                               static_cast<int>(k0),
-                                               type_convert<float>(
-                                                   b_scale_thread_buf[Number<b_scale_offset>{}]));
+#if 1
+                                    printf(
+                                        "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                        "b_scale_thread_buf[%d,%d] = {%f, %f, %f, %f}\n",
+                                        blockIdx.x,
+                                        threadIdx.x,
+                                        i,
+                                        static_cast<int>(m0),
+                                        static_cast<int>(n0),
+                                        static_cast<int>(k0),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<0>{}]),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<1>{}]),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<2>{}]),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<3>{}]));
 #endif
 #endif
                                 }
@@ -1089,6 +1123,17 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 #endif
                         });
 
+                        constexpr index_t b_scale_offset =
+                            b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0));
+
+                        vector_type<BScaleDataType, sizeof(int32_t)> b_scale_thread_vec;
+
+                        // Pack b_scale_thread_buf into b_scale_thread_vec
+                        static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
+                            b_scale_thread_vec.template AsType<BScaleDataType>()(s) =
+                                b_scale_thread_buf[Number<b_scale_offset + s>{}];
+                        });
+
                         using mfma_input_type_a =
                             typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
                         using mfma_input_type_b =
@@ -1110,10 +1155,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             }
                         });
 #endif
-
-                        // one scale per k0
-                        constexpr index_t b_scale_offset =
-                            b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0));
 
 #if 1
                         if(!is_B_zero && !is_A_zero)
@@ -1234,9 +1275,12 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 // print out b_thread_vec
 #if 1
                                 printf(
-                                    "blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
-                                    "= %d :\n\tb_thread_vec = [%f, %f, %f, %f, %f, %f, %f, %f, "
-                                    "%f, %f, %f, %f, %f, %f, %f, %f,\n\t\t\t\t    %f, %f, %f, "
+                                    "blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
+                                    "%d; k0 "
+                                    "= %d :\n\tb_thread_vec = [%f, %f, %f, %f, %f, %f, %f, "
+                                    "%f, "
+                                    "%f, %f, %f, %f, %f, %f, %f, %f,\n\t\t\t\t    %f, %f, "
+                                    "%f, "
                                     "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
                                     blockIdx.x,
                                     threadIdx.x,
@@ -1245,81 +1289,91 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                     static_cast<int>(n0),
                                     static_cast<int>(k0),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<0>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<0>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<1>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<1>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<2>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<2>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<3>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<3>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<4>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<4>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<5>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<5>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<6>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<6>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<7>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<7>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<8>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<8>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<9>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<9>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<10>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<10>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<11>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<11>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<12>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<12>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<13>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<13>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<14>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<14>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<15>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<15>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<16>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<16>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<17>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<17>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<18>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<18>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<19>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<19>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<20>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<20>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<21>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<21>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<22>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<22>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<23>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<23>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<24>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<24>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<25>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<25>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<26>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<26>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<27>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<27>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<28>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<28>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<29>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<29>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(Number<30>{})),
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<30>{})),
                                     type_convert<float>(
-                                        b_thread_vec.template AsType<ComputeTypeA>()(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(
                                             Number<31>{})));
-#if 0
-                                        printf("blockId = %u; threadId = %u; i = %d; m0 = %d : "
-                                               "b_scale_thread_buf[%d,%d] = %f\n",
-                                               blockIdx.x,
-                                               threadIdx.x,
-                                               -1,
-                                               static_cast<int>(m0),
-                                               static_cast<int>(n0),
-                                               static_cast<int>(k0),
-                                               type_convert<float>(
-                                                   b_scale_thread_buf[Number<b_scale_offset>{}]));
+#if 1
+                                printf("blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                       "b_scale_thread_buf[%d,%d] = {%f, %f, %f, %f}\n",
+                                       blockIdx.x,
+                                       threadIdx.x,
+                                       -1,
+                                       static_cast<int>(m0),
+                                       static_cast<int>(n0),
+                                       static_cast<int>(k0),
+                                       type_convert<float>(
+                                           b_scale_thread_vec
+                                               .template AsType<BScaleDataType>()[Number<0>{}]),
+                                       type_convert<float>(
+                                           b_scale_thread_vec
+                                               .template AsType<BScaleDataType>()[Number<1>{}]),
+                                       type_convert<float>(
+                                           b_scale_thread_vec
+                                               .template AsType<BScaleDataType>()[Number<2>{}]),
+                                       type_convert<float>(
+                                           b_scale_thread_vec
+                                               .template AsType<BScaleDataType>()[Number<3>{}]));
 #endif
 #endif
                             }
@@ -1440,8 +1494,12 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         make_tuple(Number<xdlops_gemm.mfma_instr.group_size>{}, Number<1>{}));
 
     // TODO: make this field protected when b_scale_thread_copy_ is moved here
-    static constexpr auto b_scale_thread_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(Number<NRepeat>{}, Number<KRepeat>{}));
+    static constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<NRepeat>{}, Number<KRepeat>{}, Number<ScalesPerXdlopsRunPerThread>{}));
+
+    // Is used to copy data from b_scale_grid to b_scale_thread_buf
+    static constexpr auto b_scale_thread_desc_copy = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<1>{}, Number<ScalesPerXdlopsRunPerThread>{}));
 
     protected:
     using Base::a_thread_copy_;
