@@ -82,7 +82,7 @@ struct Add
 
         const auto x_m_n_a = make_naive_tensor_view<address_space_enum::global>(
             p_x_a, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
-        
+
         const auto x_m_n_b = make_naive_tensor_view<address_space_enum::global>(
             p_x_b, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
 
@@ -95,7 +95,7 @@ struct Add
                                          make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
                                          {iM, 0},
                                          Policy::template MakeXBlockTileDistribution<Problem>());
-        
+
         auto x_window_b = make_tile_window(x_m_n_b,
                                          make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
                                          {iM, 0},

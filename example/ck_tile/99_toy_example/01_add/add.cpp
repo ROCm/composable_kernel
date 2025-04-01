@@ -51,7 +51,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockTile  = ck_tile::sequence<2, 1024>;
     using WarpTile   = ck_tile::sequence<1, 512>;
     using Vector     = ck_tile::sequence<1, 8>;
-    
+
     constexpr ck_tile::index_t kBlockSize  = 256;
     constexpr ck_tile::index_t kBlockPerCu = 1;
     ck_tile::index_t kGridSize             = (m / BlockTile::at(ck_tile::number<0>{}));
@@ -76,7 +76,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        m,
                                        n));
 
-    std::size_t num_btype = sizeof(XDataType) * m * n + sizeof(YDataType) * m * n;
+    std::size_t num_btype = 2 * sizeof(XDataType) * m * n + sizeof(YDataType) * m * n;
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
