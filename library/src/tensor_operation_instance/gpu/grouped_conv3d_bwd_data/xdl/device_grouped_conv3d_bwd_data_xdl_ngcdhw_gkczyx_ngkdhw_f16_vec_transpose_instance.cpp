@@ -11,28 +11,28 @@ namespace device {
 namespace instance {
 // Compilation parameters for out[n, di, hi, wi, g, c] * wei[g, k, z, y, x, c] = in[n, do, ho, wo,
 // g, k]
-void add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkczyx_ngcdhw_f32_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkczyx_ngcdhw_f16_vec_transpose_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NGKDHW,
                                                                   GKCZYX,
                                                                   Empty_Tuple,
                                                                   NGCDHW,
-                                                                  F32,
-                                                                  F32,
+                                                                  F16,
+                                                                  F16,
                                                                   Empty_Tuple,
-                                                                  F32,
+                                                                  F16,
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances)
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_xdl_f32_instances<3,
-                                                       NGKDHW,
-                                                       GKCZYX,
-                                                       Empty_Tuple,
-                                                       NGCDHW,
-                                                       ConvBwdDataDefault>{});
+        device_grouped_conv_bwd_data_transpose_xdl_f16_instances<3,
+                                                                 NGKDHW,
+                                                                 GKCZYX,
+                                                                 Empty_Tuple,
+                                                                 NGCDHW,
+                                                                 ConvBwdDataDefault>{});
 }
 
 } // namespace instance

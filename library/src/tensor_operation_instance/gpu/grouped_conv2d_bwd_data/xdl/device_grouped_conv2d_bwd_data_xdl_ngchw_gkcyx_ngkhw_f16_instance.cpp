@@ -32,14 +32,6 @@ void add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkcyx_ngchw_f16_instances(
                                                        Empty_Tuple,
                                                        NGCHW,
                                                        ConvBwdDataDefault>{});
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_bwd_data_transpose_xdl_f16_instances<2,
-                                                                 NGKHW,
-                                                                 GKCYX,
-                                                                 Empty_Tuple,
-                                                                 NGCHW,
-                                                                 ConvBwdDataDefault>{});
 }
 
 } // namespace instance
