@@ -22,17 +22,18 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t kKPack     = GetSmemPackA<Problem>();
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / 8>{}, number<kMPerBlock>{}, number<8>{}),
-            make_tuple(number<(kMPerBlock + 1) * 8>{}, number<8>{}, number<1>{}),
-            number<8>{},
+            make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
+            make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
+            number<kKPack>{},
             number<1>{});
 
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_0,
             make_tuple(make_pass_through_transform(kMPerBlock),
-                       make_merge_transform(make_tuple(kKPerBlock / 8, 8))),
+                       make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
