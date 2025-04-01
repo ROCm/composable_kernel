@@ -309,6 +309,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
                                                make_multi_index(-MPerBlock, ScalesPerKBlockSize));
 
+#if 0
         // Prefetch b_scales
         static_for<0, NRepeat, 1>{}([&](auto n0) {
             b_scale_thread_copy.Run(b_scale_grid_desc,
@@ -319,6 +320,9 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                    make_multi_index(NWaves * NPerXDL, 0));
         });
+#else
+        ignore = b_scale_grid_buf;
+#endif
 
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                make_multi_index(-NPerBlock, ScalesPerKBlockSize));
@@ -513,7 +517,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                           "BScaleDataType must be 1 byte");
 
                             constexpr index_t b_scale_offset =
-                                b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0));
+                                b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, I0));
 
                             vector_type<BScaleDataType, sizeof(int32_t)> b_scale_thread_vec;
 
@@ -996,7 +1000,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 // restore row id and advance to the next set of scales
                 a_scale_thread_copy.MoveSrcSliceWindow(
                     a_scale_grid_desc, make_multi_index(-MPerBlock, ScalesPerKBlockSize));
-
+#if 0
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     b_scale_thread_copy.Run(b_scale_grid_desc,
                                             b_scale_grid_buf,
@@ -1006,6 +1010,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                            make_multi_index(NWaves * NPerXDL, 0));
                 });
+#endif
                 // NWaves * NPerXDL * NRepeat == NPerBlock
                 b_scale_thread_copy.MoveSrcSliceWindow(
                     b_scale_grid_desc, make_multi_index(-NPerBlock, ScalesPerKBlockSize));
@@ -1124,7 +1129,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         });
 
                         constexpr index_t b_scale_offset =
-                            b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0));
+                            b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, I0));
 
                         vector_type<BScaleDataType, sizeof(int32_t)> b_scale_thread_vec;
 
