@@ -191,14 +191,14 @@ int main(int argc, char* argv[])
     // experts = 8
     // per expert:
     // GEMM shape
-    ck::index_t N               = 14336 * 2;
-    ck::index_t K               = 4096;
+    ck::index_t N               = 4096 * 2;
+    ck::index_t K               = 6144;
     ck::index_t experts         = 8;
     ck::index_t sorted_tile_num = 16;
     ck::index_t valid_tile_num  = 13;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
-    ck::index_t tokens          = 64;
+    ck::index_t tokens          = 644;
     ck::index_t topk            = 2;
 
     if(argc == 1)
@@ -440,8 +440,8 @@ int main(int argc, char* argv[])
                                b_element_op,
                                cde_element_op);
 
-    if(!device_op.IsSupportedArgument(argument) || ck::get_device_name() != "gfx942" ||
-       ck::get_device_name() != "gfx950")
+    if(!device_op.IsSupportedArgument(argument) ||
+       !(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
     {
         throw std::runtime_error(
             "wrong! device_gemm with the specified compilation parameters does "
