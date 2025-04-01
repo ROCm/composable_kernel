@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
-
 #pragma once
 
 #include "ck/utility/common_header.hpp"
@@ -23,19 +22,19 @@ namespace ck {
 template <typename GridwiseGemm>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_gemm_xdlops_streamk(const typename GridwiseGemm::FloatAB* p_a_grid,
-                               const typename GridwiseGemm::FloatAB* p_b_grid,
-                               typename GridwiseGemm::FloatC* p_c_grid,
-                               void* p_workspace,
-                               index_t M,
-                               index_t N,
-                               index_t K,
-                               index_t StrideA,
-                               index_t StrideB,
-                               index_t StrideC,
-                               typename GridwiseGemm::Block2CTileMap block_mapping)
+        kernel_gemm_xdlops_streamk(const typename GridwiseGemm::FloatAB* p_a_grid,
+                                   const typename GridwiseGemm::FloatAB* p_b_grid,
+                                   typename GridwiseGemm::FloatC* p_c_grid,
+                                   void* p_workspace,
+                                   index_t M,
+                                   index_t N,
+                                   index_t K,
+                                   index_t StrideA,
+                                   index_t StrideB,
+                                   index_t StrideC,
+                                   typename GridwiseGemm::Block2CTileMap block_mapping)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
@@ -145,7 +144,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
         index_t StrideA;
         index_t StrideB;
         index_t StrideC;
-        index_t num_cu, occupancy; // stream-k arguments
+        index_t num_cu, occupancy;
         Block2CTileMap block_mapping;
 
         Argument(const FloatAB* p_a_grid_,
@@ -455,16 +454,17 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                                Block2CTileMap block_mapping,
                                void* __restrict__ p_shared_block)
     {
-        uint32_t m                     = M;
-        uint32_t n                     = N;
-        uint32_t k                     = K;
-        uint32_t pad_m                 = (m + MPerBlock - 1) / MPerBlock * MPerBlock;
-        uint32_t pad_n                 = (n + NPerBlock - 1) / NPerBlock * NPerBlock;
-        uint32_t pad_k                 = (k + KPerBlock - 1) / KPerBlock * KPerBlock;
-        uint32_t stride_a              = StrideA;
-        uint32_t stride_b              = StrideB;
-        uint32_t stride_c              = StrideC;
-        uint32_t block_idx             = block_mapping.get_block_idx();
+        uint32_t m         = M;
+        uint32_t n         = N;
+        uint32_t k         = K;
+        uint32_t pad_m     = (m + MPerBlock - 1) / MPerBlock * MPerBlock;
+        uint32_t pad_n     = (n + NPerBlock - 1) / NPerBlock * NPerBlock;
+        uint32_t pad_k     = (k + KPerBlock - 1) / KPerBlock * KPerBlock;
+        uint32_t stride_a  = StrideA;
+        uint32_t stride_b  = StrideB;
+        uint32_t stride_c  = StrideC;
+        uint32_t block_idx = block_mapping.get_block_idx();
+
         const auto a_k0_m_k1_grid_desc = MakeAGridDescriptor_K0_M_K1(m, pad_m, k, pad_k, stride_a);
         const auto b_k0_n_k1_grid_desc = MakeBGridDescriptor_K0_N_K1(k, pad_k, n, pad_n, stride_b);
         const auto c_grid_desc_m_n     = MakeCGridDescriptor_M_N(m, pad_m, n, pad_n, stride_c);
@@ -523,6 +523,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
 
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline = GridwiseGemmPipeline_v3();
+
         uint32_t* p_semaphore =
             reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(p_workspace) +
                                         block_mapping.get_workspace_size_for_acc(sizeof(FloatAcc)));
@@ -532,636 +533,629 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
 
         uint32_t total_iter_length;
 
-        constexpr auto cluster_length_reduce =
-            GetClusterLengthReduction(); //  get nperblock, mperblock for reduction
-        constexpr auto reduce_desc = make_cluster_descriptor(cluster_length_reduce);
-        const auto reduce_thread_cluster_idx =
-            reduce_desc.CalculateBottomIndex(make_multi_index(get_thread_local_1d_id()));
-        const auto thread_m_cluster_id = reduce_thread_cluster_idx[I0];
-        const auto thread_n_cluster_id = reduce_thread_cluster_idx[I1];
+        constexpr auto cluster_length_reduce = GetClusterLengthReduction();
+        uint32_t block_acc_offset =
+            (block_mapping.get_acc_buffer_offset_from_block(block_idx + 1) - 1) * MPerBlock *
+            NPerBlock;
+        is_sk_block = block_idx < block_mapping.sk_num_blocks;
+        is_dp_block = block_idx >= block_mapping.dp_start_block_idx &&
+                      block_idx < block_mapping.reduction_start_block_idx;
 
-        constexpr auto MReduceIters = math::integer_divide_ceil(
-            Number<MPerBlock>{},
-            cluster_length_reduce.At(I0)); //  calculate total Mreduce iterations for block
-        constexpr auto NReduceIters = math::integer_divide_ceil(
-            Number<NPerBlock>{},
-            cluster_length_reduce.At(I1) *
-                Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{}); //  calculate
-                                                                       // total Nreduce
-                                                                       // iterations for
-                                                                       // block
-
-        constexpr auto acc_thread_buf_load_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(I1, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{})); //  thread
-                                                                                   // buf LOAD
-                                                                                   // descriptor
-        constexpr auto acc_thread_buf_store_desc = make_naive_tensor_descriptor_packed(make_tuple(
-            I1, I1, I1, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{})); //  thread
-                                                                                // buf STORE
-                                                                                // descriptor
-
-        // stream-k: for new work for all the persistent blocks.
-        for(; block_idx < block_mapping.total_blocks_allocated(); block_idx += gridDim.x)
+        is_reduction_block = block_idx >= block_mapping.reduction_start_block_idx;
+        is_padding_block   = block_idx >= block_mapping.sk_num_blocks &&
+                           block_idx < block_mapping.dp_start_block_idx;
+        if(is_padding_block)
         {
+            return;
+        }
+        block_mapping.get_block_itr(block_idx, iter_start, iter_end);
+        total_iter_length = iter_end - iter_start;
 
-            // offset for last acc buffer of this block
-            uint32_t block_acc_offset =
-                (block_mapping.get_acc_buffer_offset_from_block(block_idx + 1) - 1) * MPerBlock *
-                NPerBlock;
-            is_sk_block = block_idx < block_mapping.sk_num_blocks;
-            is_dp_block = block_idx >= block_mapping.dp_start_block_idx &&
-                          block_idx < block_mapping.reduction_start_block_idx;
-
-            is_padding_block = block_idx >= block_mapping.sk_num_blocks &&
-                               block_idx < block_mapping.dp_start_block_idx;
-            if(is_padding_block)
+        if constexpr(Block2CTileMap::ReductionStrategy == StreamKReductionStrategy::Reduction)
+        {
+            if(is_reduction_block)
             {
-                continue;
-            }
+                // descriptors
+                // constexpr auto cluster_length_reduce = GetClusterLengthReduction();
+                constexpr auto reduce_desc = make_cluster_descriptor(cluster_length_reduce);
+                const auto reduce_thread_cluster_idx =
+                    reduce_desc.CalculateBottomIndex(make_multi_index(get_thread_local_1d_id()));
+                const auto thread_m_cluster_id = reduce_thread_cluster_idx[I0];
+                const auto thread_n_cluster_id = reduce_thread_cluster_idx[I1];
 
-            block_mapping.get_block_itr(block_idx, iter_start, iter_end);
-            total_iter_length = iter_end - iter_start;
+                constexpr auto MReduceIters =
+                    math::integer_divide_ceil(Number<MPerBlock>{}, cluster_length_reduce.At(I0));
+                constexpr auto NReduceIters = math::integer_divide_ceil(
+                    Number<NPerBlock>{},
+                    cluster_length_reduce.At(I1) *
+                        Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{});
 
-            if constexpr(Block2CTileMap::ReductionStrategy == StreamKReductionStrategy::Reduction)
-            {
-                is_reduction_block = block_idx >= block_mapping.reduction_start_block_idx;
+                constexpr auto acc_thread_buf_load_desc = make_naive_tensor_descriptor_packed(
+                    make_tuple(I1, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{}));
+                constexpr auto acc_thread_buf_store_desc = make_naive_tensor_descriptor_packed(
+                    make_tuple(I1, I1, I1, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{}));
 
-                if(is_reduction_block)
-                {
+                constexpr auto c_partial_acc_block_m_n = GetPartialAccBlockDescriptor();
 
-                    constexpr auto c_partial_acc_block_m_n = GetPartialAccBlockDescriptor();
+                constexpr auto partial_acc_load_step_n = make_multi_index(
+                    0, cluster_length_reduce.At(I1) * CBlockTransferScalarPerVector_NWaveNPerXDL);
+                constexpr auto partial_acc_load_step_n_reverse =
+                    make_multi_index(0,
+                                     -1 * cluster_length_reduce.At(I1).value * (NReduceIters - 1) *
+                                         CBlockTransferScalarPerVector_NWaveNPerXDL);
+                constexpr auto partial_acc_load_step_m =
+                    make_multi_index(cluster_length_reduce.At(I0), 0);
 
-                    constexpr auto partial_acc_load_step_n = make_multi_index(
-                        0,
-                        cluster_length_reduce.At(I1) * CBlockTransferScalarPerVector_NWaveNPerXDL);
-                    constexpr auto partial_acc_load_step_n_reverse = make_multi_index(
-                        0,
-                        -1 * cluster_length_reduce.At(I1).value * (NReduceIters - 1) *
-                            CBlockTransferScalarPerVector_NWaveNPerXDL);
-                    constexpr auto partial_acc_load_step_m =
-                        make_multi_index(cluster_length_reduce.At(I0), 0);
+                constexpr auto partial_acc_store_step_n = make_multi_index(
+                    0,
+                    0,
+                    0,
+                    cluster_length_reduce.At(I1) * CBlockTransferScalarPerVector_NWaveNPerXDL);
+                constexpr auto partial_acc_store_step_n_reverse =
+                    make_multi_index(0,
+                                     0,
+                                     0,
+                                     -1 * cluster_length_reduce.At(I1).value * (NReduceIters - 1) *
+                                         CBlockTransferScalarPerVector_NWaveNPerXDL);
+                constexpr auto partial_acc_store_step_m =
+                    make_multi_index(0, cluster_length_reduce.At(I0), 0, 0);
 
-                    constexpr auto partial_acc_store_step_n = make_multi_index(
-                        0,
-                        0,
-                        0,
-                        cluster_length_reduce.At(I1) * CBlockTransferScalarPerVector_NWaveNPerXDL);
-                    constexpr auto partial_acc_store_step_n_reverse = make_multi_index(
-                        0,
-                        0,
-                        0,
-                        -1 * cluster_length_reduce.At(I1).value * (NReduceIters - 1) *
-                            CBlockTransferScalarPerVector_NWaveNPerXDL);
-                    constexpr auto partial_acc_store_step_m =
-                        make_multi_index(0, cluster_length_reduce.At(I0), 0, 0);
+                StaticBuffer<AddressSpaceEnum::Vgpr,
+                             FloatAcc,
+                             CBlockTransferScalarPerVector_NWaveNPerXDL,
+                             true>
+                    parcial_acc_buf;
+                StaticBuffer<AddressSpaceEnum::Vgpr,
+                             FloatAcc,
+                             CBlockTransferScalarPerVector_NWaveNPerXDL,
+                             true>
+                    acc_buf;
 
-                    StaticBuffer<AddressSpaceEnum::Vgpr,
-                                 FloatAcc,
-                                 CBlockTransferScalarPerVector_NWaveNPerXDL,
-                                 true>
-                        parcial_acc_buf;
-                    StaticBuffer<AddressSpaceEnum::Vgpr,
-                                 FloatAcc,
-                                 CBlockTransferScalarPerVector_NWaveNPerXDL,
-                                 true>
-                        acc_buf;
+                // start to compute
+                auto reduction_idx = blockIdx.x - block_mapping.reduction_start_block_idx;
+                auto spatial_idx   = block_mapping.tile_to_spatial(reduction_idx, m, n);
 
-                    // start to compute
-                    auto reduction_idx = block_idx - block_mapping.reduction_start_block_idx;
-                    auto spatial_idx   = block_mapping.tile_to_spatial(reduction_idx, m, n);
-                    workgroup_barrier wg_barrier(p_semaphore);
+                workgroup_barrier wg_barrier(p_semaphore);
 
-                    uint32_t tile_acc_offset_start =
-                        block_mapping.get_acc_buffer_offset_from_tile(reduction_idx);
-                    uint32_t tile_acc_offset_end =
-                        block_mapping.get_acc_buffer_offset_from_tile(reduction_idx + 1);
+                uint32_t tile_acc_offset_start =
+                    block_mapping.get_acc_buffer_offset_from_tile(reduction_idx);
+                uint32_t tile_acc_offset_end =
+                    block_mapping.get_acc_buffer_offset_from_tile(reduction_idx + 1);
 
-                    auto acc_load = ThreadwiseTensorSliceTransfer_v2<
-                        FloatAcc,                                                // SrcData,
-                        FloatAcc,                                                // DstData,
-                        decltype(c_partial_acc_block_m_n),                       // SrcDesc,
-                        decltype(acc_thread_buf_load_desc),                      // DstDesc,
-                        Sequence<1, CBlockTransferScalarPerVector_NWaveNPerXDL>, // SliceLengths,
-                        Sequence<0, 1>,                                          // DimAccessOrder,
-                        1,                                                       // SrcVectorDim,
-                        CBlockTransferScalarPerVector_NWaveNPerXDL, // SrcScalarPerVector,
-                        1,                                          // SrcScalarStrideInVector,
-                        false                                       // SrcResetCoordinateAfterRun,
-                        >{c_partial_acc_block_m_n,
-                          make_multi_index(thread_m_cluster_id,
-                                           thread_n_cluster_id *
-                                               CBlockTransferScalarPerVector_NWaveNPerXDL)};
+                auto acc_load = ThreadwiseTensorSliceTransfer_v2<
+                    FloatAcc,                                                // SrcData,
+                    FloatAcc,                                                // DstData,
+                    decltype(c_partial_acc_block_m_n),                       // SrcDesc,
+                    decltype(acc_thread_buf_load_desc),                      // DstDesc,
+                    Sequence<1, CBlockTransferScalarPerVector_NWaveNPerXDL>, // SliceLengths,
+                    Sequence<0, 1>,                                          // DimAccessOrder,
+                    1,                                                       // SrcVectorDim,
+                    CBlockTransferScalarPerVector_NWaveNPerXDL,              // SrcScalarPerVector,
+                    1,    // SrcScalarStrideInVector,
+                    false // SrcResetCoordinateAfterRun,
+                    >{c_partial_acc_block_m_n,
+                      make_multi_index(thread_m_cluster_id,
+                                       thread_n_cluster_id *
+                                           CBlockTransferScalarPerVector_NWaveNPerXDL)};
 
-                    auto acc_store = ThreadwiseTensorSliceTransfer_v1r3<
-                        FloatAcc,                                                // SrcData,
-                        FloatC,                                                  // DstData,
-                        decltype(acc_thread_buf_store_desc),                     // SrcDesc,
-                        decltype(c_grid_desc_mblock_mperblock_nblock_nperblock), // DstDesc,
-                        CElementwiseOperation, // ElementwiseOperation,
-                        Sequence<1,
-                                 1,
-                                 1,
-                                 CBlockTransferScalarPerVector_NWaveNPerXDL>, // SliceLengths,
-                        Sequence<0, 1, 2, 3>,                                 // DimAccessOrder,
-                        3,                                                    // DstVectorDim,
-                        CBlockTransferScalarPerVector_NWaveNPerXDL,           // DstScalarPerVector,
-                        InMemoryDataOperationEnum::Set, // InMemoryDataOperationEnum DstInMemOp,
-                        1,                              // DstScalarStrideInVector,
-                        false                           // DstResetCoordinateAfterRun,
-                        >{c_grid_desc_mblock_mperblock_nblock_nperblock,
-                          make_multi_index(__builtin_amdgcn_readfirstlane(spatial_idx[I0]),
-                                           thread_m_cluster_id,
-                                           __builtin_amdgcn_readfirstlane(spatial_idx[I1]),
-                                           thread_n_cluster_id *
-                                               CBlockTransferScalarPerVector_NWaveNPerXDL),
-                          CElementwiseOperation{}};
-                    // block synchronization                    
-                    wg_barrier.wait_eq(0, block_mapping.sk_num_blocks);
+                auto acc_store = ThreadwiseTensorSliceTransfer_v1r3<
+                    FloatAcc,                                                // SrcData,
+                    FloatC,                                                  // DstData,
+                    decltype(acc_thread_buf_store_desc),                     // SrcDesc,
+                    decltype(c_grid_desc_mblock_mperblock_nblock_nperblock), // DstDesc,
+                    CElementwiseOperation, // ElementwiseOperation,
+                    Sequence<1, 1, 1, CBlockTransferScalarPerVector_NWaveNPerXDL>, // SliceLengths,
+                    Sequence<0, 1, 2, 3>,                       // DimAccessOrder,
+                    3,                                          // DstVectorDim,
+                    CBlockTransferScalarPerVector_NWaveNPerXDL, // DstScalarPerVector,
+                    InMemoryDataOperationEnum::Set, // InMemoryDataOperationEnum DstInMemOp,
+                    1,                              // DstScalarStrideInVector,
+                    false                           // DstResetCoordinateAfterRun,
+                    >{c_grid_desc_mblock_mperblock_nblock_nperblock,
+                      make_multi_index(__builtin_amdgcn_readfirstlane(spatial_idx[I0]),
+                                       thread_m_cluster_id,
+                                       __builtin_amdgcn_readfirstlane(spatial_idx[I1]),
+                                       thread_n_cluster_id *
+                                           CBlockTransferScalarPerVector_NWaveNPerXDL),
+                      CElementwiseOperation{}};
+
+                // block synchronization
+                wg_barrier.wait_eq(0, block_mapping.sk_num_blocks);
 
 #if 0
                 if(threadIdx.x == 0) {
-                    printf("bid:%d, rid:%d, os:%d,%d, spatial:%d,%d\n", static_cast<int>(block_idx),
+                    printf("bid:%d, rid:%d, os:%d,%d, spatial:%d,%d\n", static_cast<int>(blockIdx.x),
                         reduction_idx, __builtin_amdgcn_readfirstlane(tile_acc_offset_start), __builtin_amdgcn_readfirstlane(tile_acc_offset_end),
                         __builtin_amdgcn_readfirstlane(spatial_idx[I0]),
                         __builtin_amdgcn_readfirstlane(spatial_idx[I1]));
                 }
 #endif
 
-                    using Accumulation = ck::detail::
-                        AccumulateWithNanCheck<false /*PropagateNan*/, reduce::Add, FloatAcc>;
+                using Accumulation = ck::detail::
+                    AccumulateWithNanCheck<false /*PropagateNan*/, reduce::Add, FloatAcc>;
 
-                    for(int i_m = 0; i_m < MReduceIters; i_m++)
-                    {
-                        static_for<0, NReduceIters, 1>{}([&](auto i_n_reduce) {
-                            acc_buf.Clear();
-                            for(auto i = tile_acc_offset_start; i < tile_acc_offset_end; i++)
-                            {
-                                auto c_partial_acc_buf =
-                                    make_dynamic_buffer<AddressSpaceEnum::Global,
-                                                        AmdBufferCoherenceEnum::GLC>(
-                                        reinterpret_cast<FloatAcc*>(p_workspace) +
-                                            i * c_partial_acc_block_m_n.GetElementSpaceSize(),
-                                        c_partial_acc_block_m_n.GetElementSpaceSize());
-
-                                acc_load.Run(c_partial_acc_block_m_n,
-                                             c_partial_acc_buf,
-                                             acc_thread_buf_load_desc,
-                                             make_tuple(I0, I0),
-                                             parcial_acc_buf);
-
-                                static_for<0, CBlockTransferScalarPerVector_NWaveNPerXDL, 1>{}(
-                                    [&](auto i_vec) {
-                                        constexpr auto offset =
-                                            acc_thread_buf_load_desc.CalculateOffset(
-                                                make_tuple(0, i_vec));
-                                        Accumulation::Calculate(acc_buf(Number<offset>{}),
-                                                                parcial_acc_buf[Number<offset>{}]);
-                                    });
-                            }
-
-                            if(thread_n_cluster_id * CBlockTransferScalarPerVector_NWaveNPerXDL <
-                               NPerBlock)
-                            {
-                                acc_store.Run(acc_thread_buf_store_desc,
-                                              make_tuple(I0, I0, I0, I0),
-                                              acc_buf,
-                                              c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                              c_grid_buf);
-                            }
-                            if constexpr(NReduceIters != 1)
-                            {
-                                if constexpr(i_n_reduce != (NReduceIters - 1))
-                                {
-                                    acc_load.MoveSrcSliceWindow(c_partial_acc_block_m_n,
-                                                                partial_acc_load_step_n);
-                                    acc_store.MoveDstSliceWindow(
-                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                        partial_acc_store_step_n);
-                                }
-                                else
-                                {
-                                    acc_load.MoveSrcSliceWindow(c_partial_acc_block_m_n,
-                                                                partial_acc_load_step_n_reverse);
-                                    acc_store.MoveDstSliceWindow(
-                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                        partial_acc_store_step_n_reverse);
-                                }
-                            }
-                        });
-                        {
-                            acc_load.MoveSrcSliceWindow(c_partial_acc_block_m_n,
-                                                        partial_acc_load_step_m);
-                            acc_store.MoveDstSliceWindow(
-                                c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                partial_acc_store_step_m);
-                        }
-                    }
-                    continue;
-                }
-            }
-
-            while(true)
-            {
-                uint32_t current_iter_length = __builtin_amdgcn_readfirstlane(
-                    block_mapping.get_current_iter_length(iter_start, iter_end, total_iter_length));
-                uint32_t tile_idx, iter_offset;
-                block_mapping.get_tile_idx_with_offset(iter_end - 1, tile_idx, iter_offset);
-                iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
-                auto spatial_idx = block_mapping.tile_to_spatial(tile_idx, m, n);
-
-                const index_t m_block_data_idx_on_grid =
-                    __builtin_amdgcn_readfirstlane(spatial_idx[I0] * MPerBlock);
-
-                const index_t n_block_data_idx_on_grid =
-                    __builtin_amdgcn_readfirstlane(spatial_idx[I1] * NPerBlock);
-
-                const index_t k0_block_data_idx_on_grid =
-                    __builtin_amdgcn_readfirstlane(iter_offset * K0PerBlock);
-
-                // A matrix blockwise copy
-                auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1<
-                    ThisThreadBlock,
-                    AElementwiseOperation,
-                    ck::tensor_operation::element_wise::PassThrough,
-                    InMemoryDataOperationEnum::Set,
-                    Sequence<K0PerBlock, MPerBlock, K1>,
-                    ABlockTransferThreadClusterLengths_K0_M_K1,
-                    ABlockTransferThreadClusterArrangeOrder,
-                    FloatAB,
-                    FloatAB,
-                    decltype(a_k0_m_k1_grid_desc),
-                    decltype(a_block_desc_k0_m_k1),
-                    ABlockTransferSrcAccessOrder,
-                    Sequence<1, 0, 2>,
-                    ABlockTransferSrcVectorDim,
-                    2,
-                    ABlockTransferSrcScalarPerVector,
-                    ABlockTransferDstScalarPerVector_K1,
-                    1,
-                    1,
-                    AThreadTransferSrcResetCoordinateAfterRun,
-                    true>(a_k0_m_k1_grid_desc,
-                          make_multi_index(k0_block_data_idx_on_grid, m_block_data_idx_on_grid, 0),
-                          a_element_op,
-                          a_block_desc_k0_m_k1,
-                          make_multi_index(0, 0, 0),
-                          ck::tensor_operation::element_wise::PassThrough{});
-
-                // B matrix blockwise copy
-                auto b_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1<
-                    ThisThreadBlock,
-                    BElementwiseOperation,
-                    ck::tensor_operation::element_wise::PassThrough,
-                    InMemoryDataOperationEnum::Set,
-                    Sequence<K0PerBlock, NPerBlock, K1>,
-                    BBlockTransferThreadClusterLengths_K0_N_K1,
-                    BBlockTransferThreadClusterArrangeOrder,
-                    FloatAB,
-                    FloatAB,
-                    decltype(b_k0_n_k1_grid_desc),
-                    decltype(b_block_desc_k0_n_k1),
-                    BBlockTransferSrcAccessOrder,
-                    Sequence<1, 0, 2>,
-                    BBlockTransferSrcVectorDim,
-                    2,
-                    BBlockTransferSrcScalarPerVector,
-                    BBlockTransferDstScalarPerVector_K1,
-                    1,
-                    1,
-                    BThreadTransferSrcResetCoordinateAfterRun,
-                    true>(b_k0_n_k1_grid_desc,
-                          make_multi_index(k0_block_data_idx_on_grid, n_block_data_idx_on_grid, 0),
-                          b_element_op,
-                          b_block_desc_k0_n_k1,
-                          make_multi_index(0, 0, 0),
-                          ck::tensor_operation::element_wise::PassThrough{});
-
-                const index_t num_k_block_main_loop = current_iter_length;
-
-                gridwise_gemm_pipeline.Run(a_k0_m_k1_grid_desc,
-                                           a_block_desc_k0_m_k1,
-                                           a_blockwise_copy,
-                                           a_grid_buf,
-                                           a_block_buf,
-                                           a_block_slice_copy_step,
-                                           b_k0_n_k1_grid_desc,
-                                           b_block_desc_k0_n_k1,
-                                           b_blockwise_copy,
-                                           b_grid_buf,
-                                           b_block_buf,
-                                           b_block_slice_copy_step,
-                                           blockwise_gemm,
-                                           c_thread_buf,
-                                           num_k_block_main_loop);
-
-                // output: register to global memory
+                for(int i_m = 0; i_m < MReduceIters; i_m++)
                 {
-                    constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
-                    constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
+                    static_for<0, NReduceIters, 1>{}([&](auto i_n_reduce) {
+                        acc_buf.Clear();
+                        for(auto i = tile_acc_offset_start; i < tile_acc_offset_end; i++)
+                        {
+                            auto c_partial_acc_buf =
+                                make_dynamic_buffer<AddressSpaceEnum::Global,
+                                                    AmdBufferCoherenceEnum::GLC>(
+                                    reinterpret_cast<FloatAcc*>(p_workspace) +
+                                        i * c_partial_acc_block_m_n.GetElementSpaceSize(),
+                                    c_partial_acc_block_m_n.GetElementSpaceSize());
 
-                    constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
-                        blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+                            acc_load.Run(c_partial_acc_block_m_n,
+                                         c_partial_acc_buf,
+                                         acc_thread_buf_load_desc,
+                                         make_tuple(I0, I0),
+                                         parcial_acc_buf);
 
-                    constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc =
-                        blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+                            static_for<0, CBlockTransferScalarPerVector_NWaveNPerXDL, 1>{}(
+                                [&](auto i_vec) {
+                                    constexpr auto offset =
+                                        acc_thread_buf_load_desc.CalculateOffset(
+                                            make_tuple(0, i_vec));
+                                    Accumulation::Calculate(acc_buf(Number<offset>{}),
+                                                            parcial_acc_buf[Number<offset>{}]);
+                                });
+                        }
 
-                    constexpr auto M0 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I0);
-                    constexpr auto N0 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I1);
-                    constexpr auto M1 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I2);
-                    constexpr auto N1 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I3);
-                    constexpr auto M2 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I4);
-                    constexpr auto M3 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I5);
-                    constexpr auto M4 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I6);
-                    constexpr auto N2 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I7);
+                        if(thread_n_cluster_id * CBlockTransferScalarPerVector_NWaveNPerXDL <
+                           NPerBlock)
+                        {
+                            acc_store.Run(acc_thread_buf_store_desc,
+                                          make_tuple(I0, I0, I0, I0),
+                                          acc_buf,
+                                          c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                          c_grid_buf);
+                        }
+                        if constexpr(NReduceIters != 1)
+                        {
+                            if constexpr(i_n_reduce != (NReduceIters - 1))
+                            {
+                                acc_load.MoveSrcSliceWindow(c_partial_acc_block_m_n,
+                                                            partial_acc_load_step_n);
+                                acc_store.MoveDstSliceWindow(
+                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    partial_acc_store_step_n);
+                            }
+                            else
+                            {
+                                acc_load.MoveSrcSliceWindow(c_partial_acc_block_m_n,
+                                                            partial_acc_load_step_n_reverse);
+                                acc_store.MoveDstSliceWindow(
+                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    partial_acc_store_step_n_reverse);
+                            }
+                        }
+                    });
+                    {
+                        acc_load.MoveSrcSliceWindow(c_partial_acc_block_m_n,
+                                                    partial_acc_load_step_m);
+                        acc_store.MoveDstSliceWindow(c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                     partial_acc_store_step_m);
+                    }
+                }
+                return;
+            }
+        }
 
-                    constexpr auto c_block_desc_mblock_mpershuffle_nblock_npershuffle =
-                        GetCBlockDescriptor_MBlock_MPerShuffle_NBlock_NPerShuffle();
+        // offset for last acc buffer of this block
+        // uint32_t block_acc_offset =
+        //  (block_mapping.get_acc_buffer_offset_from_block(block_idx + 1) - 1) * MPerBlock *
+        // NPerBlock;
 
-                    constexpr auto c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle =
-                        GetCBlockDescriptor_MShuffleRepeat_MPerShuffle_NShuffleRepeat_NPerShuffle();
+        while(true)
+        {
+            uint32_t current_iter_length = __builtin_amdgcn_readfirstlane(
+                block_mapping.get_current_iter_length(iter_start, iter_end, total_iter_length));
+            uint32_t tile_idx, iter_offset;
+            block_mapping.get_tile_idx_with_offset(iter_end - 1, tile_idx, iter_offset);
+            iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
+            auto spatial_idx = block_mapping.tile_to_spatial(tile_idx, m, n);
 
-                    auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                        reinterpret_cast<FloatCShuffle*>(p_shared_block),
-                        c_block_desc_mblock_mpershuffle_nblock_npershuffle.GetElementSpaceSize());
+            const index_t m_block_data_idx_on_grid =
+                __builtin_amdgcn_readfirstlane(spatial_idx[I0] * MPerBlock);
 
-                    auto c_partial_acc_buf =
-                        make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::GLC>(
-                            reinterpret_cast<FloatAcc*>(p_workspace) + block_acc_offset,
-                            c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle
-                                .GetElementSpaceSize());
+            const index_t n_block_data_idx_on_grid =
+                __builtin_amdgcn_readfirstlane(spatial_idx[I1] * NPerBlock);
 
-                    constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
-                        transform_tensor_descriptor(
+            const index_t k0_block_data_idx_on_grid =
+                __builtin_amdgcn_readfirstlane(iter_offset * K0PerBlock);
+
+            // A matrix blockwise copy
+            auto a_blockwise_copy =
+                ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+                                                    AElementwiseOperation,
+                                                    ck::tensor_operation::element_wise::PassThrough,
+                                                    InMemoryDataOperationEnum::Set,
+                                                    Sequence<K0PerBlock, MPerBlock, K1>,
+                                                    ABlockTransferThreadClusterLengths_K0_M_K1,
+                                                    ABlockTransferThreadClusterArrangeOrder,
+                                                    FloatAB,
+                                                    FloatAB,
+                                                    decltype(a_k0_m_k1_grid_desc),
+                                                    decltype(a_block_desc_k0_m_k1),
+                                                    ABlockTransferSrcAccessOrder,
+                                                    Sequence<1, 0, 2>,
+                                                    ABlockTransferSrcVectorDim,
+                                                    2,
+                                                    ABlockTransferSrcScalarPerVector,
+                                                    ABlockTransferDstScalarPerVector_K1,
+                                                    1,
+                                                    1,
+                                                    AThreadTransferSrcResetCoordinateAfterRun,
+                                                    true>(
+                    a_k0_m_k1_grid_desc,
+                    make_multi_index(k0_block_data_idx_on_grid, m_block_data_idx_on_grid, 0),
+                    a_element_op,
+                    a_block_desc_k0_m_k1,
+                    make_multi_index(0, 0, 0),
+                    ck::tensor_operation::element_wise::PassThrough{});
+
+            // B matrix blockwise copy
+            auto b_blockwise_copy =
+                ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+                                                    BElementwiseOperation,
+                                                    ck::tensor_operation::element_wise::PassThrough,
+                                                    InMemoryDataOperationEnum::Set,
+                                                    Sequence<K0PerBlock, NPerBlock, K1>,
+                                                    BBlockTransferThreadClusterLengths_K0_N_K1,
+                                                    BBlockTransferThreadClusterArrangeOrder,
+                                                    FloatAB,
+                                                    FloatAB,
+                                                    decltype(b_k0_n_k1_grid_desc),
+                                                    decltype(b_block_desc_k0_n_k1),
+                                                    BBlockTransferSrcAccessOrder,
+                                                    Sequence<1, 0, 2>,
+                                                    BBlockTransferSrcVectorDim,
+                                                    2,
+                                                    BBlockTransferSrcScalarPerVector,
+                                                    BBlockTransferDstScalarPerVector_K1,
+                                                    1,
+                                                    1,
+                                                    BThreadTransferSrcResetCoordinateAfterRun,
+                                                    true>(
+                    b_k0_n_k1_grid_desc,
+                    make_multi_index(k0_block_data_idx_on_grid, n_block_data_idx_on_grid, 0),
+                    b_element_op,
+                    b_block_desc_k0_n_k1,
+                    make_multi_index(0, 0, 0),
+                    ck::tensor_operation::element_wise::PassThrough{});
+
+            const index_t num_k_block_main_loop = current_iter_length;
+
+            gridwise_gemm_pipeline.Run(a_k0_m_k1_grid_desc,
+                                       a_block_desc_k0_m_k1,
+                                       a_blockwise_copy,
+                                       a_grid_buf,
+                                       a_block_buf,
+                                       a_block_slice_copy_step,
+                                       b_k0_n_k1_grid_desc,
+                                       b_block_desc_k0_n_k1,
+                                       b_blockwise_copy,
+                                       b_grid_buf,
+                                       b_block_buf,
+                                       b_block_slice_copy_step,
+                                       blockwise_gemm,
+                                       c_thread_buf,
+                                       num_k_block_main_loop);
+
+            // output: register to global memory
+            {
+                constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
+                constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
+
+                constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
+                    blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+
+                constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc =
+                    blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+
+                constexpr auto M0 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I0);
+                constexpr auto N0 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I1);
+                constexpr auto M1 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I2);
+                constexpr auto N1 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I3);
+                constexpr auto M2 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I4);
+                constexpr auto M3 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I5);
+                constexpr auto M4 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I6);
+                constexpr auto N2 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I7);
+
+                constexpr auto c_block_desc_mblock_mpershuffle_nblock_npershuffle =
+                    GetCBlockDescriptor_MBlock_MPerShuffle_NBlock_NPerShuffle();
+
+                constexpr auto c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle =
+                    GetCBlockDescriptor_MShuffleRepeat_MPerShuffle_NShuffleRepeat_NPerShuffle();
+
+                auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                    reinterpret_cast<FloatCShuffle*>(p_shared_block),
+                    c_block_desc_mblock_mpershuffle_nblock_npershuffle.GetElementSpaceSize());
+
+                auto c_partial_acc_buf =
+                    make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::GLC>(
+                        reinterpret_cast<FloatAcc*>(p_workspace) + block_acc_offset,
+                        c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle
+                            .GetElementSpaceSize());
+
+                constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 = transform_tensor_descriptor(
+                    c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                    make_tuple(make_freeze_transform(I0), // freeze mblock
+                               make_unmerge_transform(
+                                   make_tuple(CShuffleMRepeatPerShuffle,
+                                              M1,
+                                              M2,
+                                              M3,
+                                              M4)),       // M1 = MWave, M2 * M3 * M4 = MPerXDL
+                               make_freeze_transform(I0), // freeze nblock
+                               make_unmerge_transform(
+                                   make_tuple(CShuffleNRepeatPerShuffle,
+                                              N1,
+                                              N2))), // M1 = MWave, M2 * M3 * M4 = MPerXDL
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<>{},
+                               Sequence<0, 2, 4, 5, 6>{},
+                               Sequence<>{},
+                               Sequence<1, 3, 7>{}));
+
+                // calculate origin of thread output tensor on global memory
+                //     blockwise GEMM c matrix starting index
+                const auto c_thread_mtx_on_block =
+                    blockwise_gemm.CalculateCThreadOriginDataIndex(I0, I0, I0, I0);
+
+                const index_t m_thread_data_on_block = c_thread_mtx_on_block[I0];
+                const index_t n_thread_data_on_block = c_thread_mtx_on_block[I1];
+
+                const auto m_thread_data_on_block_to_m0_m1_m2_m3_m4_adaptor =
+                    make_single_stage_tensor_adaptor(
+                        make_tuple(make_merge_transform(make_tuple(M0, M1, M2, M3, M4))),
+                        make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                        make_tuple(Sequence<0>{}));
+
+                const auto m_thread_data_on_block_idx =
+                    m_thread_data_on_block_to_m0_m1_m2_m3_m4_adaptor.CalculateBottomIndex(
+                        make_multi_index(m_thread_data_on_block));
+
+                const auto n_thread_data_on_block_to_n0_n1_n2_adaptor =
+                    make_single_stage_tensor_adaptor(
+                        make_tuple(make_merge_transform(make_tuple(N0, N1, N2))),
+                        make_tuple(Sequence<0, 1, 2>{}),
+                        make_tuple(Sequence<0>{}));
+
+                const auto n_thread_data_on_block_idx =
+                    n_thread_data_on_block_to_n0_n1_n2_adaptor.CalculateBottomIndex(
+                        make_multi_index(n_thread_data_on_block));
+
+                // VGPR to LDS
+                auto c_thread_copy_vgpr_to_lds = ThreadwiseTensorSliceTransfer_v1r3<
+                    FloatAcc,
+                    FloatCShuffle,
+                    decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc),
+                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                    ck::tensor_operation::element_wise::PassThrough,
+                    Sequence<CShuffleMRepeatPerShuffle,
+                             CShuffleNRepeatPerShuffle,
+                             I1,
+                             I1,
+                             M2,
+                             I1,
+                             M4,
+                             I1>,
+                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                    7,
+                    1,
+                    InMemoryDataOperationEnum::Set,
+                    1,
+                    true>{c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                          make_multi_index(0,
+                                           0,
+                                           m_thread_data_on_block_idx[I1],
+                                           n_thread_data_on_block_idx[I1],
+                                           m_thread_data_on_block_idx[I2],
+                                           m_thread_data_on_block_idx[I3],
+                                           m_thread_data_on_block_idx[I4],
+                                           n_thread_data_on_block_idx[I2]),
+                          ck::tensor_operation::element_wise::PassThrough{}};
+
+                // LDS to global
+                auto c_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1r2<
+                    ThisThreadBlock,       // index_t BlockSize,
+                    CElementwiseOperation, // ElementwiseOperation,
+                                           // InMemoryDataOperationEnum::Set, // DstInMemOp,
+                    Sequence<1,
+                             CShuffleMRepeatPerShuffle * MWave * MPerXDL,
+                             1,
+                             CShuffleNRepeatPerShuffle * NWave * NPerXDL>, // BlockSliceLengths,
+                    CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                    Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
+                    FloatCShuffle,        // typename SrcData,
+                    FloatC,               // typename DstData,
+                    decltype(c_block_desc_mblock_mpershuffle_nblock_npershuffle),
+                    decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
+                    Sequence<0, 1, 2, 3>,                       // typename DimAccessOrder,
+                    3,                                          // index_t VectorDim,
+                    CBlockTransferScalarPerVector_NWaveNPerXDL, // index_t ScalarPerVector,
+                    false, // bool ThreadTransferSrcResetCoordinateAfterRun,
+                    false> // bool ThreadTransferDstResetCoordinateAfterRun
+                    {c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                     make_multi_index(0, 0, 0, 0),
+                     c_grid_desc_mblock_mperblock_nblock_nperblock,
+                     make_multi_index(__builtin_amdgcn_readfirstlane(spatial_idx[I0]),
+                                      0,
+                                      __builtin_amdgcn_readfirstlane(spatial_idx[I1]),
+                                      0),
+                     c_element_op};
+
+                // LDS to global partial acc
+                auto c_block_copy_lds_to_partial_acc = ThreadGroupTensorSliceTransfer_v6r1r2<
+                    ThisThreadBlock,       // index_t BlockSize,
+                    CElementwiseOperation, // ElementwiseOperation,
+                                           // InMemoryDataOperationEnum::Set, // DstInMemOp,
+                    Sequence<1,
+                             CShuffleMRepeatPerShuffle * MWave * MPerXDL,
+                             1,
+                             CShuffleNRepeatPerShuffle * NWave * NPerXDL>, // BlockSliceLengths,
+                    CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                    Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
+                    FloatCShuffle,        // typename SrcData,
+                    FloatCShuffle,        // typename DstData,
+                    decltype(c_block_desc_mblock_mpershuffle_nblock_npershuffle),
+                    decltype(c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle),
+                    Sequence<0, 1, 2, 3>,                       // typename DimAccessOrder,
+                    3,                                          // index_t VectorDim,
+                    CBlockTransferScalarPerVector_NWaveNPerXDL, // index_t ScalarPerVector,
+                    false, // bool ThreadTransferSrcResetCoordinateAfterRun, => need to be false,
+                           // othre wise has scratch
+                    false> // bool ThreadTransferDstResetCoordinateAfterRun, => need to be false,
+                           // othre wise has scratch
+                    {c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                     make_multi_index(0, 0, 0, 0),
+                     c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
+                     make_multi_index(0, 0, 0, 0),
+                     c_element_op};
+
+                constexpr auto mxdlperwave_forward_step =
+                    make_multi_index(0, CShuffleMRepeatPerShuffle * MWave * MPerXDL, 0, 0);
+                constexpr auto nxdlperwave_forward_step =
+                    make_multi_index(0, 0, 0, CShuffleNRepeatPerShuffle * NWave * NPerXDL);
+                constexpr auto nxdlperwave_backward_step =
+                    make_multi_index(0, 0, 0, -CShuffleNRepeatPerShuffle * NWave * NPerXDL);
+
+                static_for<0, MRepeat, CShuffleMRepeatPerShuffle>{}([&](auto mxdlperwave_iter) {
+                    constexpr auto mxdlperwave = mxdlperwave_iter;
+
+                    static_for<0, NRepeat, CShuffleNRepeatPerShuffle>{}([&](auto nxdlperwave_iter) {
+                        constexpr bool nxdlperwave_forward_sweep =
+                            (mxdlperwave % (2 * CShuffleMRepeatPerShuffle) == 0);
+
+                        constexpr index_t nxdlperwave_value =
+                            nxdlperwave_forward_sweep
+                                ? nxdlperwave_iter
+                                : (NRepeat - nxdlperwave_iter - CShuffleNRepeatPerShuffle);
+
+                        constexpr auto nxdlperwave = Number<nxdlperwave_value>{};
+
+                        // make sure it's safe to do ds_write
+                        block_sync_lds();
+
+                        // VGPR to LDS
+                        c_thread_copy_vgpr_to_lds.Run(
+                            c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
+                            make_tuple(mxdlperwave, nxdlperwave, I0, I0, I0, I0, I0, I0),
+                            c_thread_buf,
+                            c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                            c_block_buf);
+
+                        // make sure it's safe to do ds_read
+                        block_sync_lds();
+
+                        c_block_copy_lds_to_global.SetSrcSliceOrigin(
                             c_block_desc_mblock_mpershuffle_nblock_npershuffle,
-                            make_tuple(make_freeze_transform(I0), // freeze mblock
-                                       make_unmerge_transform(
-                                           make_tuple(CShuffleMRepeatPerShuffle,
-                                                      M1,
-                                                      M2,
-                                                      M3,
-                                                      M4)), // M1 = MWave, M2 * M3 * M4 = MPerXDL
-                                       make_freeze_transform(I0), // freeze nblock
-                                       make_unmerge_transform(
-                                           make_tuple(CShuffleNRepeatPerShuffle,
-                                                      N1,
-                                                      N2))), // M1 = MWave, M2 * M3 * M4 = MPerXDL
-                            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                            make_tuple(Sequence<>{},
-                                       Sequence<0, 2, 4, 5, 6>{},
-                                       Sequence<>{},
-                                       Sequence<1, 3, 7>{}));
+                            make_tuple(0, 0, 0, 0));
 
-                    // calculate origin of thread output tensor on global memory
-                    //     blockwise GEMM c matrix starting index
-                    const auto c_thread_mtx_on_block =
-                        blockwise_gemm.CalculateCThreadOriginDataIndex(I0, I0, I0, I0);
-
-                    const index_t m_thread_data_on_block = c_thread_mtx_on_block[I0];
-                    const index_t n_thread_data_on_block = c_thread_mtx_on_block[I1];
-
-                    const auto m_thread_data_on_block_to_m0_m1_m2_m3_m4_adaptor =
-                        make_single_stage_tensor_adaptor(
-                            make_tuple(make_merge_transform(make_tuple(M0, M1, M2, M3, M4))),
-                            make_tuple(Sequence<0, 1, 2, 3, 4>{}),
-                            make_tuple(Sequence<0>{}));
-
-                    const auto m_thread_data_on_block_idx =
-                        m_thread_data_on_block_to_m0_m1_m2_m3_m4_adaptor.CalculateBottomIndex(
-                            make_multi_index(m_thread_data_on_block));
-
-                    const auto n_thread_data_on_block_to_n0_n1_n2_adaptor =
-                        make_single_stage_tensor_adaptor(
-                            make_tuple(make_merge_transform(make_tuple(N0, N1, N2))),
-                            make_tuple(Sequence<0, 1, 2>{}),
-                            make_tuple(Sequence<0>{}));
-
-                    const auto n_thread_data_on_block_idx =
-                        n_thread_data_on_block_to_n0_n1_n2_adaptor.CalculateBottomIndex(
-                            make_multi_index(n_thread_data_on_block));
-
-                    // VGPR to LDS
-                    auto c_thread_copy_vgpr_to_lds = ThreadwiseTensorSliceTransfer_v1r3<
-                        FloatAcc,
-                        FloatCShuffle,
-                        decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc),
-                        decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                        ck::tensor_operation::element_wise::PassThrough,
-                        Sequence<CShuffleMRepeatPerShuffle,
-                                 CShuffleNRepeatPerShuffle,
-                                 I1,
-                                 I1,
-                                 M2,
-                                 I1,
-                                 M4,
-                                 I1>,
-                        Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                        7,
-                        1,
-                        InMemoryDataOperationEnum::Set,
-                        1,
-                        true>{c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                              make_multi_index(0,
-                                               0,
-                                               m_thread_data_on_block_idx[I1],
-                                               n_thread_data_on_block_idx[I1],
-                                               m_thread_data_on_block_idx[I2],
-                                               m_thread_data_on_block_idx[I3],
-                                               m_thread_data_on_block_idx[I4],
-                                               n_thread_data_on_block_idx[I2]),
-                              ck::tensor_operation::element_wise::PassThrough{}};
-
-                    // LDS to global
-                    auto c_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1r2<
-                        ThisThreadBlock,       // index_t BlockSize,
-                        CElementwiseOperation, // ElementwiseOperation,
-                                               // InMemoryDataOperationEnum::Set, // DstInMemOp,
-                        Sequence<1,
-                                 CShuffleMRepeatPerShuffle * MWave * MPerXDL,
-                                 1,
-                                 CShuffleNRepeatPerShuffle * NWave * NPerXDL>, // BlockSliceLengths,
-                        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                        Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
-                        FloatCShuffle,        // typename SrcData,
-                        FloatC,               // typename DstData,
-                        decltype(c_block_desc_mblock_mpershuffle_nblock_npershuffle),
-                        decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
-                        Sequence<0, 1, 2, 3>,                       // typename DimAccessOrder,
-                        3,                                          // index_t VectorDim,
-                        CBlockTransferScalarPerVector_NWaveNPerXDL, // index_t ScalarPerVector,
-                        false, // bool ThreadTransferSrcResetCoordinateAfterRun,
-                        false> // bool ThreadTransferDstResetCoordinateAfterRun
-                        {c_block_desc_mblock_mpershuffle_nblock_npershuffle,
-                         make_multi_index(0, 0, 0, 0),
-                         c_grid_desc_mblock_mperblock_nblock_nperblock,
-                         make_multi_index(__builtin_amdgcn_readfirstlane(spatial_idx[I0]),
-                                          0,
-                                          __builtin_amdgcn_readfirstlane(spatial_idx[I1]),
-                                          0),
-                         c_element_op};
-
-                    // LDS to global partial acc
-                    auto c_block_copy_lds_to_partial_acc = ThreadGroupTensorSliceTransfer_v6r1r2<
-                        ThisThreadBlock,       // index_t BlockSize,
-                        CElementwiseOperation, // ElementwiseOperation,
-                                               // InMemoryDataOperationEnum::Set, // DstInMemOp,
-                        Sequence<1,
-                                 CShuffleMRepeatPerShuffle * MWave * MPerXDL,
-                                 1,
-                                 CShuffleNRepeatPerShuffle * NWave * NPerXDL>, // BlockSliceLengths,
-                        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                        Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
-                        FloatCShuffle,        // typename SrcData,
-                        FloatCShuffle,        // typename DstData,
-                        decltype(c_block_desc_mblock_mpershuffle_nblock_npershuffle),
-                        decltype(c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle),
-                        Sequence<0, 1, 2, 3>,                       // typename DimAccessOrder,
-                        3,                                          // index_t VectorDim,
-                        CBlockTransferScalarPerVector_NWaveNPerXDL, // index_t ScalarPerVector,
-                        false, // bool ThreadTransferSrcResetCoordinateAfterRun, => need to be
-                               // false, othre wise has scratch
-                        false> // bool ThreadTransferDstResetCoordinateAfterRun, => need to be
-                               // false, othre wise has scratch
-                        {c_block_desc_mblock_mpershuffle_nblock_npershuffle,
-                         make_multi_index(0, 0, 0, 0),
-                         c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
-                         make_multi_index(0, 0, 0, 0),
-                         c_element_op};
-
-                    constexpr auto mxdlperwave_forward_step =
-                        make_multi_index(0, CShuffleMRepeatPerShuffle * MWave * MPerXDL, 0, 0);
-                    constexpr auto nxdlperwave_forward_step =
-                        make_multi_index(0, 0, 0, CShuffleNRepeatPerShuffle * NWave * NPerXDL);
-                    constexpr auto nxdlperwave_backward_step =
-                        make_multi_index(0, 0, 0, -CShuffleNRepeatPerShuffle * NWave * NPerXDL);
-
-                    static_for<0, MRepeat, CShuffleMRepeatPerShuffle>{}([&](auto mxdlperwave_iter) {
-                        constexpr auto mxdlperwave = mxdlperwave_iter;
-
-                        static_for<0, NRepeat, CShuffleNRepeatPerShuffle>{}(
-                            [&](auto nxdlperwave_iter) {
-                                constexpr bool nxdlperwave_forward_sweep =
-                                    (mxdlperwave % (2 * CShuffleMRepeatPerShuffle) == 0);
-
-                                constexpr index_t nxdlperwave_value =
-                                    nxdlperwave_forward_sweep
-                                        ? nxdlperwave_iter
-                                        : (NRepeat - nxdlperwave_iter - CShuffleNRepeatPerShuffle);
-
-                                constexpr auto nxdlperwave = Number<nxdlperwave_value>{};
-
-                                // make sure it's safe to do ds_write
-                                block_sync_lds();
-
-                                // VGPR to LDS
-                                c_thread_copy_vgpr_to_lds.Run(
-                                    c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
-                                    make_tuple(mxdlperwave, nxdlperwave, I0, I0, I0, I0, I0, I0),
-                                    c_thread_buf,
-                                    c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                    c_block_buf);
-
-                                // make sure it's safe to do ds_read
-                                block_sync_lds();
-
-                                c_block_copy_lds_to_global.SetSrcSliceOrigin(
+                        // LDS to global
+                        if(is_dp_block)
+                            c_block_copy_lds_to_global.template Run<decltype(c_block_buf),
+                                                                    decltype(c_grid_buf),
+                                                                    InMemoryDataOperationEnum::Set>(
+                                c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                                c_block_buf,
+                                c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                c_grid_buf);
+                        else if(is_sk_block)
+                        {
+                            if constexpr(Block2CTileMap::ReductionStrategy ==
+                                         StreamKReductionStrategy::Reduction)
+                            {
+                                // constexpr offset
+                                c_block_copy_lds_to_partial_acc.SetSrcSliceOrigin(
                                     c_block_desc_mblock_mpershuffle_nblock_npershuffle,
                                     make_tuple(0, 0, 0, 0));
 
-                                // LDS to global
-                                if(is_dp_block)
-                                    c_block_copy_lds_to_global
-                                        .template Run<decltype(c_block_buf),
-                                                      decltype(c_grid_buf),
-                                                      InMemoryDataOperationEnum::Set>(
-                                            c_block_desc_mblock_mpershuffle_nblock_npershuffle,
-                                            c_block_buf,
-                                            c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                            c_grid_buf);
-                                else if(is_sk_block)
-                                {
-                                    if constexpr(Block2CTileMap::ReductionStrategy ==
-                                                 StreamKReductionStrategy::Reduction)
-                                    {
-                                        // constexpr offset
-                                        c_block_copy_lds_to_partial_acc.SetSrcSliceOrigin(
-                                            c_block_desc_mblock_mpershuffle_nblock_npershuffle,
-                                            make_tuple(0, 0, 0, 0));
+                                c_block_copy_lds_to_partial_acc.SetDstSliceOrigin(
+                                    c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
+                                    make_tuple(mxdlperwave.value, 0, nxdlperwave.value, 0));
 
-                                        c_block_copy_lds_to_partial_acc.SetDstSliceOrigin(
-                                            c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
-                                            make_tuple(mxdlperwave.value, 0, nxdlperwave.value, 0));
-
-                                        c_block_copy_lds_to_partial_acc.template Run<
-                                            decltype(c_block_buf),
-                                            decltype(c_partial_acc_buf),
-                                            InMemoryDataOperationEnum::Set>(
-                                            c_block_desc_mblock_mpershuffle_nblock_npershuffle,
-                                            c_block_buf,
-                                            c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
-                                            c_partial_acc_buf);
-                                    }
-                                    else if constexpr(Block2CTileMap::ReductionStrategy ==
-                                                      StreamKReductionStrategy::Atomic)
-                                    {
-                                        c_block_copy_lds_to_global
-                                            .template Run<decltype(c_block_buf),
-                                                          decltype(c_grid_buf),
-                                                          InMemoryDataOperationEnum::AtomicAdd>(
-                                                c_block_desc_mblock_mpershuffle_nblock_npershuffle,
-                                                c_block_buf,
-                                                c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                c_grid_buf);
-                                    }
-                                }
-
-                                // move on nxdlperwave dimension
-                                if constexpr(nxdlperwave_forward_sweep &&
-                                             (nxdlperwave < NRepeat - CShuffleNRepeatPerShuffle))
-                                {
-                                    c_block_copy_lds_to_global.MoveDstSliceWindow(
+                                c_block_copy_lds_to_partial_acc
+                                    .template Run<decltype(c_block_buf),
+                                                  decltype(c_partial_acc_buf),
+                                                  InMemoryDataOperationEnum::Set>(
+                                        c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                                        c_block_buf,
+                                        c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
+                                        c_partial_acc_buf);
+                            }
+                            else if constexpr(Block2CTileMap::ReductionStrategy ==
+                                              StreamKReductionStrategy::Atomic)
+                            {
+                                c_block_copy_lds_to_global
+                                    .template Run<decltype(c_block_buf),
+                                                  decltype(c_grid_buf),
+                                                  InMemoryDataOperationEnum::AtomicAdd>(
+                                        c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                                        c_block_buf,
                                         c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                        nxdlperwave_forward_step);
-                                }
-                                else if constexpr((!nxdlperwave_forward_sweep) && (nxdlperwave > 0))
-                                {
-                                    c_block_copy_lds_to_global.MoveDstSliceWindow(
-                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                        nxdlperwave_backward_step);
-                                }
-                            });
+                                        c_grid_buf);
+                            }
+                        }
 
-                        // move on mxdlperwave dimension
-                        if constexpr(mxdlperwave < MRepeat - CShuffleMRepeatPerShuffle)
+                        // move on nxdlperwave dimension
+                        if constexpr(nxdlperwave_forward_sweep &&
+                                     (nxdlperwave < NRepeat - CShuffleNRepeatPerShuffle))
                         {
                             c_block_copy_lds_to_global.MoveDstSliceWindow(
                                 c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                mxdlperwave_forward_step);
+                                nxdlperwave_forward_step);
+                        }
+                        else if constexpr((!nxdlperwave_forward_sweep) && (nxdlperwave > 0))
+                        {
+                            c_block_copy_lds_to_global.MoveDstSliceWindow(
+                                c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                nxdlperwave_backward_step);
                         }
                     });
-                }
 
-                // exit condition
-                iter_end -= current_iter_length;
-                if(iter_end <= iter_start)
-                    break;
+                    // move on mxdlperwave dimension
+                    if constexpr(mxdlperwave < MRepeat - CShuffleMRepeatPerShuffle)
+                    {
+                        c_block_copy_lds_to_global.MoveDstSliceWindow(
+                            c_grid_desc_mblock_mperblock_nblock_nperblock,
+                            mxdlperwave_forward_step);
+                    }
+                });
 
-                if constexpr(Block2CTileMap::ReductionStrategy ==
+                /**if constexpr(Block2CTileMap::ReductionStrategy ==
                              StreamKReductionStrategy::Reduction)
                 {
-                    block_acc_offset -= MPerBlock * NPerBlock;
-                }
-                // make sure next loop LDS is ready for use
-                block_sync_lds();
+                    if(is_sk_block)
+                    {
+                        // increase the counter for this tile
+                        workgroup_barrier wg_barrier(p_semaphore);
+                        wg_barrier.inc(tile_idx);
+                    }
+                }**/
             }
+
+            // exit condition
+            iter_end -= current_iter_length;
+            if(iter_end <= iter_start)
+                break;
+
+            if constexpr(Block2CTileMap::ReductionStrategy == StreamKReductionStrategy::Reduction)
+            {
+                block_acc_offset -= MPerBlock * NPerBlock;
+            }
+            // make sure next loop LDS is ready for use
+            block_sync_lds();
             if constexpr(Block2CTileMap::ReductionStrategy == StreamKReductionStrategy::Reduction)
             {
                 if(is_sk_block)
                 {
                     // increase the counter for this tile
-
                     workgroup_barrier wg_barrier(p_semaphore);
-                    wg_barrier.inc(0);
-                    // printf("block_idx=%0d, \n",block_idx);
+                    wg_barrier.inc(tile_idx);
                 }
             }
         }
