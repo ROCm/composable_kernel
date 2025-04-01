@@ -10,10 +10,10 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 // Compilation parameters for out[n, ho, wo, g, c] * wei[g, k, y, x, c] = in[n, hi, wi, g, k]
-void add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkyxc_ngchw_bf16_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkcyx_ngchw_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NGKHW,
-                                                                  GKYXC,
+                                                                  GKCYX,
                                                                   Empty_Tuple,
                                                                   NGCHW,
                                                                   BF16,
@@ -26,12 +26,12 @@ void add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkyxc_ngchw_bf16_instances(
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_xdl_bf16_generic_instances<2,
-                                                                NGKHW,
-                                                                GKYXC,
-                                                                Empty_Tuple,
-                                                                NGCHW,
-                                                                ConvBwdDataDefault>{});
+        device_grouped_conv_bwd_data_xdl_bf16_instances<2,
+                                                        NGKHW,
+                                                        GKCYX,
+                                                        Empty_Tuple,
+                                                        NGCHW,
+                                                        ConvBwdDataDefault>{});
 }
 
 } // namespace instance
