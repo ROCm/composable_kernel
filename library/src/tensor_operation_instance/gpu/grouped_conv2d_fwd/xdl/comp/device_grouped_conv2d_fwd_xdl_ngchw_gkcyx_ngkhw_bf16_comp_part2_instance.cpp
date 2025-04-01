@@ -10,7 +10,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
-void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_comp_instances(
+void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_comp_part2_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NGCHW,
                                                                 GKCYX,
@@ -22,16 +22,21 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_comp_instances(
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances)
+                                                                PassThrough>>>&)
 {
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_fwd_xdl_bf16_comp_instances<2,
-                                                        NGCHW,
-                                                        GKCYX,
-                                                        Empty_Tuple,
-                                                        NGKHW,
-                                                        ConvFwdDefault>{});
+    if(ck::get_device_name() != "gfx950")
+    {
+#if 0 // TODO: Improve compilation time and enable these instances
+        add_device_operation_instances(
+            instances,
+            device_grouped_conv_fwd_xdl_bf16_comp_instances_part2<2,
+                                                                  NGCHW,
+                                                                  GKCYX,
+                                                                  Empty_Tuple,
+                                                                  NGKHW,
+                                                                  ConvFwdDefault>{});
+#endif
+    }
 }
 
 } // namespace instance
