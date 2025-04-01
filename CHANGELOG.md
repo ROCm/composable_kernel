@@ -7,8 +7,8 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ### Added
 
 * Added support for bf16, f32, and f16 for 2D and 3D NGCHW grouped convolution backward data
-* Added support GKCYX layout for grouped convolution forward (NGCHW/GKCYX/NGKHW, number of instances in instance factory for NGCHW/GKYXC/NGKHW has been reduced).
-* Added support GKCYX layout for grouped convolution backward data (NGCHW/GKCYX/NGKHW, number of instances in instance factory for NGCHW/GKYXC/NGKHW has been reduced).
+* Added support for GKCYX layout for grouped convolution forward (NGCHW/GKCYX/NGKHW).
+* Added support for GKCYX layout for grouped convolution backward data (NGCHW/GKCYX/NGKHW).
 
 ### Optimized
 
@@ -23,6 +23,8 @@ None
 * Removed support for gfx940 and gfx941 targets (#1944)
 * Replaced the raw buffer load/store intrinsics with Clang20 built-ins (#1876)
 * DL and DPP kernels are now enabled by default.
+* Number of instances in instance factory for grouped convolution forward NGCHW/GKYXC/NGKHW has been reduced.
+* Number of instances in instance factory for grouped convolution backward data NGCHW/GKYXC/NGKHW has been reduced.
 
 ### Known issues
 
