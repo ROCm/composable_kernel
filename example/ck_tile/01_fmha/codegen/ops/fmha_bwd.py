@@ -349,7 +349,7 @@ struct __attribute__((packed)) fmha_bwd_v3_genl_args
 }};
 
 struct __attribute__((packed)) fmha_bwd_v3_swa_genl_args
-{
+{{
     void* ptr_dq;
     void* ptr_dk;
     void* ptr_dv;
@@ -411,7 +411,7 @@ struct __attribute__((packed)) fmha_bwd_v3_swa_genl_args
     p1 _p24;
     unsigned int mask_y;
     p1 _p25;
-};
+}};
 
 struct fmha_bwd_v3_traits
 {{
@@ -547,6 +547,8 @@ template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,   
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,        1,      false,      0,    false,   false>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_hd64_fp16_causal_a16; }}; 
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,        1,       true,      0,     true,   false>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_hd64_fp16_causal_a32_pssk; }}; 
 
+template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      0,     true,    true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_v3_bf16_swa_a32_rtne_psskddv; }};
+
 template <typename fmha_bwd_dq_dk_dv_v3_traits_> struct FmhaBwdV3Ts;
 // ######################################################|HDim|    DataType| MaskType|kIsAtomic32|BF16Cvt|kIsSEQPad|kIsHDPad|
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        0,      false,      0,    false,   false>> {{ static constexpr int ts_qo = 16; static constexpr int ts_kv = 192; }};
@@ -597,6 +599,8 @@ template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,    
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,        0,       true,      0,     true,   false>> {{ static constexpr int ts_qo = 32; static constexpr int ts_kv = 192; }};
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,        1,      false,      0,    false,   false>> {{ static constexpr int ts_qo = 32; static constexpr int ts_kv = 192; }};
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,        1,       true,      0,     true,   false>> {{ static constexpr int ts_qo = 32; static constexpr int ts_kv = 192; }};
+
+template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      0,     true,    true>> {{ static constexpr int ts_qo = 16; static constexpr int ts_kv = 192; }};
 
 class fmha_bwd_v3_kernel
 {{
