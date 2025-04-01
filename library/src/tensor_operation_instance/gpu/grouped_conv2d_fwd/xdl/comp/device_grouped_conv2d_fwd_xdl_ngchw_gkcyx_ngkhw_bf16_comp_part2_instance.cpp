@@ -22,7 +22,7 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_comp_part2_instanc
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances)
+                                                                PassThrough>>>&)
 {
     if(ck::get_device_name() != "gfx950")
     {
