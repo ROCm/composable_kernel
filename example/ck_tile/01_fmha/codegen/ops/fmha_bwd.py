@@ -436,7 +436,7 @@ struct fmha_bwd_dq_dk_dv_v3_traits_
 {{
     static constexpr ck_tile::index_t HDim    = HDim_;
     using DataType                            = ck_tile::remove_cvref_t<DataType_>;
-    static constexpr MaskType mask_type       = mask_type_;
+    static constexpr int mask_type            = mask_type_;
     static constexpr bool kIsAtomic32         = kIsAtomic32_;
     static constexpr ck_tile::index_t BF16Cvt = BF16Cvt_;
     static constexpr bool kIsSEQPad           = kIsSEQPad_;
@@ -547,7 +547,7 @@ template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,   
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,        1,      false,      0,    false,   false>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_hd64_fp16_causal_a16; }}; 
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,        1,       true,      0,     true,   false>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_hd64_fp16_causal_a32_pssk; }}; 
 
-template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      0,     true,    true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_v3_bf16_swa_a32_rtne_psskddv; }};
+template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      0,     true,    true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_bf16_swa_a32_rtne_psskddv; }};
 
 template <typename fmha_bwd_dq_dk_dv_v3_traits_> struct FmhaBwdV3Ts;
 // ######################################################|HDim|    DataType| MaskType|kIsAtomic32|BF16Cvt|kIsSEQPad|kIsHDPad|
@@ -1024,7 +1024,7 @@ float fmha_bwd_v3_swa_genl_(const ck_tile::stream_config& s, fmha_bwd_args a)
     args.Seqs_dv  = a.stride_dv * 2;
 
     // TODO: convert l/r to x/y HERE
-    auto generic_mask = make_generic_attention_mask_coordinates_from_lr_window(a.left, a.right, a.seqlen_q, a.seqlen_k, a.mask_type == mask_enum::mask_top_left)
+    auto generic_mask = make_generic_attention_mask_coordinates_from_lr_window(a.window_size_left, a.window_size_right, a.seqlen_q, a.seqlen_k, a.mask_type == mask_enum::mask_top_left);
     args.mask_y = generic_mask.at(number<0>{{}});
     args.mask_x = generic_mask.at(number<1>{{}});
 
@@ -1574,7 +1574,7 @@ float fmha_bwd<2>(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_conf
                             }}
                         }}
                     }}
-                    else if(((t.mask_type == mask_enum::top_left || t.mask_type == mask_enum::bottom_right) && ((a.window_size_left > 0) || (a.window_size_right > 0))) || (t.mask_type == mask_enum::generic)){{
+                    else if(((t.mask_type == mask_enum::mask_top_left || t.mask_type == mask_enum::mask_bottom_right) && ((a.window_size_left > 0) || (a.window_size_right > 0))) || (t.mask_type == mask_enum::window_generic)){{
                         if((t.is_v3_atomic_fp32 == true) && (a.nhead_stride_dq_acc >= a.stride_dq_acc /*dq_acc only support BHSD*/)){{
                             if(t.how_v3_bf16_cvt == 0){{
                                 if((a.seqlen_q % 64 == 0) && (a.hdim_q == 128)){{
@@ -2186,7 +2186,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     if not cond:
                         continue
             elif receipt == 3:
-                    cond = dtype in ['fp16', 'bf16']
+                    cond = dtype in ['bf16']
                     cond &= bias in ['no']
                     cond &= dropout in ['no']
                     cond &= dpad == dvpad
