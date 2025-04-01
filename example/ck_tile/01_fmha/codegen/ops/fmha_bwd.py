@@ -495,6 +495,8 @@ template<> struct FmhaBwdV3Name<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,  
 template<> struct FmhaBwdV3Name<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,        1,       true,      0,     true,   false>> {{ static constexpr const char * bwd_v3_name = "bwd_v3_hd64_fp16_causal_a32_pssk"; }};
 
 template<> struct FmhaBwdV3Name<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      0,     true,    true>> {{ static constexpr const char * bwd_v3_name = "bwd_v3_bf16_swa_a32_rtne_psskddv"; }};
+template<> struct FmhaBwdV3Name<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      1,     true,    true>> {{ static constexpr const char * bwd_v3_name = "bwd_v3_bf16_swa_a32_rtna_psskddv"; }};
+template<> struct FmhaBwdV3Name<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      2,     true,    true>> {{ static constexpr const char * bwd_v3_name = "bwd_v3_bf16_swa_a32_rtz_psskddv"; }};
 
 template <typename fmha_bwd_dq_dk_dv_v3_traits_> struct FmhaBwdV3Buf;
 // #######################################################|HDim|    DataType| MaskType|kIsAtomic32|BF16Cvt|kIsSEQPad|kIsHDPad|
@@ -548,6 +550,8 @@ template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,   
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,        1,       true,      0,     true,   false>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_hd64_fp16_causal_a32_pssk; }}; 
 
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      0,     true,    true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_bf16_swa_a32_rtne_psskddv; }};
+template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      1,     true,    true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_bf16_swa_a32_rtna_psskddv; }};
+template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      2,     true,    true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_bf16_swa_a32_rtz_psskddv; }};
 
 template <typename fmha_bwd_dq_dk_dv_v3_traits_> struct FmhaBwdV3Ts;
 // ######################################################|HDim|    DataType| MaskType|kIsAtomic32|BF16Cvt|kIsSEQPad|kIsHDPad|
@@ -601,6 +605,8 @@ template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,    
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdFp16,        1,       true,      0,     true,   false>> {{ static constexpr int ts_qo = 32; static constexpr int ts_kv = 192; }};
 
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      0,     true,    true>> {{ static constexpr int ts_qo = 16; static constexpr int ts_kv = 192; }};
+template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      1,     true,    true>> {{ static constexpr int ts_qo = 16; static constexpr int ts_kv = 192; }};
+template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      2,     true,    true>> {{ static constexpr int ts_qo = 16; static constexpr int ts_kv = 192; }};
 
 class fmha_bwd_v3_kernel
 {{
@@ -1024,9 +1030,9 @@ float fmha_bwd_v3_swa_genl_(const ck_tile::stream_config& s, fmha_bwd_args a)
     args.Seqs_dv  = a.stride_dv * 2;
 
     // TODO: convert l/r to x/y HERE
-    auto generic_mask = make_generic_attention_mask_coordinates_from_lr_window(a.window_size_left, a.window_size_right, a.seqlen_q, a.seqlen_k, a.mask_type == mask_enum::mask_top_left);
-    args.mask_y = generic_mask.at(number<0>{{}});
-    args.mask_x = generic_mask.at(number<1>{{}});
+    auto generic_mask = make_generic_attention_mask_coordinates_from_lr_window(a.window_size_left, a.window_size_right, a.seqlen_q, a.seqlen_k, a.mask_type == static_cast<ck_tile::index_t>(mask_enum::mask_top_left));
+    args.mask_y = generic_mask.at(ck_tile::number<0>{{}});
+    args.mask_x = generic_mask.at(ck_tile::number<1>{{}});
 
     auto traits = fmha_bwd_v3_traits{{a.batch,
                                       a.nhead_q,
