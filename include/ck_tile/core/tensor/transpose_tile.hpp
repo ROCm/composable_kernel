@@ -148,6 +148,9 @@ CK_TILE_DEVICE void transpose_tile2d_impl_in_thread(OutTensor& out_tensor,
                         .template get_as<InVec>()[number<in_offset / vec_length_in>{}];
             });
 
+            // transpose
+            transpose_vectors<DataType, num_vec_in, num_vec_out>{}(in_vectors, out_vectors);
+
             // set output vectors
             static_for<0, num_vec_out, 1>{}([&](auto i) {
                 constexpr auto idx_y_out_tmp = generate_array(
