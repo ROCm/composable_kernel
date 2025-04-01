@@ -1025,8 +1025,8 @@ float fmha_bwd_v3_swa_genl_(const ck_tile::stream_config& s, fmha_bwd_args a)
 
     // TODO: convert l/r to x/y HERE
     auto generic_mask = make_generic_attention_mask_coordinates_from_lr_window(a.left, a.right, a.seqlen_q, a.seqlen_k, a.mask_type == mask_enum::mask_top_left)
-    args.mask_y = generic_mask.at(number<0>{});
-    args.mask_x = generic_mask.at(number<1>{});
+    args.mask_y = generic_mask.at(number<0>{{}});
+    args.mask_x = generic_mask.at(number<1>{{}});
 
     auto traits = fmha_bwd_v3_traits{{a.batch,
                                       a.nhead_q,
@@ -2136,14 +2136,14 @@ class FmhaBwdDQDKDVKernel:
 def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            # '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
+            #             "kr_ktr_vr_iglp", "kr_ktr_vr"],
             '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                         "kr_ktr_vr_iglp", "kr_ktr_vr"],
             '128' : [FmhaBwdDQDKDVTileSize( 16, 128, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                         "kr_ktr_vr_iglp", "kr_ktr_vr"],
-            '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr_iglp", "kr_ktr_vr"]
+            # '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+            #             "kr_ktr_vr_iglp", "kr_ktr_vr"]
         }
     else:
         return None
@@ -2187,8 +2187,11 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                         continue
             elif receipt == 3:
                     cond = dtype in ['fp16', 'bf16']
-                    cond &= bias in ['no', 'alibi']
+                    cond &= bias in ['no']
+                    cond &= dropout in ['no']
                     cond &= dpad == dvpad
+                    cond &= spad == skpad
+                    cond &= spad == 'f'
                     cond &= deterministic == "f"
                     if not cond:
                         continue
