@@ -72,23 +72,6 @@ struct BatchedTransposeKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-
-        // if (get_thread_global_1d_id() == 0)
-        // {
-        //     printf("OPERATOR KERNEL %d\n", atomicAdd(&counter, 1));
-        // }
-
-        // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 &&
-        //     threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 )
-        // {
-        //     printf("OPERATOR KERNEL %d\n", atomicAdd(&counter, 1));
-        // }
-
-        // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ){
-        //     printf("INSIDE KERNEL ");
-        //     printf("threadIdx: (%d, %d, %d)\n", threadIdx.x, threadIdx.y, threadIdx.z);
-        // }
-
         static constexpr ck_tile::index_t kMPerBlock       = Problem::kMPerBlock;
         static constexpr ck_tile::index_t kNPerBlock       = Problem::kNPerBlock;
         static constexpr bool kPadM                        = Problem::kPadM;
@@ -100,32 +83,42 @@ struct BatchedTransposeKernel
         const auto iN   = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
         const auto iDim = blockIdx.z;
 
-        //     if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 &&
+        // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 &&
         //         threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
         // {
-        //     const Type* input_data = static_cast<const Type*>(kargs.p_input);
+        //     // const Type* input_data = static_cast<const Type*>(kargs.p_input);
+        //     printf("-----------------------------------------------------Input Tensor
+        //     Data:----------------------------------------------------------------------------\n");
+
+        //     // Cast the p_input pointer to the appropriate type (e.g., float*)
+        //     const float* input_data = static_cast<const float*>(kargs.p_input);
+
+        //     // Print the input data
         //     printf("Input Tensor Data:\n");
-        //     for (index_t i = 0; i < kargs.batch; ++i)
+        //     for (index_t b = 0; b < kargs.batch; ++b)
         //     {
-        //         printf("Batch %d:\n", static_cast<int>(i));
+        //         printf("Batch %d:\n", b);
         //         for (index_t h = 0; h < kargs.height; ++h)
         //         {
         //             for (index_t w = 0; w < kargs.width; ++w)
         //             {
-        //                 index_t idx = i * kargs.dim_stride + h * kargs.width + w;
-        //                 printf("%f ", static_cast<float>(input_data[idx])); // Adjust type
+        //                 // Calculate the linear index based on the batch, height, and width
+        //                 index_t linear_index = b * kargs.dim_stride + h * kargs.width + w;
+
+        //                 // Print the value at the linear index
+        //                 printf("%f ", input_data[linear_index]);
         //             }
         //             printf("\n");
         //         }
         //     }
+        //     printf("\n");
+
+        //     printf("---------------------------------------------------------------------------------------------------------------------------------------------------\n");
         // }
 
         const auto x_m_n = [&]() {
-            const auto input_ptr =
-                static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride;
-
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                input_ptr,
+                static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride,
                 make_tuple(kargs.height, kargs.width),
                 make_tuple(kargs.width, 1),
                 number<VectorSizeInput>{},
@@ -136,22 +129,23 @@ struct BatchedTransposeKernel
                                    sequence<kPadM, kPadN>{});
         }();
 
-        if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0 &&
-           threadIdx.y == 0 && threadIdx.z == 0)
-        {
+        // if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0 &&
+        //    threadIdx.y == 0 && threadIdx.z == 0)
+        // {
 
-            auto my_buffer_view = x_m_n.get_buffer_view();
+        //     auto my_buffer_view = x_m_n.get_buffer_view();
 
-            printf("x_m_n\n");
+        //     printf("x_m_n\n");
 
-            int len = static_cast<int>(my_buffer_view.buffer_size_);
-            for(int i = 0; i < len; i++)
-            {
-                // printf("pad_tensor_view: buffer_view[%d] = %f\n", i,
-                // static_cast<float>(my_buffer_view[i]));
-                printf("x_m_n: buffer_view[%d] = %f\n", i, static_cast<float>(my_buffer_view[i]));
-            }
-        }
+        //     int len = static_cast<int>(my_buffer_view.buffer_size_);
+        //     for(int i = 0; i < len; i++)
+        //     {
+        //         // printf("pad_tensor_view: buffer_view[%d] = %f\n", i,
+        //         // static_cast<float>(my_buffer_view[i]));
+        //         printf("x_m_n: buffer_view[%d] = %f\n", i,
+        //         static_cast<float>(my_buffer_view[i]));
+        //     }
+        // }
 
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(

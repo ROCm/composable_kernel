@@ -47,9 +47,9 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 }
 
 // Param Comb: type_size, block_x & y, warp_x & y, thread_x & y
-#define FOREACH_TRANSPOSE_PARAM(F)                \
-    F(fp16, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8) \
-    // F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8) \
+#define FOREACH_TRANSPOSE_PARAM(F)                 \
+    F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8) \
+    // F(fp8, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8) \
     // F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8)
 
 // Macro that defines one static function per line

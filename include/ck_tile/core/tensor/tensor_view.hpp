@@ -473,24 +473,6 @@ CK_TILE_HOST_DEVICE constexpr auto
 pad_tensor_view(const TensorView& tensor_view, const TileLengths& tile_lengths, DoPads)
 {
 
-    // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 &&
-    //             threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0){
-
-    //         auto my_buffer_view = tensor_view.get_buffer_view();
-
-    //         printf("Inside pad_tensor_view\n");
-
-    //         int len =static_cast<int>(my_buffer_view.buffer_size_);
-    //         for(int i =0; i<len; i++)
-    //         {
-    //             // printf("pad_tensor_view: buffer_view[%d] = %f\n", i,
-    //             static_cast<float>(my_buffer_view[i])); printf("pad_tensor_view: buffer_view[%d]
-    //             = %f\n", i, static_cast<float>(my_buffer_view[i]));
-
-    //         }
-
-    // }
-
     constexpr index_t num_dim = DoPads::size();
 
     static_assert(num_dim == TileLengths::size() && num_dim == TensorView::get_num_of_dimension(),
@@ -523,9 +505,6 @@ pad_tensor_view(const TensorView& tensor_view, const TileLengths& tile_lengths, 
 
     // upper dimension Id
     const auto upper_dimss = lower_dimss;
-
-    // Debug prints
-    printf("Debugging pad_tensor_view:\n");
 
     return transform_tensor_view(tensor_view, transforms, lower_dimss, upper_dimss);
 }

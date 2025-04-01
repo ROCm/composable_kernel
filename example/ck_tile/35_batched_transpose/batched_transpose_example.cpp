@@ -17,6 +17,7 @@ template <typename T>
 void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
 {
     auto len = x.get_lengths();
+    printf("dump_host_tensor_4d: len = %zu %zu %zu %zu\n", len[0], len[1], len[2], len[3]);
     assert(len.size() == 4);
     std::cout << "[";
     for(size_t i = 0; i < len[0]; i++)
@@ -49,6 +50,7 @@ void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
             }
         }
     }
+    std::cout << "]" << std::endl;
     std::cout << "--------------------" << std::endl;
 }
 // #endif
@@ -92,12 +94,12 @@ auto create_args(int argc, char* argv[])
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("v", "1", "whether do CPU validation or not")
         .insert("pr", "fp16", "input data type. fp16/fp32 (representing 8/16/32 bit data)")
-        .insert("N", "3", "input batch size. ")
-        .insert("C", "3", "input channel size.")
-        .insert("H", "4", "input height size.")
-        .insert("W", "5", "input width size. ")
-        .insert("layout_in", "NHWW", "input tensor data layout - NCHW by default")
-        .insert("layout_out", "NCHW", "output tensor data layout - NHWC by default ")
+        .insert("N", "1", "input batch size. ")
+        .insert("C", "32", "input channel size.")
+        .insert("H", "1", "input height size.")
+        .insert("W", "32", "input width size. ")
+        .insert("layout_in", "NCHW", "input tensor data layout - NCHW by default")
+        .insert("layout_out", "NHWC", "output tensor data layout - NHWC by default ")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "t to 1 will print kernel name");
 
@@ -156,11 +158,16 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     // ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
 
-    auto total_elements = x_host.get_element_space_size();
-    for(size_t i = 0; i < total_elements; ++i)
-    {
-        x_host.data()[i] = static_cast<Type>(i + 1); // Assign unique values starting from 1
-    }
+    ck_tile::FillUniformDistribution<Type>{0, 256}(x_host);
+
+    // ck_tile::FillUniformDistribution<Type>{1, 60}(x_host);
+
+    // auto total_elements = x_host.get_element_space_size();
+    // printf("total_elements:%zu\n", total_elements);
+    // for(size_t i = 0; i < total_elements; ++i)
+    // {
+    //     x_host.data()[i] = static_cast<Type>(i + 1); // Assign unique values starting from 1
+    // }
 
     ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
