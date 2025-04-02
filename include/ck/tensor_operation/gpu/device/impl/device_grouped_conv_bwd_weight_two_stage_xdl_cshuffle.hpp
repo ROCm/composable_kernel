@@ -460,6 +460,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                             I1>;
     // NPerBlock is used for the first dim which is store dimension
     // (with CBlockTransferScalarPerVector_NWaveNPerXdl scalar per vector).
+    // CBlockTransferScalarPerVector_NWaveNPerXdl is aligned to NPerBlock so
+    // it is more flexible to use this dim for store dimension with such scalar
+    // per vector.
     using GridwiseElementwiseWeightTransposeCast =
         GridwiseElementwise<Tuple<GKYXCTransposeDescType>,
                             Tuple<GKCYXTransposeDescType>,
@@ -685,7 +688,12 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
 
         std::size_t GetWorkspaceSizeBytes() const
         {
-            // Transpose require workspace for A and B
+            // 1. We need to transpose A and B for NGCHW and NGKHW layouts
+            // 2. If C format is GKCYX then tranpose during second stage.
+            //    If C format is GKYXC then just perform second stage.
+            //    Due to the fact that E workspace is always needed, we
+            //    allocate them as the first part of the workspace.
+            //    [EWorkspace, AWorkspace, BWorkspace]
             if constexpr(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() ||
                          is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>())
             {
