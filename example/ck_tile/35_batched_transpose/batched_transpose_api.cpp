@@ -40,8 +40,46 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
            kargs.width,
            kargs.dim_stride);
 
+    // const Type* input_data = static_cast<const Type*>(kargs.p_input);
+    //  printf("-----------------------------------------------------Input Tensor
+    //  Data:----------------------------------------------------------------------------\n");
+
+    //  // Cast the p_input pointer to the appropriate type (e.g., float*)
+    //  const float* input_data = static_cast<const float*>(kargs.p_input);
+
+    //  // Print the input data
+    //  printf("Input Tensor Data:\n");
+    //  for (ck_tile::index_t b = 0; b < kargs.batch; ++b)
+    //  {
+    //      printf("Batch %d:\n", b);
+    //      for (ck_tile::index_t h = 0; h < kargs.height; ++h)
+    //      {
+    //          for (ck_tile::index_t w = 0; w < kargs.width; ++w)
+    //          {
+    //              // Calculate the linear index based on the batch, height, and width
+    //              ck_tile::index_t linear_index = b * kargs.dim_stride + h * kargs.width + w;
+    //              batch * stride_dim_in[0] +
+    //              channel * stride_dim_in[1] +
+    //              row * stride_dim_in[2] +
+    //              column * stride_dim_in[3];
+
+    //              // Print the value at the linear index
+    //              printf("linear_index is %d value is %f \n", linear_index,
+    //              input_data[linear_index]);
+    //          }
+    //          printf("\n");
+    //      }
+    //  }
+    //  printf("\n");
+
+    //  printf("---------------------------------------------------------------------------------------------------------------------------------------------------\n");
+
+    printf("Launching Kernel...\n");
+
     float ave_time = ck_tile::launch_kernel(
         s, ck_tile::make_kernel<blocks.x, 1>(kernel{}, grids, blocks, 0, kargs));
+
+    printf("Kernel finished...\n");
 
     return ave_time;
 }

@@ -17,7 +17,6 @@ template <typename T>
 void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)
 {
     auto len = x.get_lengths();
-    printf("dump_host_tensor_4d: len = %zu %zu %zu %zu\n", len[0], len[1], len[2], len[3]);
     assert(len.size() == 4);
     std::cout << "[";
     for(size_t i = 0; i < len[0]; i++)
@@ -158,16 +157,16 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     // ck_tile::FillUniformDistribution<Type>{-.5f, .5f}(x_host);
 
-    ck_tile::FillUniformDistribution<Type>{0, 256}(x_host);
+    // ck_tile::FillUniformDistribution<Type>{0, 256}(x_host);
 
     // ck_tile::FillUniformDistribution<Type>{1, 60}(x_host);
 
-    // auto total_elements = x_host.get_element_space_size();
-    // printf("total_elements:%zu\n", total_elements);
-    // for(size_t i = 0; i < total_elements; ++i)
-    // {
-    //     x_host.data()[i] = static_cast<Type>(i + 1); // Assign unique values starting from 1
-    // }
+    auto total_elements = x_host.get_element_space_size();
+    printf("total_elements:%zu\n", total_elements);
+    for(size_t i = 0; i < total_elements; ++i)
+    {
+        x_host.data()[i] = static_cast<Type>(i + 1); // Assign unique values starting from 1
+    }
 
     ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
@@ -179,6 +178,8 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     printf("y_host\n");
     dump_host_tensor_4d(y_host);
+
+    x_dev.FromDevice(x_host.data());
 
     auto trait = batched_transpose_trait{prec, layout_in};
 
@@ -231,7 +232,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     y_dev.FromDevice(y_host.data());
 
-    printf("y_host\n");
+    printf("Final y_host\n");
     dump_host_tensor_4d(y_host);
 
     bool rtn = true;
