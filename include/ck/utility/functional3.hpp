@@ -154,7 +154,7 @@ using convert_flat_to_multi_index_t =
                               ck::Number<flat_idx>{}));
 
 template <typename T, T... Is>
-struct applier
+struct applier_with_transform
 {
     // F: code block parameterized by compile-time constant
     // IndexTransform: metafunction from int32_t to code block argument type
@@ -168,7 +168,7 @@ struct applier
 };
 
 template <int32_t Size>
-using make_applier = __make_integer_seq<applier, ck::index_t, Size>;
+using make_applier_with_transform = __make_integer_seq<applier_with_transform, ck::index_t, Size>;
 
 } // namespace detail
 
@@ -178,10 +178,10 @@ template <typename T>
 struct static_ford;
 
 template <template <int32_t...> typename T, int32_t... Dims>
-struct static_ford<T<Dims...>> : detail::make_applier<(Dims * ...)>
+struct static_ford<T<Dims...>> : detail::make_applier_with_transform<(Dims * ...)>
 {
     // `base` is the same as `applier<index_t, 0, ..., product of Dims>`
-    using base = detail::make_applier<(Dims * ...)>;
+    using base = detail::make_applier_with_transform<(Dims * ...)>;
 
     template <ck::index_t I>
     using convert_t = detail::convert_flat_to_multi_index_t<I, Dims...>;
