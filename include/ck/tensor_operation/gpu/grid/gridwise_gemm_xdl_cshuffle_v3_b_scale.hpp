@@ -1464,7 +1464,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                              1,
                                              false>(
                 b_scale_grid_desc_bn_ak,
-                make_multi_index(block_n_id * NPerBlock / ScaleBlockN + b_thread_offset_n,
+                make_multi_index((block_n_id * NPerBlock + b_thread_offset_n) / ScaleBlockN,
                                  b_thread_offset_k / ScaleBlockK));
 
         constexpr auto b_scale_thread_slice_copy_step =
