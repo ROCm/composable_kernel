@@ -256,6 +256,18 @@ struct arithmetic_sequence_gen
     using type = typename conditional<kHasContent, type0, type1>::type;
 };
 
+template <index_t IEnd>
+struct arithmetic_sequence_gen<0, IEnd, 1>
+{
+    template <typename T, T... Ints>
+    struct WrapSequence
+    {
+        using type = Sequence<Ints...>;
+    };
+    // https://reviews.llvm.org/D13786
+    using type = typename __make_integer_seq<WrapSequence, index_t, IEnd>::type;
+};
+
 // uniform sequence
 template <index_t NSize, index_t I>
 struct uniform_sequence_gen
