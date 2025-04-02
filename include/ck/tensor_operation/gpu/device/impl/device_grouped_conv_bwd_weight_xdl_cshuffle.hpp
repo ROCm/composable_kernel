@@ -453,11 +453,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                       begin(output_spatial_lengths_));
 
             std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_strides_transposed =
-                conv_ngchw_to_nhwgc_transformer.TransposeStrides(b_g_n_c_wis_lengths,
-                                                                 b_g_n_c_wis_strides);
+                conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(b_g_n_c_wis_lengths,
+                                                                      b_g_n_c_wis_strides);
             std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_transposed =
-                conv_ngchw_to_nhwgc_transformer.TransposeStrides(a_g_n_k_wos_lengths,
-                                                                 a_g_n_k_wos_strides);
+                conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(a_g_n_k_wos_lengths,
+                                                                      a_g_n_k_wos_strides);
 
             const auto descs =
                 conv_to_gemm_transformer
@@ -641,11 +641,14 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
                 // Different data type for A and B is not supported
                 auto kernel_transpose = kernel_elementwise_dual<GridwiseElementwiseTranspose,
+                                                                GridwiseElementwiseTranspose,
                                                                 ck::Tuple<NGCHWTransposeDescType>,
                                                                 ck::Tuple<NGCHWTransposeDescType>,
                                                                 ck::Tuple<NHWGCTransposeDescType>,
                                                                 ck::Tuple<NHWGCTransposeDescType>,
                                                                 ck::Tuple<const ADataType*>,
+                                                                ck::Tuple<const ADataType*>,
+                                                                ck::Tuple<ADataType*>,
                                                                 ck::Tuple<ADataType*>,
                                                                 Block2TileMapElementwise,
                                                                 Block2TileMapElementwise,

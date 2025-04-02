@@ -113,14 +113,14 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
     endforeach()
     #only continue if there are some source files left on the list
     if(FILE_NAME)
-        if(FILE_NAME MATCHES "_xdl" AND NOT FILE_NAME MATCHES "_fp8_pk_i4")
+        if(FILE_NAME MATCHES "_xdl" AND NOT FILE_NAME MATCHES "_pk_i4")
             list(REMOVE_ITEM EX_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1200 gfx1201 gfx10.3-generic gfx11-generic gfx12-generic)
         elseif(FILE_NAME MATCHES "_wmma")
             list(REMOVE_ITEM EX_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950)
         elseif(FILE_NAME MATCHES "_mx") #only build mx example for gfx950
             list(REMOVE_ITEM EX_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1200 gfx1201 gfx10.3-generic gfx11-generic gfx12-generic)
-        elseif(FILE_NAME MATCHES "_fp8_pk_i4") #only build these examples for gfx942 and gfx950
-           message("trimming targets for ${FILE_NAME}")
+        elseif(FILE_NAME MATCHES "_pk_i4") #only build these examples for gfx942 and gfx950
+            message("trimming targets for ${FILE_NAME}")
             list(REMOVE_ITEM EX_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1200 gfx1201 gfx10.3-generic gfx11-generic gfx12-generic)
         endif()
         set_source_files_properties(${FILE_NAME} PROPERTIES LANGUAGE HIP)
