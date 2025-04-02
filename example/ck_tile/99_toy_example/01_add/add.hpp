@@ -80,13 +80,19 @@ struct Add
     {
         using S = typename Problem::BlockShape;
 
-        const auto x_m_n_a = make_naive_tensor_view<address_space_enum::global>(
+        const auto x_m_n_a = make_naive_tensor_view<address_space_enum::global,
+                                                    memory_operation_enum::set,
+                                                    amd_buffer_coherence_enum::slc>(
             p_x_a, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
 
-        const auto x_m_n_b = make_naive_tensor_view<address_space_enum::global>(
+        const auto x_m_n_b = make_naive_tensor_view<address_space_enum::global,
+                                                    memory_operation_enum::set,
+                                                    amd_buffer_coherence_enum::slc>(
             p_x_b, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
 
-        const auto y_m_n = make_naive_tensor_view<address_space_enum::global>(
+        const auto y_m_n = make_naive_tensor_view<address_space_enum::global,
+                                                  memory_operation_enum::set,
+                                                  amd_buffer_coherence_enum::slc>(
             p_y, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
 
         const auto iM = get_block_id() * S::Block_M;
