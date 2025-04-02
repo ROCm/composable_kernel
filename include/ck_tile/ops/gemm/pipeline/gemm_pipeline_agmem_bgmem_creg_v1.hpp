@@ -12,7 +12,7 @@ namespace ck_tile {
 //  A Tile Window: global memory
 //  B Tile Window: global memory
 //  C Distributed tensor: register
-template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCRegV1DefaultPolicy>
+template <typename Problem, typename Policy = UniversalGemmPipelineAgBgCrPolicy>
 struct GemmPipelineAGmemBGmemCRegV1
 {
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
@@ -25,6 +25,10 @@ struct GemmPipelineAGmemBGmemCRegV1
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
+
+    using I0 = number<0>;
+    using I1 = number<1>;
+    using I2 = number<2>;
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
@@ -81,11 +85,21 @@ struct GemmPipelineAGmemBGmemCRegV1
                 std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
             "wrong!");
 
-        static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
-                      "wrong!");
+        constexpr bool is_a_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+        constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
+        static_assert(is_a_col_major
+                          ? (kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                             kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                          : (kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                             kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                      "A block window has incorrect lengths for defined ALayout!");
+        static_assert(is_b_row_major
+                          ? (kKPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                             kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                          : (kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                             kKPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                      "B block window has incorrect lengths for defined BLayout!");
         // A tile in LDS
         ADataType* p_a_lds = static_cast<ADataType*>(p_smem);
 
@@ -168,11 +182,11 @@ struct GemmPipelineAGmemBGmemCRegV1
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
             // LDS write 0
-            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>)
+            if constexpr(is_a_col_major)
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                    Policy::template MakeShuffledARegBlockDistribution<Problem>());
-                shuffle_tile(a_shuffle_tmp, a_block_tile);
+                    Policy::template MakeShuffledARegTileDistribution<Problem>());
+                transpose_tile2d(a_shuffle_tmp, a_block_tile);
                 const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_shuffle_tmp);
                 store_tile(a_copy_lds_window, a_block_tile_tmp);
             }
@@ -182,11 +196,11 @@ struct GemmPipelineAGmemBGmemCRegV1
             }
 
             // LDS write 0
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(is_b_row_major)
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-                    Policy::template MakeShuffledBRegBlockDistribution<Problem>());
-                shuffle_tile(b_shuffle_tmp, b_block_tile);
+                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                transpose_tile2d(b_shuffle_tmp, b_block_tile);
                 const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_shuffle_tmp);
                 store_tile(b_copy_lds_window, b_block_tile_tmp);
             }
@@ -215,15 +229,26 @@ struct GemmPipelineAGmemBGmemCRegV1
             move_tile_window(b_copy_dram_window, {0, kKPerBlock});
 
             // LDS write i + 1
-            const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
-            store_tile(a_copy_lds_window, a_block_tile_tmp);
+            if constexpr(is_a_col_major)
+            {
+                auto a_shuffle_tmp_loop = make_static_distributed_tensor<ADataType>(
+                    Policy::template MakeShuffledARegTileDistribution<Problem>());
+                transpose_tile2d(a_shuffle_tmp_loop, a_block_tile);
+                store_tile(a_copy_lds_window,
+                           tile_elementwise_in(a_element_func, a_shuffle_tmp_loop));
+            }
+            else
+            {
+                const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
+                store_tile(a_copy_lds_window, a_block_tile_tmp);
+            }
 
             // LDS write i + 1
-            if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(is_b_row_major)
             {
                 auto b_shuffle_tmp_loop = make_static_distributed_tensor<BDataType>(
-                    Policy::template MakeShuffledBRegBlockDistribution<Problem>());
-                shuffle_tile(b_shuffle_tmp_loop, b_block_tile);
+                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                transpose_tile2d(b_shuffle_tmp_loop, b_block_tile);
                 store_tile(b_copy_lds_window,
                            tile_elementwise_in(b_element_func, b_shuffle_tmp_loop));
             }

@@ -33,8 +33,21 @@ struct BaseGemmPipelineAgBgCrCompV3
 
     CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
-        ignore = num_loop;
-        return TailNumber::Full;
+        if(BlockHasHotloop(num_loop))
+        {
+            return TailNumber::Full;
+        }
+        else
+        {
+            if(num_loop == 1)
+            {
+                return TailNumber::Odd;
+            }
+            else
+            {
+                return TailNumber::Even;
+            }
+        }
     }
 };
 
@@ -470,6 +483,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 
                     block_sync_lds();
+
                     block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
                     HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
@@ -478,12 +492,43 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 } while(i < (num_loop - 1));
             }
             // tail
-            if constexpr(TailNum == TailNumber::Full)
+            if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
             {
+                // Leak last MFMA block to epilogue region, cover the potential lds-shuffle
+                // latency
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
             }
-            // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
-            // latency
+            else
+            {
+                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+                block_sync_lds();
+
+                if constexpr(is_a_col_major)
+                {
+                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                        Policy::template MakeShuffledARegTileDistribution<Problem>());
+                    transpose_tile2d(a_shuffle_tmp, a_block_tile);
+                    Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                }
+                else
+                {
+                    Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+                }
+                if constexpr(is_b_row_major)
+                {
+                    auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                        Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                    transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                    Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
+                }
+                else
+                {
+                    Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                }
+                block_sync_lds();
+                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+            }
             // __builtin_amdgcn_sched_barrier(0);
             return c_block_tile;
         }

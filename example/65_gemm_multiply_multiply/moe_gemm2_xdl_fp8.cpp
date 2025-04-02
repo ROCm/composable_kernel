@@ -124,6 +124,7 @@ static constexpr ck::index_t NXDLPerWave = 2;
 static constexpr ck::index_t NPerBlock   = 128;
 static constexpr ck::index_t MNPerXDL    = 32;
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
+
 // static constexpr ck::index_t MXDLPerWave = MPerBlock / 32; //todo fix this constraint
 // static constexpr ck::index_t CShuffleMXDLPerWave = MPerBlock / 32;
 static constexpr ck::index_t CShuffleNLane = 32;
@@ -251,7 +252,7 @@ int main(int argc, char* argv[])
     for(int i = 0; i < sorted_size; i++)
     {
         int tile_off = i % MPerBlock;
-        if(tile_off < token_per_tile)
+        if(tile_off < token_per_tile && tokenid < tokens * topk)
         {
             sorted_token_ids.mData[i] = (tokenid % tokens) | ((tokenid / tokens) << 24);
             tokenid++;

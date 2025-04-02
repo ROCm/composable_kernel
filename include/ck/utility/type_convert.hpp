@@ -732,7 +732,8 @@ inline __host__ __device__ f4x2_t f4_convert_rne(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    value.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(value.bitwise, x[0], x[1], scale, 0);
+    // permute high bits and low bits to match the order of the original vector
+    value.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(value.bitwise, x[1], x[0], scale, 0);
     return value.f4x2_array[0];
 #else
     union
@@ -757,58 +758,13 @@ inline __host__ __device__ f4x32_t f4_convert_rne(float32_t x, float scale = 1.0
         f4x2_t f4x2_array[16];
         f4x32_t f4x32_array;
     } f4_values{}, tmp_values{};
-    // TODO: pack in a loop
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[0], x[1], scale, 0);
-    f4_values.f4x2_array[0] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[2], x[3], scale, 0);
-    f4_values.f4x2_array[1] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[4], x[5], scale, 0);
-    f4_values.f4x2_array[2] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[6], x[7], scale, 0);
-    f4_values.f4x2_array[3] = tmp_values.f4x2_array[0];
 
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[8], x[9], scale, 0);
-    f4_values.f4x2_array[4] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[10], x[11], scale, 0);
-    f4_values.f4x2_array[5] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[12], x[13], scale, 0);
-    f4_values.f4x2_array[6] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[14], x[15], scale, 0);
-    f4_values.f4x2_array[7] = tmp_values.f4x2_array[0];
-
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[16], x[17], scale, 0);
-    f4_values.f4x2_array[8] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[18], x[19], scale, 0);
-    f4_values.f4x2_array[9] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[20], x[21], scale, 0);
-    f4_values.f4x2_array[10] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[22], x[23], scale, 0);
-    f4_values.f4x2_array[11] = tmp_values.f4x2_array[0];
-
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[24], x[25], scale, 0);
-    f4_values.f4x2_array[12] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[26], x[27], scale, 0);
-    f4_values.f4x2_array[13] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[28], x[29], scale, 0);
-    f4_values.f4x2_array[14] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise =
-        __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(tmp_values.bitwise, x[30], x[31], scale, 0);
-    f4_values.f4x2_array[15] = tmp_values.f4x2_array[0];
+    ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
+        // permute high bits and low bits to match the order of the original vector
+        tmp_values.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(
+            tmp_values.bitwise, x[2 * idx + 1], x[2 * idx], scale, 0);
+        f4_values.f4x2_array[idx] = tmp_values.f4x2_array[0];
+    });
 
     return f4_values.f4x32_array;
 #else
@@ -818,106 +774,14 @@ inline __host__ __device__ f4x32_t f4_convert_rne(float32_t x, float scale = 1.0
         f4x2_t f4x2_array[16];
         f4x32_t f4x32_array;
     } f4_values{};
-    // TODO: pack in a loop
-    auto tmp = utils::sat_convert_to_type<f4_t>(x[0] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[1] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[2] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[3] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[4] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[5] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[6] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[7] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
 
-    tmp = utils::sat_convert_to_type<f4_t>(x[8] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[9] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[10] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[11] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[12] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[13] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[14] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[15] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
+    f4_t tmp;
 
-    tmp = utils::sat_convert_to_type<f4_t>(x[16] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[17] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[18] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[19] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[20] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[21] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[22] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[23] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-
-    tmp = utils::sat_convert_to_type<f4_t>(x[24] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[25] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[26] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[27] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[28] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[29] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[30] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type<f4_t>(x[31] / scale);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
+    ck::static_for<0, 32, 1>{}([&](auto idx) {
+        tmp = utils::sat_convert_to_type<f4_t>(x[static_cast<int>(idx)] / scale);
+        f4_values.bitwise <<= 4;
+        f4_values.bitwise |= tmp;
+    });
 
     return f4_values.f4x32_array;
 #endif
@@ -967,7 +831,16 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(value.bitwise, x, rng, scale, 0);
+// apply a temporary workaround for gfx950
+#if CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION
+    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
+    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
+    value.bitwise = (h << 4) | l;
+#else
+    // permute high bits and low bits to match the order of the original vector
+    value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
+        value.bitwise, float2_t{x[1], x[0]}, rng, scale, 0);
+#endif // CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION
     return value.f4x2_array[0];
 #else
     union
@@ -997,64 +870,23 @@ inline __host__ __device__ f4x32_t f4_convert_sr(float32_t x, float scale = 1.0f
         __uint128_t bitwise;
         f4x2_t f4x2_array[16];
         f4x32_t f4x32_array;
-    } f4_values{0}, tmp_values{0};
+    } f4_values{0};
     union
     {
         float2_t floatx2_array[16];
         float32_t floatx32_array;
     } float_values{{0}};
-    // TODO: pack in a loop
-    tmp_values.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[0], rng, scale, 0);
-    f4_values.f4x2_array[0] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise      = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[1], rng, scale, 0);
-    f4_values.f4x2_array[1] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise      = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[2], rng, scale, 0);
-    f4_values.f4x2_array[2] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise      = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[3], rng, scale, 0);
-    f4_values.f4x2_array[3] = tmp_values.f4x2_array[0];
+    float_values.floatx32_array = x;
 
-    tmp_values.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[4], rng, scale, 0);
-    f4_values.f4x2_array[4] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise      = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[5], rng, scale, 0);
-    f4_values.f4x2_array[5] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise      = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[6], rng, scale, 0);
-    f4_values.f4x2_array[6] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise      = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[7], rng, scale, 0);
-    f4_values.f4x2_array[7] = tmp_values.f4x2_array[0];
-
-    tmp_values.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[8], rng, scale, 0);
-    f4_values.f4x2_array[8] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise      = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[9], rng, scale, 0);
-    f4_values.f4x2_array[9] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise      = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[10], rng, scale, 0);
-    f4_values.f4x2_array[10] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise       = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[11], rng, scale, 0);
-    f4_values.f4x2_array[11] = tmp_values.f4x2_array[0];
-
-    tmp_values.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[12], rng, scale, 0);
-    f4_values.f4x2_array[12] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise       = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[13], rng, scale, 0);
-    f4_values.f4x2_array[13] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise       = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[14], rng, scale, 0);
-    f4_values.f4x2_array[14] = tmp_values.f4x2_array[0];
-    tmp_values.bitwise       = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        tmp_values.bitwise, float_values.floatx2_array[15], rng, scale, 0);
-    f4_values.f4x2_array[15] = tmp_values.f4x2_array[0];
+    ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
+        // permute high bits and low bits to match the order of the original vector
+        f4_values.f4x2_array[idx] = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
+            f4_values.bitwise,
+            float2_t{float_values.floatx2_array[idx][1], float_values.floatx2_array[idx][0]},
+            rng,
+            scale,
+            0);
+    });
 
     return f4_values.f4x32_array;
 #else
@@ -1064,106 +896,14 @@ inline __host__ __device__ f4x32_t f4_convert_sr(float32_t x, float scale = 1.0f
         f4x2_t f4x2_array[16];
         f4x32_t f4x32_array;
     } f4_values{0};
-    // TODO: pack in a loop
-    auto tmp = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[2] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[3] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[4] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[5] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[6] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[7] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
 
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[8] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[9] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[10] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[11] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[12] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[13] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[14] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[15] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
+    f4_t tmp;
 
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[16] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[17] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[18] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[19] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[20] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[21] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[22] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[23] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[24] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[25] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[26] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[27] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[28] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[29] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[30] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
-    tmp = utils::sat_convert_to_type_sr<f4_t>(x[31] / scale, rng);
-    f4_values.bitwise <<= 4;
-    f4_values.bitwise |= tmp;
+    ck::static_for<0, 32, 1>{}([&](auto idx) {
+        tmp = utils::sat_convert_to_type_sr<f4_t>(x[static_cast<int>(idx)] / scale, rng);
+        f4_values.bitwise <<= 4;
+        f4_values.bitwise |= tmp;
+    });
 
     return f4_values.f4x32_array;
 #endif
@@ -1232,13 +972,15 @@ inline __host__ __device__ float2_t type_convert<float2_t, f4x2_t>(f4x2_t x)
     } value{};
     value.f4x2_array[0] = x;
     float scale         = 1.0f;
-    return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, scale, 0);
+    float2_t tmp        = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, scale, 0);
+    // permute high bits and low bits to match the order of the original vector
+    return float2_t{tmp[1], tmp[0]};
 #else
     float2_t ret{
         utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                              x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{})),
+                              x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{})),
         utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
-                              x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}))};
+                              x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}))};
     return ret;
 #endif
 }
@@ -1253,110 +995,16 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
         f4x32_t f4x32_array;
         f4x2_t fp4x2[16];
     } value{x};
-    union
-    {
-        uint32_t bitwise;
-        f4x2_t f4x2_array[4];
-    } bitwise_value{};
     float2_t op;
     float32_t ret;
     float scale = 1.0f;
-    // TODO: pack in a loop
-    bitwise_value.f4x2_array[0] = value.fp4x2[0];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[0] = op[0];
-    ret[1] = op[1];
 
-    bitwise_value.f4x2_array[0] = value.fp4x2[1];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[2] = op[0];
-    ret[3] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[2];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[4] = op[0];
-    ret[5] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[3];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[6] = op[0];
-    ret[7] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[4];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[8] = op[0];
-    ret[9] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[5];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[10] = op[0];
-    ret[11] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[6];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[12] = op[0];
-    ret[13] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[7];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[14] = op[0];
-    ret[15] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[8];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[16] = op[0];
-    ret[17] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[9];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[18] = op[0];
-    ret[19] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[10];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[20] = op[0];
-    ret[21] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[11];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[22] = op[0];
-    ret[23] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[12];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[24] = op[0];
-    ret[25] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[13];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[26] = op[0];
-    ret[27] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[14];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[28] = op[0];
-    ret[29] = op[1];
-
-    bitwise_value.f4x2_array[0] = value.fp4x2[15];
-    op                          = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(
-        bitwise_value.bitwise, type_convert<float>(scale), 0);
-    ret[30] = op[0];
-    ret[31] = op[1];
+    ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
+        op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[idx], scale, 0);
+        // permute high bits and low bits to match the order of the original vector
+        ret[2 * idx]     = op[1];
+        ret[2 * idx + 1] = op[0];
+    });
 
     return ret;
 #else
@@ -1371,106 +1019,18 @@ inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
         f4x2_t f4x2_array[16];
         f4x32_t f4x32_array;
     } f4_values{bit_cast<__uint128_t>(x)};
-    // TODO: pack in a loop
-    float_values.float_array[0] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[1] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[0].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[2] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[3] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[1].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[4] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[5] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[2].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[6] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[7] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[3].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
 
-    float_values.float_array[0] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[1] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[4].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[2] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[3] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[5].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[4] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[5] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[6].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[6] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[7] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[7].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
+    ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
+        float_values.float_array[2 * idx] = utils::to_float<f4_t>(
+            NumericLimits<e8m0_bexp_t>::Binary_1(),
+            f4_values.f4x2_array[idx].template AsType<f4x2_pk_t>()[Number<0>{}].template unpack<>(
+                Number<0>{}));
 
-    float_values.float_array[0] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[1] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[8].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[2] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[3] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[9].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[4] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[5] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[10].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[6] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[7] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[11].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-
-    float_values.float_array[0] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[1] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[12].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[2] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[3] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[13].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[4] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[5] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[14].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
-    float_values.float_array[6] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}));
-    float_values.float_array[7] = utils::to_float<f4_t>(
-        NumericLimits<e8m0_bexp_t>::Binary_1(),
-        f4_values.f4x2_array[15].template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{}));
+        float_values.float_array[2 * idx + 1] = utils::to_float<f4_t>(
+            NumericLimits<e8m0_bexp_t>::Binary_1(),
+            f4_values.f4x2_array[idx].template AsType<f4x2_pk_t>()[Number<0>{}].template unpack<>(
+                Number<1>{}));
+    });
 
     return float_values.float32_array;
 #endif
