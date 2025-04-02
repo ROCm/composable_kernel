@@ -9,13 +9,14 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-// Compilation parameters for out[n, ho, wo, g, c] * wei[g, k, y, x, c] = in[n, hi, wi, g, k]
-void add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkyxc_ngchw_bf16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
-                                                                  NGKHW,
-                                                                  GKYXC,
+// Compilation parameters for out[n, di, hi, wi, g, c] * wei[g, k, z, y, x, c] = in[n, do, ho, wo,
+// g, k]
+void add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkczyx_ngcdhw_bf16_vec_transpose_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NGKDHW,
+                                                                  GKCZYX,
                                                                   Empty_Tuple,
-                                                                  NGCHW,
+                                                                  NGCDHW,
                                                                   BF16,
                                                                   BF16,
                                                                   Empty_Tuple,
@@ -26,12 +27,12 @@ void add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkyxc_ngchw_bf16_instances(
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_xdl_bf16_generic_instances<2,
-                                                                NGKHW,
-                                                                GKYXC,
-                                                                Empty_Tuple,
-                                                                NGCHW,
-                                                                ConvBwdDataDefault>{});
+        device_grouped_conv_bwd_data_transpose_xdl_bf16_instances<3,
+                                                                  NGKDHW,
+                                                                  GKCZYX,
+                                                                  Empty_Tuple,
+                                                                  NGCDHW,
+                                                                  ConvBwdDataDefault>{});
 }
 
 } // namespace instance

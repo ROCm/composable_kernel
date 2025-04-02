@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_transpose_xdl_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
 // Compilation parameters for out[n, ho, wo, g, c] * wei[g, k, y, x, c] = in[n, hi, wi, g, k]
-void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkcyx_ngchw_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
-                                                                  NHWGK,
-                                                                  GKYXC,
+                                                                  NGKHW,
+                                                                  GKCYX,
                                                                   Empty_Tuple,
-                                                                  NHWGC,
+                                                                  NGCHW,
                                                                   F16,
                                                                   F16,
                                                                   Empty_Tuple,
@@ -23,24 +24,14 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances)
 {
-    // 1. Default
     add_device_operation_instances(
         instances,
         device_grouped_conv_bwd_data_xdl_f16_instances<2,
-                                                       NHWGK,
-                                                       GKYXC,
+                                                       NGKHW,
+                                                       GKCYX,
                                                        Empty_Tuple,
-                                                       NHWGC,
+                                                       NGCHW,
                                                        ConvBwdDataDefault>{});
-    // 2. Filter1x1Stride1Pad0
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_bwd_data_xdl_f16_instances<2,
-                                                       NHWGK,
-                                                       GKYXC,
-                                                       Empty_Tuple,
-                                                       NHWGC,
-                                                       ConvBwdDataFilter1x1Stride1Pad0>{});
 }
 
 } // namespace instance
