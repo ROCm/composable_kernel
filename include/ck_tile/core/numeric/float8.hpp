@@ -14,7 +14,7 @@
 
 #pragma once
 
-#if(defined(__gfx94__) || defined(__gfx12__)) && __HIP_DEVICE_COMPILE__
+#if(defined(__gfx94__) || defined(__gfx12__) || defined(__gfx95__)) && __HIP_DEVICE_COMPILE__
 #define CK_TILE_FP8_CVT_DEVICE 1
 #else
 #define CK_TILE_FP8_CVT_DEVICE 0
@@ -85,6 +85,7 @@ struct alignas(1) float8_e4m3_t
     {
         float8_e4m3_t y;
         y.data = x;
+        printf("bias is: %d\n",bias);
         return y;
     }
 

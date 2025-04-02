@@ -248,9 +248,11 @@ CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_LOGGING)
 #define CK_TILE_USE_OCP_FP8 0
 #endif
 #elif defined(__gfx950__) || defined(__gfx12__) // for GPU code
+#ifdef CK_TILE_USE_OCP_FP8
 #define CK_TILE_USE_OCP_FP8 1
-#else // for GPU code
+#else
 #define CK_TILE_USE_OCP_FP8 0
+#endif
 #endif
 
 #ifndef CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
