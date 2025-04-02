@@ -6,7 +6,7 @@
 #include "gemm_dispatcher.hpp"
 #include "gemm_host_api.hpp"
 
-float gemm_kernel_launch(kernel_traits& trait,
+float gemm_kernel_launch(KernelTraits& trait,
                          ck_tile::GemmHostArgs& args,
                          const ck_tile::stream_config& s)
 {
@@ -105,7 +105,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     gemm_args.stride_B = stride_B;
     gemm_args.stride_C = stride_C;
 
-    kernel_traits trait;
+    KernelTraits trait;
     trait.pipeline  = arg_parser.get_str("pipeline");
     trait.scheduler = arg_parser.get_str("scheduler");
     trait.epilogue  = arg_parser.get_str("epilogue");

@@ -18,7 +18,7 @@ DATA_TYPE_MAP = {'fp32'  : 'float',
                  'bf16'  : 'ck_tile::bf16_t',
                  'int8'  : 'ck_tile::int8_t',
                  'fp8'   : 'ck_tile::fp8_t',
-                 'bf8'   :  'ck_tile::bf8_t',
+                 'bf8'   : 'ck_tile::bf8_t',
                  'int4'  : 'ck_tile::pk_int4_t'
                 }
 
@@ -175,15 +175,6 @@ HOT_LOOP_TRUE = {'mem' : RUN_MEM,
                  'compv3' : RUN_COMPV3,
                  'compv4' : RUN_COMPV4}    
 
-def sizeOf(data_type):
-    if data_type == 'fp16' or data_type == 'bf16':
-        return 2
-    elif data_type == 'int8' or data_type == 'fp8' or data_type == 'bf8':
-        return 1
-    elif data_type == 'int4': ## TODO:: needs to confirm
-        return 0.5
-    else:
-        return 4
 
 def BOOL_MAP(b_) -> str:
     if b_:
@@ -299,6 +290,8 @@ class GemmCodeGenerator:
             ctype = 'fp16'
 
         content = f"""// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 #include "ck_tile/core.hpp"
 
@@ -331,9 +324,10 @@ using CLayout = {LAYOUT_MAP[self.config.layouts[2]]};
         """Generate a configuration group with all tile/warp combinations"""
         group_name = f"{pipeline}_{epilogue}_{scheduler}_pad_{BOOL_MAP(kPadM)}_{BOOL_MAP(kPadN)}_{BOOL_MAP(kPadK)}"
         filename = f"gemm_{group_name}.hpp"
-        #self.all_kernels.append(group_name)
 
         content = f"""// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "gemm_common.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/epilogue.hpp"
@@ -459,6 +453,7 @@ struct GemmKernel {{
     def generate_common_instances_header(self):
         """Generate common instances header"""
         content = """// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 """
         for group in self.all_kernels:
@@ -468,6 +463,8 @@ struct GemmKernel {{
     def _generate_dispatcher(self):
         """Generate dispatch mechanism"""
         content = """// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "gemm_common.hpp"
 #include "gemm_instances.hpp"
 #include "gemm_host_api.hpp"
@@ -476,8 +473,7 @@ struct GemmKernel {{
 #include <vector>
 
 struct GemmDispatcher {
-    static std::unordered_map<std::string, 
-        std::function<float(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& get_kernel_map() {
+    static auto& get_kernel_map() {
         // Use a static local variable
         static std::unordered_map<std::string, 
             std::function<float(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>> kernel_map;
@@ -521,7 +517,7 @@ struct GemmDispatcher {
         content += """    }
         
     
-    static float dispatch(const kernel_traits &trait, ck_tile::GemmHostArgs& gemm_args,
+    static float dispatch(const KernelTraits &trait, ck_tile::GemmHostArgs& gemm_args,
                          const ck_tile::stream_config& s) {
         init();
         const std::string key = assemble_key(trait);
@@ -533,7 +529,7 @@ struct GemmDispatcher {
     }
 
 private:
-    static std::string assemble_key(const kernel_traits &trait) {
+    static std::string assemble_key(const KernelTraits &trait) {
         return std::string(trait.pipeline) + "_" + 
                trait.epilogue + "_" + 
                trait.scheduler + "_" +

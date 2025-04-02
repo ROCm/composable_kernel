@@ -1,6 +1,6 @@
 
 
-# generate a list of kernels, but not actually emit files at config sta
+# generate a list of kernels, but not actually emit files at config stage
 execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
@@ -15,7 +15,6 @@ endif()
 
 file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt GEMM_CODEGEN_BLOBS)
 
-# To ensure dependency for generating tensor_configuration.hpp before generating executable
 add_custom_command(
     OUTPUT  ${GEMM_CODEGEN_BLOBS}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py

@@ -54,7 +54,7 @@ struct DataTypeTraits<ck_tile::pk_int4_t>
     static constexpr const char* name = "pk_int4_t";
 };
 
-struct kernel_traits
+struct KernelTraits
 {
     std::string pipeline;
     std::string scheduler;
@@ -110,9 +110,9 @@ inline auto create_args(int argc, char* argv[])
         .insert("pipeline", "compv3", "compv3, compv4, mem")
         .insert("scheduler", "intrawave", "intrawave, interwave")
         .insert("epilogue", "cshuffle", "cshuffle, default")
-        .insert("pad_m", "f", "true, false")
-        .insert("pad_n", "f", "true, false")
-        .insert("pad_k", "f", "true, false");
+        .insert("pad_m", "false", "true, false")
+        .insert("pad_n", "false", "true, false")
+        .insert("pad_k", "false", "true, false");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
