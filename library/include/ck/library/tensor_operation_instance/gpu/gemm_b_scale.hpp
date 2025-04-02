@@ -30,6 +30,19 @@ void add_device_gemm_b_scale_xdl_f16_i4_f16_mk_nk_mn_mem_v2_default_instances(
                                                    PassThrough,
                                                    PassThrough,
                                                    PassThrough>>>& instances);
+void add_device_gemm_b_scale_xdl_f16_i8_f16_mk_nk_mn_mem_v2_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2BScale<Row,
+                                                   Col,
+                                                   Row,
+                                                   F16,
+                                                   I8,
+                                                   F16,
+                                                   F16,
+                                                   1,
+                                                   128,
+                                                   PassThrough,
+                                                   PassThrough,
+                                                   PassThrough>>>& instances);
 #endif
 
 template <typename ADataType,
@@ -78,6 +91,15 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmV2
                          is_same_v<CLayout, Row>)
             {
                 add_device_gemm_b_scale_xdl_f16_i4_f16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
+            }
+        }
+        else if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, int8_t> &&
+                          is_same_v<CDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_b_scale_xdl_f16_i8_f16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
             }
         }
 

@@ -159,14 +159,21 @@ bool profile_gemm_b_scale_impl(int do_verification,
         {
             for(int k = 0; k < K; k++)
             {
-                ck::pk_i4_t i4x2 = b_k_n(k, n).data;
-                int8_t i4        = 0;
-                if(k % 2 == 1)
-                    i4 = (i4x2.data >> 0) & 0xf;
-                else
-                    i4 = (i4x2.data >> 4) & 0xf;
-                i4  = i4 - 8;
-                v_b = ck::type_convert<float>(i4);
+                if constexpr(is_same_v<BDataType, pk_i4_t>)
+                {
+                    ck::pk_i4_t i4x2 = b_k_n(k, n).data;
+                    int8_t i4        = 0;
+                    if(k % 2 == 1)
+                        i4 = (i4x2.data >> 0) & 0xf;
+                    else
+                        i4 = (i4x2.data >> 4) & 0xf;
+                    i4  = i4 - 8;
+                    v_b = ck::type_convert<float>(i4);
+                }
+                else if constexpr(is_same_v<BDataType, int8_t>)
+                {
+                    v_b = ck::type_convert<float>(b_k_n(k, n));
+                }
 
                 b_k_n_dequant(k, n) = ck::type_convert<float>(v_b) *
                                       ck::type_convert<float>(b1_k_n(k / ScaleBlockK, n));
