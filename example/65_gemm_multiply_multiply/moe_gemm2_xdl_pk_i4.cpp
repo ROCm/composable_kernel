@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -62,11 +62,13 @@ struct MulABScaleExpertWeight
         EDataType& e, const float& c, const float& d0, const float& d1, const float& d2) const
     {
         (void)d0;
+        (void)d1;
+        (void)d2;
 
 #if CK_USE_PK4_LAYOUT_SHUFFLE
-        e = ck::type_convert<EDataType>(c * d1 * d2 * 16);
+        e = ck::type_convert<EDataType>(c * 16);
 #else
-        e = ck::type_convert<EDataType>(c * d1 * d2);
+        e = ck::type_convert<EDataType>(c);
 #endif
     }
     // for reference cpu
@@ -125,10 +127,10 @@ using CDEElementOp = MulABScaleExpertWeight;
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t BLOCKSIZE = 256;
-static constexpr ck::index_t MXDLPerWave   = 4;
-static constexpr ck::index_t NXDLPerWave   = 1;
+static constexpr ck::index_t MXDLPerWave   = 8;
+static constexpr ck::index_t NXDLPerWave   = 2;
 static constexpr ck::index_t NPerBlock     = 128;
-static constexpr ck::index_t MNPerXDL      = 32;
+static constexpr ck::index_t MNPerXDL      = 16;
 static constexpr ck::index_t KPerBlock     = 128 / sizeof(A0DataType);
 static constexpr ck::index_t CShuffleNLane = 32;
 static constexpr ck::index_t CShuffleMLane = BLOCKSIZE / CShuffleNLane;
@@ -148,8 +150,8 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
                MXDLPerWave,    NXDLPerWave,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
                S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
-               1,    1,   S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, ck::index_t, A0DataType>;
+               2,    2,   S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, 0, false, false, false, ck::index_t, A0DataType>;
 // clang-format on
 
 int main(int argc, char* argv[])
@@ -407,7 +409,8 @@ int main(int argc, char* argv[])
                                b_element_op,
                                cde_element_op);
 
-    if(!device_op.IsSupportedArgument(argument))
+    if(!device_op.IsSupportedArgument(argument) ||
+       !(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
     {
         throw std::runtime_error(
             "wrong! device_gemm with the specified compilation parameters does "

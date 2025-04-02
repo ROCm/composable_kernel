@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -65,8 +65,10 @@ template <typename ALayout,
           typename CDEShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
+          index_t ActivationOP                        = 0,
           bool NSwizzle                               = false,
           bool IsInputGemm                            = true,
+          bool PerTokenQuant                          = true,
           typename IndexType                          = index_t,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
@@ -132,7 +134,10 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                         CDEShuffleBlockTransferScalarPerVectors,
                         BlkGemmPipeSched,
                         BlkGemmPipelineVer,
+                        ActivationOP,
                         NSwizzle,
+                        IsInputGemm,
+                        PerTokenQuant,
                         IndexType,
                         ComputeTypeA,
                         ComputeTypeB,
@@ -234,10 +239,10 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
 
             constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) / BlockSize /
                                              4 * (1 + GridwiseGemm::NWave);
-            constexpr auto estimated_reg_b =
-                NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize / 4 * (2);
-            constexpr auto estimated_reg_c =
-                MPerBlock * NPerBlock * sizeof(GemmAccDataType) / BlockSize / 4;
+            constexpr auto estimated_reg_b = NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize /
+                                             4 * (2) * (IsInputGemm ? 2 : 1);
+            constexpr auto estimated_reg_c = MPerBlock * NPerBlock * sizeof(GemmAccDataType) /
+                                             BlockSize / 4 * (IsInputGemm ? 2 : 1);
             constexpr auto estimated_reg_total =
                 estimated_reg_a + estimated_reg_b + estimated_reg_c;
 
@@ -257,7 +262,6 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                 true,
                                                                 MemoryDataOp,
                                                                 minimum_occupancy,
-                                                                IsInputGemm,
                                                                 TailNumber::Odd>;
                             RunKernel(kernel);
                         }
@@ -267,7 +271,6 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                 true,
                                                                 MemoryDataOp,
                                                                 minimum_occupancy,
-                                                                IsInputGemm,
                                                                 TailNumber::Even>;
                             RunKernel(kernel);
                         }
@@ -282,7 +285,6 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                  true,
                                                                  MemoryDataOp,
                                                                  minimum_occupancy,
-                                                                 IsInputGemm,
                                                                  TailNumber::Odd>;
                         RunKernel(kernel);
                     }
@@ -292,7 +294,6 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                  true,
                                                                  MemoryDataOp,
                                                                  minimum_occupancy,
-                                                                 IsInputGemm,
                                                                  TailNumber::Even>;
                         RunKernel(kernel);
                     }
@@ -312,7 +313,6 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                         true,
                                                         InMemoryDataOperationEnum::Set,
                                                         minimum_occupancy,
-                                                        IsInputGemm,
                                                         TailNumber::Odd>;
                     RunKernel(kernel);
                 }
