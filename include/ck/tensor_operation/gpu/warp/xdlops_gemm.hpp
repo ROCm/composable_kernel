@@ -845,25 +845,29 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
     static constexpr bool is_k_reduction         = true; // ???
     // clang-format on
 
-    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    template <index_t MPerXdlops,
+              index_t NPerXdlops,
+              class FloatA,
+              class ScaleA,
+              class FloatB,
+              class ScaleB,
+              class FloatC>
     __device__ void run(const FloatA& a,
-                        const int32_t scale_a,
+                        const ScaleA& scale_a,
                         const FloatB& b,
-                        const int32_t scale_b,
+                        const ScaleB& scale_b,
                         FloatC& reg_c) const
     {
-        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(
-            a, scale_a, b, scale_b, reg_c);
-    }
+        static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this point.");
+        static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at this point.");
 
-    /**
-     * @brief Run the MFMA instruction without scaling
-     */
-    // TODO: Remove this function when the API is mature enough
-    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
-    {
-        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(a, 0, b, 0, reg_c);
+        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(
+            a,
+            // TODO: revert to utils::get_exponent_value(scale_a)
+            bit_cast<int32_t>(static_cast<float>(scale_a)),
+            b,
+            utils::get_exponent_value(scale_b),
+            reg_c);
     }
 };
 
@@ -1393,6 +1397,36 @@ struct XdlopsGemm
             {
                 mfma_instr.template run<MPerXdlops, NPerXdlops>(
                     p_b_wave[k], p_a_wave[k], p_c_thread);
+            }
+        });
+    }
+
+    template <class FloatA, class ScaleA, class FloatB, class ScaleB, class FloatC>
+    __device__ void Run(const FloatA& p_a_wave,
+                        const ScaleA& a_scale_thread,
+                        const FloatB& p_b_wave,
+                        const ScaleB& b_scale_thread,
+                        FloatC& p_c_thread) const
+    {
+        static_assert((is_same_v<base_type, f8_ocp_t> || is_same_v<base_type, bf8_ocp_t> ||
+                       is_same_v<base_type, f6_t> || is_same_v<base_type, bf6_t> ||
+                       is_same_v<base_type, f4_t>)&&(is_same_v<additional_type, f8_ocp_t> ||
+                                                     is_same_v<additional_type, bf8_ocp_t> ||
+                                                     is_same_v<additional_type, f6_t> ||
+                                                     is_same_v<additional_type, bf6_t> ||
+                                                     is_same_v<additional_type, f4_t>),
+                      "base_type and additional_type must be one of the micro-scaling types!");
+
+        static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
+            if constexpr(!TransposeC)
+            {
+                mfma_instr.template run<MPerXdlops, NPerXdlops>(
+                    p_a_wave[k], a_scale_thread[k], p_b_wave[k], b_scale_thread[k], p_c_thread);
+            }
+            else
+            {
+                mfma_instr.template run<MPerXdlops, NPerXdlops>(
+                    p_b_wave[k], b_scale_thread[k], p_a_wave[k], a_scale_thread[k], p_c_thread);
             }
         });
     }
