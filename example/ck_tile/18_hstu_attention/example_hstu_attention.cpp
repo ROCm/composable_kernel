@@ -22,9 +22,15 @@
 #include <ck_tile/host/check_err.hpp>
 #include <ck_tile/host/timer.hpp>
 
-#include "hstu_attention_setting.hpp"
-#include "bool_switch.hpp"
+#include "hstu_attention_fwd_type_config.hpp"
+#include "hstu_attention_bool_switch.hpp"
+#include "hstu_attention_params.hpp"
 #include "reference_hstu_attention.hpp"
+
+extern void hstu_attention_batched_forward_fp16(HstuAttentionFwdParams& param, hipStream_t stream);
+extern void hstu_attention_batched_forward_bf16(HstuAttentionFwdParams& param, hipStream_t stream);
+extern void hstu_attention_jagged_forward_fp16(HstuAttentionFwdParams& param, hipStream_t stream);
+extern void hstu_attention_jagged_forward_bf16(HstuAttentionFwdParams& param, hipStream_t stream);
 
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
@@ -120,24 +126,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bool do_validation = static_cast<bool>(arg_parser.get_int("v"));
     bool is_jagged     = static_cast<bool>(arg_parser.get_int("jagged"));
     int num_batch      = arg_parser.get_int("b");
-    int nhead          = arg_parser.get_int("nhead");
+    int num_head       = arg_parser.get_int("nhead");
     int hdim_qk        = arg_parser.get_int("hdim_qk");
     int hdim_v         = arg_parser.get_int("hdim_v");
     bool use_causal    = static_cast<bool>(arg_parser.get_int("causal"));
 
-    int max_attn_len = arg_parser.get_int("local_len");
+    int window_size = arg_parser.get_int("local_len");
 
-    bool use_local = (max_attn_len > 0);
+    bool use_local = (window_size > 0);
 
-    int contextual_seq_len = arg_parser.get_int("context_len");
-    int min_full_seq_len   = arg_parser.get_int("minfull_len");
+    int contextual_seqlen    = arg_parser.get_int("context_len");
+    int min_full_attn_seqlen = arg_parser.get_int("minfull_len");
 
-    int seed = arg_parser.get_int("seed");
-
+    int seed          = arg_parser.get_int("seed");
     bool measure_perf = static_cast<bool>(arg_parser.get_int("perf"));
-
-    (void)do_validation;
-    (void)measure_perf;
 
     std::string str_of_targets   = arg_parser.get_str("targets");
     std::vector<int> num_targets = get_integers_from_string(str_of_targets);
@@ -147,7 +149,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::vector<int> seq_offsets;
 
-    int seqlen = 0; // means total seq lengths for jagged
+    int seqlen     = 0; // means total seq lengths for jagged
+    int max_seqlen = 0;
 
     if(is_jagged)
     {
@@ -156,6 +159,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         seq_offsets.push_back(0);
         for(size_t i = 0; i < seq_lengths.size(); i++)
         {
+            max_seqlen = max(max_seqlen, seq_lengths[i]);
             seqlen += seq_lengths[i];
             seq_offsets.push_back(seqlen);
         };
@@ -166,16 +170,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             for(size_t i = 0; i < seq_lengths.size(); i++)
             {
-                assert(seq_lengths[i] - num_targets[i] >= min_full_seq_len);
-                assert(seq_lengths[i] - num_targets[i] >= contextual_seq_len);
+                assert(seq_lengths[i] - num_targets[i] >= min_full_attn_seqlen);
+                assert(seq_lengths[i] - num_targets[i] >= contextual_seqlen);
             };
         }
         else
         {
             for(size_t i = 0; i < seq_lengths.size(); i++)
             {
-                assert(seq_lengths[i] >= min_full_seq_len);
-                assert(seq_lengths[i] >= contextual_seq_len);
+                assert(seq_lengths[i] >= min_full_attn_seqlen);
+                assert(seq_lengths[i] >= contextual_seqlen);
             };
         };
     }
@@ -188,53 +192,212 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             assert(1 == num_targets.size());
 
-            assert(seqlen - num_targets[0] >= min_full_seq_len);
-            assert(seqlen - num_targets[0] >= contextual_seq_len);
+            assert(seqlen - num_targets[0] >= min_full_attn_seqlen);
+            assert(seqlen - num_targets[0] >= contextual_seqlen);
         }
         else
         {
-            assert(seqlen >= min_full_seq_len);
-            assert(seqlen >= contextual_seq_len);
+            assert(seqlen >= min_full_attn_seqlen);
+            assert(seqlen >= contextual_seqlen);
         };
     };
 
     int batches_for_alloc = is_jagged ? 1 : num_batch;
 
     ck_tile::HostTensor<InOutDataType> q_host(
-        std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, nhead, hdim_qk});
+        std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, num_head, hdim_qk});
     ck_tile::HostTensor<InOutDataType> k_host(
-        std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, nhead, hdim_qk});
+        std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, num_head, hdim_qk});
     ck_tile::HostTensor<InOutDataType> v_host(
-        std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, nhead, hdim_v});
+        std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, num_head, hdim_v});
     ck_tile::HostTensor<InOutDataType> o_host_ref(
-        std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, nhead, hdim_v});
+        std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, num_head, hdim_v});
 
     ck_tile::FillNormalDistributionIntegerValue<InOutDataType>{-2.f, 2.f, seed}(q_host);
     ck_tile::FillNormalDistributionIntegerValue<InOutDataType>{-2.f, 2.f, seed}(k_host);
     ck_tile::FillNormalDistributionIntegerValue<InOutDataType>{-2.f, 2.f, seed}(v_host);
 
-    using GemmAccDataType   = typename HSTUAttentionTypeConfig<InOutDataType>::GemmAccDataType;
-    using SMComputeDataType = typename HSTUAttentionTypeConfig<InOutDataType>::SMComputeDataType;
+    ck_tile::DeviceMem q_dev(q_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem k_dev(k_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem v_dev(v_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem o_dev(o_host_ref.get_element_space_size_in_bytes());
 
-    BOOL_SWITCH_3(is_jagged, kIsJagged, use_causal, kUseCausal, use_local, kUseLocal, [&] {
-        ck_tile::reference_hstu_attention<InOutDataType,
-                                          GemmAccDataType,
-                                          SMComputeDataType,
-                                          kIsJagged,
-                                          kUseCausal,
-                                          kUseLocal>::Run(q_host,
-                                                          k_host,
-                                                          v_host,
-                                                          o_host_ref,
-                                                          num_batch,
-                                                          1.0f,
-                                                          seq_offsets,
-                                                          num_targets,
-                                                          max_attn_len,
-                                                          contextual_seq_len,
-                                                          min_full_seq_len);
-    });
-    return 0;
+    ck_tile::DeviceMem seq_offsets_dev(seq_offsets.size() * sizeof(int));
+    ck_tile::DeviceMem num_targets_dev(num_targets.size() * sizeof(int));
+
+    q_dev.ToDevice(q_host.data());
+    k_dev.ToDevice(k_host.data());
+    v_dev.ToDevice(v_host.data());
+
+    if(is_jagged)
+        seq_offsets_dev.ToDevice(seq_offsets.data());
+    if(!num_targets.empty())
+        num_targets_dev.ToDevice(num_targets.data());
+
+    HstuAttentionFwdParams params;
+
+    if(is_jagged)
+    {
+        params.is_jagged         = true;
+        params.num_batch         = num_batch;
+        params.seq_offsets_ptr   = seq_offsets_dev.GetDeviceBuffer();
+        params.max_seqlen        = max_seqlen;
+        params.q_ptr             = q_dev.GetDeviceBuffer();
+        params.k_ptr             = k_dev.GetDeviceBuffer();
+        params.v_ptr             = v_dev.GetDeviceBuffer();
+        params.bias_ptr          = nullptr;
+        params.o_ptr             = o_dev.GetDeviceBuffer();
+        params.hdim_qk           = hdim_qk;
+        params.hdim_v            = hdim_v;
+        params.num_head          = num_head;
+        params.scale_s           = 1.0f / std::sqrt(params.hdim_qk);
+        params.seq_stride_q      = q_host.get_strides()[1];
+        params.seq_stride_k      = k_host.get_strides()[1];
+        params.seq_stride_v      = v_host.get_strides()[1];
+        params.seq_stride_bias   = 0;
+        params.seq_stride_o      = o_host_ref.get_strides()[1];
+        params.nhead_stride_q    = q_host.get_strides()[2];
+        params.nhead_stride_k    = k_host.get_strides()[2];
+        params.nhead_stride_v    = v_host.get_strides()[2];
+        params.nhead_stride_bias = 0;
+        params.nhead_stride_o    = o_host_ref.get_strides()[2];
+        params.num_targets_ptr = num_targets.empty() ? nullptr : num_targets_dev.GetDeviceBuffer();
+        params.use_causal      = use_causal;
+        params.window_size     = window_size;
+        params.contextual_seqlen    = contextual_seqlen;
+        params.min_full_attn_seqlen = min_full_attn_seqlen;
+        params.p_drop               = 0.0f; // dropout is not supported at present
+        params.philox_seed          = 0UL;
+        params.philox_offset        = 0UL;
+    }
+    else
+    {
+        params.is_jagged         = false;
+        params.num_batch         = num_batch;
+        params.seqlen            = seqlen;
+        params.q_ptr             = q_dev.GetDeviceBuffer();
+        params.k_ptr             = k_dev.GetDeviceBuffer();
+        params.v_ptr             = v_dev.GetDeviceBuffer();
+        params.bias_ptr          = nullptr;
+        params.o_ptr             = o_dev.GetDeviceBuffer();
+        params.hdim_qk           = hdim_qk;
+        params.hdim_v            = hdim_v;
+        params.num_head          = num_head;
+        params.scale_s           = 1.0f / std::sqrt(params.hdim_qk);
+        params.seq_stride_q      = q_host.get_strides()[1];
+        params.seq_stride_k      = k_host.get_strides()[1];
+        params.seq_stride_v      = v_host.get_strides()[1];
+        params.seq_stride_bias   = 0;
+        params.seq_stride_o      = o_host_ref.get_strides()[1];
+        params.nhead_stride_q    = q_host.get_strides()[2];
+        params.nhead_stride_k    = k_host.get_strides()[2];
+        params.nhead_stride_v    = v_host.get_strides()[2];
+        params.nhead_stride_bias = 0;
+        params.nhead_stride_o    = o_host_ref.get_strides()[2];
+        params.batch_stride_q    = q_host.get_strides()[0];
+        params.batch_stride_k    = k_host.get_strides()[0];
+        params.batch_stride_v    = v_host.get_strides()[0];
+        params.batch_stride_bias = 0;
+        params.batch_stride_o    = o_host_ref.get_strides()[0];
+        params.num_targets_ptr = num_targets.empty() ? nullptr : num_targets_dev.GetDeviceBuffer();
+        params.use_causal      = use_causal;
+        params.window_size     = window_size;
+        params.contextual_seqlen    = contextual_seqlen;
+        params.min_full_attn_seqlen = min_full_attn_seqlen;
+        params.p_drop               = 0.0f; // dropout is not supported at present
+        params.philox_seed          = 0UL;
+        params.philox_offset        = 0UL;
+    };
+
+    hipStream_t stream;
+
+    HIP_CHECK_ERROR(hipStreamCreate(&stream));
+
+    if constexpr(std::is_same<InOutDataType, ck_tile::fp16_t>::value)
+    {
+        if(is_jagged)
+            hstu_attention_jagged_forward_fp16(params, stream);
+        else
+            hstu_attention_batched_forward_fp16(params, stream);
+    }
+    else if constexpr(std::is_same<InOutDataType, ck_tile::bf16_t>::value)
+    {
+        if(is_jagged)
+            hstu_attention_jagged_forward_bf16(params, stream);
+        else
+            hstu_attention_batched_forward_bf16(params, stream);
+    }
+    else
+        throw std::runtime_error("Other data type is not supported at present!");
+
+    bool res = true;
+
+    if(do_validation)
+    {
+        using GemmAccDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType;
+        using CompDataType    = typename HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType;
+
+        BOOL_SWITCH_3(is_jagged, kIsJagged, use_causal, kUseCausal, use_local, kUseLocal, [&] {
+            ck_tile::reference_hstu_attention<InOutDataType,
+                                              GemmAccDataType,
+                                              CompDataType,
+                                              kIsJagged,
+                                              kUseCausal,
+                                              kUseLocal>::Run(q_host,
+                                                              k_host,
+                                                              v_host,
+                                                              o_host_ref,
+                                                              num_batch,
+                                                              1.0f,
+                                                              seq_offsets,
+                                                              num_targets,
+                                                              window_size,
+                                                              contextual_seqlen,
+                                                              min_full_attn_seqlen);
+        });
+
+        ck_tile::HostTensor<InOutDataType> o_host(
+            std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, num_head, hdim_v});
+
+        o_dev.FromDevice(o_host.data());
+
+        auto [rtol, atol] = get_elimit<InOutDataType>();
+
+        res = ck_tile::check_err(
+            o_host, o_host_ref, std::string("hstu_attention output error"), atol, rtol);
+    };
+
+    if(measure_perf)
+    {
+        ck_tile::gpu_timer timer{};
+
+        timer.start(stream);
+        for(int i = 0; i < 20; i++)
+        {
+            if constexpr(std::is_same<InOutDataType, ck_tile::fp16_t>::value)
+            {
+                if(is_jagged)
+                    hstu_attention_jagged_forward_fp16(params, stream);
+                else
+                    hstu_attention_batched_forward_fp16(params, stream);
+            }
+            else if constexpr(std::is_same<InOutDataType, ck_tile::bf16_t>::value)
+            {
+                if(is_jagged)
+                    hstu_attention_jagged_forward_bf16(params, stream);
+                else
+                    hstu_attention_batched_forward_bf16(params, stream);
+            }
+        }
+        timer.stop(stream);
+
+        auto ms = timer.duration() / 20.f;
+
+        std::cout << "Average execution time of the gather_attention operator is " << ms
+                  << " milli-seconds" << std::endl;
+    }
+
+    return res;
 }
 
 int main(int argc, char* argv[])
