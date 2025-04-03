@@ -557,7 +557,7 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
 static __device__ fp8_storage_t cast_to_f8_from_f16(_Float16 v, unsigned int rng = 0)
 {
-    std::ignore = rng;
+    ignore = rng;
 
     union
     {
@@ -596,7 +596,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rn
         cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[0], rng),
         cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[1], rng)};
 #else
-    std::ignore = rng;
+    ignore = rng;
 
     union
     {
@@ -634,7 +634,7 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
 static __device__ fp8_storage_t cast_to_f8_from_f16(_Float16 v, unsigned int rng = 0)
 {
-    std::ignore = rng;
+    ignore = rng;
 
     union
     {
@@ -673,7 +673,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f16(half2_t v, unsigned int rn
         cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[0], rng),
         cast_to_f8_from_f16<interpret, saturate, stochastic_rounding>(v[1], rng)};
 #else
-    std::ignore = rng;
+    ignore = rng;
 
     union
     {
@@ -805,7 +805,7 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
 static __device__ fp8_storage_t cast_to_f8_from_bf16(ushort v, unsigned int rng = 0)
 {
-    std::ignore = rng;
+    ignore = rng;
 
     union
     {
@@ -847,7 +847,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_bf16(ushortx2_t v, unsigned in
         cast_to_f8_from_bf16<interpret, saturate, stochastic_rounding>(v[0], rng),
         cast_to_f8_from_bf16<interpret, saturate, stochastic_rounding>(v[1], rng)};
 #else
-    std::ignore = rng;
+    ignore = rng;
 
     union
     {
@@ -891,7 +891,7 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
 static __device__ fp8_storage_t cast_to_f8_from_bf16(ushort v, unsigned int rng = 0)
 {
-    std::ignore = rng;
+    ignore = rng;
 
     union
     {
@@ -928,7 +928,7 @@ template <ck_fp8_interpretation_t interpret,
           ck::enable_if_t<stochastic_rounding == false, bool>                      = false>
 static __device__ fp8x2_storage_t cast_to_f8_from_bf16(ushortx2_t v, unsigned int rng = 0)
 {
-    std::ignore = rng;
+    ignore = rng;
 
     union
     {
@@ -1544,7 +1544,7 @@ __host__ static inline fp8_storage_t cvt_half_t_to_fp8(const _Float16 x)
                                    sat == ck_saturation_t::CK_SATFINITE,
                                    stochastic_rounding>(x, rng);
 #else
-        std::ignore = rng;
+        ignore = rng;
         return cvt_float_to_fp8<interp, ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
             static_cast<float>(x));
 #endif // defined(__gfx950__)
@@ -1586,7 +1586,7 @@ __host__ static inline fp8x2_storage_t cvt_half_t_to_fp8(const half2_t x)
                                    sat == ck_saturation_t::CK_SATFINITE,
                                    stochastic_rounding>(x, rng);
 #else
-        std::ignore = rng;
+        ignore = rng;
         return cvt_float_to_fp8<interp, ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
             float2_t{static_cast<float>(x[0]), static_cast<float>(x[1])});
 #endif // defined(__gfx950__)
@@ -1629,7 +1629,7 @@ __host__ static inline fp8_storage_t cvt_bhalf_t_to_fp8(const ushort x)
                                     sat == ck_saturation_t::CK_SATFINITE,
                                     stochastic_rounding>(x, rng);
 #else
-        std::ignore = rng;
+        ignore = rng;
         return cvt_float_to_fp8<interp, ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
             bit_cast<float>(uint32_t{x} << 16)); // convert value to float
 #endif // defined(__gfx950__)
@@ -1678,7 +1678,7 @@ __host__ static inline fp8x2_storage_t cvt_bhalf_t_to_fp8(const ushortx2_t x)
                                     sat == ck_saturation_t::CK_SATFINITE,
                                     stochastic_rounding>(x, rng);
 #else
-        std::ignore = rng;
+        ignore = rng;
         return cvt_float_to_fp8<interp, ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
             float2_t{bit_cast<float>(uint32_t{x[0]} << 16),
                      bit_cast<float>(uint32_t{x[1]} << 16)}); // convert values to float
