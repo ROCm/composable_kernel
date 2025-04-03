@@ -9,6 +9,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
+#include "ck_tile/core/utility/env.hpp"
 
 namespace ck_tile {
 

@@ -183,5 +183,9 @@ void UpdateEnvVar(EnvVar, const std::string_view& val)
         ck::internal::ParseEnvVal<typename EnvVar::value_type>::parse_env_var_value(val.data()));
 }
 
+// environment variable to enable logging:
+// export CK_LOGGING=ON or CK_LOGGING=1 or CK_LOGGING=ENABLED
+CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
+
 } // namespace ck
 #endif
