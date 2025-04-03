@@ -243,7 +243,7 @@ __host__ __device__ static inline T cast_from_f8(fp8_storage_t x)
 
 #if CK_FP8_CVT_FAST_PATH
 template <ck_fp8_interpretation_t interpret>
-static __device__ float cast_to_f32_from_f8(fp8_storage_t v)
+static __host__ __device__ float cast_to_f32_from_f8(fp8_storage_t v)
 {
     union
     {

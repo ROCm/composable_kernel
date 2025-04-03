@@ -19,7 +19,10 @@ def init_const_args(args):
 
 def run_ck_profiler_cmd(cmd):
     print("ckProfiler command:")
-    print(cmd)
+    cmd_concatenated_str = ""
+    for arg in cmd:
+        cmd_concatenated_str += arg + " "
+    print(cmd_concatenated_str)
     subprocess.run(cmd)
 
 
@@ -27,10 +30,10 @@ def parse_layouts(args):
     if args.in_layout == "NCW" or args.in_layout == "NCHW" or \
        args.in_layout == "NCDHW":
         if args.ck_profier_op == "grouped_conv_bwd_weight":
+            args.layout = 4
+        elif args.ck_profier_op == "grouped_conv_fwd" or \
+             args.ck_profier_op == "grouped_conv_bwd_data":
             args.layout = 3
-        elif args.ck_profier_op == "grouped_conv_bwd_data" or \
-             args.ck_profier_op == "grouped_conv_fwd":
-            args.layout = 2
         else:
             print('Not supported layout for this op')
             exit(1)

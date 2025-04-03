@@ -1,7 +1,8 @@
 #!/bin/sh
 EXE="$(find . -name tile_rmsnorm2d_fwd -type f | head -n 1)"
 
-for fquant in "" "-fquant=1 -prec_o=int8" "-fquant=2 -prec_o=int8" "-fquant=1 -prec_o=fp8" "-fquant=2 -prec_o=fp8"; do
+for fquant in "" "-fquant=1 -prec_o=int8" "-fquant=2 -prec_o=int8" "-fquant=1 -prec_o=fp8" "-fquant=2 -prec_o=fp8"\
+  "-fquant=1 -prec_o=int8 -save_unquant=1" "-fquant=2 -prec_o=int8 -save_unquant=1" "-fquant=1 -prec_o=fp8 -save_unquant=1" "-fquant=2 -prec_o=fp8 -save_unquant=1"; do
 for pr_i in "fp16" "bf16" ; do
 for fadd in "0" "1"; do
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=99  -n=13
@@ -27,6 +28,14 @@ $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=7   -n=2734
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=1   -n=3182
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=9   -n=4096
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=3   -n=8192
+done
+done
+done
+
+# The following cases uses two pass pipeline which doesn't support quant epilogue. 
+for fquant in ""
+for pr_i in "fp16" "bf16" ; do
+for fadd in "0" "1"; do
 $EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=1   -n=10547
 #$EXE -prec_i=$pr_i -fadd=$fadd $fquant -m=3   -n=17134
 done
