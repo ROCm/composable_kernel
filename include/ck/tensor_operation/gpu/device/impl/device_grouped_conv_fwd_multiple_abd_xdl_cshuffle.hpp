@@ -502,6 +502,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     static constexpr index_t ElementwiseBlocksize = ClusterLengthNPerBlock * ClusterLengthNPerBlock;
 
+    // NPerBlock is used for the first and second dim which to use
+    // CDEBlockTransferScalarPerVector_NPerBlock for load and store during
+    // transposition. CBlockTransferScalarPerVector_NWaveNPerXdl is aligned to
+    // NPerBlock so it is more flexible to use this dim for load store dimension
+    // with such scalar per vector.
     using GridwiseElementwiseInputTranspose =
         GridwiseElementwise<Tuple<NGCHWTransposeDescType>,
                             Tuple<NHWGCTransposeDescType>,
