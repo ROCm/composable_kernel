@@ -20,12 +20,17 @@ struct HstuBlockMasking
     CK_TILE_HOST_DEVICE HstuBlockMasking(int max_attn_len_,
                                          int contextual_seqlen_,
                                          int min_full_attn_seqlen_,
-                                         int max_uih_len_)
+                                         int seqlen_,
+                                         int num_target)
     {
         max_attn_len         = max_attn_len_;
         contextual_seqlen    = contextual_seqlen_;
         min_full_attn_seqlen = min_full_attn_seqlen_;
-        max_uih_len          = max_uih_len_;
+
+        max_uih_len = seqlen_;
+
+        max_uih_len -= contextual_seqlen - 1;
+        max_uih_len -= num_target;
     };
 
     // to get the loop length along X axis, return index:[start, end), end-start=length
@@ -82,27 +87,34 @@ struct HstuBlockMasking
 
     CK_TILE_HOST_DEVICE constexpr bool IsTokenPairInsideMask(int row, int col)
     {
+        if(row >= max_uih_len || col >= max_uih_len)
+            return false;
+
         if(row < contextual_seqlen)
             return true;
 
-        bool result = false;
-        if constexpr(kUseLocal)
+        if constexpr(IsMasking)
         {
-            if constexpr(kUseCausal)
-                result = (row >= col) && (row - col <= max_attn_len);
+            bool result = false;
+            if constexpr(kUseLocal)
+            {
+                if constexpr(kUseCausal)
+                    result = (row >= col) && (row - col <= max_attn_len);
+                else
+                    result = std::abs(row - col) <= max_attn_len;
+
+                if(min_full_attn_seqlen > 0)
+                    result = result || (row >= max_uih_len - min_full_attn_seqlen);
+            }
             else
-                result = std::abs(row - col) <= max_attn_len;
-
-            if(min_full_attn_seqlen > 0)
-                result = result || (row >= max_uih_len - min_full_attn_seqlen);
-        }
-        else
-        {
-            if constexpr(kUseCausal)
+            {
                 result = (row >= col);
-        };
+            };
 
-        return result;
+            return result;
+        }
+
+        return true;
     };
 };
 
