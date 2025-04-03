@@ -32,13 +32,6 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_v3)
 add_example_executable(example_gemm_xdl_fp16_fp8_v3 gemm_xdl_fp16_fp8_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8_v3)
 
-add_example_executable(example_gemm_xdl_fp16_pk_i4_v3 gemm_xdl_fp16_pk_i4_v3.cpp)
-add_example_executable(example_gemm_xdl_fp16_pk_i4_v3_b_scale gemm_xdl_fp16_pk_i4_v3_b_scale.cpp)
-add_example_executable(example_gemm_xdl_fp16_i8_v3_b_scale gemm_xdl_fp16_i8_v3_b_scale.cpp)
-add_example_executable(example_gemm_xdl_bf16_pk_i4_v3 gemm_xdl_bf16_pk_i4_v3.cpp)
-
-
-
 add_example_executable(example_gemm_xdl_fp16_fp8_streamk_v3 gemm_xdl_fp16_fp8_streamk_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8_streamk_v3)
 
@@ -51,6 +44,7 @@ foreach(gpu IN LISTS GPU_TARGETS)
     if(gpu IN_LIST gpu_list AND target EQUAL 0)
         add_example_executable(example_gemm_xdl_fp16_pk_i4_v3 gemm_xdl_fp16_pk_i4_v3.cpp)
         add_example_executable(example_gemm_xdl_fp16_pk_i4_v3_b_scale gemm_xdl_fp16_pk_i4_v3_b_scale.cpp)
+        add_example_executable(example_gemm_xdl_fp16_i8_v3_b_scale gemm_xdl_fp16_i8_v3_b_scale.cpp)
         add_example_executable(example_gemm_xdl_bf16_pk_i4_v3 gemm_xdl_bf16_pk_i4_v3.cpp)
         add_example_executable(example_gemm_xdl_fp8_pk_i4_bpreshuffle_v3 gemm_xdl_fp8_pk_i4_bpreshuffle_v3.cpp)
         add_example_executable(example_gemm_xdl_fp8_pk_i4_v3 gemm_xdl_fp8_pk_i4_v3.cpp)
