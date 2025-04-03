@@ -85,7 +85,6 @@ struct alignas(1) float8_e4m3_t
     {
         float8_e4m3_t y;
         y.data = x;
-        printf("bias is: %d\n",bias);
         return y;
     }
 
