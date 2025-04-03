@@ -56,13 +56,13 @@ struct DataTypeTraits<ck_tile::pk_int4_t>
 
 /**
  * @brief  trait for GEMM kernel
-    * @param pipeline:   pipeline name
-    * @param scheduler:  scheduler name
-    * @param epilogue:  epilogue name
-    * @param kPadM:     padding for M dimension
-    * @param kPadN:     padding for N dimension
-    * @param kPadK:     padding for K dimension 
- * 
+ * @param pipeline:   pipeline name
+ * @param scheduler:  scheduler name
+ * @param epilogue:  epilogue name
+ * @param kPadM:     padding for M dimension
+ * @param kPadN:     padding for N dimension
+ * @param kPadK:     padding for K dimension
+ *
  */
 
 struct KernelTraits
@@ -186,7 +186,7 @@ void permute_vectors_i4x4_b(Tensor& tensor)
 
 /**
  * @brief Function to verify the kernel output with reference implementation on CPU/GPU
- * 
+ *
  */
 
 template <typename ADataType,
