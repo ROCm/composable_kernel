@@ -80,6 +80,7 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t nhead_stride_o;
 
         const int32_t* num_targets_ptr;
+        ck_tile::index_t contextual_seqlen;
     };
 
     struct HstuAttentionFwdCommonBiasKargs
@@ -97,7 +98,6 @@ struct HstuAttentionFwdKernel
     struct HstuAttentionFwdMaskKargs
     {
         ck_tile::index_t window_size;
-        ck_tile::index_t contextual_seqlen;
         ck_tile::index_t min_full_attn_seqlen;
     };
 
@@ -184,8 +184,8 @@ struct HstuAttentionFwdKernel
                   ck_tile::index_t batch_stride_bias,
                   ck_tile::index_t batch_stride_o,
                   const void* num_targets_ptr,
-                  ck_tile::index_t window_size,
                   ck_tile::index_t contextual_seqlen,
+                  ck_tile::index_t window_size,
                   ck_tile::index_t min_full_attn_seqlen,
                   float p_drop,
                   const std::pair<uint64_t, uint64_t>& drop_seed_offset)
@@ -207,10 +207,11 @@ struct HstuAttentionFwdKernel
                      nhead_stride_k,
                      nhead_stride_v,
                      nhead_stride_o,
-                     reinterpret_cast<const int32_t*>(num_targets_ptr)}, // args for common karg
-                    {},                                                  // placeholder for bias
-                    {},                                                  // placeholder for mask
-                    {},                                                  // placeholder for dropout
+                     reinterpret_cast<const int32_t*>(num_targets_ptr),
+                     contextual_seqlen}, // args for common karg
+                    {},                  // placeholder for bias
+                    {},                  // placeholder for mask
+                    {},                  // placeholder for dropout
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
@@ -226,7 +227,6 @@ struct HstuAttentionFwdKernel
         if constexpr(kHasMask)
         {
             kargs.window_size          = window_size;
-            kargs.contextual_seqlen    = contextual_seqlen;
             kargs.min_full_attn_seqlen = min_full_attn_seqlen;
         }
         if constexpr(kHasDropout)
@@ -267,8 +267,8 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t batch_stride_bias,
               ck_tile::index_t batch_stride_o,
               const void* num_targets_ptr,
-              ck_tile::index_t window_size,
               ck_tile::index_t contextual_seqlen,
+              ck_tile::index_t window_size,
               ck_tile::index_t min_full_attn_seqlen,
               float p_drop,
               uint64_t philox_seed,
@@ -300,8 +300,8 @@ struct HstuAttentionFwdKernel
                              batch_stride_bias,
                              batch_stride_o,
                              num_targets_ptr,
-                             window_size,
                              contextual_seqlen,
+                             window_size,
                              min_full_attn_seqlen,
                              p_drop,
                              std::make_pair(philox_seed, philox_offset));
@@ -330,8 +330,8 @@ struct HstuAttentionFwdKernel
                   ck_tile::index_t nhead_stride_bias,
                   ck_tile::index_t nhead_stride_o,
                   const void* num_targets_ptr,
-                  ck_tile::index_t window_size,
                   ck_tile::index_t contextual_seqlen,
+                  ck_tile::index_t window_size,
                   ck_tile::index_t min_full_attn_seqlen,
                   float p_drop,
                   const std::pair<uint64_t, uint64_t>& drop_seed_offset)
@@ -353,10 +353,11 @@ struct HstuAttentionFwdKernel
                      nhead_stride_k,
                      nhead_stride_v,
                      nhead_stride_o,
-                     reinterpret_cast<const int32_t*>(num_targets_ptr)}, // args for common karg
-                    {},                                                  // placeholder for bias
-                    {},                                                  // placeholder for mask
-                    {},                                                  // placeholder for dropout
+                     reinterpret_cast<const int32_t*>(num_targets_ptr),
+                     contextual_seqlen}, // args for common karg
+                    {},                  // placeholder for bias
+                    {},                  // placeholder for mask
+                    {},                  // placeholder for dropout
                     reinterpret_cast<const int32_t*>(seq_offsets_ptr)};
 
         if constexpr(kHasBias)
@@ -368,7 +369,6 @@ struct HstuAttentionFwdKernel
         if constexpr(kHasMask)
         {
             kargs.window_size          = window_size;
-            kargs.contextual_seqlen    = contextual_seqlen;
             kargs.min_full_attn_seqlen = min_full_attn_seqlen;
         }
         if constexpr(kHasDropout)
@@ -404,8 +404,8 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t nhead_stride_o,
               const void* num_targets_ptr,
-              ck_tile::index_t window_size,
               ck_tile::index_t contextual_seqlen,
+              ck_tile::index_t window_size,
               ck_tile::index_t min_full_attn_seqlen,
               float p_drop,
               uint64_t philox_seed,
@@ -432,8 +432,8 @@ struct HstuAttentionFwdKernel
                              nhead_stride_bias,
                              nhead_stride_o,
                              num_targets_ptr,
-                             window_size,
                              contextual_seqlen,
+                             window_size,
                              min_full_attn_seqlen,
                              p_drop,
                              std::make_pair(philox_seed, philox_offset));
@@ -539,30 +539,17 @@ struct HstuAttentionFwdKernel
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
         }
 
-        int max_uih_len = kargs.seqlen;
-
-        if constexpr(kHasMask)
-        {
-            if(kargs.contextual_seqlen > 0)
-                max_uih_len -= kargs.contextual_seqlen - 1;
-        };
-
-        if(kargs.num_targets_ptr != nullptr)
-        {
-            if constexpr(kIsJagged)
-                max_uih_len -= kargs.num_targets_ptr[i_batch];
-            else
-                max_uih_len -= kargs.num_targets_ptr[0];
-        };
+        int num_target = (kargs.num_targets_ptr == nullptr) ? 0 : kargs.num_targets_ptr[i_batch];
 
         HstuMask mask = [&]() {
             if constexpr(kHasMask)
                 return HstuMask{kargs.window_size,
                                 kargs.contextual_seqlen,
                                 kargs.min_full_attn_seqlen,
-                                max_uih_len};
+                                kargs.seqlen,
+                                num_target};
             else
-                return HstuMask{0, 0, 0, 0};
+                return HstuMask{0, kargs.contextual_seqlen, 0, kargs.seqlen, num_target};
         }();
 
         // for simplicity, batch stride we just modify the pointer

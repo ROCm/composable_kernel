@@ -83,6 +83,9 @@ struct reference_hstu_attention
         assert(hdim_qk == k_batch_seq_nhead_hdim.get_lengths()[3]);
         assert(hdim_v == o_batch_seq_nhead_hdim.get_lengths()[3]);
 
+        // check num_tagets
+        assert(num_tagets.empty() || num_targets.size() == num_batch);
+
         auto silu = [](CompDataType x) {
             auto one = ck_tile::type_convert<CompDataType>(1.0f);
 
@@ -91,33 +94,22 @@ struct reference_hstu_attention
             return sigmod_val * x;
         };
 
-        bool has_target = !num_targets.empty();
-
-        if(has_target)
-            assert(num_targets.size() == num_batch);
-
         auto f = [&](auto i_batch, auto i_head) {
             int seqlen = kIsJagged ? (seq_offsets[i_batch + 1] - seq_offsets[i_batch])
                                    : q_batch_seq_nhead_hdim.get_lengths()[1];
 
-            int max_uih_len = seqlen;
-
-            if(contextual_seqlen > 0)
-                max_uih_len -= contextual_seqlen - 1;
-
-            if(has_target)
-                max_uih_len -= num_targets[i_batch];
+            int num_target = num_targets.empty() ? 0 : num_targets[i_batch];
 
             HstuBlockMasking<kUseCausal, kUseLocal> mask{
-                max_attn_len, contextual_seqlen, min_full_attn_seqlen, max_uih_len};
+                max_attn_len, contextual_seqlen, min_full_attn_seqlen, seqlen, num_target};
 
             // for all rows in the batch
-            for(int sq = 0; sq < max_uih_len; sq++)
+            for(int sq = 0; sq < seqlen; sq++)
             {
                 std::vector<CompDataType> locals;
 
                 // for all cols in the batch
-                for(int sk = 0; sk < max_uih_len; sk++)
+                for(int sk = 0; sk < seqlen; sk++)
                 {
                     if(mask.IsTokenPairInsideMask(sq, sk))
                     {
@@ -153,14 +145,14 @@ struct reference_hstu_attention
 
                 // SiLu element-wise
                 for(CompDataType& elem : locals)
-                    elem = silu(elem) / ck_tile::type_convert<CompDataType>(seqlen);
+                    elem = silu(elem);
 
                 // second Gemm
                 for(int k = 0; k < hdim_v; k++)
                 {
                     GemmAccDataType dot_prod = 0.f;
 
-                    for(int sk = 0; sk < max_uih_len; sk++)
+                    for(int sk = 0; sk < seqlen; sk++)
                     {
                         if constexpr(kIsJagged)
                         {
