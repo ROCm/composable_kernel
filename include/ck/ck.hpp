@@ -248,6 +248,12 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 // workaround: compiler issue on gfx950
 #define CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION 1
 
+// workaround: compiler issue on gfx950
+#define CK_WORKAROUND_FP16_TO_FP8_CONVERSION 1
+
+// workaround: compiler issue on gfx950
+#define CK_WORKAROUND_BF16_TO_FP8_CONVERSION 1
+
 // denorm test fix, necessary for gfx90a
 #ifndef CK_GFX90A_DENORM_WORKAROUND
 #define CK_GFX90A_DENORM_WORKAROUND 0
