@@ -131,7 +131,7 @@ __device__ AFragT load_A_col_major(AType const* input_ptr)
 
     // Register Mapping for 128x16 for FP4:                                                ||    Register Mapping for 64x32 for FP4:
     // Size              |   BLOCK_M  |   BLOCK_M   |   BLOCK_M  |   BLOCK_M   |           ||    Size              |   BLOCK_M  |   BLOCK_M   |        |
-    // M                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    N                 | 0  ...  31 |  0  ...  31 | Vector |
+    // M                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    M                 | 0  ...  31 |  0  ...  31 | Vector |
     // Thread Id         | 0  ...  15 | 16  ...  31 | 32  ... 47 | 48  ...  63 | Element   ||    Thread Id         | 0  ...  31 | 32  ...  63 | Element|
     // Register Element  |------------|-------------|------------|-------------|-----------||    Register Element  |------------|-------------|--------|
     // Reg 0 [0:7]       |     K0K1   |     K32K33  |     K64K65 |    K96K97   |  v[0]     ||    Reg 0 [0:7]       |     K0K1   |     K32K33  |  v[0]  |
@@ -1279,7 +1279,7 @@ struct TestMFMA
         switch(init)
         {
         case 0:
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{0.015625f});
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
             // NOTE: not all numbers are representable in FP8, BF8, etc.
             b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
             break;
@@ -1299,6 +1299,7 @@ struct TestMFMA
             b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(1, 3));
             break;
         case 4:
+            // FP4 values case
             a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-4, 5});
             b_n_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{-4, 5});
             break;
