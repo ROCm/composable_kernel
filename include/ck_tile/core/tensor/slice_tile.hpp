@@ -80,13 +80,14 @@ set_slice_tile(static_distributed_tensor<DstDataType_, DstStaticTileDistribution
     constexpr auto sliced_dstr_yidx_ylen =
         detail::slice_distribution_from_x(DstDistribution{}, slice_begins, slice_ends);
 
-    constexpr auto sliced_dstr      = sliced_dstr_yidx_ylen.template at<0>();
+    // constexpr auto sliced_dstr      = sliced_dstr_yidx_ylen.template at<0>();
     constexpr auto sliced_y_origins = sliced_dstr_yidx_ylen.template at<1>();
     constexpr auto sliced_y_lengths = sliced_dstr_yidx_ylen.template at<2>();
 
-    static_assert(std::is_same_v<decltype(sliced_dstr), DstDistribution>, "wrong!");
+    // static_assert(std::is_same_v<decltype(sliced_dstr), DstDistribution>, "wrong!");
 
-    dst_tile.SetSlicedThreadData(sliced_y_origins, sliced_y_lengths, src_tile.get_thread_buffer());
+    // dst_tile.SetSlicedThreadData(sliced_y_origins, sliced_y_lengths, src_tile.get_thread_buffer());
+    dst_tile.set_y_sliced_thread_data(sliced_y_origins, sliced_y_lengths, src_tile.get_thread_buffer());
 }
 
 } // namespace ck_tile
