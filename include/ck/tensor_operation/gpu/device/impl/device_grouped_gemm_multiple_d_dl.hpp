@@ -607,7 +607,7 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
                 }
             }
 
-            // If user provides copy stream and copy event, we assume that he's also
+            // If the user provides copy stream and copy event, we assume that they're also
             // responsible for providing allocated host memory (eg. pinned) which
             // would be used to copy kernel arguments to the device.
             if(cpy_stream && cpy_event)

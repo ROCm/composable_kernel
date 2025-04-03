@@ -560,10 +560,10 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 }
             }
 
-            if(cpy_stream &&
-               cpy_event) // If user provides copy stream and copy event, we assume that he's also
-                          // responsible for providing allocated host memory (eg. pinned) which
-                          // would be used to copy kernel arguments to the device.
+            // If the user provides copy stream and copy event, we assume that they're also
+            // responsible for providing allocated host memory (eg. pinned) which
+            // would be used to copy kernel arguments to the device.
+            if(cpy_stream && cpy_event)
             {
                 if(arg.gemm_kernel_host_args_ == nullptr)
                 {
@@ -772,8 +772,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     ///             achieve fully async data copy.
     ///
     /// @param      p_arg              The pointer to the Argument we're going to update.
-    /// @param[in]  p_host_kernel_args The pointer to the host memory which contains kernel
-    ///                                arguments.
+    /// @param[in]  p_host_kernel_args The pointer to the host memory where the kernel
+    ///                                arguments will be copied
     ///
     void SetHostKernelArgsPointer(BaseArgument* p_arg, void* p_host_kernel_args) const
     {
