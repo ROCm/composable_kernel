@@ -46,4 +46,28 @@ struct static_for
     }
 };
 
+namespace detail {
+
+template <typename T, T... Is>
+struct applier
+{
+    template <typename F>
+    __host__ __device__ constexpr void operator()(F f) const
+    {
+        // tweak -fbracket-depth if compilation fails. Clang default limit is 256
+        (f(Number<Is>{}), ...);
+    }
+};
+
+template <int32_t Size> // == sizeof...(Is)
+using make_applier = __make_integer_seq<applier, index_t, Size>;
+
+} // namespace detail
+
+template <index_t N>
+struct static_for<0, N, 1> : detail::make_applier<N>
+{
+    using detail::make_applier<N>::operator();
+};
+
 } // namespace ck
