@@ -2000,8 +2000,6 @@ struct vector_type<T, 64, typename ck::enable_if_t<!is_native_type<T>()>>
     }
 };
 
-using int64_t = long;
-
 // fp32
 using float2_t  = typename vector_type<float, 2>::type;
 using float4_t  = typename vector_type<float, 4>::type;
