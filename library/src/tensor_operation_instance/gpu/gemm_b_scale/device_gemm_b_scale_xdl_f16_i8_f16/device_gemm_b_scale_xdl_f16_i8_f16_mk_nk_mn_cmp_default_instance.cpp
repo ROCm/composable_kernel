@@ -7,7 +7,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-void add_device_gemm_b_scale_xdl_f16_i8_f16_mk_nk_mn_mem_v2_default_instances(
+void add_device_gemm_b_scale_xdl_f16_i8_f16_mk_nk_mn_cmp_default_instances(
     std::vector<std::unique_ptr<DeviceGemmV2BScale<Row,
                                                    Col,
                                                    Row,
@@ -23,7 +23,7 @@ void add_device_gemm_b_scale_xdl_f16_i8_f16_mk_nk_mn_mem_v2_default_instances(
 {
     add_device_operation_instances(
         instances,
-        device_gemm_b_scale_xdl_f16_i8_f16_mk_nk_mn_mem_instances<Intrawave, GemmDefault>{});
+        device_gemm_b_scale_xdl_f16_i8_f16_mk_nk_mn_cmp_instances<Intrawave, GemmDefault>{});
 }
 
 } // namespace instance

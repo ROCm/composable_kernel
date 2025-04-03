@@ -28,6 +28,7 @@ enum struct GemmDataType
     F16_F16_F16_F8, // 6
     F8_F8_BF16,     // 7
     F16_I4_F16,     // 8
+    F16_I8_F16      // 9
 };
 
 enum struct BScaleBlockTile
@@ -46,7 +47,7 @@ int profile_gemm_b_scale(int argc, char* argv[])
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: "
                "f16->f8; 7: f8->bf16, "
-               "comp f8; 8: f16@i4)\n");
+               "comp f8; 8: f16@i4 9: f16@i8)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
         printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
@@ -106,6 +107,7 @@ int profile_gemm_b_scale(int argc, char* argv[])
     using F32 = float;
     using F16 = ck::half_t;
     using I4  = ck::pk_i4_t;
+    using I8  = int8_t;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -170,9 +172,19 @@ int profile_gemm_b_scale(int argc, char* argv[])
         return profile(
             F16{}, I4{}, F16{}, F16{}, F32{}, F16{}, ck::Number<128>{}, Row{}, Col{}, Row{});
     }
+    if(data_type == GemmDataType::F16_I8_F16 && layout == GemmMatrixLayout::MK_NK_MN &&
+       B_scale_block == BScaleBlockTile::K_128)
+    {
+        printf("F16_I8_F16 MK_NK_MN K_128\n");
+        return profile(
+            F16{}, I8{}, F16{}, F16{}, F32{}, F16{}, ck::Number<128>{}, Row{}, Col{}, Row{});
+    }
     else
     {
-        std::cout << "this data_type & layout is not implemented" << std::endl;
+        std::cout << "this data_type:  " << static_cast<int>(data_type)
+                  << " & layout :" << static_cast<int>(layout)
+                  << " & B_scale_block:" << static_cast<int>(B_scale_block) << " is not implemented"
+                  << std::endl;
 
         return 1;
     }

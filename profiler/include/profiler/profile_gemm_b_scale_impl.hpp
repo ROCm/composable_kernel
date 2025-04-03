@@ -64,6 +64,27 @@ bool profile_gemm_b_scale_impl(int do_verification,
                 return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
+    auto f_get_default_stride =
+        [](std::size_t row, std::size_t col, ck::index_t stride, auto layout) {
+            if(stride == -1)
+            {
+                // give a chance if stride is -1, return a default packed stride
+                if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
+                {
+                    return static_cast<std::size_t>(col);
+                }
+                else
+                {
+                    return static_cast<std::size_t>(row);
+                }
+            }
+            else
+                return static_cast<std::size_t>(stride);
+        };
+
+    StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
+    StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
+    StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
 
     ck::index_t Scale_Stride_BN = ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>
                                       ? ((K + ScaleBlockK - 1) / ScaleBlockK)
@@ -180,7 +201,7 @@ bool profile_gemm_b_scale_impl(int do_verification,
             }
         }
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                                BDataType,
+                                                                                float,
                                                                                 CDataType,
                                                                                 AccDataType,
                                                                                 AElementOp,
@@ -225,7 +246,7 @@ bool profile_gemm_b_scale_impl(int do_verification,
                 }
             }
 
-            if(is_same_v<BDataType, pk_i4_t> && is_same_v<ADataType, half_t>)
+            if constexpr(is_same_v<BDataType, pk_i4_t> && is_same_v<ADataType, half_t>)
             {
                 // vector pk_i4x4 permute
                 for(int i = 0; i < N; i++)
