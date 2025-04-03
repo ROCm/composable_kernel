@@ -27,25 +27,25 @@ struct tuple_concat<std::tuple<Xs...>, std::tuple<Ys...>>
 } // namespace
 
 template <typename Tuple>
-class TestGEmmUniversal_BF16_MK_KN
+class TestGemmUniversal_BF16_MK_KN
     : public ck::test::TestGemmUniversal<typename tuple_concat<std::tuple<Row, Row>, Tuple>::type>
 {
 };
 
 template <typename Tuple>
-class TestGEmmUniversal_BF16_MK_NK
+class TestGemmUniversal_BF16_MK_NK
     : public ck::test::TestGemmUniversal<typename tuple_concat<std::tuple<Row, Col>, Tuple>::type>
 {
 };
 
 template <typename Tuple>
-class TestGEmmUniversal_BF16_KM_KN
+class TestGemmUniversal_BF16_KM_KN
     : public ck::test::TestGemmUniversal<typename tuple_concat<std::tuple<Col, Row>, Tuple>::type>
 {
 };
 
 template <typename Tuple>
-class TestGEmmUniversal_BF16_KM_NK
+class TestGemmUniversal_BF16_KM_NK
     : public ck::test::TestGemmUniversal<typename tuple_concat<std::tuple<Col, Col>, Tuple>::type>
 {
 };
@@ -74,9 +74,9 @@ using KernelTypes_KM_KN = ::testing::Types<
 
 // clang-format on
 
-TYPED_TEST_SUITE(TestGEmmUniversal_BF16_MK_KN, KernelTypes_MK_KN);
-TYPED_TEST_SUITE(TestGEmmUniversal_BF16_MK_NK, KernelTypes_MK_NK);
-TYPED_TEST_SUITE(TestGEmmUniversal_BF16_KM_KN, KernelTypes_KM_KN);
-TYPED_TEST_SUITE(TestGEmmUniversal_BF16_KM_NK, KernelTypes_KM_NK);
+TYPED_TEST_SUITE(TestGemmUniversal_BF16_MK_KN, KernelTypes_MK_KN);
+TYPED_TEST_SUITE(TestGemmUniversal_BF16_MK_NK, KernelTypes_MK_NK);
+TYPED_TEST_SUITE(TestGemmUniversal_BF16_KM_KN, KernelTypes_KM_KN);
+TYPED_TEST_SUITE(TestGemmUniversal_BF16_KM_NK, KernelTypes_KM_NK);
 
 #include "test_gemm_universal_ut_cases_bf16.inc"
