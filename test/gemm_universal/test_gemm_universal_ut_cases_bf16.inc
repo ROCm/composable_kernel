@@ -207,4 +207,3 @@ TYPED_TEST(TestGEmmUniversal_BF16_MK_NK, Regular)
     for(int M : Ms)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
 }
-

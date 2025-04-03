@@ -7,10 +7,10 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "test_gemm_universal_util.hpp"
 
-using F8   = ck::f8_t;
-using F16  = ck::half_t;
+using F8  = ck::f8_t;
+using F16 = ck::half_t;
 
-using F32  = float;
+using F32 = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -73,8 +73,6 @@ using KernelTypes_MK_NK = ::testing::Types<
 #endif
     std::tuple<      F16,       F16,             F16,     F16>
     >;
-
-
 
 // clang-format on
 
