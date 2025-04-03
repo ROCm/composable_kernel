@@ -1531,24 +1531,24 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                              1,              // SrcVectorDim
                                              1,              // SrcScalarPerVector
                                              1,
-                                             false>(
+                                             true>(
                 b_scale_grid_desc_bn_ak,
                 make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, b_thread_offset_k));
 
-#if 1
+#if 0
         if(blockIdx.x == 0 &&
            (threadIdx.x == 0 || threadIdx.x == 16 || threadIdx.x == 32 || threadIdx.x == 48))
         {
-            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\ta_thread_offset_m = %d; "
-                   "a_thread_offset_k = %d\n\t a_scale_origin = {%d, %d}\n\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   blockIdx.z,
-                   threadIdx.x,
-                   a_thread_offset_m,
-                   a_thread_offset_k,
-                   block_m_id * MPerBlock + a_thread_offset_m,
-                   a_thread_offset_k / ScaleBlockSize);
+            // printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\ta_thread_offset_m = %d; "
+            //        "a_thread_offset_k = %d\n\t a_scale_origin = {%d, %d}\n\n",
+            //        blockIdx.x,
+            //        blockIdx.y,
+            //        blockIdx.z,
+            //        threadIdx.x,
+            //        a_thread_offset_m,
+            //        a_thread_offset_k,
+            //        block_m_id * MPerBlock + a_thread_offset_m,
+            //        a_thread_offset_k / ScaleBlockSize);
 
             printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\tb_thread_offset_n = %d; "
                    "b_thread_offset_k = %d\n\t b_scale_origin = {%d, %d}\n\n",

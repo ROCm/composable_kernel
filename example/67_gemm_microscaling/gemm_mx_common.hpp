@@ -254,10 +254,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
         {
 
-#if 1
+#if 0
             std::set<int> col_ids = {0};
 #else
-            std::set<int> col_ids = {10, 31, 42, 103, 74, 205, 226, 187};
+            std::set<int> col_ids = {10, 31, 42, 140, 103, 74, 205, 226, 187};
 #endif
             for(auto col_id : col_ids)
             {
@@ -675,44 +675,41 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 {
                     std::cout << std::setw(8) << type_convert<float>(b_k_n_scale(i, j));
                 }
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 16; ++j)
-                // {
-                //     std::cout << std::setw(8) << type_convert<float>(b_k_n_scale(i, j + 128)) <<
-                //     "
-                //     ";
-                // }
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 16; ++j)
-                // {
-                //     std::cout << std::setw(8) << type_convert<float>(b_k_n_scale(i, j + 200))
-                //               << " ";
-                // }
+                std::cout << "\t\t";
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << std::setw(8) << type_convert<float>(b_k_n_scale(i, j + 128));
+                }
+                std::cout << "\t\t";
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << std::setw(8) << type_convert<float>(b_k_n_scale(i, j + 200));
+                }
 
                 std::cout << std::endl;
             }
 #endif
-#if 0
+#if 1
             std::cout << "Submatrix of c_m_n_device_result (16x16):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {
                 for(int j = 0; j < 16; ++j)
                 {
-                    std::cout << std::setw(9) << type_convert<float>(c_m_n_device_result(i, j));
+                    std::cout << std::setw(8) << type_convert<float>(c_m_n_device_result(i, j));
                 }
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 16; ++j)
-                // {
-                //     std::cout << std::setw(9) << type_convert<float>(c_m_n_device_result(i + 128,
-                //     j));
-                // }
+                std::cout << "\t\t";
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << std::setw(8)
+                              << type_convert<float>(c_m_n_device_result(i, j + 128));
+                }
 
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 16; ++j)
-                // {
-                //     std::cout << std::setw(9)
-                //               << type_convert<float>(c_m_n_device_result(i + 200, j));
-                // }
+                std::cout << "\t\t";
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << std::setw(8)
+                              << type_convert<float>(c_m_n_device_result(i, j + 200));
+                }
 
                 std::cout << std::endl;
             }

@@ -309,21 +309,34 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
                                                make_multi_index(-MPerBlock, ScalesPerKBlockSize));
 
-#if 0
         // Prefetch b_scales
         static_for<0, NRepeat, 1>{}([&](auto n0) {
-            b_scale_thread_copy.Run(b_scale_grid_desc,
-                                    b_scale_grid_buf,
-                                    b_scale_thread_desc,
-                                    make_tuple(n0, I0),
-                                    b_scale_thread_buf);
-            b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
-                                                   make_multi_index(NWaves * NPerXDL, 0));
-        });
-#else
-        ignore = b_scale_grid_buf;
-#endif
+            static_for<0, KRepeat, 1>{}([&](auto k0) {
+                static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
+                    constexpr auto b_scale_offset =
+                        b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, s));
+                    auto b_scale_thread_buf_copy =
+                        make_static_buffer<AddressSpaceEnum::Vgpr, BScaleDataType>(
+                            b_scale_thread_desc_copy.GetElementSpaceSize());
+                    b_scale_thread_copy.Run(b_scale_grid_desc,
+                                            b_scale_grid_buf,
+                                            b_scale_thread_desc_copy,
+                                            make_tuple(I0, I0),
+                                            b_scale_thread_buf_copy);
 
+                    b_scale_thread_buf(Number<b_scale_offset>{}) =
+                        b_scale_thread_buf_copy[Number<0>{}];
+                    b_scale_thread_copy.MoveSrcSliceWindow(
+                        b_scale_grid_desc,
+                        make_multi_index(0, xdlops_gemm.KPerXdlops / ScaleBlockSize));
+                });
+            });
+            b_scale_thread_copy.MoveSrcSliceWindow(
+                b_scale_grid_desc, make_multi_index(NWaves * NPerXDL, -ScalesPerKBlockSize));
+        });
+
+        // restore col id and advance to the next set of scales
+        // NWaves * NPerXDL * NRepeat == NPerBlock
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                make_multi_index(-NPerBlock, ScalesPerKBlockSize));
 
@@ -333,8 +346,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
         // Initialize C
         c_thread_buf.Clear();
-
-        auto c_thread_buf_per_scale = remove_cvref_t<decltype(c_thread_buf)>();
 
 #if 0
         [[maybe_unused]] auto print_type_name = [](const char* msg, auto param [[maybe_unused]]) {
@@ -472,7 +483,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
-                            c_thread_buf_per_scale.Clear();
                             vector_type<ComputeTypeA, KPack> a_thread_vec;
                             vector_type<ComputeTypeB, KPack> b_thread_vec;
 
@@ -519,6 +529,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             constexpr index_t b_scale_offset =
                                 b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, I0));
 
+                            vector_type<AScaleDataType, sizeof(int32_t)> a_scale_thread_vec{
+                                AScaleDataType{1.0f}};
                             vector_type<BScaleDataType, sizeof(int32_t)> b_scale_thread_vec;
 
                             // Pack b_scale_thread_buf into b_scale_thread_vec
@@ -532,21 +544,22 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             using mfma_input_type_b =
                                 typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops>::type;
 
+                            constexpr index_t c_offset =
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
                             // MFMA accumulation
-                            // m = 1:MPerXDL
-                            //   n = 1:NPerXDL
-                            //     k = 1:KPack
-                            //       c(m,n) += a(m,k)*b(k,n)
                             xdlops_gemm.template Run<>(
                                 a_thread_vec.template AsType<mfma_input_type_a>(),
+                                a_scale_thread_vec.template AsType<AScaleDataType>(),
                                 b_thread_vec.template AsType<mfma_input_type_b>(),
-                                c_thread_buf_per_scale.GetVectorTypeReference(I0));
+                                b_scale_thread_vec.template AsType<BScaleDataType>(),
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
 
                             bool is_C_zero = true;
                             ignore         = is_C_zero;
 #if 1
                             static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto m) {
-                                if(c_thread_buf_per_scale[Number<m>{}] == 0.0f) {}
+                                if(c_thread_buf[Number<c_offset + m>{}] == 0.0f) {}
                                 else
                                 {
                                     is_C_zero = false;
@@ -554,7 +567,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             });
 #endif
 
-#if 1
+#if 0
                             if(!is_B_zero && !is_A_zero)
                             {
                                 // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
@@ -671,7 +684,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                                 Number<31>{})));
 #endif
 // print out b_thread_vec
-#if 1
+#if 0
                                     printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
                                            "%d; k0 "
                                            "= %d :\n\tb_thread_vec = [%f, %f, %f, %f, %f, %f, %f, "
@@ -781,10 +794,33 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                            type_convert<float>(
                                                b_thread_vec.template AsType<ComputeTypeB>()(
                                                    Number<31>{})));
+#endif
 #if 1
                                     printf(
                                         "blockId = %u; threadId = %u; i = %d; m0 = %d : "
-                                        "b_scale_thread_buf[%d,%d] = {%f, %f, %f, %f}\n",
+                                        "a_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
+                                        blockIdx.x,
+                                        threadIdx.x,
+                                        i,
+                                        static_cast<int>(m0),
+                                        static_cast<int>(n0),
+                                        static_cast<int>(k0),
+                                        type_convert<float>(
+                                            a_scale_thread_vec
+                                                .template AsType<AScaleDataType>()[Number<0>{}]),
+                                        type_convert<float>(
+                                            a_scale_thread_vec
+                                                .template AsType<AScaleDataType>()[Number<1>{}]),
+                                        type_convert<float>(
+                                            a_scale_thread_vec
+                                                .template AsType<AScaleDataType>()[Number<2>{}]),
+                                        type_convert<float>(
+                                            a_scale_thread_vec
+                                                .template AsType<AScaleDataType>()[Number<3>{}]));
+
+                                    printf(
+                                        "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                        "b_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
                                         blockIdx.x,
                                         threadIdx.x,
                                         i,
@@ -804,86 +840,46 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                             b_scale_thread_vec
                                                 .template AsType<BScaleDataType>()[Number<3>{}]));
 #endif
-#endif
                                 }
-                            }
-                            if(!is_C_zero && threadIdx.x == 128)
-                            {
-                                // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
-                                if constexpr(m0 == 0 && n0 == 0)
+                                if(!is_C_zero && threadIdx.x == 0)
                                 {
-                                    // print out c_thread_buf_per_scale
-#if 0
-                                    constexpr index_t a_scale_offset =
-                                        a_scale_thread_desc.CalculateOffset(
-                                            make_tuple(m0, k0, I0, I0));
+                                    // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
+                                    if constexpr(m0 == 0 && n0 == 0)
+                                    {
+                                        // print out c_thread_buf_per_scale
+#if 1
 
-                                    printf(
-                                        "blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
-                                        "= %d :\n\tc_thread_buf_per_scale = [%f, %f, %f, %f, %f, "
-                                        "%f, "
-                                        "%f, %f, %f, %f, %f, %f, %f, %f, %f, "
-                                        "%f]\n\t    a_scale_thread_buf "
-                                        "= [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, "
-                                        "%f, "
-                                        "%f, %f]\n",
-                                        blockIdx.x,
-                                        threadIdx.x,
-                                        i,
-                                        static_cast<int>(m0),
-                                        static_cast<int>(n0),
-                                        static_cast<int>(k0),
-                                        c_thread_buf_per_scale(Number<0>{}),
-                                        c_thread_buf_per_scale(Number<1>{}),
-                                        c_thread_buf_per_scale(Number<2>{}),
-                                        c_thread_buf_per_scale(Number<3>{}),
-                                        c_thread_buf_per_scale(Number<4>{}),
-                                        c_thread_buf_per_scale(Number<5>{}),
-                                        c_thread_buf_per_scale(Number<6>{}),
-                                        c_thread_buf_per_scale(Number<7>{}),
-                                        c_thread_buf_per_scale(Number<8>{}),
-                                        c_thread_buf_per_scale(Number<9>{}),
-                                        c_thread_buf_per_scale(Number<10>{}),
-                                        c_thread_buf_per_scale(Number<11>{}),
-                                        c_thread_buf_per_scale(Number<12>{}),
-                                        c_thread_buf_per_scale(Number<13>{}),
-                                        c_thread_buf_per_scale(Number<14>{}),
-                                        c_thread_buf_per_scale(Number<15>{}),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 0>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 1>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 2>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 3>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 4>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 5>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 6>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 7>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 8>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 9>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 10>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 11>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 12>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 13>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 14>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 15>{}]));
+                                        printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
+                                               "%d; k0 "
+                                               "= %d :\n\tc_thread_buf = [%f, %f, %f, %f, %f, %f, "
+                                               "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                               blockIdx.x,
+                                               threadIdx.x,
+                                               i,
+                                               static_cast<int>(m0),
+                                               static_cast<int>(n0),
+                                               static_cast<int>(k0),
+                                               c_thread_buf[Number<c_offset + 0>{}],
+                                               c_thread_buf[Number<c_offset + 1>{}],
+                                               c_thread_buf[Number<c_offset + 2>{}],
+                                               c_thread_buf[Number<c_offset + 3>{}],
+                                               c_thread_buf[Number<c_offset + 4>{}],
+                                               c_thread_buf[Number<c_offset + 5>{}],
+                                               c_thread_buf[Number<c_offset + 6>{}],
+                                               c_thread_buf[Number<c_offset + 7>{}],
+                                               c_thread_buf[Number<c_offset + 8>{}],
+                                               c_thread_buf[Number<c_offset + 9>{}],
+                                               c_thread_buf[Number<c_offset + 10>{}],
+                                               c_thread_buf[Number<c_offset + 11>{}],
+                                               c_thread_buf[Number<c_offset + 12>{}],
+                                               c_thread_buf[Number<c_offset + 13>{}],
+                                               c_thread_buf[Number<c_offset + 14>{}],
+                                               c_thread_buf[Number<c_offset + 15>{}]);
 #endif
+                                    }
                                 }
                             }
+
 #endif
 
 // Print WaveIds
@@ -930,30 +926,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                     }
                                 }
 #endif
-
-                            static_for<0, xdlops_gemm.mfma_instr.num_groups_per_blk, 1>{}(
-                                [&](auto g) {
-                                    static_for<0, xdlops_gemm.mfma_instr.group_size, 1>{}(
-                                        [&](auto r) {
-                                            constexpr index_t a_scale_offset =
-                                                a_scale_thread_desc.CalculateOffset(
-                                                    make_tuple(m0, k0, g, r));
-
-                                            constexpr auto reg_offset =
-                                                g * xdlops_gemm.mfma_instr.group_size + r;
-
-                                            constexpr index_t c_offset =
-                                                c_thread_desc_.CalculateOffset(
-                                                    make_tuple(m0, n0, reg_offset));
-
-                                            c_thread_buf(Number<c_offset>{}) +=
-                                                c_thread_buf_per_scale[Number<reg_offset>{}] *
-                                                type_convert<AccType>(
-                                                    b_scale_thread_buf[Number<b_scale_offset>{}]) *
-                                                type_convert<AccType>(
-                                                    a_scale_thread_buf[Number<a_scale_offset>{}]);
-                                        });
-                                });
                         });
                     });
                 });
@@ -1000,17 +972,35 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 // restore row id and advance to the next set of scales
                 a_scale_thread_copy.MoveSrcSliceWindow(
                     a_scale_grid_desc, make_multi_index(-MPerBlock, ScalesPerKBlockSize));
-#if 0
+
+                // Prefetch b_scales
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
-                    b_scale_thread_copy.Run(b_scale_grid_desc,
-                                            b_scale_grid_buf,
-                                            b_scale_thread_desc,
-                                            make_tuple(n0, I0),
-                                            b_scale_thread_buf);
-                    b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
-                                                           make_multi_index(NWaves * NPerXDL, 0));
+                    static_for<0, KRepeat, 1>{}([&](auto k0) {
+                        static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
+                            constexpr auto b_scale_offset =
+                                b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, s));
+                            auto b_scale_thread_buf_copy =
+                                make_static_buffer<AddressSpaceEnum::Vgpr, BScaleDataType>(
+                                    b_scale_thread_desc_copy.GetElementSpaceSize());
+                            b_scale_thread_copy.Run(b_scale_grid_desc,
+                                                    b_scale_grid_buf,
+                                                    b_scale_thread_desc_copy,
+                                                    make_tuple(I0, I0),
+                                                    b_scale_thread_buf_copy);
+
+                            b_scale_thread_buf(Number<b_scale_offset>{}) =
+                                b_scale_thread_buf_copy[Number<0>{}];
+                            b_scale_thread_copy.MoveSrcSliceWindow(
+                                b_scale_grid_desc,
+                                make_multi_index(0, xdlops_gemm.KPerXdlops / ScaleBlockSize));
+                        });
+                    });
+                    b_scale_thread_copy.MoveSrcSliceWindow(
+                        b_scale_grid_desc,
+                        make_multi_index(NWaves * NPerXDL, -ScalesPerKBlockSize));
                 });
-#endif
+
+                // restore col id and advance to the next set of scales
                 // NWaves * NPerXDL * NRepeat == NPerBlock
                 b_scale_thread_copy.MoveSrcSliceWindow(
                     b_scale_grid_desc, make_multi_index(-NPerBlock, ScalesPerKBlockSize));
@@ -1020,7 +1010,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
                 i += 1;
-
             } while(i < (num_loop - 1));
         }
 
@@ -1075,8 +1064,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                        a_thread_buf);
                 });
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
-                    // read block data in chunks to assemble correct thread vectors
-                    // for now expect just two iterations
+                    // read block data in chunks to assemble correct thread
+                    // vectors for now expect just two iterations
                     static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
                         constexpr auto b_k_step_chunk =
                             b_k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
@@ -1093,7 +1082,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        c_thread_buf_per_scale.Clear();
                         vector_type<ComputeTypeA, KPack> a_thread_vec;
                         vector_type<ComputeTypeB, KPack> b_thread_vec;
 
@@ -1131,6 +1119,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         constexpr index_t b_scale_offset =
                             b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, I0));
 
+                        vector_type<AScaleDataType, sizeof(int32_t)> a_scale_thread_vec{
+                            AScaleDataType{1.0f}};
                         vector_type<BScaleDataType, sizeof(int32_t)> b_scale_thread_vec;
 
                         // Pack b_scale_thread_buf into b_scale_thread_vec
@@ -1144,16 +1134,22 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         using mfma_input_type_b =
                             typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops>::type;
 
+                        constexpr index_t c_offset =
+                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                        // MFMA accumulation
                         xdlops_gemm.template Run<>(
                             a_thread_vec.template AsType<mfma_input_type_a>(),
+                            a_scale_thread_vec.template AsType<AScaleDataType>(),
                             b_thread_vec.template AsType<mfma_input_type_b>(),
-                            c_thread_buf_per_scale.GetVectorTypeReference(I0));
+                            b_scale_thread_vec.template AsType<BScaleDataType>(),
+                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
 
                         bool is_C_zero = true;
                         ignore         = is_C_zero;
 #if 1
                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto m) {
-                            if(c_thread_buf_per_scale[Number<m>{}] == 0.0f) {}
+                            if(c_thread_buf[Number<c_offset + m>{}] == 0.0f) {}
                             else
                             {
                                 is_C_zero = false;
@@ -1164,7 +1160,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 #if 1
                         if(!is_B_zero && !is_A_zero)
                         {
-                            // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
+                            // First MWaves * MPerXDL rows and NWaves *
+                            // NPerXDL columns
                             if constexpr(m0 == 0 && n0 == 0)
                             {
 // print out a_thread_vec
@@ -1278,15 +1275,19 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                                 Number<31>{})));
 #endif
 // print out b_thread_vec
-#if 1
+#if 0
                                 printf(
-                                    "blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
+                                    "blockId = %u; threadId = %u; i = %d; "
+                                    "m0 = %d; n0 = "
                                     "%d; k0 "
-                                    "= %d :\n\tb_thread_vec = [%f, %f, %f, %f, %f, %f, %f, "
+                                    "= %d :\n\tb_thread_vec = [%f, %f, %f, "
+                                    "%f, %f, %f, %f, "
                                     "%f, "
-                                    "%f, %f, %f, %f, %f, %f, %f, %f,\n\t\t\t\t    %f, %f, "
+                                    "%f, %f, %f, %f, %f, %f, %f, "
+                                    "%f,\n\t\t\t\t    %f, %f, "
                                     "%f, "
-                                    "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                    "%f, %f, %f, %f, %f, %f, %f, %f, %f, "
+                                    "%f, %f, %f, %f]\n",
                                     blockIdx.x,
                                     threadIdx.x,
                                     -1,
@@ -1358,9 +1359,31 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                     type_convert<float>(
                                         b_thread_vec.template AsType<ComputeTypeB>()(
                                             Number<31>{})));
-#if 1
+#endif
+#if 0
                                 printf("blockId = %u; threadId = %u; i = %d; m0 = %d : "
-                                       "b_scale_thread_buf[%d,%d] = {%f, %f, %f, %f}\n",
+                                       "a_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
+                                       blockIdx.x,
+                                       threadIdx.x,
+                                       -1,
+                                       static_cast<int>(m0),
+                                       static_cast<int>(n0),
+                                       static_cast<int>(k0),
+                                       type_convert<float>(
+                                           a_scale_thread_vec
+                                               .template AsType<AScaleDataType>()[Number<0>{}]),
+                                       type_convert<float>(
+                                           a_scale_thread_vec
+                                               .template AsType<AScaleDataType>()[Number<1>{}]),
+                                       type_convert<float>(
+                                           a_scale_thread_vec
+                                               .template AsType<AScaleDataType>()[Number<2>{}]),
+                                       type_convert<float>(
+                                           a_scale_thread_vec
+                                               .template AsType<AScaleDataType>()[Number<3>{}]));
+
+                                printf("blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                       "b_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
                                        blockIdx.x,
                                        threadIdx.x,
                                        -1,
@@ -1380,114 +1403,55 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                            b_scale_thread_vec
                                                .template AsType<BScaleDataType>()[Number<3>{}]));
 #endif
-#endif
                             }
-                        }
-                        if(!is_C_zero && threadIdx.x == 128)
-                        {
-                            // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
-                            if constexpr(m0 == 0 && n0 == 0)
+                            if(!is_C_zero && threadIdx.x == 0)
                             {
-                                // print out c_thread_buf_per_scale
+                                // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
+                                if constexpr(m0 == 0 && n0 == 0)
+                                {
+                                    // print out c_thread_buf_per_scale
 #if 0
-                                    constexpr index_t a_scale_offset =
-                                        a_scale_thread_desc.CalculateOffset(
-                                            make_tuple(m0, k0, I0, I0));
 
-                                    printf(
-                                        "blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
-                                        "= %d :\n\tc_thread_buf_per_scale = [%f, %f, %f, %f, %f, "
-                                        "%f, "
-                                        "%f, %f, %f, %f, %f, %f, %f, %f, %f, "
-                                        "%f]\n\t    a_scale_thread_buf "
-                                        "= [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, "
-                                        "%f, "
-                                        "%f, %f]\n",
-                                        blockIdx.x,
-                                        threadIdx.x,
-                                        -1,
-                                        static_cast<int>(m0),
-                                        static_cast<int>(n0),
-                                        static_cast<int>(k0),
-                                        c_thread_buf_per_scale(Number<0>{}),
-                                        c_thread_buf_per_scale(Number<1>{}),
-                                        c_thread_buf_per_scale(Number<2>{}),
-                                        c_thread_buf_per_scale(Number<3>{}),
-                                        c_thread_buf_per_scale(Number<4>{}),
-                                        c_thread_buf_per_scale(Number<5>{}),
-                                        c_thread_buf_per_scale(Number<6>{}),
-                                        c_thread_buf_per_scale(Number<7>{}),
-                                        c_thread_buf_per_scale(Number<8>{}),
-                                        c_thread_buf_per_scale(Number<9>{}),
-                                        c_thread_buf_per_scale(Number<10>{}),
-                                        c_thread_buf_per_scale(Number<11>{}),
-                                        c_thread_buf_per_scale(Number<12>{}),
-                                        c_thread_buf_per_scale(Number<13>{}),
-                                        c_thread_buf_per_scale(Number<14>{}),
-                                        c_thread_buf_per_scale(Number<15>{}),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 0>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 1>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 2>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 3>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 4>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 5>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 6>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 7>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 8>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 9>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 10>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 11>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 12>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 13>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 14>{}]),
-                                        type_convert<float>(
-                                            a_scale_thread_buf[Number<a_scale_offset + 15>{}]));
+                                    printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
+                                           "%d; k0 "
+                                           "= %d :\n\tc_thread_buf = [%f, %f, %f, %f, %f, %f, "
+                                           "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                           blockIdx.x,
+                                           threadIdx.x,
+                                           -1,
+                                           static_cast<int>(m0),
+                                           static_cast<int>(n0),
+                                           static_cast<int>(k0),
+                                           c_thread_buf[Number<c_offset + 0>{}],
+                                           c_thread_buf[Number<c_offset + 1>{}],
+                                           c_thread_buf[Number<c_offset + 2>{}],
+                                           c_thread_buf[Number<c_offset + 3>{}],
+                                           c_thread_buf[Number<c_offset + 4>{}],
+                                           c_thread_buf[Number<c_offset + 5>{}],
+                                           c_thread_buf[Number<c_offset + 6>{}],
+                                           c_thread_buf[Number<c_offset + 7>{}],
+                                           c_thread_buf[Number<c_offset + 8>{}],
+                                           c_thread_buf[Number<c_offset + 9>{}],
+                                           c_thread_buf[Number<c_offset + 10>{}],
+                                           c_thread_buf[Number<c_offset + 11>{}],
+                                           c_thread_buf[Number<c_offset + 12>{}],
+                                           c_thread_buf[Number<c_offset + 13>{}],
+                                           c_thread_buf[Number<c_offset + 14>{}],
+                                           c_thread_buf[Number<c_offset + 15>{}]);
 #endif
+                                }
                             }
                         }
+
 #endif
-
-                        static_for<0, xdlops_gemm.mfma_instr.num_groups_per_blk, 1>{}([&](auto g) {
-                            static_for<0, xdlops_gemm.mfma_instr.group_size, 1>{}([&](auto r) {
-                                constexpr index_t a_scale_offset =
-                                    a_scale_thread_desc.CalculateOffset(make_tuple(m0, k0, g, r));
-
-                                constexpr auto reg_offset =
-                                    g * xdlops_gemm.mfma_instr.group_size + r;
-
-                                constexpr index_t c_offset =
-                                    c_thread_desc_.CalculateOffset(make_tuple(m0, n0, reg_offset));
-
-                                c_thread_buf(Number<c_offset>{}) +=
-                                    c_thread_buf_per_scale[Number<reg_offset>{}] *
-                                    type_convert<AccType>(
-                                        b_scale_thread_buf[Number<b_scale_offset>{}]) *
-                                    type_convert<AccType>(
-                                        a_scale_thread_buf[Number<a_scale_offset>{}]);
-                            });
-                        });
                     });
                 });
             });
         }
     }
 
-    // TODO: make this field protected when a_scale_thread_copy_ is moved here
+    // TODO: make this field protected when a_scale_thread_copy_ is moved
+    // here
     static constexpr auto a_scale_thread_desc = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MRepeat>{},
                    Number<KRepeat>{},
@@ -1498,13 +1462,14 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
     static constexpr auto a_scale_thread_desc_group = make_naive_tensor_descriptor_packed(
         make_tuple(Number<xdlops_gemm.mfma_instr.group_size>{}, Number<1>{}));
 
-    // TODO: make this field protected when b_scale_thread_copy_ is moved here
+    // TODO: make this field protected when b_scale_thread_copy_ is moved
+    // here
     static constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
         make_tuple(Number<NRepeat>{}, Number<KRepeat>{}, Number<ScalesPerXdlopsRunPerThread>{}));
 
     // Is used to copy data from b_scale_grid to b_scale_thread_buf
-    static constexpr auto b_scale_thread_desc_copy = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<1>{}, Number<ScalesPerXdlopsRunPerThread>{}));
+    static constexpr auto b_scale_thread_desc_copy =
+        make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}, Number<1>{}));
 
     protected:
     using Base::a_thread_copy_;
