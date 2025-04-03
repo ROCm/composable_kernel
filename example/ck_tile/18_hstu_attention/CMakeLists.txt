@@ -2,10 +2,11 @@ set(EXAMPLE_HSTU_ATTENTION "tile_example_hstu_attention")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
 message("adding example ${EXAMPLE_HSTU_ATTENTION}")
-##file(GLOB INSTANCE_SRCS instances/*.cpp)
+file(GLOB INSTANCE_SRCS instances/*.cpp)
+set(INTERFACES_SRCS  hstu_attention_jagged_forward_bf16.cpp  hstu_attention_jagged_forward_fp16.cpp hstu_attention_batched_forward_bf16.cpp hstu_attention_batched_forward_fp16.cpp)
 add_executable(${EXAMPLE_HSTU_ATTENTION} EXCLUDE_FROM_ALL example_hstu_attention.cpp)
 target_include_directories(${EXAMPLE_HSTU_ATTENTION} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-##target_sources(${EXAMPLE_HSTU_ATTENTION} PRIVATE hstu_attention_bf16.cpp  hstu_attention_fp16.cpp ${INSTANCE_SRCS})
+target_sources(${EXAMPLE_HSTU_ATTENTION} PRIVATE ${INTERFACES_SRCS}  ${INSTANCE_SRCS})
 
 set(EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS)
 

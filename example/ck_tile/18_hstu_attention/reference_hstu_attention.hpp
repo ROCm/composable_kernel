@@ -11,16 +11,17 @@
 #include <ck_tile/core.hpp>
 #include <ck_tile/host/host_tensor.hpp>
 
-#include "bool_switch.hpp"
+#include "hstu_attention_bool_switch.hpp"
+#include "hstu_block_masking.hpp"
 
 namespace ck_tile {
 
 // clang-format off
 // Reference implementation of HSTUAttention problem, which does the following from input tensors:
 // S[num_batch, num_head, seqlen, seqlen] = Q[num_batch, seqlen, num_head, hdim_qk] @ key^T[num_batch, seqlen, num_head, hdim_v]
-// P[num_batch, num_head, seqlen, seqlen] = Masking(SiLu(S[num_batch, num_head, seqlen, seqlen]))
+// P[num_batch, num_head, seqlen, seqlen] = SiLU(Masking(S[num_batch, num_head, seqlen, seqlen]))
 // O[num_batch, num_head, seqlen, hdim_v] = P[num_batch, num_head, seqlen, seqlen] @ value^T[num_batch, num_head, seqlen, hdim_v]
-// The process is very similar to the generic attention, the difference is that SiLu is used rather than Softmax, and hstu masking 
+// The process is very similar to the generic attention, the difference is that SiLU is used rather than Softmax, and hstu masking 
 // is much more complicated than the lower-triangular + disagonal-window based causal mask
 // clang-format on
 
@@ -32,50 +33,6 @@ template <typename InOutDataType,
           bool kUseLocal>
 struct reference_hstu_attention
 {
-    struct hstu_mask
-    {
-        int max_attn_len;
-        int contextual_seq_len;
-        int min_full_attn_seq_len;
-        int max_uih_len;
-
-        hstu_mask(int max_attn_len_,
-                  int contextual_seq_len_,
-                  int min_full_attn_seq_len_,
-                  int max_uih_len_)
-        {
-            max_attn_len          = max_attn_len_;
-            contextual_seq_len    = contextual_seq_len_;
-            min_full_attn_seq_len = min_full_attn_seq_len_;
-            max_uih_len           = max_uih_len_;
-        };
-
-        bool IsTokenPairInsideMask(int row, int col)
-        {
-            if(row < contextual_seq_len)
-                return true;
-
-            bool result = false;
-            if constexpr(kUseLocal)
-            {
-                if constexpr(kUseCausal)
-                    result = (row >= col) && (row - col <= max_attn_len);
-                else
-                    result = std::abs(row - col) <= max_attn_len;
-
-                if(min_full_attn_seq_len > 0)
-                    result = result || (row >= max_uih_len - min_full_attn_seq_len);
-            }
-            else
-            {
-                if constexpr(kUseCausal)
-                    result = (row >= col);
-            };
-
-            return result;
-        };
-    };
-
     static void Run(const HostTensor<InOutDataType>& q_batch_seq_nhead_hdim,
                     const HostTensor<InOutDataType>& k_batch_seq_nhead_hdim,
                     const HostTensor<InOutDataType>& v_batch_seq_nhead_hdim,
@@ -86,10 +43,10 @@ struct reference_hstu_attention
                     std::vector<int> num_targets, // define masking length at the end of token
                                                   // sequence to be excluded for attention
                     int max_attn_len,             // define the diagonal local window size
-                    int contextual_seq_len,    // define masking length at the begin of query token
-                                               // sequence to be included for attention
-                    int min_full_attn_seq_len) // define masking length at the end of query token
-                                               // sequence which is included for full attention
+                    int contextual_seqlen,    // define masking length at the begin of query token
+                                              // sequence to be included for attention
+                    int min_full_attn_seqlen) // define masking length at the end of query token
+                                              // sequence which is included for full attention
     {
         if constexpr(kIsJagged)
         {
@@ -145,13 +102,14 @@ struct reference_hstu_attention
 
             int max_uih_len = seqlen;
 
-            if(contextual_seq_len > 0)
-                max_uih_len -= contextual_seq_len - 1;
+            if(contextual_seqlen > 0)
+                max_uih_len -= contextual_seqlen - 1;
 
             if(has_target)
                 max_uih_len -= num_targets[i_batch];
 
-            hstu_mask mask{max_attn_len, contextual_seq_len, min_full_attn_seq_len, max_uih_len};
+            HstuBlockMasking<kUseCausal, kUseLocal> mask{
+                max_attn_len, contextual_seqlen, min_full_attn_seqlen, max_uih_len};
 
             // for all rows in the batch
             for(int sq = 0; sq < max_uih_len; sq++)
