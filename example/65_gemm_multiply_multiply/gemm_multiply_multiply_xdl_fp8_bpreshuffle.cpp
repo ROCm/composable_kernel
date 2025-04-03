@@ -333,14 +333,8 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    size_t total_size =
-        (M * K * sizeof(A0DataType) + N * K * sizeof(B0DataType) + M * sizeof(D0DataType) +
-         N * sizeof(D1DataType) + M * N * sizeof(EDataType));
-    int rotate_buf_num =
-        ck::math::min(size_t(Repeat), ck::math::integer_divide_ceil(512 * 1024 * 1024, total_size));
-
     float ave_time = invoker.Run(
-        argument, StreamConfig{nullptr, time_kernel, 0, Warmup, Repeat, true, rotate_buf_num});
+        argument, StreamConfig{nullptr, time_kernel, 0, Warmup, Repeat, false, 1});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =
