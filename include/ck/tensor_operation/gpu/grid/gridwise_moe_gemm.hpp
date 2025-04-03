@@ -1402,93 +1402,149 @@ struct GridwiseMoeGemm
             constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I7);
 
             // mul scales
-            const float* p_scale_b = p_ds_grid[I1];
-            if constexpr(PerTokenQuant)
-            {
-                constexpr index_t scale_stride = (IsInputGemm ? 2 : 1);
-                p_scale_b += expert_id * problem.N * scale_stride + block_n_id * NPerBlock +
-                             get_warp_local_1d_id() % NWave * NPerXdl + threadIdx.x % NPerXdl;
-            }
-            else
-            {
-                p_scale_b += expert_id;
-            }
             const float* p_sorted_weights_0 = p_ds_grid[I0];
-            static_assert(M0 * M1 * M2 * M3 * M4 == MPerBlock);
-            static_assert(M4 == 4);
-            const index_t m1 = get_warp_local_1d_id() / NWave;
-            const index_t m3 = threadIdx.x % get_warp_size() / MPerXdl;
-            vector_type<int32_t, 4> scale_token_ids;
-            vector_type<float, 4> topk_weights; // for gemm2 only
-            static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
-                const float scale_b = p_scale_b[n0 * NWave * NPerXdl * PerTokenQuant];
-                static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
-                    static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
-                        const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
-                                              m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
-                        if constexpr(PerTokenQuant)
-                        {
-                            scale_token_ids =
-                                *c_style_pointer_cast<const vector_type<int32_t, M4>*>(
-                                    p_sorted_token_ids + m_pos);
-                        }
-                        if constexpr(!IsInputGemm)
-                        {
-                            topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
-                                p_ds_grid[I2] + m_pos);
-                        }
-                        static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
-                            float scale_a = [&]() {
-                                if constexpr(PerTokenQuant)
+            const float* p_scale_b          = p_ds_grid[I1];
+            if(p_sorted_weights_0 != nullptr && p_scale_b != nullptr)
+            {
+                if constexpr(PerTokenQuant)
+                {
+                    constexpr index_t scale_stride = (IsInputGemm ? 2 : 1);
+                    p_scale_b += expert_id * problem.N * scale_stride + block_n_id * NPerBlock +
+                                 get_warp_local_1d_id() % NWave * NPerXdl + threadIdx.x % NPerXdl;
+                }
+                else
+                {
+                    p_scale_b += expert_id;
+                }
+
+                static_assert(M0 * M1 * M2 * M3 * M4 == MPerBlock);
+                static_assert(M4 == 4);
+                const index_t m1 = get_warp_local_1d_id() / NWave;
+                const index_t m3 = threadIdx.x % get_warp_size() / MPerXdl;
+                vector_type<int32_t, 4> scale_token_ids;
+                vector_type<float, 4> topk_weights; // for gemm2 only
+                static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
+                    const float scale_b = p_scale_b[n0 * NWave * NPerXdl * PerTokenQuant];
+                    static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
+                        static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
+                            const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
+                                                  m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
+                            if constexpr(PerTokenQuant)
+                            {
+                                scale_token_ids =
+                                    *c_style_pointer_cast<const vector_type<int32_t, M4>*>(
+                                        p_sorted_token_ids + m_pos);
+                            }
+                            if constexpr(!IsInputGemm)
+                            {
+                                topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
+                                    p_ds_grid[I2] + m_pos);
+                            }
+                            static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
+                                float scale_a = [&]() {
+                                    if constexpr(PerTokenQuant)
+                                    {
+                                        index_t fused_token = scale_token_ids.AsType<index_t>()[m4];
+                                        const index_t token_offset = fused_token & 0xffffff;
+                                        return token_offset < problem.NumTokens
+                                                   ? p_sorted_weights_0[token_offset]
+                                                   : 0.0;
+                                    }
+                                    else
+                                    {
+                                        return p_sorted_weights_0[0];
+                                    }
+                                }();
+                                constexpr index_t c_offset =
+                                    blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
+                                        make_tuple(m0, n0, m2 * M4 + m4));
+                                constexpr auto cidx = Number<c_offset>{};
+                                if constexpr(IsInputGemm) // gu fusion
                                 {
-                                    index_t fused_token = scale_token_ids.AsType<index_t>()[m4];
-                                    const index_t token_offset = fused_token & 0xffffff;
-                                    return token_offset < problem.NumTokens
-                                               ? p_sorted_weights_0[token_offset]
-                                               : 0.0;
+                                    if constexpr(ActivationOperation == Activation::silu)
+                                    {
+                                        tensor_operation::element_wise::Silu{}(c_thread_buf(cidx),
+                                                                               c_thread_buf(cidx));
+                                    }
+                                    else if(ActivationOperation == Activation::gelu)
+                                    {
+                                        tensor_operation::element_wise::Gelu{}(c_thread_buf(cidx),
+                                                                               c_thread_buf(cidx));
+                                    }
+                                    else if(ActivationOperation == Activation::swiglu)
+                                    {
+                                        const float scale_up =
+                                            p_scale_b[(n0 * NWave * NPerXdl + problem.N) *
+                                                      PerTokenQuant];
+                                        auto gate = scale_a * scale_b * c_thread_buf[cidx];
+                                        auto up   = scale_a * scale_up * c_thread_buf_up[cidx];
+                                        gate      = gate * math::rcp(1.0 + math::exp(-gate));
+                                        c_thread_buf(cidx) = gate * up;
+                                    }
                                 }
                                 else
                                 {
-                                    return p_sorted_weights_0[0];
+                                    c_thread_buf(cidx) = scale_a * scale_b *
+                                                         topk_weights.AsType<float>()[m4] *
+                                                         c_thread_buf[cidx];
                                 }
-                            }();
-                            constexpr index_t c_offset =
-                                blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
-                                    make_tuple(m0, n0, m2 * M4 + m4));
-                            constexpr auto cidx = Number<c_offset>{};
-                            if constexpr(IsInputGemm) // gu fusion
-                            {
-                                if constexpr(ActivationOperation == Activation::silu)
-                                {
-                                    tensor_operation::element_wise::Silu{}(c_thread_buf(cidx),
-                                                                           c_thread_buf(cidx));
-                                }
-                                else if(ActivationOperation == Activation::gelu)
-                                {
-                                    tensor_operation::element_wise::Gelu{}(c_thread_buf(cidx),
-                                                                           c_thread_buf(cidx));
-                                }
-                                else if(ActivationOperation == Activation::swiglu)
-                                {
-                                    const float scale_up =
-                                        p_scale_b[(n0 * NWave * NPerXdl + problem.N) *
-                                                  PerTokenQuant];
-                                    auto gate          = scale_a * scale_b * c_thread_buf[cidx];
-                                    auto up            = scale_a * scale_up * c_thread_buf_up[cidx];
-                                    gate               = gate * math::rcp(1.0 + math::exp(-gate));
-                                    c_thread_buf(cidx) = gate * up;
-                                }
-                            }
-                            else
-                            {
-                                c_thread_buf(cidx) = scale_a * scale_b *
-                                                     topk_weights.AsType<float>()[m4] *
-                                                     c_thread_buf[cidx];
-                            }
+                            });
                         });
                     });
                 });
-            });
+            }
+            else
+            {
+                static_assert(M0 * M1 * M2 * M3 * M4 == MPerBlock);
+                static_assert(M4 == 4);
+                const index_t m1 = get_warp_local_1d_id() / NWave;
+                const index_t m3 = threadIdx.x % get_warp_size() / MPerXdl;
+                vector_type<float, 4> topk_weights; // for gemm2 only
+                static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
+                    static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
+                        static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
+                            const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
+                                                  m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
+                            if constexpr(!IsInputGemm)
+                            {
+                                topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
+                                    p_ds_grid[I2] + m_pos);
+                            }
+                            static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
+                                constexpr index_t c_offset =
+                                    blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
+                                        make_tuple(m0, n0, m2 * M4 + m4));
+                                constexpr auto cidx = Number<c_offset>{};
+                                if constexpr(IsInputGemm) // gu fusion
+                                {
+                                    if constexpr(ActivationOperation == Activation::silu)
+                                    {
+                                        tensor_operation::element_wise::Silu{}(c_thread_buf(cidx),
+                                                                               c_thread_buf(cidx));
+                                    }
+                                    else if(ActivationOperation == Activation::gelu)
+                                    {
+                                        tensor_operation::element_wise::Gelu{}(c_thread_buf(cidx),
+                                                                               c_thread_buf(cidx));
+                                    }
+                                    else if(ActivationOperation == Activation::swiglu)
+                                    {
+                                        auto gate = c_thread_buf[cidx];
+                                        auto up   = c_thread_buf_up[cidx];
+                                        gate      = gate * math::rcp(1.0 + math::exp(-gate));
+                                        c_thread_buf(cidx) = gate * up;
+                                    }
+                                }
+                                else
+                                {
+                                    c_thread_buf(cidx) =
+                                        topk_weights.AsType<float>()[m4] * c_thread_buf[cidx];
+                                }
+                            });
+                        });
+                    });
+                });
+            }
 
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
