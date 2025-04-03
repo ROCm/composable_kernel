@@ -606,7 +606,7 @@ def Build_CK(Map conf=[:]){
                         else if ( arch_type == 6 ){
                             // run standard tests on gfx908
                             echo "Run performance tests"
-                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx908"
                             archiveArtifacts "perf_gemm_gfx908.log"
                             archiveArtifacts "perf_onnx_gemm_gfx908.log"
                             archiveArtifacts "perf_resnet50_N256_gfx908.log"
