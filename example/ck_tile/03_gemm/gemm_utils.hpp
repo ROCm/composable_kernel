@@ -14,6 +14,8 @@
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_MEMORY 2
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
+#define CK_TILE_PIPELINE_MEMORY_SKIP_A_LDS 4
+#define CK_TILE_PIPELINE_MEMORY_SKIP_B_LDS 5
 
 #ifndef CK_TILE_PIPELINE_DEFAULT
 #define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V3
@@ -31,6 +33,14 @@
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV4
 #define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV4
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY_SKIP_A_LDS)
+#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrMemSkipALds
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrMem
+#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Interwave
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY_SKIP_B_LDS)
+#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrMemSkipBLds
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrMem
+#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Interwave
 #else
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
 #endif
@@ -38,6 +48,38 @@
 struct GemmConfig
 {
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
+    // Memory friendly for Interwave scheduler
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 64;
+
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 1;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 8;
+
+    static constexpr bool DoubleSmemBuffer = false;
+#endif
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY_SKIP_A_LDS)
+    // Memory friendly for Interwave scheduler
+    static constexpr ck_tile::index_t M_Tile = 32;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 8;
+
+    static constexpr bool DoubleSmemBuffer = false;
+#endif
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY_SKIP_B_LDS)
     // Memory friendly for Interwave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 32;

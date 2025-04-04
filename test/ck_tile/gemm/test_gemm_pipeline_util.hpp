@@ -35,6 +35,8 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 enum struct GemmPipelineType
 {
     Mem,
+    MemSkipALds,
+    MemSkipBLds,
     CompV3,
     CompV4
 };
@@ -47,6 +49,20 @@ struct GemmPipelineTypeSelector<GemmPipelineType::Mem, Problem>
 {
     using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrMem<Problem>;
     using pipeline      = ck_tile::GemmPipelineAgBgCrMem<Problem>;
+};
+
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::MemSkipALds, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrMem<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrMemSkipALds<Problem>;
+};
+
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::MemSkipBLds, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrMem<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrMemSkipBLds<Problem>;
 };
 
 template <typename Problem>
@@ -214,7 +230,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
                 }
             }
 
-            if constexpr(PipelineType == GemmPipelineType::Mem)
+            if constexpr(PipelineType == GemmPipelineType::Mem ||
+                         PipelineType == GemmPipelineType::MemSkipBLds ||
+                         PipelineType == GemmPipelineType::MemSkipALds)
             {
                 // Tail pipeline One to Seven
                 if(tail_num == ck_tile::TailNumber::One)

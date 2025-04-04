@@ -8,18 +8,20 @@
 #include "ck_tile/host.hpp"
 #include "test_gemm_pipeline_util.hpp"
 
-using F16       = ck_tile::half_t;
-using F32       = float;
-using F8        = ck_tile::fp8_t;
-using Row       = ck_tile::tensor_layout::gemm::RowMajor;
-using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
-using Intrawave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
+using F16         = ck_tile::half_t;
+using F32         = float;
+using F8          = ck_tile::fp8_t;
+using Row         = ck_tile::tensor_layout::gemm::RowMajor;
+using Col         = ck_tile::tensor_layout::gemm::ColumnMajor;
+using Intrawave   = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
                                              ck_tile::GemmPipelineScheduler::Intrawave>;
-using Interwave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
+using Interwave   = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
                                              ck_tile::GemmPipelineScheduler::Interwave>;
-using Mem       = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
-using CompV3    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
-using CompV4    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
+using Mem         = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
+using MemSkipALds = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::MemSkipALds>;
+using MemSkipBLds = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::MemSkipBLds>;
+using CompV3      = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
+using CompV4      = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
 
 // clang-format off
 using KernelTypesMem = ::testing::Types<
@@ -39,6 +41,21 @@ using KernelTypesMem = ::testing::Types<
     std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
     std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
     std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>
+>;
+
+using KernelTypesMemSkipALds = ::testing::Types<
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,         MemSkipALds>,
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,             Interwave,         MemSkipALds>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         MemSkipALds>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         MemSkipALds>
+>;
+
+
+using KernelTypesMemSkipBLds = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         MemSkipBLds>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         MemSkipBLds>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         MemSkipBLds>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         MemSkipBLds>
 >;
 
 using KernelTypesCompV3 = ::testing::Types<
