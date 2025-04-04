@@ -1322,7 +1322,7 @@ struct GridwiseMoeGemm
             KPerBlock);
         if constexpr(IsInputGemm)
         {
-            const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2;
+            const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2 / BPackedSize;
             const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_b_grid_up + expert_id * expert_stride / BPackedSize,
                 b_grid_desc_bpreshuffled.GetElementSpaceSize());
