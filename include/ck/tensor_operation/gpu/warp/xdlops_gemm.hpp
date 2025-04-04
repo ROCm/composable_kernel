@@ -862,12 +862,7 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
         static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at this point.");
 
         intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(
-            a,
-            // TODO: revert to utils::get_exponent_value(scale_a)
-            bit_cast<int32_t>(static_cast<float>(scale_a)),
-            b,
-            utils::get_exponent_value(scale_b),
-            reg_c);
+            a, utils::get_exponent_value(scale_a), b, utils::get_exponent_value(scale_b), reg_c);
     }
 };
 

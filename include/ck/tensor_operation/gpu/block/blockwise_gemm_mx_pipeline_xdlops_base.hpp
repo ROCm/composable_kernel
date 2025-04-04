@@ -366,7 +366,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                          ComputeTypeA,
                                                          decltype(a_block_desc_m0_m1_m2_k),
                                                          decltype(a_thread_desc_),
-                                                         Sequence<1, 1, 1, KPack>,
+                                                         Sequence<1, 1, 1, KThreadChunk>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
                                                          A_K1,

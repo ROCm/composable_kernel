@@ -33,7 +33,7 @@ using ck::type_convert;
 struct ExecutionConfig final
 {
     int do_verification = 1;     // (0=no, 1=CPU)
-    int init_method     = 13;    // (0=constant values, 1=integer values, 2=decimal values)
+    int init_method     = 14;    // (0=constant values, 1=integer values, 2=decimal values)
     bool time_kernel    = false; // (0=no, 1=yes)
     int verbosity       = 1;     // (0=no info, 1=verbose info)
 };
@@ -296,19 +296,22 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         {
 
 #if 1
-            std::set<int> row_ids = {1};
+            std::set<int> row_ids = {96};
 #else
-            std::set<int> row_ids = {10, 31, 42, 103, 74, 205, 226, 187};
+            std::set<int> row_ids = {10, 31, 42, 140, 103, 74, 205, 226, 187};
 #endif
             for(auto row_id : row_ids)
             {
 
-#if 0
-                a_m_k_scale(row_id, 0)     = ck::type_convert<XDataType>(1.0f / 4);
-                a_m_k_scale(row_id + 1, 0) = ck::type_convert<XDataType>(1.0f / 2);
+#if 1
+                a_m_k_scale(row_id, 0)     = ck::type_convert<XDataType>(4.0f);
+                a_m_k_scale(row_id + 1, 0) = ck::type_convert<XDataType>(16.0f);
                 a_m_k_scale(row_id, 1)     = ck::type_convert<XDataType>(2.0f / 1);
-                a_m_k_scale(row_id, 5)     = ck::type_convert<XDataType>(-1.0f / 64);
-                a_m_k_scale(row_id, 11)    = ck::type_convert<XDataType>(4.0f / 1);
+                a_m_k_scale(row_id, 5)     = ck::type_convert<XDataType>(1.0f / 2);
+                a_m_k_scale(row_id, 10)    = ck::type_convert<XDataType>(1.0f / 4);
+                a_m_k_scale(row_id, 13)    = ck::type_convert<XDataType>(1.0f / 8);
+                a_m_k_scale(row_id, K / ScaleBlockSize - 1) =
+                    ck::type_convert<XDataType>(1.0f / 64);
 #elif 0
                 for(size_t i = 0; i < 32; i++)
                 {
@@ -719,7 +722,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         }
         else if(config.init_method == 14)
         {
-#if 0
+#if 1
             std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {
@@ -728,17 +731,17 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                     std::cout << std::setw(11) << type_convert<float>(a_m_k(i, j));
                 }
 
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 16; ++j)
-                // {
-                //     std::cout << std::setw(9) << type_convert<float>(a_m_k(i , j+ 128));
-                // }
-
                 std::cout << "\t\t";
                 for(int j = 0; j < 16; ++j)
                 {
-                    std::cout << std::setw(11) << type_convert<float>(a_m_k(i, j + 200));
+                    std::cout << std::setw(9) << type_convert<float>(a_m_k(i + 96, j));
                 }
+
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(11) << type_convert<float>(a_m_k(i, j + 200));
+                // }
 
                 std::cout << std::endl;
             }
@@ -766,13 +769,17 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 std::cout << std::endl;
             }
 #endif
-
             if(K < 600)
             {
-                std::cout << "a_m_k(42,:) :" << std::endl;
+                std::cout << std::endl;
+                std::cout << "a_m_k(0,:) :";
                 for(int i = 0; i < K; ++i)
                 {
-                    std::cout << type_convert<float>(a_m_k(42, i)) << " ";
+                    if(i % 16 == 0)
+                    {
+                        std::cout << std::endl << "k = " << i << " : ";
+                    }
+                    std::cout << type_convert<float>(a_m_k(96, i)) << " ";
                 }
                 std::cout << std::endl;
             }
@@ -788,25 +795,25 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 std::cout << std::endl;
             }
 #endif
-#if 0
-            std::cout << "Submatrix of a_m_k_scale (16x12):" << std::endl;
+#if 1
+            std::cout << "Submatrix of a_m_k_scale (16x16):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {
-                for(int j = 0; j < 12; ++j)
+                for(int j = 0; j < 16; ++j)
                 {
                     std::cout << std::setw(9) << type_convert<float>(a_m_k_scale(i, j));
                 }
 
-                std::cout << "\t\t";
-                for(int j = 0; j < 12; ++j)
+                std::cout << "\t";
+                for(int j = 0; j < 16; ++j)
                 {
-                    std::cout << std::setw(9) << type_convert<float>(a_m_k_scale(i + 32, j));
+                    std::cout << std::setw(9) << type_convert<float>(a_m_k_scale(i + 96, j));
                 }
 
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 12; ++j)
+                // std::cout << "\t";
+                // for(int j = 0; j < 16; ++j)
                 // {
-                //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i + 128, j)) ;
+                //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i + 128, j));
                 // }
 
                 // std::cout << "\t\t";
@@ -818,8 +825,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             }
 #endif
 #if 0
-            std::cout << "Submatrix of b_k_n_scale (12x16):" << std::endl;
-            for(int i = 0; i < 12; ++i)
+            std::cout << "Submatrix of b_k_n_scale (16x16):" << std::endl;
+            for(int i = 0; i < 16; ++i)
             {
                 for(int j = 0; j < 16; ++j)
                 {
@@ -843,30 +850,30 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             }
 #endif
 
-            std::cout << "Submatrix of c_m_n_device_result (16x15):" << std::endl;
+#if 1
+            std::cout << "Submatrix of c_m_n_device_result (16x16):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {
-                for(int j = 0; j < 15; ++j)
+                for(int j = 0; j < 16; ++j)
                 {
                     std::cout << std::setw(9) << type_convert<float>(c_m_n_device_result(i, j));
                 }
-#if 0
                 std::cout << "\t\t";
-                for(int j = 0; j < 15; ++j)
+                for(int j = 0; j < 16; ++j)
                 {
                     std::cout << std::setw(9)
-                              << type_convert<float>(c_m_n_device_result(i + 200, j));
+                              << type_convert<float>(c_m_n_device_result(i + 96, j));
                 }
 
-                std::cout << "\t\t";
-                for(int j = 0; j < 15; ++j)
-                {
-                    std::cout << std::setw(9)
-                              << type_convert<float>(c_m_n_device_result(i, j + 200));
-                }
-#endif
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(9)
+                //               << type_convert<float>(c_m_n_device_result(i, j + 200));
+                // }
                 std::cout << std::endl;
             }
+#endif
         }
 
         res_verified = res_verified && ck::utils::check_err(c_m_n_device_result,

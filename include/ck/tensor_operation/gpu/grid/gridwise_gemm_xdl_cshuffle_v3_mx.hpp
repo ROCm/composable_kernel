@@ -1478,11 +1478,11 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
 
-        static constexpr auto mfma        = BlockwiseGemmPipe::xdlops_gemm.mfma;
-        static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
-        static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
-        static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
-        static constexpr auto KPerThread  = KPerBlock / K0PerXdlops;
+        static constexpr auto mfma = BlockwiseGemmPipe::xdlops_gemm.mfma;
+        // static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
+        // static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
+        // static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
+        // static constexpr auto KPerThread  = KPerBlock / K0PerXdlops;
 
         // NXdlPerWave == NRepeat
         // MXdlPerWave == MRepeat
@@ -1495,31 +1495,30 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // tId in [128, 191]  m x n = [32, 63] x [ 0, 31]  waveId = [1, 0]
         // tId in [192, 255]  m x n = [32, 63] x [32, 63]  waveId = [1, 1]
 
-        auto a_thread_offset_m =
-            MPerXdl * ((get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) / MWaves) +
-            mfma.selected_mfma.group_size *
-                ((get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) / MPerXdl);
-        auto a_thread_offset_k = KPerThread * (get_thread_local_1d_id() % MPerXdl) / MPerXdl;
+        auto thread_offset_k = (get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) /
+                               mfma.selected_mfma.num_threads_per_blk;
 
-        auto a_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
-            AScaleDataType,
-            AScaleDataType,
-            decltype(a_scale_grid_desc_am_ak),                      // SrcDesc
-            decltype(BlockwiseGemmPipe::a_scale_thread_desc_group), // DstDesc
-            Sequence<mfma.selected_mfma.group_size, 1>,             // SliceLengths
-            Sequence<0, 1>,                                         // DimAccessOrder
-            0,                                                      // SrcVectorDim
-            1,                                                      // SrcScalarPerVector
-            1,                                                      // SrcScalarStrideInVector
-            true>(a_scale_grid_desc_am_ak,
-                  make_multi_index(block_m_id * MPerBlock + a_thread_offset_m,
-                                   a_thread_offset_k / ScaleBlockSize));
+        auto a_thread_offset_m =
+            get_thread_local_1d_id() % MPerXdl +
+            (get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) % MWaves * MPerXdl;
+
+        auto a_scale_thread_copy =
+            ThreadwiseTensorSliceTransfer_v2<AScaleDataType,
+                                             AScaleDataType,
+                                             decltype(a_scale_grid_desc_am_ak),
+                                             decltype(BlockwiseGemmPipe::a_scale_thread_desc_copy),
+                                             Sequence<1, 1>, // SliceLengths
+                                             Sequence<0, 1>, // DimAccessOrder
+                                             1,              // SrcVectorDim
+                                             1,              // SrcScalarPerVector
+                                             1,              // SrcScalarStrideInVector
+                                             true>(
+                a_scale_grid_desc_am_ak,
+                make_multi_index(block_m_id * MPerBlock + a_thread_offset_m, thread_offset_k));
 
         auto b_thread_offset_n =
             get_thread_local_1d_id() % NPerXdl +
             (get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) % NWaves * NPerXdl;
-        auto b_thread_offset_k = (get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) /
-                                 mfma.selected_mfma.num_threads_per_blk;
 
         auto b_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<BScaleDataType,
@@ -1533,22 +1532,22 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                              1,
                                              true>(
                 b_scale_grid_desc_bn_ak,
-                make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, b_thread_offset_k));
+                make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, thread_offset_k));
 
 #if 0
         if(blockIdx.x == 0 &&
            (threadIdx.x == 0 || threadIdx.x == 16 || threadIdx.x == 32 || threadIdx.x == 48))
         {
-            // printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\ta_thread_offset_m = %d; "
-            //        "a_thread_offset_k = %d\n\t a_scale_origin = {%d, %d}\n\n",
-            //        blockIdx.x,
-            //        blockIdx.y,
-            //        blockIdx.z,
-            //        threadIdx.x,
-            //        a_thread_offset_m,
-            //        a_thread_offset_k,
-            //        block_m_id * MPerBlock + a_thread_offset_m,
-            //        a_thread_offset_k / ScaleBlockSize);
+            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\ta_thread_offset_m = %d; "
+                   "a_thread_offset_k = %d\n\t a_scale_origin = {%d, %d}\n\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   blockIdx.z,
+                   threadIdx.x,
+                   a_thread_offset_m,
+                   a_thread_offset_k,
+                   block_m_id * MPerBlock + a_thread_offset_m,
+                   a_thread_offset_k);
 
             printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\tb_thread_offset_n = %d; "
                    "b_thread_offset_k = %d\n\t b_scale_origin = {%d, %d}\n\n",
