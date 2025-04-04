@@ -1489,7 +1489,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
         constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
 
-        // Initial thread mapping for MPerXdl=NPerXdl=32 and MPerBlock=NPerBlock=128 MWaves=NWaves=2
+        // Initial thread mapping for:
+        // BlockSize = 256, MPerXdl=NPerXdl=32 and MPerBlock=NPerBlock=128 MWaves=NWaves=2
+        // For each [m0, n0] tile, there are 4 waves:
         // tId in [  0,  63]  m x n = [ 0, 31] x [ 0, 31]  waveId = [0, 0]
         // tId in [ 64, 127]  m x n = [ 0, 31] x [32, 63]  waveId = [0, 1]
         // tId in [128, 191]  m x n = [32, 63] x [ 0, 31]  waveId = [1, 0]
@@ -1500,7 +1502,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         auto a_thread_offset_m =
             get_thread_local_1d_id() % MPerXdl +
-            (get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) % MWaves * MPerXdl;
+            (get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize / MWaves) * MPerXdl;
 
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<AScaleDataType,
@@ -1538,27 +1540,25 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         if(blockIdx.x == 0 &&
            (threadIdx.x == 0 || threadIdx.x == 16 || threadIdx.x == 32 || threadIdx.x == 48))
         {
-            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\ta_thread_offset_m = %d; "
-                   "a_thread_offset_k = %d\n\t a_scale_origin = {%d, %d}\n\n",
+            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\ta_thread_offset_m = %d\n\t "
+                   "a_scale_origin = {%d, %d}\n\n",
                    blockIdx.x,
                    blockIdx.y,
                    blockIdx.z,
                    threadIdx.x,
                    a_thread_offset_m,
-                   a_thread_offset_k,
                    block_m_id * MPerBlock + a_thread_offset_m,
-                   a_thread_offset_k);
+                   thread_offset_k);
 
-            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\tb_thread_offset_n = %d; "
-                   "b_thread_offset_k = %d\n\t b_scale_origin = {%d, %d}\n\n",
+            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\tb_thread_offset_n = %d\n\t "
+                   "b_scale_origin = {%d, %d}\n\n",
                    blockIdx.x,
                    blockIdx.y,
                    blockIdx.z,
                    threadIdx.x,
                    b_thread_offset_n,
-                   b_thread_offset_k,
                    block_n_id * NPerBlock + b_thread_offset_n,
-                   b_thread_offset_k);
+                   thread_offset_k);
         }
 
 #endif

@@ -562,7 +562,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             if(!is_B_zero && !is_A_zero)
                             {
                                 // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
-                                if constexpr(m0 == 0 && n0 == 0)
+                                if constexpr(m0 == 1 && n0 == 0)
                                 {
 // print out a_thread_vec
 #if 1
@@ -675,7 +675,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                                 Number<31>{})));
 #endif
 // print out b_thread_vec
-#if 0
+#if 1
                                     printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
                                            "%d; k0 "
                                            "= %d :\n\tb_thread_vec = [%f, %f, %f, %f, %f, %f, %f, "
@@ -807,31 +807,23 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                             type_convert<float>(a_scale_thread_vec.template AsType<
                                                                 AScaleDataType>()[Number<3>{}]));
 
-                                        // printf(
-                                        //     "blockId = %u; threadId = %u; i = %d; m0 = %d : "
-                                        //     "b_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
-                                        //     blockIdx.x,
-                                        //     threadIdx.x,
-                                        //     i,
-                                        //     static_cast<int>(m0),
-                                        //     static_cast<int>(n0),
-                                        //     static_cast<int>(k0),
-                                        //     type_convert<float>(
-                                        //         b_scale_thread_vec
-                                        //             .template
-                                        //             AsType<BScaleDataType>()[Number<0>{}]),
-                                        //     type_convert<float>(
-                                        //         b_scale_thread_vec
-                                        //             .template
-                                        //             AsType<BScaleDataType>()[Number<1>{}]),
-                                        //     type_convert<float>(
-                                        //         b_scale_thread_vec
-                                        //             .template
-                                        //             AsType<BScaleDataType>()[Number<2>{}]),
-                                        //     type_convert<float>(
-                                        //         b_scale_thread_vec
-                                        //             .template
-                                        //             AsType<BScaleDataType>()[Number<3>{}]));
+                                        printf(
+                                            "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                            "b_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
+                                            blockIdx.x,
+                                            threadIdx.x,
+                                            i,
+                                            static_cast<int>(m0),
+                                            static_cast<int>(n0),
+                                            static_cast<int>(k0),
+                                            type_convert<float>(b_scale_thread_vec.template AsType<
+                                                                BScaleDataType>()[Number<0>{}]),
+                                            type_convert<float>(b_scale_thread_vec.template AsType<
+                                                                BScaleDataType>()[Number<1>{}]),
+                                            type_convert<float>(b_scale_thread_vec.template AsType<
+                                                                BScaleDataType>()[Number<2>{}]),
+                                            type_convert<float>(b_scale_thread_vec.template AsType<
+                                                                BScaleDataType>()[Number<3>{}]));
                                     }
                                     else if constexpr(ScalesPerXdlopsRunPerThread == 1)
                                     {
@@ -847,58 +839,55 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                             type_convert<float>(a_scale_thread_vec.template AsType<
                                                                 AScaleDataType>()[Number<0>{}]));
 
-                                        // printf(
-                                        //     "blockId = %u; threadId = %u; i = %d; m0 = %d : "
-                                        //     "b_scale_thread_vec[%d,%d] = {%f}\n",
-                                        //     blockIdx.x,
-                                        //     threadIdx.x,
-                                        //     i,
-                                        //     static_cast<int>(m0),
-                                        //     static_cast<int>(n0),
-                                        //     static_cast<int>(k0),
-                                        //     type_convert<float>(
-                                        //         b_scale_thread_vec
-                                        //             .template
-                                        //             AsType<BScaleDataType>()[Number<0>{}]));
+                                        printf(
+                                            "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                            "b_scale_thread_vec[%d,%d] = {%f}\n",
+                                            blockIdx.x,
+                                            threadIdx.x,
+                                            i,
+                                            static_cast<int>(m0),
+                                            static_cast<int>(n0),
+                                            static_cast<int>(k0),
+                                            type_convert<float>(b_scale_thread_vec.template AsType<
+                                                                BScaleDataType>()[Number<0>{}]));
                                     }
 #endif
                                 }
-                                if(!is_C_zero && threadIdx.x == 0)
+                            }
+                            if(!is_C_zero)
+                            {
+                                // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
+                                if constexpr(m0 == 1 && n0 == 0)
                                 {
-                                    // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
-                                    if constexpr(m0 == 0 && n0 == 0)
-                                    {
-                                        // print out c_thread_buf_per_scale
-#if 0
+                                    // print out c_thread_buf_per_scale
+#if 1
 
-                                        printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
-                                               "%d; k0 "
-                                               "= %d :\n\tc_thread_buf = [%f, %f, %f, %f, %f, %f, "
-                                               "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
-                                               blockIdx.x,
-                                               threadIdx.x,
-                                               i,
-                                               static_cast<int>(m0),
-                                               static_cast<int>(n0),
-                                               static_cast<int>(k0),
-                                               c_thread_buf[Number<c_offset + 0>{}],
-                                               c_thread_buf[Number<c_offset + 1>{}],
-                                               c_thread_buf[Number<c_offset + 2>{}],
-                                               c_thread_buf[Number<c_offset + 3>{}],
-                                               c_thread_buf[Number<c_offset + 4>{}],
-                                               c_thread_buf[Number<c_offset + 5>{}],
-                                               c_thread_buf[Number<c_offset + 6>{}],
-                                               c_thread_buf[Number<c_offset + 7>{}],
-                                               c_thread_buf[Number<c_offset + 8>{}],
-                                               c_thread_buf[Number<c_offset + 9>{}],
-                                               c_thread_buf[Number<c_offset + 10>{}],
-                                               c_thread_buf[Number<c_offset + 11>{}],
-                                               c_thread_buf[Number<c_offset + 12>{}],
-                                               c_thread_buf[Number<c_offset + 13>{}],
-                                               c_thread_buf[Number<c_offset + 14>{}],
-                                               c_thread_buf[Number<c_offset + 15>{}]);
+                                    printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
+                                           "%d; k0 = %d :\n\tc_thread_buf = [%f, %f, %f, %f, "
+                                           "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                           blockIdx.x,
+                                           threadIdx.x,
+                                           i,
+                                           static_cast<int>(m0),
+                                           static_cast<int>(n0),
+                                           static_cast<int>(k0),
+                                           c_thread_buf[Number<c_offset + 0>{}],
+                                           c_thread_buf[Number<c_offset + 1>{}],
+                                           c_thread_buf[Number<c_offset + 2>{}],
+                                           c_thread_buf[Number<c_offset + 3>{}],
+                                           c_thread_buf[Number<c_offset + 4>{}],
+                                           c_thread_buf[Number<c_offset + 5>{}],
+                                           c_thread_buf[Number<c_offset + 6>{}],
+                                           c_thread_buf[Number<c_offset + 7>{}],
+                                           c_thread_buf[Number<c_offset + 8>{}],
+                                           c_thread_buf[Number<c_offset + 9>{}],
+                                           c_thread_buf[Number<c_offset + 10>{}],
+                                           c_thread_buf[Number<c_offset + 11>{}],
+                                           c_thread_buf[Number<c_offset + 12>{}],
+                                           c_thread_buf[Number<c_offset + 13>{}],
+                                           c_thread_buf[Number<c_offset + 14>{}],
+                                           c_thread_buf[Number<c_offset + 15>{}]);
 #endif
-                                    }
                                 }
                             }
 
@@ -928,23 +917,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                             static_cast<int>(k0),
                                             waveId_m,
                                             waveId_n);
-    
-                                        // printf(
-                                        //     "blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d;
-                                        //     k0 "
-                                        //     "= %d : a_thread_vec = [%f]; b_thread_vec = [%f]\n",
-                                        //     blockIdx.x,
-                                        //     threadIdx.x,
-                                        //     i,
-                                        //     static_cast<int>(m0),
-                                        //     static_cast<int>(n0),
-                                        //     static_cast<int>(k0),
-                                        //     type_convert<float>(
-                                        //         a_thread_vec.template AsType<ComputeDataType>()(
-                                        //             Number<0>{})),
-                                        //     type_convert<float>(
-                                        //         b_thread_vec.template AsType<ComputeDataType>()(
-                                        //             Number<0>{})));
                                     }
                                 }
 #endif
@@ -1179,7 +1151,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         {
                             // First MWaves * MPerXDL rows and NWaves *
                             // NPerXDL columns
-                            if constexpr(m0 == 0 && n0 == 0)
+                            if constexpr(m0 == 1 && n0 == 0)
                             {
 // print out a_thread_vec
 #if 1
@@ -1261,7 +1233,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                             Number<31>{})));
 #endif
 // print out b_thread_vec
-#if 0
+#if 1
                                 printf(
                                     "blockId = %u; threadId = %u; i = %d; "
                                     "m0 = %d; n0 = "
@@ -1371,31 +1343,27 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                             a_scale_thread_vec
                                                 .template AsType<AScaleDataType>()[Number<3>{}]));
 
-                                    // printf(
-                                    //     "blockId = %u; threadId = %u; i = %d; m0 = %d : "
-                                    //     "b_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
-                                    //     blockIdx.x,
-                                    //     threadIdx.x,
-                                    //     -1,
-                                    //     static_cast<int>(m0),
-                                    //     static_cast<int>(n0),
-                                    //     static_cast<int>(k0),
-                                    //     type_convert<float>(
-                                    //         b_scale_thread_vec
-                                    //             .template
-                                    //             AsType<BScaleDataType>()[Number<0>{}]),
-                                    //     type_convert<float>(
-                                    //         b_scale_thread_vec
-                                    //             .template
-                                    //             AsType<BScaleDataType>()[Number<1>{}]),
-                                    //     type_convert<float>(
-                                    //         b_scale_thread_vec
-                                    //             .template
-                                    //             AsType<BScaleDataType>()[Number<2>{}]),
-                                    //     type_convert<float>(
-                                    //         b_scale_thread_vec
-                                    //             .template
-                                    //             AsType<BScaleDataType>()[Number<3>{}]));
+                                    printf(
+                                        "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                        "b_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
+                                        blockIdx.x,
+                                        threadIdx.x,
+                                        -1,
+                                        static_cast<int>(m0),
+                                        static_cast<int>(n0),
+                                        static_cast<int>(k0),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<0>{}]),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<1>{}]),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<2>{}]),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<3>{}]));
                                 }
                                 else if constexpr(ScalesPerXdlopsRunPerThread == 1)
                                 {
@@ -1412,61 +1380,59 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                             a_scale_thread_vec
                                                 .template AsType<AScaleDataType>()[Number<0>{}]));
 
-                                    // printf(
-                                    //     "blockId = %u; threadId = %u; i = %d; m0 = %d : "
-                                    //     "b_scale_thread_vec[%d,%d] = {%f}\n",
-                                    //     blockIdx.x,
-                                    //     threadIdx.x,
-                                    //     -1,
-                                    //     static_cast<int>(m0),
-                                    //     static_cast<int>(n0),
-                                    //     static_cast<int>(k0),
-                                    //     type_convert<float>(
-                                    //         b_scale_thread_vec
-                                    //             .template
-                                    //             AsType<BScaleDataType>()[Number<0>{}]));
+                                    printf(
+                                        "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                        "b_scale_thread_vec[%d,%d] = {%f}\n",
+                                        blockIdx.x,
+                                        threadIdx.x,
+                                        -1,
+                                        static_cast<int>(m0),
+                                        static_cast<int>(n0),
+                                        static_cast<int>(k0),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<0>{}]));
                                 }
 #endif
-                            }
-                            if(!is_C_zero && threadIdx.x == 0)
-                            {
-                                // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
-                                if constexpr(m0 == 0 && n0 == 0)
-                                {
-                                    // print out c_thread_buf_per_scale
-#if 0
-
-                                    printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
-                                           "%d; k0 "
-                                           "= %d :\n\tc_thread_buf = [%f, %f, %f, %f, %f, %f, "
-                                           "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
-                                           blockIdx.x,
-                                           threadIdx.x,
-                                           -1,
-                                           static_cast<int>(m0),
-                                           static_cast<int>(n0),
-                                           static_cast<int>(k0),
-                                           c_thread_buf[Number<c_offset + 0>{}],
-                                           c_thread_buf[Number<c_offset + 1>{}],
-                                           c_thread_buf[Number<c_offset + 2>{}],
-                                           c_thread_buf[Number<c_offset + 3>{}],
-                                           c_thread_buf[Number<c_offset + 4>{}],
-                                           c_thread_buf[Number<c_offset + 5>{}],
-                                           c_thread_buf[Number<c_offset + 6>{}],
-                                           c_thread_buf[Number<c_offset + 7>{}],
-                                           c_thread_buf[Number<c_offset + 8>{}],
-                                           c_thread_buf[Number<c_offset + 9>{}],
-                                           c_thread_buf[Number<c_offset + 10>{}],
-                                           c_thread_buf[Number<c_offset + 11>{}],
-                                           c_thread_buf[Number<c_offset + 12>{}],
-                                           c_thread_buf[Number<c_offset + 13>{}],
-                                           c_thread_buf[Number<c_offset + 14>{}],
-                                           c_thread_buf[Number<c_offset + 15>{}]);
-#endif
-                                }
                             }
                         }
+                        if(!is_C_zero)
+                        {
+                            // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
+                            if constexpr(m0 == 1 && n0 == 0)
+                            {
+                                // print out c_thread_buf_per_scale
+#if 1
 
+                                printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
+                                       "%d; k0 "
+                                       "= %d :\n\tc_thread_buf = [%f, %f, %f, %f, %f, %f, "
+                                       "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                       blockIdx.x,
+                                       threadIdx.x,
+                                       -1,
+                                       static_cast<int>(m0),
+                                       static_cast<int>(n0),
+                                       static_cast<int>(k0),
+                                       c_thread_buf[Number<c_offset + 0>{}],
+                                       c_thread_buf[Number<c_offset + 1>{}],
+                                       c_thread_buf[Number<c_offset + 2>{}],
+                                       c_thread_buf[Number<c_offset + 3>{}],
+                                       c_thread_buf[Number<c_offset + 4>{}],
+                                       c_thread_buf[Number<c_offset + 5>{}],
+                                       c_thread_buf[Number<c_offset + 6>{}],
+                                       c_thread_buf[Number<c_offset + 7>{}],
+                                       c_thread_buf[Number<c_offset + 8>{}],
+                                       c_thread_buf[Number<c_offset + 9>{}],
+                                       c_thread_buf[Number<c_offset + 10>{}],
+                                       c_thread_buf[Number<c_offset + 11>{}],
+                                       c_thread_buf[Number<c_offset + 12>{}],
+                                       c_thread_buf[Number<c_offset + 13>{}],
+                                       c_thread_buf[Number<c_offset + 14>{}],
+                                       c_thread_buf[Number<c_offset + 15>{}]);
+#endif
+                            }
+                        }
 #endif
                     });
                 });

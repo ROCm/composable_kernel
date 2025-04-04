@@ -255,9 +255,9 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         {
 
 #if 0
-            std::set<int> col_ids = {0};
+            std::set<int> col_ids = {96};
 #else
-            std::set<int> col_ids = {10, 31, 42, 140, 103, 74, 205, 226, 187};
+            std::set<int> col_ids = {0, 10, 42, 80, 103, 150, 190, 200, 240};
 #endif
             for(auto col_id : col_ids)
             {
@@ -265,6 +265,15 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 b_k_n_scale(0, col_id)     = ck::type_convert<XDataType>(8.0f);
                 b_k_n_scale(0, col_id + 1) = ck::type_convert<XDataType>(16.0f);
                 b_k_n_scale(1, col_id)     = ck::type_convert<XDataType>(4.0f / 1);
+                b_k_n_scale(5, col_id)     = ck::type_convert<XDataType>(1.0f / 2);
+                b_k_n_scale(10, col_id)    = ck::type_convert<XDataType>(1.0f / 4);
+                b_k_n_scale(13, col_id)    = ck::type_convert<XDataType>(1.0f / 8);
+                b_k_n_scale(K / ScaleBlockSize - 1, col_id) =
+                    ck::type_convert<XDataType>(1.0f / 64);
+#elif 1
+                b_k_n_scale(0, col_id)     = ck::type_convert<XDataType>(4.0f);
+                b_k_n_scale(0, col_id + 1) = ck::type_convert<XDataType>(16.0f);
+                b_k_n_scale(1, col_id)     = ck::type_convert<XDataType>(2.0f / 1);
                 b_k_n_scale(5, col_id)     = ck::type_convert<XDataType>(1.0f / 2);
                 b_k_n_scale(10, col_id)    = ck::type_convert<XDataType>(1.0f / 4);
                 b_k_n_scale(13, col_id)    = ck::type_convert<XDataType>(1.0f / 8);
@@ -295,10 +304,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
         {
 
-#if 1
+#if 0
             std::set<int> row_ids = {96};
 #else
-            std::set<int> row_ids = {10, 31, 42, 140, 103, 74, 205, 226, 187};
+            std::set<int> row_ids = {0, 10, 42, 80, 103, 150, 190, 200, 240};
 #endif
             for(auto row_id : row_ids)
             {
@@ -312,13 +321,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 a_m_k_scale(row_id, 13)    = ck::type_convert<XDataType>(1.0f / 8);
                 a_m_k_scale(row_id, K / ScaleBlockSize - 1) =
                     ck::type_convert<XDataType>(1.0f / 64);
-#elif 0
-                for(size_t i = 0; i < 32; i++)
-                {
-                    a_m_k_scale(row_id + i, 0) = ck::type_convert<XDataType>(i);
-                    a_m_k_scale(row_id + i, 1) = ck::type_convert<XDataType>(i);
-                }
-
 #endif
 
                 a_m_k(row_id, K - 1) = ck::type_convert<ADataType>(-1.0f);
@@ -728,7 +730,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             {
                 for(int j = 0; j < 16; ++j)
                 {
-                    std::cout << std::setw(11) << type_convert<float>(a_m_k(i, j));
+                    std::cout << std::setw(9) << type_convert<float>(a_m_k(i, j));
                 }
 
                 std::cout << "\t\t";
@@ -777,9 +779,9 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 {
                     if(i % 16 == 0)
                     {
-                        std::cout << std::endl << "k = " << i << " : ";
+                        // std::cout << std::endl << "k = " << i << " : ";
                     }
-                    std::cout << type_convert<float>(a_m_k(96, i)) << " ";
+                    std::cout << type_convert<float>(a_m_k(0, i)) << " ";
                 }
                 std::cout << std::endl;
             }
@@ -856,21 +858,21 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             {
                 for(int j = 0; j < 16; ++j)
                 {
-                    std::cout << std::setw(9) << type_convert<float>(c_m_n_device_result(i, j));
+                    std::cout << std::setw(4) << type_convert<float>(c_m_n_device_result(i, j));
                 }
                 std::cout << "\t\t";
                 for(int j = 0; j < 16; ++j)
                 {
-                    std::cout << std::setw(9)
+                    std::cout << std::setw(4)
                               << type_convert<float>(c_m_n_device_result(i + 96, j));
                 }
 
-                // std::cout << "\t\t";
-                // for(int j = 0; j < 16; ++j)
-                // {
-                //     std::cout << std::setw(9)
-                //               << type_convert<float>(c_m_n_device_result(i, j + 200));
-                // }
+                std::cout << "\t\t";
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << std::setw(4)
+                              << type_convert<float>(c_m_n_device_result(i + 200, j));
+                }
                 std::cout << std::endl;
             }
 #endif
