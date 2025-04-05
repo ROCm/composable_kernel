@@ -243,8 +243,8 @@ int run_gemm_example_with_layouts(int argc,
 
     if(init_method == 0)
     {
-        ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
-        ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
+        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
     }
     else if(init_method == 1)
     {
@@ -253,8 +253,8 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
-        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
-        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
+        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n);
     }
     else
     {

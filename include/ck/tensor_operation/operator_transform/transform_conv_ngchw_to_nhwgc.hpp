@@ -12,6 +12,15 @@
 namespace ck {
 namespace tensor_operation {
 
+/*
+ * Transform Convolution NGCHW to NHWGC. We transform [N, G, C, H, W] tensor
+ * descriptor to [N * G * C, H * W] (input or output image). The first
+ * dimension is store dimension, the second one is load dimension. For
+ * NHWGC to NGCHW load and store are reverted. For weight we transform
+ * [G, K, C, Y, X] to [G * K * Y * X, C]. First dim is load dimension,
+ * second dim is store dimension.
+ */
+
 template <typename ALayout,
           typename BLayout,
           typename ELayout,
