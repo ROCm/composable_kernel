@@ -6,6 +6,7 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_fixed_nk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"

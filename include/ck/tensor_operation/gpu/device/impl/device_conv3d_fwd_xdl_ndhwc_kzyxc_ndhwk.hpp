@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef DEVICE_CONV3D_FWD_XDL_HPP
 #define DEVICE_CONV3D_FWD_XDL_HPP
@@ -10,6 +10,7 @@
 #include "device.hpp"
 #include "device_conv_fwd.hpp"
 #include "common_header.hpp"
+#include "ck/utility/env.hpp"
 #include "tensor_layout.hpp"
 #include "convolution_forward_specialization.hpp"
 #include "tensor_descriptor.hpp"

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -83,6 +83,9 @@ TYPED_TEST(TestGroupedConvndFwd2d, Test2D)
     // When image is larger than 2GB
     this->conv_params.push_back(
         {2, 2, 2, 128, 128, {3, 3}, {4096, 2048}, {300, 300}, {3, 3}, {1, 1}, {1, 1}});
+    // Split N and G > 1
+    this->conv_params.push_back(
+        {2, 4, 112, 8, 8, {3, 3}, {469, 724}, {2, 2}, {2, 2}, {1, 1}, {1, 1}});
     this->template Run<2>();
 }
 
