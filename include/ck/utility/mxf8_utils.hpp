@@ -1,4 +1,7 @@
-#include "ck/utility/data_type.hpp"
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include "ck/utility/numeric_limits.hpp"
 #include "ck/utility/mxfp_utils.hpp"
 
 #if defined(__gfx950__) && __HIP_DEVICE_COMPILE__
@@ -36,7 +39,7 @@ static __device__ float cast_to_f32_from_f8_scaled(float scale, fp8_storage_t v)
 }
 
 template <ck_fp8_interpretation_t interpret>
-static __device__ float2_t cast_to_f32x2_from_f8x2_scaled(float scale, fp8x2_storage_t v)
+static __device__ float2_t cast_to_f32_from_f8_scaled(float scale, fp8x2_storage_t v)
 {
     const auto i16val = bit_cast<uint16_t>(v);
 
