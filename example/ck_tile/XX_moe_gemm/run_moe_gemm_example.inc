@@ -254,22 +254,22 @@ int run_moe_gemm_example_with_layouts(int argc,
             K, 1 /*kbatch*/, max_accumulated_value);
         c_m_n_ref_buf->FromDevice(c_m_n_host_ref.data());
 
-        for(int im = 0; im < M; im++)
-        {
-            for(int in = 0; in < N; in++)
-            {
-                // if (static_cast<float>(static_cast<CDataType*>(p_c)[im * N + in]) != 0)
-                printf("c[%d][%d]: %f ",
-                       im,
-                       in,
-                       static_cast<float>(static_cast<CDataType*>(p_c)[im * N + in]));
-                printf("ref[%d][%d]: %f \n",
-                       im,
-                       in,
-                       static_cast<float>(
-                           static_cast<CDataType*>(c_m_n_host_ref.data())[im * N + in]));
-            }
-        }
+        // for(int im = 0; im < M; im++)
+        // {
+        //     for(int in = 0; in < N; in++)
+        //     {
+        //         // if (static_cast<float>(static_cast<CDataType*>(p_c)[im * N + in]) != 0)
+        //         printf("c[%d][%d]: %f ",
+        //                im,
+        //                in,
+        //                static_cast<float>(static_cast<CDataType*>(p_c)[im * N + in]));
+        //         printf("ref[%d][%d]: %f \n",
+        //                im,
+        //                in,
+        //                static_cast<float>(
+        //                    static_cast<CDataType*>(c_m_n_host_ref.data())[im * N + in]));
+        //     }
+        // }
 
         pass = ck_tile::check_err(c_m_n_tensor,
                                   c_m_n_host_ref,

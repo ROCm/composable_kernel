@@ -104,30 +104,30 @@ CK_TILE_DEVICE void store_tile(
     tile_window.store(dstr_tensor, number<-1>{});
 }
 
-template <typename T,
-          typename BottomTensorView_,
-          typename WindowLengths_,
-          typename TileDistribution_,
-          typename DataType_>
-CK_TILE_DEVICE void
-store_tile(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& tile_window_tmp,
-           const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor,
-           const T& offsets)
-{
-    using DataType = remove_cvref_t<typename BottomTensorView_::DataType>;
-    using TileDstr = remove_cvref_t<TileDistribution_>;
+// template <typename T,
+//           typename BottomTensorView_,
+//           typename WindowLengths_,
+//           typename TileDistribution_,
+//           typename DataType_>
+// CK_TILE_DEVICE void
+// store_tile(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& tile_window_tmp,
+//            const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor,
+//            const T& offsets)
+// {
+//     using DataType = remove_cvref_t<typename BottomTensorView_::DataType>;
+//     using TileDstr = remove_cvref_t<TileDistribution_>;
 
-    static_assert(std::is_same_v<remove_cvref_t<DataType_>, DataType>, "wrong!");
+//     static_assert(std::is_same_v<remove_cvref_t<DataType_>, DataType>, "wrong!");
 
-    constexpr auto tile_dstr = TileDstr{};
+//     constexpr auto tile_dstr = TileDstr{};
 
-    auto tile_window = make_tile_window(tile_window_tmp.get_bottom_tensor_view(),
-                                        tile_window_tmp.get_window_lengths(),
-                                        tile_window_tmp.get_window_origin(),
-                                        tile_dstr);
+//     auto tile_window = make_tile_window(tile_window_tmp.get_bottom_tensor_view(),
+//                                         tile_window_tmp.get_window_lengths(),
+//                                         tile_window_tmp.get_window_origin(),
+//                                         tile_dstr);
 
-    tile_window.store(dstr_tensor, offsets);
-}
+//     tile_window.store(dstr_tensor, offsets);
+// }
 
 template <typename BottomTensorView_,
           typename WindowLengths_,

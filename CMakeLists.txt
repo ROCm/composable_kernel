@@ -533,11 +533,6 @@ include_directories(BEFORE
     ${HIP_INCLUDE_DIRS}
 )
 
-SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
-if(BUILD_DEV)
-    add_compile_options(-Werror)
-    add_compile_options(-Weverything)
-endif()
 message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")

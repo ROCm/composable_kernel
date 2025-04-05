@@ -6,7 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
-
+#include "ck_tile/core/tensor/tile_window_paged.hpp"
 namespace ck_tile {
 
 template <typename ADataType_,
@@ -212,7 +212,16 @@ struct CShuffleEpilogue
 
             if constexpr(out_memory_data_op == memory_operation_enum::set)
             {
-                store_tile(out_dram_window, c_out_tensor, offsets);
+                
+
+                auto tile_window = make_tile_window_paged(out_dram_window.get_bottom_tensor_view(),
+                                                    out_dram_window.get_window_lengths(),
+                                                    out_dram_window.get_window_origin(),
+                                                    dram_tile_distribution,
+                                                    offsets);
+
+                tile_window.store(c_out_tensor);
+                // store_tile(out_dram_window, c_out_tensor, offsets);
             }
             else
             {
