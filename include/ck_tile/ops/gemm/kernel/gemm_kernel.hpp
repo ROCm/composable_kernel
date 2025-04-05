@@ -547,9 +547,7 @@ struct GemmKernel
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
-     * @tparam DstInMemOp Destination memory operation (default: set).
      */
-    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
     CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
                                        const BDataType* b_ptr,
                                        CDataType* c_ptr,
@@ -561,7 +559,8 @@ struct GemmKernel
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
-            MakeGemmTensorViews<DstInMemOp>(a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
+            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
@@ -580,7 +579,9 @@ struct GemmKernel
         auto& c_block_window = gemm_tile_windows.at(I2);
 
         EpiloguePipeline{}
-            .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+            .template operator()<decltype(c_block_window),
+                                 decltype(c_block_tile),
+                                 EpiloguePipeline::MemoryOperation>(
                 c_block_window, c_block_tile, smem_ptr_0);
     }
 
@@ -599,9 +600,7 @@ struct GemmKernel
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
-     * @tparam DstInMemOp Destination memory operation (default: set).
      */
-    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
     CK_TILE_DEVICE static void RunGemm2LDS(const ADataType* a_ptr,
                                            const BDataType* b_ptr,
                                            CDataType* c_ptr,
@@ -614,7 +613,8 @@ struct GemmKernel
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
-            MakeGemmTensorViews<DstInMemOp>(a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
+            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
@@ -632,7 +632,9 @@ struct GemmKernel
         auto& c_block_window = gemm_tile_windows.at(I2);
 
         EpiloguePipeline{}
-            .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+            .template operator()<decltype(c_block_window),
+                                 decltype(c_block_tile),
+                                 EpiloguePipeline::MemoryOperation>(
                 c_block_window, c_block_tile, smem_ptr_0);
     }
 
@@ -661,15 +663,15 @@ struct GemmKernel
                            EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                            is_any_of<CDataType, fp16_t, bf16_t>::value))
             {
-                RunGemm2LDS<EpiloguePipeline::MemoryOperation>(a_ptr,
-                                                               b_ptr,
-                                                               c_ptr,
-                                                               smem_ptr_0,
-                                                               smem_ptr_1,
-                                                               kargs,
-                                                               splitk_batch_offset,
-                                                               i_m,
-                                                               i_n);
+                RunGemm2LDS(a_ptr,
+                            b_ptr,
+                            c_ptr,
+                            smem_ptr_0,
+                            smem_ptr_1,
+                            kargs,
+                            splitk_batch_offset,
+                            i_m,
+                            i_n);
             }
         }
         else
@@ -678,8 +680,7 @@ struct GemmKernel
                            EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                            is_any_of<CDataType, fp16_t, bf16_t>::value))
             {
-                RunGemm<EpiloguePipeline::MemoryOperation>(
-                    a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+                RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
             }
         }
     }
