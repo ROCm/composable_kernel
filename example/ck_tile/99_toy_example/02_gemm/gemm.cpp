@@ -49,38 +49,38 @@ int main(int argc, char* argv[])
     }
 
 #if defined(KERNEL_A)
-    printf("*** KernelA test ***  \n");
+    printf("*** Kernel A test ***  \n");
     printf("  --> Using mfma_32x32x(8x2)\n");
 #elif defined(KERNEL_B)
-    printf("*** KernelB test ***  \n");
+    printf("*** Kernel B test ***  \n");
     printf("  --> Using mfma_16x16x16\n");
 #elif defined(KERNEL_C)
-    printf("*** KernelC test ***  \n");
+    printf("*** Kernel C test ***  \n");
     printf("  --> Using mfma_16x16x(16x2)\n");
 #elif defined(KERNEL_D)
-    printf("*** KernelD test ***  \n");
+    printf("*** Kernel D test ***  \n");
     printf("  --> Using mfma_16x16x(16x2)\n");
     printf("  --> XOR-based bank-conflict-free\n");
 #elif defined(KERNEL_E)
-    printf("*** KernelE test ***\n");
+    printf("*** Kernel E test ***\n");
     printf("  --> Using mfma_16x16x(16x2)\n");
     printf("  --> XOR-based bank-conflict-free\n");
     printf("  --> Adjust block tile shape\n");
 #elif defined(KERNEL_F)
-    printf("*** KernelF test ***\n");
+    printf("*** Kernel F test ***\n");
     printf("  --> Using mfma_16x16x(16x2)\n");
     printf("  --> XOR-based bank-conflict-free\n");
     printf("  --> Adjust block tile shape\n");
     printf("  --> Enable prefetch\n");
 #elif defined(KERNEL_G)
-    printf("*** KernelG test ***\n");
+    printf("*** Kernel G test ***\n");
     printf("  --> Using mfma_16x16x(16x2)\n");
     printf("  --> XOR-based bank-conflict-free\n");
     printf("  --> Adjust block tile shape\n");
     printf("  --> Enable prefetch\n");
     printf("  --> Enable instruction schedule\n");
 #elif defined(KERNEL_H)
-    printf("*** KernelH test ***\n");
+    printf("*** Kernel H test ***\n");
     printf("  --> Using mfma_16x16x(16x2)\n");
     printf("  --> XOR-based bank-conflict-free\n");
     printf("  --> Adjust block tile shape\n");

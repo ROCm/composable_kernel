@@ -27,16 +27,6 @@ struct TileGemmShape
 
     static constexpr bool PermuteA = PermuteA_;
     static constexpr bool PermuteB = PermuteB_;
-
-    CK_TILE_HOST static std::string GetName()
-    {
-        // clang-format off
-        return concat('_', "tile_gemm_shape",
-                      concat('x', kM, kN, kK, NumWarps),
-                      concat('x', BlockWarps::at(number<0>{}), BlockWarps::at(number<1>{}), BlockWarps::at(number<2>{})),
-                      concat('x', (WarpTile::at(number<0>{})), WarpTile::at(number<1>{}), WarpTile::at(number<2>{})));
-        // clang-format on
-    }
 };
 
 } // namespace ck_tile

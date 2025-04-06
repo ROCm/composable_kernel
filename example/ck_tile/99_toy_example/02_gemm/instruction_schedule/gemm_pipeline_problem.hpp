@@ -43,16 +43,6 @@ struct GemmPipelineProblemBase
     static constexpr auto Scheduler         = GemmPipelineScheduler::Default;
     static constexpr index_t VectorLoadSize = Traits::_VectorSize;
 
-    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
-    {
-        // clang-format off
-        return concat('_', "gemm_problem", 
-                      concat('x', VectorLoadSize, kBlockSize),
-                      concat('x', kPadM, kPadN, kPadK),
-                      Scheduler);
-        // clang-format on
-    }
-
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
     {
         constexpr index_t PackedSize =

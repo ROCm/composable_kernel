@@ -34,6 +34,6 @@
     #define ENABLE_INSTRUCTION_SCH
     #define ENABLE_CACHE_AWARE_WG_SCH
 #else
-    #define NAIVE_IMPLEMENTATION 
+    #define NAIVE_IMPLEMENTATION
 #endif
 
