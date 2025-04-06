@@ -16,52 +16,9 @@
 
 namespace ck_tile {
 
-//  A Tile Window: global memory
-//  B Tile Window: global memory
-//  C Distributed tensor: register
-template <typename Problem>
-struct BaseGemmPipelineAgBgCrCompV3
-{
-    static constexpr index_t PrefetchStages  = 2;
-    static constexpr index_t PrefillStages   = 1;
-    static constexpr index_t GlobalBufferNum = 1;
-
-    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
-
-    CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
-    {
-        return num_loop > PrefetchStages;
-    }
-
-    CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
-    {
-        if(BlockHasHotloop(num_loop))
-        {
-            return TailNumber::Full;
-        }
-        else
-        {
-            if(num_loop == 1)
-            {
-                return TailNumber::Odd;
-            }
-            else
-            {
-                return TailNumber::Even;
-            }
-        }
-    }
-};
-
-// Compute optimized pipeline
-// GlobalPrefetchStages: 2
-// LocalPreFillStages: 1
-// LocalPreFetchStages: 1
-// LocalSharedMemoryBuffer: 1
 template <typename Problem, typename Policy = UniversalGemmPipelineAgBgCrPolicy>
-struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
+struct GemmPipelineAgBgCrCompV3
 {
-    using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
@@ -105,8 +62,6 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
 
-    using Base::PrefetchStages;
-
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
@@ -119,56 +74,6 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
-    }
-
-    CK_TILE_HOST static std::string Print()
-    {
-        constexpr index_t MPerXDL = BlockGemm::WarpGemm::kM;
-        constexpr index_t NPerXDL = BlockGemm::WarpGemm::kN;
-        constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
-
-        constexpr index_t WaveSize = 64;
-        constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
-        constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
-
-        // Below should be equal to AK1|BK1
-        constexpr index_t A_LDS_Read_Width = GetSmemPackA();
-        constexpr index_t B_LDS_Read_Width = GetSmemPackB();
-
-        constexpr index_t A_LDS_Write_Width = GetSmemPackA();
-        constexpr index_t B_LDS_Write_Width = GetSmemPackB();
-
-        constexpr index_t A_Buffer_Load_Inst_Num =
-            MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
-        constexpr index_t B_Buffer_Load_Inst_Num =
-            NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
-
-        constexpr index_t A_LDS_Write_Inst_Num =
-            MPerBlock * KPerBlock / (BlockSize * A_LDS_Write_Width);
-        constexpr index_t B_LDS_Write_Inst_Num =
-            NPerBlock * KPerBlock / (BlockSize * B_LDS_Write_Width);
-
-        constexpr index_t A_LDS_Read_Inst_Num =
-            WaveNumN * MPerBlock * KPerBlock / (BlockSize * A_LDS_Read_Width);
-        constexpr index_t B_LDS_Read_Inst_Num =
-            WaveNumM * NPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
-
-        constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
-                                            (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
-
-        auto str = std::stringstream{};
-
-        str << "A/B vector size: " << GetVectorSizeA() << ", " << GetVectorSizeB() << "\n"
-            << "A/B LDS read/write width: " << A_LDS_Read_Width << ", " << B_LDS_Read_Width << "\n"
-            << "A/B buffer load inst: " << A_Buffer_Load_Inst_Num << ", " << B_Buffer_Load_Inst_Num
-            << "\n"
-            << "A/B LDS write inst: " << A_LDS_Write_Inst_Num << ", " << B_LDS_Write_Inst_Num
-            << "\n"
-            << "A/B LDS read inst: " << A_LDS_Read_Inst_Num << ", " << B_LDS_Read_Inst_Num << "\n"
-            << "C MFMA inst: " << C_MFMA_Inst_Num << "\n"
-            << "KPack: " << BlockGemm::Traits::KPack << "\n"
-            << "PrefetchStages: " << PrefetchStages << "\n";
-        return str.str();
     }
 
     template <GemmPipelineScheduler Scheduler>
