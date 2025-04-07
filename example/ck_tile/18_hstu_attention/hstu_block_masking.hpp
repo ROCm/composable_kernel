@@ -29,12 +29,13 @@ struct HstuBlockMasking
 
         max_uih_len = seqlen_;
 
-        max_uih_len -= contextual_seqlen - 1;
+        max_uih_len -= contextual_seqlen > 0 ? contextual_seqlen - 1 : 0;
         max_uih_len -= num_target;
     };
 
     // to get the loop length along X axis, return index:[start, end), end-start=length
     // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
+    // i_y is the start offset of the current tile along the seqlen_q dimension
     template <index_t YTile, index_t XTile>
     CK_TILE_HOST_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
@@ -45,7 +46,7 @@ struct HstuBlockMasking
         }
         else
         {
-            if(contextual_seqlen > 0 && (i_y < contextual_seqlen))
+            if(i_y < contextual_seqlen)
                 return ck_tile::make_tuple(0, max_uih_len);
 
             if constexpr(kUseCausal && !kUseLocal)
@@ -101,10 +102,10 @@ struct HstuBlockMasking
                 if constexpr(kUseCausal)
                     result = (row >= col) && (row - col <= max_attn_len);
                 else
-                    result = std::abs(row - col) <= max_attn_len;
+                    result = abs(row - col) <= max_attn_len;
 
                 if(min_full_attn_seqlen > 0)
-                    result = result || (row >= max_uih_len - min_full_attn_seqlen);
+                    result = (row >= max_uih_len - min_full_attn_seqlen);
             }
             else
             {

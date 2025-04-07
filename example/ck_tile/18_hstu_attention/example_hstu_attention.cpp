@@ -33,6 +33,22 @@ extern void hstu_attention_jagged_forward_fp16(HstuAttentionFwdParams& param, hi
 extern void hstu_attention_jagged_forward_bf16(HstuAttentionFwdParams& param, hipStream_t stream);
 
 template <typename T>
+void dumpBufferToFile(const char* fileName, T* data, size_t dataNumItems)
+{
+    std::ofstream outFile(fileName, std::ios::binary);
+    if(outFile)
+    {
+        outFile.write(reinterpret_cast<char*>(data), dataNumItems * sizeof(T));
+        outFile.close();
+        printf("Wrote output to file %s\n", fileName);
+    }
+    else
+    {
+        printf("Could not open file %s for writing\n", fileName);
+    }
+}
+
+template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 {
     using size_type = typename std::vector<T>::size_type;
@@ -423,6 +439,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
             std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, num_head, hdim_v});
 
         o_dev.FromDevice(o_host.data());
+
+        dumpBufferToFile("output_dev.dat", o_host.data(), o_host.get_element_space_size());
+        dumpBufferToFile("output_host.dat", o_host_ref.data(), o_host.get_element_space_size());
 
         auto [rtol, atol] = get_elimit<InOutDataType>();
 
