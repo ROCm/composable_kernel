@@ -44,8 +44,9 @@ class TestGemmUniversal_Streamk : public testing::Test
 
     void SetUp() override
     {
-        streamk_sel_list = {0, 1, 2}; // 0: Data Parallel (DP) mode (Stream-K OFF), 1: 1-tile
-                                      // Stream-K+ DP, // {0, 1, 2, 3, 4}
+        grid_size_list   = {38, 114, 228}; // {38, 76, 114, 152, 190, 228, 266, 304, 342, 380};
+        streamk_sel_list = {0, 1, 2};      // 0: Data Parallel (DP) mode (Stream-K OFF), 1: 1-tile
+                                           // Stream-K+ DP, // {0, 1, 2, 3, 4}
         // 2:2-tile Stream-K + DP
     }
 
@@ -57,9 +58,10 @@ class TestGemmUniversal_Streamk : public testing::Test
              const int StrideC)
     {
         for(auto streamk_sel : streamk_sel_list)
-        {
-            RunSingle(M, N, K, StrideA, StrideB, StrideC, streamk_sel, -1);
-        }
+            for(auto grid_size : grid_size_list)
+            {
+                RunSingle(M, N, K, StrideA, StrideB, StrideC, streamk_sel, grid_size);
+            }
     }
 
     void RunSingle(const int M,
