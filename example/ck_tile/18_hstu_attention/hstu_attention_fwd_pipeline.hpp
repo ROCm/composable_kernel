@@ -383,7 +383,7 @@ struct HstuAttentionFwdPipelineQRKSVS
             {
                 const auto k_origin = k_dram_block_window.get_window_origin();
                 set_tile_if(s_acc, type_convert<GemmAccDataType>(0), [&](auto tile_idx) {
-                    if(i_loop < num_loops - 1)
+                    if(q_origin.at(number<0>{}) + kM0 <= mask.max_uih_len && i_loop < num_loops - 1)
                         return false;
                     const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                     const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
