@@ -81,9 +81,9 @@ class TestCkTileBatchedGemm : public ::testing::Test
 
         float ave_time{0};
 
-        const auto Run_with_k_batch = [&](const auto has_hot_loop_,
-                                          const auto tail_number_,
-                                          const auto memory_operation_) {
+        const auto Run = [&](const auto has_hot_loop_,
+                             const auto tail_number_,
+                             const auto memory_operation_) {
             constexpr bool has_hot_loop_v   = has_hot_loop_.value;
             constexpr auto tail_number_v    = tail_number_.value;
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
@@ -142,18 +142,17 @@ class TestCkTileBatchedGemm : public ::testing::Test
             return ave_time;
         };
 
-        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
+        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
             if(args.k_batch == 1)
             {
-                Run_with_k_batch(has_hot_loop_,
-                                 tail_number_,
-                                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                                            ck_tile::memory_operation_enum::set>{});
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                               ck_tile::memory_operation_enum::set>{});
             }
             else
             {
-                Run_with_k_batch(
-                    has_hot_loop_,
+                Run(has_hot_loop_,
                     tail_number_,
                     ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                                ck_tile::memory_operation_enum::atomic_add>{});
@@ -164,7 +163,8 @@ class TestCkTileBatchedGemm : public ::testing::Test
         {
             if(tail_num == ck_tile::TailNumber::Full)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(
+                    ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
             else
