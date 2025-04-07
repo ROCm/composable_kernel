@@ -129,7 +129,8 @@ struct fmha_fwd_args
     const void* seqstart_k_ptr;
     const void*
         seqlen_k_ptr; // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not nullptr
-
+    const void* page_idx_ptr;
+    
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
     ck_tile::index_t batch;
@@ -326,6 +327,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.seqstart_q_ptr,
                                              args.seqstart_k_ptr,
                                              args.seqlen_k_ptr,
+                                             args.page_idx_ptr,
                                              args.hdim_q,
                                              args.hdim_v,
                                              args.nhead_q,

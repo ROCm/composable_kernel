@@ -149,6 +149,7 @@ struct BlockFmhaPipelineQRKSVS
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
+               const index_t* page_idx,
                DropoutType& dropout) const
     {
         static_assert(
@@ -276,19 +277,36 @@ struct BlockFmhaPipelineQRKSVS
         do
         {
             // STAGE 1, QK gemm
-            auto k_dram_window = make_tile_window(
+            auto k_dist = Policy::template MakeKDramTileDistribution<Problem>();
+            auto c_coord = k_dist.calculate_index();
+            constexpr index_t NR = 2;
+            statically_indexed_array<index_t, NR> offsets;
+
+            static_for<0, NR, 1>{}([&](auto n0) {
+                offsets[n0] = page_idx[c_coord[0] + 64 * n0.value] * 128; // Problem::kN_;
+            });
+            auto k_dram_window = make_tile_window_paged(
                 k_dram_block_window.get_bottom_tensor_view(),
                 k_dram_block_window.get_window_lengths(),
                 k_dram_block_window.get_window_origin(),
-                Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
+                k_dist,
+                offsets); // K DRAM tile window for
                                                                         // load
+            // constexpr auto c_spans = k_dram_window.get_tile_distribution().get_distributed_spans();
+            // typename decltype(spans[number<I>{}])::Impl{};
+            // constexpr int len = k_dram_window.get_tile_distribution().get_distributed_spans()[I0]::IMPL;
+            // printf("tid %d coo %d\n", threadIdx.x, c_coord[0]);
+            
 
-            auto k_block_tile = load_tile(k_dram_window);
+            // auto k_block_tile = load_tile(k_dram_window);
+            auto k_block_tile = k_dram_window.load();
             {
-                move_tile_window(k_dram_window, {0, kK0});
+                // move_tile_window(k_dram_window, {0, kK0});
+                k_dram_window.move({0, kK0});
+
                 clear_tile(s_acc); // initialize C
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
-                k_block_tile = load_tile(k_dram_window);
+                k_block_tile = k_dram_window.load();
             }
 
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -313,12 +331,14 @@ struct BlockFmhaPipelineQRKSVS
                                           sequence<kM0, (i_k0 + 1) * kK0>{}),
                            k_lds_window);
                     block_sync_lds();
-                    move_tile_window(k_dram_window, {0, kK0});
+                    k_dram_window.move({0, kK0});
+                    // move_tile_window(k_dram_window, {0, kK0});
 
                     store_tile(
                         k_lds_window,
                         tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
-                    k_block_tile = load_tile(k_dram_window);                // global read i + 2
+                    k_block_tile = k_dram_window.load();                // global read i + 2
+                    // k_block_tile = load_tile(k_dram_window);                // global read i + 2
                 });
             }
 
@@ -627,6 +647,7 @@ struct BlockFmhaPipelineQRKSVS
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
+               const index_t* page_idx,
                DropoutType& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
@@ -647,6 +668,7 @@ struct BlockFmhaPipelineQRKSVS
                           position_encoding,
                           scale_s,
                           smem_ptr,
+                          page_idx,
                           dropout);
     }
 };

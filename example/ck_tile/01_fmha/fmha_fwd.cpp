@@ -480,6 +480,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const auto seqstart_q_host              = to_seqstarts(seqlen_qs);
     const auto seqstart_k_host              = to_seqstarts(seqlen_ks);
     const auto seqstart_k_with_padding_host = to_seqstarts(seqlen_kpads);
+    std::vector<int32_t> page_idx_host(seqstart_q_host.back(), 0);
+    std::iota(page_idx_host.begin(), page_idx_host.end(), 0);
+    // iota_shuffle(page_idx_host.begin(), page_idx_host.end(), 0);
 
     using TypeConfig = FmhaFwdTypeConfig<DataTypeConfig>;
 
@@ -601,6 +604,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         0 < page_block_size
             ? get_lengths(i_perm, max_num_page_blocks, nhead_k, page_block_size, hdim_q)
             : get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
+    printf("shape %d %d %d %d\n", shape_batch, nhead_k, shape_seqlen_k, seqstart_q_host.back());
+    ck_tile::HostTensor<KDataType> k_host_sgl({seqstart_q_host.back(), nhead_k, hdim_q});
+
     /// NOTICE: always use same shape for knew_host & vnew_host in batch/group mode
     ck_tile::HostTensor<KDataType> knew_host(
         0 < seqlen_knew
@@ -742,11 +748,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
         }
     }
+    k_host_sgl.ForEach([&](auto& self, auto i) {
+        self(i) = k_host(0, page_idx_host[i[0]], i[1], i[2]);
+        
+    });
     iota_shuffle(block_table_host.begin(), block_table_host.end(), 0);
     iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0);
-
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem k_buf(k_host_sgl.get_element_space_size_in_bytes());
     ck_tile::DeviceMem knew_buf(knew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem v_buf(v_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem vnew_buf(vnew_host.get_element_space_size_in_bytes());
@@ -757,6 +766,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem page_idx(page_idx_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqlen_k_buf((mode == mode_enum::batch && use_kvcache) ||
                                             0 <= seqlen_kpads[0]
                                         ? seqlen_ks.size() * sizeof(int32_t)
@@ -773,7 +783,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem cache_batch_idx_buf(cache_batch_idx_host.get_element_space_size_in_bytes());
 
     q_buf.ToDevice(q_host.data());
-    k_buf.ToDevice(k_host.data());
+    k_buf.ToDevice(k_host_sgl.data());
     knew_buf.ToDevice(knew_host.data());
     v_buf.ToDevice(v_host.data());
     vnew_buf.ToDevice(vnew_host.data());
@@ -781,6 +791,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqlen_kpads[0] < 0 ? seqstart_k_host.data()
                                             : seqstart_k_with_padding_host.data());
+    page_idx.ToDevice(page_idx_host.data());
+
     seqlen_k_buf.ToDevice((mode == mode_enum::batch && use_kvcache) || 0 <= seqlen_kpads[0]
                               ? seqlen_ks.data()
                               : nullptr);
@@ -996,6 +1008,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 (mode == mode_enum::group ? seqstart_q.GetDeviceBuffer() : nullptr);
             args.seqstart_k_ptr =
                 (mode == mode_enum::group ? seqstart_k.GetDeviceBuffer() : nullptr);
+            args.page_idx_ptr =
+                (mode == mode_enum::group ? page_idx.GetDeviceBuffer() : nullptr);
             args.seqlen_k_ptr = ((mode == mode_enum::batch && use_kvcache) || 0 <= k_paddings_[0]
                                      ? seqlen_k_buf.GetDeviceBuffer()
                                      : nullptr);
