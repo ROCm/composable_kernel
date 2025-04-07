@@ -1497,6 +1497,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // tId in [128, 191]  m x n = [32, 63] x [ 0, 31]  waveId = [1, 0]
         // tId in [192, 255]  m x n = [32, 63] x [32, 63]  waveId = [1, 1]
 
+        // TODO: Document initial thread mapping for more combinations of parameters
+
         auto thread_offset_k = (get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) /
                                mfma.selected_mfma.num_threads_per_blk;
 

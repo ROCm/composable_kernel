@@ -95,7 +95,7 @@ bool parse_cmd_args(int argc,
                   << std::endl
                   << "arg3: time kernel (0=no, 1=yes)" << std::endl
                   << "arg4: verbosity (0=no info, 1=verbose info)" << std::endl
-                  << "arg5 to 10: M(128x), N(128x), K(64x), StrideA, StrideB, StrideC" << std::endl
+                  << "arg5 to 10: M(128x), N(128x), K(256x), StrideA, StrideB, StrideC" << std::endl
                   << "arg11: KBatch" << std::endl;
         return false;
     }
@@ -438,7 +438,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "Comparing results..." << std::endl;
         }
 
-#if 0
+#if 1
         std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
         for(int i = 0; i < 16; ++i)
         {
