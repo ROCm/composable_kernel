@@ -142,8 +142,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        this->template RunGemm<EpiloguePipeline::MemoryOperation>(
-            a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        this->RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
     }
 };
 
