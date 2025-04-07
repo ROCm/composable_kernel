@@ -8,6 +8,7 @@
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_default_policy.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
+#include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/tensor/tile_window_paged.hpp"
 
 namespace ck_tile {
@@ -150,6 +151,8 @@ struct BlockFmhaPipelineQRKSVS
                float scale_s,
                void* smem_ptr,
                const index_t* page_idx,
+               const index_t stride_k,
+               const index_t stride_v,
                DropoutType& dropout) const
     {
         static_assert(
@@ -273,29 +276,25 @@ struct BlockFmhaPipelineQRKSVS
 
         static_assert(2 <= k0_loops);
         static_assert(1 <= k1_loops);
+        constexpr auto I0 = number<0>{};
         do
         {
             // STAGE 1, QK gemm
+            (void)stride_v;
             auto k_dist = Policy::template MakeKDramTileDistribution<Problem>();
             auto c_coord = k_dist.calculate_index();
-            constexpr index_t NR = 2;
-            statically_indexed_array<index_t, NR> offsets;
-
-            static_for<0, NR, 1>{}([&](auto n0) {
-                offsets[n0] = page_idx[i_total_loops * kN0 + c_coord[0] + 64 * n0.value] * kQKHeaddim; // Problem::kN_;
+            using KDstrEncode = typename decltype(k_dist)::DstrEncode;
+            constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I0];
+            statically_indexed_array<index_t, NRepeat> k_offsets;
+            static_for<0, NRepeat, 1>{}([&](auto n0) {
+                k_offsets[n0] = page_idx[i_total_loops * kN0 + c_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
             });
             auto k_dram_window = make_tile_window_paged(
                 k_dram_block_window.get_bottom_tensor_view(),
                 k_dram_block_window.get_window_lengths(),
                 k_dram_block_window.get_window_origin(),
                 k_dist,
-                offsets); // K DRAM tile window for
-                                                                        // load
-            // constexpr auto c_spans = k_dram_window.get_tile_distribution().get_distributed_spans();
-            // typename decltype(spans[number<I>{}])::Impl{};
-            // constexpr int len = k_dram_window.get_tile_distribution().get_distributed_spans()[I0]::IMPL;
-            // printf("tid %d coo %d\n", threadIdx.x, c_coord[0]);
-            
+                k_offsets); // K DRAM tile window for
 
             // auto k_block_tile = load_tile(k_dram_window);
             auto k_block_tile = k_dram_window.load();
@@ -647,6 +646,8 @@ struct BlockFmhaPipelineQRKSVS
                float scale_s,
                void* smem_ptr,
                const index_t* page_idx,
+               const index_t stride_k,
+               const index_t stride_v,
                DropoutType& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
@@ -668,6 +669,8 @@ struct BlockFmhaPipelineQRKSVS
                           scale_s,
                           smem_ptr,
                           page_idx,
+                          stride_k,
+                          stride_v,
                           dropout);
     }
 };

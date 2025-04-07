@@ -1342,6 +1342,8 @@ struct FmhaFwdKernel
                     kargs.scale_s,
                     smem_ptr,
                     kargs.page_idx,
+                    kargs.stride_k,
+                    kargs.stride_v,
                     dropout);
             }
             else
@@ -1357,6 +1359,8 @@ struct FmhaFwdKernel
                                       kargs.scale_s,
                                       smem_ptr,
                                       kargs.page_idx,
+                                      kargs.stride_k,
+                                      kargs.stride_v,
                                       dropout);
             }
         }();
