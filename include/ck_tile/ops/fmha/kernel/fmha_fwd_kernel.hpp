@@ -988,6 +988,8 @@ struct FmhaFwdKernel
             {
                 batch_offset_v = key_start;
             }
+            
+            kargs.page_idx +=  key_start;
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 batch_offset_bias = query_start * kargs.stride_bias + key_start;

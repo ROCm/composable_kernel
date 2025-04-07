@@ -243,11 +243,10 @@ struct BlockFmhaPipelineQRKSVS
                 return o_acc;
             }
         }
-
         auto k_dram_block_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
                              k_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_k_start, 0});
+                             {seqlen_k_start, 0}); //todo fixme felix
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
@@ -283,7 +282,7 @@ struct BlockFmhaPipelineQRKSVS
             statically_indexed_array<index_t, NR> offsets;
 
             static_for<0, NR, 1>{}([&](auto n0) {
-                offsets[n0] = page_idx[c_coord[0] + 64 * n0.value] * 128; // Problem::kN_;
+                offsets[n0] = page_idx[i_total_loops * kN0 + c_coord[0] + 64 * n0.value] * kQKHeaddim; // Problem::kN_;
             });
             auto k_dram_window = make_tile_window_paged(
                 k_dram_block_window.get_bottom_tensor_view(),

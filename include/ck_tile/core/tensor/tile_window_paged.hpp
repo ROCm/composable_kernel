@@ -188,10 +188,10 @@ struct page_tile_with_static_distribution
                              array<index_t, NDimY>{0}));
 #endif
 
+        BottomTensorIndex bottom_tensor_thread_origin_idx_tmp ={0,
+            window_origin[1] + window_adaptor_thread_coord_tmp.get_bottom_index()[1]};
         // BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
-        //     window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
-        BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
-            window_origin + tuple<index_t, index_t>(0, window_adaptor_thread_coord_tmp.get_bottom_index()[1]);
+        //     tuple<index_t, index_t>(0, window_adaptor_thread_coord_tmp.get_bottom_index()[1]);
         const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
             bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
 
