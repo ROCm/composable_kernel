@@ -545,6 +545,13 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= dpad == dvpad
                     if not cond:
                         continue
+            elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode in ["batch", "group"]
+                    cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
+                    cond &= dpad == dvpad
+                    if not cond:
+                        continue
             api_pool.register_dq_dk_dv_traits(k.api_trait())
             gen.append(k)
 

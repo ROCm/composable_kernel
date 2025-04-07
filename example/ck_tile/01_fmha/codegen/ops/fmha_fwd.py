@@ -536,6 +536,14 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+                # Aiter aiter::mha_fwd integration
+                elif receipt == 500:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= mode in ['batch', 'group']
+                    cond &= pipeline.F_vlayout == 'row'
+                    cond &= pipeline.F_squant == 'f'
+                    if not cond:
+                        continue
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 
