@@ -33,6 +33,9 @@ template <typename InOutDataType,
           bool kUseLocal>
 struct reference_hstu_attention
 {
+    using HstuMask                 = HstuBlockMasking<kUseCausal, kUseLocal>;
+    static constexpr bool kHasMask = kUseCausal || kUseLocal;
+
     static void Run(const HostTensor<InOutDataType>& q_batch_seq_nhead_hdim,
                     const HostTensor<InOutDataType>& k_batch_seq_nhead_hdim,
                     const HostTensor<InOutDataType>& v_batch_seq_nhead_hdim,
@@ -100,8 +103,13 @@ struct reference_hstu_attention
 
             int num_target = num_targets.empty() ? 0 : num_targets[i_batch];
 
-            HstuBlockMasking<kUseCausal, kUseLocal> mask{
-                max_attn_len, contextual_seqlen, min_full_attn_seqlen, seqlen, num_target};
+            HstuMask mask = [&]() {
+                if constexpr(kHasMask)
+                    return HstuMask{
+                        max_attn_len, contextual_seqlen, min_full_attn_seqlen, seqlen, num_target};
+                else
+                    return HstuMask{0, contextual_seqlen, 0, seqlen, num_target};
+            }();
 
             // for all rows in the batch
             for(int sq = 0; sq < seqlen; sq++)
