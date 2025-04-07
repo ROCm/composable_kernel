@@ -29,8 +29,9 @@ def run_ck_profiler_cmd(cmd):
 def parse_layouts(args):
     if args.in_layout == "NCW" or args.in_layout == "NCHW" or \
        args.in_layout == "NCDHW":
-        if args.ck_profier_op == "grouped_conv_bwd_weight" or \
-             args.ck_profier_op == "grouped_conv_fwd" or \
+        if args.ck_profier_op == "grouped_conv_bwd_weight":
+            args.layout = 4
+        elif args.ck_profier_op == "grouped_conv_fwd" or \
              args.ck_profier_op == "grouped_conv_bwd_data":
             args.layout = 3
         else:
