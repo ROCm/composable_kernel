@@ -9,7 +9,7 @@
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
-#include "ck_tile/core/tensor/tile_window_paged.hpp"
+#include "ck_tile/core/tensor/tile_scatter_gather.hpp"
 
 namespace ck_tile {
 
@@ -289,7 +289,7 @@ struct BlockFmhaPipelineQRKSVS
             static_for<0, NRepeat, 1>{}([&](auto n0) {
                 k_offsets[n0] = page_idx[i_total_loops * kN0 + c_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
             });
-            auto k_dram_window = make_tile_window_paged(
+            auto k_dram_window = make_tile_scatter_gather(
                 k_dram_block_window.get_bottom_tensor_view(),
                 k_dram_block_window.get_window_lengths(),
                 k_dram_block_window.get_window_origin(),
