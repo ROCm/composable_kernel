@@ -13,6 +13,7 @@
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 
 namespace ck {
 

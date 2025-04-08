@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <initializer_list>
@@ -17,6 +17,7 @@ enum struct ConvLayout
     GNHWC_GKYXC_GNHWK, // 1
     NHWGC_GKYXC_NHWGK, // 2
     NGCHW_GKYXC_NGKHW, // 3
+    NGCHW_GKCYX_NGKHW, // 4
 };
 
 enum struct ConvDataType
@@ -48,6 +49,8 @@ static void print_helper_msg()
               << "                     2: Input[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Output[N, "
                  "Ho, Wo, G, K]\n"
               << "                     3: Input[N, G, C, Hi, Wi], Weight[G, K, Y, X, C], Output[N, "
+                 "G, K, Ho, Wo]\n"
+              << "                     4: Input[N, G, C, Hi, Wi], Weight[G, K, C, Y, X], Output[N, "
                  "G, K, Ho, Wo]\n"
               << "arg4: verification (0: no, 1: yes)\n"
               << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
@@ -199,6 +202,21 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
             return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
         }
     }
+    else if(num_dim_spatial == 2 && layout == ConvLayout::NGCHW_GKCYX_NGKHW)
+    {
+        if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return profile(I2, NGCHW{}, GKCYX{}, NGKHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return profile(I2, NGCHW{}, GKCYX{}, NGKHW{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return profile(I2, NGCHW{}, GKCYX{}, NGKHW{}, F32{}, F32{}, F32{}, F32{}, F32{});
+        }
+    }
     if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
@@ -260,6 +278,22 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(
                 I3, NGCDHW{}, GKZYXC{}, NGKDHW{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+    }
+    else if(num_dim_spatial == 3 && layout == ConvLayout::NGCHW_GKCYX_NGKHW)
+    {
+        if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return profile(I3, NGCDHW{}, GKCZYX{}, NGKDHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return profile(
+                I3, NGCDHW{}, GKCZYX{}, NGKDHW{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return profile(I3, NGCDHW{}, GKCZYX{}, NGKDHW{}, F32{}, F32{}, F32{}, F32{}, F32{});
         }
     }
 
