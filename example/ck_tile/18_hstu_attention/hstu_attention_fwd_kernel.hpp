@@ -518,7 +518,7 @@ struct HstuAttentionFwdKernel
             }
             batch_offset_o = query_start * kargs.seq_stride_o;
 
-            kargs.seqlen = kargs.seq_offsets_ptr[1] - kargs.seq_offsets_ptr[0];
+            kargs.seqlen = kargs.seq_offsets_ptr[i_batch + 1] - kargs.seq_offsets_ptr[i_batch];
 
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier
