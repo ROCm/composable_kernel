@@ -305,7 +305,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
             return BlockGemmARegBSmemCRegOneWarpV1<GemmProblem, BlockGemmPolicy>{};
     }
 
-    // leave some exclusive space so that the second v_lds buffer will nenver overlap with the first
+    // leave some exclusive space so that the second v_lds buffer will never overlap with the first
     // k_lds bufffer
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetExclusiveKLdsBytes()
