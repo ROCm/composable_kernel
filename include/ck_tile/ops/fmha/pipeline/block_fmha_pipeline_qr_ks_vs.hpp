@@ -296,15 +296,12 @@ struct BlockFmhaPipelineQRKSVS
                 k_dist,
                 k_offsets); // K DRAM tile window for
 
-            // auto k_block_tile = load_tile(k_dram_window);
-            auto k_block_tile = k_dram_window.load();
+            auto k_block_tile = load_tile(k_dram_window);
             {
-                // move_tile_window(k_dram_window, {0, kK0});
-                k_dram_window.move({0, kK0});
-
+                move_tile_window(k_dram_window, {0, kK0});
                 clear_tile(s_acc); // initialize C
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
-                k_block_tile = k_dram_window.load();
+                k_block_tile = load_tile(k_dram_window);
             }
 
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -329,14 +326,12 @@ struct BlockFmhaPipelineQRKSVS
                                           sequence<kM0, (i_k0 + 1) * kK0>{}),
                            k_lds_window);
                     block_sync_lds();
-                    k_dram_window.move({0, kK0});
-                    // move_tile_window(k_dram_window, {0, kK0});
+                    move_tile_window(k_dram_window, {0, kK0});
 
                     store_tile(
                         k_lds_window,
                         tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
-                    k_block_tile = k_dram_window.load();                // global read i + 2
-                    // k_block_tile = load_tile(k_dram_window);                // global read i + 2
+                    k_block_tile = load_tile(k_dram_window);                // global read i + 2
                 });
             }
 

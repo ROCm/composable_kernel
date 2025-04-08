@@ -1200,19 +1200,4 @@ make_tile_window_linear_raw(const TileWindow_& tile_window,
                                        LinearBottomDims_{});
 }
 
-template <typename TensorView_,
-          typename WindowLengths_,
-          typename StaticTileDistribution_,
-          typename LinearBottomDims_>
-CK_TILE_DEVICE void move_tile_window(
-    tile_window_linear<TensorView_, WindowLengths_, StaticTileDistribution_, LinearBottomDims_>&
-        window,
-    const typename tile_window_linear<TensorView_,
-                                      WindowLengths_,
-                                      StaticTileDistribution_,
-                                      LinearBottomDims_>::BottomTensorIndex& step)
-{
-    window.move(step);
-}
-
 } // namespace ck_tile

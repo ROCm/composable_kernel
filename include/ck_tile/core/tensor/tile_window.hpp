@@ -1097,23 +1097,6 @@ make_tile_window_raw(const TensorView_& tensor_view,
     return w;
 }
 
-template <typename TensorView_,
-          typename WindowLengths_,
-          typename StaticTileDistribution_,
-          index_t NumCoord>
-CK_TILE_DEVICE void move_tile_window(
-    tile_window_with_static_distribution<TensorView_,
-                                         WindowLengths_,
-                                         StaticTileDistribution_,
-                                         NumCoord>& window,
-    const typename tile_window_with_static_distribution<TensorView_,
-                                                        WindowLengths_,
-                                                        StaticTileDistribution_,
-                                                        NumCoord>::BottomTensorIndex& step)
-{
-    window.move(step);
-}
-
 /**
  * @brief This class provides description of tile windowed view on the device memory.
  *
@@ -1240,15 +1223,6 @@ make_tile_window_raw(const tile_window_with_static_lengths<TensorView, WindowLen
                               tile_distribution);
     w.init_raw();
     return w;
-}
-
-template <typename TensorView_, typename WindowLengths_>
-CK_TILE_DEVICE void move_tile_window(
-    tile_window_with_static_lengths<TensorView_, WindowLengths_>& window,
-    const typename tile_window_with_static_lengths<TensorView_, WindowLengths_>::BottomTensorIndex&
-        step)
-{
-    window.move(step);
 }
 
 } // namespace ck_tile
