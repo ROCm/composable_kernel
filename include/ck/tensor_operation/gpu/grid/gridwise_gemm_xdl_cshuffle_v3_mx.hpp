@@ -161,8 +161,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
     static constexpr auto lcm_AK1_BK1         = math::lcm(AK1Number, BK1Number);
     static constexpr bool is_single_rate_mfma = false;
-    static constexpr auto is_scale_mfma =
-        use_scale_mfma<ADataType, BDataType, AScaleDataType, BScaleDataType>();
+    static constexpr auto is_scale_mfma       = true;
 
     //> KPack is at least the k_per_blk of selected mfma
     //

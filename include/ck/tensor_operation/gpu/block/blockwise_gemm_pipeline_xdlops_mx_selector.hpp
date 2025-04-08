@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v1_mx.hpp"
-#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v1_sw_mx.hpp"
 
 namespace ck {
 
@@ -31,7 +30,7 @@ static constexpr bool is_scale_mfma_scale_type()
  * @brief Combination of data types that have hardware support for MX GEMMs
  */
 template <typename ADataType, typename BDataType, typename AScaleDataType, typename BScaleDataType>
-static constexpr bool use_scale_mfma()
+static constexpr bool scale_mfma_hw_support()
 {
     return is_scale_mfma_data_type<ADataType>() && is_scale_mfma_data_type<BDataType>() &&
            is_scale_mfma_scale_type<AScaleDataType>() && is_scale_mfma_scale_type<BScaleDataType>();
@@ -65,71 +64,34 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
 constexpr auto BlockGemmMXPipeline_Selector()
 {
 
-    if constexpr(use_scale_mfma<ADataType, BDataType, AScaleDataType, BScaleDataType>())
+    // Hardware MX GEMM pipeline
+    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
     {
-        // Hardware MX GEMM pipeline
-        if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-        {
-            return BlockwiseGemmXdlops_pipeline_v1_mx<BlkGemmPipeSche,
-                                                      ThreadBlockSize,
-                                                      ScaleBlockSize,
-                                                      ADataType,
-                                                      AScaleDataType,
-                                                      BDataType,
-                                                      BScaleDataType,
-                                                      ATileDesc,
-                                                      BTileDesc,
-                                                      AMmaTileDesc,
-                                                      BMmaTileDesc,
-                                                      ABlockTransferSrcScalarPerVector,
-                                                      BBlockTransferSrcScalarPerVector,
-                                                      MPerBlock,
-                                                      NPerBlock,
-                                                      KPerBlock,
-                                                      MPerXDL,
-                                                      NPerXDL,
-                                                      MRepeat,
-                                                      NRepeat,
-                                                      KPack>{};
-        }
-        else
-        {
-            std::cerr << "MX GEMM Pipeline configuration is not available" << std::endl;
-        }
+        return BlockwiseGemmXdlops_pipeline_v1_mx<BlkGemmPipeSche,
+                                                  ThreadBlockSize,
+                                                  ScaleBlockSize,
+                                                  ADataType,
+                                                  AScaleDataType,
+                                                  BDataType,
+                                                  BScaleDataType,
+                                                  ATileDesc,
+                                                  BTileDesc,
+                                                  AMmaTileDesc,
+                                                  BMmaTileDesc,
+                                                  ABlockTransferSrcScalarPerVector,
+                                                  BBlockTransferSrcScalarPerVector,
+                                                  MPerBlock,
+                                                  NPerBlock,
+                                                  KPerBlock,
+                                                  MPerXDL,
+                                                  NPerXDL,
+                                                  MRepeat,
+                                                  NRepeat,
+                                                  KPack>{};
     }
     else
     {
-        // Software emulation of MX pipeline
-        if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-        {
-            return BlockwiseGemmXdlops_pipeline_v1_sw_mx<BlkGemmPipeSche,
-                                                         ThreadBlockSize,
-                                                         ScaleBlockSize,
-                                                         ADataType,
-                                                         AScaleDataType,
-                                                         BDataType,
-                                                         BScaleDataType,
-                                                         ComputeDataType,
-                                                         AccDataType,
-                                                         ATileDesc,
-                                                         BTileDesc,
-                                                         AMmaTileDesc,
-                                                         BMmaTileDesc,
-                                                         ABlockTransferSrcScalarPerVector,
-                                                         BBlockTransferSrcScalarPerVector,
-                                                         MPerBlock,
-                                                         NPerBlock,
-                                                         KPerBlock,
-                                                         MPerXDL,
-                                                         NPerXDL,
-                                                         MRepeat,
-                                                         NRepeat,
-                                                         KPack>{};
-        }
-        else
-        {
-            std::cerr << "Software MX GEMM Pipeline configuration is not available" << std::endl;
-        }
+        std::cerr << "MX GEMM Pipeline configuration is not available" << std::endl;
     }
 }
 
