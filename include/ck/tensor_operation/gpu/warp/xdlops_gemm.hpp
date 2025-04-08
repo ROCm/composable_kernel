@@ -1412,15 +1412,6 @@ struct XdlopsGemm
                         const ScaleB& b_scale_thread,
                         FloatC& p_c_thread) const
     {
-        static_assert((is_same_v<base_type, f8_ocp_t> || is_same_v<base_type, bf8_ocp_t> ||
-                       is_same_v<base_type, f6_t> || is_same_v<base_type, bf6_t> ||
-                       is_same_v<base_type, f4_t>)&&(is_same_v<additional_type, f8_ocp_t> ||
-                                                     is_same_v<additional_type, bf8_ocp_t> ||
-                                                     is_same_v<additional_type, f6_t> ||
-                                                     is_same_v<additional_type, bf6_t> ||
-                                                     is_same_v<additional_type, f4_t>),
-                      "base_type and additional_type must be one of the micro-scaling types!");
-
         static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
             if constexpr(!TransposeC)
             {

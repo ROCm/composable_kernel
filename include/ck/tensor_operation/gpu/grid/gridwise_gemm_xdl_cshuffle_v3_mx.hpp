@@ -1478,12 +1478,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
 
-        static constexpr auto mfma = BlockwiseGemmPipe::xdlops_gemm.mfma;
-        // static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
-        // static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
-        // static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
-        // static constexpr auto KPerThread  = KPerBlock / K0PerXdlops;
-
         // NXdlPerWave == NRepeat
         // MXdlPerWave == MRepeat
         constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
@@ -1498,6 +1492,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // tId in [192, 255]  m x n = [32, 63] x [32, 63]  waveId = [1, 1]
 
         // TODO: Document initial thread mapping for more combinations of parameters
+
+        static constexpr auto mfma = BlockwiseGemmPipe::xdlops_gemm.mfma;
 
         auto thread_offset_k = (get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) /
                                mfma.selected_mfma.num_threads_per_blk;
@@ -1537,33 +1533,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                              true>(
                 b_scale_grid_desc_bn_ak,
                 make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, thread_offset_k));
-
-#if 0
-        if(blockIdx.x == 0 &&
-           (threadIdx.x == 0 || threadIdx.x == 16 || threadIdx.x == 32 || threadIdx.x == 48))
-        {
-            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\ta_thread_offset_m = %d\n\t "
-                   "a_scale_origin = {%d, %d}\n\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   blockIdx.z,
-                   threadIdx.x,
-                   a_thread_offset_m,
-                   block_m_id * MPerBlock + a_thread_offset_m,
-                   thread_offset_k);
-
-            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\tb_thread_offset_n = %d\n\t "
-                   "b_scale_origin = {%d, %d}\n\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   blockIdx.z,
-                   threadIdx.x,
-                   b_thread_offset_n,
-                   block_n_id * NPerBlock + b_thread_offset_n,
-                   thread_offset_k);
-        }
-
-#endif
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,
