@@ -893,8 +893,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     if(config.time_kernel)
     {
-        std::size_t flop = std::size_t(2) * M * N * K +
-                           std::size_t(2) * M * N * K / ScaleBlockSize; // GEMM + A scale + B scale
+        // Output size(M*N) * [dot product(2K) + product of scales(K/ScaleBlockSize) + scaling of
+        // partial sums(K/ScaleBlockSize)]
+        // FLOPS = 2 * M * N * K + 2 * M * N * K / ScaleBlockSize
+        std::size_t flop = std::size_t(2) * M * N * K + std::size_t(2) * M * N * K / ScaleBlockSize;
         std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
                                 sizeof(CDataType) * M * N +
                                 sizeof(XDataType) * (M * K + K * N) / ScaleBlockSize;
