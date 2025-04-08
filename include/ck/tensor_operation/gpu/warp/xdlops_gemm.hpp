@@ -883,15 +883,24 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
     static constexpr bool is_k_reduction         = true; // ???
     // clang-format on
 
-    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    template <index_t MPerXdlops,
+              index_t NPerXdlops,
+              class FloatA,
+              class ScaleA,
+              class FloatB,
+              class ScaleB,
+              class FloatC>
     __device__ void run(const FloatA& a,
-                        const int32_t scale_a,
+                        const ScaleA& scale_a,
                         const FloatB& b,
-                        const int32_t scale_b,
+                        const ScaleB& scale_b,
                         FloatC& reg_c) const
     {
+        static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this point.");
+        static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at this point.");
+
         intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops>::Run(
-            a, scale_a, b, scale_b, reg_c);
+            a, utils::get_exponent_value(scale_a), b, utils::get_exponent_value(scale_b), reg_c);
     }
 };
 
