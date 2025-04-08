@@ -33,7 +33,7 @@ using ck::type_convert;
 struct ExecutionConfig final
 {
     int do_verification = 1;     // (0=no, 1=CPU)
-    int init_method     = 14;    // (0=constant values, 1=integer values, 2=decimal values)
+    int init_method     = 2;     // (0=constant values, 1=integer values, 2=decimal values)
     bool time_kernel    = false; // (0=no, 1=yes)
     int verbosity       = 1;     // (0=no info, 1=verbose info)
 };
@@ -41,9 +41,9 @@ struct ExecutionConfig final
 struct ProblemSizeSplitK final
 {
 
-    ck::index_t M = 256;
-    ck::index_t N = 256;
-    ck::index_t K = 512;
+    ck::index_t M = 3840;
+    ck::index_t N = 4096;
+    ck::index_t K = 4096;
 
     ck::index_t StrideA = -1;
     ck::index_t StrideB = -1;
@@ -444,18 +444,19 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         {
             for(int j = 0; j < 16; ++j)
             {
-                std::cout << std::setw(9) << type_convert<float>(a_m_k(i, j));
+                std::cout << std::setw(11) << std::fixed << std::setprecision(7)
+                          << type_convert<float>(a_m_k(i, j));
             }
             // std::cout << "\t\t";
             // for(int j = 0; j < 16; ++j)
             // {
-            //     std::cout << std::setw(9) << type_convert<float>(a_m_k(i + 128, j));
+            //     std::cout << std::setw(11) << type_convert<float>(a_m_k(i + 128, j));
             // }
 
             std::cout << "\t\t";
             for(int j = 0; j < 16; ++j)
             {
-                std::cout << std::setw(9) << type_convert<float>(a_m_k(i + 200, j));
+                std::cout << std::setw(11) << type_convert<float>(a_m_k(i + 200, j));
             }
 
             std::cout << std::endl;
@@ -466,18 +467,18 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         {
             for(int j = 0; j < 16; ++j)
             {
-                std::cout << std::setw(9) << type_convert<float>(b_k_n(i, j));
+                std::cout << std::setw(11) << type_convert<float>(b_k_n(i, j));
             }
             // std::cout << "\t\t";
             // for(int j = 0; j < 16; ++j)
             // {
-            //     std::cout << std::setw(9) << type_convert<float>(b_k_n(i + 128, j));
+            //     std::cout << std::setw(11) << type_convert<float>(b_k_n(i + 128, j));
             // }
 
             std::cout << "\t\t";
             for(int j = 0; j < 16; ++j)
             {
-                std::cout << std::setw(9) << type_convert<float>(b_k_n(i + 200, j));
+                std::cout << std::setw(11) << type_convert<float>(b_k_n(i + 200, j));
             }
 
             std::cout << std::endl;
@@ -549,19 +550,20 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         {
             for(int j = 0; j < 16; ++j)
             {
-                std::cout << std::setw(9) << type_convert<float>(c_m_n_device_result(i, j));
+                std::cout << std::setw(11) << std::fixed << std::setprecision(6)
+                          << type_convert<float>(c_m_n_device_result(i, j));
             }
             // std::cout << "\t\t";
             // for(int j = 0; j < 16; ++j)
             // {
-            //     std::cout << std::setw(9) << type_convert<float>(c_m_n_device_result(i + 128,
+            //     std::cout << std::setw(11) << type_convert<float>(c_m_n_device_result(i + 128,
             //     j));
             // }
 
             std::cout << "\t\t";
             for(int j = 0; j < 16; ++j)
             {
-                std::cout << std::setw(9) << type_convert<float>(c_m_n_device_result(i + 200, j));
+                std::cout << std::setw(11) << type_convert<float>(c_m_n_device_result(i + 200, j));
             }
 
             std::cout << std::endl;
