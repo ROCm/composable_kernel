@@ -36,20 +36,20 @@ auto get_elimit<ck_tile::int8_t>()
 int main()
 {
 
-    static constexpr ck_tile::index_t Repeat_M_ = 1;
+    static constexpr ck_tile::index_t Repeat_M_ = 8;
     static constexpr ck_tile::index_t Repeat_N_ = 1;
     
-    static constexpr ck_tile::index_t ThreadPerBlock_M_ = 4;
+    static constexpr ck_tile::index_t ThreadPerBlock_M_ = 8;
     static constexpr ck_tile::index_t ThreadPerBlock_N_ = 64;
 
-    static constexpr ck_tile::index_t Vector_N_ = 2;
+    static constexpr ck_tile::index_t Vector_N_ = 1;
     
     static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= warpSize;
     static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % warpSize == 0);
     static constexpr ck_tile::index_t total_warps =
         (ThreadPerBlock_M_ * ThreadPerBlock_N_) / warpSize;
-
-    // num of warps along mreference_static_per_tensor_quantization2d
+    // std::cout<<"total_warps: "<<total_warps<<std::endl;
+    // num of warps along m
     static constexpr ck_tile::index_t BlockWarps_M = []() {
         if constexpr(is_warp_per_row)
         {
@@ -107,9 +107,9 @@ int main()
 
     using Kernel = ck_tile::PerTensorQuant<Pipeline>;
 
-    int m = 256;
-    int n = 256;
-    int x_stride = 256;
+    int m = 64;
+    int n = 64;
+    int x_stride = 64;
     ck_tile::HostTensor<XDataType> x_host({m, n}, {x_stride, 1});
     ck_tile::HostTensor<ScaleDataType> scale_host({1}, {1});
 
@@ -144,7 +144,7 @@ int main()
     scale_buf.FromDevice(scale_host.data());
     ck_tile::reference_per_tensor_quantization2d<XDataType, ScaleDataType, QXDataType>(
         x_host, scale_host, qx_host_ref);
-
+    // std::cout<<scale_host(0)<<std::endl;
     qx_buf.FromDevice(qx_host_dev.data());
     
     auto [rtol, atol] = get_elimit<QXDataType>();

@@ -9,7 +9,6 @@
 #include <type_traits>
 
 namespace ck_tile {
-
 template <typename Problem_, typename Policy_ = PerTensorQuantPipelineDefaultPolicy>
 struct StaticPerTensorQuantPipeline
 {
@@ -92,7 +91,7 @@ struct DynamicPerTensorQuantPipeline
     {
         auto x_window =
             make_tile_window(x_window_, Policy::template MakeXBlockTileDistribution<Problem>());
-
+        auto origin = x_window.get_window_origin();
         static constexpr index_t Block_N = Problem::BlockShape::Block_N;
         index_t num_n_tile_iteration =
             __builtin_amdgcn_readfirstlane(integer_divide_ceil(row_size, Block_N));
@@ -130,12 +129,8 @@ struct DynamicPerTensorQuantPipeline
         block_reduce2d_cross_warp_sync(absmax, smem, reduce_max_func);
         *scale = absmax.get_thread_buffer()[0] / ck_tile::numeric<QXDataType>::max();
 
-        ck_tile::index_t stride_to_right_most_window =
-            row_size % Block_N == 0 ? row_size - Block_N : row_size - row_size % Block_N;
-        move_tile_window(x_window, {0, -Block_N});
-        move_tile_window(qx_window, {0, stride_to_right_most_window});
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
-        {
+        x_window.set_window_origin(origin);
+        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN){
             const auto x       = load_tile(x_window);
             const auto qx      = tile_elementwise_in(
                 [&](const auto& a) {
@@ -143,8 +138,8 @@ struct DynamicPerTensorQuantPipeline
                 },
                 x);
             store_tile(qx_window, qx);
-            move_tile_window(x_window, {0, -Block_N});
-            move_tile_window(qx_window, {0, -Block_N});
+            move_tile_window(x_window, {0, Block_N});
+            move_tile_window(qx_window, {0, Block_N});
         }
     }
 };
