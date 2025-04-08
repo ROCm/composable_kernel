@@ -564,9 +564,9 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
 {
     template <class FloatC>
     __device__ static void Run(const f8x32_t& reg_a,
-                               const int32_t scale_a,
+                               const int32_t& scale_a,
                                const f8x32_t& reg_b,
-                               const int32_t scale_b,
+                               const int32_t& scale_b,
                                FloatC& reg_c)
     {
 #if defined(__gfx950__)
