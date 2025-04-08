@@ -331,8 +331,10 @@ def cmake_build(Map conf=[:]){
                 }
             }
             else{
-                // run unit tests
-                sh "make check"
+                // run unit tests unless building library for all targets
+                if (!params.BUILD_INSTANCES_ONLY){
+                    sh "make check"
+                }
             }
         }
     }
@@ -604,12 +606,9 @@ def Build_CK(Map conf=[:]){
                         else if ( arch_type == 6 ){
                             // run standard tests on gfx908
                             echo "Run performance tests"
-                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm_gfx908.log"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx908"
                             archiveArtifacts "perf_onnx_gemm_gfx908.log"
-                            archiveArtifacts "perf_resnet50_N256_gfx908.log"
-                            archiveArtifacts "perf_resnet50_N4_gfx908.log"
-                            stash includes: "perf_**.log", name: "perf_log_gfx908"
+                            stash includes: "perf_onnx_gemm_gfx908.log", name: "perf_log_gfx908"
                         }
                         }
                     }
@@ -746,8 +745,7 @@ def process_results(Map conf=[:]){
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;ROCMVERSION=6.3;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true
-                                              0 22 * * * % ROCMVERSION=6.3;BUILD_GFX908=true;BUILD_GFX12=false;RUN_PERFORMANCE_TESTS=false
-                                              0 21 * * * % ROCMVERSION=6.3;hipTensor_test=true;RUN_CODEGEN_TESTS=true
+                                              0 21 * * * % ROCMVERSION=6.3;hipTensor_test=true;RUN_CODEGEN_TESTS=true;BUILD_GFX908=true;
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false
