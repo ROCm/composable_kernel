@@ -314,6 +314,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_bdequant_v1<
 
         // Initialize C
         c_thread_buf.Clear();
+        c_thread_buf_up.Clear();
 
         __builtin_amdgcn_sched_barrier(0);
 
