@@ -33,7 +33,8 @@ template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
           typename StaticPageIndexArray_,
-          index_t NumCoord>
+          index_t PageIndexDim = 0,
+          index_t NumCoord = 1>
 struct page_tile_with_static_distribution
 {
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
@@ -188,8 +189,9 @@ struct page_tile_with_static_distribution
                              array<index_t, NDimY>{0}));
 #endif
 
-        BottomTensorIndex bottom_tensor_thread_origin_idx_tmp ={0,
-            window_origin[1] + window_adaptor_thread_coord_tmp.get_bottom_index()[1]};
+        BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
+            window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
+        bottom_tensor_thread_origin_idx_tmp(PageIndexDim) = 0;
         // BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
         //     tuple<index_t, index_t>(0, window_adaptor_thread_coord_tmp.get_bottom_index()[1]);
         const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
@@ -373,7 +375,7 @@ struct page_tile_with_static_distribution
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == 0 ? 0 : idx_diff_ys[i]; }, number<NDimY>{});
+                        [&](auto i) { return i == PageIndexDim ? 0 : idx_diff_ys[i]; }, number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
                         generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
@@ -459,7 +461,7 @@ struct page_tile_with_static_distribution
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == 0 ? 0 : idx_diff_ys[i]; }, number<NDimY>{});
+                        [&](auto i) { return i == PageIndexDim ? 0 : idx_diff_ys[i]; }, number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
                         generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
@@ -488,13 +490,6 @@ struct page_tile_with_static_distribution
 
     CK_TILE_DEVICE void update_page_idx(const PageIdxArray& new_idx)
     {
-        // window_origin_ += step;
-
-        // static_for<0, NumCoord, 1>{}([&](auto iCoord) {
-        //     move_tensor_coordinate(bottom_tensor_view_.get_tensor_descriptor(),
-        //                            pre_computed_coords_(iCoord)(I1),
-        //                            step);
-        // });
         page_idx_  = new_idx;
     }
 //     CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
@@ -587,6 +582,7 @@ template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
           typename StaticPageIndexArray_,
+          index_t PageIndexDim = 0,
           index_t NumCoord = 1>
 CK_TILE_DEVICE constexpr auto
 make_tile_window_paged(const TensorView_& tensor_view,
@@ -594,12 +590,14 @@ make_tile_window_paged(const TensorView_& tensor_view,
                  const multi_index<TensorView_::get_num_of_dimension()>& origin,
                  const StaticTileDistribution_& tile_distribution,
                  const StaticPageIndexArray_& page_idx,
+                 number<PageIndexDim> = {},
                  number<NumCoord> = {})
 {
     return page_tile_with_static_distribution<remove_cvref_t<TensorView_>,
                                                 remove_cvref_t<WindowLengths_>,
                                                 remove_cvref_t<StaticTileDistribution_>,
                                                 remove_cvref_t<StaticPageIndexArray_>,
+                                                PageIndexDim,
                                                 NumCoord>{
         tensor_view, window_lengths, origin, tile_distribution, page_idx};
 }
@@ -643,30 +641,34 @@ make_tile_window_paged(const TensorView_& tensor_view,
 // }
 
 
-template <typename TensorView, typename WindowLengths, typename StaticTileDistribution, typename StaticPageIndexArray>
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution, typename StaticPageIndexArray, index_t PageIndexDim>
 CK_TILE_DEVICE constexpr auto
 make_tile_window_paged(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
                  const multi_index<TensorView::get_num_of_dimension()>& origin,
                  const StaticTileDistribution& tile_distribution,
-                 const StaticPageIndexArray& page_idx)
+                 const StaticPageIndexArray& page_idx,
+                 number<PageIndexDim> = {})
 {
     return make_tile_window_paged(tile_window.get_bottom_tensor_view(),
                             tile_window.get_window_lengths(),
                             origin,
                             tile_distribution,
-                            page_idx);
+                            page_idx,
+                            number<PageIndexDim>{});
 }
 
-template <typename TensorView, typename WindowLengths, typename StaticTileDistribution, typename StaticPageIndexArray>
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution, typename StaticPageIndexArray, index_t PageIndexDim>
 CK_TILE_DEVICE constexpr auto
 make_tile_window_paged(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
-                 const StaticTileDistribution& tile_distribution, const StaticPageIndexArray& page_idx)
+                 const StaticTileDistribution& tile_distribution, const StaticPageIndexArray& page_idx,
+                 number<PageIndexDim> = {})
 {
     return make_tile_window_paged(tile_window.get_bottom_tensor_view(),
                             tile_window.get_window_lengths(),
                             tile_window.get_window_origin(),
                             tile_distribution,
-                            page_idx);
+                            page_idx,
+                            number<PageIndexDim>{});
 }
 
 // template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>
