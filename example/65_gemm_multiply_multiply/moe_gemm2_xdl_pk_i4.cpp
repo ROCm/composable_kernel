@@ -63,11 +63,7 @@ struct MulABScaleExpertWeight
     {
         (void)d0;
 
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        e = ck::type_convert<EDataType>(c * d1 * d2 * 16);
-#else
         e = ck::type_convert<EDataType>(c * d1 * d2);
-#endif
     }
     // for reference cpu
     template <>
@@ -75,11 +71,7 @@ struct MulABScaleExpertWeight
         float& e, const float& c, const float& d0, const float& d1, const float& d2) const
     {
         // for reference cpu
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        e = ck::type_convert<EDataType>(c * d0 * d1 * d2 * 16);
-#else
         e = ck::type_convert<EDataType>(c * d0 * d1 * d2);
-#endif
     }
 };
 
@@ -122,15 +114,17 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = MulABScaleExpertWeight;
 
-static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr ck::index_t MPerBlock = 128;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
+
+#if 0
+static constexpr ck::index_t MPerBlock = 16;
 static constexpr ck::index_t BLOCKSIZE = 256;
-static constexpr ck::index_t MXDLPerWave   = 4;
-static constexpr ck::index_t NXDLPerWave   = 1;
-static constexpr ck::index_t NPerBlock     = 128;
-static constexpr ck::index_t MNPerXDL      = 32;
+static constexpr ck::index_t MXDLPerWave   = 1;
+static constexpr ck::index_t NXDLPerWave   = 2;
+static constexpr ck::index_t NPerBlock     = 256;
+static constexpr ck::index_t MNPerXDL      = 16;
 static constexpr ck::index_t KPerBlock     = 128 / sizeof(A0DataType);
-static constexpr ck::index_t CShuffleNLane = 32;
+static constexpr ck::index_t CShuffleNLane = 8;
 static constexpr ck::index_t CShuffleMLane = BLOCKSIZE / CShuffleNLane;
 static constexpr ck::index_t AK1           = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1           = 32 / sizeof(B0DataType);
@@ -148,9 +142,25 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
                MXDLPerWave,    NXDLPerWave,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
                S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
-               1,    1,   S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
+               1,    2,   S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, A0DataType>;
 // clang-format on
+#else
+static constexpr ck::index_t MPerBlock = 128;
+using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
+    // clang-format off
+        <      Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
+               AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
+               256,   MPerBlock,   128,    128,
+               16,   32,
+               32,   32,
+               4,    1,
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+               S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
+               1,    1,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, A0DataType>;
+// clang-format on
+#endif
 
 int main(int argc, char* argv[])
 {
@@ -166,8 +176,8 @@ int main(int argc, char* argv[])
     ck::index_t N               = 4096;
     ck::index_t K               = 14336;
     ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 19;
     ck::index_t valid_tile_num  = 16;
+    ck::index_t sorted_tile_num = valid_tile_num + 3;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
     ck::index_t tokens          = 512;
@@ -229,7 +239,7 @@ int main(int argc, char* argv[])
     for(int i = 0; i < sorted_size; i++)
     {
         int tile_off = i % MPerBlock;
-        if(tile_off < token_per_tile)
+        if(tile_off < token_per_tile && tokenid < tokens * topk)
         {
             sorted_token_ids.mData[i] = (tokenid % tokens) | ((tokenid / tokens) << 24);
             tokenid++;
@@ -429,9 +439,10 @@ int main(int argc, char* argv[])
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s" << device_op.GetTypeString() << std::endl;
+                  << " GB/s, " << device_op.GetTypeString() << std::endl;
     }
 
+    bool pass = true;
     if(do_verification)
     {
         // gemm2 use atomic, so need to reinit outputs
@@ -479,11 +490,11 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-        return ck::utils::check_err(
-                   e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
-                   ? 0
-                   : 1;
+        pass &= ck::utils::check_err(
+                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
+                    ? 0
+                    : 1;
     }
 
-    return 0;
+    return pass;
 }

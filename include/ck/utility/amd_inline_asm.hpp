@@ -62,7 +62,7 @@ inline __device__ f8x8_t amd_assembly_i4_to_fp8x8(int a)
     uint32_t fp8x4_0;
     uint32_t fp8x4_1;
     float tmp_0, tmp_1, tmp_2;
-
+ 
     asm volatile("v_cvt_off_f32_i4 %[v_tmp_0], %[v_src]\n"
                  "v_cvt_off_f32_i4 %[v_tmp_1], %[v_src], src0_sel:BYTE_2\n"
                  "v_cvt_pk_fp8_f32 %[v_dst_0], %[v_tmp_0], %[v_tmp_1]\n"
@@ -83,8 +83,11 @@ inline __device__ f8x8_t amd_assembly_i4_to_fp8x8(int a)
                    [v_dst_1] "+v"(fp8x4_1),
                    [v_src] "+v"(i4x8)
                  :);
-
-    return bit_cast<f8x8_t>(((static_cast<uint64_t>(fp8x4_1) << 32) | fp8x4_0));
+ 
+    vector_type<f8_t, 8> out;
+    out.template AsType<f8x4_t>()(Number<0>{}) = bit_cast<f8x4_t>(fp8x4_0);
+    out.template AsType<f8x4_t>()(Number<1>{}) = bit_cast<f8x4_t>(fp8x4_1);
+    return out.template AsType<f8x8_t>()[Number<0>{}];
 }
 
 // c0 += inner_product(a, b0)

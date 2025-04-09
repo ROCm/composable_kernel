@@ -79,23 +79,60 @@ __device__ inline half4_t i4_to_half4_scale(int q, const ck::half2_t& scale)
     return res.template AsType<half4_t>()[Number<0>{}];
 }
 
-__device__ inline f8x4_t i4_to_f8x4(int q)
+__device__ inline uint32_t i4_to_f8x4(int q)
 {
-    const int LO = 0x000f000f;
-    const int HI = 0x00f000f0;
+    // register values [0, 1, 2, 3]
+    static constexpr uint32_t reg0 = 0x4C484000;
+    // register values [4, 5, 6, 7]
+    static constexpr uint32_t reg1 = 0x56545250;
+    // register values [-4, -3, -2, -1]
+    static constexpr uint32_t reg2 = 0xD2D4D6D8;
+    // register values [-8, -7, -6, -5]
+    static constexpr uint32_t reg3 = 0xC0C8CCD0;
 
-    int lo = amd_assembly_and_b32(q, LO);
-    int hi = amd_assembly_and_b32(q, HI);
+    uint32_t tmp_pos, tmp_neg, tmp_res, final_sel;
 
-    float f32_0 = amd_assemble_cvt_f32_i4(lo);
-    float f32_1 = amd_assemble_cvt_f32_i4(lo >> 16);
-    float f32_2 = amd_assemble_cvt_f32_i4(hi);
-    float f32_3 = amd_assemble_cvt_f32_i4(hi >> 16);
+    uint32_t dict_sel = q & 0x07070707;
+    uint32_t sign = q >> 1;
+   
+    #if 0
+    asm volatile("v_and_or_b32 %0, %1, %2, %3"
+                 : "=v"(final_sel)
+                 : "v"(sign), "v"(0x04040404), "v"(0x03020100));
+#else
+    final_sel = (sign & 0x04040404) | 0x03020100;
+#endif
 
-    return amd_assembly_cvt_f8_to_f32(f32_0, f32_1, f32_2, f32_3);
+    // vector_type<f8_t, 4> res;
+
+    tmp_pos = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
+    tmp_neg = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
+    tmp_res = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
+
+    // res.template AsType<f8x4_t>()(Number<0>{}) = bit_cast<f8x4_t>(tmp_res);
+
+    // return res.template AsType<f8x4_t>()[Number<0>{}];
+    return tmp_res;
 }
 
-__device__ inline f8x8_t i4_to_fp8x8(int q) { return amd_assembly_i4_to_fp8x8(q); }
+__device__ inline f8x8_t i4_to_fp8x8(int q) 
+{
+#if 1
+    vector_type<f8_t, 8> result;
+
+    uint32_t res_lo = i4_to_f8x4(bit_cast<int>(q));
+    uint32_t res_hi = i4_to_f8x4(bit_cast<int>(q) >> 4);
+
+    result.template AsType<f8x4_t>()(Number<0>{}) =
+        bit_cast<f8x4_t>(__builtin_amdgcn_perm(res_hi, res_lo, 0x06040200));
+    result.template AsType<f8x4_t>()(Number<1>{}) =
+        bit_cast<f8x4_t>(__builtin_amdgcn_perm(res_hi, res_lo, 0x07050301));
+
+    return result.template AsType<f8x8_t>()[Number<0>{}];
+#else
+    return amd_assembly_i4_to_fp8x8(q);
+#endif
+}
 
 __device__ inline bhalf4_t i4_to_bhalf4(int q)
 {
@@ -163,8 +200,7 @@ struct PassThroughPack8
     __host__ __device__ constexpr void operator()(ck::f8x8_t& y, const ck::pk_i4x4_t& x) const
     {
 #if CK_USE_PK4_LAYOUT_SHUFFLE
-        y = i4_to_fp8x8(bit_cast<int>(x));
-
+        y= i4_to_fp8x8(bit_cast<int>(x));
 #else
         // Added pk_i4_t to f8x2_fnuz_t conversion
         vector_type<f8_t, 8> dst;

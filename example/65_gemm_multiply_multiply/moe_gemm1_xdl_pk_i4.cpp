@@ -59,11 +59,7 @@ struct MulABScale
     __host__ __device__ constexpr void operator()<EDataType, float, float, float>(
         EDataType& e, const float& c, const float& d0, const float& d1) const
     {
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        e = ck::type_convert<EDataType>(c * d1 * d0 * 16);
-#else
         e = ck::type_convert<EDataType>(c * d1 * d0);
-#endif
     }
 };
 
@@ -82,11 +78,8 @@ struct MulABScaleSilu
     {
         // act
         float x0 = 0;
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        ck::tensor_operation::element_wise::Silu{}(x0, c * d1 * d0 * 16);
-#else
+
         ck::tensor_operation::element_wise::Silu{}(x0, c * d1 * d0);
-#endif
         e = ck::type_convert<EDataType>(x0);
     }
 };
@@ -172,7 +165,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             256,   MPerBlock,   128,    128,
             16,   32,
             32,   32,
-            4,    1,
+            4,    1, 
             S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
             S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
             1,    1,   S<1, 32, 1, 8>, S<8, 1, 1>,
@@ -198,7 +191,8 @@ int main(int argc, char* argv[])
     ck::index_t valid_tile_num  = 13;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
-    ck::index_t tokens          = 644;
+    ck::index_t tokens          = 832;
+
     ck::index_t topk            = 2;
 
     if(argc == 1)
@@ -232,7 +226,7 @@ int main(int argc, char* argv[])
     ck::index_t StrideB              = K;
     ck::index_t StrideE              = N;
     constexpr ck::index_t NumDTensor = DsDataType::Size();
-    constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{0, 0};
+    constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{1, 0};
 
     ck::index_t KBatch = 1;
 
@@ -245,12 +239,12 @@ int main(int argc, char* argv[])
     {
         expert_ids.mData[i] = eids[i];
     }
-    int token_per_tile = tokens * topk / valid_tile_num;
+    int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;
     for(int i = 0; i < sorted_size; i++)
     {
         int tile_off = i % MPerBlock;
-        if(tile_off < token_per_tile)
+        if(tile_off < token_per_tile && tokenid < tokens * topk)
         {
             sorted_token_ids.mData[i] = (tokenid % tokens) | ((tokenid / tokens) << 24);
             tokenid++;
@@ -377,7 +371,7 @@ int main(int argc, char* argv[])
                     input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
                 }
 
-                // permute 01234567->20643175
+                // permute 01234567->04152637
                 {
                     int hi   = input[2];
                     int lo   = input[0];
@@ -461,9 +455,10 @@ int main(int argc, char* argv[])
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s" << device_op.GetTypeString() << std::endl;
+                  << " GB/s, " << device_op.GetTypeString() << std::endl;
     }
 
+    bool pass = true;
     if(do_verification)
     {
         invoker.Run(argument, StreamConfig{nullptr, false, 0, 0, 1});
@@ -516,11 +511,11 @@ int main(int argc, char* argv[])
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
-        return ck::utils::check_err(
-                   e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
-                   ? 0
-                   : 1;
+        pass &= ck::utils::check_err(
+                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
+                    ? 0
+                    : 1;
     }
 
-    return 0;
+    return pass;
 }

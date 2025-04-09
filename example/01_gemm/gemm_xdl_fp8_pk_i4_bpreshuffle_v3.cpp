@@ -30,7 +30,7 @@ static constexpr bool PermuteA = false;
 static constexpr bool PermuteB = false;
 
 // clang-format off
-#if 0
+#if 1
 using DeviceGemmV2Instance = 
     ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3_BPreshuffle<
         ALayout,   BLayout,  CLayout,   
@@ -38,14 +38,14 @@ using DeviceGemmV2Instance =
         AElementOp, BElementOp, CElementOp, GemmDefault, 
         256,
         128, 128,
-        256, 16, 32,
+        128, 16, 32,
         32,   32,
         4,    1,
         S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 16, 16, 0,
         S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
-        1, 1, S<1, 32, 1, 8>, 4,
+        1, 1, S<1, 32, 1, 8>, 8,
         ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, F8, F8, PermuteA, PermuteB>;
         
 #else
@@ -187,6 +187,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         }
     }
 
+#if CK_USE_PK4_LAYOUT_SHUFFLE
     // vector pk_i4x4 permute
     for(int i = 0; i < N; i++)
     {
@@ -235,6 +236,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             }
         }
     }
+    
+#endif
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n_preshuffled.mData.data());
@@ -285,8 +288,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                     i4 = (i4x2.data >> 0) & 0xf;
                 else
                     i4 = (i4x2.data >> 4) & 0xf;
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+                float v_b = i4_to_f32_gfx9(i4) * 16;
+#else
+                float v_b = i4 - 8;
+#endif
 
-                float v_b       = i4_to_f32_gfx9(i4);
                 b_k_n_f32(k, n) = v_b;
             }
         }

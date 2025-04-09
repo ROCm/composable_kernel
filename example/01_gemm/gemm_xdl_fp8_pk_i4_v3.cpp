@@ -27,7 +27,7 @@ using CElementOp = PassThrough;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 static constexpr bool PermuteA         = false;
-static constexpr bool PermuteB         = true;
+static constexpr bool PermuteB         = false;
 static constexpr ck::index_t KPerBlock = 128;
 
 // clang-format off
@@ -40,13 +40,13 @@ using DeviceGemmV2Instance =
         128, 128,
         KPerBlock, 16, 32,
         32,   32,
-        2,    2,
+        4,    1,
         S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 16, 16, 0,
         S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
         1, 1, S<1, 32, 1, 8>, 8,
-        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v2, ADataType, ADataType, PermuteA, PermuteB>;
+        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, ADataType, ADataType, PermuteA, PermuteB>;
 
 // clang-format on
 
@@ -164,6 +164,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         }
     }
 
+#if CK_USE_PK4_LAYOUT_SHUFFLE
     // vector pk_i4x4 permute
     for(int i = 0; i < N; i++)
     {
@@ -178,7 +179,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                 input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
             }
 
-            // permute 01234567->20643175
+            // permute 01234567->02461357
             {
                 int hi   = input[2];
                 int lo   = input[0];
@@ -212,6 +213,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             }
         }
     }
+#endif
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n_permute.mData.data());
@@ -265,7 +267,11 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                 else
                     i4 = (i4x2.data >> 4) & 0xf;
 
-                float v_b       = i4_to_f32_gfx9(i4);
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+                float v_b = i4_to_f32_gfx9(i4) * 16;
+#else
+                float v_b = i4 - 8;
+#endif
                 b_k_n_f32(k, n) = v_b;
             }
         }
