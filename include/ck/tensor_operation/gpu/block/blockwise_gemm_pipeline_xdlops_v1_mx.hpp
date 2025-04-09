@@ -538,11 +538,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         vector_type<ComputeTypeA, KPack> a_thread_vec;
                         vector_type<ComputeTypeB, KPack> b_thread_vec;
 
-                        bool is_B_zero = true;
-                        bool is_A_zero = true;
-                        ignore         = is_B_zero;
-                        ignore         = is_A_zero;
-
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
