@@ -31,9 +31,9 @@ Table of supported cases by instance factory with XDL instruction:
 
 |       |NHWGC/GKYXC/NHWGK|NGCHW/GKYXC/NGKHW|GNHWC/GKYXC/GNHWK|
 |-------|---|---|---|
-|bf16|2D, 3D|&cross;|2D, 3D|
-|fp16 |2D, 3D|&cross;|2D, 3D|
-|fp32  |2D, 3D|&cross;|2D, 3D|
+|bf16|2D, 3D|2D, 3D|2D, 3D|
+|fp16 |2D, 3D|2D, 3D|2D, 3D|
+|fp32  |2D, 3D|2D, 3D|2D, 3D|
 
 Table of supported cases by instance factory with WMMA instruction:
 
