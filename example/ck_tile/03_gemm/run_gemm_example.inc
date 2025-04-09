@@ -263,9 +263,10 @@ int run_gemm_example_with_layouts(int argc,
     // set 1 column in A and 1 Row in B to perform outer product. 
     // and test the results. 
     //const ck_tile::index_t K_len = a_m_k.get_length(1);
-    const ck_tile::index_t M_len = a_m_k.get_length(0);
-    const ck_tile::index_t N_len = b_k_n.get_length(1);
+    //const ck_tile::index_t M_len = a_m_k.get_length(0);
+    //const ck_tile::index_t N_len = b_k_n.get_length(1);
 
+    /*
     // Fill 0th column in A
     ck_tile::half_t dd = 1;
     for(int i = 0; i < M_len; i++)
@@ -273,11 +274,7 @@ int run_gemm_example_with_layouts(int argc,
         int j = 0;
         {
             a_m_k(i, j) = dd;
-        }
-        int k = 8;
-        {
-            a_m_k(i, k) = dd++;
-        }        
+        }   
     }
 
     // Fill 0th row in B
@@ -289,15 +286,7 @@ int run_gemm_example_with_layouts(int argc,
             b_k_n(i, j) = dd;
         }
     }
-
-    i = 8;
-    {
-        for(int j=0; j < N_len; j++)
-        {
-            b_k_n(i, j) = dd;
-        }
-    }
-
+    */
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
@@ -439,6 +428,18 @@ int run_gemm_example_with_layouts(int argc,
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
         std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
+    }
+
+    const ck_tile::index_t M_len = c_m_n_dev_result.get_length(0);
+    const ck_tile::index_t N_len = c_m_n_dev_result.get_length(1);
+
+    for (int i = 0; i < M_len; i++)
+    {
+        for (int j = 0; j < N_len; j++)
+        {
+            std::cout << std::setw(6) << ck_tile::type_convert<float>(c_m_n_dev_result(i, j)); 
+        }
+        std::cout<<std::endl;
     }
 
     return pass;

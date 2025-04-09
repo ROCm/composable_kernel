@@ -67,7 +67,7 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
         return b_lds_block_desc;
     }
 
-    template <typename Problem>
+    template <typename Problem, index_t NumWarpGroups=1>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
         using AccDataType     = float;
@@ -86,7 +86,9 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
                                                                     BlockWarps,
                                                                     WarpGemm>;
 
-        return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
+        static_assert(NumWarpGroups == 2);
+
+        return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy, NumWarpGroups>{};
     }
 };
 } // namespace ck_tile

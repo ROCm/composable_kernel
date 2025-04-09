@@ -75,7 +75,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                            tail_number_v>;
 
         using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
-        
+        /*
         using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
             ck_tile::DefaultGemm2DEpilogueProblem<AccDataType,
                                              CDataType,
@@ -86,9 +86,9 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC>>;
+        */
         
         
-        /*
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -104,7 +104,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC>>;        
-        */
+        
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 

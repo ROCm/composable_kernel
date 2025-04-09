@@ -11,11 +11,11 @@ namespace ck_tile {
 // A is block distributed tensor
 // B is block distributed tensor
 // C is block distributed tensor
-template <typename Problem_, typename Policy_ = BlockGemmARegBRegCRegV1DefaultPolicy>
+template <typename Problem_, typename Policy_ = BlockGemmARegBRegCRegV1DefaultPolicy, index_t NumWarpGroups = 1>
 struct BlockGemmARegBRegCRegV1
 {
     private:
-    template <typename PipelineProblem_, typename GemmPolicy_>
+    template <typename PipelineProblem_, typename GemmPolicy_, index_t NumWarpGroups_>
     struct GemmTraits_
     {
         using Problem        = remove_cvref_t<PipelineProblem_>;
@@ -34,7 +34,7 @@ struct BlockGemmARegBRegCRegV1
         static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm               = remove_cvref_t<decltype(config.template at<0>())>;
 
-        static constexpr index_t MWarp        = config.template at<1>();
+        static constexpr index_t MWarp        = (config.template at<1>()) / NumWarpGroups;
         static constexpr index_t NWarp        = config.template at<2>();
         static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
         static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
@@ -47,7 +47,7 @@ struct BlockGemmARegBRegCRegV1
     using Problem = remove_cvref_t<Problem_>;
     using Policy  = remove_cvref_t<Policy_>;
 
-    using Traits = GemmTraits_<Problem, Policy>;
+    using Traits = GemmTraits_<Problem, Policy, NumWarpGroups>;
 
     using WarpGemm       = typename Traits::WarpGemm;
     using BlockGemmShape = typename Traits::BlockGemmShape;
@@ -65,6 +65,8 @@ struct BlockGemmARegBRegCRegV1
 
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
+        static_assert( MWarp == 1);
+        static_assert(MIterPerWarp == 2);
         constexpr auto a_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<NWarp>,
                                        tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
@@ -95,6 +97,7 @@ struct BlockGemmARegBRegCRegV1
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockDistributionEncode()
     {
+        static_assert(MWarp * NWarp == 1);
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
             tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,

@@ -56,17 +56,19 @@ template <index_t BlockSize,
           index_t YPerTile,
           index_t XPerTile,
           index_t VecSize,
+          index_t NumWarpGroups,
           tile_distribution_pattern DistributionPattern>
 struct TileDistributionEncodingPattern2D : public TileDistributionEncodingPattern
 {
 };
 
 // Thread raked
-template <index_t BlockSize, index_t YPerTile, index_t XPerTile, index_t VecSize>
+template <index_t BlockSize, index_t YPerTile, index_t XPerTile, index_t VecSize, index_t NumWarpGroups>
 struct TileDistributionEncodingPattern2D<BlockSize,
                                          YPerTile,
                                          XPerTile,
                                          VecSize,
+                                         NumWarpGroups,
                                          tile_distribution_pattern::thread_raked>
     : public TileDistributionEncodingPattern
 {
@@ -90,6 +92,14 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     static_assert(X0 * Y1 * Y0 == BlockSize, "X0 * warp_ys * Y0 must cover whole workgroup!");
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
 
+    static constexpr index_t PX0 = X0;
+    static constexpr index_t PX1 = X1;
+
+    static constexpr index_t PY0 = num_warps / NumWarpGroups;
+    static constexpr index_t PY1 = Y1; 
+    static constexpr index_t PY2 = YPerTile / (PY1 * PY0); // only for the active warps
+
+
     CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
     {
         return make_static_tile_distribution(
@@ -111,6 +121,50 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                        sequence<1, 2>,
                                        sequence<1, 2>>{});
     }
+
+    CK_TILE_HOST_DEVICE static constexpr auto MakePingPong2DStaticTileDistribution()
+    {
+        // X0, X1
+        // X0 - One Row/Column needs X1 no. of instructions to read/write.
+        // X1 - VecSize - The read instruction size.
+        // X is always the fastest changing dimension of the input matrix.
+
+        // Y0, Y1, Y2
+        // Y0 - Total number of warps in a thread group. 
+        // Y1 - WarpSize / no-of-threads-in-N-dimension. 
+        //    - No. of threads needed in the M dimension
+        // Y2 - YPerTile / (Y1 * Y0)
+        //    - Y size / (no. of threads on Y dimensions * no. of warps)
+        //    - Total no. of iterations needed by all the warps in the thread group to cover the
+        //    - entire tile window.
+
+        // (2, 0) = PY0 -- Number of warps in the threadblock
+        // (2, 1) * (1, 0) = PY1 * PX0, (M threads) * (N Threads)
+
+        static_assert(NumWarpGroups == 2);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>, 
+                                        tuple<sequence<PX0, PX1>, sequence<PY0, PY1, PY2>>, 
+                                        tuple<sequence<2>, sequence<2, 1>>,
+                                        tuple<sequence<0>, sequence<1, 0>>,
+                                        sequence<1, 2>,
+                                        sequence<1, 2>>{}
+        );
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto MakePingPongShuffled2DStaticTileDistribution()
+    {
+        static_assert(NumWarpGroups == 2);
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>, 
+                                        tuple<sequence<PX0, PX1>, sequence<PY0, PY1, PY2>>,
+                                        tuple<sequence<2>, sequence<2, 1>>, 
+                                        tuple<sequence<0>, sequence<1, 0>>,
+                                        sequence<1, 2>, 
+                                        sequence<1, 2>>{}
+        );
+    }
 };
 
 // Warp raked
@@ -119,6 +173,7 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                          YPerTile,
                                          XPerTile,
                                          VecSize,
+                                         1,
                                          tile_distribution_pattern::warp_raked>
     : public TileDistributionEncodingPattern
 {
@@ -167,6 +222,7 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                          YPerTile,
                                          XPerTile,
                                          VecSize,
+                                         1,
                                          tile_distribution_pattern::block_raked>
     : public TileDistributionEncodingPattern
 {
