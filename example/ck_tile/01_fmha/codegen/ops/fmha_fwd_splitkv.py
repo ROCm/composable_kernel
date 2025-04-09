@@ -796,6 +796,10 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt) -> Lis
                     cond &= mode == "group"
                     if not cond:
                         continue
+                elif receipt == 500:
+                    cond = dtype in ['fp16', 'bf16']
+                    if not cond:
+                        continue
                 gen.append(k)
 
     return gen
