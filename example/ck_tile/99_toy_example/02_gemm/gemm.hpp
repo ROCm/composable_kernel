@@ -4,9 +4,9 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
-#include "ck_tile/core/tensor/tile_distribution.hpp"
 
 #include "block_gemm_pipeline_agmem_bgmem_creg.hpp"
 #include "config.h"
@@ -29,7 +29,28 @@ struct GridGemmProblem
     using CElementFunction = CElementFunction_;
 };
 
-#ifndef ENABLE_INSTRUCTION_SCH
+#if defined(ENABLE_INSTRUCTION_SCH)
+template <typename BlockTile_,
+          typename BlockWarps_,
+          typename WarpTile_,
+          bool PermuteA_ = false,
+          bool PermuteB_ = false>
+struct TileGemmShape
+{
+    using BlockTile  = remove_cvref_t<BlockTile_>;
+    using BlockWarps = remove_cvref_t<BlockWarps_>;
+    using WarpTile   = remove_cvref_t<WarpTile_>;
+
+    static constexpr index_t NumWarps = reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
+
+    static constexpr index_t kM = BlockTile::at(number<0>{});
+    static constexpr index_t kN = BlockTile::at(number<1>{});
+    static constexpr index_t kK = BlockTile::at(number<2>{});
+
+    static constexpr bool PermuteA = PermuteA_;
+    static constexpr bool PermuteB = PermuteB_;
+};
+#else
 template <index_t kMPerTile, index_t kNPerTile, index_t kKPerTile>
 struct TileGemmShape
 {
@@ -39,6 +60,91 @@ struct TileGemmShape
 };
 #endif
 
+#if defined(ENABLE_INSTRUCTION_SCH)
+template <bool kPadM_,
+          bool kPadN_,
+          bool kPadK_,
+          typename ALayout_,
+          typename BLayout_,
+          typename CLayout_>
+struct TileGemmTraits
+{
+    static constexpr bool kPadM = kPadM_;
+    static constexpr bool kPadN = kPadN_;
+    static constexpr bool kPadK = kPadK_;
+
+    // TODO this can't be hardcoded here! Should be in policy!
+    static constexpr int _VectorSize = 16;
+
+    using ALayout = ALayout_;
+    using BLayout = BLayout_;
+    using CLayout = CLayout_;
+
+    static constexpr bool TransposeC = false;
+};
+
+template <bool kPadM_,
+          bool kPadN_,
+          bool kPadK_,
+          bool DoubleSmemBuffer_,
+          typename ALayout_,
+          typename BLayout_,
+          typename CLayout_,
+          bool TransposeC_ = false>
+struct TileGemmUniversalTraits
+{
+    static constexpr bool kPadM = kPadM_;
+    static constexpr bool kPadN = kPadN_;
+    static constexpr bool kPadK = kPadK_;
+
+    static constexpr bool DoubleSmemBuffer = DoubleSmemBuffer_;
+
+    using ALayout = ALayout_;
+    using BLayout = BLayout_;
+    using CLayout = CLayout_;
+
+    static constexpr bool TransposeC = TransposeC_;
+};
+
+template <typename ADataType_,
+          typename BDataType_,
+          typename CDataType_,
+          typename BlockGemmShape_,
+          typename Traits_,
+          GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
+          bool HasHotLoop_                 = true,
+          TailNumber TailNum_              = TailNumber::Full,
+          typename ComputeDataType_        = ADataType_>
+struct BlockGemmPipelineProblem
+{
+    using Traits = remove_cvref_t<Traits_>;
+
+    using ADataType       = remove_cvref_t<ADataType_>;
+    using BDataType       = remove_cvref_t<BDataType_>;
+    using CDataType       = remove_cvref_t<CDataType_>;
+    using ComputeDataType = remove_cvref_t<ComputeDataType_>;
+
+    using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
+
+    using ALayout = remove_cvref_t<typename Traits::ALayout>;
+    using BLayout = remove_cvref_t<typename Traits::BLayout>;
+    using CLayout = remove_cvref_t<typename Traits::CLayout>;
+
+    static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
+
+    static constexpr bool kPadM = Traits::kPadM;
+    static constexpr bool kPadN = Traits::kPadN;
+    static constexpr bool kPadK = Traits::kPadK;
+
+    static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
+
+    static constexpr auto Scheduler  = Scheduler_;
+    static constexpr auto HasHotLoop = HasHotLoop_;
+    static constexpr auto TailNum    = TailNum_;
+
+    static constexpr bool TransposeC = Traits::TransposeC;
+};
+#else
 template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
@@ -53,6 +159,7 @@ struct BlockGemmPipelineProblem
 
     static constexpr index_t kBlockSize = kBlockSize_;
 };
+#endif
 
 // C = A * B
 template <typename ADataType,
@@ -147,10 +254,56 @@ struct Gemm
 #endif
         }
 
-#ifndef ENABLE_INSTRUCTION_SCH
+#if defined(ENABLE_INSTRUCTION_SCH)
+        static constexpr index_t M_Tile = 128;
+        static constexpr index_t N_Tile = 128;
+        static constexpr index_t K_Tile = 64;
+        static constexpr index_t M_Warp = 2;
+        static constexpr index_t N_Warp = 2;
+        static constexpr index_t K_Warp = 1;
+        static constexpr index_t M_Warp_Tile = 16;
+        static constexpr index_t N_Warp_Tile = 16;
+        static constexpr index_t K_Warp_Tile = 32;
+        static constexpr bool DoubleSmemBuffer = false;
+        static constexpr bool kPadM = false;
+        static constexpr bool kPadN = false;
+        static constexpr bool kPadK = false;
+        static constexpr bool PermuteA = false;
+        static constexpr bool PermuteB = false;
+        static constexpr bool TransposeC = false;
+#endif
+
         template <typename Problem>
         CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemmPipeline()
         {
+#if defined(ENABLE_INSTRUCTION_SCH)
+            // Block GEMM pipeline w/ instruction scheduling
+            using GemmShape = TileGemmShape<sequence<M_Tile, N_Tile, K_Tile>,
+                                            sequence<M_Warp, N_Warp, K_Warp>,
+                                            sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>,
+                                            PermuteA,
+                                            PermuteB>;
+
+            using GemmUniversalTraits =
+                TileGemmUniversalTraits<kPadM,
+                                        kPadN,
+                                        kPadK,
+                                        DoubleSmemBuffer,
+                                        /* ALayout */ tensor_layout::gemm::RowMajor,
+                                        /* BLayout */ tensor_layout::gemm::ColumnMajor,
+                                        /* CLayout */ tensor_layout::gemm::RowMajor,
+                                        TransposeC>;
+
+            using BlockGemmPipelineProblem_ =
+                BlockGemmPipelineProblem<ADataType,
+                                        BDataType,
+                                        AccDataType,
+                                        GemmShape,
+                                        GemmUniversalTraits,
+                                        GemmPipelineScheduler::Intrawave,
+                                        /* Has hot loop */ true,
+                                        TailNumber::Full>;
+#else
             using BlockGemmPipelineProblem_ =
                 BlockGemmPipelineProblem<ADataType,
                                          BDataType,
@@ -158,9 +311,9 @@ struct Gemm
                                          kBlockSize,
                                          TileGemmShape<kMPerBlock, kNPerBlock, kKPerBlock>>;
 
+#endif
             return BlockGemmPipelineAGmemBGmemCReg<BlockGemmPipelineProblem_>{};
         }
-#endif
     };
 
     using GridGemm = GridGemm<GridGemmProblem, GridGemmPolicy>;
