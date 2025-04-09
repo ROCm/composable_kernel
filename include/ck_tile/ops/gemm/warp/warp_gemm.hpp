@@ -64,6 +64,10 @@ using WarpGemmMfmaF16F16F32M64N4K16 = WarpGemmImpl<WarpGemmAtrributeMfmaIterateK
     WarpGemmAttributeMfmaImplF16F16F32M64N4K4<WGAttrCtlEnum::Default_>,
     4>>;
 
+using WarpGemmMfmaF16F16F32M16N32K16TransposedCDistribution =
+    WarpGemmImpl<WarpGemmAtrributeMfmaIterateNAndTransposedCDistribution<
+        WarpGemmAttributeMfmaImplF16F16F32M16N16K16<WGAttrCtlEnum::Default_>,
+        2>>;
 // bf16
 
 using WarpGemmMfmaBf16Bf16F32M32N32K8 = WarpGemmImpl<
@@ -120,6 +124,10 @@ using WarpGemmMfmaBf16Bf16F32M64N4K16 = WarpGemmImpl<WarpGemmAtrributeMfmaIterat
     WarpGemmAttributeMfmaImplBf16Bf16F32M64N4K4<WGAttrCtlEnum::Default_>,
     4>>;
 
+using WarpGemmMfmaBf16Bf16F32M16N32K16TransposedCDistribution =
+    WarpGemmImpl<WarpGemmAtrributeMfmaIterateNAndTransposedCDistribution<
+        WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16<WGAttrCtlEnum::Default_>,
+        2>>;
 // fp8
 
 using WarpGemmMfma_f32_32x32x16_fp8_fp8 = WarpGemmImpl<

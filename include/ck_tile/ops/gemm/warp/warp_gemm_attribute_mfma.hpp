@@ -642,6 +642,219 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
     }
 };
 
+template <typename WarpGemmAttributeMfmaImpl_, index_t kNIter>
+struct WarpGemmAtrributeMfmaIterateNAndTransposedCDistribution
+{
+    using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
+
+    // swap A and B
+    using ADataType = typename Impl::BDataType;
+    using BDataType = typename Impl::ADataType;
+    using CDataType = typename Impl::CDataType;
+
+    using AVecType = typename Impl::AVecType;
+
+    using BVecType =
+        ext_vector_t<BDataType, vector_traits<typename Impl::BVecType>::vector_size * kNIter>;
+    using CVecType =
+        ext_vector_t<CDataType, vector_traits<typename Impl::CVecType>::vector_size * kNIter>;
+
+    static constexpr index_t kM          = Impl::kN;
+    static constexpr index_t kN          = Impl::kM * kNIter;
+    static constexpr index_t kK          = Impl::kK;
+    static constexpr index_t kKPerThread = Impl::kABKPerLane;
+
+    CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return kNIter; }
+
+    static_assert(Impl::kAMBlock == 1 || Impl::kBNBlock == 1,
+                  "Multi-block on both M & N directions is not supported");
+
+    CK_TILE_DEVICE static constexpr auto get_awarp_dstr_encoding()
+    {
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
+        {
+            // single block to multi-block thread mapping
+            return tile_distribution_encoding<sequence<>,
+                                              tuple<sequence<Impl::kBNBlock, Impl::kBNLane>,
+                                                    sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                                              tuple<sequence<1, 2, 1>>,
+                                              tuple<sequence<0, 0, 1>>,
+                                              sequence<2>,
+                                              sequence<1>>{};
+        }
+        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
+        {
+            // each N blocks share the same data
+            return tile_distribution_encoding<
+                sequence<Impl::kAMBlock>,
+                tuple<sequence<Impl::kBNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<0, 2, 1>>,
+                tuple<sequence<0, 0, 0>>,
+                sequence<2>,
+                sequence<1>>{};
+        }
+    }
+
+    CK_TILE_DEVICE static constexpr auto get_bwarp_dstr_encoding()
+    {
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<kNIter, Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<0, 1>>,
+                sequence<1, 2>,
+                sequence<0, 1>>{};
+        }
+        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
+        {
+            // each M blocks share the same data
+            return tile_distribution_encoding<
+                sequence<Impl::kBNBlock>,
+                tuple<sequence<kNIter, Impl::kAMLane>, sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                tuple<sequence<0, 2, 1>>,
+                tuple<sequence<0, 0, 1>>,
+                sequence<1, 2>,
+                sequence<0, 1>>{};
+        }
+        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
+        {
+            // single block to multi-block thread mapping
+            return tile_distribution_encoding<sequence<>,
+                                              tuple<sequence<kNIter, Impl::kAMBlock, Impl::kAMLane>,
+                                                    sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+                                              tuple<sequence<1, 2, 1>>,
+                                              tuple<sequence<1, 0, 2>>,
+                                              sequence<1, 2>,
+                                              sequence<0, 1>>{};
+        }
+    }
+
+    CK_TILE_DEVICE static constexpr auto get_cwarp_dstr_encoding()
+    {
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kCNLane>,
+                      sequence<kNIter, Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<2, 0>>,
+                sequence<2, 2, 2>,
+                sequence<0, 1, 3>>{};
+        }
+        else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
+        {
+            return tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<Impl::kBNBlock * Impl::kCNLane>,
+                      sequence<kNIter, Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>>,
+                tuple<sequence<2, 1>>,
+                tuple<sequence<2, 0>>,
+                sequence<2, 2, 2>,
+                sequence<0, 1, 3>>{};
+        }
+        else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
+        {
+            return tile_distribution_encoding<sequence<>,
+                                              tuple<sequence<Impl::kCNLane>,
+                                                    sequence<kNIter,
+                                                             Impl::kCM0PerLane,
+                                                             Impl::kAMBlock * Impl::kCMLane,
+                                                             Impl::kCM1PerLane>>,
+                                              tuple<sequence<2, 1>>,
+                                              tuple<sequence<2, 0>>,
+                                              sequence<2, 2, 2>,
+                                              sequence<0, 1, 3>>{};
+        }
+    }
+
+    using AWarpDstrEncoding = decltype(get_awarp_dstr_encoding());
+
+    using BWarpDstrEncoding = decltype(get_bwarp_dstr_encoding());
+
+    using CWarpDstrEncoding = decltype(get_cwarp_dstr_encoding());
+
+    template <bool post_nop_ = false>
+    // c_vec += a_vec * b_vec
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        using buf_c = thread_buffer<typename Impl::CVecType, kNIter>;
+        using buf_b = thread_buffer<typename Impl::BVecType, kNIter>;
+        // swap A and B, value and type
+        // Bug: result not write back.
+        static_for<0, kNIter, 1>{}([&](auto iNIter) {
+            Impl{}(
+                reinterpret_cast<buf_c&>(c_vec).template get_as<typename Impl::CVecType>()(iNIter),
+                reinterpret_cast<const buf_b&>(b_vec)
+                    .template get_as<typename Impl::BVecType>()[iNIter],
+                a_vec,
+                bool_constant<post_nop_>{});
+        });
+
+        // if(get_thread_global_1d_id()==0){
+        //     printf("Enter here, ")
+        // }
+    }
+
+    template <index_t iNIter, bool post_nop_ = false>
+    // c_vec += a_vec * b_vec
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   number<iNIter>,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        using buf_c = thread_buffer<typename Impl::CVecType, kNIter>;
+        using buf_b = thread_buffer<typename Impl::BVecType, kNIter>;
+
+        static_assert(iNIter < kNIter);
+        // swap A and B, value and type
+        // static_for<0, kNIter, 1>{}([&](auto iNIter) {
+        Impl{}(reinterpret_cast<buf_c&>(c_vec).template get_as<typename Impl::CVecType>()(iNIter),
+               reinterpret_cast<const buf_b&>(b_vec)
+                   .template get_as<typename Impl::BVecType>()[iNIter],
+               a_vec,
+               bool_constant<post_nop_>{});
+        //});
+    }
+
+    // c_vec = a_vec * b_vec
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        constexpr auto I0 = number<0>{};
+
+        using buf_c = thread_buffer<typename Impl::CVecType, kNIter>;
+        buf_c c_buf;
+        using buf_b = thread_buffer<typename Impl::BVecType, kNIter>;
+
+        static_for<0, kNIter, 1>{}([&](auto iNIter) {
+            auto c_vec_tmp = Impl{}(
+                reinterpret_cast<const buf_b&>(b_vec).template get_as<typename Impl::BVecType>()(
+                    iNIter),
+                a_vec);
+
+            c_buf.template set_as<typename Impl::CVecType>(iNIter, c_vec_tmp);
+        });
+
+        return c_buf.template get_as<CVecType>()[I0];
+    }
+};
+
 template <typename WarpGemmAttributeMfmaImpl_, index_t kKIter, index_t SFactor_ = 2>
 struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
 {

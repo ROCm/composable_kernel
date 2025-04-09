@@ -38,8 +38,7 @@ using fmha_bwd_convert_dq_0 =
 
 using fmha_bwd_convert_dq_kernel_0 = ck_tile::FmhaBwdConvertQGradKernel<fmha_bwd_convert_dq_0>;
 
-using convert_dq_trait_0 =
-    fmha_bwd_convert_dq_traits_<128, FmhaBwdFp16, false, true, false, false>;
+using convert_dq_trait_0 = fmha_bwd_convert_dq_traits_<128, FmhaBwdFp16, false, true, false, false>;
 
 template <>
 void fmha_bwd_convert_dq_oneshot_<convert_dq_trait_0>(const ck_tile::stream_config& s,
@@ -67,6 +66,7 @@ using fmha_block_warps1_0 = ck_tile::sequence<4, 1, 1>;
 using fmha_block_warps2_0 = ck_tile::sequence<1, 4, 1>;
 using fmha_warp_tile0_0   = ck_tile::sequence<16, 16, 32>;
 using fmha_warp_tile1_0   = ck_tile::sequence<16, 16, 16>;
+using fmha_warp_tile2_0   = ck_tile::sequence<16, 32, 16>;
 
 // TODO: simplify Gemm0~4BlockWarps in TileFmhaBwdShape
 //       G0&G2 -> GSdP
@@ -76,16 +76,16 @@ using fmha_bwd_shape_0 = ck_tile::TileFmhaBwdShape<fmha_block_tile_0,
                                                    fmha_block_warps0_0,
                                                    fmha_warp_tile0_0,
                                                    fmha_block_warps1_0,
-                                                   fmha_warp_tile1_0,
+                                                   fmha_warp_tile2_0,
                                                    fmha_block_warps0_0,
                                                    fmha_warp_tile0_0,
                                                    fmha_block_warps1_0,
-                                                   fmha_warp_tile1_0,
+                                                   fmha_warp_tile2_0,
                                                    fmha_block_warps2_0,
                                                    fmha_warp_tile0_0>;
 
 using fmha_bwd_trait_0 = ck_tile::TileFmhaTraits<true,
-true,
+                                                 true,
                                                  false,
                                                  false,
                                                  ck_tile::BlockAttentionBiasEnum::NO_BIAS,
@@ -618,6 +618,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
         }
     }
+
+    // for(int iM=0; iM<128; iM++){
+    //     for(int iK=0; iK<16; iK++){
+    //         printf("%04x ", *(reinterpret_cast<uint16_t*>(&(q_host(0, 0, iK, iM)))));
+    //     }
+    //     printf("\n");
+    // }
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());

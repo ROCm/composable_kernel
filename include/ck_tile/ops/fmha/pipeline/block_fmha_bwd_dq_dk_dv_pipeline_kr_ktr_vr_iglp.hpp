@@ -258,6 +258,51 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         block_sync_lds();
 
         auto v_reg_tensor = load_tile(v_lds_read_window);
+
+#if 0
+        constexpr auto kSeq0 = 64;
+        // Looped data loading
+        static_for<0, kN0 / kSeq0, 1>{}([&](auto i_n0) {
+            auto k_block_tile = load_tile(k_dram_window);
+            move_tile_window(k_dram_window, {kSeq0, 0});
+
+            store_tile(k_lds_write_window, k_block_tile);
+
+            shuffle_distributed_tensor(kt_block_tile, k_block_tile);
+            store_tile(kt_lds_write_window, kt_block_tile);
+
+            block_sync_lds();
+
+            auto k_reg_tensor_slice = load_tile(k_lds_read_window);
+            set_slice_tile(k_reg_tensor,
+                           k_reg_tensor_slice,
+                           Sequence<i_n0*kSeq0, 0>{},
+                           Sequence<(i_n0+1)*kSeq0, kQKHeaddim>{});
+
+            auto kt_reg_tensor_slice = load_tile(kt_lds_read_window);
+            set_slice_tile(kt_reg_tensor,
+                           kt_reg_tensor_slice,
+                           Sequence<0, i_n0*kSeq0>{},
+                           Sequence<kQKHeaddim, (i_n0+1)*kSeq0>{});
+            block_sync_lds();
+        });
+
+        static_for<0, kN0 / kSeq0, 1>{}([&](auto i_n0) {
+            auto v_block_tile = load_tile(v_dram_window);
+            move_tile_window(v_dram_window, {kSeq0, 0});
+
+            store_tile(v_lds_write_window, v_block_tile);
+
+            block_sync_lds();
+
+            auto v_reg_tensor_slice = load_tile(v_lds_read_window);
+            set_slice_tile(v_reg_tensor,
+                           v_reg_tensor_slice,
+                           Sequence<i_n0*kSeq0, 0>{},
+                           Sequence<(i_n0+1)*kSeq0, kVHeaddim>{});
+            block_sync_lds();
+        });
+#endif
         //---------------------------- Loop Load in ----------------------------//
         // Q: HBM ->Reg ->LDS
         auto q_dram_window =
@@ -738,11 +783,60 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             // STAGE 6, SGrad^T@Q^T Gemm3
             const auto ds_gemm = cast_tile<GemmDataType>(ds);
 
-            Policy::template SGradTFromGemm2CToGemm3A<Problem,
-                                                      decltype(dst_reg_tensor),
-                                                      decltype(ds_gemm)>(dst_reg_tensor, ds_gemm);
+            // Policy::template SGradTFromGemm2CToGemm3A<Problem,
+            //                                           decltype(dst_reg_tensor),
+            //                                           decltype(ds_gemm)>(dst_reg_tensor,
+            //                                           ds_gemm);
+            dst_reg_tensor.get_thread_buffer() = ds_gemm.get_thread_buffer();
 
             gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
+
+            // if(get_block_1d_id()==0 && get_thread_local_1d_id()<64 &&i_total_loops==0){
+            //     printf("Tid: %02d, Qt: %04x %04x %04x %04x %04x %04x %04x %04x DsT: %04x %04x
+            //     %04x %04x %04x %04x %04x %04x dk_acc: %.4lf %.4lf %.4lf %.4lf %.4lf %.4lf %.4lf
+            //     %.4lf\n",
+            //             get_thread_local_1d_id(),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(qt_reg_tensor.get_thread_buffer()[number<0>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(qt_reg_tensor.get_thread_buffer()[number<1>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(qt_reg_tensor.get_thread_buffer()[number<2>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(qt_reg_tensor.get_thread_buffer()[number<3>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(qt_reg_tensor.get_thread_buffer()[number<4>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(qt_reg_tensor.get_thread_buffer()[number<5>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(qt_reg_tensor.get_thread_buffer()[number<6>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(qt_reg_tensor.get_thread_buffer()[number<7>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(dst_reg_tensor.get_thread_buffer()[number<0>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(dst_reg_tensor.get_thread_buffer()[number<1>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(dst_reg_tensor.get_thread_buffer()[number<2>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(dst_reg_tensor.get_thread_buffer()[number<3>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(dst_reg_tensor.get_thread_buffer()[number<4>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(dst_reg_tensor.get_thread_buffer()[number<5>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(dst_reg_tensor.get_thread_buffer()[number<6>{}]))),
+            //             *(reinterpret_cast<const
+            //             uint16_t*>(&(dst_reg_tensor.get_thread_buffer()[number<7>{}]))),
+            //             dk_acc.get_thread_buffer()[number<0>{}],
+            //             dk_acc.get_thread_buffer()[number<1>{}],
+            //             dk_acc.get_thread_buffer()[number<2>{}],
+            //             dk_acc.get_thread_buffer()[number<3>{}],
+            //             dk_acc.get_thread_buffer()[number<4>{}],
+            //             dk_acc.get_thread_buffer()[number<5>{}],
+            //             dk_acc.get_thread_buffer()[number<6>{}],
+            //             dk_acc.get_thread_buffer()[number<7>{}]);
+            // }
 
             store_tile(ds_lds_window, ds_gemm);
 
@@ -977,9 +1071,10 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         // STAGE 6, SGrad^T@Q^T Gemm3
         const auto ds_gemm = cast_tile<GemmDataType>(ds);
 
-        Policy::template SGradTFromGemm2CToGemm3A<Problem,
-                                                  decltype(dst_reg_tensor),
-                                                  decltype(ds_gemm)>(dst_reg_tensor, ds_gemm);
+        // Policy::template SGradTFromGemm2CToGemm3A<Problem,
+        //                                           decltype(dst_reg_tensor),
+        //                                           decltype(ds_gemm)>(dst_reg_tensor, ds_gemm);
+        dst_reg_tensor.get_thread_buffer() = ds_gemm.get_thread_buffer();
 
         gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
         store_tile(ds_lds_window, ds_gemm);

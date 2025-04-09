@@ -371,6 +371,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKDramTileDistribution()
     {
+#if 0
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
@@ -389,11 +390,34 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<0>, sequence<1, 0>>,
                                        sequence<1, 2>,
                                        sequence<2, 1>>{});
+#elif 1
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+
+        constexpr index_t kMWarps  = 2;
+        constexpr index_t kKWarps  = 2;
+        constexpr index_t kKRow    = 2;
+        constexpr index_t kMRow    = 2;
+        constexpr index_t kRowsize = 16;
+        constexpr index_t K1       = 2;
+        constexpr index_t kMPair   = 2;
+        constexpr index_t kMRepeat = 2;
+        constexpr index_t kMGroup = kNPerBlock/16;
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<kMGroup, kMWarps, kMRepeat, kMRow, kMPair>,
+                                             sequence<kKWarps, kKRow, kRowsize, K1>>,
+                                       tuple<sequence<2, 1>, sequence<2, 1, 2>>,
+                                       tuple<sequence<0, 1>, sequence<1, 3, 2>>,
+                                       sequence<1, 1, 1, 2>,
+                                       sequence<0, 2, 4, 3>>{});
+#endif
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVDramTileDistribution()
     {
+#if 0
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
@@ -412,52 +436,72 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<1>, sequence<2, 0>>,
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
+#elif 1
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+
+        constexpr index_t kMWarps  = 2;
+        constexpr index_t kKWarps  = 2;
+        constexpr index_t kKRow    = 2;
+        constexpr index_t kMRow    = 2;
+        constexpr index_t kRowsize = 16;
+        constexpr index_t K1       = 2;
+        constexpr index_t kMPair   = 2;
+        constexpr index_t kMRepeat = 2;
+        constexpr index_t kMGroup = kNPerBlock/16;
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<kMGroup, kMWarps, kMRepeat, kMRow, kMPair>,
+                                             sequence<kKWarps, kKRow, kRowsize, K1>>,
+                                       tuple<sequence<2, 1>, sequence<2, 1, 2>>,
+                                       tuple<sequence<0, 1>, sequence<1, 3, 2>>,
+                                       sequence<1, 1, 1, 2>,
+                                       sequence<0, 2, 4, 3>>{});
+#endif
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
-
-        constexpr index_t K1 = GetAlignmentQ<Problem>();
-        constexpr index_t K0 = kKPerBlock / K1;
-        constexpr index_t M1 = get_warp_size() / K0;
-        constexpr index_t M0 = kBlockSize / get_warp_size();
-        constexpr index_t M2 = kMPerBlock / (M1 * M0);
+        constexpr index_t kMWarps  = 2;
+        constexpr index_t kKWarps  = 2;
+        constexpr index_t kKRow    = 2;
+        constexpr index_t kMRow    = 2;
+        constexpr index_t kRowsize = 16;
+        constexpr index_t K1       = 2;
+        constexpr index_t kMPair   = 2;
+        constexpr index_t kMRepeat = 2;
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<1, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<2, 1>>{});
+                                       tuple<sequence<kMWarps, kMRepeat, kMRow, kMPair>,
+                                             sequence<kKWarps, kKRow, kRowsize, K1>>,
+                                       tuple<sequence<2, 1>, sequence<2, 1, 2>>,
+                                       tuple<sequence<0, 0>, sequence<1, 2, 2>>,
+                                       sequence<1, 1, 2>,
+                                       sequence<1, 3, 3>>{});
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradDramTileDistribution()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kVHeaddim;
-
-        constexpr index_t K1 = GetAlignmentOGrad<Problem>();
-        constexpr index_t K0 = kKPerBlock / K1;
-        constexpr index_t M1 = get_warp_size() / K0;
-        constexpr index_t M0 = kBlockSize / get_warp_size();
-        constexpr index_t M2 = kMPerBlock / (M1 * M0);
+        constexpr index_t kMWarps  = 2;
+        constexpr index_t kKWarps  = 2;
+        constexpr index_t kKRow    = 2;
+        constexpr index_t kMRow    = 2;
+        constexpr index_t kRowsize = 16;
+        constexpr index_t K1       = GetAlignmentQ<Problem>();
+        constexpr index_t kMPair   = 2;
+        constexpr index_t kMRepeat = 2;
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<1, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<2, 1>>{});
+                                       tuple<sequence<kMWarps, kMRepeat, kMRow, kMPair>,
+                                             sequence<kKWarps, kKRow, kRowsize, K1>>,
+                                       tuple<sequence<2, 1>, sequence<2, 1, 2>>,
+                                       tuple<sequence<0, 0>, sequence<1, 2, 2>>,
+                                       sequence<1, 1, 2>,
+                                       sequence<1, 3, 3>>{});
     }
 
     template <typename Problem, typename BlockGemm>
@@ -664,6 +708,145 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         // TODO: this is for 3d layout
         using GemmDataType = remove_cvref_t<typename Problem::GemmDataType>;
         return 16 / sizeof(GemmDataType);
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto Make16x128LdsBlockDescriptor()
+    {
+        constexpr index_t MWarp   = 2;
+        constexpr index_t KWarp   = 2;
+        constexpr index_t KRow    = 2;
+        constexpr index_t KBit0   = 2;
+        constexpr index_t KBit1   = 2;
+        constexpr index_t KBit2   = 2;
+        constexpr index_t KBit3   = 2;
+        constexpr index_t KBit4   = 2;
+        constexpr index_t K1      = 2;
+        constexpr index_t MPair   = 2;
+        constexpr index_t MRepeat = 2;
+
+        // K:HeadDim, M:Seq, 11 Dimensions Total
+        //        W T  I V
+        // Total: 4*64*4*2 = 2^11
+
+        // W      I      T     W      I             T  T  T  T  T   V
+        // 2      2      2     2      2             2  2  2  2  2   2
+        // KWarp, MPair, KRow, MWarp, MRepeat, KBit<1, 2, 4, 3, 0>, K1
+        // M = 2^4
+        // K = 2^7
+
+        constexpr auto lds_16x128_block_desc_raw = make_naive_tensor_descriptor(
+            make_tuple(number<KWarp>{},
+                       number<MPair>{},
+                       number<KRow>{},
+                       number<MWarp>{},
+                       number<MRepeat>{},
+                       number<KBit1>{},
+                       number<KBit2>{},
+                       number<KBit4>{},
+                       number<KBit3>{},
+                       number<KBit0>{},
+                       number<K1>{}),
+            make_tuple(
+                number<K1 * KBit0 * KBit3 * KBit4 * KBit2 *
+                       KBit1*(MRepeat * MWarp * KRow * MPair + 1)>{},
+                number<K1 * KBit0 * KBit3 * KBit4*(KBit2 * KBit1 * MRepeat * MWarp * KRow + 1)>{},
+                number<K1 * KBit0 * KBit3 * KBit4 * KBit2 * KBit1 * MRepeat * MWarp>{},
+                number<K1 * KBit0 * KBit3 * KBit4 * KBit2 * KBit1 * MRepeat>{},
+                number<K1 * KBit0 * KBit3 * KBit4 * KBit2 * KBit1>{},
+                number<K1 * KBit0 * KBit3 * KBit4 * KBit2>{},
+                number<K1 * KBit0 * KBit3 * KBit4>{},
+                number<K1 * KBit0 * KBit3>{},
+                number<K1 * KBit0>{},
+                number<K1>{},
+                number<1>{}),
+            number<K1>{},
+            number<1>{});
+
+        constexpr auto lds_16x128_block_desc = transform_tensor_descriptor(
+            lds_16x128_block_desc_raw,
+            make_tuple(make_merge_transform_v3_division_mod(
+                           make_tuple(number<MWarp>{}, number<MRepeat>{}, number<MPair>{})),
+                       make_merge_transform_v3_division_mod(make_tuple(number<KWarp>{},
+                                                                       number<KRow>{},
+                                                                       number<KBit4>{},
+                                                                       number<KBit3>{},
+                                                                       number<KBit2>{},
+                                                                       number<KBit1>{},
+                                                                       number<KBit0>{},
+                                                                       number<K1>{}))),
+            make_tuple(sequence<3, 4, 1>{}, sequence<0, 2, 7, 8, 6, 5, 9, 10>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return lds_16x128_block_desc;
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto Make16x128TransLdsBlockDescriptor()
+    {
+        constexpr index_t MWarp   = 2;
+        constexpr index_t KWarp   = 2;
+        constexpr index_t KRow    = 2;
+        constexpr index_t MRow    = 2;
+        constexpr index_t KGroup  = 2;
+        constexpr index_t KBit0   = 2;
+        constexpr index_t KBit1   = 2;
+        constexpr index_t KBit2   = 2;
+        constexpr index_t K1      = 2;
+        constexpr index_t MPair   = 2;
+        constexpr index_t MRepeat = 2;
+
+        // K:HeadDim, M:Seq, 11 Dimensions Total
+        //        W T  I V
+        // Total: 4*64*4*2 = 2^11
+        // W      I   T     W      I         T      T      T       T       T     V
+        // 2      2   2     2      2         2      2      2       2       2     2
+        // Kwarp, K1, KRow, MWarp, MRepeat, <KBit1, KBit2, KBit0>, KGroup, MRow, MPair
+        // M = 2^4
+        // K = 2^7
+
+        constexpr auto lds_16x128_trans_block_desc_raw = make_naive_tensor_descriptor(
+            make_tuple(number<KWarp>{},
+                       number<K1>{},
+                       number<KRow>{},
+                       number<MWarp>{},
+                       number<MRepeat>{},
+                       number<KBit1>{},
+                       number<KBit2>{},
+                       number<KBit0>{},
+                       number<KGroup>{},
+                       number<MRow>{},
+                       number<MPair>{}),
+            make_tuple(number<MPair * MRow * KGroup * KBit0 * KBit2 *
+                              KBit1*(MRepeat * MWarp * KRow * K1 + 1)>{},
+                       // Padding
+                       number<MPair * MRow * KGroup *
+                              KBit0*(KBit2 * KBit1 * MRepeat * MWarp * KRow + 1)>{},
+                       number<MPair * MRow * KGroup * KBit0 * KBit2 * KBit1 * MRepeat * MWarp>{},
+                       number<MPair * MRow * KGroup * KBit0 * KBit2 * KBit1 * MRepeat>{},
+                       number<MPair * MRow * KGroup * KBit0 * KBit2 * KBit1>{},
+                       number<MPair * MRow * KGroup * KBit0 * KBit2>{},
+                       number<MPair * MRow * KGroup * KBit0>{},
+                       number<MPair * MRow * KGroup>{},
+                       number<MPair * MRow>{},
+                       number<MPair>{},
+                       number<1>{}),
+            number<MPair>{},
+            number<1>{});
+
+        constexpr auto lds_16x128_trans_block_desc = transform_tensor_descriptor(
+            lds_16x128_trans_block_desc_raw,
+            make_tuple(make_merge_transform_v3_division_mod(make_tuple(number<KWarp>{},
+                                                                       number<KRow>{},
+                                                                       number<KGroup>{},
+                                                                       number<KBit2>{},
+                                                                       number<KBit1>{},
+                                                                       number<KBit0>{},
+                                                                       number<K1>{})),
+                       make_merge_transform_v3_division_mod(make_tuple(
+                           number<MWarp>{}, number<MRepeat>{}, number<MRow>{}, number<MPair>{}))),
+            make_tuple(sequence<0, 2, 8, 6, 5, 7, 1>{}, sequence<3, 4, 9, 10>{}),
+            make_tuple(sequence<1>{}, sequence<0>{}));
+
+        return lds_16x128_trans_block_desc;
     }
 
     template <index_t MNPerBlock, index_t KPerBlock, index_t KPack, bool XorLdsLayout = true>
@@ -1008,12 +1191,16 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
     {
+#if 0
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
 
         constexpr index_t kKPack = GetSmemKPackQ<Problem>();
 
         return MakeXLdsBlockDescriptor<kMPerBlock, kKPerBlock, kKPack, false>();
+#elif 1
+        return Make16x128LdsBlockDescriptor();
+#endif
     }
 
     template <typename Problem>
@@ -1051,36 +1238,30 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledQRegWriteBlockDescriptor()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
 
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
-
-        constexpr index_t K1 = GetAlignmentQ<Problem>();
-        constexpr index_t K0 = kKPerBlock / K1;
-        constexpr index_t N2 = GetTransposedAlignmentQ<Problem>();
-        constexpr index_t N1 = get_warp_size() / K0;
-        constexpr index_t N0 = kBlockSize / get_warp_size();
+        constexpr index_t kMWarps  = 2;
+        constexpr index_t kKWarps  = 2;
+        constexpr index_t kKRow    = 2;
+        constexpr index_t kMRow    = 2;
+        constexpr index_t kRowsize = 16;
+        constexpr index_t K1       = GetAlignmentQ<Problem>();
+        constexpr index_t kMPair   = 2;
+        constexpr index_t kMRepeat = 2;
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<1, 0>>,
-                                       sequence<2, 1>,
-                                       sequence<1, 2>>{});
+                                       tuple<sequence<kMWarps, kMRepeat, kMRow, kMPair>,
+                                             sequence<kKWarps, kKRow, kRowsize, K1>>,
+                                       tuple<sequence<2, 1>, sequence<2, 1, 2>>,
+                                       tuple<sequence<0, 0>, sequence<1, 2, 2>>,
+                                       sequence<1, 2, 1>,
+                                       sequence<1, 3, 3>>{});
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledQLdsWriteBlockDescriptor()
     {
-        // Hold full block data
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kM0;
-
-        constexpr index_t kKPack  = GetAlignmentQ<Problem>();
-        constexpr index_t kKPackT = GetSmemKPackQT<Problem>();
-
-        return MakeXTLdsBlockDescriptor<Problem, kNPerBlock, kKPerBlock, kKPack, kKPackT>();
+       return Make16x128TransLdsBlockDescriptor();
     }
 
     template <typename Problem>
@@ -1215,12 +1396,16 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradLdsBlockDescriptor()
     {
         // Hold full block data
+#if 0
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kVHeaddim;
 
         constexpr index_t kKPack = GetSmemKPackOGrad<Problem>();
 
         return MakeXLdsBlockDescriptor<kMPerBlock, kKPerBlock, kKPack, false>();
+#elif 1
+        return Make16x128LdsBlockDescriptor();
+#endif
     }
 
     template <typename Problem>
@@ -1258,36 +1443,29 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledOGradRegWriteBlockDescriptor()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kVHeaddim;
-
-        constexpr index_t K1 = GetAlignmentOGrad<Problem>();
-        constexpr index_t K0 = kKPerBlock / K1;
-        constexpr index_t N2 = GetTransposedAlignmentOGrad<Problem>();
-        constexpr index_t N1 = get_warp_size() / K0;
-        constexpr index_t N0 = kBlockSize / get_warp_size();
+        constexpr index_t kMWarps  = 2;
+        constexpr index_t kKWarps  = 2;
+        constexpr index_t kKRow    = 2;
+        constexpr index_t kMRow    = 2;
+        constexpr index_t kRowsize = 16;
+        constexpr index_t K1       = GetAlignmentQ<Problem>();
+        constexpr index_t kMPair   = 2;
+        constexpr index_t kMRepeat = 2;
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<1, 0>>,
-                                       sequence<2, 1>,
-                                       sequence<1, 2>>{});
+                                       tuple<sequence<kMWarps, kMRepeat, kMRow, kMPair>,
+                                             sequence<kKWarps, kKRow, kRowsize, K1>>,
+                                       tuple<sequence<2, 1>, sequence<2, 1, 2>>,
+                                       tuple<sequence<0, 0>, sequence<1, 2, 2>>,
+                                       sequence<1, 2, 1>,
+                                       sequence<1, 3, 3>>{});
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledOGradLdsWriteBlockDescriptor()
     {
-        // Hold all data
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kVHeaddim;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kM0;
-
-        constexpr index_t kKPack  = GetAlignmentOGrad<Problem>();
-        constexpr index_t kKPackT = GetSmemKPackOGradT<Problem>();
-
-        return MakeXTLdsBlockDescriptor<Problem, kNPerBlock, kKPerBlock, kKPack, kKPackT>();
+        return Make16x128TransLdsBlockDescriptor();
     }
 
     template <typename Problem>
@@ -1916,18 +2094,26 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         static constexpr index_t D_VMEM_READ   = 1;
 
         // LDS Read
-        // 16 * 128 / 64 / 4 = 8
         static constexpr index_t OGradT_LDS_READ =
-            kM0 * kVHeaddim / get_warp_size() / GetTransposedAlignmentOGrad<Problem>();
+            // 16 * 128 / 64 / 4 = 8
+            // kM0 * kVHeaddim / get_warp_size() / GetTransposedAlignmentOGrad<Problem>();
+            // 16 * 128 / 64 / 8 = 4
+            kM0 * kVHeaddim / get_warp_size() / 8;
         // 16 * 128 / 64 / 4 = 8
         static constexpr index_t QT_LDS_READ =
-            kM0 * kQKHeaddim / get_warp_size() / GetTransposedAlignmentQ<Problem>();
+            // 16 * 128 / 64 / 4 = 8
+            // kM0 * kQKHeaddim / get_warp_size() / GetTransposedAlignmentQ<Problem>();
+            // 16 * 128 / 64 / 8 = 4
+            kM0 * kVHeaddim / get_warp_size() / 8;
         // 16 * 32 / 64 / 8 = 1
         static constexpr index_t SGradT_LDS_READ_P1 =
             kM0 * kK4 / (get_warp_size() * Gemm4MWarp) / GetSmemKPackSGrad<Problem>();
         // 16 * 128 / 64 / 8 = 4
         static constexpr index_t Q_LDS_READ =
-            kM0 * kK0 / (get_warp_size() * Gemm0MWarp) / GetSmemKPackQ<Problem>();
+            // 16 * 128 / 64 / 8 = 4
+            // kM0 * kK0 / (get_warp_size() * Gemm0MWarp) / GetSmemKPackQ<Problem>();
+            // 16 * 128 / 64 / 8 = 4
+            kM0 * kK0 / (get_warp_size() * Gemm0MWarp) / 8;
         // 1
         static constexpr index_t LSE_LDS_READ = WarpGemmM == 16 ? kM0 / (4 * 4) : kM0 / (2 * 4);
         // 16 * 96 / 64 / 8 = 3
@@ -1935,7 +2121,8 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             kM0 * (kN0 - kK4) / (get_warp_size() * Gemm4MWarp) / GetSmemKPackSGrad<Problem>();
         // 16 * 128 / 64 / 8 = 4
         static constexpr index_t OGrad_LDS_READ =
-            kM0 * kK2 / (get_warp_size() * Gemm2MWarp) / GetSmemKPackOGrad<Problem>();
+            // kM0 * kK2 / (get_warp_size() * Gemm2MWarp) / GetSmemKPackOGrad<Problem>();
+            kM0 * kK2 / (get_warp_size() * Gemm2MWarp) / 8;
         // 1
         static constexpr index_t D_LDS_READ = WarpGemmM == 16 ? kM0 / (4 * 4) : kM0 / (2 * 4);
 
