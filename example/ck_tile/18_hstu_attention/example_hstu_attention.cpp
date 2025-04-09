@@ -162,8 +162,8 @@ static void show_hstu_attention_fwd_param(std::ostream& os, HstuAttentionFwdPara
 template <typename DataType>
 auto get_elimit()
 {
-    double rtol = 2e-3;
-    double atol = 2e-3;
+    double rtol = 1e-2;
+    double atol = 1e-2;
 
     return ck_tile::make_tuple(rtol, atol);
 }
@@ -171,8 +171,8 @@ auto get_elimit()
 template <>
 auto get_elimit<ck_tile::bf16_t>()
 {
-    double rtol = 1e-2;
-    double atol = 1e-2;
+    double rtol = 2e-2;
+    double atol = 2e-2;
     return ck_tile::make_tuple(rtol, atol);
 }
 
@@ -292,7 +292,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(q_host);
     ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(k_host);
-    ck_tile::FillNormalDistributionIntegerValue<InOutDataType>{-3.f, 3.f, seed}(v_host);
+    ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(v_host);
 
     ck_tile::DeviceMem q_dev(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_dev(k_host.get_element_space_size_in_bytes());
