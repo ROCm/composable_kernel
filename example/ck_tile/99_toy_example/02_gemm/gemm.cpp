@@ -1,10 +1,12 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <cstring>
 
-#include "ck_tile/host.hpp"
-#include "reference_gemm.hpp"
-
 #include "config.h"
+#include "ck_tile/host.hpp"
 #include "gemm.hpp"
+#include "reference_gemm.hpp"
 
 /*
  * Toy code of GEMM
@@ -179,7 +181,9 @@ int main(int argc, char* argv[])
     {
         // reference gemm
         ck_tile::HostTensor<CDataType> c_host_ref(c_lengths, c_strides);
-        reference_basic_gemm<ADataType, ADataType, AccDataType, CDataType>(a_host, b_host, c_host_ref);
+        reference_basic_gemm<ADataType, ADataType, AccDataType, CDataType>(a_host,
+                                                                           b_host,
+                                                                           c_host_ref);
         c_buf.FromDevice(c_host_dev.mData.data());
         pass &= ck_tile::check_err(c_host_dev, c_host_ref);
         std::cout << "valid:" << (pass ? "y" : "n") << std::endl;

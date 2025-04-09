@@ -1,15 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-
-#ifdef ENABLE_INSTRUCTION_SCH
-#include "instruction_schedule/gemm_pipeline_ag_bg_cr_comp_v3.hpp"
-#include "instruction_schedule/gemm_pipeline_problem.hpp"
-#include "instruction_schedule/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
-#include "instruction_schedule/tile_gemm_shape.hpp"
-#include "instruction_schedule/tile_gemm_traits.hpp"
-#endif
-
 #pragma once
 
 namespace ck_tile {
@@ -47,8 +38,10 @@ struct GridGemm
 
         const auto id_tile = block2tile(id_block);
 
-        const auto iM = __builtin_amdgcn_readfirstlane(id_tile.template get(number<0>{}) * kMPerBlock);
-        const auto iN = __builtin_amdgcn_readfirstlane(id_tile.template get(number<1>{}) * kNPerBlock);
+        const auto iM =
+            __builtin_amdgcn_readfirstlane(id_tile.template get(number<0>{}) * kMPerBlock);
+        const auto iN =
+            __builtin_amdgcn_readfirstlane(id_tile.template get(number<1>{}) * kNPerBlock);
 
         // A block window
         auto a_block_window = make_tile_window(
@@ -58,62 +51,10 @@ struct GridGemm
         auto b_block_window = make_tile_window(
             b_grid, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {iN, 0});
 
-#ifndef ENABLE_INSTRUCTION_SCH
-        // Block GEMM pipeline w/o instruction scheduling
         constexpr auto block_gemm_pipeline = Policy::template GetBlockGemmPipeline<Problem>();
 
         __shared__ char p_smem_char[block_gemm_pipeline.GetStaticLdsSize()];
-#else
-        // Block GEMM pipeline w/ instruction scheduling
-        static constexpr index_t M_Tile = 128;
-        static constexpr index_t N_Tile = 128;
-        static constexpr index_t K_Tile = 64;
-        static constexpr index_t M_Warp = 2;
-        static constexpr index_t N_Warp = 2;
-        static constexpr index_t K_Warp = 1;
-        static constexpr index_t M_Warp_Tile = 16;
-        static constexpr index_t N_Warp_Tile = 16;
-        static constexpr index_t K_Warp_Tile = 32;
-        static constexpr bool DoubleSmemBuffer = false;
-        static constexpr bool kPadM = false;
-        static constexpr bool kPadN = false;
-        static constexpr bool kPadK = false;
-        static constexpr bool PermuteA = false;
-        static constexpr bool PermuteB = false;
-        static constexpr bool TransposeC = false;
 
-        // static constexpr int kBlockPerCu                = 1;
-        // static constexpr index_t TileParitionerGroupNum = 8;
-        // static constexpr index_t TileParitionerM01      = 4;
-
-        using GemmShape = TileGemmShape<sequence<M_Tile, N_Tile, K_Tile>,
-                                        sequence<M_Warp, N_Warp, K_Warp>,
-                                        sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>,
-                                        PermuteA,
-                                        PermuteB>;
-
-        using GemmUniversalTraits = TileGemmUniversalTraits<kPadM,
-                                                            kPadN,
-                                                            kPadK,
-                                                            DoubleSmemBuffer,
-                                                            /* ALayout */ tensor_layout::gemm::RowMajor,
-                                                            /* BLayout */ tensor_layout::gemm::ColumnMajor,
-                                                            /* CLayout */ tensor_layout::gemm::RowMajor,
-                                                            TransposeC>;
-
-        using UniversalGemmProblem = UniversalGemmPipelineProblem<ADataType,
-                                                                  BDataType,
-                                                                  AccDataType,
-                                                                  GemmShape,
-                                                                  GemmUniversalTraits,
-                                                                  GemmPipelineScheduler::Intrawave,
-                                                                  /* Has hot loop */ true,
-                                                                  TailNumber::Full>;
-
-        constexpr auto block_gemm_pipeline = GemmPipelineAgBgCrCompV3<UniversalGemmProblem>();
-
-        __shared__ char p_smem_char[block_gemm_pipeline.GetSmemSize()];
-#endif
         const auto acc_block_tile = block_gemm_pipeline(a_block_window,
                                                         b_block_window,
                                                         K / kKPerBlock,
