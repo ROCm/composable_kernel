@@ -440,8 +440,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         o_dev.FromDevice(o_host.data());
 
-        dumpBufferToFile("output_dev.dat", o_host.data(), o_host.get_element_space_size());
-        dumpBufferToFile("output_host.dat", o_host_ref.data(), o_host.get_element_space_size());
+        // dumpBufferToFile("output_dev.dat", o_host.data(), o_host.get_element_space_size());
+        // dumpBufferToFile("output_host.dat", o_host_ref.data(), o_host.get_element_space_size());
 
         auto [rtol, atol] = get_elimit<InOutDataType>();
 
@@ -454,7 +454,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::gpu_timer timer{};
 
         timer.start(stream);
-        for(int i = 0; i < 20; i++)
+        for(int i = 0; i < 10; i++)
         {
             if constexpr(std::is_same<InOutDataType, ck_tile::fp16_t>::value)
             {
@@ -473,9 +473,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
         timer.stop(stream);
 
-        auto ms = timer.duration() / 20.f;
+        auto ms = timer.duration() / 10.f;
 
-        std::cout << "Average execution time of the hstu_attention operator is " << ms
+        std::cout << "Average execution time of the hstu_attention operation is " << ms
                   << " milli-seconds" << std::endl;
     }
 
