@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_v2.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
@@ -27,7 +27,7 @@ template <typename ALayout,
           typename ADataType,
           typename BDataType,
           typename CDataType,
-          typename GemmAccDataType,
+          typename AccDataType,
           typename CShuffleDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -39,10 +39,10 @@ template <typename ALayout,
           index_t KPerBlock,
           index_t AK1,
           index_t BK1,
-          index_t MPerXDL,
-          index_t NPerXDL,
-          index_t MXdlPerWave,
-          index_t NXdlPerWave,
+          index_t MPerWmma,
+          index_t NPerWmma,
+          index_t MRepeat,
+          index_t NRepeat,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -57,8 +57,8 @@ template <typename ALayout,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_BK1,
           bool BBlockLdsExtraN,
-          index_t CShuffleMXdlPerWavePerShuffle,
-          index_t CShuffleNXdlPerWavePerShuffle,
+          index_t CShuffleMRepeatPerShuffle,
+          index_t CShuffleNRepeatPerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
@@ -67,24 +67,24 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           bool PermuteA                               = false,
           bool PermuteB                               = false>
-struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
-                                                       BLayout,
-                                                       CLayout,
-                                                       ADataType,
-                                                       BDataType,
-                                                       CDataType,
-                                                       AElementwiseOperation,
-                                                       BElementwiseOperation,
-                                                       CElementwiseOperation>
+struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
+                                                        BLayout,
+                                                        CLayout,
+                                                        ADataType,
+                                                        BDataType,
+                                                        CDataType,
+                                                        AElementwiseOperation,
+                                                        BElementwiseOperation,
+                                                        CElementwiseOperation>
 {
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<
+    using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         ALayout,
         BLayout,
         CLayout,
         ADataType,
         BDataType,
-        GemmAccDataType,
+        AccDataType,
         CShuffleDataType,
         CDataType,
         AElementwiseOperation,
@@ -97,10 +97,10 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         KPerBlock,
         AK1,
         BK1,
-        MPerXDL,
-        NPerXDL,
-        MXdlPerWave,
-        NXdlPerWave,
+        MPerWmma,
+        NPerWmma,
+        MRepeat,
+        NRepeat,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -117,8 +117,8 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         BBlockTransferDstScalarPerVector_BK1,
         false,
         BBlockLdsExtraN,
-        CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
+        CShuffleMRepeatPerShuffle,
+        CShuffleNRepeatPerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         BlkGemmPipeSched,
@@ -182,10 +182,10 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                         rotating_mem.Next();
                         // clear c mem
                         if(arg_.KBatch > 1)
-                            hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
-                                                             0,
-                                                             arg_.M * arg_.N * sizeof(CDataType),
-                                                             stream_config.stream_id_));
+                            HIP_CHECK_ERROR(hipMemsetAsync(arg_.p_c_grid,
+                                                           0,
+                                                           arg_.M * arg_.N * sizeof(CDataType),
+                                                           stream_config.stream_id_));
                     };
 
                     ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
@@ -200,10 +200,10 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 else
                 {
                     if(arg.KBatch > 1)
-                        hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
-                                                         0,
-                                                         arg.M * arg.N * sizeof(CDataType),
-                                                         stream_config.stream_id_));
+                        HIP_CHECK_ERROR(hipMemsetAsync(arg.p_c_grid,
+                                                       0,
+                                                       arg.M * arg.N * sizeof(CDataType),
+                                                       stream_config.stream_id_));
 
                     ave_time = launch_and_time_kernel(
                         stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
@@ -232,31 +232,31 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 {
                     if(arg.KBatch > 1)
                     {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::AtomicAdd,
-                                                        minimum_occupancy>;
-                        Run(kernel);
+                        // const auto kernel =
+                        //     kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                        //                                  true,
+                        //                                  InMemoryDataOperationEnum::AtomicAdd,
+                        //                                  minimum_occupancy>;
+                        // Run(kernel);
                     }
                     else
                     {
                         const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        minimum_occupancy>;
+                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                         true,
+                                                         InMemoryDataOperationEnum::Set,
+                                                         minimum_occupancy>;
                         Run(kernel);
                     }
                 }
                 else
                 {
-                    // TODO Stream implement
+                    // TODO: Implement
                 }
             }
             else
             {
-                // TODO Stream implement
+                // TODO: Implement
             }
 
             return ave_time;
@@ -278,12 +278,19 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
         {
             return false;
         }
 
+        // TODO Stream Fix, gfx11 does not support hardware f16/bf16 atomic instrurctions,
+        // gfx12 supports both
         if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> && arg.KBatch > 1)
+        {
+            return false;
+        }
+        // TODO Stream Disable SplitK for now, enable after fixing atomics
+        if(arg.KBatch > 1)
         {
             return false;
         }
@@ -379,7 +386,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             {BlockGemmPipelineVersion::v5, "v5"}};
 
         // clang-format off
-        str << "DeviceGemmXdlUniversal"
+        str << "DeviceGemm_Wmma_CShuffleV3"
             << "<"
             << getGemmSpecializationString(GemmSpec) << ", "
             << std::string(ALayout::name)[0]
@@ -389,21 +396,21 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             << " BlkSize: "
             << BlockSize << ", "
             << "BlkTile: "
-            << MPerBlock<<"x"<<NPerBlock<<"x"<<KPerBlock << ", "
+            << MPerBlock << "x" << NPerBlock << "x" << KPerBlock << ", "
             << "WaveTile: "
-            << MPerXDL<<"x"<<NPerXDL << ", "
+            << MPerWmma << "x"<<NPerWmma << ", "
             << "WaveMap: "
-            << MXdlPerWave<<"x" << NXdlPerWave<<", "
+            << MRepeat << "x" << NRepeat << ", "
             << "VmemReadVec: "
-            << ABlockTransferSrcScalarPerVector<<"x"<<BBlockTransferSrcScalarPerVector<<", "
+            << ABlockTransferSrcScalarPerVector << "x" << BBlockTransferSrcScalarPerVector << ", "
             << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
             << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
-            << "Kpack: "
-            << GridwiseGemm::BlockwiseGemmPipe::AMmaKStride;
+            << "KPack: "
+            << GridwiseGemm::KPack;
         // clang-format on
 
         return str.str();
