@@ -79,7 +79,7 @@ __device__ inline half4_t i4_to_half4_scale(int q, const ck::half2_t& scale)
     return res.template AsType<half4_t>()[Number<0>{}];
 }
 
-__device__ inline f8x4_t i4_to_f8x4(int q)
+__device__ inline uint32_t i4_to_f8x4(int q)
 {
     // register values [0, 1, 2, 3]
     static constexpr uint32_t reg0 = 0x4C484000;
@@ -103,20 +103,35 @@ __device__ inline f8x4_t i4_to_f8x4(int q)
     final_sel = (sign & 0x04040404) | 0x03020100;
 #endif
 
-    vector_type<f8_t, 4> res;
+    // vector_type<f8_t, 4> res;
 
     tmp_pos = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
     tmp_neg = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
     tmp_res = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
 
-    res.template AsType<f8x4_t>()(Number<0>{}) = bit_cast<f8x4_t>(tmp_res);
+    // res.template AsType<f8x4_t>()(Number<0>{}) = bit_cast<f8x4_t>(tmp_res);
 
-    return res.template AsType<f8x4_t>()[Number<0>{}];
+    // return res.template AsType<f8x4_t>()[Number<0>{}];
+    return tmp_res;
 }
 
 __device__ inline f8x8_t i4_to_fp8x8(int q) 
-{ 
-    return amd_assembly_i4_to_fp8x8(q); 
+{
+#if 1
+    vector_type<f8_t, 8> result;
+
+    uint32_t res_lo = i4_to_f8x4(bit_cast<int>(q));
+    uint32_t res_hi = i4_to_f8x4(bit_cast<int>(q) >> 4);
+
+    result.template AsType<f8x4_t>()(Number<0>{}) =
+        bit_cast<f8x4_t>(__builtin_amdgcn_perm(res_hi, res_lo, 0x06040200));
+    result.template AsType<f8x4_t>()(Number<1>{}) =
+        bit_cast<f8x4_t>(__builtin_amdgcn_perm(res_hi, res_lo, 0x07050301));
+
+    return result.template AsType<f8x8_t>()[Number<0>{}];
+#else
+    return amd_assembly_i4_to_fp8x8(q);
+#endif
 }
 
 __device__ inline bhalf4_t i4_to_bhalf4(int q)
@@ -184,14 +199,8 @@ struct PassThroughPack8
 
     __host__ __device__ constexpr void operator()(ck::f8x8_t& y, const ck::pk_i4x4_t& x) const
     {
-#if CK_USE_PK4_LAYOUT_SHUFFLE_V2
-        vector_type<f8_t, 8> result;
-
-        result.template AsType<f8x4_t>()(Number<0>{}) = i4_to_f8x4(bit_cast<int>(x));
-        result.template AsType<f8x4_t>()(Number<1>{}) = i4_to_f8x4(bit_cast<int>(x) >> 4);
-
-        y = result.template AsType<f8x8_t>()[Number<0>{}];
-
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+        y= i4_to_fp8x8(bit_cast<int>(x));
 #else
         // Added pk_i4_t to f8x2_fnuz_t conversion
         vector_type<f8_t, 8> dst;

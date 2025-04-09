@@ -187,7 +187,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         }
     }
 
-#if CK_USE_PK4_LAYOUT_SHUFFLE_V2
+#if CK_USE_PK4_LAYOUT_SHUFFLE
     // vector pk_i4x4 permute
     for(int i = 0; i < N; i++)
     {
@@ -204,7 +204,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
             // permute 01234567->20643175
             {
-                int hi   = input[4];
+                int hi   = input[2];
                 int lo   = input[0];
                 int i4x2 = (hi << 4) | lo;
 
@@ -212,16 +212,16 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             }
 
             {
-                int hi   = input[5];
-                int lo   = input[1];
+                int hi   = input[6];
+                int lo   = input[4];
                 int i4x2 = (hi << 4) | lo;
 
                 b_k_n_preshuffled(j + 2, i) = i4x2;
             }
 
             {
-                int hi   = input[6];
-                int lo   = input[2];
+                int hi   = input[3];
+                int lo   = input[1];
                 int i4x2 = (hi << 4) | lo;
 
                 b_k_n_preshuffled(j + 4, i) = i4x2;
@@ -229,7 +229,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
             {
                 int hi   = input[7];
-                int lo   = input[3];
+                int lo   = input[5];
                 int i4x2 = (hi << 4) | lo;
 
                 b_k_n_preshuffled(j + 6, i) = i4x2;
@@ -287,7 +287,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                     i4 = (i4x2.data >> 0) & 0xf;
                 else
                     i4 = (i4x2.data >> 4) & 0xf;
-#if CK_USE_PK4_LAYOUT_SHUFFLE_V2
+#if CK_USE_PK4_LAYOUT_SHUFFLE
                 float v_b = i4_to_f32_gfx9(i4) * 16;
 #else
                 float v_b = i4 - 8;

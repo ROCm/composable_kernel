@@ -93,8 +93,8 @@ struct ReferenceMoeGemm : public device::BaseOperator
                                 i4 = (i4x2 >> 0) & 0xf;
                             else
                                 i4 = (i4x2 >> 4) & 0xf;
-#if CK_USE_PK4_LAYOUT_SHUFFLE_V2
-                            v_a = i4_to_f32_gfx9(i4);
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+                            v_a = i4_to_f32_gfx9(i4) * 16;
 #else
                             v_a = i4 - 8;
 #endif
@@ -112,8 +112,8 @@ struct ReferenceMoeGemm : public device::BaseOperator
                                 i4 = (i4x2 >> 0) & 0xf;
                             else
                                 i4 = (i4x2 >> 4) & 0xf;
-#if CK_USE_PK4_LAYOUT_SHUFFLE_V2
-                            v_b = i4_to_f32_gfx9(i4);
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+                            v_b = i4_to_f32_gfx9(i4) * 16;
 #else
                             v_b = i4 - 8;
 #endif

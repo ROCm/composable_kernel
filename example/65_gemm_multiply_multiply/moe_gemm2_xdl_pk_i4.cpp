@@ -336,7 +336,7 @@ int main(int argc, char* argv[])
                      K,
                      device_op.GetPreShuffleParameters());
 
-#if CK_USE_PK4_LAYOUT_SHUFFLE_V2
+#if CK_USE_PK4_LAYOUT_SHUFFLE
     // vector pk_i4x4 permute
     for(int e = 0; e < experts; e++)
     {
@@ -355,7 +355,7 @@ int main(int argc, char* argv[])
 
                 // permute 01234567->20643175
                 {
-                    int hi   = input[4];
+                    int hi   = input[2];
                     int lo   = input[0];
                     int i4x2 = (hi << 4) | lo;
 
@@ -363,16 +363,16 @@ int main(int argc, char* argv[])
                 }
 
                 {
-                    int hi   = input[5];
-                    int lo   = input[1];
+                    int hi   = input[6];
+                    int lo   = input[4];
                     int i4x2 = (hi << 4) | lo;
 
                     b0_preshuffled(e, j + 2, i) = i4x2;
                 }
 
                 {
-                    int hi   = input[6];
-                    int lo   = input[2];
+                    int hi   = input[3];
+                    int lo   = input[1];
                     int i4x2 = (hi << 4) | lo;
 
                     b0_preshuffled(e, j + 4, i) = i4x2;
@@ -380,7 +380,7 @@ int main(int argc, char* argv[])
 
                 {
                     int hi   = input[7];
-                    int lo   = input[3];
+                    int lo   = input[5];
                     int i4x2 = (hi << 4) | lo;
 
                     b0_preshuffled(e, j + 6, i) = i4x2;

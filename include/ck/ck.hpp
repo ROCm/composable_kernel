@@ -173,10 +173,6 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 // operations
 #define CK_USE_PK4_LAYOUT_SHUFFLE 1
 
-// hip solution for shuffle pk_i4 values during conversion to optimize number of binary
-// operations
-#define CK_USE_PK4_LAYOUT_SHUFFLE_V2 1
-
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
 
