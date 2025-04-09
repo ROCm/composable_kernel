@@ -11,11 +11,16 @@
 
 namespace ck {
 
+template <typename F, index_t... ids>
+__host__ __device__ constexpr auto generate_tuple_for(F&& f, Sequence<ids...>)
+{
+    return make_tuple(f(Number<ids>{})...);
+}
+
 template <typename F, index_t N>
 __host__ __device__ constexpr auto generate_tuple(F&& f, Number<N>)
 {
-    return unpack([&f](auto&&... xs) { return make_tuple(f(xs)...); },
-                  typename arithmetic_sequence_gen<0, N, 1>::type{});
+    return generate_tuple_for(f, make_index_sequence<N>{});
 }
 
 template <typename F, index_t N>
