@@ -290,9 +290,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<InOutDataType> o_host_ref(
         std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, num_head, hdim_v});
 
-    ck_tile::FillNormalDistributionIntegerValue<InOutDataType>{-2.f, 2.f, seed}(q_host);
-    ck_tile::FillNormalDistributionIntegerValue<InOutDataType>{-2.f, 2.f, seed}(k_host);
-    ck_tile::FillNormalDistributionIntegerValue<InOutDataType>{-2.f, 2.f, seed}(v_host);
+    ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(q_host);
+    ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(k_host);
+    ck_tile::FillNormalDistributionIntegerValue<InOutDataType>{-3.f, 3.f, seed}(v_host);
 
     ck_tile::DeviceMem q_dev(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_dev(k_host.get_element_space_size_in_bytes());
