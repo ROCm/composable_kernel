@@ -98,19 +98,6 @@ struct BlockGemmARegBSmemCRegV1
             b_block_window_tmp.get_window_origin() + multi_index<2>{iNWarp * WG::kN, 0},
             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
 
-#if 0 // FIXME: using array will cause register spill
-        array<array<decltype(b_warp_window_tmp), KIterPerWarp>, NIterPerWarp> b_warp_windows{
-            {b_warp_window_tmp}};
-
-        for(index_t nIter = 0; nIter < NIterPerWarp; nIter++)
-        {
-            for(index_t kIter = 0; kIter < KIterPerWarp; kIter++)
-            {
-                move_tile_window(b_warp_windows(nIter)(kIter),
-                                 {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
-            }
-        }
-#else
         statically_indexed_array<
             statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
             NIterPerWarp>
@@ -124,14 +111,12 @@ struct BlockGemmARegBSmemCRegV1
                                  {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
             });
         });
-#endif
 
         // check C-block-distribution
         static_assert(
             std::is_same_v<remove_cvref_t<decltype(c_block_dstr_encode)>,
                            remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
-                                                       .get_static_tile_distribution_encoding())>>,
-            "wrong!");
+                           .get_static_tile_distribution_encoding())>>, "wrong!");
 
         using AWarpDstr = typename WG::AWarpDstr;
         using CWarpDstr = typename WG::CWarpDstr;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -48,12 +48,12 @@ struct BlockGemmPipelineAGmemBGmemCReg<Problem, BlockGemmPipelineAGmemBGmemCRegS
     {
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
-                std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
+            std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
             "wrong!");
 
         static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+                      kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                      kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
         // A tile in Reg，blockTensor
@@ -248,12 +248,12 @@ struct BlockGemmPipelineAGmemBGmemCReg<
     {
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
-                std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
+            std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
             "wrong!");
 
         static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+                      kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                      kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
         ignore = a_element_func;
@@ -402,7 +402,7 @@ struct BlockGemmPipelineAGmemBGmemCReg<
                       "wrong!");
 
         static_assert(kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kKPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+                      kKPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
         ignore = b_element_func;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -33,8 +33,8 @@ struct BlockGemmARegBSmemCRegV1
                                const BBlockWindowTmp& b_block_window_tmp) const
     {
         static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
-                          std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>> &&
-                          std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
+                      std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>> &&
+                      std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
                       "wrong!");
 
         constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
@@ -42,8 +42,7 @@ struct BlockGemmARegBSmemCRegV1
         constexpr index_t KPerBlock = ABlockTensorTmp{}.get_lengths()[number<1>{}];
 
         static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
-                          KPerBlock == BlockGemmShape::kK,
-                      "wrong!");
+                      KPerBlock == BlockGemmShape::kK, "wrong!");
 
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
@@ -97,26 +96,11 @@ struct BlockGemmARegBSmemCRegV1
         auto b_warp_window_tmp = make_tile_window(
             b_block_window_tmp.get_bottom_tensor_view(),
             make_tuple(number<WG::kN>{}, number<WG::kK>{}),
-            // b_block_window_tmp.GetWindowOrigin() + MultiIndex<2>{iNWarp * WG::kN, 0},
             {b_block_window_tmp.get_window_origin().at(number<0>{}) + iNWarp * WG::kN, b_block_window_tmp.get_window_origin().at(number<1>{})},
             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
 
-#if 0 // FIXME: using Array will cause register spill
-        Array<Array<decltype(b_warp_window_tmp), KIterPerWarp>, NIterPerWarp> b_warp_windows{
-            {b_warp_window_tmp}};
-
-        for(index_t nIter = 0; nIter < NIterPerWarp; nIter++)
-        {
-            for(index_t kIter = 0; kIter < KIterPerWarp; kIter++)
-            {
-                move_tile_window(b_warp_windows(nIter)(kIter),
-                                 {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
-            }
-        }
-#else
         statically_indexed_array<statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
-                               NIterPerWarp>
-            b_warp_windows;
+                                 NIterPerWarp> b_warp_windows;
 
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -126,15 +110,11 @@ struct BlockGemmARegBSmemCRegV1
                                  {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
             });
         });
-#endif
 
         // check C-block-distribution
         static_assert(std::is_same_v<remove_cvref_t<decltype(c_block_dstr_encode)>,
-                                remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
-                                                            .get_static_tile_distribution_encoding())>>,
-                                // remove_cvref_t<decltype(CBlockTensor::GetTileDistribution()
-                                                            // .GetStaticTileDistributionEncoding())>>,
-                      "wrong!");
+                      remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
+                      .get_static_tile_distribution_encoding())>>, "wrong!");
 
         using AWarpDstr = typename WG::AWarpDstr;
         using CWarpDstr = typename WG::CWarpDstr;
@@ -187,7 +167,7 @@ struct BlockGemmARegBSmemCRegV1
                                const BBlockWindowTmp& b_block_window_tmp) const
     {
         static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
-                          std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>>,
+                      std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>>,
                       "wrong!");
 
         constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
@@ -195,8 +175,7 @@ struct BlockGemmARegBSmemCRegV1
         constexpr index_t KPerBlock = ABlockTensorTmp{}.get_lengths()[number<1>{}];
 
         static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
-                          KPerBlock == BlockGemmShape::kK,
-                      "wrong!");
+                      KPerBlock == BlockGemmShape::kK, "wrong!");
 
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
@@ -251,26 +230,11 @@ struct BlockGemmARegBSmemCRegV1
         auto b_warp_window_tmp = make_tile_window(
             b_block_window_tmp.get_bottom_tensor_view(),
             make_tuple(number<WG::kN>{}, number<WG::kK>{}),
-            // b_block_window_tmp.GetWindowOrigin() + MultiIndex<2>{iNWarp * WG::kN, 0},
             {b_block_window_tmp.get_window_origin().at(number<0>{}) + iNWarp * WG::kN, b_block_window_tmp.get_window_origin().at(number<1>{})},
             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
 
-#if 0 // FIXME: using Array will cause register spill
-        Array<Array<decltype(b_warp_window_tmp), KIterPerWarp>, NIterPerWarp> b_warp_windows{
-            {b_warp_window_tmp}};
-
-        for(index_t nIter = 0; nIter < NIterPerWarp; nIter++)
-        {
-            for(index_t kIter = 0; kIter < KIterPerWarp; kIter++)
-            {
-                move_tile_window(b_warp_windows(nIter)(kIter),
-                                 {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
-            }
-        }
-#else
         statically_indexed_array<statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
-                               NIterPerWarp>
-            b_warp_windows;
+                                 NIterPerWarp> b_warp_windows;
 
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -280,7 +244,6 @@ struct BlockGemmARegBSmemCRegV1
                                  {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
             });
         });
-#endif
 
         // Construct C-Block-Tensor
         auto c_block_tensor = make_static_distributed_tensor<CDataType>(c_block_dstr);
