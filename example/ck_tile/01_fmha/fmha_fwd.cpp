@@ -484,10 +484,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<int32_t> page_idx_host({seqstart_k_host.back()});
     // std::iota(page_idx_host.begin(), page_idx_host.end(), 0);
     iota_shuffle(page_idx_host.mData.begin(), page_idx_host.mData.end(), 0);
-    page_idx_host.savetxt("page_idx_host.txt", "int");
     // for (int i = 0; i < page_idx_host.get_element_space_size(); i++) {
     //     page_idx_host(i) = (i + 19) %  page_idx_host.size();
     // }
+    page_idx_host.savetxt("page_idx_host.txt", "int");
 
     using TypeConfig = FmhaFwdTypeConfig<DataTypeConfig>;
 
@@ -593,7 +593,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     };
 
     bool is_v_rowmajor = vlayout == std::string("r");
-
+    assert(is_v_rowmajor);
+    assert(!i_perm);
+    
     // host memory for storing all the tensor elements
     const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
     const ck_tile::index_t shape_seqlen_q =
@@ -609,7 +611,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         0 < page_block_size
             ? get_lengths(i_perm, max_num_page_blocks, nhead_k, page_block_size, hdim_q)
             : get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
-    printf("shape %d %d %d %d\n", shape_batch, nhead_k, shape_seqlen_k, seqstart_q_host.back());
     ck_tile::HostTensor<KDataType> k_host_sgl({seqstart_k_host.back(), nhead_k, hdim_q});
 
     /// NOTICE: always use same shape for knew_host & vnew_host in batch/group mode
@@ -624,6 +625,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                    : get_lengths(i_perm, max_num_page_blocks, nhead_k, hdim_v, page_block_size))
             : (is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
                              : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k)));
+    ck_tile::HostTensor<KDataType> v_host_sgl({seqstart_k_host.back(), nhead_k, hdim_v});
     ck_tile::HostTensor<VDataType> vnew_host(
         0 < seqlen_knew
             ? (is_v_rowmajor ? get_lengths(i_perm, batch, nhead_k, seqlen_knew, hdim_v)
@@ -755,16 +757,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     k_host.ForEach([&](auto& self, auto i) {
         k_host_sgl(page_idx_host(i[1]), i[2], i[3]) = self(i);
-        // self(i) = k_host(0, page_idx_host[i[0]], i[1], i[2]);
+    });
+    v_host.ForEach([&](auto& self, auto i) {
+        v_host_sgl(page_idx_host(i[1]), i[2], i[3]) = self(i);
     });
     // k_host.savetxt("k_host.txt");
     // k_host_sgl.savetxt("k_host_sgl.txt");
+    // v_host_sgl.savetxt("v_host_sgl.txt");
     iota_shuffle(block_table_host.begin(), block_table_host.end(), 0);
     iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0);
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k_host_sgl.get_element_space_size_in_bytes());
     ck_tile::DeviceMem knew_buf(knew_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem v_buf(v_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem v_buf(v_host_sgl.get_element_space_size_in_bytes());
     ck_tile::DeviceMem vnew_buf(vnew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem bias_buf(bias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem lse_acc_buf(lse_acc_host.get_element_space_size_in_bytes());
@@ -792,7 +797,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host_sgl.data());
     knew_buf.ToDevice(knew_host.data());
-    v_buf.ToDevice(v_host.data());
+    v_buf.ToDevice(v_host_sgl.data());
     vnew_buf.ToDevice(vnew_host.data());
     bias_buf.ToDevice(bias_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());

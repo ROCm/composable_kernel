@@ -33,8 +33,9 @@ template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
           typename StaticPageIndexArray_,
-          index_t PageIndexDim = 0,
-          index_t NumCoord = 1>
+          index_t HsGatherDim = 0,
+          index_t NumCoord = 1,
+          index_t YsGatherDim = 0>
 struct tile_scatter_gather
 {
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
@@ -191,7 +192,7 @@ struct tile_scatter_gather
 
         BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
-        bottom_tensor_thread_origin_idx_tmp(PageIndexDim) = 0;
+        bottom_tensor_thread_origin_idx_tmp(HsGatherDim) = 0;
         // BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
         //     tuple<index_t, index_t>(0, window_adaptor_thread_coord_tmp.get_bottom_index()[1]);
         const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
@@ -337,7 +338,7 @@ struct tile_scatter_gather
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_m        = idx_ys_start[number<0>{}];
+                constexpr auto idx_m        = idx_ys_start[number<YsGatherDim>{}];
                 const auto page_offset           = page_idx_[idx_m];
 
                 // read from bottom tensor
@@ -375,7 +376,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == PageIndexDim ? 0 : idx_diff_ys[i]; }, number<NDimY>{});
+                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; }, number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
                         generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
@@ -387,7 +388,6 @@ struct tile_scatter_gather
             });
         });
     }
-
 
     template <index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true>
@@ -402,7 +402,7 @@ struct tile_scatter_gather
         using SFC_Ys   = typename Traits::SFC_Ys;
 
         constexpr auto tile_dstr = TileDstr{};
-        printf("off %d\n", page_idx_[I0]);
+        // printf("off %d\n", page_idx_[I0]);
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
@@ -461,7 +461,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == PageIndexDim ? 0 : idx_diff_ys[i]; }, number<NDimY>{});
+                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; }, number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
                         generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
@@ -480,17 +480,22 @@ struct tile_scatter_gather
     CK_TILE_DEVICE void move(const BottomTensorIndex& step)
     {
         window_origin_ += step;
-
+        BottomTensorIndex step_new = step;
+        step_new(HsGatherDim) = 0;
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             move_tensor_coordinate(bottom_tensor_view_.get_tensor_descriptor(),
                                    pre_computed_coords_(iCoord)(I1),
-                                   step);
+                                   step_new);
         });
     }
 
     CK_TILE_DEVICE void update_page_idx(const PageIdxArray& new_idx)
     {
         page_idx_  = new_idx;
+        
+        // static_for<0, 2, 1>{}([&](auto k0) {
+        //     printf("update tid %d %d \n", threadIdx.x, page_idx_[k0]);
+        // });
     }
 //     CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
 //     {
@@ -582,7 +587,7 @@ template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
           typename StaticPageIndexArray_,
-          index_t PageIndexDim = 0,
+          index_t HsGatherDim = 0,
           index_t NumCoord = 1>
 CK_TILE_DEVICE constexpr auto
 make_tile_scatter_gather(const TensorView_& tensor_view,
@@ -590,46 +595,46 @@ make_tile_scatter_gather(const TensorView_& tensor_view,
                  const multi_index<TensorView_::get_num_of_dimension()>& origin,
                  const StaticTileDistribution_& tile_distribution,
                  const StaticPageIndexArray_& page_idx,
-                 number<PageIndexDim> = {},
+                 number<HsGatherDim> = {},
                  number<NumCoord> = {})
 {
     return tile_scatter_gather<remove_cvref_t<TensorView_>,
                                                 remove_cvref_t<WindowLengths_>,
                                                 remove_cvref_t<StaticTileDistribution_>,
                                                 remove_cvref_t<StaticPageIndexArray_>,
-                                                PageIndexDim,
+                                                HsGatherDim,
                                                 NumCoord>{
         tensor_view, window_lengths, origin, tile_distribution, page_idx};
 }
 
-template <typename TensorView, typename WindowLengths, typename StaticTileDistribution, typename StaticPageIndexArray, index_t PageIndexDim>
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution, typename StaticPageIndexArray, index_t HsGatherDim>
 CK_TILE_DEVICE constexpr auto
 make_tile_scatter_gather(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
                  const multi_index<TensorView::get_num_of_dimension()>& origin,
                  const StaticTileDistribution& tile_distribution,
                  const StaticPageIndexArray& page_idx,
-                 number<PageIndexDim> = {})
+                 number<HsGatherDim> = {})
 {
     return make_tile_scatter_gather(tile_window.get_bottom_tensor_view(),
                             tile_window.get_window_lengths(),
                             origin,
                             tile_distribution,
                             page_idx,
-                            number<PageIndexDim>{});
+                            number<HsGatherDim>{});
 }
 
-template <typename TensorView, typename WindowLengths, typename StaticTileDistribution, typename StaticPageIndexArray, index_t PageIndexDim>
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution, typename StaticPageIndexArray, index_t HsGatherDim>
 CK_TILE_DEVICE constexpr auto
 make_tile_scatter_gather(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
                  const StaticTileDistribution& tile_distribution, const StaticPageIndexArray& page_idx,
-                 number<PageIndexDim> = {})
+                 number<HsGatherDim> = {})
 {
     return make_tile_scatter_gather(tile_window.get_bottom_tensor_view(),
                             tile_window.get_window_lengths(),
                             tile_window.get_window_origin(),
                             tile_distribution,
                             page_idx,
-                            number<PageIndexDim>{});
+                            number<HsGatherDim>{});
 }
 
 // template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>

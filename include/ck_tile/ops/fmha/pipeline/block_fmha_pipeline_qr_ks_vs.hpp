@@ -10,6 +10,7 @@
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/tensor/tile_scatter_gather.hpp"
+// #include "ck_tile/core/tensor/tile_scatter_gather_debug.hpp"
 
 namespace ck_tile {
 
@@ -47,6 +48,10 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr index_t kQKHeaddim    = BlockFmhaShape::kQKHeaddim;
     static constexpr index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
 
+    static constexpr auto I0 = number<0>{};
+    static constexpr auto I1 = number<1>{};
+    static constexpr auto I2 = number<2>{};
+    static constexpr auto I3 = number<3>{};
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
@@ -261,11 +266,28 @@ struct BlockFmhaPipelineQRKSVS
         auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
             randval_dram_block_window_tmp, seqlen_k_start);
 
+        auto v_dist = Policy::template MakeVDramTileDistribution<Problem>();
+        auto v_coord = v_dist.calculate_index();
+        const auto VPageIndexDim = I1;
+        using VDstrEncode = typename decltype(v_dist)::DstrEncode;
+        constexpr index_t V_KRepeat = VDstrEncode::hs_lengthss_[I1][I3];
+        statically_indexed_array<index_t, V_KRepeat> v_offsets;
+        static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+            v_offsets[k0] = page_idx[v_coord[VPageIndexDim] + k0.value] * stride_v;
+            // printf("1tid %d %d %d %d %d\n", threadIdx.x, v_coord[VPageIndexDim], k0.value, page_idx[v_coord[VPageIndexDim] + k0.value], stride_v);
+        });
         auto v_dram_window =
-            make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
+            make_tile_scatter_gather(v_dram_block_window_tmp.get_bottom_tensor_view(),
                              v_dram_block_window_tmp.get_window_lengths(),
                              {0, seqlen_k_start}, // TODO: hdim split?
-                             Policy::template MakeVDramTileDistribution<Problem>());
+                             v_dist,
+                             v_offsets,
+                             VPageIndexDim);
+        // auto v_dram_window =
+        //     make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
+        //                      v_dram_block_window_tmp.get_window_lengths(),
+        //                      {0, seqlen_k_start}, // TODO: hdim split?
+        //                      v_dist);
 
         auto q_tile = tile_elementwise_in(q_element_func, q);
 
@@ -276,18 +298,16 @@ struct BlockFmhaPipelineQRKSVS
 
         static_assert(2 <= k0_loops);
         static_assert(1 <= k1_loops);
-        constexpr auto I0 = number<0>{};
         do
         {
             // STAGE 1, QK gemm
-            (void)stride_v;
             auto k_dist = Policy::template MakeKDramTileDistribution<Problem>();
-            auto c_coord = k_dist.calculate_index();
+            auto k_coord = k_dist.calculate_index();
             using KDstrEncode = typename decltype(k_dist)::DstrEncode;
             constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I0];
             statically_indexed_array<index_t, NRepeat> k_offsets;
             static_for<0, NRepeat, 1>{}([&](auto n0) {
-                k_offsets[n0] = page_idx[i_total_loops * kN0 + c_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
+                k_offsets[n0] = page_idx[k_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
             });
             auto k_dram_window = make_tile_scatter_gather(
                 k_dram_block_window.get_bottom_tensor_view(),
@@ -335,7 +355,13 @@ struct BlockFmhaPipelineQRKSVS
                 });
             }
 
-            const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
+            const auto v_prefetch = v_dram_window.load(); // prefetch load v tile
+            // const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
+            static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                v_offsets[k0] = page_idx[kK1 + v_coord[VPageIndexDim] + k0.value] * stride_v;
+                // printf("2tid %d %d %d %d\n", threadIdx.x, v_coord[VPageIndexDim], kK1 + v_coord[VPageIndexDim] + k0.value, page_idx[kK1 + v_coord[VPageIndexDim] + k0.value]);
+            });
+            v_dram_window.update_page_idx(v_offsets);
             {                                                 // tail
                 block_sync_lds();
                 gemm_0(s_acc,
@@ -537,6 +563,12 @@ struct BlockFmhaPipelineQRKSVS
             {
                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
                     const auto v = load_tile(v_dram_window); // load next v
+                    
+                    static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                        v_offsets[k0] = page_idx[kK1 * 2 + i_k1.value * kK1 + v_coord[VPageIndexDim] + k0.value] * stride_v;
+                        // printf("3tid %d %d %d %d\n", threadIdx.x, v_coord[VPageIndexDim], kK1 * 2 + i_k1.value * kK1 + v_coord[VPageIndexDim] + k0.value, page_idx[kK1 + i_k1.value * kK1 + v_coord[VPageIndexDim] + k0.value]);
+                    });
+                    v_dram_window.update_page_idx(v_offsets);
                     block_sync_lds();
                     gemm_1(o_acc,
                            get_slice_tile(
@@ -570,6 +602,7 @@ struct BlockFmhaPipelineQRKSVS
                        v_lds_window);
                 block_sync_lds();
             }
+            page_idx += kN0;
         } while(++i_total_loops < num_total_loop);
 
         // store lse
