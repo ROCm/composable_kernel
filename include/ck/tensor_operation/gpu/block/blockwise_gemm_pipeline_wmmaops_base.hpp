@@ -17,10 +17,8 @@ template <index_t BlockSize,
           typename BDataType,
           typename ComputeDataType,
           typename AccDataType,
-          typename ATileDesc,
-          typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
+          typename AWmmaTileDesc,
+          typename BWmmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -38,9 +36,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
-    static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
-    static constexpr auto I6 = Number<6>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -49,57 +45,11 @@ struct BlockwiseGemmWmmaops_pipeline_base
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWmma);
 
-    // Describe how data read from (LDS/VGPR) buffer
-    template <typename ABlockDesc_>
-    __host__ __device__ static constexpr auto MakeAWaveDescriptor(const ABlockDesc_&)
-    {
-        // AK0_M_AK1 -> AK0_MRepeat_Mwaves_AKRow_MPerWmma_AK1
-        constexpr auto A_K0 = ABlockDesc_{}.GetLength(I0);
-        constexpr auto A_K1 = ABlockDesc_{}.GetLength(I2);
-#ifdef __gfx12__
-        constexpr auto A_KRow = I2;
-#else
-        constexpr auto A_KRow = I1;
-#endif
-        return transform_tensor_descriptor(
-            ABlockDesc_{},
-            make_tuple(make_unmerge_transform(make_tuple(Number<A_K0 / A_KRow>{}, A_KRow)),
-                       make_unmerge_transform(
-                           make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWmma>{})),
-                       make_pass_through_transform(Number<A_K1>{})),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0, 3>{}, Sequence<1, 2, 4>{}, Sequence<5>{}));
-    }
-
-    template <typename BBlockDesc_>
-    __host__ __device__ static constexpr auto MakeBWaveDescriptor(const BBlockDesc_&)
-    {
-        // BK0_N_BK1 -> BK0_NRepeat_NWaves_NPerWmma_BK1
-        constexpr auto B_K0 = BBlockDesc_{}.GetLength(I0);
-        constexpr auto B_K1 = BBlockDesc_{}.GetLength(I2);
-#ifdef __gfx12__
-        constexpr auto B_KRow = I2;
-#else
-        constexpr auto B_KRow = I1;
-#endif
-        return transform_tensor_descriptor(
-            BBlockDesc_{},
-            make_tuple(make_unmerge_transform(make_tuple(Number<B_K0 / B_KRow>{}, B_KRow)),
-                       make_unmerge_transform(
-                           make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerWmma>{})),
-                       make_pass_through_transform(Number<B_K1>{})),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0, 3>{}, Sequence<1, 2, 4>{}, Sequence<5>{}));
-    }
-
-    using ABlockDesc = decltype(MakeAWaveDescriptor(ATileDesc{}));
-    using BBlockDesc = decltype(MakeBWaveDescriptor(BTileDesc{}));
-
     static constexpr index_t A_KRow = 1;
     static constexpr index_t B_KRow = 1;
 
-    static constexpr index_t A_K1 = ABlockDesc{}.GetLength(I5);
-    static constexpr index_t B_K1 = BBlockDesc{}.GetLength(I5);
+    static constexpr index_t A_K1 = AWmmaTileDesc{}.GetLength(I5);
+    static constexpr index_t B_K1 = BWmmaTileDesc{}.GetLength(I5);
 
     static constexpr auto wmma_gemm =
         WmmaGemm<ADataType, BDataType, AccDataType, MPerWmma, NPerWmma, KPack, TransposeC>{};
@@ -222,7 +172,8 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                        Tuple6 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
-        static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
+        static_assert(AWmmaTileDesc::IsKnownAtCompileTime() &&
+                          BWmmaTileDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
         static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
@@ -272,8 +223,8 @@ struct BlockwiseGemmWmmaops_pipeline_base
 
     // Describe how data allocated in thread copy src buffer
     // M0_M1_M2 = MRepeat_MWave_MPerWmma, N0_N1_N2 = NRepeat_NWave_NPerWmma
-    static constexpr ABlockDesc a_block_desc_k0_m0_m1_m2_k1;
-    static constexpr BBlockDesc b_block_desc_k0_n0_n1_n2_k1;
+    static constexpr AWmmaTileDesc a_block_desc_k0_m0_m1_m2_k1;
+    static constexpr BWmmaTileDesc b_block_desc_k0_n0_n1_n2_k1;
 
     protected:
     static constexpr auto a_thread_desc_ =

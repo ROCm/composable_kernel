@@ -185,19 +185,25 @@ struct GridwiseGemm_wmma_cshuffle_v3
         return math::integer_divide_ceil(N, NPerBlock);
     }
 
-    template <index_t MNWmmaPerWave, index_t MNWaves, index_t MNPerWmma, typename TileDesc_K0_MN_K1>
-    __host__ __device__ static constexpr auto MakeGemmMmaTileDescriptor(const TileDesc_K0_MN_K1&)
+    template <index_t MNRepeat, index_t MNWaves, index_t MNPerWmma, typename BlockDesc>
+    __host__ __device__ static constexpr auto MakeWmmaTileDescriptor(const BlockDesc&)
     {
-        constexpr index_t K0 = TileDesc_K0_MN_K1{}.GetLength(Number<0>{});
-        constexpr index_t K1 = TileDesc_K0_MN_K1{}.GetLength(Number<2>{});
-
+        // K0_N_K1 -> K0_MNRepeat_MNWaves_MNPerWmma_K1
+        constexpr auto K0 = BlockDesc{}.GetLength(I0);
+        constexpr auto K1 = BlockDesc{}.GetLength(I2);
+#ifdef __gfx12__
+        constexpr auto KRow = I2;
+#else
+        constexpr auto KRow = I1;
+#endif
         return transform_tensor_descriptor(
-            TileDesc_K0_MN_K1{},
-            make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
-                       make_unmerge_transform(make_tuple(
-                           Number<MNWmmaPerWave>{}, Number<MNWaves>{}, Number<MNPerWmma>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+            BlockDesc{},
+            make_tuple(make_unmerge_transform(make_tuple(Number<K0 / KRow>{}, KRow)),
+                       make_unmerge_transform(
+                           make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                       make_pass_through_transform(Number<K1>{})),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+            make_tuple(Sequence<0, 3>{}, Sequence<1, 2, 4>{}, Sequence<5>{}));
     }
 
     __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
@@ -393,21 +399,19 @@ struct GridwiseGemm_wmma_cshuffle_v3
     }
 
     template <typename ABlockDesc_AK0_M_AK1>
-    __host__ __device__ static constexpr auto
-    MakeAMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
+    __host__ __device__ static constexpr auto MakeAWmmaTileDescriptor(const ABlockDesc_AK0_M_AK1&)
     {
         constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWmma);
 
-        return MakeGemmMmaTileDescriptor<MRepeat, MWaves, MPerWmma>(ABlockDesc_AK0_M_AK1{});
+        return MakeWmmaTileDescriptor<MRepeat, MWaves, MPerWmma>(ABlockDesc_AK0_M_AK1{});
     }
 
     template <typename BBlockDesc_BK0_N_BK1>
-    __host__ __device__ static constexpr auto
-    MakeBMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
+    __host__ __device__ static constexpr auto MakeBWmmaTileDescriptor(const BBlockDesc_BK0_N_BK1&)
     {
         constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWmma);
 
-        return MakeGemmMmaTileDescriptor<NRepeat, NWaves, NPerWmma>(BBlockDesc_BK0_N_BK1{});
+        return MakeWmmaTileDescriptor<NRepeat, NWaves, NPerWmma>(BBlockDesc_BK0_N_BK1{});
     }
 
     __host__ __device__ static auto
@@ -918,31 +922,27 @@ struct GridwiseGemm_wmma_cshuffle_v3
         return c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat;
     }
 
-    using BlockwiseGemmPipe =
-        remove_cvref_t<decltype(BlockGemmPipeline_Selector<
-                                BlkGemmPipelineVer,
-                                BlkGemmPipeSched,
-                                BlockSize,
-                                ADataType,
-                                BDataType,
-                                ComputeTypeA,
-                                AccDataType,
-                                decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
-                                decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()),
-                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
-                                    GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
-                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
-                                    GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
-                                ABlockTransferSrcScalarPerVector,
-                                BBlockTransferSrcScalarPerVector,
-                                MPerBlock,
-                                NPerBlock,
-                                KPerBlock,
-                                MPerWmma,
-                                NPerWmma,
-                                MRepeat,
-                                NRepeat,
-                                KPack>())>;
+    using BlockwiseGemmPipe = remove_cvref_t<
+        decltype(BlockGemmPipeline_Selector<
+                 BlkGemmPipelineVer,
+                 BlkGemmPipeSched,
+                 BlockSize,
+                 ADataType,
+                 BDataType,
+                 ComputeTypeA,
+                 AccDataType,
+                 decltype(MakeAWmmaTileDescriptor(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
+                 decltype(MakeBWmmaTileDescriptor(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
+                 ABlockTransferSrcScalarPerVector,
+                 BBlockTransferSrcScalarPerVector,
+                 MPerBlock,
+                 NPerBlock,
+                 KPerBlock,
+                 MPerWmma,
+                 NPerWmma,
+                 MRepeat,
+                 NRepeat,
+                 KPack>())>;
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
