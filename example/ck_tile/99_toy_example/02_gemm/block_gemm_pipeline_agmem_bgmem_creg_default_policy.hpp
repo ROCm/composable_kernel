@@ -337,23 +337,6 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
-    {
-        using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
-        using WG        = typename BlockGemm::WarpGemm;
-        using CWarpDstr = typename WG::CWarpDstr;
-
-        // In this case each thread has multiple consecutive elements in
-        // N dimension, however consecutive threads' elements have stride.
-        constexpr index_t NDimY = CWarpDstr::NDimY;
-        constexpr auto c_warp_y_lengths =
-            CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
-        static_assert(WG::WarpGemmAttribute::Impl::kCM1PerLane ==
-                        c_warp_y_lengths.get(number<NDimY - 1>{}));
-        return c_warp_y_lengths.get(number<NDimY - 1>{});
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
     {
         return Problem::TransposeC;
@@ -362,44 +345,21 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
     {
-        using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
-        constexpr index_t KPack = BlockGemm::Traits::KPack;
-        return KPack;
+        constexpr index_t kKPack = 8;
+        return kKPack;
+        // using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
+        // constexpr index_t KPack = BlockGemm::Traits::KPack;
+        // return KPack;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
     {
-        using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
-        constexpr index_t KPack = BlockGemm::Traits::KPack;
-        return KPack;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
-    {
-        constexpr auto a_lds_desc     = MakeALdsBlockDescriptor<Problem>();
-        constexpr index_t smem_size_a = integer_least_multiple(
-            sizeof(typename Problem::ADataType) * a_lds_desc.get_element_space_size(), 16);
-        return smem_size_a;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
-    {
-        constexpr auto b_lds_desc     = MakeBLdsBlockDescriptor<Problem>();
-        constexpr index_t smem_size_b = integer_least_multiple(
-            sizeof(typename Problem::BDataType) * b_lds_desc.get_element_space_size(), 16);
-        return smem_size_b;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
-    {
-        constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
-        constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
-
-        return smem_size_a + smem_size_b;
+        constexpr index_t kKPack = 8;
+        return kKPack;
+        // using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
+        // constexpr index_t KPack = BlockGemm::Traits::KPack;
+        // return KPack;
     }
 
     template <typename Problem>

@@ -30,9 +30,6 @@ struct BlockGemmPipelineAGmemBGmemCReg
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
     {
-#if defined(ENABLE_INSTRUCTION_SCH)
-        return Policy::template GetSmemSize<Problem>();
-#else
         return integer_divide_ceil(
                    sizeof(ADataType) *
                        Policy::template MakeALdsBlockDescriptor<Problem>().get_element_space_size(),
@@ -40,7 +37,6 @@ struct BlockGemmPipelineAGmemBGmemCReg
                    16 +
                sizeof(BDataType) *
                    Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
-#endif
     }
 
 #if defined(ENABLE_INSTRUCTION_SCH)
@@ -67,7 +63,6 @@ struct BlockGemmPipelineAGmemBGmemCReg
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
-    static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
 
     static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
     static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
