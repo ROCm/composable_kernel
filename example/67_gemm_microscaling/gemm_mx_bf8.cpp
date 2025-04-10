@@ -3,12 +3,12 @@
 
 #include "gemm_mx_common.hpp"
 
-using ADataType = ck::f8_t;
-using BDataType = ck::f8_t;
+using ADataType = ck::bf8_t;
+using BDataType = ck::bf8_t;
 
 using XDataType = ck::e8m0_bexp_t;
 
-using CDataType        = ck::half_t;
+using CDataType        = ck::bhalf_t;
 using AccDataType      = float;
 using CShuffleDataType = CDataType;
 

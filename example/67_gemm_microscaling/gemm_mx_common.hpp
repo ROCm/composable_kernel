@@ -503,7 +503,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             }
             std::cout << std::endl;
         }
-
+#if 1
         std::cout << "Submatrix of a_m_k_scale (16x16):" << std::endl;
         for(int i = 0; i < 16; ++i)
         {
@@ -547,12 +547,13 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
             std::cout << std::endl;
         }
+#endif
         std::cout << "Submatrix of c_m_n_device_result (16x16):" << std::endl;
         for(int i = 0; i < 16; ++i)
         {
             for(int j = 0; j < 16; ++j)
             {
-                std::cout << std::setw(11) << std::fixed << std::setprecision(6)
+                std::cout << std::setw(11) << std::fixed << std::setprecision(4)
                           << type_convert<float>(c_m_n_device_result(i, j));
             }
             // std::cout << "\t\t";
