@@ -110,7 +110,7 @@ if __name__ == "__main__":
              "  200-299: Only generate instance for Aiter(mha_varlen_fwd) integration\n" + \
              "  300-399: Only generate instance for Aiter(mha_bwd) integration\n" + \
              "  400-499: Only generate instance for Aiter(mha_varlen_bwd) integration\n" + \
-             "  600-699: Only generate instance for aiter::mha_fwd && aiter::mha_fwd_splitkv && aiter::mha_bwd integration"
+             "  600-699: Only generate instance for aiter::mha_fwd && aiter::mha_fwd_splitkv && aiter::mha_bwd C++ api integration"
     )
 
     args = parser.parse_args()
