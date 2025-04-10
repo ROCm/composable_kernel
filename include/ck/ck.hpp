@@ -6,15 +6,10 @@
 #include "ck/config.h"
 
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
-#include "ck/utility/env.hpp"
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 #endif
-
-// environment variable to enable logging:
-// export CK_LOGGING=ON or CK_LOGGING=1 or CK_LOGGING=ENABLED
-CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #endif
 // to do: add various levels of logging with CK_LOG_LEVEL
 
@@ -70,7 +65,8 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #define __gfx103__
 #endif
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
-    defined(__gfx1103__) || defined(__gfx11_generic__)
+    defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) || \
+    defined(__gfx1152__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
 #if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)

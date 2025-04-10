@@ -555,11 +555,10 @@ def do_gen_blobs(args, gemm_config):
      
 
 def main(args):
-    # Read and validate json file
+    # Read json file
     with open(args.json, 'r') as json_file:
         config_data = json.load(json_file)
     
-    # Validate and parse configuration
     gemm_config = GemmConfig(config_data)
 
     if args.list_blobs:
