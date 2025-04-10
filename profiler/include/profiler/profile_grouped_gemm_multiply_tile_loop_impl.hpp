@@ -6,6 +6,7 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_tile_loop.hpp"
