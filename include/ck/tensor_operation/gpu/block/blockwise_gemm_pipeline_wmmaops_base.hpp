@@ -45,11 +45,19 @@ struct BlockwiseGemmWmmaops_pipeline_base
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWmma);
 
+#if defined(__gfx12__)
+    static constexpr index_t A_KRow = 2;
+    static constexpr index_t B_KRow = 2;
+#else
     static constexpr index_t A_KRow = 1;
     static constexpr index_t B_KRow = 1;
+#endif
 
     static constexpr index_t A_K1 = AWmmaTileDesc{}.GetLength(I5);
     static constexpr index_t B_K1 = BWmmaTileDesc{}.GetLength(I5);
+
+    static_assert(KPack % (A_K1 * A_KRow) == 0, "wrong!");
+    static_assert(KPack % (B_K1 * B_KRow) == 0, "wrong!");
 
     static constexpr auto wmma_gemm =
         WmmaGemm<ADataType, BDataType, AccDataType, MPerWmma, NPerWmma, KPack, TransposeC>{};
@@ -104,8 +112,14 @@ struct BlockwiseGemmWmmaops_pipeline_base
 
         const auto wmma_a_idx = wmma_gemm.CalculateAThreadOriginDataIndex();
 
+#if defined(__gfx12__)
+        const auto wmma_krow = wmma_gemm.GetSubGroupId();
+#else
+        const auto wmma_krow = 0;
+#endif
+
         //  |KRepeat   |MRepeat|MWave    |KRow  |MLane  |KPack
-        return make_tuple(0, 0, waveId_m, 0, wmma_a_idx, 0);
+        return make_tuple(0, 0, waveId_m, wmma_krow, wmma_a_idx, 0);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -116,8 +130,14 @@ struct BlockwiseGemmWmmaops_pipeline_base
 
         const auto wmma_b_idx = wmma_gemm.CalculateBThreadOriginDataIndex();
 
+#if defined(__gfx12__)
+        const auto wmma_krow = wmma_gemm.GetSubGroupId();
+#else
+        const auto wmma_krow = 0;
+#endif
+
         //  |KRepeat   |NRepeat|Nwave     |KRow  |NLane  |KPack
-        return make_tuple(0, 0, waveId_n, 0, wmma_b_idx, 0);
+        return make_tuple(0, 0, waveId_n, wmma_krow, wmma_b_idx, 0);
     }
 
     template <index_t m0, index_t n0>
@@ -231,12 +251,12 @@ struct BlockwiseGemmWmmaops_pipeline_base
         make_naive_tensor_descriptor(make_tuple(Number<KPack / A_K1 / A_KRow>{},
                                                 Number<MRepeat>{},
                                                 Number<KRepeat>{},
-                                                Number<A_KRow>{},
+                                                I1,
                                                 I1,
                                                 Number<A_K1>{}),
-                                     make_tuple(Number<A_K1 * A_KRow>{},
-                                                Number<KPack>{},
-                                                Number<KPack * A_K1 * A_KRow>{},
+                                     make_tuple(Number<A_K1>{},
+                                                Number<KPack / A_KRow>{},
+                                                Number<KPack * A_K1>{},
                                                 Number<A_K1>{},
                                                 Number<A_K1>{},
                                                 Number<1>{}));
@@ -245,12 +265,12 @@ struct BlockwiseGemmWmmaops_pipeline_base
         make_naive_tensor_descriptor(make_tuple(Number<KPack / B_K1 / B_KRow>{},
                                                 Number<NRepeat>{},
                                                 Number<KRepeat>{},
-                                                Number<B_KRow>{},
+                                                I1,
                                                 I1,
                                                 Number<B_K1>{}),
-                                     make_tuple(Number<B_K1 * B_KRow>{},
-                                                Number<KPack>{},
-                                                Number<KPack * B_K1 * B_KRow>{},
+                                     make_tuple(Number<B_K1>{},
+                                                Number<KPack / B_KRow>{},
+                                                Number<KPack * B_K1>{},
                                                 Number<B_K1>{},
                                                 Number<B_K1>{},
                                                 Number<1>{}));
@@ -264,7 +284,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                          ADataType,
                                          decltype(a_block_desc_k0_m0_m1_m2_k1),
                                          decltype(a_thread_desc_),
-                                         Sequence<KPack / A_K1 / A_KRow, 1, 1, A_KRow, 1, A_K1>,
+                                         Sequence<KPack / A_K1 / A_KRow, 1, 1, 1, 1, A_K1>,
                                          Sequence<0, 1, 2, 3, 4, 5>,
                                          5,
                                          A_K1,
@@ -275,7 +295,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                          BDataType,
                                          decltype(b_block_desc_k0_n0_n1_n2_k1),
                                          decltype(b_thread_desc_),
-                                         Sequence<KPack / B_K1 / B_KRow, 1, 1, B_KRow, 1, B_K1>,
+                                         Sequence<KPack / B_K1 / B_KRow, 1, 1, 1, 1, B_K1>,
                                          Sequence<0, 1, 2, 3, 4, 5>,
                                          5,
                                          B_K1,
