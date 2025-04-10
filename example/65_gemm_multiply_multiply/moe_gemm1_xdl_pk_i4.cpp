@@ -125,7 +125,7 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 
 static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t Nswizzle  = false;
-static constexpr ck::index_t Act_OP    = 0; // 0: gelu, 1: silu, 2: swiglu
+static constexpr ck::index_t ActOP     = 2; // 0: gelu_and_mul, 2: silu_and_mul
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             Row, Col, DsLayout, ELayout, 
@@ -147,9 +147,6 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = true;
 
-    // tokens = 1
-    // topk = 1
-    // experts = 8
     // per expert:
     // GEMM shape
     ck::index_t N               = 14336;

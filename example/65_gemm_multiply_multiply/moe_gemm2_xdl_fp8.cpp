@@ -25,7 +25,6 @@ template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
-// using BF16 = ck::bhalf_t;
 using F8  = ck::f8_t;
 using F32 = float;
 
@@ -48,7 +47,6 @@ using ELayout  = Row;
 using D0Layout = Row;
 using D1Layout = Col;
 using D2Layout = ELayout;
-// using DsLayoutGate = ck::Tuple<D0Layout, D1Layout>;
 using DsLayout = ck::Tuple<D0Layout, D1Layout, D2Layout>;
 
 // d0: ascale, d1: bscale, d2:expert weight
@@ -133,8 +131,6 @@ static constexpr ck::index_t NPerBlock   = 128;
 static constexpr ck::index_t MNPerXDL    = 16;
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
 
-// static constexpr ck::index_t MXDLPerWave = MPerBlock / 32; //todo fix this constraint
-// static constexpr ck::index_t CShuffleMXDLPerWave = MPerBlock / 32;
 static constexpr ck::index_t CShuffleNLane = 32;
 static constexpr ck::index_t CShuffleMLane = BLOCKSIZE / CShuffleNLane;
 static constexpr ck::index_t AK1           = 16 / sizeof(A0DataType);
@@ -184,9 +180,6 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = true;
 
-    // tokens = 1
-    // topk = 1
-    // experts = 8
     // per expert:
     // GEMM shape
     ck::index_t N               = 4096;
@@ -248,15 +241,13 @@ int main(int argc, char* argv[])
 
     ck::index_t KBatch = 1;
 
-    // const ck::index_t experts = 8;
     Tensor<ck::index_t> expert_ids(HostTensorDescriptor({sorted_tile_num}, {1}));
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
-    // max_token_id.mData[0] = valid_size;
+
     max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
     int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
-    // max_token_id.mData = {valid_size, 0, 1, 2, 3, 4, 5, 6, 7, 8};
-    // int eids[]         = {0, 1, 2, 3, 4, 5, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+
     for(int i = 0; i < sorted_tile_num; i++)
     {
         expert_ids.mData[i] = eids[i];
@@ -268,7 +259,7 @@ int main(int argc, char* argv[])
     }
     int token_per_tile = tokens * topk / valid_tile_num;
     int tokenid        = 0;
-    // sorted_token_ids.mData[0] = 0;
+
     for(int i = 0; i < sorted_size; i++)
     {
         int tile_off = i % MPerBlock;
@@ -282,8 +273,7 @@ int main(int argc, char* argv[])
             sorted_token_ids.mData[i] = tokens;
         }
     }
-    expert_ids.savetxt("expert_ids.txt", "int");
-    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
+
     Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
@@ -334,12 +324,7 @@ int main(int argc, char* argv[])
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
-    // a0_t_k_k.savetxt("a.txt");
-    // expert_ids.savetxt("expert_ids.txt", "int");
-    // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
-    // d0_t_n.savetxt("d0_t_n.txt", "int");
-    // d1_e_n.savetxt("d1_e_n.txt", "int");
-    // d2_e_n.savetxt("d2_e_n.txt", "int");
+
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     max_token_id_dev.ToDevice(max_token_id.mData.data());
@@ -456,8 +441,7 @@ int main(int argc, char* argv[])
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
-        // e_t_n_device_result.savetxt("out.txt");
-        // e_t_n_host_result.savetxt("ref.txt");
+
         return ck::utils::check_err(
                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
                    ? 0

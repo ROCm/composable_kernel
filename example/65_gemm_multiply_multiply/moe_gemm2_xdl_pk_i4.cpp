@@ -160,9 +160,6 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = true;
 
-    // tokens = 1
-    // topk = 1
-    // experts = 8
     // per expert:
     // GEMM shape
     ck::index_t N               = 4096;

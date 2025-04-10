@@ -25,7 +25,6 @@ template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
-// using BF16 = ck::bhalf_t;
 using F8  = ck::f8_t;
 using F32 = float;
 
@@ -81,8 +80,6 @@ struct MulABScale
     }
 };
 
-// using DsLayout = DsLayoutGate;
-// using DsDataType       = DsDataTypeGate;
 using CDEElementOp = MulABScale;
 
 void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int NXdl)
@@ -134,9 +131,8 @@ static constexpr ck::index_t BK1         = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec        = 16 / sizeof(EDataType);
 static constexpr ck::index_t D0Vec       = 1;
 static constexpr ck::index_t D1Vec       = 1;
-static constexpr ck::index_t ActOP       = 2; // 0: gelu, 1: silu, 2: swiglu
-// using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3
-using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
+static constexpr ck::index_t ActOP       = 2; // 0: gelu_and_mul, 2: silu_and_mul
+using DeviceOpInstance                   = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
@@ -173,8 +169,6 @@ int main(int argc, char* argv[])
     ck::index_t valid_tile_num  = 13;
     ck::index_t tokens          = 64;
     ck::index_t topk            = 2;
-
-    // ck::index_t tokens = batch * topk;
 
     if(argc == 1)
     {
@@ -225,24 +219,18 @@ int main(int argc, char* argv[])
 
     ck::index_t KBatch = 1;
 
-    // const ck::index_t experts = 8;
     Tensor<ck::index_t> expert_ids(HostTensorDescriptor({sorted_tile_num}, {1}));
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1 + sorted_tile_num}));
-    // max_token_id.mData =  {valid_size, 2, 2, 1, 1, 2, 2, 2,2, 2, 2, 2, 2,1,0,0,0};
-    // max_token_id.mData =  {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
-    // int eids[] = {0, 0,1, 2,3, 3, 4,4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
-    // int eids[] = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
     max_token_id.mData = {valid_size};
-    int eids[] = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
-    // max_token_id.mData = {valid_size};
+    int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3};
     for(int i = 0; i < sorted_tile_num; i++)
     {
         expert_ids.mData[i] = eids[i];
     }
     int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;
-    // sorted_token_ids.mData[0] = 0;
+
     for(int i = 0; i < sorted_size; i++)
     {
         int tile_off = i % MPerBlock;
@@ -256,14 +244,10 @@ int main(int argc, char* argv[])
             sorted_token_ids.mData[i] = tokens;
         }
     }
-    // expert_ids.savetxt("expert_ids.txt", "int");
-    // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
-    // Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N * 2}, {StrideDs[1] ? StrideDs[1] *
-    // N * 2: 1, StrideDs[1]}));
     Tensor<D1DataType> d1_e_n(
         HostTensorDescriptor({experts, N * 2}, {StrideDs[1] * N * 2, StrideDs[1]}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
@@ -311,9 +295,7 @@ int main(int argc, char* argv[])
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_t_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
-    // a0_t_k.savetxt("a.txt");
-    d0_t_n.savetxt("d0_t_n.txt", "float");
-    // d1_e_n.savetxt("d1_e_n.txt", "int");
+
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     max_token_id_dev.ToDevice(max_token_id.mData.data());
@@ -437,8 +419,7 @@ int main(int argc, char* argv[])
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
-        e_t_n_device_result.savetxt("out.txt");
-        e_t_n_host_result.savetxt("ref.txt");
+
         return ck::utils::check_err(
                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-1)
                    ? 0
