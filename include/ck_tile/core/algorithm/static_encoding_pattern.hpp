@@ -145,11 +145,11 @@ struct TileDistributionEncodingPattern2D<BlockSize,
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>, 
-                                        tuple<sequence<PX0, PX1>, sequence<PY0, PY1, PY2>>, 
-                                        tuple<sequence<2>, sequence<2, 1>>,
+                                        tuple<sequence<PY0, PY1, PY2>, sequence<PX0, PX1>>, 
+                                        tuple<sequence<1>, sequence<1, 2>>,
                                         tuple<sequence<0>, sequence<1, 0>>,
                                         sequence<1, 2>,
-                                        sequence<1, 2>>{}
+                                        sequence<2, 1>>{}
         );
     }
 
