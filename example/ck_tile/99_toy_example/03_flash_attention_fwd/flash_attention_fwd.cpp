@@ -83,21 +83,21 @@ int main(int argc, char* argv[])
 
     switch(init_method)
     {
-    case 0: break;
-    case 1:
-        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f}(q_host);
-        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f}(k_host);
-        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f}(v_host);
-        break;
-    case 2:
-        ck_tile::FillUniformDistribution<QDataType>{-3.f, 3.f}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{-3.f, 3.f}(k_host);
-        ck_tile::FillUniformDistribution<VDataType>{-3.f, 3.f}(v_host);
-        break;
-    default:
-        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f}(q_host);
-        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f}(k_host);
-        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f}(v_host);
+        case 0: break;
+        case 1:
+            ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f}(q_host);
+            ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f}(k_host);
+            ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f}(v_host);
+            break;
+        case 2:
+            ck_tile::FillUniformDistribution<QDataType>{-3.f, 3.f}(q_host);
+            ck_tile::FillUniformDistribution<KDataType>{-3.f, 3.f}(k_host);
+            ck_tile::FillUniformDistribution<VDataType>{-3.f, 3.f}(v_host);
+            break;
+        default:
+            ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f}(q_host);
+            ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f}(k_host);
+            ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f}(v_host);
     }
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
@@ -127,7 +127,6 @@ int main(int argc, char* argv[])
 
     float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true},
         ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-        // StreamConfig{nullptr, static_cast<bool>(time_kernel)},
         ck_tile::FlashAttentionFwd<QDataType,
                           KDataType,
                           VDataType,
