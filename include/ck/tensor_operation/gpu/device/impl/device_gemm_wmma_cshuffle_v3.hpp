@@ -232,12 +232,12 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                 {
                     if(arg.KBatch > 1)
                     {
-                        // const auto kernel =
-                        //     kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                        //                                  true,
-                        //                                  InMemoryDataOperationEnum::AtomicAdd,
-                        //                                  minimum_occupancy>;
-                        // Run(kernel);
+                        const auto kernel =
+                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                         true,
+                                                         InMemoryDataOperationEnum::AtomicAdd,
+                                                         minimum_occupancy>;
+                        Run(kernel);
                     }
                     else
                     {
@@ -283,16 +283,14 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
             return false;
         }
 
-        // TODO Stream Fix, gfx11 does not support hardware f16/bf16 atomic instrurctions,
-        // gfx12 supports both
-        if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> && arg.KBatch > 1)
+        if constexpr(std::is_same_v<CDataType, ck::half_t> ||
+                     std::is_same_v<CDataType, ck::bhalf_t>)
         {
-            return false;
-        }
-        // TODO Stream Disable SplitK for now, enable after fixing atomics
-        if(arg.KBatch > 1)
-        {
-            return false;
+            if(arg.KBatch > 1 && ck::is_gfx11_supported())
+            {
+                // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+                return false;
+            }
         }
 
         if((arg.K % AK1 != 0 || arg.K % BK1 != 0) && !(GemmSpec == GemmSpecialization::MKPadding ||
