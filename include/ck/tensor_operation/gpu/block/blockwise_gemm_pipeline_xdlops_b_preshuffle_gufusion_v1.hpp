@@ -538,7 +538,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v1<BlockGemmPipelineSch
                                         b_thread_vec.template AsType<mfma_input_type>(),
                                         c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                         xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                        b_thread_vec.template AsType<mfma_input_type>(),
+                                        b_thread_vec_up.template AsType<mfma_input_type>(),
                                         c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{}));
                     });
                 });
