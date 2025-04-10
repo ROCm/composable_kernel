@@ -1536,6 +1536,34 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 b_scale_grid_desc_bn_ak,
                 make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, thread_offset_k));
 
+#if 0
+        if(blockIdx.x == 0 &&
+           (threadIdx.x % 64 == 0 || threadIdx.x % 64 == 16 || threadIdx.x % 64 == 20 ||
+            threadIdx.x % 64 == 32 || threadIdx.x % 64 == 48))
+        {
+            printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\ta_thread_offset_m = %d\n\t "
+                   "a_scale_origin = {%d, %d}\n\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   blockIdx.z,
+                   threadIdx.x,
+                   a_thread_offset_m,
+                   block_m_id * MPerBlock + a_thread_offset_m,
+                   thread_offset_k);
+
+            // printf("\n\nBlock {%u, %u, %u} threadIdx.x = %u : \n\tb_thread_offset_n = %d\n\t "
+            //        "b_scale_origin = {%d, %d}\n\n",
+            //        blockIdx.x,
+            //        blockIdx.y,
+            //        blockIdx.z,
+            //        threadIdx.x,
+            //        b_thread_offset_n,
+            //        block_n_id * NPerBlock + b_thread_offset_n,
+            //        thread_offset_k);
+        }
+
+#endif
+
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,
                                                                          a_blockwise_copy,

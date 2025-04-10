@@ -307,6 +307,49 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         // Initialize C
         c_thread_buf.Clear();
 
+#if 0
+        [[maybe_unused]] auto print_type_name = [](const char* msg, auto param [[maybe_unused]]) {
+            printf("%s = %s\n\n", msg, __PRETTY_FUNCTION__);
+        };
+
+        if(threadIdx.x == 0 && blockIdx.x == 0 && threadIdx.y == 0 && blockIdx.y == 0)
+        {
+
+            print_type_name(
+                "xdlops_gemm",
+                xdlops_gemm); // ck::XdlopsGemm<ck::f8_ocp_t, 16, 16, 32, ck::f8_ocp_t, false, true>
+            using mfma_input_type =
+                typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
+            print_type_name("mfma_input_type",
+                            mfma_input_type{}); // ck::non_native_vector_base<ck::f8_ocp_t, 32>
+
+            print_type_name("mfma = ", xdlops_gemm.mfma); // ck::MfmaSelector<ck::f8_ocp_t, 16, 16,
+                                                          // ck::f8_ocp_t, false, true>
+            print_type_name(
+                "mfma_instr = ",
+                xdlops_gemm.mfma_instr); // ck::mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
+
+            printf("MRepeat = %d\n", MRepeat); // 4
+            printf("NRepeat = %d\n", NRepeat); // 1
+            printf("KRepeat = %d\n", KRepeat); // 1
+            printf("KPack = %d\n", KPack);     // 32
+            printf("xdlops_gemm.GetRegSizePerXdlops() = %d\n",
+                   xdlops_gemm.GetRegSizePerXdlops());                               // 4
+            printf("mfma_instr.k_per_blk = %d\n", xdlops_gemm.mfma_instr.k_per_blk); // 32
+            printf("xdlops_gemm.KPerXdlops = %d\n", xdlops_gemm.KPerXdlops);         // 128
+            printf("xdlops_gemm.K1PerXdlops = %d\n", xdlops_gemm.K1PerXdlops);       // 32
+            printf("xdlops_gemm.K0PerXdlops = %d\n", xdlops_gemm.K0PerXdlops);       // 4
+        }
+#endif
+#if 0
+        if((threadIdx.x == 0 || threadIdx.x == 32) && blockIdx.x == 0)
+        {
+            const void* ap = reinterpret_cast<const int*>(&a_block_buf);
+            const void* bp = reinterpret_cast<const int*>(&b_block_buf);
+            printf("threadIdx = %u; &a_block_buf = %p; &b_block_buf = %p\n\n", threadIdx.x, ap, bp);
+        }
+#endif
+
         // main body
         if constexpr(HasMainLoop)
         {
@@ -337,7 +380,18 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 static_for<0, KRepeat, 1>{}([&](auto k) {
                     constexpr auto k_step =
                         k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
-
+#if 0
+                    if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
+                    {
+                        printf("blockIdx.x = %u; threadIdx.x = %u; i = %d; k = %d : b_k_step = "
+                               "%d\n",
+                               blockIdx.x,
+                               threadIdx.x,
+                               i,
+                               static_cast<int>(k),
+                               b_k_step);
+                    }
+#endif
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
                             constexpr auto a_k_step_chunk =
@@ -374,7 +428,12 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
                             vector_type<ComputeTypeA, KPack> a_thread_vec;
                             vector_type<ComputeTypeB, KPack> b_thread_vec;
-
+#if 1
+                            bool is_B_zero = true;
+                            bool is_A_zero = true;
+                            ignore         = is_B_zero;
+                            ignore         = is_A_zero;
+#endif
                             static_for<0, KPack, 1>{}([&](auto ik) {
                                 a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                     a_thread_buf[Number<a_thread_desc_.CalculateOffset(
@@ -382,6 +441,25 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                     b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                         make_tuple(n0, I0, k0, ik))>{}];
+
+#if 1
+                                if(b_thread_vec.template AsType<ComputeTypeB>()(ik) ==
+                                   ComputeTypeB{0})
+                                {
+                                }
+                                else
+                                {
+                                    is_B_zero = false;
+                                }
+                                if(a_thread_vec.template AsType<ComputeTypeA>()(ik) ==
+                                   ComputeTypeA{0})
+                                {
+                                }
+                                else
+                                {
+                                    is_A_zero = false;
+                                }
+#endif
                             });
 
                             constexpr index_t a_scale_offset =
@@ -420,6 +498,399 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 b_thread_vec.template AsType<mfma_input_type_b>(),
                                 b_scale_thread_vec.template AsType<BScaleDataType>(),
                                 c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+
+#if 1
+                            bool is_C_zero = true;
+                            ignore         = is_C_zero;
+                            static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto m) {
+                                if(c_thread_buf[Number<c_offset + m>{}] == 0.0f) {}
+                                else
+                                {
+                                    is_C_zero = false;
+                                }
+                            });
+#endif
+
+#if 0
+                            if(!is_B_zero && !is_A_zero)
+                            {
+                                // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
+                                if constexpr(m0 == 0 && n0 == 0)
+                                {
+// print out a_thread_vec
+#if 1
+                                    printf(
+                                        "blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
+                                        "= %d :\n\ta_thread_vec = [%f, %f, %f, %f, %f, %f, %f, %f, "
+                                        "%f, %f, %f, %f, %f, %f, %f, %f,\n\t\t\t\t    %f, %f, %f, "
+                                        "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                        blockIdx.x,
+                                        threadIdx.x,
+                                        i,
+                                        static_cast<int>(m0),
+                                        static_cast<int>(n0),
+                                        static_cast<int>(k0),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<0>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<1>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<2>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<3>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<4>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<5>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<6>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<7>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<8>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<9>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<10>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<11>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<12>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<13>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<14>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<15>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<16>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<17>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<18>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<19>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<20>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<21>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<22>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<23>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<24>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<25>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<26>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<27>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<28>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<29>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<30>{})),
+                                        type_convert<float>(
+                                            a_thread_vec.template AsType<ComputeTypeA>()(
+                                                Number<31>{})));
+#endif
+// print out b_thread_vec
+#if 0
+                                    printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
+                                           "%d; k0 "
+                                           "= %d :\n\tb_thread_vec = [%f, %f, %f, %f, %f, %f, %f, "
+                                           "%f, "
+                                           "%f, %f, %f, %f, %f, %f, %f, %f,\n\t\t\t\t    %f, %f, "
+                                           "%f, "
+                                           "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                           blockIdx.x,
+                                           threadIdx.x,
+                                           i,
+                                           static_cast<int>(m0),
+                                           static_cast<int>(n0),
+                                           static_cast<int>(k0),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<0>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<1>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<2>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<3>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<4>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<5>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<6>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<7>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<8>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<9>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<10>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<11>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<12>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<13>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<14>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<15>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<16>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<17>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<18>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<19>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<20>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<21>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<22>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<23>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<24>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<25>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<26>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<27>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<28>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<29>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<30>{})),
+                                           type_convert<float>(
+                                               b_thread_vec.template AsType<ComputeTypeB>()(
+                                                   Number<31>{})));
+#endif
+// print out scales
+#if 1
+                                    if constexpr(ScalesPerXdlopsRunPerThread == 4)
+                                    {
+                                        printf(
+                                            "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                            "a_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
+                                            blockIdx.x,
+                                            threadIdx.x,
+                                            i,
+                                            static_cast<int>(m0),
+                                            static_cast<int>(n0),
+                                            static_cast<int>(k0),
+                                            type_convert<float>(a_scale_thread_vec.template AsType<
+                                                                AScaleDataType>()[Number<0>{}]),
+                                            type_convert<float>(a_scale_thread_vec.template AsType<
+                                                                AScaleDataType>()[Number<1>{}]),
+                                            type_convert<float>(a_scale_thread_vec.template AsType<
+                                                                AScaleDataType>()[Number<2>{}]),
+                                            type_convert<float>(a_scale_thread_vec.template AsType<
+                                                                AScaleDataType>()[Number<3>{}]));
+
+                                        printf(
+                                            "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                            "b_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
+                                            blockIdx.x,
+                                            threadIdx.x,
+                                            i,
+                                            static_cast<int>(m0),
+                                            static_cast<int>(n0),
+                                            static_cast<int>(k0),
+                                            type_convert<float>(b_scale_thread_vec.template AsType<
+                                                                BScaleDataType>()[Number<0>{}]),
+                                            type_convert<float>(b_scale_thread_vec.template AsType<
+                                                                BScaleDataType>()[Number<1>{}]),
+                                            type_convert<float>(b_scale_thread_vec.template AsType<
+                                                                BScaleDataType>()[Number<2>{}]),
+                                            type_convert<float>(b_scale_thread_vec.template AsType<
+                                                                BScaleDataType>()[Number<3>{}]));
+                                    }
+                                    else if constexpr(ScalesPerXdlopsRunPerThread == 1)
+                                    {
+                                        printf(
+                                            "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                            "a_scale_thread_vec[%d,%d] = {%f}\n",
+                                            blockIdx.x,
+                                            threadIdx.x,
+                                            i,
+                                            static_cast<int>(m0),
+                                            static_cast<int>(n0),
+                                            static_cast<int>(k0),
+                                            type_convert<float>(a_scale_thread_vec.template AsType<
+                                                                AScaleDataType>()[Number<0>{}]));
+
+                                        printf(
+                                            "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                            "b_scale_thread_vec[%d,%d] = {%f}\n",
+                                            blockIdx.x,
+                                            threadIdx.x,
+                                            i,
+                                            static_cast<int>(m0),
+                                            static_cast<int>(n0),
+                                            static_cast<int>(k0),
+                                            type_convert<float>(b_scale_thread_vec.template AsType<
+                                                                BScaleDataType>()[Number<0>{}]));
+                                    }
+#endif
+                                }
+                            }
+                            if(!is_C_zero)
+                            {
+                                // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
+                                // if constexpr(m0 == 1 && n0 == 0)
+                                {
+                                    // print out c_thread_buf_per_scale
+#if 1
+                                    if constexpr(xdlops_gemm.GetRegSizePerXdlops() == 16)
+                                    {
+                                        printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
+                                               "%d; k0 = %d :\n\tc_thread_buf = [%f, %f, %f, %f, "
+                                               "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                               blockIdx.x,
+                                               threadIdx.x,
+                                               i,
+                                               static_cast<int>(m0),
+                                               static_cast<int>(n0),
+                                               static_cast<int>(k0),
+                                               c_thread_buf[Number<c_offset + 0>{}],
+                                               c_thread_buf[Number<c_offset + 1>{}],
+                                               c_thread_buf[Number<c_offset + 2>{}],
+                                               c_thread_buf[Number<c_offset + 3>{}],
+                                               c_thread_buf[Number<c_offset + 4>{}],
+                                               c_thread_buf[Number<c_offset + 5>{}],
+                                               c_thread_buf[Number<c_offset + 6>{}],
+                                               c_thread_buf[Number<c_offset + 7>{}],
+                                               c_thread_buf[Number<c_offset + 8>{}],
+                                               c_thread_buf[Number<c_offset + 9>{}],
+                                               c_thread_buf[Number<c_offset + 10>{}],
+                                               c_thread_buf[Number<c_offset + 11>{}],
+                                               c_thread_buf[Number<c_offset + 12>{}],
+                                               c_thread_buf[Number<c_offset + 13>{}],
+                                               c_thread_buf[Number<c_offset + 14>{}],
+                                               c_thread_buf[Number<c_offset + 15>{}]);
+                                    }
+                                    else if constexpr(xdlops_gemm.GetRegSizePerXdlops() == 4)
+                                    {
+                                        printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
+                                               "%d; k0 = %d :\n\tc_thread_buf = [%f, %f, %f, %f]\n",
+                                               blockIdx.x,
+                                               threadIdx.x,
+                                               i,
+                                               static_cast<int>(m0),
+                                               static_cast<int>(n0),
+                                               static_cast<int>(k0),
+                                               c_thread_buf[Number<c_offset + 0>{}],
+                                               c_thread_buf[Number<c_offset + 1>{}],
+                                               c_thread_buf[Number<c_offset + 2>{}],
+                                               c_thread_buf[Number<c_offset + 3>{}]);
+                                    }
+#endif
+                                }
+                            }
+
+#endif
+
+// Print WaveIds
+#if 0
+                            if constexpr(k0 == 0)
+                            {
+                                if(blockIdx.x == 0 && i == 0 &&
+                                   (threadIdx.x == 0 || threadIdx.x == 32 || threadIdx.x == 64 ||
+                                    threadIdx.x == 96 || threadIdx.x == 128 || threadIdx.x == 160 ||
+                                    threadIdx.x == 192 || threadIdx.x == 224))
+                                {
+                                    const auto wave_idx = GetWaveIdx();
+                                    const auto waveId_m = wave_idx[I0];
+                                    const auto waveId_n = wave_idx[I1];
+
+                                    printf(
+                                        "blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
+                                        "= %d : waveId = [%d, %d]\n",
+                                        blockIdx.x,
+                                        threadIdx.x,
+                                        i,
+                                        static_cast<int>(m0),
+                                        static_cast<int>(n0),
+                                        static_cast<int>(k0),
+                                        waveId_m,
+                                        waveId_n);
+                                }
+                            }
+#endif
                         });
                     });
                 });
@@ -503,6 +974,18 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto k_step =
                     k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
+#if 0
+                if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
+                {
+                    printf("blockIdx.x = %u; threadIdx.x = %u; i = %d; k = %d : b_k_step = "
+                           "%d\n",
+                           blockIdx.x,
+                           threadIdx.x,
+                           i,
+                           static_cast<int>(k),
+                           b_k_step);
+                }
+#endif
 
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     // read block data in chunks to assemble correct thread
@@ -537,12 +1020,12 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         vector_type<ComputeTypeA, KPack> a_thread_vec;
                         vector_type<ComputeTypeB, KPack> b_thread_vec;
-
+#if 1
                         bool is_B_zero = true;
                         bool is_A_zero = true;
                         ignore         = is_B_zero;
                         ignore         = is_A_zero;
-
+#endif
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
@@ -550,6 +1033,23 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                 b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(n0, I0, k0, ik))>{}];
+
+#if 1
+                            if(b_thread_vec.template AsType<ComputeTypeB>()(ik) == ComputeTypeB{0})
+                            {
+                            }
+                            else
+                            {
+                                is_B_zero = false;
+                            }
+                            if(a_thread_vec.template AsType<ComputeTypeA>()(ik) == ComputeTypeA{0})
+                            {
+                            }
+                            else
+                            {
+                                is_A_zero = false;
+                            }
+#endif
                         });
 
                         constexpr index_t a_scale_offset =
@@ -584,6 +1084,324 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             b_thread_vec.template AsType<mfma_input_type_b>(),
                             b_scale_thread_vec.template AsType<BScaleDataType>(),
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+
+                        bool is_C_zero = true;
+                        ignore         = is_C_zero;
+#if 1
+                        static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto m) {
+                            if(c_thread_buf[Number<c_offset + m>{}] == 0.0f) {}
+                            else
+                            {
+                                is_C_zero = false;
+                            }
+                        });
+#endif
+
+#if 0
+                        if(!is_B_zero && !is_A_zero)
+                        {
+                            // First MWaves * MPerXDL rows and NWaves *
+                            // NPerXDL columns
+                            if constexpr(m0 == 0 && n0 == 0)
+                            {
+// print out a_thread_vec
+#if 1
+                                printf(
+                                    "blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = %d; k0 "
+                                    "= %d :\n\ta_thread_vec = [%f, %f, %f, %f, %f, %f, %f, %f, "
+                                    "%f, %f, %f, %f, %f, %f, %f, %f,\n\t\t\t\t    %f, %f, %f, "
+                                    "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                    blockIdx.x,
+                                    threadIdx.x,
+                                    -1,
+                                    static_cast<int>(m0),
+                                    static_cast<int>(n0),
+                                    static_cast<int>(k0),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<0>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<1>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<2>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<3>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<4>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<5>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<6>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<7>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<8>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<9>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<10>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<11>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<12>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<13>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<14>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<15>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<16>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<17>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<18>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<19>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<20>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<21>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<22>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<23>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<24>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<25>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<26>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<27>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<28>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<29>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(Number<30>{})),
+                                    type_convert<float>(
+                                        a_thread_vec.template AsType<ComputeTypeA>()(
+                                            Number<31>{})));
+#endif
+// print out b_thread_vec
+#if 0
+                                printf(
+                                    "blockId = %u; threadId = %u; i = %d; "
+                                    "m0 = %d; n0 = "
+                                    "%d; k0 "
+                                    "= %d :\n\tb_thread_vec = [%f, %f, %f, "
+                                    "%f, %f, %f, %f, "
+                                    "%f, "
+                                    "%f, %f, %f, %f, %f, %f, %f, "
+                                    "%f,\n\t\t\t\t    %f, %f, "
+                                    "%f, "
+                                    "%f, %f, %f, %f, %f, %f, %f, %f, %f, "
+                                    "%f, %f, %f, %f]\n",
+                                    blockIdx.x,
+                                    threadIdx.x,
+                                    -1,
+                                    static_cast<int>(m0),
+                                    static_cast<int>(n0),
+                                    static_cast<int>(k0),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<0>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<1>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<2>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<3>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<4>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<5>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<6>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<7>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<8>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<9>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<10>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<11>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<12>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<13>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<14>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<15>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<16>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<17>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<18>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<19>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<20>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<21>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<22>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<23>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<24>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<25>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<26>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<27>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<28>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<29>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(Number<30>{})),
+                                    type_convert<float>(
+                                        b_thread_vec.template AsType<ComputeTypeB>()(
+                                            Number<31>{})));
+#endif
+// print out scales
+#if 1
+                                if constexpr(ScalesPerXdlopsRunPerThread == 4)
+                                {
+                                    printf(
+                                        "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                        "a_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
+                                        blockIdx.x,
+                                        threadIdx.x,
+                                        -1,
+                                        static_cast<int>(m0),
+                                        static_cast<int>(n0),
+                                        static_cast<int>(k0),
+                                        type_convert<float>(
+                                            a_scale_thread_vec
+                                                .template AsType<AScaleDataType>()[Number<0>{}]),
+                                        type_convert<float>(
+                                            a_scale_thread_vec
+                                                .template AsType<AScaleDataType>()[Number<1>{}]),
+                                        type_convert<float>(
+                                            a_scale_thread_vec
+                                                .template AsType<AScaleDataType>()[Number<2>{}]),
+                                        type_convert<float>(
+                                            a_scale_thread_vec
+                                                .template AsType<AScaleDataType>()[Number<3>{}]));
+
+                                    printf(
+                                        "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                        "b_scale_thread_vec[%d,%d] = {%f, %f, %f, %f}\n",
+                                        blockIdx.x,
+                                        threadIdx.x,
+                                        -1,
+                                        static_cast<int>(m0),
+                                        static_cast<int>(n0),
+                                        static_cast<int>(k0),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<0>{}]),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<1>{}]),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<2>{}]),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<3>{}]));
+                                }
+                                else if constexpr(ScalesPerXdlopsRunPerThread == 1)
+                                {
+                                    printf(
+                                        "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                        "a_scale_thread_vec[%d,%d] = {%f}\n",
+                                        blockIdx.x,
+                                        threadIdx.x,
+                                        -1,
+                                        static_cast<int>(m0),
+                                        static_cast<int>(n0),
+                                        static_cast<int>(k0),
+                                        type_convert<float>(
+                                            a_scale_thread_vec
+                                                .template AsType<AScaleDataType>()[Number<0>{}]));
+
+                                    printf(
+                                        "blockId = %u; threadId = %u; i = %d; m0 = %d : "
+                                        "b_scale_thread_vec[%d,%d] = {%f}\n",
+                                        blockIdx.x,
+                                        threadIdx.x,
+                                        -1,
+                                        static_cast<int>(m0),
+                                        static_cast<int>(n0),
+                                        static_cast<int>(k0),
+                                        type_convert<float>(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<0>{}]));
+                                }
+#endif
+                            }
+                        }
+                        if(!is_C_zero)
+                        {
+                            // First MWaves * MPerXDL rows and NWaves * NPerXDL columns
+                            // if constexpr(m0 == 1 && n0 == 0)
+                            {
+                                // print out c_thread_buf_per_scale
+#if 1
+                                if constexpr(xdlops_gemm.GetRegSizePerXdlops() == 16)
+                                {
+                                    printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
+                                           "%d; k0 = %d :\n\tc_thread_buf = [%f, %f, %f, %f, "
+                                           "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+                                           blockIdx.x,
+                                           threadIdx.x,
+                                           -1,
+                                           static_cast<int>(m0),
+                                           static_cast<int>(n0),
+                                           static_cast<int>(k0),
+                                           c_thread_buf[Number<c_offset + 0>{}],
+                                           c_thread_buf[Number<c_offset + 1>{}],
+                                           c_thread_buf[Number<c_offset + 2>{}],
+                                           c_thread_buf[Number<c_offset + 3>{}],
+                                           c_thread_buf[Number<c_offset + 4>{}],
+                                           c_thread_buf[Number<c_offset + 5>{}],
+                                           c_thread_buf[Number<c_offset + 6>{}],
+                                           c_thread_buf[Number<c_offset + 7>{}],
+                                           c_thread_buf[Number<c_offset + 8>{}],
+                                           c_thread_buf[Number<c_offset + 9>{}],
+                                           c_thread_buf[Number<c_offset + 10>{}],
+                                           c_thread_buf[Number<c_offset + 11>{}],
+                                           c_thread_buf[Number<c_offset + 12>{}],
+                                           c_thread_buf[Number<c_offset + 13>{}],
+                                           c_thread_buf[Number<c_offset + 14>{}],
+                                           c_thread_buf[Number<c_offset + 15>{}]);
+                                }
+                                else if constexpr(xdlops_gemm.GetRegSizePerXdlops() == 4)
+                                {
+                                    printf("blockId = %u; threadId = %u; i = %d; m0 = %d; n0 = "
+                                           "%d; k0 = %d :\n\tc_thread_buf = [%f, %f, %f, %f]\n",
+                                           blockIdx.x,
+                                           threadIdx.x,
+                                           -1,
+                                           static_cast<int>(m0),
+                                           static_cast<int>(n0),
+                                           static_cast<int>(k0),
+                                           c_thread_buf[Number<c_offset + 0>{}],
+                                           c_thread_buf[Number<c_offset + 1>{}],
+                                           c_thread_buf[Number<c_offset + 2>{}],
+                                           c_thread_buf[Number<c_offset + 3>{}]);
+                                }
+#endif
+                            }
+                        }
+#endif
                     });
                 });
             });
