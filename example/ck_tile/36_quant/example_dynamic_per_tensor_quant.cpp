@@ -136,15 +136,16 @@ int main()
     constexpr dim3 blocks                  = Kernel::BlockSize();
     auto kargs = Kernel::MakeKargs(a);
 
-    ck_tile::launch_kernel(
-        {}, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-
+    auto s = ck_tile::stream_config{nullptr, true, 1, 5, 10};
+    auto time = ck_tile::launch_kernel(
+        s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+    std::cout<<"time: "<<time<<std::endl;
     bool pass = true;
 
     scale_buf.FromDevice(scale_host.data());
     ck_tile::reference_per_tensor_quantization2d<XDataType, ScaleDataType, QXDataType>(
         x_host, scale_host, qx_host_ref);
-    // std::cout<<scale_host(0)<<std::endl;
+
     qx_buf.FromDevice(qx_host_dev.data());
     
     auto [rtol, atol] = get_elimit<QXDataType>();

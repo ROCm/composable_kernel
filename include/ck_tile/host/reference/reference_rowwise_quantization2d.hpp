@@ -50,4 +50,24 @@ CK_TILE_HOST void reference_per_tensor_quantization2d(const HostTensor<XDataType
                                x_m_n.mDesc.get_lengths()[0])(std::thread::hardware_concurrency());
 }
 
+template <typename XDataType, typename ScaleDataType, typename QXDataType>
+CK_TILE_HOST void reference_per_token_quantization2d(const HostTensor<XDataType>& x_m_n,
+                                                             const HostTensor<ScaleDataType>& scale_m,
+                                                             HostTensor<QXDataType>& qx_m_n)
+{
+    auto f = [&](auto m) {
+        const int N = x_m_n.mDesc.get_lengths()[1];
+
+        for(int n = 0; n < N; ++n)
+        {
+            auto v_x = x_m_n(m, n);
+            auto v_qx    = v_x / scale_m(m);
+            qx_m_n(m, n) = type_convert<QXDataType>(saturates<QXDataType>{}(v_qx));
+        }
+    };
+
+    make_ParallelTensorFunctor(f,
+                               x_m_n.mDesc.get_lengths()[0])(std::thread::hardware_concurrency());
+}
+
 } // namespace ck_tile

@@ -138,9 +138,11 @@ int main()
     constexpr dim3 blocks                  = Kernel::BlockSize();
     auto kargs = Kernel::MakeKargs(a);
 
-    ck_tile::launch_kernel(
-        {}, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+    auto s = ck_tile::stream_config{nullptr, true, 1, 5, 10};
 
+    auto time = ck_tile::launch_kernel(
+        s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+    std::cout<<"time: "<<time<<std::endl;
     bool pass = true;
 
     ck_tile::reference_per_tensor_quantization2d<XDataType, ScaleDataType, QXDataType>(
