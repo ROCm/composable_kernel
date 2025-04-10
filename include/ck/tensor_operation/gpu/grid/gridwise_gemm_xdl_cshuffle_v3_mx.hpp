@@ -1478,29 +1478,33 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
 
-        // NXdlPerWave == NRepeat
-        // MXdlPerWave == MRepeat
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-
         // Initial thread mapping for:
-        // BlockSize = 256, MPerXdl=NPerXdl=32 and MPerBlock=NPerBlock=128 MWaves=NWaves=2
+        // BlockSize = 256
+        // MPerXdl=NPerXdl=32 and MPerBlock=NPerBlock=128 MRepeat=NRepeat=2 MWaves=NWaves=2
         // For each [m0, n0] tile, there are 4 waves:
         // tId in [  0,  63]  m x n = [ 0, 31] x [ 0, 31]  waveId = [0, 0]
         // tId in [ 64, 127]  m x n = [ 0, 31] x [32, 63]  waveId = [0, 1]
         // tId in [128, 191]  m x n = [32, 63] x [ 0, 31]  waveId = [1, 0]
         // tId in [192, 255]  m x n = [32, 63] x [32, 63]  waveId = [1, 1]
 
+        // BlockSize = 128
+        // MPerXdl=NPerXdl=16 and MPerBlock=128 NPerBlock=16 MRepeat=4 NRepeat=1 MWaves=2 NWaves=1
+        // For each [m0, n0] tile, there are 2 waves:
+        // tId in [  0,  63]  m x n = [ 0, 15] x [0, 15]  waveId = [0, 0]
+        // tId in [ 64, 127]  m x n = [16, 31] x [0, 15]  waveId = [1, 0]
+
         // TODO: Document initial thread mapping for more combinations of parameters
+
+        const auto wave_idx = BlockwiseGemmPipe::GetWaveIdx();
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
 
         static constexpr auto mfma = BlockwiseGemmPipe::xdlops_gemm.mfma;
 
         auto thread_offset_k = (get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) /
                                mfma.selected_mfma.num_threads_per_blk;
 
-        auto a_thread_offset_m =
-            get_thread_local_1d_id() % MPerXdl +
-            (get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize / MWaves) * MPerXdl;
+        auto a_thread_offset_m = get_thread_local_1d_id() % MPerXdl + waveId_m * MPerXdl;
 
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<AScaleDataType,
@@ -1516,9 +1520,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 a_scale_grid_desc_am_ak,
                 make_multi_index(block_m_id * MPerBlock + a_thread_offset_m, thread_offset_k));
 
-        auto b_thread_offset_n =
-            get_thread_local_1d_id() % NPerXdl +
-            (get_thread_local_1d_id() / BlockwiseGemmPipe::WaveSize) % NWaves * NPerXdl;
+        auto b_thread_offset_n = get_thread_local_1d_id() % NPerXdl + waveId_n * NPerXdl;
 
         auto b_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<BScaleDataType,
