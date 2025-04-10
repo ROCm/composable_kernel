@@ -91,10 +91,12 @@ using fmha_pipeline_problem = ck_tile::BlockFmhaFwdSplitKVPipelineProblem<
 using fmha_pipeline = {F_pipeline}<
     fmha_pipeline_problem>;
 
+/// FIXME: use {F_spad}/{F_dvpad} as kPadM/kPadN parameters after solving
+///        store_tile_raw() data corruption issue
 using fmha_epilogue =
     ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
                                            typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
-                                           {F_spad}, {F_dvpad}>>;
+                                           false, false>>;
 
 using fmha_kernel =
     ck_tile::FmhaFwdSplitKVKernel<fmha_pipeline, fmha_epilogue>;
