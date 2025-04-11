@@ -194,7 +194,7 @@ struct UniversalGemmPipelineProblem
     static constexpr auto HasHotLoop = HasHotLoop_;
     static constexpr auto TailNum    = TailNum_;
 
-    static constexpr bool TransposeC = Traits::TransposeC;
+    static constexpr bool TransposeC        = Traits::TransposeC;
     static constexpr index_t kNumWaveGroups = Traits::kNumWaveGroups;
 };
 

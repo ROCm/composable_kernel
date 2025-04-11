@@ -22,24 +22,24 @@ template <typename ADataType_,
           index_t kMPerXdl_,
           index_t kNPerXdl_,
           index_t kKPerXdl_,
-          bool isCTransposed_, 
+          bool isCTransposed_,
           index_t kNumWaveGroups_>
 struct CShuffleEpilogueProblem
 {
-    using ADataType                        = remove_cvref_t<ADataType_>;
-    using BDataType                        = remove_cvref_t<BDataType_>;
-    using AccDataType                      = remove_cvref_t<AccDataType_>;
-    using ODataType                        = remove_cvref_t<ODataType_>;
-    using CLayout                          = remove_cvref_t<CLayout_>;
-    static constexpr index_t kBlockSize    = kBlockSize_;
-    static constexpr index_t kMPerBlock    = kM_;
-    static constexpr index_t kNPerBlock    = kN_;
-    static constexpr index_t kMWave        = kMWave_;
-    static constexpr index_t kNWave        = kNWave_;
-    static constexpr index_t kMPerXdl      = kMPerXdl_;
-    static constexpr index_t kNPerXdl      = kNPerXdl_;
-    static constexpr index_t kKPerXdl      = kKPerXdl_;
-    static constexpr index_t isCTransposed = isCTransposed_;
+    using ADataType                         = remove_cvref_t<ADataType_>;
+    using BDataType                         = remove_cvref_t<BDataType_>;
+    using AccDataType                       = remove_cvref_t<AccDataType_>;
+    using ODataType                         = remove_cvref_t<ODataType_>;
+    using CLayout                           = remove_cvref_t<CLayout_>;
+    static constexpr index_t kBlockSize     = kBlockSize_;
+    static constexpr index_t kMPerBlock     = kM_;
+    static constexpr index_t kNPerBlock     = kN_;
+    static constexpr index_t kMWave         = kMWave_;
+    static constexpr index_t kNWave         = kNWave_;
+    static constexpr index_t kMPerXdl       = kMPerXdl_;
+    static constexpr index_t kNPerXdl       = kNPerXdl_;
+    static constexpr index_t kKPerXdl       = kKPerXdl_;
+    static constexpr index_t isCTransposed  = isCTransposed_;
     static constexpr index_t kNumWaveGroups = kNumWaveGroups_;
 };
 

@@ -46,7 +46,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                  ALayout,
                                                                  BLayout,
                                                                  CLayout,
-                                                                 GemmConfig::TransposeC, 
+                                                                 GemmConfig::TransposeC,
                                                                  GemmConfig::NumWaveGroups>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -78,15 +78,15 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
 
         using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
-            ck_tile::DefaultGemm2DEpilogueProblem<AccDataType, 
-                                                CDataType, 
-                                                CLayout, 
-                                                GemmConfig::kPadM, 
-                                                GemmConfig::kPadN, 
-                                                GemmConfig::M_Warp_Tile, 
-                                                GemmConfig::N_Warp_Tile,
-                                                GemmConfig::K_Warp_Tile, 
-                                                UniversalGemmProblem::TransposeC>>; 
+            ck_tile::DefaultGemm2DEpilogueProblem<AccDataType,
+                                                  CDataType,
+                                                  CLayout,
+                                                  GemmConfig::kPadM,
+                                                  GemmConfig::kPadN,
+                                                  GemmConfig::M_Warp_Tile,
+                                                  GemmConfig::N_Warp_Tile,
+                                                  GemmConfig::K_Warp_Tile,
+                                                  UniversalGemmProblem::TransposeC>>;
 
         /*
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
@@ -103,7 +103,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                              GemmConfig::M_Warp_Tile,
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC, 
+                                             UniversalGemmProblem::TransposeC,
                                              GemmConfig::NumWaveGroups>>;
         */
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -326,9 +326,9 @@ int run_gemm_example(int argc, char* argv[])
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
 
-    //if(data_type == "fp16")
+    // if(data_type == "fp16")
     //{
-        return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
+    return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
     /*
     }
     else if(data_type == "bf16")

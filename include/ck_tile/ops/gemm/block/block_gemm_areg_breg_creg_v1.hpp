@@ -34,8 +34,8 @@ struct BlockGemmARegBRegCRegV1
         static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm               = remove_cvref_t<decltype(config.template at<0>())>;
 
-        static constexpr index_t MWarp        = (config.template at<1>()) / (Problem::kNumWaveGroups);
-        static constexpr index_t NWarp        = config.template at<2>();
+        static constexpr index_t MWarp = (config.template at<1>()) / (Problem::kNumWaveGroups);
+        static constexpr index_t NWarp = config.template at<2>();
         static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
         static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
         static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;

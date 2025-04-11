@@ -187,10 +187,10 @@ struct UniversalGemmBasePolicy
     {
         using ALayout = remove_cvref_t<typename Problem::ALayout>;
 
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
+        constexpr index_t BlockSize      = Problem::kBlockSize;
+        constexpr index_t MPerBlock      = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock      = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize    = GetVectorSizeA<Problem>();
         constexpr index_t kNumWaveGroups = Problem::kNumWaveGroups;
 
         static_assert(kNumWaveGroups == 2);
@@ -224,10 +224,10 @@ struct UniversalGemmBasePolicy
     {
         using BLayout = remove_cvref_t<typename Problem::BLayout>;
 
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
+        constexpr index_t BlockSize      = Problem::kBlockSize;
+        constexpr index_t NPerBlock      = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock      = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize    = GetVectorSizeB<Problem>();
         constexpr index_t kNumWaveGroups = Problem::kNumWaveGroups;
 
         static_assert(kNumWaveGroups == 2);
@@ -261,10 +261,10 @@ struct UniversalGemmBasePolicy
     {
         using ALayout = remove_cvref_t<typename Problem::ALayout>;
         static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
+        constexpr index_t BlockSize      = Problem::kBlockSize;
+        constexpr index_t MPerBlock      = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock      = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize    = GetVectorSizeA<Problem>();
         constexpr index_t kNumWaveGroups = Problem::kNumWaveGroups;
 
         static_assert(kNumWaveGroups == 2);
@@ -283,10 +283,10 @@ struct UniversalGemmBasePolicy
     {
         using BLayout = remove_cvref_t<typename Problem::BLayout>;
         static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
+        constexpr index_t BlockSize      = Problem::kBlockSize;
+        constexpr index_t NPerBlock      = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock      = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize    = GetVectorSizeB<Problem>();
         constexpr index_t kNumWaveGroups = Problem::kNumWaveGroups;
 
         static_assert(kNumWaveGroups == 2);

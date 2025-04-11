@@ -63,7 +63,11 @@ struct TileDistributionEncodingPattern2D : public TileDistributionEncodingPatter
 };
 
 // Thread raked
-template <index_t BlockSize, index_t YPerTile, index_t XPerTile, index_t VecSize, index_t NumWaveGroups>
+template <index_t BlockSize,
+          index_t YPerTile,
+          index_t XPerTile,
+          index_t VecSize,
+          index_t NumWaveGroups>
 struct TileDistributionEncodingPattern2D<BlockSize,
                                          YPerTile,
                                          XPerTile,
@@ -91,7 +95,8 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     //  Y2 = YPerWarp / Y1;
     static constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters within wavefront
 
-    static_assert(X0 * Y1 * Y0 * NumWaveGroups == BlockSize, "X0 * warp_ys * Y0 must cover whole workgroup!");
+    static_assert(X0 * Y1 * Y0 * NumWaveGroups == BlockSize,
+                  "X0 * warp_ys * Y0 must cover whole workgroup!");
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
 
     CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()

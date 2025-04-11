@@ -50,11 +50,10 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
     static constexpr index_t kNumWaveGroups = Problem::kNumWaveGroups;
 
-    using BlockGemm =
-        remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
-    using I0 = number<0>;
-    using I1 = number<1>;
-    using I2 = number<2>;
+    using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
+    using I0        = number<0>;
+    using I1        = number<1>;
+    using I2        = number<2>;
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
@@ -146,18 +145,18 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             index_t operation_id = __builtin_amdgcn_readfirstlane(get_warp_id() % kNumWaveGroups);
 
             // global memory structures here.
-            auto a_copy_dram_window = make_tile_window(
-                a_dram_block_window_tmp.get_bottom_tensor_view(),
-                make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                a_dram_block_window_tmp.get_window_origin(),
-                Policy::template MakeADramTileDistribution<Problem>());
+            auto a_copy_dram_window =
+                make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
+                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                 a_dram_block_window_tmp.get_window_origin(),
+                                 Policy::template MakeADramTileDistribution<Problem>());
 
             // B DRAM tile window for load
-            auto b_copy_dram_window = make_tile_window(
-                b_dram_block_window_tmp.get_bottom_tensor_view(),
-                make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                b_dram_block_window_tmp.get_window_origin(),
-                Policy::template MakeBDramTileDistribution<Problem>());
+            auto b_copy_dram_window =
+                make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
+                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                                 b_dram_block_window_tmp.get_window_origin(),
+                                 Policy::template MakeBDramTileDistribution<Problem>());
 
             // DRAM window steps.
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
