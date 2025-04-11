@@ -1179,7 +1179,7 @@ pipeline {
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -D CMAKE_BUILD_TYPE=Release \
-                                           -D GPU_ARCHS="gfx908;gfx90a;gfx942;gfx950;gfx10.3-generic;gfx11-generic;gfx12-generic"  \
+                                           -D GPU_ARCHS="gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx12-generic"  \
                                            -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
                     }
                     steps{
@@ -1195,10 +1195,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1030") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx10.3-generic" -DCMAKE_CXX_FLAGS=" -O3 " """ 
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx10-3-generic" -DCMAKE_CXX_FLAGS=" -O3 " """ 
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx10.3-generic" \
+                                           -DGPU_TARGETS="gfx10-3-generic" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
