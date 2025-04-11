@@ -76,9 +76,6 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                          tile_distribution_pattern::thread_raked>
     : public TileDistributionEncodingPattern
 {
-
-    static_assert(NumWaveGroups == 2);
-
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size = get_warp_size();

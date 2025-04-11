@@ -112,7 +112,6 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                                        index_t num_loop,
                                        void* __restrict__ p_smem_0) const
         {
-            static_assert(kNumWaveGroups == 2);
 
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&

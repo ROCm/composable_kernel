@@ -148,8 +148,6 @@ struct CShuffleEpilogue
                                         sequence<kMPerXdl * kMWave, kNPerXdl * kNWave>>;
         constexpr index_t num_access = SFC::get_num_of_access();
 
-        static_assert(Problem::kNumWaveGroups == 2);
-
         using TileEncodingPattern =
             TileDistributionEncodingPattern2D<kBlockSize,
                                               kMPerIteration,

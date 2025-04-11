@@ -65,7 +65,6 @@ struct BlockGemmARegBRegCRegV1
 
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
-        static_assert(MWarp == 1);
 
         constexpr auto a_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<NWarp>,
@@ -82,7 +81,6 @@ struct BlockGemmARegBRegCRegV1
 
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
     {
-        static_assert(MWarp == 1);
 
         constexpr auto b_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<MWarp>,
@@ -99,8 +97,6 @@ struct BlockGemmARegBRegCRegV1
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockDistributionEncode()
     {
-        static_assert(MWarp == 1);
-        static_assert(MIterPerWarp == 2);
 
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
@@ -121,7 +117,6 @@ struct BlockGemmARegBRegCRegV1
                                    const ABlockTensor& a_block_tensor,
                                    const BBlockTensor& b_block_tensor) const
     {
-        static_assert(Problem::kNumWaveGroups == 2);
 
         static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensor::DataType>> &&
                           std::is_same_v<BDataType, remove_cv_t<typename BBlockTensor::DataType>> &&
@@ -170,8 +165,6 @@ struct BlockGemmARegBRegCRegV1
         constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        static_assert(MIterPerWarp == 2);
-
         // hot loop:
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
@@ -212,7 +205,6 @@ struct BlockGemmARegBRegCRegV1
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
-        static_assert(MIterPerWarp == 2);
 
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,

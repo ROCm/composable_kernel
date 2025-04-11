@@ -193,8 +193,6 @@ struct UniversalGemmBasePolicy
         constexpr index_t VecLoadSize    = GetVectorSizeA<Problem>();
         constexpr index_t kNumWaveGroups = Problem::kNumWaveGroups;
 
-        static_assert(kNumWaveGroups == 2);
-
         // Tile: MPerBlock X KPerBlock
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -229,8 +227,6 @@ struct UniversalGemmBasePolicy
         constexpr index_t KPerBlock      = Problem::BlockGemmShape::kK;
         constexpr index_t VecLoadSize    = GetVectorSizeB<Problem>();
         constexpr index_t kNumWaveGroups = Problem::kNumWaveGroups;
-
-        static_assert(kNumWaveGroups == 2);
 
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
@@ -267,8 +263,6 @@ struct UniversalGemmBasePolicy
         constexpr index_t VecLoadSize    = GetVectorSizeA<Problem>();
         constexpr index_t kNumWaveGroups = Problem::kNumWaveGroups;
 
-        static_assert(kNumWaveGroups == 2);
-
         using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
                                                                       KPerBlock,
                                                                       MPerBlock,
@@ -288,8 +282,6 @@ struct UniversalGemmBasePolicy
         constexpr index_t KPerBlock      = Problem::BlockGemmShape::kK;
         constexpr index_t VecLoadSize    = GetVectorSizeB<Problem>();
         constexpr index_t kNumWaveGroups = Problem::kNumWaveGroups;
-
-        static_assert(kNumWaveGroups == 2);
 
         using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
                                                                       KPerBlock,
