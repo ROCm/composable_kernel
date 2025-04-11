@@ -545,10 +545,9 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= dpad == dvpad
                     if not cond:
                         continue
+            # aiter::mha_bwd C++ api integration
             elif receipt == 600:
                     cond = dtype in ['fp16', 'bf16']
-                    cond &= mode in ["batch", "group"]
-                    cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
                     if not cond:
                         continue
@@ -687,6 +686,11 @@ def get_bwd_dot_do_o_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaB
             elif receipt == 400:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
+                    if not cond:
+                        continue
+            # aiter::mha_bwd C++ api integration
+            elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
                     if not cond:
                         continue
             gen.append(k)
@@ -839,6 +843,11 @@ def get_bwd_convert_dq_blobs(kernel_filter : Optional[str], receipt) -> List[Fmh
             elif receipt == 400:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
+                    if not cond:
+                        continue
+            # aiter::mha_bwd C++ api integration
+            elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
                     if not cond:
                         continue
             gen.append(k)
