@@ -242,10 +242,16 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                       b_element_op,
                                       c_element_op);
 
-    if(!gemm.IsSupportedArgument(argument) || ck::get_device_name() != "gfx942" ||
-       ck::get_device_name() != "gfx950")
+    if(!gemm.IsSupportedArgument(argument))
     {
         std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+        return true;
+    }
+
+    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+    {
+        std::cout << "This kernel support gfx942 and gfx950 only" << std::endl;
 
         return true;
     }
