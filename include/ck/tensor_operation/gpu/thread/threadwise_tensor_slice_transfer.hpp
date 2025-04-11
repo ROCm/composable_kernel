@@ -211,8 +211,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
  * @tparam SrcVectorDim The dimension along which vectorized access is performed in the source
  * tensor.
  * @tparam SrcScalarPerVector The number of scalar elements per vector in the source tensor.
- * @tparam SrcScalarStrideInVector The stride of scalar elements within a vector in the source
- * tensor.
+ * @tparam SrcScalarStrideInVector Not used.
  * @tparam SrcResetCoordinateAfterRun controls whether source coordinate is restored after each Run
  * or rolled back one step in MoveSrcSliceWindow
  * @tparam InvalidElementAsNaN Whether to fill invalid elements with NaN (only applicable for
