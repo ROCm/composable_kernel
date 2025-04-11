@@ -623,7 +623,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using VDataType                = remove_cvref_t<typename Problem::VDataType>;
         constexpr index_t Banks        = 32; // TODO: need change based on arch
         constexpr index_t PixelsPerRow = Banks * 4 / sizeof(VDataType);
-        constexpr index_t kKPack       = GetSmemKPackV<Problem>();
+        constexpr index_t kKPack       = GetSmemKPackV<Problem>(); //
         static_assert(PixelsPerRow % kKPack == 0);
         constexpr index_t NPerRow    = PixelsPerRow / kKPack;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
@@ -783,19 +783,19 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
 
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            constexpr index_t N1 = GetAlignmentV<Problem>();
-            constexpr index_t N0 = kNPerBlock / N1; // P
+            constexpr index_t N1 = GetAlignmentV<Problem>(); // 8
+            constexpr index_t N0 = kNPerBlock / N1; // P     // 16
 
             constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
             static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
-            constexpr index_t K3     = total_pixels / N1;
-            constexpr index_t kKPack = GetSmemKPackV<Problem>();
+            constexpr index_t K3     = total_pixels / N1; //2
+            constexpr index_t kKPack = GetSmemKPackV<Problem>(); // 8
             static_assert(kKPack % K3 == 0);
-            constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
+            constexpr index_t K2 = kKPack / K3; //  //4 TODO: this dimention could be outside single wave
             if constexpr(get_warp_size() % (K2 * N0) == 0)
             {
-                constexpr index_t K1 = get_warp_size() / (K2 * N0);
-                constexpr index_t K0 = kBlockSize / get_warp_size();
+                constexpr index_t K1 = get_warp_size() / (K2 * N0); // 2
+                constexpr index_t K0 = kBlockSize / get_warp_size(); // 2
                 static_assert(kKPerBlock == K0 * K1 * K2 * K3);
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<1>,

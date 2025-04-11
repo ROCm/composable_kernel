@@ -3,11 +3,11 @@
 # generate kernel instances to speed up compilation
 
 FWD_DTYPE_MAP = {
-    "fp16"   : "FmhaFwdFp16",
+    # "fp16"   : "FmhaFwdFp16",
     "bf16"   : "FmhaFwdBf16",
-    "fp8"    : "FmhaFwdFp8",
-    "fp8fp16": "FmhaFwdFp8Fp16",
-    "fp8bf16": "FmhaFwdFp8Bf16"
+    # "fp8"    : "FmhaFwdFp8",
+    # "fp8fp16": "FmhaFwdFp8Fp16",
+    # "fp8bf16": "FmhaFwdFp8Bf16"
 }
 
 BWD_DTYPE_MAP = {

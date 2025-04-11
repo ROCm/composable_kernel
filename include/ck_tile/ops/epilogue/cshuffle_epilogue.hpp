@@ -6,7 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
-
+#include "ck_tile/core/tensor/tile_scatter_gather.hpp"
 namespace ck_tile {
 
 template <typename ADataType_,
@@ -117,6 +117,124 @@ struct CShuffleEpilogue
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return kMWave * kNWave * kMPerXdl * kNPerXdl * sizeof(ODataType);
+    }
+
+    template <typename ODramWindow,
+              typename OAccTile,
+              bool IsInputGemm                         = true,
+              memory_operation_enum out_memory_data_op = memory_operation_enum::set>
+    CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
+                                   const OAccTile& o_acc_tile,
+                                   void* p_smem,
+                                   const index_t* p_sorted_tokens_id,
+                                   index_t token_pos)
+    {
+
+        const index_t iMWarp = get_warp_id() / kNWave;
+        const index_t iNWarp = get_warp_id() - iMWarp * kNWave;
+
+        constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
+        auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
+            static_cast<ODataType*>(p_smem), lds_block_desc);
+        auto in_lds_window =
+            make_tile_window(o_lds_block,
+                             make_tuple(number<kMPerXdl>{}, number<kNPerXdl>{}),
+                             {number<kMPerXdl>{} * iMWarp, number<kNPerXdl>{} * iNWarp});
+        auto out_lds_window =
+            make_tile_window(o_lds_block,
+                             make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
+                             {0, 0});
+
+        using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
+                                        sequence<0, 1>,
+                                        sequence<kMPerXdl * kMWave, kNPerXdl * kNWave>>;
+        constexpr index_t num_access = SFC::get_num_of_access();
+
+        using TileEncodingPattern =
+            TileDistributionEncodingPattern2D<kBlockSize,
+                                              kMPerIteration,
+                                              kNPerIteration,
+                                              GetVectorSizeC(),
+                                              tile_distribution_pattern::thread_raked>;
+        constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
+        // auto coord = dram_tile_distribution.calculate_index();
+
+        // const auto& view = out_dram_window.get_bottom_tensor_view();
+
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+        auto c_coord                        = dram_tile_distribution.calculate_index();
+
+        // printf("c_coord[0]:%d \n", c_coord[0]);
+
+        CWarpTensor c_warp_in_tensor;
+        static_for<0, num_access, 1>{}([&](auto iAccess) {
+            constexpr auto idx_y_start = SFC::get_index(iAccess);
+
+            // auto idx_m =  number<idx_y_start.at(number<0>{})>{} + 0;
+            // printf("idx_y_start:%d \n", idx_m);
+            constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (kMPerXdl * kMWave)>{};
+
+            statically_indexed_array<index_t, 2> offsets;
+            static_for<0, 2 /*CMrepeats*/, 1>{}([&](auto m0) {
+                auto token_id    = token_pos + m0 + c_coord[0] + mIter * kMPerXdl * kMWave;
+                auto fused_token = p_sorted_tokens_id[token_id];
+
+                index_t token_offset = fused_token & 0xffffff;
+
+                if constexpr(IsInputGemm)
+                {
+                    token_offset = token_offset * 3 /*TopK*/ + (fused_token >> 24);
+                }
+
+                offsets[m0] = token_offset * 4096; // Problem::kN_;
+            });
+            // printf("c_coord[number<0>{}]: %d \n", coord[number<0>{}]);
+            // printf("mIter: %d", mIter+0);
+
+            constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (kNPerXdl * kNWave)>{};
+
+            // printf("mIter, nIter(%d, %d) \n", mIter+0, nIter+0);
+
+            c_warp_in_tensor.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
+                merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+            const auto c_warp_in_tensor_casted = cast_tile<ODataType>(c_warp_in_tensor);
+
+            block_sync_lds();
+            store_tile(in_lds_window, c_warp_in_tensor_casted);
+            block_sync_lds();
+
+            const auto c_out_tensor =
+                load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
+
+            if constexpr(out_memory_data_op == memory_operation_enum::set)
+            {
+                
+
+                auto tile_window = make_tile_scatter_gather(out_dram_window.get_bottom_tensor_view(),
+                                                    out_dram_window.get_window_lengths(),
+                                                    out_dram_window.get_window_origin(),
+                                                    dram_tile_distribution,
+                                                    offsets);
+
+                tile_window.store(c_out_tensor);
+                // store_tile(out_dram_window, c_out_tensor, offsets);
+            }
+            else
+            {
+                update_tile(out_dram_window, c_out_tensor);
+            }
+            if constexpr(iAccess != num_access - 1)
+            {
+                constexpr auto step = SFC::get_forward_step(iAccess);
+                move_tile_window(out_dram_window, {0, step.at(number<1>{})});
+                // printf("step.at(number<0>{}), step.at(number<1>{}):,%d, %d",
+                // step.at(number<0>{})+0, step.at(number<1>{})+0);
+            }
+        });
     }
 
     template <typename ODramWindow,

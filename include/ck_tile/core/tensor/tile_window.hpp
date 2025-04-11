@@ -609,6 +609,93 @@ struct tile_window_with_static_distribution
         });
     }
 
+    // template <typename statically_indexed_array,
+    //           index_t i_access_unsupport_ = -1,
+    //           bool oob_conditional_check  = true>
+    // CK_TILE_DEVICE void store(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+    //                           const statically_indexed_array& offsets,
+    //                           number<i_access_unsupport_>          = {},
+    //                           bool_constant<oob_conditional_check> = {}) const
+    // {
+    //     using Traits = load_store_traits;
+
+    //     // using vector_type_t = typename Traits::vector_type_t;
+    //     using vector_t = typename Traits::vector_t;
+    //     using SFC_Ys   = typename Traits::SFC_Ys;
+
+    //     constexpr auto tile_dstr = TileDstr{};
+
+    //     // loop over thread tensor space [y0, y1, ...]
+    //     static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+    //         auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+    //         // auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+
+    //         BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
+    //             window_origin_ +
+    //             tuple<index_t, index_t>(0, window_adaptor_thread_coord.get_bottom_index()[1]);
+
+    //         auto bottom_tensor_thread_coord = make_tensor_coordinate(
+    //             bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
+
+    //         static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+    //             constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+
+    //             // data index [y0, y1, ...]
+    //             constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+    //             constexpr auto idx_m        = idx_ys_start[number<0>{}];
+    //             const auto offset           = offsets[idx_m];
+
+    //             // printf("idx_ys_start[0], idx_ys_start[1](%d, %d) \n",
+    //             // idx_ys_start[number<0>{}]+0, idx_ys_start[number<1>{}]+0);
+
+    //             // read from distributed tensor
+    //             // vector_type_t vec;
+    //             vector_t vec_value;
+
+    //             static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
+    //                 constexpr auto idx_ys = generate_tuple(
+    //                     [&](auto jj) {
+    //                         return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
+    //                                                         : idx_ys_start[jj];
+    //                     },
+    //                     number<NDimY>{});
+
+    //                 constexpr index_t d =
+    //                     tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
+    //                     Traits::PackedSize;
+    //                 // printf("thread_idx_m: %d j: %d\n", idx_ys[number<0>{}] + 0, 0+j);
+    //                 vec_value.template get_as<DataType>()(j / Traits::PackedSize) =
+    //                     dstr_tensor.get_thread_buffer().template at<d>();
+    //             });
+
+    //             // const vector_t vec_value = vec.template get_as<vector_t>().template at<0>();
+
+    //             // write into bottom tensor
+    //             get_bottom_tensor_view().template set_vectorized_elements<vector_t>(
+    //                 bottom_tensor_thread_coord,
+    //                 offset,
+    //                 vec_value,
+    //                 bool_constant<oob_conditional_check>{});
+    //             // printf("coord_offset:%d,   scatter_offset:%d \n",
+    //             // bottom_tensor_thread_coord.get_offset(), offset); move thread coordinate
+    //             if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+    //             {
+    //                 constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+    //                 constexpr auto forward_step_scatter = generate_tuple(
+    //                     [&](auto i) { return i == 0 ? 0 : idx_diff_ys[i]; }, number<NDimY>{});
+
+    //                 constexpr auto idx_diff_ps_ys = container_concat(
+    //                     generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+    //                     forward_step_scatter);
+
+    //                 move_window_adaptor_and_bottom_tensor_thread_coordinate(
+    //                     window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+    //             }
+    //         });
+    //     });
+    // }
+
     template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE void store(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
                               number<i_access_unsupport_>          = {},
@@ -1010,23 +1097,6 @@ make_tile_window_raw(const TensorView_& tensor_view,
     return w;
 }
 
-template <typename TensorView_,
-          typename WindowLengths_,
-          typename StaticTileDistribution_,
-          index_t NumCoord>
-CK_TILE_DEVICE void move_tile_window(
-    tile_window_with_static_distribution<TensorView_,
-                                         WindowLengths_,
-                                         StaticTileDistribution_,
-                                         NumCoord>& window,
-    const typename tile_window_with_static_distribution<TensorView_,
-                                                        WindowLengths_,
-                                                        StaticTileDistribution_,
-                                                        NumCoord>::BottomTensorIndex& step)
-{
-    window.move(step);
-}
-
 /**
  * @brief This class provides description of tile windowed view on the device memory.
  *
@@ -1153,15 +1223,6 @@ make_tile_window_raw(const tile_window_with_static_lengths<TensorView, WindowLen
                               tile_distribution);
     w.init_raw();
     return w;
-}
-
-template <typename TensorView_, typename WindowLengths_>
-CK_TILE_DEVICE void move_tile_window(
-    tile_window_with_static_lengths<TensorView_, WindowLengths_>& window,
-    const typename tile_window_with_static_lengths<TensorView_, WindowLengths_>::BottomTensorIndex&
-        step)
-{
-    window.move(step);
 }
 
 } // namespace ck_tile
