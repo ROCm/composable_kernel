@@ -298,7 +298,6 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             block_sync_lds();
 
             // Add both the tiles and return the result.
-            /*
             if(group_id == 0)
             {
                 constexpr auto s_spans = decltype(c_block_tile_0)::get_distributed_spans();
@@ -308,7 +307,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                         c_block_tile_0(idx2) += c_block_tile_1(idx2);
                     });
                 });
-            }*/
+            }
 
             return c_block_tile_0;
         }

@@ -100,7 +100,7 @@ struct GemmConfig
     // Using the ping pong reader in the lds level
     static constexpr ck_tile::index_t M_Tile = 64;
     static constexpr ck_tile::index_t N_Tile = 32;
-    static constexpr ck_tile::index_t K_Tile = 8;
+    static constexpr ck_tile::index_t K_Tile = 16;
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 1;
@@ -108,7 +108,7 @@ struct GemmConfig
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 8;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr ck_tile::index_t NumWaveGroups = 2;
