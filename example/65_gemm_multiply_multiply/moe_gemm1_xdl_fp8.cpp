@@ -131,7 +131,7 @@ static constexpr ck::index_t BK1         = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec        = 16 / sizeof(EDataType);
 static constexpr ck::index_t D0Vec       = 1;
 static constexpr ck::index_t D1Vec       = 1;
-static constexpr ck::index_t ActOP       = 2; // 0: gelu_and_mul, 2: silu_and_mul
+static constexpr ck::index_t ActOP       = 1; // 0: gelu_and_mul, 1: silu_and_mul
 using DeviceOpInstance                   = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,

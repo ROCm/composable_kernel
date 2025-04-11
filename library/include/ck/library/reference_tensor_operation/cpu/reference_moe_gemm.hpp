@@ -80,10 +80,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            if constexpr(ActivationType > 2)
-            {
-                static_assert(false, "Not supported activation type");
-            }
+            static_assert(ActivationType < 2, "Not supported activation type");
             const int full_n = arg.c_t_k_n_.mDesc.GetLengths()[2];
             auto f_mk_kn_mn  = [&](auto m, auto n) {
                 const int K = arg.a_t_k_.mDesc.GetLengths()[1];
@@ -148,44 +145,43 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         else
                         {
                             arg.b_element_op_(v_b, arg.b_e_n_k_(e, k, n));
-                            if constexpr(ActivationType == 2)
-                            {
-                                arg.b_element_op_(v_b_up, arg.b_e_n_k_(e, k, n + full_n));
-                            }
+                            arg.b_element_op_(v_b_up, arg.b_e_n_k_(e, k, n + full_n));
                         }
 
                         v_acc +=
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
-
-                        if constexpr(ActivationType == 2)
-                        {
-                            v_acc_up += ck::type_convert<AccDataType>(v_a) *
-                                        ck::type_convert<AccDataType>(v_b_up);
-                        }
+                        v_acc_up += ck::type_convert<AccDataType>(v_a) *
+                                    ck::type_convert<AccDataType>(v_b_up);
                     }
                     CDataType v_c{0};
                     CDataType v_c_up{0};
 
                     arg.c_element_op_(v_c, v_acc);
-                    if constexpr(ActivationType == 2)
+                    if constexpr(ActivationType == 1)
                     {
                         arg.c_element_op_(v_c_up, v_acc_up);
-                        v_c    = v_c * arg.b_scale_e_n_(e, n) * arg.a_scale_t_(t);
-                        v_c    = v_c * (1.0 / (1.0 + math::exp(-v_c)));
+                        v_c = v_c * arg.b_scale_e_n_(e, n) * arg.a_scale_t_(t);
+                        if constexpr(is_same_v<BDataType, pk_i4_t>)
+                        {
+                            v_c_up *= 16;
+                            v_c *= 16;
+                        }
+                        tensor_operation::element_wise::Silu{}(v_c, v_c);
                         v_c_up = v_c_up * arg.b_scale_e_n_(e, n + full_n) * arg.a_scale_t_(t);
                         arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up;
                     }
-                    else
+                    else if constexpr(ActivationType == 0)
                     {
-                        if constexpr(ActivationType == 1)
+                        arg.c_element_op_(v_c_up, v_acc_up);
+                        v_c = v_c * arg.b_scale_e_n_(e, n) * arg.a_scale_t_(t);
+                        if constexpr(is_same_v<BDataType, pk_i4_t>)
                         {
-                            tensor_operation::element_wise::Silu{}(v_c, v_c);
+                            v_c_up *= 16;
+                            v_c *= 16;
                         }
-                        else if constexpr(ActivationType == 0)
-                        {
-                            tensor_operation::element_wise::Gelu{}(v_c, v_c);
-                        }
-                        arg.c_t_k_n_(t, topk_id, n) = v_c;
+                        tensor_operation::element_wise::Gelu{}(v_c, v_c);
+                        v_c_up = v_c_up * arg.b_scale_e_n_(e, n + full_n) * arg.a_scale_t_(t);
+                        arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up;
                     }
                 }
             };
