@@ -108,43 +108,9 @@ int main(int argc, char* argv[])
     k_buf.ToDevice(k_host.mData.data());
     v_buf.ToDevice(v_host.mData.data());
 
-    constexpr ck_tile::index_t kM0PerBlock = 128;
-    constexpr ck_tile::index_t kN0PerBlock = 128;
-    constexpr ck_tile::index_t kK0PerBlock = 32;
-    constexpr ck_tile::index_t kN1PerBlock = 128;
-    constexpr ck_tile::index_t kK1PerBlock = 32;
 
-    constexpr ck_tile::index_t kBlockSize = 256;
-    constexpr ck_tile::index_t kHeadDim   = 128;
-
-    ck_tile::index_t kGridSize = Batch * (M0 / kM0PerBlock) * (N1 / kN1PerBlock);
-
-    std::cout << "grid size " << kGridSize << std::endl;
-
-    constexpr ck_tile::index_t kWarpPerCu    = 8; // 2 warps per SIMD
-    constexpr ck_tile::index_t kWarpPerBlock = kBlockSize / warpSize;
-    constexpr ck_tile::index_t kBlockPerCu   = kWarpPerCu / kWarpPerBlock;
-
-    float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true},
-        ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-        ck_tile::FlashAttentionFwd<QDataType,
-                          KDataType,
-                          VDataType,
-                          SaccDataType,
-                          SMPLComputeDataType,
-                          PDataType,
-                          OaccDataType,
-                          ODataType,
-                          kBlockSize,
-                          kHeadDim,
-                          kM0PerBlock,
-                          kN0PerBlock,
-                          kK0PerBlock,
-                          kN1PerBlock,
-                          kK1PerBlock>{},
-        kGridSize,
-        kBlockSize,
-        0,
+    // Construct the FlashAttnArgs object with your arguments
+    ck_tile::FlashAttnArgs<QDataType, KDataType, VDataType, ODataType> flash_attention_args {
         static_cast<QDataType*>(q_buf.GetDeviceBuffer()),
         static_cast<KDataType*>(k_buf.GetDeviceBuffer()),
         static_cast<VDataType*>(v_buf.GetDeviceBuffer()),
@@ -154,14 +120,25 @@ int main(int argc, char* argv[])
         K0,
         N1,
         Batch,
-        K0,       // StrideQ
-        K0,       // StrideK
-        N0,       // StrideV
-        N1,       // StrideO
-        M0 * K0,  // BatchStrideQ
-        N0 * K0,  // BatchStrideK
-        N1 * N0,  // BatchStrideV
-        M0 * N1)); // BatchStrideO
+        K0, // strideQ
+        K0, // strideK
+        N0, // strideV
+        N1, // strideO
+        M0 * K0, // batchStrideQ
+        N0 * K0, // batchStrideK
+        N1 * N0, // batchStrideV
+        M0 * N1 // batchStrideO
+    };
+
+    float ave_time = ck_tile::flash_attention_fwd<QDataType, 
+                                                  QDataType, 
+                                                  VDataType, 
+                                                  SaccDataType, 
+                                                  SMPLComputeDataType, 
+                                                  PDataType, 
+                                                  OaccDataType, 
+                                                  ODataType>
+                                                  (flash_attention_args, ck_tile::stream_config{nullptr, true});
 
     // reference
     auto pass = true;
