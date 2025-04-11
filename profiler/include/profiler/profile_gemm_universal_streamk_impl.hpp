@@ -166,7 +166,7 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
             0, 1, 2, 3, 4}; // 0: Data Parallel (DP) mode (Stream-K OFF), 1: 1-tile Stream-K+ DP,
                             // 2:2-tile Stream-K + DP
 
-        if(Grid_size != -1)
+        if(Grid_size == -1)
         {
             grid_size_list = {Grid_size};
         }
