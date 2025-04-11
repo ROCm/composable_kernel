@@ -57,12 +57,12 @@ struct DataTypeTraits<ck_tile::pk_int4_t>
 /**
  * @brief  Defines the configuration parameters for a GEMM operation, enabling the selection of a
  * specific kernel instance based on the provided settings.
- * @param pipeline [std::string] The name of the pipeline.
- * @param scheduler [std::string] The name of the scheduler (e.g., "intrawave", "interwave").
- * @param epilogue [std::string] The name of the epilogue (e.g., "cshuffle", "default").
- * @param kPadM [bool] Indicates whether padding is applied to the M dimension.
- * @param kPadN [bool] Indicates whether padding is applied to the N dimension.
- * @param kPadK [bool] Indicates whether padding is applied to the K dimension.
+ * @param pipeline The name of the pipeline.
+ * @param scheduler The name of the scheduler (e.g., "intrawave", "interwave").
+ * @param epilogue The name of the epilogue (e.g., "cshuffle", "default").
+ * @param kPadM Indicates whether padding is applied to the M dimension.
+ * @param kPadN Indicates whether padding is applied to the N dimension.
+ * @param kPadK Indicates whether padding is applied to the K dimension.
  */
 
 struct KernelTraits
