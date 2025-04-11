@@ -56,20 +56,24 @@ template <index_t BlockSize,
           index_t YPerTile,
           index_t XPerTile,
           index_t VecSize,
+          index_t NumWaveGroups,
           tile_distribution_pattern DistributionPattern>
 struct TileDistributionEncodingPattern2D : public TileDistributionEncodingPattern
 {
 };
 
 // Thread raked
-template <index_t BlockSize, index_t YPerTile, index_t XPerTile, index_t VecSize>
+template <index_t BlockSize, index_t YPerTile, index_t XPerTile, index_t VecSize, index_t NumWaveGroups>
 struct TileDistributionEncodingPattern2D<BlockSize,
                                          YPerTile,
                                          XPerTile,
                                          VecSize,
+                                         NumWaveGroups,
                                          tile_distribution_pattern::thread_raked>
     : public TileDistributionEncodingPattern
 {
+
+    static_assert(NumWaveGroups == 2);
 
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
@@ -82,12 +86,12 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     static constexpr index_t Y1 = warp_size / X0;
     static_assert(X0 * Y1 == warp_size, "X0 * Y1 must cover whole wavefront!");
 
-    static constexpr index_t Y0 = num_warps;
+    static constexpr index_t Y0 = num_warps / NumWaveGroups;
     //  YPerWarp = YPerTile / Y0;
     //  Y2 = YPerWarp / Y1;
     static constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters within wavefront
 
-    static_assert(X0 * Y1 * Y0 == BlockSize, "X0 * warp_ys * Y0 must cover whole workgroup!");
+    static_assert(X0 * Y1 * Y0 * NumWaveGroups == BlockSize, "X0 * warp_ys * Y0 must cover whole workgroup!");
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
 
     CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
@@ -119,6 +123,7 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                          YPerTile,
                                          XPerTile,
                                          VecSize,
+                                         1,
                                          tile_distribution_pattern::warp_raked>
     : public TileDistributionEncodingPattern
 {
@@ -167,6 +172,7 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                          YPerTile,
                                          XPerTile,
                                          VecSize,
+                                         1,
                                          tile_distribution_pattern::block_raked>
     : public TileDistributionEncodingPattern
 {

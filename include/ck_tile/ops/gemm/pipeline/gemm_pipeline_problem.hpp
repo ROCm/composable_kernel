@@ -195,6 +195,7 @@ struct UniversalGemmPipelineProblem
     static constexpr auto TailNum    = TailNum_;
 
     static constexpr bool TransposeC = Traits::TransposeC;
+    static constexpr index_t kNumWaveGroups = Traits::kNumWaveGroups;
 };
 
 } // namespace ck_tile

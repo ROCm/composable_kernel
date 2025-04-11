@@ -86,6 +86,8 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
                                                                     BlockWarps,
                                                                     WarpGemm>;
 
+        static_assert(Problem::Traits::kNumWaveGroups == 2);
+
         return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
     }
 };

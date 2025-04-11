@@ -36,7 +36,8 @@ template <bool kPadM_,
           typename ALayout_,
           typename BLayout_,
           typename CLayout_,
-          bool TransposeC_ = false>
+          bool TransposeC_ = false, 
+          index_t kNumWaveGroups_ = 1>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -50,6 +51,7 @@ struct TileGemmUniversalTraits
     using CLayout = CLayout_;
 
     static constexpr bool TransposeC = TransposeC_;
+    static constexpr index_t kNumWaveGroups = kNumWaveGroups_;
 };
 
 } // namespace ck_tile
