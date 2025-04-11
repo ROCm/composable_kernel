@@ -42,6 +42,18 @@ struct static_distributed_tensor
     {
         return StaticTileDistribution::get_lengths();
     }
+    
+    CK_TILE_HOST_DEVICE void print() const
+    {
+        if(get_block_id()==0 && get_thread_id()==0)
+        {
+            printf("static_distributed_tensor{ lengths: ");
+            static_for<0, get_num_of_dimension(), 1>{}([&](auto i) {
+                printf("%d,", static_cast<int>(get_lengths()[number<i>{}]));
+            });
+            printf("}\n");
+        }
+    }
 
     CK_TILE_HOST_DEVICE static constexpr auto get_tile_distribution()
     {

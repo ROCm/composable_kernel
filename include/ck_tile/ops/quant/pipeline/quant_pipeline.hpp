@@ -7,6 +7,7 @@
 #include "ck_tile/ops/quant/pipeline/quant_pipeline_default_policy.hpp"
 #include <string>
 #include <type_traits>
+#include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
 template <typename Problem_, typename Policy_ = PerTensorQuantPipelineDefaultPolicy>
@@ -182,7 +183,7 @@ struct DynamicPerTokenQuantPipeline
         index_t num_n_tile_iteration =
             __builtin_amdgcn_readfirstlane(integer_divide_ceil(row_size, Block_N));
 
-        auto reduce_absmax_func = ReduceOp::AbsMax{};
+        const auto reduce_absmax_func = ReduceOp::AbsMax{};
         auto reduce_absmax3_func = [](auto acc_, auto v_0_, auto v_1_) {
             float rtn;
             asm volatile("v_max3_f32 %0, %1, abs(%2), abs(%3)"
@@ -191,21 +192,29 @@ struct DynamicPerTokenQuantPipeline
             return rtn;
         };
 
-        auto block_reduce2d      = Policy::template GetBlockReduce2d<Problem>();
+        // auto block_reduce2d      = Policy::template GetBlockReduce2d<Problem>();
 
         using XTensorType = decltype(cast_tile<ComputeDataType>(load_tile(x_window)));
-        auto absmax       = block_reduce2d.template MakeYBlockTile<XTensorType>();
+
+        constexpr auto absmax_dstr =
+            make_static_tile_distribution(ck_tile::detail::make_reduce_tile_distribution_encoding(
+                XTensorType::get_tile_distribution().get_static_tile_distribution_encoding(),
+                sequence<1>{}));
+
+        auto absmax = make_static_distributed_tensor<ComputeDataType>(absmax_dstr);
+
+        // auto absmax       = block_reduce2d.template MakeYBlockTile<XTensorType>();
         set_tile(absmax, reduce_absmax_func.GetIdentityValue<ComputeDataType>());
 
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN){
-            const auto x = load_tile(x_window);
+            const auto x = cast_tile<ComputeDataType>(load_tile(x_window));
             constexpr auto x_size_per_row =
                 x.get_tile_distribution().get_ys_to_d_descriptor().get_lengths().at(number<1>{});
             if constexpr(UseMax3 && std::is_same_v<ComputeDataType, float> &&
                          x_size_per_row % 2 == 0)
-                block_reduce2d(x, absmax, reduce_absmax3_func, sequence<1, 2>{});
+                block_tile_reduce(absmax, x, sequence<1>{}, reduce_absmax3_func);
             else
-                block_reduce2d(x, absmax, reduce_absmax_func);
+                block_tile_reduce(absmax, x, sequence<1>{}, reduce_absmax_func);
             move_tile_window(x_window, {0, Block_N});
         }
 
