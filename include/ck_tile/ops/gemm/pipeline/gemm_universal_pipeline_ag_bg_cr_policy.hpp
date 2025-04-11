@@ -580,7 +580,9 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 WarpTile::at(I0),
                                                 WarpTile::at(I1),
                                                 WarpTile::at(I2),
-                                                Problem::TransposeC>;
+                                                Problem::TransposeC,
+                                                false,
+                                                Problem::UseStructuredSparsity>;
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
                                                                       typename Problem::CDataType,
