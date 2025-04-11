@@ -104,7 +104,7 @@ template <typename ALayout,
           typename BDataType,
           typename BScaleDataType,
           typename CDataType,
-          typename GemmAccDataType,
+          typename GemmAccDataType, // TODO: always float
           typename CShuffleDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
