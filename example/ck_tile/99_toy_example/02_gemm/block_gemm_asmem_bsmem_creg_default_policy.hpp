@@ -23,13 +23,13 @@ struct BlockGemmASmemBSmemCRegDefaultPolicy
                      std::is_same_v<typename Problem::BDataType, half_t> &&
                      std::is_same_v<typename Problem::CDataType, float>)
         {
-            return make_tuple(WarpGemmMfmaF16F16F32M32N32K8TransposedCDistribution{}, 4, 1);
+            return make_tuple(WarpGemmMfmaF16F16F32M32N32K8TransposedCDistribution{}, 2, 2);
         }
         else if constexpr(std::is_same_v<typename Problem::ADataType, bf16_t> &&
                           std::is_same_v<typename Problem::BDataType, bf16_t> &&
                           std::is_same_v<typename Problem::CDataType, float>)
         {
-            return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K8TransposedCDistribution{}, 4, 1);
+            return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K8TransposedCDistribution{}, 2, 2);
         }
 #elif defined(USING_MFMA_32x32x_8x2)
 #pragma message ("mfma m32 n32 k16")
@@ -37,13 +37,13 @@ struct BlockGemmASmemBSmemCRegDefaultPolicy
                      std::is_same_v<typename Problem::BDataType, half_t> &&
                      std::is_same_v<typename Problem::CDataType, float>)
         {
-            return make_tuple(WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution{}, 4, 1);
+            return make_tuple(WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution{}, 2, 2);
         }
         else if constexpr(std::is_same_v<typename Problem::ADataType, bf16_t> &&
                           std::is_same_v<typename Problem::BDataType, bf16_t> &&
                           std::is_same_v<typename Problem::CDataType, float>)
         {
-            return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution{}, 4, 1);
+            return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution{}, 2, 2);
         }
 #elif defined(USING_MFMA_16x16x16)
 #pragma message ("mfma m16 n16 k16")
@@ -51,13 +51,13 @@ struct BlockGemmASmemBSmemCRegDefaultPolicy
                      std::is_same_v<typename Problem::BDataType, half_t> &&
                      std::is_same_v<typename Problem::CDataType, float>)
         {
-            return make_tuple(WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{}, 4, 1);
+            return make_tuple(WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{}, 2, 2);
         }
         else if constexpr(std::is_same_v<typename Problem::ADataType, bf16_t> &&
                           std::is_same_v<typename Problem::BDataType, bf16_t> &&
                           std::is_same_v<typename Problem::CDataType, float>)
         {
-            return make_tuple(WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution{}, 4, 1);
+            return make_tuple(WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution{}, 2, 2);
         }
 #elif defined(USING_MFMA_16x16x_16x2)
 #pragma message ("mfma m16 n16 k32")
@@ -65,13 +65,13 @@ struct BlockGemmASmemBSmemCRegDefaultPolicy
                      std::is_same_v<typename Problem::BDataType, half_t> &&
                      std::is_same_v<typename Problem::CDataType, float>)
         {
-            return make_tuple(WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution{}, 4, 1);
+            return make_tuple(WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution{}, 2, 2);
         }
         else if constexpr(std::is_same_v<typename Problem::ADataType, bf16_t> &&
                           std::is_same_v<typename Problem::BDataType, bf16_t> &&
                           std::is_same_v<typename Problem::CDataType, float>)
         {
-            return make_tuple(WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution{}, 4, 1);
+            return make_tuple(WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution{}, 2, 2);
         }
 #endif
         else

@@ -146,17 +146,17 @@ int main(int argc, char* argv[])
     constexpr ck_tile::index_t kBlockPerCu   = kWarpPerCu / kWarpPerBlock;
 
     using gemm_kernel = ck_tile::Gemm<ADataType,
-                                  BDataType,
-                                  AccDataType,
-                                  CDataType,
-                                  CElementFunction,
-                                  kAAlignment,
-                                  kBAlignment,
-                                  kCAlignment,
-                                  kBlockSize,
-                                  kGemmMPerBlock,
-                                  kGemmNPerBlock,
-                                  kGemmKPerBlock>;
+                                      BDataType,
+                                      AccDataType,
+                                      CDataType,
+                                      CElementFunction,
+                                      kAAlignment,
+                                      kBAlignment,
+                                      kCAlignment,
+                                      kBlockSize,
+                                      kGemmMPerBlock,
+                                      kGemmNPerBlock,
+                                      kGemmKPerBlock>;
 
     float ave_time =
         ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},

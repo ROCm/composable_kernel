@@ -343,25 +343,14 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPack()
     {
         constexpr index_t kKPack = 8;
         return kKPack;
-        // using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
-        // constexpr index_t KPack = BlockGemm::Traits::KPack;
-        // return KPack;
     }
+#endif
 
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
-    {
-        constexpr index_t kKPack = 8;
-        return kKPack;
-        // using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
-        // constexpr index_t KPack = BlockGemm::Traits::KPack;
-        // return KPack;
-    }
-
+#if 0
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
@@ -385,7 +374,8 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        return BlockGemmASmemBSmemCReg<Problem>{};
+        using Policy = BlockGemmASmemBSmemCRegDefaultPolicy;
+        return BlockGemmASmemBSmemCReg<Problem, Policy>{};
     }
 #endif
 };

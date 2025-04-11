@@ -20,7 +20,124 @@ struct BlockGemmASmemBSmemCReg
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
+    // using WarpGemmConfig = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+    using WarpGemm = remove_cvref_t<decltype(Policy::template GetWarpGemmMWarpNWarp<Problem>().template at<0>())>;
+
+#if 1
+    /*
+    template <typename PipelineProblem_, typename GemmPolicy_>
+    struct GemmTraits_
+    {
+        using Problem         = remove_cvref_t<PipelineProblem_>;
+        using Policy          = remove_cvref_t<GemmPolicy_>;
+        using ADataType       = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+        using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+        using CDataType       = remove_cvref_t<typename Problem::CDataType>;
+        using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
+
+        static constexpr index_t kBlockSize = Problem::kBlockSize;
+        static constexpr auto Scheduler     = Problem::Scheduler;
+
+        static constexpr index_t MPerBlock = BlockGemmShape::kM;
+        static constexpr index_t NPerBlock = BlockGemmShape::kN;
+        static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
+        static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+
+        using WarpGemm = remove_cvref_t<decltype(config.template at<0>())>;
+
+        static constexpr index_t MWarp = config.template at<1>();
+        static constexpr index_t NWarp = config.template at<2>();
+
+        using I0 = number<0>;
+        using I1 = number<1>;
+
+        static_assert(MWarp == BlockGemmShape::BlockWarps::at(I0{}),
+                      "Error! WarpGemm's MWarp is not consisten with BlockGemmShape!");
+        static_assert(NWarp == BlockGemmShape::BlockWarps::at(I1{}),
+                      "Error! WarpGemm's NWarp is not consisten with BlockGemmShape!");
+        static_assert(WarpGemm::kM == BlockGemmShape::WarpTile::at(I0{}),
+                      "Error! WarpGemm's M is not consisten with BlockGemmShape!");
+        static_assert(WarpGemm::kN == BlockGemmShape::WarpTile::at(I1{}),
+                      "Error! WarpGemm's N is not consisten with BlockGemmShape!");
+
+        static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
+        static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
+        static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
+
+        static_assert(MIterPerWarp * MWarp * WarpGemm::kM == MPerBlock,
+                      "Error! Warps should cover all Block tile!");
+        static_assert(NIterPerWarp * NWarp * WarpGemm::kN == NPerBlock,
+                      "Error! Warps should cover all Block tile!");
+
+        static constexpr index_t MPerBlockPerIter = MWarp * WarpGemm::kM;
+        static constexpr index_t NPerBlockPerIter = NWarp * WarpGemm::kN;
+        static constexpr index_t KPerBlockPerIter = WarpGemm::kK;
+
+        // Controls how many MAC clusters (MFMA blocks) we have per wave
+        // Ie if
+        // InterWaveSchedulingMacClusters = 1;
+        // KPerBlock == 32
+        // WarpGemm::kK = 8
+        // Then we would group all 4 WarpGemms into single MAC cluster.
+        // But if we would set InterWaveSchedulingMacClusters = 2, then we would
+        // split those 4 warp gemms into two groups.
+        static constexpr index_t InterWaveSchedulingMacClusters = 1;
+
+        // should be at least equal to: WarpGemm::Impl::kABKPerLane
+        static constexpr index_t KPack      = WarpGemm::kKPerThread;
+        static constexpr index_t KPerThread = KIterPerWarp * WarpGemm::kKPerThread;
+    };
+    */
+
+    CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
+    {
+        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        constexpr index_t MWarp = config.template at<1>();
+        constexpr index_t NWarp = config.template at<2>();
+        constexpr index_t MIterPerWarp = BlockGemmShape::kM / (MWarp * WarpGemm::kM);
+
+        constexpr index_t KPerBlock    = BlockGemmShape::kK;
+        constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
+
+        constexpr auto a_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+        constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
+
+        return a_block_dstr_encode;
+    }
+
+    CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
+    {
+        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        constexpr index_t MWarp = config.template at<1>();
+        constexpr index_t NWarp = config.template at<2>();
+        constexpr index_t NIterPerWarp = BlockGemmShape::kN / (NWarp * WarpGemm::kN);
+
+        constexpr index_t KPerBlock    = BlockGemmShape::kK;
+        constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
+
+        constexpr auto b_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<MWarp>,
+                                       tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<0, 1>>,
+                                       tuple<sequence<0, 1>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+        constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
+
+        return b_block_dstr_encode;
+    }
+#endif
+
 
     // C += A * B
     template <typename CBlockTensor, typename ABlockWindowTmp, typename BBlockWindowTmp>

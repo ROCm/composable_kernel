@@ -233,11 +233,8 @@ struct Gemm
         }
 
 #if defined(ENABLE_INSTRUCTION_SCH)
-        static constexpr index_t M_Tile = 128;
-        static constexpr index_t N_Tile = 128;
-        static constexpr index_t K_Tile = 64;
-        static constexpr index_t M_Warp = 2;
-        static constexpr index_t N_Warp = 2;
+        static constexpr index_t M_Warp = 4;
+        static constexpr index_t N_Warp = 1;
         static constexpr index_t K_Warp = 1;
         static constexpr index_t M_Warp_Tile = 16;
         static constexpr index_t N_Warp_Tile = 16;
@@ -256,7 +253,7 @@ struct Gemm
         {
 #if defined(ENABLE_INSTRUCTION_SCH)
             // Block GEMM pipeline w/ instruction scheduling
-            using GemmShape = TileGemmShape<sequence<M_Tile, N_Tile, K_Tile>,
+            using GemmShape = TileGemmShape<sequence<kMPerBlock, kNPerBlock, kKPerBlock>,
                                             sequence<M_Warp, N_Warp, K_Warp>,
                                             sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>,
                                             PermuteA,
