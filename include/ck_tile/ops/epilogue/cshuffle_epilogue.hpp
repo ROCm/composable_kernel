@@ -55,7 +55,7 @@ struct CShuffleEpilogue
     static constexpr index_t kBlockSize     = Problem::kBlockSize;
     static constexpr index_t kMPerBlock     = Problem::kMPerBlock;
     static constexpr index_t kNPerBlock     = Problem::kNPerBlock;
-    static constexpr index_t kMWave         = Problem::kMWave;
+    static constexpr index_t kMWave         = Problem::kMWave / 2;
     static constexpr index_t kNWave         = Problem::kNWave;
     static constexpr index_t kMPerXdl       = Problem::kMPerXdl;
     static constexpr index_t kNPerXdl       = Problem::kNPerXdl;
@@ -151,7 +151,7 @@ struct CShuffleEpilogue
                                               kMPerIteration,
                                               kNPerIteration,
                                               GetVectorSizeC(),
-                                              1,
+                                              2,
                                               tile_distribution_pattern::thread_raked>;
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 
