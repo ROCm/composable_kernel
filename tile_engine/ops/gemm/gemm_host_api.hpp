@@ -181,7 +181,6 @@ void permute_vectors_i4x4_b(Tensor& tensor)
     }
 }
 
-
 /// @brief Function to compare the results of the device and host computations
 void compare(ck_tile::index_t K,
              ck_tile::index_t kbatch,
@@ -202,7 +201,6 @@ void compare(ck_tile::index_t K,
               << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
     std::cout << "The verification result is:" << (pass ? "correct" : "fail") << std::endl;
 }
-
 
 /// @brief Function to get the kernel output with reference implementation on CPU/GPU
 template <typename ADataType,
