@@ -154,6 +154,7 @@ template <typename ALayout,
           index_t ActivationOperation                 = 0,
           bool NSwizzle                               = false,
           bool IsInputGemm                            = true,
+          bool MulRoutedWeight                        = true,
           bool PerTokenQuant                          = false,
           typename IndexType                          = index_t,
           typename ComputeTypeA                       = CDataType,
@@ -1437,7 +1438,7 @@ struct GridwiseMoeGemm
                                     *c_style_pointer_cast<const vector_type<int32_t, M4>*>(
                                         p_sorted_token_ids + m_pos);
                             }
-                            if constexpr(!IsInputGemm)
+                            if constexpr(MulRoutedWeight)
                             {
                                 topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
                                     p_ds_grid[I2] + m_pos);
@@ -1461,6 +1462,22 @@ struct GridwiseMoeGemm
                                     blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
                                         make_tuple(m0, n0, m2 * M4 + m4));
                                 constexpr auto cidx = Number<c_offset>{};
+                                if constexpr(MulRoutedWeight)
+                                {
+                                    if constexpr(IsInputGemm)
+                                    {
+                                        c_thread_buf(cidx) =
+                                            topk_weights.AsType<float>()[m4] * c_thread_buf[cidx];
+                                        c_thread_buf_up(cidx) = topk_weights.AsType<float>()[m4] *
+                                                                c_thread_buf_up[cidx];
+                                    }
+                                    else
+                                    {
+                                        c_thread_buf(cidx) = scale_a * scale_b *
+                                                             topk_weights.AsType<float>()[m4] *
+                                                             c_thread_buf[cidx];
+                                    }
+                                }
                                 if constexpr(IsInputGemm) // gu fusion
                                 {
                                     if constexpr(ActivationOperation == Activation::silu_and_mul)
@@ -1493,12 +1510,6 @@ struct GridwiseMoeGemm
                                         tensor_operation::element_wise::Gelu{}(gate, gate);
                                         c_thread_buf(cidx) = gate * up;
                                     }
-                                }
-                                else
-                                {
-                                    c_thread_buf(cidx) = scale_a * scale_b *
-                                                         topk_weights.AsType<float>()[m4] *
-                                                         c_thread_buf[cidx];
                                 }
                             });
                         });
@@ -1513,7 +1524,7 @@ struct GridwiseMoeGemm
                         static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
                             const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
                                                   m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
-                            if constexpr(!IsInputGemm)
+                            if constexpr(MulRoutedWeight)
                             {
                                 topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
                                     p_ds_grid[I2] + m_pos);
@@ -1523,6 +1534,22 @@ struct GridwiseMoeGemm
                                     blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
                                         make_tuple(m0, n0, m2 * M4 + m4));
                                 constexpr auto cidx = Number<c_offset>{};
+                                if constexpr(MulRoutedWeight)
+                                {
+                                    if constexpr(IsInputGemm)
+                                    {
+                                        c_thread_buf(cidx) =
+                                            topk_weights.AsType<float>()[m4] * c_thread_buf[cidx];
+                                        c_thread_buf_up(cidx) = topk_weights.AsType<float>()[m4] *
+                                                                c_thread_buf_up[cidx];
+                                    }
+                                    else
+                                    {
+                                        c_thread_buf(cidx) =
+                                            topk_weights.AsType<float>()[m4] * c_thread_buf[cidx];
+                                    }
+                                }
+
                                 if constexpr(IsInputGemm) // gu fusion
                                 {
                                     if constexpr(ActivationOperation == Activation::silu_and_mul)
@@ -1540,11 +1567,7 @@ struct GridwiseMoeGemm
                                         c_thread_buf(cidx) = gate * up;
                                     }
                                 }
-                                else
-                                {
-                                    c_thread_buf(cidx) =
-                                        topk_weights.AsType<float>()[m4] * c_thread_buf[cidx];
-                                }
+
                             });
                         });
                     });
