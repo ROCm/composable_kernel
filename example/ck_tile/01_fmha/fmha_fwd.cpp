@@ -795,6 +795,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem cache_batch_idx_buf(cache_batch_idx_host.get_element_space_size_in_bytes());
 
     q_buf.ToDevice(q_host.data());
+    // k_buf.ToDevice(k_host.data());
     k_buf.ToDevice(k_host_sgl.data());
     knew_buf.ToDevice(knew_host.data());
     v_buf.ToDevice(v_host_sgl.data());
