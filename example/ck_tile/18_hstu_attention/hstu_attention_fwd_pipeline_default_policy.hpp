@@ -322,6 +322,35 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     };
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t IsFirstVLdsBufferOverlapLastKLdsBuffer()
+    {
+        using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
+
+        constexpr index_t k0_loops          = BlockFmhaShape::kQKHeaddim / BlockFmhaShape::kK0;
+        constexpr index_t num_k_lds_buffers = GetNumKLdsBuffers<Problem>();
+        constexpr index_t num_v_lds_buffers = GetNumVLdsBuffers<Problem>();
+
+        constexpr index_t last_k_lds_buffer_offset =
+            MakeKLdsBlockDescriptor<Problem>().get_element_space_size() / num_k_lds_buffers *
+            ((k0_loops - 1) % num_k_lds_buffers) * sizeof(typename Problem::KDataType);
+
+        constexpr index_t last_k_lds_buffer_end =
+            last_k_lds_buffer_offset + MakeKLdsBlockDescriptor<Problem>().get_element_space_size() /
+                                           num_k_lds_buffers * sizeof(typename Problem::KDataType);
+
+        constexpr index_t first_v_lds_buffer_size =
+            MakeVLdsBlockDescriptor<Problem>().get_element_space_size() / num_v_lds_buffers *
+            sizeof(typename Problem::VDataType);
+
+        constexpr index_t first_v_lds_buffer_offset = GetExclusiveKLdsBytes<Problem>();
+        constexpr index_t first_v_lds_buffer_end =
+            first_v_lds_buffer_offset + first_v_lds_buffer_size;
+
+        return !((first_v_lds_buffer_offset >= last_k_lds_buffer_end) ||
+                 (first_v_lds_buffer_end <= last_k_lds_buffer_offset));
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t IsFirstKLdsBufferOverlapLastVLdsBuffer()
     {
         using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;

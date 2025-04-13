@@ -342,14 +342,14 @@ struct HstuAttentionFwdPipelineQRKSVS
                                   sequence<kM0, k0_loops * kK0>{}),
                    k_lds_windows[number<(k0_loops - 1) % NumKLdsBuffers>{}]);
 
+            __builtin_amdgcn_sched_barrier(0);
+
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
 
             static_for<1, NumPrefetchV, 1>{}([&](auto i_buf) {
                 v_tiles[i_buf] = load_tile(v_dram_window);
                 move_tile_window(v_dram_window, {0, kK1});
             });
-
-            __builtin_amdgcn_sched_barrier(0);
 
             // STAGE 2, scale_s, add bias, mask, siLU
             if constexpr(kHasBias)
@@ -416,8 +416,6 @@ struct HstuAttentionFwdPipelineQRKSVS
                     randval_lds_ptr, seqlen_k_start + i_loop * kN0, s, null_randval_window);
             }
 
-            // ensure gemm_0 has finished access of k-Lds for all warps
-            __builtin_amdgcn_s_barrier();
             __builtin_amdgcn_sched_barrier(0x7f);
 
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
@@ -426,12 +424,20 @@ struct HstuAttentionFwdPipelineQRKSVS
                     Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
                 shuffle_tile(v_shuffle_tmp, v_tiles[I0]);
 
+                // ensure gemm_0 has finished access of k-Lds for all warps
+                if constexpr(Policy::template IsFirstVLdsBufferOverlapLastKLdsBuffer<Problem>())
+                    __builtin_amdgcn_s_barrier();
+
                 store_tile(
                     v_lds_windows[I0],
                     tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
             }
             else
             {
+                // ensure gemm_0 has finished access of k-Lds for all warps
+                if constexpr(Policy::template IsFirstVLdsBufferOverlapLastKLdsBuffer<Problem>())
+                    __builtin_amdgcn_s_barrier();
+
                 store_tile(v_lds_windows[I0],
                            tile_elementwise_in(v_element_func, v_tiles[I0])); // store the prefetch
             }
