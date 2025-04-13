@@ -285,13 +285,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(is_jagged)
     {
         for(auto len : seq_lengths)
-            total_flops += 2 * (len * len * hdim_qk + len * hdim_v * len);
+            total_flops += (static_cast<long>(len) * len * hdim_qk + len * hdim_v * len) * 2;
 
         total_flops *= num_head;
     }
     else
     {
-        total_flops = num_batch * num_head * (seqlen * seqlen * hdim_qk + seqlen * hdim_v * seqlen);
+        total_flops = static_cast<long>(num_batch) * num_head *
+                      (seqlen * seqlen * hdim_qk + seqlen * hdim_v * seqlen) * 2;
     };
 
     int batches_for_alloc = is_jagged ? 1 : num_batch;
