@@ -20,77 +20,29 @@ struct BlockGemmASmemBSmemCReg
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    // using WarpGemmConfig = Policy::template GetWarpGemmMWarpNWarp<Problem>();
     using WarpGemm = remove_cvref_t<decltype(Policy::template GetWarpGemmMWarpNWarp<Problem>().template at<0>())>;
 
-#if 1
-    /*
-    template <typename PipelineProblem_, typename GemmPolicy_>
-    struct GemmTraits_
-    {
-        using Problem         = remove_cvref_t<PipelineProblem_>;
-        using Policy          = remove_cvref_t<GemmPolicy_>;
-        using ADataType       = remove_cvref_t<typename Problem::ADataType>;
-        using BDataType       = remove_cvref_t<typename Problem::BDataType>;
-        using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-        using CDataType       = remove_cvref_t<typename Problem::CDataType>;
-        using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using AWarpDstr = typename WarpGemm::AWarpDstr;
+    using BWarpDstr = typename WarpGemm::BWarpDstr;
+    using CWarpDstr = typename WarpGemm::CWarpDstr;
 
-        static constexpr index_t kBlockSize = Problem::kBlockSize;
-        static constexpr auto Scheduler     = Problem::Scheduler;
+    using AWarpTensor = typename WarpGemm::AWarpTensor;
+    using BWarpTensor = typename WarpGemm::BWarpTensor;
+    using CWarpTensor = typename WarpGemm::CWarpTensor;
 
-        static constexpr index_t MPerBlock = BlockGemmShape::kM;
-        static constexpr index_t NPerBlock = BlockGemmShape::kN;
-        static constexpr index_t KPerBlock = BlockGemmShape::kK;
+    static constexpr auto a_warp_y_lengths =
+        to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+    static constexpr auto b_warp_y_lengths =
+        to_sequence(BWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+    static constexpr auto c_warp_y_lengths =
+        to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
 
-        static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+    static constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
+    static constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
+    static constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        using WarpGemm = remove_cvref_t<decltype(config.template at<0>())>;
-
-        static constexpr index_t MWarp = config.template at<1>();
-        static constexpr index_t NWarp = config.template at<2>();
-
-        using I0 = number<0>;
-        using I1 = number<1>;
-
-        static_assert(MWarp == BlockGemmShape::BlockWarps::at(I0{}),
-                      "Error! WarpGemm's MWarp is not consisten with BlockGemmShape!");
-        static_assert(NWarp == BlockGemmShape::BlockWarps::at(I1{}),
-                      "Error! WarpGemm's NWarp is not consisten with BlockGemmShape!");
-        static_assert(WarpGemm::kM == BlockGemmShape::WarpTile::at(I0{}),
-                      "Error! WarpGemm's M is not consisten with BlockGemmShape!");
-        static_assert(WarpGemm::kN == BlockGemmShape::WarpTile::at(I1{}),
-                      "Error! WarpGemm's N is not consisten with BlockGemmShape!");
-
-        static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
-        static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
-        static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
-
-        static_assert(MIterPerWarp * MWarp * WarpGemm::kM == MPerBlock,
-                      "Error! Warps should cover all Block tile!");
-        static_assert(NIterPerWarp * NWarp * WarpGemm::kN == NPerBlock,
-                      "Error! Warps should cover all Block tile!");
-
-        static constexpr index_t MPerBlockPerIter = MWarp * WarpGemm::kM;
-        static constexpr index_t NPerBlockPerIter = NWarp * WarpGemm::kN;
-        static constexpr index_t KPerBlockPerIter = WarpGemm::kK;
-
-        // Controls how many MAC clusters (MFMA blocks) we have per wave
-        // Ie if
-        // InterWaveSchedulingMacClusters = 1;
-        // KPerBlock == 32
-        // WarpGemm::kK = 8
-        // Then we would group all 4 WarpGemms into single MAC cluster.
-        // But if we would set InterWaveSchedulingMacClusters = 2, then we would
-        // split those 4 warp gemms into two groups.
-        static constexpr index_t InterWaveSchedulingMacClusters = 1;
-
-        // should be at least equal to: WarpGemm::Impl::kABKPerLane
-        static constexpr index_t KPack      = WarpGemm::kKPerThread;
-        static constexpr index_t KPerThread = KIterPerWarp * WarpGemm::kKPerThread;
-    };
-    */
-
+#if defined(ENABLE_INSTRUCTION_SCH)
+    // A block tile distribution for load from lds
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
@@ -114,6 +66,7 @@ struct BlockGemmASmemBSmemCReg
         return a_block_dstr_encode;
     }
 
+    // B block tile distribution for load from lds
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
     {
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
@@ -136,8 +89,27 @@ struct BlockGemmASmemBSmemCReg
 
         return b_block_dstr_encode;
     }
-#endif
 
+    static constexpr auto ALdsTileDistr =
+        decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
+    static constexpr auto BLdsTileDistr =
+        decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
+
+    using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr));
+    using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
+
+    ALdsTile a_warp_tile_;
+    ALdsTile b_warp_tile_;
+
+    // Prefetch from LDS to warp register
+    template <typename ASmemBlockWindow, typename BSmemBlockWindow>
+    CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
+                                        const BSmemBlockWindow& b_block_window)
+    {
+        load_tile(a_warp_tile_, a_block_window);
+        load_tile(b_warp_tile_, b_block_window);
+    }
+#endif
 
     // C += A * B
     template <typename CBlockTensor, typename ABlockWindowTmp, typename BBlockWindowTmp>
@@ -210,22 +182,31 @@ struct BlockGemmASmemBSmemCReg
             });
         });
 
-        using CWarpDstr   = typename WG::CWarpDstr;
-        using CWarpTensor = typename WG::CWarpTensor;
-
-        constexpr auto c_warp_y_lengths = to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
-
         // hot loop:
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+#if defined(ENABLE_INSTRUCTION_SCH)
+#pragma message ("local data share prefetch")
+                // read A warp tensor from A block tensor
+                AWarpTensor a_warp_tensor;
+                a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+#else
                 // read A warp tensor from A block window
                 const auto a_warp_tensor = load_tile(a_warp_windows(mIter)(kIter));
-
+#endif
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+#if defined(ENABLE_INSTRUCTION_SCH)
+                    // read B warp tensor from B block tensor
+                    BWarpTensor b_warp_tensor;
+                    b_warp_tensor.get_thread_buffer() = b_warp_tile_.get_y_sliced_thread_data(
+                        merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+#else
                     // read B warp tensor from B Block window
                     const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
-
+#endif
                     // read C warp tensor from C block tensor
                     CWarpTensor c_warp_tensor;
 
@@ -333,22 +314,30 @@ struct BlockGemmASmemBSmemCReg
 
         auto c_block_tensor = make_static_distributed_tensor<CDataType>(c_block_dstr);
 
-        using CWarpDstr   = typename WG::CWarpDstr;
-        using CWarpTensor = typename WG::CWarpTensor;
-
-        constexpr auto c_warp_y_lengths = to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
-
         // hot loop:
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+#if defined(ENABLE_INSTRUCTION_SCH)
+                // read A warp tensor from A block tensor
+                AWarpTensor a_warp_tensor;
+                a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+#else
                 // read A warp tensor from A block window
                 const auto a_warp_tensor = load_tile(a_warp_windows(mIter)(kIter));
-
+#endif
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+#if defined(ENABLE_INSTRUCTION_SCH)
+                    // read B warp tensor from B block tensor
+                    BWarpTensor b_warp_tensor;
+                    b_warp_tensor.get_thread_buffer() = b_warp_tile_.get_y_sliced_thread_data(
+                        merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+#else
                     // read B warp tensor from B Block window
                     const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
-
+#endif
                     // read C warp tensor from C block tensor
                     CWarpTensor c_warp_tensor;
 
