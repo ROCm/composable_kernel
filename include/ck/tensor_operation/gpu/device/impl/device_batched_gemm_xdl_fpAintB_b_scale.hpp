@@ -224,12 +224,20 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
         PermuteA,
         PermuteB>;
 
+    static constexpr index_t APackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     static constexpr index_t BPackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
             return 2;
         else
             return 1;
     }();
+
     struct ComputePtrOffsetOfStridedBatch
     {
         ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
@@ -352,10 +360,10 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                     const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
                         arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
 
-                    auto size_a_buffer =
-                        a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
-                    auto size_b_buffer =
-                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
+                    auto size_a_buffer = a_grid_desc_ak0_m_ak1.GetElementSpaceSize() *
+                                         sizeof(ADataType) / APackedSize;
+                    auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
+                                         sizeof(BDataType) / BPackedSize;
 
                     ck::utility::RotatingMemWrapper<Argument> rotating_mem(
                         arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer);
