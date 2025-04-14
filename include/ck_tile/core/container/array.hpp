@@ -24,7 +24,7 @@ namespace ck_tile {
  *
  * This template class provides a lightweight fixed-size array with value semantics,
  * supporting both host and device functionality for GPU programming. It includes
- * specialized initialization methods and type punning capabilities.
+ * specialized initialization methods and type pruning capabilities.
  *
  * @tparam T_ The type of elements in the array
  * @tparam N_ The fixed number of elements in the array
