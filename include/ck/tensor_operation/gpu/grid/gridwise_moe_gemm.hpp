@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,6 +31,7 @@ template <typename GridwiseGemm,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
           bool IsInputGemm         = false,
+          bool MulRoutedWeight     = true,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -44,19 +45,22 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, IsInputGemm, TailNum>(
-        karg.p_sorted_token_ids,
-        karg.p_sorted_expert_ids,
-        karg.p_max_token_id,
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_ds_grid,
-        karg.p_c_grid,
-        p_shared,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op);
+    GridwiseGemm::template Run<HasMainKBlockLoop,
+                               CGlobalMemoryDataOperation,
+                               IsInputGemm,
+                               MulRoutedWeight,
+                               TailNum>(karg.p_sorted_token_ids,
+                                        karg.p_sorted_expert_ids,
+                                        karg.p_max_token_id,
+                                        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+                                        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+                                        karg.p_ds_grid,
+                                        karg.p_c_grid,
+                                        p_shared,
+                                        karg,
+                                        karg.a_element_op,
+                                        karg.b_element_op,
+                                        karg.c_element_op);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -67,6 +71,7 @@ template <typename GridwiseGemm,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
           bool IsInputGemm         = false,
+          bool MulRoutedWeight     = true,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -81,21 +86,23 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::
-        template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, IsInputGemm, TailNum>(
-            karg.p_sorted_token_ids,
-            karg.p_sorted_expert_ids,
-            karg.p_max_token_id,
-            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-            karg.p_ds_grid,
-            karg.p_c_grid,
-            p_shared,
-            p_shared1,
-            karg,
-            karg.a_element_op,
-            karg.b_element_op,
-            karg.c_element_op);
+    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop,
+                                    CGlobalMemoryDataOperation,
+                                    IsInputGemm,
+                                    MulRoutedWeight,
+                                    TailNum>(karg.p_sorted_token_ids,
+                                             karg.p_sorted_expert_ids,
+                                             karg.p_max_token_id,
+                                             karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+                                             karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+                                             karg.p_ds_grid,
+                                             karg.p_c_grid,
+                                             p_shared,
+                                             p_shared1,
+                                             karg,
+                                             karg.a_element_op,
+                                             karg.b_element_op,
+                                             karg.c_element_op);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -1134,8 +1141,9 @@ struct GridwiseMoeGemm
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-              bool IsInputGemm   = true,
-              TailNumber TailNum = TailNumber::Odd>
+              bool IsInputGemm     = true,
+              bool MulRoutedWeight = true,
+              TailNumber TailNum   = TailNumber::Odd>
     __device__ static void Run(const index_t* p_sorted_token_ids,
                                const index_t* p_sorted_expert_ids,
                                const index_t* p_max_token_id,
@@ -1579,7 +1587,7 @@ struct GridwiseMoeGemm
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
-                    else
+                    if constexpr(MulRoutedWeight)
                     {
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
                         weight = weight * p_sorted_weights_2[c_token_pos + m0];
@@ -1632,8 +1640,9 @@ struct GridwiseMoeGemm
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-              bool IsInputGemm   = true,
-              TailNumber TailNum = TailNumber::Odd>
+              bool IsInputGemm     = true,
+              bool MulRoutedWeight = true,
+              TailNumber TailNum   = TailNumber::Odd>
     __device__ static void Run_2Lds(const index_t* p_sorted_token_ids,
                                     const index_t* p_sorted_expert_ids,
                                     const index_t* p_max_token_id,
@@ -2086,7 +2095,7 @@ struct GridwiseMoeGemm
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
-                    else
+                    if constexpr(MulRoutedWeight)
                     {
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
                         weight = weight * p_sorted_weights_2[c_token_pos + m0];

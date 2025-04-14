@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -67,6 +67,7 @@ template <typename ALayout,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
           bool NSwizzle                               = false,
           bool IsInputGemm                            = true,
+          bool MulRoutedWeight                        = true,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ComputeTypeA,
@@ -256,6 +257,7 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                 MemoryDataOp,
                                                                 minimum_occupancy,
                                                                 IsInputGemm,
+                                                                MulRoutedWeight,
                                                                 TailNumber::Odd>;
                             RunKernel(kernel);
                         }
@@ -266,6 +268,7 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                 MemoryDataOp,
                                                                 minimum_occupancy,
                                                                 IsInputGemm,
+                                                                MulRoutedWeight,
                                                                 TailNumber::Even>;
                             RunKernel(kernel);
                         }
@@ -281,6 +284,7 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                  MemoryDataOp,
                                                                  minimum_occupancy,
                                                                  IsInputGemm,
+                                                                 MulRoutedWeight,
                                                                  TailNumber::Odd>;
                         RunKernel(kernel);
                     }
@@ -291,6 +295,7 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                  MemoryDataOp,
                                                                  minimum_occupancy,
                                                                  IsInputGemm,
+                                                                 MulRoutedWeight,
                                                                  TailNumber::Even>;
                         RunKernel(kernel);
                     }
@@ -311,6 +316,7 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                         InMemoryDataOperationEnum::Set,
                                                         minimum_occupancy,
                                                         IsInputGemm,
+                                                        MulRoutedWeight,
                                                         TailNumber::Odd>;
                     RunKernel(kernel);
                 }
