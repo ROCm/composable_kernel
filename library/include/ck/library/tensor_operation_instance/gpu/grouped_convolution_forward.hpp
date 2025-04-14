@@ -523,6 +523,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
 #endif
         }
+
         // layout NGCHW/GKYXC/NGKHW
         if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NGCHW> &&
                      is_same_v<WeiLayout, GKCYX> && is_same_v<OutLayout, NGKHW>)
@@ -580,7 +581,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
             }
 #endif
-#endif
+
+#endif // CK_USE_XDL
 
 #ifdef CK_USE_WMMA
             if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, GNHWC> &&
