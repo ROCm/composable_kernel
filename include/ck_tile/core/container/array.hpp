@@ -22,9 +22,9 @@ namespace ck_tile {
 /**
  * @brief A fixed-size array container similar to std::array with additional utilities.
  *
- * This template class provides a lightweight fixed-size array with value semantics,
- * supporting both host and device functionality for GPU programming. It includes
- * specialized initialization methods and type pruning capabilities.
+ * This template class provides a lightweight fixed-size array with value semantics that
+ * supports both host and device functionality for GPU programming. It includes
+ * type pruning capabilities and specialized initialization methods.
  *
  * @tparam T_ The type of elements in the array
  * @tparam N_ The fixed number of elements in the array
@@ -36,7 +36,7 @@ namespace ck_tile {
  *       - Specialized initialization behaviors
  *
  * The initializer_list constructor fills remaining elements with the last value
- * provided if the list size is smaller than N, which differs from std::array behavior.
+ * provided if the list size is smaller than N, which is different than std::array.
  */
 template <typename T_, index_t N_>
 struct array
